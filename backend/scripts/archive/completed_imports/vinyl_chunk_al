@@ -1,0 +1,50 @@
+VALUES ('3M', '3630-135', 'Yellow Rose', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-136', 'Lime Green', 48, 3.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-136', 'Lime Green', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-136', 'Lime Green', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-141', 'Gold Nugget', 48, 0.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-146', 'Light Kelly Green', 48, 0.33, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-149', 'Light Beige', 48, 0.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-156', 'Vivid Green', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-156', 'Vivid Green', 48, 0.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-157', 'Sultan Blue', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-157', 'Sultan Blue', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-157', 'Sultan Blue', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-157', 'Sultan Blue', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-157', 'Sultan Blue', 48, 0.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-157', 'Sultan Blue', 48, 0.25, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-167', 'Bright Blue', 48, 0.75, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-167', 'Bright Blue', 48, 0.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-167', 'Bright Blue', 48, 0.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-236', 'Turquoise', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-236', 'Turquoise', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-236', 'Turquoise', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-246', 'Teal Green', 48, 0.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-246', 'Teal Green', 48, 0.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-276', 'KY Blue Grass', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-276', 'KY Blue Grass', 48, 0.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)

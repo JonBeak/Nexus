@@ -1,0 +1,50 @@
+VALUES ('Avery', 'SC950-628', 'Egyptian Blue', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-630', 'Olympic Blue', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-640', 'Light Blue', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-652', 'Butterfly Blue', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-665', 'Intence Blue', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-678', 'Ocean Blue', 24, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-678', 'Ocean Blue', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-679', 'Reflex Blue', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-680', 'Sapphire Blue', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-683', 'Royal Blue', 24, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-683', 'Royal Blue', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-760', 'Apple Green', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-765', 'Olive Green', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-775', 'Bright Green', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-778', 'Green', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-780', 'Yellow Green', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-783', 'Unknown Color', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-785', 'Forest Green', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-790', 'Deep Green', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-793', 'Dark Green', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-810', 'Light Gray', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-820', 'Palm Oyster', 24, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-820', 'Palm Oyster', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-825', 'Light Ash Grey', 24, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'SC950-830', 'Slate Grey', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)

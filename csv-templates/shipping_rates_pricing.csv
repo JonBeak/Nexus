@@ -1,0 +1,4 @@
+shipping_type,shipping_code,base_rate,pallet_rate,crate_rate,effective_date,is_active
+"Standard Ground","SHIP_STD",125.00,75.00,150.00,2025-01-01,true
+"Expedited","SHIP_EXP",225.00,125.00,250.00,2025-01-01,true
+"LTL Freight","SHIP_LTL",85.00,45.00,95.00,2025-01-01,true

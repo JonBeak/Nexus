@@ -1,0 +1,50 @@
+VALUES ('Metamark', 'MT-677', 'Royal Blue', 48, 6.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Metamark', 'MT-677', 'Royal Blue', 48, 1.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Metamark', 'MT-677', 'Royal Blue', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PC500-774', 'Mountain Green Perm KR', 48, 0.33, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-190', 'Black', 48, 0.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-210', 'Primrose Yellow', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-210', 'Primrose Yellow', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-210', 'Primrose Yellow', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-210', 'Primrose Yellow', 48, 0.25, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-240', 'Sunflower Yellow', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-240', 'Sunflower Yellow', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-240', 'Sunflower Yellow', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-240', 'Sunflower Yellow', 48, 0.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-240', 'Sunflower Yellow', 48, 0.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-240', 'Sunflower Yellow', 48, 0.33, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-363', 'Pumpkin Orange', 48, 1.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-430', 'Cardinal Red', 48, 2.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-430', 'Cardinal Red', 48, 0.67, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-430', 'Cardinal Red', 48, 0.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-430', 'Cardinal Red', 48, 0.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-430', 'Cardinal Red', 48, 0.125, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-646', 'Bright Blue', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-646', 'Bright Blue', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-646', 'Bright Blue', 48, 0.67, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('Avery', 'PR800-672', 'Sultan Blue', 48, 1.0, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)

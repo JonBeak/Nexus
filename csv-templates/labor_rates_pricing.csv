@@ -1,0 +1,6 @@
+labor_type,labor_code,category,rate_type,base_rate,effective_date,is_active
+"Face Painting","PAINT_FACE","PAINTING","PER_SQFT",4.25,2025-01-01,true
+"Return Painting","PAINT_RET","PAINTING","PER_SQFT",3.85,2025-01-01,true
+"Assembly Standard","ASSEM_STD","ASSEMBLY","PER_SQFT",2.50,2025-01-01,true
+"CNC Cutting Aluminum","CUT_CNC_AL","CUTTING","PER_SQFT",3.75,2025-01-01,true
+"DC Plug Wiring","WIRE_DC","WIRING","PER_PIECE",12.50,2025-01-01,true

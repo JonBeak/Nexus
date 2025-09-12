@@ -1,0 +1,5 @@
+material_name,material_code,material_type,price_per_sqft,effective_date,is_active
+"Standard White Vinyl","VINYL_STD_WH","STANDARD",2.85,2025-01-01,true
+"Standard Color Vinyl","VINYL_STD_COL","STANDARD",3.05,2025-01-01,true
+"Translucent White","VINYL_TC_WH","TRANSLUCENT",3.20,2025-01-01,true
+"Perforated 60/40","VINYL_PERF_60","PERFORATED",4.15,2025-01-01,true

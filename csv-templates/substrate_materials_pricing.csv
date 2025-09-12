@@ -1,0 +1,5 @@
+substrate_name,substrate_code,substrate_type,price_per_sqft,cutting_rate_per_sqft,effective_date,is_active
+"Aluminum .080","AL_080","ALUMINUM",4.25,1.85,2025-01-01,true
+"Aluminum .125","AL_125","ALUMINUM",5.75,2.15,2025-01-01,true
+"ACM 3mm","ACM_3MM","ACM",3.85,1.25,2025-01-01,true
+"ACM 6mm","ACM_6MM","ACM",5.25,1.45,2025-01-01,true

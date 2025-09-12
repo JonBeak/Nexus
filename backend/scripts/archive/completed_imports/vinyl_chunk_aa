@@ -1,0 +1,50 @@
+-- SQL Script to Import Vinyl Inventory
+-- Generated automatically from inventory data
+USE sign_manufacturing;
+
+-- Insert unique products
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-005', 'Ivory', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-015', 'Yellow', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-025', 'Sunflower', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-026', 'Green', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-033', 'Red', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-036', 'Dark Blue', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-038', 'Fuchsia', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-043', 'Light Tomato Red', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-044', 'Orange', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-049', 'Burgundy', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-051', 'Silver Gray', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-053', 'Cardinal Red', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-057', 'Olympic Blue', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-061', 'Slate Gray', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-063', 'Rust Brown', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-069', 'Duranodic', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-071', 'Shadow Gray', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-073', 'Dark Red', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-074', 'Kumquat Orange', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-075', 'Marigold', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-076', 'Holly Green', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('3M', '3630-078', 'Vivid Rose', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)

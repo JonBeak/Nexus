@@ -1,0 +1,50 @@
+VALUES ('Avery', 'UC900-722', 'Amazonite Teal', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'UC900-726', 'Bright Green', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'UC900-734', 'Citrus Green', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'UC900-762', 'Palm Green', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'UC900-783', 'Safari Green', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'UC900-792', 'Holly Green', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'UC900-837', 'Cement Grey', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Avery', 'UC900-869', 'Light Silver', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Metamark', 'MT-600', 'White', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Metamark', 'MT-610', 'Black', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Metamark', 'MT-640', 'Light Red', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Metamark', 'MT-641', 'Tomato', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Metamark', 'MT-643', 'Cardinal', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Metamark', 'MT-653', 'Intense Blue', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Metamark', 'MT-660', 'Lime Green', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Metamark', 'MT-666', 'Turquoise', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Metamark', 'MT-668', 'Meadow', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Metamark', 'MT-677', 'Royal Blue', 48, 1, NOW(), NOW());
+INSERT IGNORE INTO vinyl_products (brand, series, colour, default_width, is_active, created_at, updated_at)
+VALUES ('Metamark', 'Metamark', 'Placeholder', 48, 1, NOW(), NOW());
+
+-- Insert vinyl inventory items
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-005', 'Ivory', 48, 0.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-005', 'Ivory', 48, 0.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-005', 'Ivory', 48, 0.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-005', 'Ivory', 48, 0.25, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)
+VALUES ('3M', '3630-015', 'Yellow', 48, 0.5, 'in_stock', CURDATE(), 'Storage', NOW(), NOW());
+INSERT INTO vinyl_inventory (brand, series, colour, width, length_yards, disposition, storage_date, location, created_at, updated_at)

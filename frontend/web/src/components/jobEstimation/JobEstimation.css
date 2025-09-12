@@ -1,0 +1,85 @@
+/* 3-Panel Layout Styles */
+.three-panel-container {
+  display: grid;
+  grid-template-columns: 25% 30% 45%;
+  gap: 1rem;
+  height: 100%;
+  width: 100%;
+}
+
+/* Responsive Layout for Tablets */
+@media (max-width: 1280px) {
+  .three-panel-container {
+    grid-template-columns: 30% 35% 35%;
+  }
+}
+
+/* Responsive Layout for Small Tablets and Large Phones */
+@media (max-width: 1024px) {
+  .three-panel-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    height: auto;
+  }
+  
+  .three-panel-container > div {
+    min-height: 400px;
+  }
+}
+
+/* Mobile Layout */
+@media (max-width: 640px) {
+  .three-panel-container {
+    padding: 0.5rem;
+  }
+  
+  .three-panel-container > div {
+    min-height: 300px;
+  }
+}
+
+/* Panel Styling */
+.three-panel-container > div {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ensure panels don't overflow */
+.three-panel-container .overflow-y-auto {
+  scrollbar-width: thin;
+  scrollbar-color: #9ca3af #f3f4f6;
+}
+
+.three-panel-container .overflow-y-auto::-webkit-scrollbar {
+  width: 6px;
+}
+
+.three-panel-container .overflow-y-auto::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 3px;
+}
+
+.three-panel-container .overflow-y-auto::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 3px;
+}
+
+.three-panel-container .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Ensure proper spacing in builder mode */
+.estimate-builder-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Breadcrumb styling */
+.breadcrumb-navigation {
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 1rem;
+}

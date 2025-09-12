@@ -1,0 +1,25 @@
+[Unit]
+Description=Sign House Frontend Web Server
+After=network.target signhouse-backend.service
+Wants=signhouse-backend.service
+
+[Service]
+Type=simple
+User=jon
+Group=jon
+WorkingDirectory=/home/jon/Nexus/frontend/web
+Environment=NODE_ENV=development
+Environment=PATH=/home/jon/.nvm/versions/node/v22.18.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/home/jon/.nvm/versions/node/v22.18.0/bin/npx vite --host
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=signhouse-frontend
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

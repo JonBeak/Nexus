@@ -1,0 +1,4 @@
+ul_type,ul_code,base_fee,per_set_fee,minimum_sets,effective_date,is_active
+"Standard UL 48 Listing","UL_STD",850.00,45.00,1,2025-01-01,true
+"Expedited UL Listing","UL_EXP",1200.00,65.00,1,2025-01-01,true
+"UL Energy Verification","UL_ENERGY",450.00,25.00,1,2025-01-01,true
