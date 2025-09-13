@@ -65,13 +65,12 @@ export interface GridJobBuilderProps {
   versioningMode?: boolean;
   estimateId?: number;
   isReadOnly?: boolean;
-  onNavigateToEstimate?: (jobId: number, estimateId: number) => void;
   // Validation callback
   onValidationChange?: (hasErrors: boolean, errorCount: number) => void;
   // Grid rows callback for assembly preview
   onGridRowsChange?: (rows: EstimateRow[]) => void;
   // Navigation guard callback
-  onRequestNavigation?: (navigationGuard: ((navigationFn: () => void) => void) | null) => void;
+  onRequestNavigation?: (navigationGuard: ((navigationFn?: () => void) => void) | null) => void;
 }
 
 export interface DragDropContextType {

@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import {
   DndContext,
   closestCenter,
+  closestCorners,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -14,7 +15,6 @@ import {
 import {
   SortableContext,
   sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { EstimateRow } from '../types';
 import { findProductGroupStart, findProductGroupEnd, getDraggedRows } from '../utils/groupUtils';
@@ -85,6 +85,7 @@ export const DragDropManager: React.FC<DragDropManagerProps> = ({
     // Create Set of IDs for O(1) lookup performance
     setDraggedRowIds(new Set(groupedRows.map(row => row.id)));
   };
+
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -310,13 +311,12 @@ export const DragDropManager: React.FC<DragDropManagerProps> = ({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={closestCorners}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
       <SortableContext 
-        items={sortableItems} 
-        strategy={verticalListSortingStrategy}
+        items={sortableItems}
       >
         <DragDropContext.Provider value={{ 
           activeId, 

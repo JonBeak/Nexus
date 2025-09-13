@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { apiClient } from '../../../services/api';
+import api from '../../../services/api';
 
 export interface ProductType {
   id: number;
@@ -33,7 +33,7 @@ export const useProductTypes = () => {
         setError(null);
         
         // Fetch from our unified product_types table
-        const response = await apiClient.get('/api/job-estimation/product-types');
+        const response = await api.get('/job-estimation/product-types');
         
         if (response.data.success) {
           // Filter active products and sort by display_order
