@@ -137,6 +137,12 @@ export const customerApi = {
     return response.data;
   },
 
+
+  // Make an address primary
+  makePrimaryAddress: async (customerId: number, addressId: number | string) => {
+    const response = await api.post(`/customers/${customerId}/addresses/${addressId}/make-primary`);
+    return response.data;
+  },
   // Get LED types
   getLedTypes: async () => {
     const response = await api.get('/customers/led-types');
@@ -464,6 +470,83 @@ export const timeApi = {
     break_minutes?: number;
   }) => {
     const response = await api.put('/time-management/entries/bulk', data);
+    return response.data;
+  },
+
+  // Time tracking status
+  getStatus: async () => {
+    const response = await api.get('/time/status');
+    return response.data;
+  },
+
+  // Clock in/out
+  clockIn: async () => {
+    const response = await api.post('/time/clock-in');
+    return response.data;
+  },
+
+  clockOut: async () => {
+    const response = await api.post('/time/clock-out');
+    return response.data;
+  },
+
+  // Weekly summary (alternative endpoint)
+  getWeeklySummaryAlt: async (weekOffset: number = 0) => {
+    const response = await api.get(`/time/weekly-summary?weekOffset=${weekOffset}`);
+    return response.data;
+  },
+};
+
+// Accounts Management API
+export const accountsApi = {
+  // Get all users
+  getUsers: async () => {
+    const response = await api.get('/accounts/users');
+    return response.data;
+  },
+
+  // Create new user
+  createUser: async (userData: any) => {
+    const response = await api.post('/accounts/users', userData);
+    return response.data;
+  },
+
+  // Update user
+  updateUser: async (userData: any) => {
+    const response = await api.put(`/accounts/users/${userData.user_id}`, userData);
+    return response.data;
+  },
+
+  // Update user password
+  updatePassword: async (userId: number, passwordData: any) => {
+    const response = await api.put(`/accounts/users/${userId}/password`, passwordData);
+    return response.data;
+  },
+
+  // Get vacations
+  getVacations: async () => {
+    const response = await api.get('/accounts/vacations');
+    return response.data;
+  },
+
+  // Delete vacation
+  deleteVacation: async (vacationId: number) => {
+    const response = await api.delete(`/accounts/vacations/${vacationId}`);
+    return response.data;
+  },
+};
+
+// Provinces/States API
+export const provincesApi = {
+  // Get provinces/states
+  getProvinces: async () => {
+    const response = await api.get('/customers/provinces-states');
+    return response.data;
+  },
+
+  // Get tax info for province
+  getTaxInfo: async (provinceCode: string) => {
+    const response = await api.get(`/customers/tax-info/${provinceCode}`);
     return response.data;
   },
 };

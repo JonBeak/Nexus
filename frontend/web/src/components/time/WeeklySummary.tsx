@@ -32,16 +32,6 @@ function WeeklySummary({
   onRequestEdit, 
   onRequestDelete 
 }: WeeklySummaryProps) {
-  // Debug: Log the weekly data
-  console.log('WeeklySummary received data:', weeklyData);
-  if (weeklyData?.entries) {
-    console.log('Entries details:', weeklyData.entries.map(entry => ({
-      entry_id: entry.entry_id,
-      total_hours: entry.total_hours,
-      total_hours_type: typeof entry.total_hours
-    })));
-  }
-
   // Helper function to safely format numbers
   const formatHours = (value: any): string => {
     // Handle null, undefined, empty string
@@ -52,7 +42,6 @@ function WeeklySummary({
           const hours = Number(entry.total_hours) || 0;
           return sum + hours;
         }, 0);
-        console.log('Backend weekTotal was null, calculated:', calculated);
         return calculated.toFixed(2);
       }
       return '0.00';
@@ -63,7 +52,6 @@ function WeeklySummary({
     
     // Check if it's a valid number
     if (isNaN(num)) {
-      console.warn('Invalid hours value:', value);
       return '0.00';
     }
     

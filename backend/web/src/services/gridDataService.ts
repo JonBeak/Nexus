@@ -70,64 +70,36 @@ export class GridDataService {
         const row = gridRows[i];
         const itemOrder = i + 1;
         
-        // Calculate logical item index using database relationships instead of row.type
-        let logicalItemIndex = 1;
-        if (row.parentProductId) {
-          // Sub-items identified by parentProductId - inherit parent's logical index
-          for (let j = i - 1; j >= 0; j--) {
-            const parentRow = gridRows[j];
-            if (parentRow.isMainRow && parentRow.id === row.parentProductId) {
-              // Found parent - calculate its logical index
-              let parentLogicalIndex = 0;
-              for (let k = 0; k <= j; k++) {
-                const r = gridRows[k];
-                if (r.isMainRow && !r.parentProductId) {
-                  parentLogicalIndex++;
-                }
-              }
-              logicalItemIndex = parentLogicalIndex;
-              break;
-            }
-          }
-        } else {
-          // For main rows, count logical numberable rows up to this point
-          let logicalCount = 0;
-          for (let j = 0; j <= i; j++) {
-            const r = gridRows[j];
-            if (r.isMainRow && !r.parentProductId) {
-              logicalCount++;
-            }
-          }
-          logicalItemIndex = logicalCount;
-        }
+        // Simplified: Use row position as logical index (can be enhanced later)
+        let logicalItemIndex = i + 1;
 
         // 🐛 DEBUG: Log row data to understand what's being saved
-        if (row.data?.assemblyGroup !== undefined || row.assemblyId !== undefined) {
-          console.log(`🔍 SAVE: Row ${row.id} productTypeId=${row.productTypeId}`, {
-            assemblyId: row.assemblyId,
-            dataAssemblyGroup: row.data?.assemblyGroup,
-            allData: Object.keys(row.data || {}).length > 20 ? 'large_object' : row.data
-          });
-        }
+        console.log(`🔍 SAVE: Row ${i + 1} productTypeId=${row.productTypeId}`, {
+          rowType: row.rowType,
+          productTypeName: row.productTypeName,
+          qty: row.qty,
+          hasFields: !!(row.field1 || row.field2 || row.field3)
+        });
 
-        // Fix assembly ID mapping: frontend sends assemblyId as string, convert to number
+        // Assembly ID not sent in simplified structure - set to null
         let assemblyGroupId = null;
-        if (row.assemblyId !== undefined && row.assemblyId !== null) {
-          const parsedAssemblyId = parseInt(row.assemblyId.toString());
-          if (!isNaN(parsedAssemblyId)) {
-            assemblyGroupId = parsedAssemblyId;
-          }
-        }
-        // Fallback to data.assemblyGroup if direct assemblyId not available
-        if (assemblyGroupId === null && row.data?.assemblyGroup !== undefined) {
-          assemblyGroupId = row.data.assemblyGroup;
-        }
 
-        console.log(`🔍 SAVE: Final assemblyGroupId for row ${row.id}: ${assemblyGroupId}`);
-
-        // Clean the row data before stringifying (remove fieldConfig to prevent large JSON)
-        const cleanRowData = { ...row.data };
-        delete cleanRowData.fieldConfig;
+        // Build data object from flat structure sent by frontend
+        const cleanRowData: Record<string, any> = {
+          quantity: row.qty || '',
+          field1: row.field1 || '',
+          field2: row.field2 || '',
+          field3: row.field3 || '',
+          field4: row.field4 || '',
+          field5: row.field5 || '',
+          field6: row.field6 || '',
+          field7: row.field7 || '',
+          field8: row.field8 || '',
+          field9: row.field9 || '',
+          field10: row.field10 || '',
+          field11: row.field11 || '',
+          field12: row.field12 || ''
+        };
         
         // ✅ SIMPLIFIED: Assembly fields already contain database IDs from frontend
         // No conversion needed - store database IDs directly
@@ -143,32 +115,14 @@ export class GridDataService {
           return obj;
         }, {});
 
-        // Handle product type requirements and prepare template data
+        // Handle product type requirements
         let productTypeId = row.productTypeId;
-        let templateData = null;
-        
+
         // Trust the productTypeId from frontend - no type-based overrides
         // All product logic is now database-driven via product_types table
         if (!productTypeId) {
           // Only skip rows that have no productTypeId at all
           continue;
-        }
-
-        // CONSOLIDATION: Embed template data for product rows with fieldConfig
-        if (row.fieldConfig && Array.isArray(row.fieldConfig) && row.fieldConfig.length > 0) {
-          try {
-            // Capture the template data from frontend fieldConfig to prevent future orphaning
-            templateData = JSON.stringify({
-              product_type_id: productTypeId,
-              product_type_name: row.productTypeName,
-              field_config: row.fieldConfig,
-              captured_at: new Date().toISOString()
-            });
-            console.log(`📦 CONSOLIDATION: Embedded template data for row ${row.id} (${row.productTypeName})`);
-          } catch (templateError) {
-            console.error('Failed to embed template data:', templateError);
-            // Continue without template data rather than failing the save
-          }
         }
 
         // Check if we can reuse an existing database ID
@@ -186,30 +140,24 @@ export class GridDataService {
               item_order = ?,
               item_index = ?,
               grid_data = ?,
-              input_data = ?,
-              base_quantity = ?,
               unit_price = ?,
               extended_price = ?,
               customer_description = ?,
               internal_notes = ?,
-              template_data = ?,
               updated_at = NOW()
             WHERE id = ?`,
             [
               assemblyGroupId,
               null, // Update without parent first
               productTypeId,
-              row.productTypeName || row.data?.itemName || 'Unnamed Item',
+              row.productTypeName || 'Unnamed Item',
               itemOrder,
               logicalItemIndex,
               JSON.stringify(cleanRowData || {}),
-              JSON.stringify(cleanRowData || {}), // Keep legacy compatibility
-              row.data?.quantity || null,
-              row.data?.unit_price || null,
-              row.data?.extended_price || null,
-              row.data?.customerDescription || null,
-              row.data?.internalNotes || null,
-              templateData, // CONSOLIDATION: Embed template data
+              null, // unit_price not sent in simplified structure
+              null, // extended_price not sent in simplified structure
+              row.customerDescription || null,
+              row.internalNotes || null,
               existingDbId
             ]
           );
@@ -219,56 +167,42 @@ export class GridDataService {
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO job_estimate_items (
               estimate_id,
-              assembly_group_id, 
+              assembly_group_id,
               parent_item_id,
-              product_type_id, 
-              item_name, 
+              product_type_id,
+              item_name,
               item_order,
               item_index,
               grid_data,
-              input_data,
-              base_quantity,
               unit_price,
               extended_price,
               customer_description,
               internal_notes,
-              template_data,
               created_at,
               updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
             [
               estimateId,
               assemblyGroupId,
               null, // Insert without parent first
               productTypeId,
-              row.productTypeName || row.data?.itemName || 'Unnamed Item',
+              row.productTypeName || 'Unnamed Item',
               itemOrder,
               logicalItemIndex,
               JSON.stringify(cleanRowData || {}),
-              JSON.stringify(cleanRowData || {}), // Keep legacy compatibility
-              row.data?.quantity || null,
-              row.data?.unit_price || null,
-              row.data?.extended_price || null,
-              row.data?.customerDescription || null,
-              row.data?.internalNotes || null,
-              templateData // CONSOLIDATION: Embed template data
+              null, // unit_price not sent in simplified structure
+              null, // extended_price not sent in simplified structure
+              row.customerDescription || null,
+              row.internalNotes || null
             ]
           );
           dbId = result.insertId;
         }
         
-        // Map frontend ID to database ID
-        if (row.id) {
-          idMapping.set(row.id, dbId);
-        }
+        // Frontend doesn't send IDs in simplified structure - use position
+        idMapping.set(`row-${i + 1}`, dbId);
 
-        // Track parent relationships for second pass
-        if (row.parentProductId) {
-          parentRelationships.push({
-            childDbId: dbId,
-            parentFrontendId: row.parentProductId
-          });
-        }
+        // parentProductId not sent in simplified structure - no parent relationships to track
       }
 
       // CLEANUP: Remove items that are no longer present (beyond current grid length)
@@ -279,19 +213,7 @@ export class GridDataService {
         );
       }
 
-      // SECOND PASS: Update parent relationships using database IDs
-      for (const relationship of parentRelationships) {
-        const parentDbId = idMapping.get(relationship.parentFrontendId);
-        
-        if (parentDbId) {
-          await connection.execute(
-            'UPDATE job_estimate_items SET parent_item_id = ? WHERE id = ?',
-            [parentDbId, relationship.childDbId]
-          );
-        } else {
-          // Parent not found in idMapping
-        }
-      }
+      // No parent relationships to process in simplified structure
 
       // Update estimate timestamp
       await connection.execute(
@@ -341,7 +263,7 @@ export class GridDataService {
     try {
       console.log('🔍 Loading grid data for estimate ID:', estimateId);
       const [rows] = await pool.execute<RowDataPacket[]>(
-        `SELECT 
+        `SELECT
           i.id,
           i.assembly_group_id,
           i.parent_item_id,
@@ -352,8 +274,6 @@ export class GridDataService {
           i.item_order,
           i.item_index,
           i.grid_data,
-          i.template_data,
-          i.base_quantity,
           i.unit_price,
           i.extended_price,
           i.customer_description,
@@ -391,37 +311,25 @@ export class GridDataService {
           // 🐛 DEBUG: Check for custom fields in loaded data
           const customFields = ['channel_letter_style', 'letters_data', 'vinyl_type'];
           const loadedCustomData: any = customFields.reduce((obj: any, field) => {
-            if (gridData[field] !== undefined) obj[field] = gridData[field];
+            if ((gridData as any)[field] !== undefined) obj[field] = (gridData as any)[field];
             return obj;
           }, {});
         } catch (parseError) {
           console.error('Error parsing grid_data JSON for item', item.id, parseError);
         }
         
-        // CONSOLIDATION: Use embedded template data exclusively - no fallbacks
+        // Use database templates exclusively (no embedded template_data)
         let fieldConfig: any[] = [];
-        
-        if (item.template_data) {
-          // CONSOLIDATED ITEMS: Use embedded template data
-          const templateData = typeof item.template_data === 'string' 
-            ? JSON.parse(item.template_data) 
-            : item.template_data;
-          
-          if (!templateData.field_config || !Array.isArray(templateData.field_config)) {
-            throw new Error(`CONSOLIDATION ERROR: Invalid embedded template data for item ${item.id}`);
-          }
-          
-          fieldConfig = templateData.field_config;
-          console.log(`📦 CONSOLIDATION: Using embedded template for item ${item.id} (${templateData.product_type_name})`);
-          
-        } else if (item.product_type_id) {
-          // UNIFIED SYSTEM: All products use database templates
+
+        if (item.product_type_id) {
+          // Load template from database
           const template = await dynamicTemplateService.getProductTemplate(item.product_type_id);
           if (!template || !template.rows) {
-            throw new Error(`TEMPLATE ERROR: No template available for product type ${item.product_type_id}`);
+            throw new Error(`Invalid template for product type ${item.product_type_id}`);
           }
-          fieldConfig = template.rows;
-          console.log(`🔄 UNIFIED: Using database template for product type ${item.product_type_id}`);
+
+          fieldConfig = template.rows.flat();
+          console.log(`🏗️ Using database template for item ${item.id} (product type ${item.product_type_id})`);
         }
         
         
@@ -440,16 +348,14 @@ export class GridDataService {
           assemblyId: item.assembly_group_id !== null ? item.assembly_group_id.toString() : undefined,
           indent: 0,
           data: {
-            // Start with metadata fields first
+            // Start with gridData fields first (user-entered values take priority)
+            ...gridData,
+            // Then add metadata fields that don't conflict
             itemName: item.item_name,
-            quantity: item.base_quantity,
             unitPrice: item.unit_price,
             extendedPrice: item.extended_price,
             customerDescription: item.customer_description,
-            internalNotes: item.internal_notes,
-            // ASSEMBLY FIX: Only use grid field data - database column is single source of truth
-            // Removed assembly group duplication that was overriding user deselections
-            ...gridData
+            internalNotes: item.internal_notes
           },
           fieldConfig, // ✅ Critical for field rendering
           isMainRow: item.product_type_category !== 'sub_item' && !item.parent_item_id,

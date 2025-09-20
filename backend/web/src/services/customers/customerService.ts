@@ -114,14 +114,6 @@ export class CustomerService {
         c.phone,
         c.tax_id,
         c.active,
-        CONCAT(COALESCE(ca.address_line1, ''), 
-               CASE WHEN ca.address_line2 IS NOT NULL AND ca.address_line2 != '' 
-                    THEN CONCAT(', ', ca.address_line2) 
-                    ELSE '' END,
-               CASE WHEN ca.city IS NOT NULL THEN CONCAT(', ', ca.city) ELSE '' END,
-               CASE WHEN ca.province_state_short IS NOT NULL THEN CONCAT(', ', ca.province_state_short) ELSE '' END,
-               CASE WHEN ca.postal_zip IS NOT NULL THEN CONCAT(' ', ca.postal_zip) ELSE '' END
-        ) as full_address,
         ca.city,
         ca.province_state_short as state,
         c.payment_terms,
@@ -427,7 +419,7 @@ export class CustomerService {
     if (wire_length !== undefined) {
       const wireIndex = fields.indexOf('powersupply_yes_or_no');
       fields.splice(wireIndex, 0, 'wire_length');
-      values.splice(wireIndex, 0, safeData.wire_length);
+      values.splice(wireIndex, 0, safeData.wire_length ?? null);
     }
 
     const placeholders = fields.map(field => 

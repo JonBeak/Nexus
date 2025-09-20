@@ -34,6 +34,14 @@ export const ProductTypeSelector: React.FC<ProductTypeSelectorProps> = ({
     setIsOpen(false);
   };
 
+  // Debug: Log product types to see categories
+  console.log('ProductTypeSelector - Grouped product types:', {
+    normal: groupedProductTypes.normal.length,
+    sub_item: groupedProductTypes.sub_item.length,
+    special: groupedProductTypes.special.length,
+    sub_item_sample: groupedProductTypes.sub_item.slice(0, 2)
+  });
+
   // Find selected product name for display
   const selectedProduct = [
     ...groupedProductTypes.normal,

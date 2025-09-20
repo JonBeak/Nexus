@@ -13,6 +13,7 @@
       <Rule id="4">Code Size Limit: Maximum 500 lines per file - refactor before exceeding</Rule>
       <Rule id="5">Error Handling: Every database and file operation MUST include error handling</Rule>
       <Rule id="6">Pattern Consistency: ALWAYS examine existing code patterns before writing new code</Rule>
+      <Rule id="7">CRITICAL GIT SAFETY: NEVER use "git checkout HEAD --" or any destructive git operations without creating backups first. User lost hours of work - always commit progress or create backups before any revert operations.</Rule>
     </AbsoluteRules>
   </ProductionSafetyRules>
 

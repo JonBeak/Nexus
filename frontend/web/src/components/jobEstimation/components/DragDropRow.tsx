@@ -23,6 +23,10 @@ interface DragDropRowProps {
   onDeleteRow: (rowIndex: number) => void;
   onDuplicateRow: (rowIndex: number) => void;
   isReadOnly: boolean;
+  fieldPrompts?: Record<string, string>; // Field prompts for this product type
+  fieldEnabled?: Record<string, boolean>; // Field enable states
+  staticOptions?: Record<string, string[]>; // Static dropdown options
+  validationStates?: Record<string, 'error' | 'warning' | 'valid'>; // Validation states
 }
 
 export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
@@ -35,7 +39,11 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
   onInsertRow,
   onDeleteRow,
   onDuplicateRow,
-  isReadOnly
+  isReadOnly,
+  fieldPrompts,
+  fieldEnabled,
+  staticOptions,
+  validationStates
 }) => {
   // Use sortable for draggable rows only
   const sortableConfig = row.isDraggable ? useSortable({ 
@@ -88,33 +96,29 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
       }`}
     >
       {/* Row Number & Drag Handle - matches original exactly */}
-      <td className="w-12 px-2 py-1 border-r">
-        <div className="flex items-center justify-between h-full">
+      <td className="w-4 px-0.5 py-1 border-r">
+        <div className="flex items-center h-full">
           {/* Drag Handle - Left Aligned */}
-          <div className="flex items-center">
-            {row.isDraggable && (
-              <div 
-                {...attributes}
-                {...listeners}
-                className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 rounded"
-              >
-                <GripVertical className="w-4 h-4 opacity-60 group-hover:opacity-100 text-gray-500" />
-              </div>
-            )}
-          </div>
-          
-          {/* Row Number - Right Aligned */}
-          <div className="flex items-center space-x-1">
-            {row.showRowNumber && (
-              <span className={
-                row.nestingLevel === 'sub'
-                  ? 'text-xs text-gray-500'  // Sub-item numbering (1.a, 1.b)
-                  : 'text-sm text-black font-bold'  // Main numbering (1, 2, 3)
-              }>
-                {row.displayNumber}
-              </span>
-            )}
-          </div>
+          {row.isDraggable && (
+            <div
+              {...attributes}
+              {...listeners}
+              className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 rounded mr-1"
+            >
+              <GripVertical className="w-4 h-4 opacity-60 group-hover:opacity-100 text-gray-500" />
+            </div>
+          )}
+
+          {/* Row Number - Left Justified after handle */}
+          {row.showRowNumber && (
+            <span className={
+              row.nestingLevel === 'sub'
+                ? 'text-xs text-gray-500 pr-1.5'  // Sub-item numbering (1.a, 1.b)
+                : 'text-sm text-black font-bold pr-1.5'  // Main numbering (1, 2, 3)
+            }>
+              {row.displayNumber}
+            </span>
+          )}
         </div>
       </td>
       
@@ -130,7 +134,7 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
       </td>
       
       {/* QTY Column */}
-      <td className="px-1 py-0.5 w-14 border-l border-gray-100">
+      <td className="px-1 py-0.5 w-5 border-l border-gray-100">
         <FieldCell
           fieldName="quantity"
           fieldValue={row.data?.quantity || ''}
@@ -139,24 +143,31 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
           isEditable={!isReadOnly && row.editableFields.includes('quantity')}
           onCommit={(value) => onFieldCommit(rowIndex, 'quantity', value)}
           staticDataCache={staticDataCache}
+          fieldPrompt={fieldPrompts?.['quantity']}
+          fieldEnabled={fieldPrompts?.['qty_enabled'] === true}
+          validationState={validationStates?.['quantity']}
         />
       </td>
       
-      {/* 12 Dynamic Field Columns */}
-      {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(colIndex => {
+      {/* 10 Dynamic Field Columns */}
+      {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(colIndex => {
         const { fieldName, fieldValue } = getFieldData(colIndex);
         
         return (
-          <td key={colIndex} className="px-1 py-0.5 w-16 border-l border-gray-100">
+          <td key={colIndex} className="px-1 py-0.5 w-6 border-l border-gray-100">
             {fieldName && (
               <FieldCell
                 fieldName={fieldName}
                 fieldValue={fieldValue}
-                fieldType="text" // Base layer uses strings only
+                fieldType={(staticOptions?.[fieldName] && staticOptions[fieldName].length > 0) ? "select" : "text"}
                 placeholder={`F${colIndex + 1}`}
                 isEditable={!isReadOnly && row.editableFields.includes(fieldName)}
                 onCommit={(value) => onFieldCommit(rowIndex, fieldName, value)}
                 staticDataCache={staticDataCache}
+                fieldPrompt={fieldPrompts?.[fieldName]}
+                fieldEnabled={fieldPrompts?.[`${fieldName}_enabled`] === true}
+                options={staticOptions?.[fieldName]}
+                validationState={validationStates?.[fieldName]}
               />
             )}
           </td>
@@ -164,45 +175,45 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
       })}
       
       {/* Actions - add row button on all rows except continuation rows */}
-      <td className="w-12 px-1 py-0.5 border-l">
+      <td className="w-4 px-1.5 py-0.5 border-l">
         <div className="flex items-center space-x-1">
           {/* Add Row button - show on all rows except continuation rows */}
           {!isReadOnly && row.rowType !== 'continuation' ? (
             <button
               onClick={() => onInsertRow(rowIndex)}
-              className="w-5 h-5 text-xs text-gray-400 hover:text-green-600 hover:bg-green-50 rounded"
+              className="w-3 h-3 text-xs text-gray-400 hover:text-green-600 hover:bg-green-50 rounded"
               title="Insert row"
             >
               <Plus className="w-3 h-3" />
             </button>
           ) : (
-            <div className="w-5 h-5"></div>
+            <div className="w-3 h-3"></div>
           )}
           
           {/* Duplicate button - show when allowed */}
           {!isReadOnly && row.canDuplicate ? (
             <button
               onClick={() => onDuplicateRow(rowIndex)}
-              className="w-5 h-5 text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+              className="w-3 h-3 text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
               title="Duplicate"
             >
               <Copy className="w-3 h-3" />
             </button>
           ) : (
-            <div className="w-5 h-5"></div>
+            <div className="w-3 h-3"></div>
           )}
           
           {/* Delete button - show when allowed */}
           {!isReadOnly && row.canDelete ? (
             <button
               onClick={() => onDeleteRow(rowIndex)}
-              className="w-5 h-5 text-xs text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+              className="w-3 h-3 text-xs text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
               title="Delete"
             >
               <Trash2 className="w-3 h-3" />
             </button>
           ) : (
-            <div className="w-5 h-5"></div>
+            <div className="w-3 h-3"></div>
           )}
         </div>
       </td>

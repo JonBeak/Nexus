@@ -255,9 +255,11 @@ export const CombinedVinylDropdown: React.FC<CombinedVinylDropdownProps> = ({
 
   return (
     <div className={`relative ${className}`} ref={containerRef}>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
+      {label && (
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
+      )}
       
       <div className="relative">
         <input
@@ -291,7 +293,7 @@ export const CombinedVinylDropdown: React.FC<CombinedVinylDropdownProps> = ({
         </div>
       </div>
 
-      {isOpen && (filteredOptions.length > 0 || loading) && createPortal(
+      {isOpen && createPortal(
         <div 
           ref={dropdownRef}
           className="fixed z-[9999] bg-white border border-gray-300 rounded-md shadow-lg"
@@ -306,7 +308,13 @@ export const CombinedVinylDropdown: React.FC<CombinedVinylDropdownProps> = ({
           {loading ? (
             <div className="px-3 py-2 text-sm text-gray-500">Loading vinyl products...</div>
           ) : filteredOptions.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-gray-500">No vinyl products found</div>
+            <div className="px-3 py-2 text-sm text-gray-500">
+              {!combinations || combinations.length === 0
+                ? 'Type to search products...'
+                : searchTerm
+                  ? 'No matching products found'
+                  : 'Type to search products'}
+            </div>
           ) : (
             filteredOptions.map((option, index) => (
               <div

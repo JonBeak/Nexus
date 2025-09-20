@@ -193,16 +193,27 @@ export const createInteractionOperations = (): InteractionOperations => {
       return [];
     }
 
+    // Base fields that are always editable
+    const baseFields = ['quantity']; // QTY column
+
     // Get field names from static field options
-    // All fields with options or data are potentially editable
-    const allFieldNames = Object.keys(row.staticFieldOptions);
-    
+    const optionFieldNames = Object.keys(row.staticFieldOptions || {});
+
     // Also include fields that have data but no options (text fields, etc.)
-    const dataFieldNames = Object.keys(row.data);
-    
+    const dataFieldNames = Object.keys(row.data || {});
+
+    // For now, also include generic field names for the 12-column grid
+    const genericFields = ['field1', 'field2', 'field3', 'field4', 'field5', 'field6',
+                          'field7', 'field8', 'field9', 'field10', 'field11', 'field12'];
+
     // Combine and deduplicate
-    const editableFields = [...new Set([...allFieldNames, ...dataFieldNames])];
-    
+    const editableFields = [...new Set([
+      ...baseFields,
+      ...optionFieldNames,
+      ...dataFieldNames,
+      ...genericFields
+    ])];
+
     return editableFields;
   }
 

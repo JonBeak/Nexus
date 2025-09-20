@@ -6,7 +6,7 @@ interface CustomerTableRowProps {
   onReactivateClick: (customerId: number) => Promise<void>;
 }
 
-export const CustomerTableRow: React.FC<CustomerTableRowProps> = ({
+export const CustomerTableRow: React.FC<CustomerTableRowProps> = React.memo(({
   customer,
   onDetailsClick,
   onReactivateClick
@@ -172,4 +172,4 @@ export const CustomerTableRow: React.FC<CustomerTableRowProps> = ({
       </td>
     </tr>
   );
-};
+});

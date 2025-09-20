@@ -213,7 +213,7 @@ export interface RateQueryResult {
   found: boolean;
   rates: Record<string, any>;
   effectiveDate: Date;
-  rateTable: string;
+  rateTable: string | null;
 }
 
 // Validation results

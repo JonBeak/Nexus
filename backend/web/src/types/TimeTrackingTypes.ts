@@ -169,7 +169,7 @@ export interface TimeEntryData {
   total_hours?: number;
   status?: 'active' | 'completed';
   applied_breaks?: string; // JSON string
-  break_adjustment_notes?: string;
+  break_adjustment_notes?: string | null;
   notes?: string;
 }
 

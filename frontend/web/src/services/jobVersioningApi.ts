@@ -166,5 +166,10 @@ export const jobVersioningApi = {
   clearEmptyItems: async (estimateId: number) => {
     const response = await api.post(`/job-estimation/estimates/${estimateId}/clear-empty`);
     return response.data;
+  },
+
+  addTemplateSection: async (estimateId: number) => {
+    const response = await api.post(`/job-estimation/estimates/${estimateId}/add-section`);
+    return response.data;
   }
 };

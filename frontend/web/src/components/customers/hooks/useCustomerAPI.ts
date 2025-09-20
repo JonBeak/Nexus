@@ -64,26 +64,13 @@ export const useCustomerAPI = (): UseCustomerAPIReturn => {
     setError('');
 
     try {
-      const token = localStorage.getItem('access_token');
-      const params = new URLSearchParams({
-        limit: '100000', // Get all customers - high enough limit to never be reached
-        ...(search && { search }),
-        ...(includeInactive && { include_inactive: 'true' })
+      const data = await customerApi.getCustomers({
+        limit: 100000,
+        search: search || undefined,
+        include_inactive: includeInactive || undefined,
       });
-
-      const response = await fetch(`http://192.168.2.14:3001/api/customers?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch customers');
-      }
-
-      const data = await response.json();
-      return data.customers;
+      // API returns { customers, total, ... }
+      return data.customers ?? [];
     } catch (err) {
       const errorMessage = 'Failed to load customers. Please try again.';
       setError(errorMessage);
@@ -105,32 +92,15 @@ export const useCustomerAPI = (): UseCustomerAPIReturn => {
     }
   };
 
-  // Fetch customer details with authentication and fallback handling
+  // Fetch customer details with fallback handling
   const fetchCustomerDetails = async (customerId: number, fallbackCustomer: any): Promise<any> => {
     try {
-      const token = localStorage.getItem('access_token');
-      
-      // Test if token is still valid by making a simple auth check
-      const authCheck = await fetch('http://192.168.2.14:3001/api/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      if (authCheck.status === 401 || authCheck.status === 403) {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        alert('Session expired. Please refresh the page to login again.');
-        return fallbackCustomer;
-      }
-      
-      // Use the customerApi instead of direct fetch to leverage interceptors
+      // Use the customerApi which handles auth automatically via interceptors
       const detailedCustomer = await customerApi.getCustomer(customerId);
       return detailedCustomer;
     } catch (error) {
       console.error('Error fetching customer details:', error);
-      
+
       // Fallback to basic customer data
       return fallbackCustomer;
     }

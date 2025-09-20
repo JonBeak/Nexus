@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { AuthRequest } from '../types';
+import { AuthenticatedRequest } from '../types';
 import { pool } from '../config/database';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 
@@ -17,11 +17,12 @@ interface LockStatus {
 /**
  * Acquire a lock on a resource
  */
-export const acquireLock = async (req: AuthRequest, res: Response) => {
+export const acquireLock = async (req: Request, res: Response) => {
   try {
+    const reqUser = (req as AuthenticatedRequest).user;
     const { resource_type, resource_id } = req.body;
-    const user_id = req.user.user_id;
-    const username = req.user.username;
+    const user_id = reqUser.user_id;
+    const username = reqUser.username;
 
     if (!resource_type || !resource_id) {
       return res.status(400).json({
@@ -58,20 +59,30 @@ export const acquireLock = async (req: AuthRequest, res: Response) => {
     }
 
     // Acquire or refresh lock (10 minute expiry)
+    // Normal acquisition always clears override flag - only explicit override should set it
     await pool.execute(
-      `INSERT INTO resource_locks 
+      `INSERT INTO resource_locks
        (resource_type, resource_id, editing_user_id, editing_started_at, editing_expires_at, locked_by_override)
        VALUES (?, ?, ?, NOW(), DATE_ADD(NOW(), INTERVAL 10 MINUTE), FALSE)
        ON DUPLICATE KEY UPDATE
        editing_expires_at = DATE_ADD(NOW(), INTERVAL 10 MINUTE),
-       locked_by_override = CASE 
-         WHEN editing_user_id = VALUES(editing_user_id) THEN locked_by_override
-         ELSE FALSE
-       END`,
+       locked_by_override = FALSE`,
       [resource_type, resource_id, user_id]
     );
 
-    res.json({ 
+    // Get the actual lock status from database to return correct override flag
+    const [updated] = await pool.execute<RowDataPacket[]>(
+      `SELECT rl.*, u.username as editing_user
+       FROM resource_locks rl
+       JOIN users u ON rl.editing_user_id = u.user_id
+       WHERE rl.resource_type = ? AND rl.resource_id = ?
+       AND rl.editing_expires_at > NOW()`,
+      [resource_type, resource_id]
+    );
+
+    const lockData = updated[0];
+
+    res.json({
       success: true,
       lock_status: {
         resource_type,
@@ -79,9 +90,9 @@ export const acquireLock = async (req: AuthRequest, res: Response) => {
         can_edit: true,
         editing_user: username,
         editing_user_id: user_id,
-        editing_started_at: new Date().toISOString(),
-        editing_expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-        locked_by_override: false
+        editing_started_at: lockData.editing_started_at,
+        editing_expires_at: lockData.editing_expires_at,
+        locked_by_override: lockData.locked_by_override || false
       }
     });
   } catch (error) {
@@ -96,10 +107,11 @@ export const acquireLock = async (req: AuthRequest, res: Response) => {
 /**
  * Release a lock on a resource
  */
-export const releaseLock = async (req: AuthRequest, res: Response) => {
+export const releaseLock = async (req: Request, res: Response) => {
   try {
+    const reqUser = (req as AuthenticatedRequest).user;
     const { resource_type, resource_id } = req.body;
-    const user_id = req.user.user_id;
+    const user_id = reqUser.user_id;
 
     if (!resource_type || !resource_id) {
       return res.status(400).json({
@@ -128,10 +140,11 @@ export const releaseLock = async (req: AuthRequest, res: Response) => {
 /**
  * Check lock status of a resource
  */
-export const checkLock = async (req: AuthRequest, res: Response) => {
+export const checkLock = async (req: Request, res: Response) => {
   try {
+    const reqUser = (req as AuthenticatedRequest).user;
     const { resource_type, resource_id } = req.params;
-    const current_user_id = req.user.user_id;
+    const current_user_id = reqUser.user_id;
 
     if (!resource_type || !resource_id) {
       return res.status(400).json({
@@ -187,12 +200,13 @@ export const checkLock = async (req: AuthRequest, res: Response) => {
 /**
  * Override an existing lock (requires manager+ permissions)
  */
-export const overrideLock = async (req: AuthRequest, res: Response) => {
+export const overrideLock = async (req: Request, res: Response) => {
   try {
+    const reqUser = (req as AuthenticatedRequest).user;
     const { resource_type, resource_id } = req.body;
-    const user_id = req.user.user_id;
-    const username = req.user.username;
-    const user_role = req.user.role;
+    const user_id = reqUser.user_id;
+    const username = reqUser.username;
+    const user_role = reqUser.role;
 
     if (!resource_type || !resource_id) {
       return res.status(400).json({
@@ -247,10 +261,11 @@ export const overrideLock = async (req: AuthRequest, res: Response) => {
 /**
  * Get all locks for a specific resource type (admin function)
  */
-export const getResourceLocks = async (req: AuthRequest, res: Response) => {
+export const getResourceLocks = async (req: Request, res: Response) => {
   try {
+    const reqUser = (req as AuthenticatedRequest).user;
     const { resource_type } = req.params;
-    const user_role = req.user.role;
+    const user_role = reqUser.role;
 
     // Only managers and owners can view all locks
     if (user_role !== 'manager' && user_role !== 'owner') {
@@ -280,9 +295,10 @@ export const getResourceLocks = async (req: AuthRequest, res: Response) => {
 /**
  * Get all active locks (admin function)
  */
-export const getAllActiveLocks = async (req: AuthRequest, res: Response) => {
+export const getAllActiveLocks = async (req: Request, res: Response) => {
   try {
-    const user_role = req.user.role;
+    const reqUser = (req as AuthenticatedRequest).user;
+    const user_role = reqUser.role;
 
     // Only owners can view all locks across all resources
     if (user_role !== 'owner') {
@@ -311,9 +327,10 @@ export const getAllActiveLocks = async (req: AuthRequest, res: Response) => {
 /**
  * Clean up expired locks (maintenance function)
  */
-export const cleanupExpiredLocks = async (req: AuthRequest, res: Response) => {
+export const cleanupExpiredLocks = async (req: Request, res: Response) => {
   try {
-    const user_role = req.user.role;
+    const reqUser = (req as AuthenticatedRequest).user;
+    const user_role = reqUser.role;
 
     // Only managers and owners can run cleanup
     if (user_role !== 'manager' && user_role !== 'owner') {

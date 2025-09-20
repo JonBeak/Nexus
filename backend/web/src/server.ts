@@ -8,8 +8,13 @@ import timeTrackingRoutes from './routes/timeTracking';
 import timeManagementRoutes from './routes/timeManagement';
 import wagesRoutes from './routes/wages';
 import accountsRoutes from './routes/accounts';
-import vinylRoutes from './routes/vinyl';
-import vinylProductsRoutes from './routes/vinylProducts';
+// Old vinyl routes (backup)
+// import vinylRoutes from './routes/vinyl';
+// import vinylProductsRoutes from './routes/vinylProducts';
+
+// New vinyl routes (refactored architecture)
+import vinylRoutes from './routes/vinylNew';
+import vinylProductsRoutes from './routes/vinylProductsNew';
 import suppliersRoutes from './routes/suppliers';
 import jobsRoutes from './routes/jobs';
 import supplyChainRoutes from './routes/supplyChainSimple';
@@ -22,7 +27,7 @@ import locksRoutes from './routes/locks';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
 
 // Middleware
 app.use(cors({
@@ -46,6 +51,7 @@ app.use('/api/time', timeTrackingRoutes);
 app.use('/api/time-management', timeManagementRoutes);
 app.use('/api/wages', wagesRoutes);
 app.use('/api/accounts', accountsRoutes);
+// Vinyl management (refactored with proper 3-layer architecture)
 app.use('/api/vinyl', vinylRoutes);
 app.use('/api/vinyl-products', vinylProductsRoutes);
 app.use('/api/suppliers', suppliersRoutes);

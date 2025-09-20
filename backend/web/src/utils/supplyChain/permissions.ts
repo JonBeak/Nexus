@@ -7,149 +7,13 @@ export interface AuthenticatedRequest extends Request {
 }
 
 export class SupplyChainPermissions {
+  // =====================================================
+  // RBAC PERMISSION FUNCTIONS
+  // =====================================================
+
   /**
    * Check if user can view supply chain dashboard
-   * Only managers and owners can access supply chain
-   */
-  static canViewSupplyChain(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
-  }
-
-  /**
-   * Check if user can manage categories
-   * Only managers and owners can manage categories
-   */
-  static canManageCategories(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
-  }
-
-  /**
-   * Check if user can manage product standards
-   * Only managers and owners can manage product standards
-   */
-  static canManageProductStandards(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
-  }
-
-  /**
-   * Check if user can view unified inventory
-   * Only managers and owners can view unified inventory
-   */
-  static canViewUnifiedInventory(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
-  }
-
-  /**
-   * Check if user can manage unified inventory
-   * Only managers and owners can manage unified inventory
-   */
-  static canManageUnifiedInventory(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
-  }
-
-  /**
-   * Check if user can allocate inventory to jobs
-   * Only managers and owners can allocate inventory
-   */
-  static canAllocateInventory(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
-  }
-
-  /**
-   * Check if user can view shopping carts
-   * Only managers and owners can view shopping carts
-   */
-  static canViewShoppingCarts(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
-  }
-
-  /**
-   * Check if user can manage shopping carts
-   * Only managers and owners can manage shopping carts
-   */
-  static canManageShoppingCarts(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
-  }
-
-  /**
-   * Check if user can place orders with suppliers
-   * Only managers and owners can place orders
-   */
-  static canPlaceOrders(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
-  }
-
-  /**
-   * Check if user can view supplier orders
-   * Only managers and owners can view supplier orders
-   */
-  static canViewSupplierOrders(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
-  }
-
-  /**
-   * Check if user can manage supplier orders
-   * Only managers and owners can manage supplier orders
-   */
-  static canManageSupplierOrders(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
-  }
-
-  /**
-   * Check if user can receive orders
-   * Only managers and owners can receive orders
-   */
-  static canReceiveOrders(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
-  }
-
-  /**
-   * Check if user can view low stock alerts
-   * Only managers and owners can view low stock alerts
-   */
-  static canViewLowStock(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
-  }
-
-  /**
-   * Check if user can configure reorder points
-   * Only managers and owners can configure reorder points
-   */
-  static canConfigureReorderPoints(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
-  }
-
-  /**
-   * Check if user can view job materials
-   * Only managers and owners can view job materials
-   */
-  static canViewJobMaterials(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
-  }
-
-  /**
-   * Check if user can manage job materials
-   * Only managers and owners can manage job materials
-   */
-  static canManageJobMaterials(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
-  }
-
-  /**
-   * Check if user can check material availability
-   * Only managers and owners can check material availability
-   */
-  static canCheckMaterialAvailability(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
-  }
-
-  // =====================================================
-  // HYBRID PERMISSION FUNCTIONS
-  // =====================================================
-
-  /**
-   * Hybrid permission check for viewing supply chain dashboard
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Uses RBAC permission system
    */
   static async canViewSupplyChainHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -161,8 +25,8 @@ export class SupplyChainPermissions {
   }
 
   /**
-   * Hybrid permission check for managing categories
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user can manage categories
+   * Uses RBAC permission system
    */
   static async canManageCategoriesHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -174,8 +38,8 @@ export class SupplyChainPermissions {
   }
 
   /**
-   * Hybrid permission check for managing category fields
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user canmanaging category fields
+   * Uses RBAC permission system
    */
   static async canManageCategoryFieldsHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -187,8 +51,8 @@ export class SupplyChainPermissions {
   }
 
   /**
-   * Hybrid permission check for viewing product standards
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user canviewing product standards
+   * Uses RBAC permission system
    */
   static async canViewProductStandardsHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -200,8 +64,8 @@ export class SupplyChainPermissions {
   }
 
   /**
-   * Hybrid permission check for managing product standards
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user canmanaging product standards
+   * Uses RBAC permission system
    */
   static async canManageProductStandardsHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -213,8 +77,8 @@ export class SupplyChainPermissions {
   }
 
   /**
-   * Hybrid permission check for viewing unified inventory
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user canviewing unified inventory
+   * Uses RBAC permission system
    */
   static async canViewUnifiedInventoryHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -226,8 +90,8 @@ export class SupplyChainPermissions {
   }
 
   /**
-   * Hybrid permission check for managing unified inventory
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user canmanaging unified inventory
+   * Uses RBAC permission system
    */
   static async canManageUnifiedInventoryHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -239,8 +103,8 @@ export class SupplyChainPermissions {
   }
 
   /**
-   * Hybrid permission check for allocating inventory
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user canallocating inventory
+   * Uses RBAC permission system
    */
   static async canAllocateInventoryHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -252,8 +116,8 @@ export class SupplyChainPermissions {
   }
 
   /**
-   * Hybrid permission check for viewing shopping carts
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user canviewing shopping carts
+   * Uses RBAC permission system
    */
   static async canViewShoppingCartsHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -265,8 +129,8 @@ export class SupplyChainPermissions {
   }
 
   /**
-   * Hybrid permission check for managing shopping carts
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user canmanaging shopping carts
+   * Uses RBAC permission system
    */
   static async canManageShoppingCartsHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -278,8 +142,8 @@ export class SupplyChainPermissions {
   }
 
   /**
-   * Hybrid permission check for placing orders
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user canplacing orders
+   * Uses RBAC permission system
    */
   static async canPlaceOrdersHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -291,8 +155,8 @@ export class SupplyChainPermissions {
   }
 
   /**
-   * Hybrid permission check for viewing supplier orders
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user canviewing supplier orders
+   * Uses RBAC permission system
    */
   static async canViewSupplierOrdersHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -304,8 +168,8 @@ export class SupplyChainPermissions {
   }
 
   /**
-   * Hybrid permission check for managing supplier orders
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user canmanaging supplier orders
+   * Uses RBAC permission system
    */
   static async canManageSupplierOrdersHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -317,8 +181,8 @@ export class SupplyChainPermissions {
   }
 
   /**
-   * Hybrid permission check for receiving orders
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user canreceiving orders
+   * Uses RBAC permission system
    */
   static async canReceiveOrdersHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -330,8 +194,8 @@ export class SupplyChainPermissions {
   }
 
   /**
-   * Hybrid permission check for viewing low stock
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user canviewing low stock
+   * Uses RBAC permission system
    */
   static async canViewLowStockHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -343,8 +207,8 @@ export class SupplyChainPermissions {
   }
 
   /**
-   * Hybrid permission check for configuring reorder points
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user canconfiguring reorder points
+   * Uses RBAC permission system
    */
   static async canConfigureReorderPointsHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -356,8 +220,8 @@ export class SupplyChainPermissions {
   }
 
   /**
-   * Hybrid permission check for viewing job materials
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user canviewing job materials
+   * Uses RBAC permission system
    */
   static async canViewJobMaterialsHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -369,8 +233,8 @@ export class SupplyChainPermissions {
   }
 
   /**
-   * Hybrid permission check for managing job materials
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user canmanaging job materials
+   * Uses RBAC permission system
    */
   static async canManageJobMaterialsHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -382,8 +246,8 @@ export class SupplyChainPermissions {
   }
 
   /**
-   * Hybrid permission check for checking material availability
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user canchecking material availability
+   * Uses RBAC permission system
    */
   static async canCheckMaterialAvailabilityHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(

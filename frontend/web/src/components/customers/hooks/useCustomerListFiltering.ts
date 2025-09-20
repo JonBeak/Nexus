@@ -14,17 +14,14 @@ export const useCustomerListFiltering = (): UseCustomerListFilteringReturn => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showDeactivatedCustomers, setShowDeactivatedCustomers] = useState(false);
 
-  // Handle search form submission
+  // Handle search form submission (now just prevents page reload since search is debounced automatically)
   const handleSearch = async (
-    e: React.FormEvent, 
+    e: React.FormEvent,
     fetchCustomers: (search: string) => Promise<void>
   ) => {
     e.preventDefault();
-    try {
-      await fetchCustomers(searchTerm);
-    } catch (error) {
-      console.error('Search failed:', error);
-    }
+    // Search is now handled automatically by debounced useEffect in useCustomerListData
+    // This just prevents the form from refreshing the page
   };
 
   // Handle clearing search

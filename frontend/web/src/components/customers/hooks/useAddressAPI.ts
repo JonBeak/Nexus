@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { customerApi } from '../../../services/api';
+import { customerApi, provincesApi } from '../../../services/api';
 import { Address, Customer } from '../../../types';
 
 interface ProvinceState {
@@ -26,16 +26,8 @@ export const useAddressAPI = () => {
   const fetchProvincesStates = async (): Promise<ProvinceState[]> => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('access_token');
-      const response = await fetch('http://192.168.2.14:3001/api/customers/provinces-states', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        return data;
-      }
-      throw new Error('Failed to fetch provinces/states');
+      const data = await provincesApi.getProvinces();
+      return data;
     } catch (err) {
       const errorMessage = 'Error fetching provinces/states';
       console.error(errorMessage, err);
@@ -49,15 +41,8 @@ export const useAddressAPI = () => {
   // Fetch tax information for a province
   const fetchTaxInfo = async (provinceCode: string): Promise<TaxInfo | null> => {
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://192.168.2.14:3001/api/customers/tax-info/${provinceCode}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        return await response.json();
-      }
-      return null;
+      const data = await provincesApi.getTaxInfo(provinceCode);
+      return data;
     } catch (err) {
       console.error('Error fetching tax info:', err);
       return null;
@@ -66,42 +51,18 @@ export const useAddressAPI = () => {
 
   // Refresh addresses for a customer
   const refreshAddresses = async (
-    customer: Customer, 
+    customer: Customer,
     showDeactivated: boolean
   ): Promise<Address[]> => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('access_token');
-      
       if (showDeactivated) {
-        const response = await fetch(
-          `http://192.168.2.14:3001/api/customers/${customer.customer_id}/addresses?include_inactive=true`, 
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            }
-          }
-        );
-        
-        if (response.ok) {
-          const data = await response.json();
-          return data.addresses || [];
-        }
+        const data = await customerApi.getAddresses(customer.customer_id, true);
+        return data.addresses || [];
       } else {
-        const response = await fetch(
-          `http://192.168.2.14:3001/api/customers/${customer.customer_id}`, 
-          {
-            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-          }
-        );
-        if (response.ok) {
-          const data = await response.json();
-          return data.addresses || [];
-        }
+        const data = await customerApi.getCustomer(customer.customer_id);
+        return data.addresses || [];
       }
-      
-      throw new Error('Failed to refresh addresses');
     } catch (err) {
       const errorMessage = 'Error refreshing addresses';
       console.error(errorMessage, err);
@@ -169,29 +130,14 @@ export const useAddressAPI = () => {
 
   // Make address primary
   const makePrimaryAddress = async (
-    customer: Customer, 
+    customer: Customer,
     addressId: string | number
   ): Promise<boolean> => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(
-        `http://192.168.2.14:3001/api/customers/${customer.customer_id}/addresses/${addressId}/make-primary`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      if (response.ok) {
-        setError(null);
-        return true;
-      }
-      
-      throw new Error('Failed to set primary address');
+      await customerApi.makePrimaryAddress(customer.customer_id, addressId);
+      setError(null);
+      return true;
     } catch (err) {
       const errorMessage = 'Failed to set primary address. Please try again.';
       console.error('Error setting primary address:', err);

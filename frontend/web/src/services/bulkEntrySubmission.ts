@@ -129,9 +129,9 @@ export const submitBulkEntries = async (
             usage_note: entry.notes || '',
             job_ids: processedEntry.job_ids
           });
-          
-          // Check if the API call was successful
-          const isSuccess = result && (result.message || result.success);
+
+          // Check if the API call was successful - standardized format
+          const isSuccess = result && result.success === true;
           results.push({
             success: !!isSuccess,
             entryId: entry.id,
@@ -142,9 +142,6 @@ export const submitBulkEntries = async (
           const createData = {
             brand: entry.brand,
             series: entry.series,
-            colour: entry.colour_number && entry.colour_name 
-              ? `${entry.colour_number} ${entry.colour_name}` 
-              : entry.colour_number || entry.colour_name,
             colour_number: entry.colour_number,
             colour_name: entry.colour_name,
             width: entry.width,
@@ -158,9 +155,9 @@ export const submitBulkEntries = async (
           };
 
           const result = await vinylApi.createVinylItem(createData);
-          
-          // Check if the API call was successful
-          const isSuccess = result && (result.message || result.success || result.id);
+
+          // Check if the API call was successful - standardized format
+          const isSuccess = result && result.success === true;
           results.push({
             success: !!isSuccess,
             entryId: entry.id,

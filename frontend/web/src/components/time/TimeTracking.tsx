@@ -3,13 +3,13 @@ import TimeClockDisplay from './TimeClockDisplay';
 import WeeklySummary from './WeeklySummary';
 import EditRequestForm from './EditRequestForm';
 import NotificationsModal from './NotificationsModal';
+import { timeApi } from '../../services/api';
 
 interface TimeTrackingProps {
   user: any;
 }
 
 function TimeTracking({ user }: TimeTrackingProps) {
-  console.log('TimeTracking component loaded for user:', user.username);
   const [clockStatus, setClockStatus] = useState<any>(null);
   const [weeklyData, setWeeklyData] = useState<any>(null);
   const [weekOffset, setWeekOffset] = useState(0);
@@ -72,23 +72,19 @@ function TimeTracking({ user }: TimeTrackingProps) {
       }
       
       // Fetch clock status
-      const statusRes = await fetch('http://192.168.2.14:3001/api/time/status', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (statusRes.ok) {
-        const statusData = await statusRes.json();
+      try {
+        const statusData = await timeApi.getStatus();
         setClockStatus(statusData);
+      } catch (error) {
+        console.error('Failed to fetch status:', error);
       }
 
       // Fetch weekly summary
-      const weekRes = await fetch(`http://192.168.2.14:3001/api/time/weekly-summary?weekOffset=${weekOffset}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (weekRes.ok) {
-        const weekData = await weekRes.json();
+      try {
+        const weekData = await timeApi.getWeeklySummaryAlt(weekOffset);
         setWeeklyData(weekData);
+      } catch (error) {
+        console.error('Failed to fetch weekly summary:', error);
       }
       
       setLoading(false);
@@ -145,24 +141,11 @@ function TimeTracking({ user }: TimeTrackingProps) {
 
   const handleClockIn = async () => {
     try {
-      console.log('Clock in button clicked');
       const token = localStorage.getItem('access_token');
-      console.log('Token exists:', !!token);
-      console.log('Token value:', token ? token.substring(0, 20) + '...' : 'null');
       
-      const res = await fetch('http://192.168.2.14:3001/api/time/clock-in', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      console.log('Response status:', res.status);
-      const data = await res.json();
-      console.log('Response data:', data);
-      
-      if (res.ok) {
+      const data = await timeApi.clockIn();
+
+      if (data.success) {
         fetchData();
       } else {
         alert(`Error clocking in: ${data.error || 'Unknown error'}`);
@@ -175,17 +158,9 @@ function TimeTracking({ user }: TimeTrackingProps) {
 
   const handleClockOut = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      const res = await fetch('http://192.168.2.14:3001/api/time/clock-out', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      const data = await res.json();
-      if (res.ok) {
+      const data = await timeApi.clockOut();
+
+      if (data.success) {
         fetchData();
       } else {
         alert(`Error clocking out: ${data.error || 'Unknown error'}`);

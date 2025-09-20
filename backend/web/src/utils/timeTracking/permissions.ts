@@ -8,12 +8,12 @@ export interface AuthenticatedRequest extends Request {
 
 export class TimeTrackingPermissions {
   // =====================================================
-  // HYBRID PERMISSION FUNCTIONS (Phase 3 - Time Tracking)
+  // RBAC PERMISSION FUNCTIONS
   // =====================================================
 
   /**
-   * Hybrid permission check for viewing/listing time entries
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user can view/list time entries
+   * Uses RBAC permission system
    */
   static async canViewTimeEntriesHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -25,8 +25,8 @@ export class TimeTrackingPermissions {
   }
 
   /**
-   * Hybrid permission check for creating time entries
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user can create time entries
+   * Uses RBAC permission system
    */
   static async canCreateTimeEntriesHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -38,8 +38,8 @@ export class TimeTrackingPermissions {
   }
 
   /**
-   * Hybrid permission check for updating time entries
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user can update time entries
+   * Uses RBAC permission system
    */
   static async canUpdateTimeEntriesHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -51,8 +51,8 @@ export class TimeTrackingPermissions {
   }
 
   /**
-   * Hybrid permission check for deleting time entries
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user can delete time entries
+   * Uses RBAC permission system
    */
   static async canDeleteTimeEntriesHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -64,21 +64,21 @@ export class TimeTrackingPermissions {
   }
 
   /**
-   * Hybrid permission check for approving time edit requests
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user can approve time edit requests
+   * Uses RBAC permission system
    */
   static async canApproveTimeRequestsHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
       user.user_id,
       user.role,
-      'time_tracking.approve',
+      'time.approve',
       ['manager', 'owner']
     );
   }
 
   /**
-   * Hybrid permission check for rejecting time edit requests
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user can reject time edit requests
+   * Uses RBAC permission system
    */
   static async canRejectTimeRequestsHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -90,8 +90,8 @@ export class TimeTrackingPermissions {
   }
 
   /**
-   * Hybrid permission check for exporting time data
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user can export time data
+   * Uses RBAC permission system
    */
   static async canExportTimeDataHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -103,8 +103,8 @@ export class TimeTrackingPermissions {
   }
 
   /**
-   * Hybrid permission check for time management (scheduling)
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user can manage time schedules
+   * Uses RBAC permission system
    */
   static async canManageTimeSchedulesHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(
@@ -116,8 +116,8 @@ export class TimeTrackingPermissions {
   }
 
   /**
-   * Hybrid permission check for viewing time analytics/reports
-   * Uses RBAC if enabled, falls back to legacy role check
+   * Check if user can view time analytics/reports
+   * Uses RBAC permission system
    */
   static async canViewTimeAnalyticsHybrid(user: User): Promise<boolean> {
     return await hybridPermissionCheck(

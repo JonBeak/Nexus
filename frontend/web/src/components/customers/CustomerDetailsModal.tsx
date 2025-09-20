@@ -34,27 +34,16 @@ function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) 
   const [deactivateConfirmation, setDeactivateConfirmation] = useState<DeactivateConfirmation>({show: false, customer: null});
 
   // Helper function to refresh customer details
+  // Helper function to refresh customer details
   const refreshCustomerDetails = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://192.168.2.14:3001/api/customers/${customer.customer_id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      if (response.ok) {
-        const updatedCustomer = await response.json();
-        setFormData({ ...updatedCustomer });
-        // Don't automatically set addresses here - let the toggle logic handle it
-        // setAddresses(updatedCustomer.addresses || []);
-      }
+      const updatedCustomer = await customerApi.getCustomer(customer.customer_id);
+      setFormData({ ...updatedCustomer });
+      // Don't automatically set addresses here - let the toggle logic handle it
     } catch (error) {
       console.error('Error refreshing customer details:', error);
     }
   };
-
   useEffect(() => {
     if (customer) {
       setFormData({ ...customer });
@@ -125,33 +114,17 @@ function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) 
   
   const refreshAddresses = async () => {
     try {
-      const token = localStorage.getItem('access_token');
       if (showDeactivated) {
-        const response = await fetch(`http://192.168.2.14:3001/api/customers/${customer.customer_id}/addresses?include_inactive=true`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setAddresses(data.addresses || []);
-        }
+        const data = await customerApi.getAddresses(customer.customer_id, true);
+        setAddresses(data.addresses || []);
       } else {
-        const response = await fetch(`http://192.168.2.14:3001/api/customers/${customer.customer_id}`, {
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setAddresses(data.addresses || []);
-        }
+        const data = await customerApi.getCustomer(customer.customer_id);
+        setAddresses(data.addresses || []);
       }
     } catch (error) {
       console.error('Error refreshing addresses:', error);
     }
   };
-
   const confirmDeleteAddress = (address: Address, index: number) => {
     setDeleteConfirmation({ show: true, address, index });
   };

@@ -21,6 +21,10 @@ export interface AuthRequest extends Request {
   user?: User;
 }
 
+export interface AuthenticatedRequest extends Request {
+  user: User;
+}
+
 export interface JWTPayload {
   userId: number;
   role: UserRole;

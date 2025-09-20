@@ -39,7 +39,7 @@ export const ProductTypeSelector: React.FC<ProductTypeSelectorProps> = ({
   }
 
   // Style based on row type - matches original GridRow exactly
-  const selectClassName = `w-36 px-2 py-1 text-xs border border-gray-300 rounded focus:border-blue-300 appearance-none ${
+  const selectClassName = `w-32 px-2 py-1 text-xs border border-gray-300 rounded focus:border-blue-300 appearance-none ${
     row.rowType === 'main' 
       ? 'text-gray-500' 
       : row.parentId === null 
@@ -60,6 +60,8 @@ export const ProductTypeSelector: React.FC<ProductTypeSelectorProps> = ({
       value={row.productTypeId || ""}
       onChange={handleProductTypeChange}
       className={selectClassName}
+      aria-label="Select product type"
+      title="Select product type"
     >
       <option value="">Select Type</option>
       

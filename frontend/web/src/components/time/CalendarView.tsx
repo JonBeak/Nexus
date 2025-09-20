@@ -200,7 +200,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const handleCellEdit = (userId: number, date: string, field: 'in' | 'out' | 'break', value: string) => {
     const cellKey = `${userId}-${date}-${field}`;
-    console.log('Time edit:', { userId, date, field, value });
     setEditedCells(prev => {
       const newSet = new Set(prev).add(cellKey);
       return newSet;
@@ -229,36 +228,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           entry.break_minutes = parseInt(value) || 0;
         }
         
-        console.log('After field update:', {
-          field,
-          value,
-          clock_in: entry.clock_in,
-          clock_out: entry.clock_out,
-          break_minutes: entry.break_minutes
-        });
+        // Update completed
         
         
         // Recalculate total hours if we have both in and out times
         if (entry.clock_in && entry.clock_out) {
           const start = new Date(entry.clock_in);
           const end = new Date(entry.clock_out);
-          console.log('Time calculation debug:', {
-            clock_in: entry.clock_in,
-            clock_out: entry.clock_out,
-            start_date: start.toString(),
-            end_date: end.toString(),
-            start_time: start.getTime(),
-            end_time: end.getTime(),
-            raw_diff_ms: end.getTime() - start.getTime(),
-            raw_diff_hours: (end.getTime() - start.getTime()) / (1000 * 60 * 60)
-          });
+          // Calculate hours if both times are present
           
           if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
             const diffHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
             const breakHours = (entry.break_minutes || 0) / 60;
             const calculatedHours = Math.max(0, diffHours - breakHours);
             entry.total_hours = Math.round(calculatedHours * 100) / 100; // Round to 2 decimal places like backend
-            console.log(`Final calculation: ${entry.clock_in} to ${entry.clock_out} - ${entry.break_minutes}min break = ${entry.total_hours}h`);
           }
         }
         
@@ -286,10 +269,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   const saveChanges = async () => {
-    console.log('Save changes called, edited cells:', Array.from(editedCells));
     
     if (editedCells.size === 0) {
-      console.log('No changes to save');
       return;
     }
     
@@ -304,12 +285,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         const userData = timeData.find(ud => ud.user_id === userId);
         const entry = userData?.entries[date];
         
-        console.log('Processing cell:', { cellKey, userId, userData: !!userData, entry: !!entry });
         
         if (!entry) {
-          console.log('No entry found for cell:', cellKey);
-          console.log('Available entries for user:', userData?.entries ? Object.keys(userData.entries) : 'no entries');
-          console.log('Looking for date:', date);
           return null;
         }
         
@@ -322,11 +299,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           isNew: !entry.entry_id // New entries will have null entry_id
         };
         
-        console.log('Created update:', update);
         return update;
       }).filter(Boolean);
       
-      console.log('All updates before filtering:', updates);
       
       // Group updates by entry_id to avoid duplicate API calls
       const uniqueUpdates = updates.reduce((acc: any[], update: any) => {
@@ -337,11 +312,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         return acc;
       }, []);
       
-      console.log('Unique updates to save:', uniqueUpdates);
       
       // Save each updated entry
       for (const update of uniqueUpdates) {
-        console.log('Saving update:', update);
         let response;
         
         if (update.isNew) {
@@ -387,13 +360,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       }
       
       // Clear edited cells on successful save
-      console.log('Save completed successfully, clearing edited cells');
       setEditedCells(new Set());
       
       // Refresh data to show updated values
-      console.log('Refreshing calendar data...');
       await fetchTimeData();
-      console.log('Calendar data refresh completed');
       
     } catch (error) {
       console.error('Error saving changes:', error);

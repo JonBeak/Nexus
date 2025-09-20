@@ -73,12 +73,6 @@ function TimeApprovals({ user }: TimeApprovalsProps) {
 
   const handleProcessRequest = async (action: 'approve' | 'reject') => {
     try {
-      console.log('🔵 APPROVAL DEBUG - Starting process request');
-      console.log('📝 Selected Request:', selectedRequest);
-      console.log('🔧 Is Modify Mode:', isModifyMode);
-      console.log('🔧 Modified Values:', modifiedValues);
-      console.log('🔧 Modified Values Keys:', Object.keys(modifiedValues));
-      console.log('🔧 Original Action:', action);
 
       const body: any = {
         request_id: selectedRequest.request_id,
@@ -88,22 +82,13 @@ function TimeApprovals({ user }: TimeApprovalsProps) {
 
       // Only send modified values if we're actually in modify mode
       if (isModifyMode) {
-        console.log('✏️ MODIFY MODE: Adding modified values to body');
         body.modified_clock_in = modifiedValues.clockIn || formatDateTimeForInput(selectedRequest.requested_clock_in);
         body.modified_clock_out = modifiedValues.clockOut || formatDateTimeForInput(selectedRequest.requested_clock_out);
         body.modified_break_minutes = modifiedValues.breakMinutes !== undefined ? parseInt(modifiedValues.breakMinutes) : selectedRequest.requested_break_minutes;
         
-        console.log('🔄 MODIFY VALUES BEING SENT:');
-        console.log('   Original requested_clock_in:', selectedRequest.requested_clock_in);
-        console.log('   Modified clock_in being sent:', body.modified_clock_in);
-        console.log('   Original requested_clock_out:', selectedRequest.requested_clock_out);
-        console.log('   Modified clock_out being sent:', body.modified_clock_out);
-        console.log('   Modified break minutes:', body.modified_break_minutes);
       } else {
-        console.log('✅ CLEAN APPROVAL: No modified values being sent (as expected)');
       }
 
-      console.log('📤 Final request body being sent:', body);
 
       const res = await makeAuthenticatedRequest('http://192.168.2.14:3001/api/time/process-request', {
         method: 'POST',
@@ -119,7 +104,6 @@ function TimeApprovals({ user }: TimeApprovalsProps) {
         setModifiedValues({}); // Clear modified values
         setReviewerNotes('');
         setIsModifyMode(false);
-        console.log('✅ SUCCESS: All state cleared, refreshing requests');
         fetchPendingRequests();
       } else {
         const errorData = await res.json();
@@ -182,9 +166,6 @@ function TimeApprovals({ user }: TimeApprovalsProps) {
     // Expected format: "2025-08-26T07:30:00.000Z" or "2025-08-26 07:30:00"
     const cleanDateString = dateString.replace(' ', 'T').replace('.000Z', '').substring(0, 16);
     
-    console.log('🕐 TIMEZONE FIX: formatDateTimeForInput');
-    console.log('   Input (from DB):', dateString);
-    console.log('   Direct formatted output:', cleanDateString);
     
     return cleanDateString;
   };

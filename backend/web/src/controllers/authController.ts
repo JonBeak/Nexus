@@ -5,6 +5,48 @@ import crypto from 'crypto';
 import { pool } from '../config/database';
 import { User } from '../types';
 
+const DEFAULT_REFRESH_TOKEN_TTL = 48 * 60 * 60 * 1000; // 48 hours fallback
+
+const parseRefreshTokenDuration = (rawValue: string | undefined): number => {
+  if (!rawValue) {
+    return DEFAULT_REFRESH_TOKEN_TTL;
+  }
+
+  const value = rawValue.trim();
+  if (!value) {
+    return DEFAULT_REFRESH_TOKEN_TTL;
+  }
+
+  const match = value.match(/^([0-9]+)([smhd])?$/i);
+  if (!match) {
+    console.warn('Invalid REFRESH_TOKEN_EXPIRES_IN format, falling back to default (48h)');
+    return DEFAULT_REFRESH_TOKEN_TTL;
+  }
+
+  const amount = Number(match[1]);
+  const unit = (match[2] ?? 'h').toLowerCase();
+
+  const unitToMs: Record<string, number> = {
+    s: 1000,
+    m: 60 * 1000,
+    h: 60 * 60 * 1000,
+    d: 24 * 60 * 60 * 1000,
+  };
+
+  const multiplier = unitToMs[unit];
+  if (!multiplier) {
+    console.warn('Invalid REFRESH_TOKEN_EXPIRES_IN unit, falling back to default (48h)');
+    return DEFAULT_REFRESH_TOKEN_TTL;
+  }
+
+  return amount * multiplier;
+};
+
+const buildRefreshTokenExpiry = () => {
+  const durationMs = parseRefreshTokenDuration(process.env.REFRESH_TOKEN_EXPIRES_IN);
+  return new Date(Date.now() + durationMs);
+};
+
 export const login = async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body;
@@ -33,16 +75,19 @@ export const login = async (req: Request, res: Response) => {
     }
 
     // Generate access token (short-lived)
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET environment variable is required');
+    }
     const accessToken = jwt.sign(
       { userId: user.user_id, role: user.role },
-      process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
+      jwtSecret as jwt.Secret,
+      { expiresIn: (process.env.JWT_EXPIRES_IN ?? '1h') as any }
     );
 
-    // Generate refresh token (long-lived)
+    // Generate refresh token using configured lifetime
     const refreshToken = crypto.randomBytes(64).toString('hex');
-    const refreshTokenExpiresAt = new Date();
-    refreshTokenExpiresAt.setDate(refreshTokenExpiresAt.getDate() + 30); // 30 days
+    const refreshTokenExpiresAt = buildRefreshTokenExpiry();
 
     // Store refresh token in database
     await pool.execute(
@@ -108,16 +153,19 @@ export const refreshToken = async (req: Request, res: Response) => {
     const user = users[0];
 
     // Generate new access token
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET environment variable is required');
+    }
     const newAccessToken = jwt.sign(
       { userId: user.user_id, role: user.role },
-      process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
+      jwtSecret as jwt.Secret,
+      { expiresIn: (process.env.JWT_EXPIRES_IN ?? '1h') as any }
     );
 
-    // Optionally rotate refresh token (more secure)
+    // Rotate refresh token for security using configured lifetime
     const newRefreshToken = crypto.randomBytes(64).toString('hex');
-    const refreshTokenExpiresAt = new Date();
-    refreshTokenExpiresAt.setDate(refreshTokenExpiresAt.getDate() + 30); // 30 days
+    const refreshTokenExpiresAt = buildRefreshTokenExpiry();
 
     // Update refresh token in database
     await pool.execute(

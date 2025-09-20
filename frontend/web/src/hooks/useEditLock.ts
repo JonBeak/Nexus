@@ -1,6 +1,27 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { lockService, LockStatus, LockResponse } from '../services/lockService';
 
+// Throttle utility for mouse tracking
+function throttle<T extends (...args: any[]) => any>(func: T, delay: number): T {
+  let timeoutId: NodeJS.Timeout | null = null;
+  let lastExecTime = 0;
+
+  return ((...args: any[]) => {
+    const currentTime = Date.now();
+
+    if (currentTime - lastExecTime > delay) {
+      func.apply(null, args);
+      lastExecTime = currentTime;
+    } else if (!timeoutId) {
+      timeoutId = setTimeout(() => {
+        func.apply(null, args);
+        lastExecTime = Date.now();
+        timeoutId = null;
+      }, delay - (currentTime - lastExecTime));
+    }
+  }) as T;
+}
+
 export interface UseEditLockOptions {
   resourceType: string;
   resourceId: string;
@@ -37,12 +58,21 @@ export const useEditLock = (options: UseEditLockOptions) => {
   const checkIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isActiveRef = useRef(true);
   const lockAcquiredRef = useRef(false);
+  const lastActivityRef = useRef(Date.now());
+  const isAcquiringRef = useRef(false);
 
-  const acquireLock = useCallback(async (): Promise<boolean> => {
+  const acquireLock = useCallback(async (skipAcquiringCheck = false): Promise<boolean> => {
+    if (!skipAcquiringCheck && isAcquiringRef.current) {
+      return false; // Prevent multiple simultaneous acquisition attempts
+    }
+
     try {
+      if (!skipAcquiringCheck) {
+        isAcquiringRef.current = true;
+      }
       setError(null);
       const response = await lockService.acquireLock(resourceType, resourceId);
-      
+
       if (response.success) {
         const status: LockStatus = {
           resource_type: resourceType,
@@ -54,7 +84,7 @@ export const useEditLock = (options: UseEditLockOptions) => {
           editing_expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 min
           locked_by_override: false
         };
-        
+
         setLockStatus(status);
         setHasLock(true);
         lockAcquiredRef.current = true;
@@ -76,6 +106,10 @@ export const useEditLock = (options: UseEditLockOptions) => {
       console.error('Error acquiring lock:', error);
       setError('Failed to acquire lock');
       return false;
+    } finally {
+      if (!skipAcquiringCheck) {
+        isAcquiringRef.current = false;
+      }
     }
   }, [resourceType, resourceId, userId, username, onLockAcquired, onLockLost]);
 
@@ -147,8 +181,14 @@ export const useEditLock = (options: UseEditLockOptions) => {
   const startHeartbeat = useCallback(() => {
     heartbeatIntervalRef.current = setInterval(async () => {
       if (isActiveRef.current && hasLock) {
-        // Refresh lock by attempting to acquire again
-        await acquireLock();
+        // Check if user was active recently (within 5 minutes)
+        const timeSinceActivity = Date.now() - lastActivityRef.current;
+        const ACTIVITY_THRESHOLD = 5 * 60 * 1000; // 5 minutes
+
+        if (timeSinceActivity < ACTIVITY_THRESHOLD) {
+          // User is active - refresh the lock
+          await acquireLock(true); // Skip acquiring check for refresh
+        }
       }
     }, heartbeatInterval);
   }, [hasLock, acquireLock, heartbeatInterval]);
@@ -174,6 +214,26 @@ export const useEditLock = (options: UseEditLockOptions) => {
       checkIntervalRef.current = null;
     }
   }, []);
+
+  // Mouse activity tracking (throttled to prevent performance issues)
+  const handleMouseMove = useCallback(
+    throttle(() => {
+      lastActivityRef.current = Date.now();
+
+      // Auto-reacquire lock if:
+      // 1. User doesn't have lock
+      // 2. Resource is available (can_edit is true) OR no current lock status
+      // 3. Not currently attempting to acquire
+      // 4. Auto-acquire is enabled
+      const canAttemptReacquire = !lockStatus || lockStatus.can_edit ||
+        (lockStatus.editing_user_id === userId); // Allow reacquire if our own expired lock
+
+      if (autoAcquire && !hasLock && canAttemptReacquire && !isAcquiringRef.current) {
+        acquireLock();
+      }
+    }, 1000), // Throttle to once per second
+    [autoAcquire, hasLock, lockStatus, acquireLock]
+  );
 
   // Initialize lock system
   useEffect(() => {
@@ -214,17 +274,41 @@ export const useEditLock = (options: UseEditLockOptions) => {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('beforeunload', handleBeforeUnload);
-    
+
+    // Mouse activity tracking is now managed by separate useEffect based on hasLock state
+
     return () => {
       // Cleanup
       releaseLock();
       stopHeartbeat();
       stopStatusCheck();
-      
+
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Mouse tracking cleanup is handled by separate useEffect
     };
   }, [resourceType, resourceId]); // Only re-initialize if resource changes
+
+  // Manage mouse tracking based on lock status
+  useEffect(() => {
+    const removeMouseTracking = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+    };
+
+    const addMouseTracking = () => {
+      document.addEventListener('mousemove', handleMouseMove, { passive: true });
+    };
+
+    if (hasLock) {
+      // User has lock - remove mouse tracking to improve performance
+      removeMouseTracking();
+    } else {
+      // User doesn't have lock - add mouse tracking for potential reacquisition
+      addMouseTracking();
+    }
+
+    return removeMouseTracking;
+  }, [hasLock, handleMouseMove]);
 
   const canOverride = userRole === 'manager' || userRole === 'owner';
 

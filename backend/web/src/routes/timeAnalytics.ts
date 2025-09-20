@@ -68,7 +68,7 @@ router.get('/weekly-summary', authenticateToken, async (req, res) => {
     
     const summary = await query(sql, params) as any[];
     res.json(summary);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching weekly summary:', error);
     res.status(500).json({ error: 'Failed to fetch weekly summary' });
   }
@@ -190,7 +190,7 @@ router.get('/analytics-overview', authenticateToken, async (req, res) => {
     };
     
     res.json(analytics);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching analytics overview:', error);
     res.status(500).json({ error: 'Failed to fetch analytics overview' });
   }
@@ -267,7 +267,7 @@ router.get('/analytics', authenticateToken, async (req, res) => {
       weekendsWorked: (weekendsWorked as any)[0].weekends,
       lateEntries: (lateEntries as any)[0].late
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching analytics:', error);
     res.status(500).json({ error: 'Failed to fetch analytics' });
   }
@@ -319,7 +319,7 @@ router.get('/missing-entries', authenticateToken, async (req, res) => {
         clearTimeout(timeout);
         return res.status(400).json({ error: 'Start date must be before or equal to end date' });
       }
-    } catch (error) {
+    } catch (error: any) {
       clearTimeout(timeout);
       return res.status(400).json({ error: 'Invalid date format' });
     }
@@ -542,7 +542,7 @@ router.get('/missing-entries', authenticateToken, async (req, res) => {
     
     res.json(missingEntries);
     
-  } catch (error) {
+  } catch (error: any) {
     clearTimeout(timeout);
     console.error('Error fetching missing entries:', error);
     if (!res.headersSent) {

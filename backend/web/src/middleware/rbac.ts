@@ -44,7 +44,7 @@ export async function hasPermission(userId: number, permissionName: string, reso
     // Check cache first
     const cacheKey = `user_${userId}`;
     const cached = permissionCache.get(cacheKey);
-    
+
     if (cached && cached.expires > Date.now()) {
       const hasAccess = cached.permissions.has(permissionName);
       await logPermissionCheck(userId, permissionName, resourceContext, hasAccess);
@@ -53,7 +53,7 @@ export async function hasPermission(userId: number, permissionName: string, reso
 
     // Fetch permissions from database
     const permissions = await getUserPermissions(userId);
-    
+
     // Cache the results
     permissionCache.set(cacheKey, {
       permissions: new Set(permissions),
@@ -62,7 +62,7 @@ export async function hasPermission(userId: number, permissionName: string, reso
 
     const hasAccess = permissions.includes(permissionName);
     await logPermissionCheck(userId, permissionName, resourceContext, hasAccess);
-    
+
     return hasAccess;
   } catch (error) {
     console.error('Error checking permission:', error);
@@ -370,38 +370,20 @@ export async function getUserPermissionsWithMetadata(userId: number): Promise<an
 // =====================================================
 
 /**
- * Helper to check old role-based permissions during migration
- * This allows gradual migration without breaking existing code
- */
-export function checkLegacyRolePermission(userRole: string, requiredRoles: string[]): boolean {
-  return requiredRoles.includes(userRole);
-}
-
-/**
- * Hybrid permission check - uses RBAC if enabled, falls back to role-based
+ * Simplified permission check - uses RBAC system directly
+ * Legacy hybrid functionality removed since RBAC is fully enabled
  */
 export async function hybridPermissionCheck(
-  userId: number, 
-  userRole: string, 
-  permissionName: string, 
+  userId: number,
+  userRole: string,
+  permissionName: string,
   legacyRoles: string[]
 ): Promise<boolean> {
   try {
-    // Check if RBAC is enabled
-    const rbacEnabled = await query(
-      "SELECT setting_value FROM rbac_settings WHERE setting_name = 'rbac_enabled'",
-      []
-    ) as RowDataPacket[];
-
-    if (rbacEnabled.length > 0 && rbacEnabled[0].setting_value === 'true') {
-      return await hasPermission(userId, permissionName);
-    } else {
-      return checkLegacyRolePermission(userRole, legacyRoles);
-    }
+    return await hasPermission(userId, permissionName);
   } catch (error) {
-    console.error('Error in hybrid permission check:', error);
-    // Fall back to legacy role check on error
-    return checkLegacyRolePermission(userRole, legacyRoles);
+    console.error('Error in permission check:', error);
+    return false;
   }
 }
 

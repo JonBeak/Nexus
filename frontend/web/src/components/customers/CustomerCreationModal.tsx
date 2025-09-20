@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Loader } from 'lucide-react';
 import { Customer, Address } from '../../types/index';
-import { customerApi } from '../../services/api';
+import { customerApi, provincesApi } from '../../services/api';
 import { CustomerFormCreate } from './creation/CustomerFormCreate';
 import { AddressManagerCreate } from './creation/AddressManagerCreate';
 import { CustomerCreationValidation } from './creation/CustomerCreationValidation';
@@ -50,14 +50,8 @@ export const CustomerCreationModal: React.FC<CustomerCreationModalProps> = ({
 
   const loadProvincesStates = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch('http://192.168.2.14:3001/api/customers/provinces-states', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setProvincesStates(data);
-      }
+      const data = await provincesApi.getProvinces();
+      setProvincesStates(data);
     } catch (error) {
       console.error('Error loading provinces/states:', error);
     }

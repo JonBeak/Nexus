@@ -45,6 +45,7 @@ interface BulkEntriesTableProps {
   products: Product[];
   availableJobs: Job[];
   isSaving: boolean;
+  bulkLoadingSuggestions: boolean;
   updateBulkEntry: (id: string, updates: Partial<BulkEntry>) => void;
   removeBulkEntry: (id: string) => void;
   addNewBulkEntry: () => void;
@@ -60,6 +61,7 @@ export const BulkEntriesTable: React.FC<BulkEntriesTableProps> = ({
   products,
   availableJobs,
   isSaving,
+  bulkLoadingSuggestions,
   updateBulkEntry,
   removeBulkEntry,
   addNewBulkEntry,
@@ -460,6 +462,7 @@ export const BulkEntriesTable: React.FC<BulkEntriesTableProps> = ({
                             placeholder="Search vinyl products..."
                             className="w-full"
                             name={`${entry.id}-vinyl_product`}
+                            loading={bulkLoadingSuggestions}
                             onTab={createTabHandler(entry.id, 'vinyl_product')}
                           />
                           {/* Show specific vinyl indicator */}

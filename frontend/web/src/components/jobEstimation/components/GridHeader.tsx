@@ -1,30 +1,57 @@
 import React from 'react';
-import { AlertTriangle, Lock, Save, Trash2, RotateCcw, Eraser } from 'lucide-react';
-import { GridState } from '../hooks/useSimpleGridState';
-import { GridActions } from '../hooks/useGridActions';
+import { AlertTriangle, Lock, Save, Trash2, RotateCcw, Eraser, Plus } from 'lucide-react';
+import { GridEngine } from '../core/GridEngine';
 import { EditLockIndicator } from '../../common/EditLockIndicator';
 
 interface GridHeaderProps {
-  gridState: GridState;
-  gridActions: GridActions;
+  gridEngine: GridEngine;
   user: any;
   estimate?: any;
   versioningMode?: boolean;
   isCreatingNew: boolean;
   onBackToEstimates: () => void;
   editLock?: any; // From useEditLock hook
+  onReset: () => void;
+  onClearAll: () => void;
+  onClearEmpty: () => void;
+  onAddSection: () => void;
+  onManualSave?: () => void;
 }
 
 export const GridHeader: React.FC<GridHeaderProps> = ({
-  gridState,
-  gridActions,
+  gridEngine,
   user,
   estimate,
   versioningMode = false,
   isCreatingNew,
   onBackToEstimates,
-  editLock
+  editLock,
+  onReset,
+  onClearAll,
+  onClearEmpty,
+  onAddSection,
+  onManualSave
 }) => {
+  // Subscribe to GridEngine state changes
+  const [gridState, setGridState] = React.useState(gridEngine.getState());
+  const [displayRows, setDisplayRows] = React.useState(gridEngine.getRows());
+
+  React.useEffect(() => {
+    // Update state when GridEngine changes
+    const updateState = () => {
+      setGridState(gridEngine.getState());
+      setDisplayRows(gridEngine.getRows());
+    };
+
+    // Initial update
+    updateState();
+
+    // Set up polling to check for state changes (temporary solution)
+    const interval = setInterval(updateState, 100);
+
+    return () => clearInterval(interval);
+  }, [gridEngine]);
+
 
   return (
     <div className="px-6 py-4 border-b border-gray-200">
@@ -39,34 +66,27 @@ export const GridHeader: React.FC<GridHeaderProps> = ({
           
           {/* Status indicators */}
           <div className="flex items-center mt-1 space-x-3">
-            {/* Edit lock status */}
-            {versioningMode && editLock && (
-              <EditLockIndicator
-                lockStatus={editLock.lockStatus}
-                hasLock={editLock.hasLock}
-                isLoading={editLock.isLoading}
-                canOverride={editLock.canOverride}
-                onOverride={editLock.overrideLock}
-                compact={true}
-                showDetails={false}
-              />
-            )}
             
-            {gridState.hasUnsavedChanges && !gridState.effectiveReadOnly && (
+            {gridState.hasUnsavedChanges && gridState.editMode !== 'readonly' && (
               <div className="flex items-center text-orange-600 text-sm">
                 <AlertTriangle className="w-4 h-4 mr-1" />
-                {gridState.saving ? 'Saving...' : 'Unsaved changes'}
+                {gridState.isAutoSaving ? 'Saving...' : 'Unsaved changes'}
               </div>
             )}
-            
-            {gridState.lastSaved && !gridState.hasUnsavedChanges && versioningMode && (
+
+            {versioningMode && !gridState.hasUnsavedChanges && (
               <div className="flex items-center text-green-600 text-sm">
-                <span>Last saved: {gridState.lastSaved.toLocaleTimeString()}</span>
+                <span>
+                  {gridState.lastSaved
+                    ? `Last saved: ${gridState.lastSaved.toLocaleTimeString()}`
+                    : 'Ready'
+                  }
+                </span>
               </div>
             )}
-            
-            
-            {gridState.effectiveReadOnly && (
+
+
+            {gridState.editMode === 'readonly' && (
               <div className="flex items-center text-gray-500 text-sm">
                 <Lock className="w-4 h-4 mr-1" />
                 Read-only mode
@@ -86,41 +106,67 @@ export const GridHeader: React.FC<GridHeaderProps> = ({
         </div>
         
         <div className="flex items-center space-x-3">
-          {!gridState.effectiveReadOnly && gridState.rows.length > 0 && (
+          {gridState.editMode !== 'readonly' && (
             <>
               <button
-                onClick={gridActions.handleClearTable}
+                onClick={onReset}
                 className="flex items-center space-x-2 px-3 py-2 text-orange-600 hover:text-orange-900 border border-orange-300 rounded hover:bg-orange-50"
                 title="Reset all items to default state"
               >
                 <RotateCcw className="w-4 h-4" />
                 <span>Reset</span>
               </button>
-              
+
               <button
-                onClick={gridActions.handleShowClearAll}
+                onClick={onClearAll}
                 className="flex items-center space-x-2 px-3 py-2 text-red-600 hover:text-red-900 border border-red-300 rounded hover:bg-red-50"
                 title="Permanently delete all rows"
               >
                 <Trash2 className="w-4 h-4" />
                 <span>Clear All</span>
               </button>
-              
+
               <button
-                onClick={gridActions.handleShowClearEmpty}
+                onClick={onClearEmpty}
                 className="flex items-center space-x-2 px-3 py-2 text-blue-600 hover:text-blue-900 border border-blue-300 rounded hover:bg-blue-50"
                 title="Remove empty rows with no input data"
               >
                 <Eraser className="w-4 h-4" />
                 <span>Clear Empty</span>
               </button>
+
+              <button
+                onClick={onAddSection}
+                className="flex items-center space-x-2 px-3 py-2 text-purple-600 hover:text-purple-900 border border-purple-300 rounded hover:bg-purple-50"
+                title="Add template section to the end of the grid"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Section</span>
+              </button>
             </>
           )}
-          
-          {!versioningMode && (
+
+          {!versioningMode && onManualSave && (
             <button
+              onClick={onManualSave}
               className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
-              disabled={gridState.effectiveReadOnly}
+              disabled={gridState.editMode === 'readonly'}
+            >
+              <Save className="w-4 h-4" />
+              <span>Save</span>
+            </button>
+          )}
+
+          {versioningMode && onManualSave && (
+            <button
+              onClick={onManualSave}
+              className={`flex items-center space-x-2 px-3 py-2 rounded ${
+                gridState.hasUnsavedChanges && gridState.editMode !== 'readonly'
+                  ? 'bg-green-600 text-white hover:bg-green-700'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+              disabled={gridState.editMode === 'readonly' || gridState.isAutoSaving || !gridState.hasUnsavedChanges}
+              title={gridState.hasUnsavedChanges ? 'Force save now' : 'No changes to save'}
             >
               <Save className="w-4 h-4" />
               <span>Save</span>

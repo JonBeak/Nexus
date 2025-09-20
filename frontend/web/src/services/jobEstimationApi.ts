@@ -42,21 +42,6 @@ export interface JobEstimateItem {
   labor_minutes?: number;
   customer_description?: string;
   internal_notes?: string;
-  addons: JobItemAddon[];
-}
-
-export interface JobItemAddon {
-  id: number;
-  item_id: number;
-  addon_type_id: number;
-  addon_type_name?: string;
-  addon_order: number;
-  input_data: any;
-  quantity: number;
-  unit_price: number;
-  extended_price: number;
-  customer_description?: string;
-  internal_notes?: string;
 }
 
 export interface ProductType {
@@ -67,17 +52,6 @@ export interface ProductType {
   input_template: any;
   pricing_rules: any;
   complexity_rules?: any;
-  material_rules?: any;
-  is_active: boolean;
-}
-
-export interface AddonType {
-  id: number;
-  name: string;
-  category: string;
-  applicable_to: string[];
-  input_template: any;
-  pricing_rules: any;
   material_rules?: any;
   is_active: boolean;
 }
@@ -141,29 +115,9 @@ export const updateItem = (estimateId: number, itemId: number, data: {
 export const deleteItem = (estimateId: number, itemId: number) =>
   api.delete<void>(`/job-estimation/estimates/${estimateId}/items/${itemId}`);
 
-// Add-ons API
-export const createAddon = (estimateId: number, itemId: number, data: {
-  addon_type_id: number;
-  input_data: any;
-}) => api.post<JobItemAddon>(`/job-estimation/estimates/${estimateId}/items/${itemId}/addons`, data);
-
-export const updateAddon = (estimateId: number, addonId: number, data: {
-  input_data?: any;
-  customer_description?: string;
-}) => api.put<void>(`/job-estimation/estimates/${estimateId}/addons/${addonId}`, data);
-
-export const deleteAddon = (estimateId: number, addonId: number) =>
-  api.delete<void>(`/job-estimation/estimates/${estimateId}/addons/${addonId}`);
-
 // Product Types and Templates API
 export const getProductTypes = (category?: string) =>
   api.get<ProductType[]>('/job-estimation/product-types', { params: { category } });
-
-export const getAddonTypes = () =>
-  api.get<AddonType[]>('/job-estimation/addon-types');
-
-export const getAddonTypesForProduct = (productTypeId: number) =>
-  api.get<AddonType[]>(`/job-estimation/addon-types/${productTypeId}`);
 
 // Calculations API
 export const calculateEstimate = (estimateId: number) =>
@@ -200,11 +154,6 @@ export const bulkCreateEstimate = (data: {
       input_data: any;
       customer_description?: string;
       internal_notes?: string;
-      addons: Array<{
-        temp_id: string;
-        addon_type_id: number;
-        input_data: any;
-      }>;
     }>;
   }>;
 }) => api.post<{
@@ -212,7 +161,6 @@ export const bulkCreateEstimate = (data: {
   job_code: string;
   group_mappings: Array<{ temp_id: string; actual_id: number }>;
   item_mappings: Array<{ temp_id: string; actual_id: number }>;
-  addon_mappings: Array<{ temp_id: string; actual_id: number }>;
 }>('/job-estimation/estimates/bulk-create', data);
 
 // Helper function to get customers (reuse existing API)
@@ -236,16 +184,9 @@ export const jobEstimationApi = {
   createItem,
   updateItem,
   deleteItem,
-  
-  // Add-ons
-  createAddon,
-  updateAddon,
-  deleteAddon,
-  
+
   // Templates
   getProductTypes,
-  getAddonTypes,
-  getAddonTypesForProduct,
   
   // Calculations
   calculateEstimate,

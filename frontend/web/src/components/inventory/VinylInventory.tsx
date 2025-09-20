@@ -13,8 +13,15 @@ import { VinylModal } from './VinylModal';
 import { ProductModal } from './ProductModal';
 import { StatusChangeModal } from './StatusChangeModal';
 
+interface User {
+  user_id: number;
+  role: string;
+  first_name: string;
+  last_name: string;
+}
+
 interface VinylInventoryProps {
-  user: any;
+  user: User;
 }
 
 const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
@@ -23,7 +30,7 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
   
   // Data state
   const [vinylItems, setVinylItems] = useState<VinylItem[]>([]);
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<Record<string, number> | null>(null);
   const [products, setProducts] = useState<VinylProduct[]>([]);
   const [loadingVinyl, setLoadingVinyl] = useState(false);
   
@@ -35,7 +42,7 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
   const [changingStatusItem, setChangingStatusItem] = useState<VinylItem | null>(null);
 
   // Bulk entries state for autofill
-  const [bulkAutofillSuggestions, setBulkAutofillSuggestions] = useState<any>({});
+  const [bulkAutofillSuggestions, setBulkAutofillSuggestions] = useState<Record<string, any>>({});
   const [bulkLoadingSuggestions, setBulkLoadingSuggestions] = useState(false);
 
   // Notification state
@@ -102,7 +109,6 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
       setVinylItems(itemsResponse || []);
       setStats(statsResponse || {});
     } catch (err: any) {
-      console.error('Error loading vinyl data:', err);
       showNotification('Failed to load vinyl data', 'error');
     } finally {
       setLoadingVinyl(false);
@@ -117,7 +123,8 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
       const response = await vinylProductsApi.getAutofillSuggestions({});
       setBulkAutofillSuggestions(response);
     } catch (err) {
-      console.error('Error loading bulk autofill suggestions:', err);
+      console.error('Failed to load autofill suggestions:', err);
+      setBulkAutofillSuggestions({ combinations: [] });
     } finally {
       setBulkLoadingSuggestions(false);
     }
@@ -128,7 +135,6 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
       const productsResponse = await vinylProductsApi.getVinylProducts();
       setProducts(productsResponse || []);
     } catch (err) {
-      console.error('Error loading products:', err);
       setProducts([]);
     }
   };
@@ -152,7 +158,6 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
           await loadVinylData(); // Reload data to update inventory count
           showNotification('Vinyl item deleted successfully', 'success');
         } catch (err: any) {
-          console.error('Error deleting vinyl:', err);
           showNotification('Failed to delete vinyl item', 'error');
         }
       },
@@ -170,7 +175,6 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
           await vinylProductsApi.deleteVinylProduct(id);
           showNotification('Product deleted successfully', 'success');
         } catch (err: any) {
-          console.error('Error deleting product:', err);
           showNotification('Failed to delete product', 'error');
         }
       },
@@ -186,7 +190,6 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
       await loadVinylData();
       showNotification('Vinyl item added successfully', 'success');
     } catch (err: any) {
-      console.error('Error adding vinyl:', err);
       showNotification('Failed to add vinyl item', 'error');
     }
   };
@@ -196,22 +199,24 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
       // Extract job_ids from updates to handle separately
       const { job_ids, ...vinylUpdates } = updates;
       
-      console.log('Updating vinyl item with data:', vinylUpdates);
       
       // Update vinyl item
       await vinylApi.updateVinylItem(id, vinylUpdates);
       
-      // Update job associations if provided
-      if (job_ids !== undefined) {
-        console.log('Updating job associations:', job_ids);
-        await vinylApi.updateJobLinks(id, job_ids);
+      // Update job associations if provided (including empty arrays to clear associations)
+      if (job_ids !== undefined && Array.isArray(job_ids)) {
+        try {
+          await vinylApi.updateJobLinks(id, job_ids);
+        } catch (jobLinkError) {
+          console.warn('Job links update failed, but vinyl status was updated:', jobLinkError);
+          // Don't throw here - the main update succeeded
+        }
       }
       
       setEditingItem(null);
       await loadVinylData();
       showNotification('Vinyl item updated successfully', 'success');
     } catch (err: any) {
-      console.error('Error updating vinyl:', err);
       const errorMessage = err?.response?.data?.error || err?.message || 'Unknown error';
       showNotification(`Failed to update vinyl item: ${errorMessage}`, 'error');
     }
@@ -223,7 +228,6 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
       setShowAddProductModal(false);
       showNotification('Product added successfully', 'success');
     } catch (err: any) {
-      console.error('Error adding product:', err);
       showNotification('Failed to add product', 'error');
     }
   };
@@ -235,7 +239,6 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
       await loadProductsData();
       showNotification('Product updated successfully', 'success');
     } catch (err: any) {
-      console.error('Error updating product:', err);
       showNotification('Failed to update product', 'error');
     }
   };
@@ -272,7 +275,6 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
       await loadVinylData();
       showNotification('Item status updated successfully', 'success');
     } catch (err: any) {
-      console.error('Error updating item status:', err);
       showNotification('Failed to update item status', 'error');
     }
   };

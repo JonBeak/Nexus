@@ -96,9 +96,13 @@ export const useCustomerListData = (
     }, 100);
   };
 
-  // Load customers when search term or deactivated filter changes
+  // Load customers when search term or deactivated filter changes (debounced)
   useEffect(() => {
-    refreshCustomers(searchTerm, showDeactivatedCustomers);
+    const timeoutId = setTimeout(() => {
+      refreshCustomers(searchTerm, showDeactivatedCustomers);
+    }, 300); // 300ms debounce delay
+
+    return () => clearTimeout(timeoutId);
   }, [searchTerm, showDeactivatedCustomers]);
 
   return {

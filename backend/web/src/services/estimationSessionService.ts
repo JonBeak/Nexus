@@ -8,7 +8,9 @@ import {
   SaveConflict, 
   CalculationInput,
   CalculationResult,
-  ValidationResult 
+  ValidationResult,
+  ValidationError,
+  ValidationWarning
 } from '../types/pricing';
 import { PricingCalculationEngine } from './pricingCalculationEngine';
 import { RateLookupService } from './rateLookupService';
@@ -145,9 +147,9 @@ export class EstimationSessionService {
     }
     
     // Validate input data structure
-    const errors = [];
-    const warnings = [];
-    
+    const errors: ValidationError[] = [];
+    const warnings: ValidationWarning[] = [];
+        
     // Category-specific validation
     switch (calculationInput.category) {
       case 'vinyl':

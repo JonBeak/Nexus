@@ -21,6 +21,10 @@ interface DragDropGridRendererProps {
   onDuplicateRow: (rowIndex: number) => void;
   onDragEnd: (event: DragEndEvent) => void;
   isReadOnly: boolean;
+  fieldPromptsMap?: Record<number, Record<string, string>>; // Prompts by product type
+  fieldEnabledMap?: Record<number, Record<string, boolean>>; // Enable states by product type
+  staticOptionsMap?: Record<number, Record<string, string[]>>; // Options by product type
+  validationEngine?: any; // Reference to validation engine (placeholder)
 }
 
 export const DragDropGridRenderer: React.FC<DragDropGridRendererProps> = ({
@@ -33,7 +37,11 @@ export const DragDropGridRenderer: React.FC<DragDropGridRendererProps> = ({
   onDeleteRow,
   onDuplicateRow,
   onDragEnd,
-  isReadOnly
+  isReadOnly,
+  fieldPromptsMap,
+  fieldEnabledMap,
+  staticOptionsMap,
+  validationEngine
 }) => {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -91,40 +99,54 @@ export const DragDropGridRenderer: React.FC<DragDropGridRendererProps> = ({
             {/* Header - matches original GridBody exactly */}
             <thead className="bg-gray-50 border-b-2 border-gray-200">
               <tr>
-                <th className="w-12 px-2 py-1 text-xs font-medium text-gray-600 text-center">#</th>
-                <th className="px-2 py-1 text-xs font-medium text-gray-600 text-left w-36">Product / Item</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-14">QTY</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-16">Field 1</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-16">Field 2</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-16">Field 3</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-16">Field 4</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-16">Field 5</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-16">Field 6</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-16">Field 7</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-16">Field 8</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-16">Field 9</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-16">Field 10</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-16">Field 11</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-16">Field 12</th>
-                <th className="w-12 px-1 py-1 text-xs font-medium text-gray-600 text-center">Actions</th>
+                <th className="w-3.5 px-0 py-1 text-xs font-medium text-gray-600 text-center">#</th>
+                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-left w-10">Product / Item</th>
+                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-4">QTY</th>
+                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 1</th>
+                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 2</th>
+                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 3</th>
+                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 4</th>
+                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 5</th>
+                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 6</th>
+                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 7</th>
+                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 8</th>
+                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 9</th>
+                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 10</th>
+                <th className="w-4 px-1 py-1 text-xs font-medium text-gray-600 text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, index) => (
-                <DragDropRow
-                  key={row.id}
-                  row={row}
-                  rowIndex={index}
-                  productTypes={productTypes}
-                  staticDataCache={staticDataCache}
-                  onFieldCommit={onFieldCommit}
-                  onProductTypeSelect={onProductTypeSelect}
-                  onInsertRow={onInsertRow}
-                  onDeleteRow={onDeleteRow}
-                  onDuplicateRow={onDuplicateRow}
-                  isReadOnly={isReadOnly}
-                />
-              ))}
+              {rows.map((row, index) => {
+                // Calculate validation states for this row if validation engine provided
+                const validationStates = validationEngine?.getValidationResults
+                  ? Object.fromEntries(
+                      Object.keys(row.data || {}).map(fieldName => [
+                        fieldName,
+                        validationEngine.getValidationResults().getCellValidationState(row.id, fieldName)
+                      ])
+                    )
+                  : undefined;
+
+                return (
+                  <DragDropRow
+                    key={row.id}
+                    row={row}
+                    rowIndex={index}
+                    productTypes={productTypes}
+                    staticDataCache={staticDataCache}
+                    onFieldCommit={onFieldCommit}
+                    onProductTypeSelect={onProductTypeSelect}
+                    onInsertRow={onInsertRow}
+                    onDeleteRow={onDeleteRow}
+                    onDuplicateRow={onDuplicateRow}
+                    isReadOnly={isReadOnly}
+                    fieldPrompts={fieldPromptsMap?.[row.productTypeId || 0]}
+                    fieldEnabled={fieldEnabledMap?.[row.productTypeId || 0]}
+                    staticOptions={staticOptionsMap?.[row.productTypeId || 0]}
+                    validationStates={validationStates}
+                  />
+                );
+              })}
             </tbody>
           </table>
         </SortableContext>

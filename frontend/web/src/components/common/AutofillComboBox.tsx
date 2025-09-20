@@ -220,9 +220,11 @@ export const AutofillComboBox: React.FC<AutofillComboBoxProps> = ({
 
   return (
     <div className={`relative ${className}`} ref={containerRef}>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
+      {label && (
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
+      )}
       
       <div className="relative">
         <input

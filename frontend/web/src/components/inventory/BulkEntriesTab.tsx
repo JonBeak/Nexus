@@ -223,6 +223,7 @@ export const BulkEntriesTab: React.FC<BulkEntriesTabProps> = ({
         products={products}
         availableJobs={availableJobs}
         isSaving={isSaving}
+        bulkLoadingSuggestions={bulkLoadingSuggestions}
         updateBulkEntry={updateBulkEntry}
         removeBulkEntry={removeBulkEntry}
         addNewBulkEntry={addNewBulkEntry}

@@ -15,6 +15,9 @@ interface FieldCellProps {
   onCommit: (value: string) => void;
   options?: string[]; // For select fields
   staticDataCache?: Record<string, any[]>; // Database options cache
+  fieldPrompt?: string; // Meaningful label like "Type", "Inches"
+  fieldEnabled?: boolean; // Whether field is active (default: true)
+  validationState?: 'error' | 'warning' | 'valid'; // Placeholder for validation
 }
 
 export const FieldCell: React.FC<FieldCellProps> = ({
@@ -25,7 +28,10 @@ export const FieldCell: React.FC<FieldCellProps> = ({
   isEditable,
   onCommit,
   options,
-  staticDataCache
+  staticDataCache,
+  fieldPrompt,
+  fieldEnabled = true,
+  validationState = 'valid'
 }) => {
   // Local state for blur-only validation pattern
   const [localValue, setLocalValue] = useState(fieldValue);
@@ -42,6 +48,11 @@ export const FieldCell: React.FC<FieldCellProps> = ({
     }
   };
 
+  // Don't render anything if field is disabled
+  if (!fieldEnabled) {
+    return null;
+  }
+
   if (!isEditable) {
     // Read-only display
     return (
@@ -51,9 +62,19 @@ export const FieldCell: React.FC<FieldCellProps> = ({
     );
   }
 
-  // Base field classes matching original styling
-  const baseClasses = "w-full px-2 py-1 text-xs border border-gray-300 rounded focus:bg-white focus:border focus:border-blue-300 text-center placeholder-gray-500";
+  // Base field classes with validation state styling
+  const getValidationBorder = () => {
+    if (validationState === 'error') return 'border-red-500';
+    if (validationState === 'warning') return 'border-orange-500';
+    return 'border-gray-300';
+  };
+
+  const baseClasses = `w-full px-2 py-1 text-xs border ${getValidationBorder()} rounded focus:bg-white focus:border focus:border-blue-300 text-center placeholder-gray-500`;
   const valueClasses = localValue ? 'text-black' : 'text-gray-500';
+  const fieldClasses = `${baseClasses} ${valueClasses}`;
+
+  // Use fieldPrompt as placeholder - no fallback, should fail clearly if missing
+  const displayPlaceholder = fieldPrompt;
 
   switch (fieldType) {
     case 'select':
@@ -73,8 +94,8 @@ export const FieldCell: React.FC<FieldCellProps> = ({
             value={localValue}
             onChange={(e) => setLocalValue(e.target.value)}
             onBlur={handleCommit}
-            className={`${baseClasses} ${valueClasses}`}
-            placeholder={placeholder}
+            className={fieldClasses}
+            placeholder={displayPlaceholder}
           />
         );
       }
@@ -84,9 +105,9 @@ export const FieldCell: React.FC<FieldCellProps> = ({
           value={localValue}
           onChange={(e) => setLocalValue(e.target.value)}
           onBlur={handleCommit}
-          className={`${baseClasses} ${valueClasses} appearance-none`}
+          className={`${fieldClasses} appearance-none`}
         >
-          <option value="" className="text-gray-500">{placeholder}</option>
+          <option value="" className="text-gray-500">{displayPlaceholder}</option>
           {selectOptions.map((option) => (
             <option key={option} value={option} className="text-black">
               {option}
@@ -102,8 +123,8 @@ export const FieldCell: React.FC<FieldCellProps> = ({
           value={localValue}
           onChange={(e) => setLocalValue(e.target.value)}
           onBlur={handleCommit}
-          className={`${baseClasses} ${valueClasses}`}
-          placeholder={placeholder}
+          className={fieldClasses}
+          placeholder={displayPlaceholder}
         />
       );
     
@@ -115,8 +136,8 @@ export const FieldCell: React.FC<FieldCellProps> = ({
           value={localValue}
           onChange={(e) => setLocalValue(e.target.value)}
           onBlur={handleCommit}
-          className={`${baseClasses} ${valueClasses}`}
-          placeholder={placeholder}
+          className={fieldClasses}
+          placeholder={displayPlaceholder}
         />
       );
   }

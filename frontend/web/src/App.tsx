@@ -11,6 +11,7 @@ import { AccountManagement } from './components/accounts/AccountManagement';
 import VinylInventory from './components/inventory/VinylInventory';
 import { SupplyChainDashboard } from './components/supplyChain/SupplyChainDashboard';
 import { JobEstimationDashboard } from './components/jobEstimation/JobEstimationDashboard';
+import { authApi } from './services/api';
 
 function AppContent() {
   const [user, setUser] = useState<any>(null);
@@ -25,7 +26,7 @@ function AppContent() {
   const checkAuth = async () => {
     const token = localStorage.getItem('access_token');
     const refreshToken = localStorage.getItem('refresh_token');
-    
+
     if (!token && !refreshToken) {
       setIsLoading(false);
       setUser(null);
@@ -33,53 +34,9 @@ function AppContent() {
     }
 
     try {
-      // Try to get current user with existing token
-      let response = await fetch('http://192.168.2.14:3001/api/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.status === 401 && refreshToken) {
-        // Token expired, try to refresh
-        const refreshResponse = await fetch('http://192.168.2.14:3001/api/auth/refresh', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ refreshToken })
-        });
-
-        if (refreshResponse.ok) {
-          const refreshData = await refreshResponse.json();
-          localStorage.setItem('access_token', refreshData.accessToken);
-          localStorage.setItem('refresh_token', refreshData.refreshToken);
-          
-          // Retry getting user with new token
-          response = await fetch('http://192.168.2.14:3001/api/auth/me', {
-            headers: {
-              'Authorization': `Bearer ${refreshData.accessToken}`
-            }
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            setUser(data.user);
-          } else {
-            // New token also failed, clear everything
-            handleLogout();
-          }
-        } else {
-          // Refresh failed, clear everything
-          handleLogout();
-        }
-      } else if (response.ok) {
-        const data = await response.json();
-        setUser(data.user);
-      } else {
-        // Some other error, clear everything
-        handleLogout();
-      }
+      // Use the authApi which will automatically handle refresh via interceptor
+      const data = await authApi.getCurrentUser();
+      setUser(data.user);
     } catch (error) {
       console.error('Auth check failed:', error);
       handleLogout();
