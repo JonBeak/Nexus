@@ -2,13 +2,16 @@
 // Should show error if PS type is selected but there are no power supplies
 
 import { ValidationTemplate, ValidationResult, ValidationContext } from './ValidationTemplate';
+import { calculateChannelLetterMetrics, ChannelLetterMetrics } from '../utils/channelLetterParser';
 
-export interface PsTypeParams {
-  // No specific parameters needed - validation is purely context-dependent
-}
+export type PsTypeParams = Record<string, never>;
 
 export class PsTypeTemplate implements ValidationTemplate {
-  async validate(value: string, params: PsTypeParams = {}, context?: ValidationContext): Promise<ValidationResult> {
+  async validate(
+    value: string,
+    _params?: PsTypeParams,
+    context?: ValidationContext
+  ): Promise<ValidationResult> {
     try {
       // Handle empty values - always valid (no selection is fine)
       if (!value || (typeof value === 'string' && value.trim() === '')) {
@@ -56,39 +59,33 @@ export class PsTypeTemplate implements ValidationTemplate {
   private calculatePsCount(context?: ValidationContext): number {
     if (!context) return 0;
 
-    // Check calculated values first (from ValidationEngine Phase 1)
-    if (context.calculatedValues?.psCount !== undefined) {
+    const field9Value = context.rowData.field9;
+    if (field9Value && field9Value.trim() !== '') {
+      const cleanValue = field9Value.trim().toLowerCase();
+
+      if (cleanValue === 'no') {
+        return 0;
+      }
+
+      if (cleanValue === 'yes') {
+        return this.calculatePsFromLeds(context);
+      }
+
+      const numericValue = parseFloat(cleanValue);
+      if (!isNaN(numericValue)) {
+        return Math.max(0, numericValue);
+      }
+    }
+
+    // Check calculated values from Phase 1 when no explicit override exists
+    if (typeof context.calculatedValues?.psCount === 'number') {
       return context.calculatedValues.psCount;
     }
 
-    // Fallback: calculate from field9 directly
-    const field9Value = context.rowData.field9;
-    if (!field9Value || field9Value.trim() === '') {
-      // Auto-calculate from LEDs if customer requires transformers
-      if (context.customerPreferences?.requires_transformers) {
-        return this.calculatePsFromLeds(context);
-      }
-      return 0;
-    }
-
-    const cleanValue = field9Value.trim().toLowerCase();
-
-    // Handle different field9 input types
-    if (cleanValue === 'no') {
-      return 0;
-    }
-
-    if (cleanValue === 'yes') {
+    if (context.customerPreferences?.requires_transformers) {
       return this.calculatePsFromLeds(context);
     }
 
-    // Try to parse as number
-    const numericValue = parseFloat(cleanValue);
-    if (!isNaN(numericValue)) {
-      return Math.max(0, numericValue); // Ensure non-negative
-    }
-
-    // Default to 0 if can't parse
     return 0;
   }
 
@@ -98,27 +95,7 @@ export class PsTypeTemplate implements ValidationTemplate {
   private calculatePsFromLeds(context?: ValidationContext): number {
     if (!context) return 0;
 
-    // Get LED count (use calculated value or calculate)
-    let ledCount = 0;
-    if (context.calculatedValues?.ledCount !== undefined) {
-      ledCount = context.calculatedValues.ledCount;
-    } else {
-      // Calculate LED count from field3
-      const field3Value = context.rowData.field3;
-      if (!field3Value || field3Value.trim() === '') {
-        ledCount = context.customerPreferences?.use_leds ? this.calculateLedsFromDimensions(context) : 0;
-      } else {
-        const cleanValue = field3Value.trim().toLowerCase();
-        if (cleanValue === 'no') {
-          ledCount = 0;
-        } else if (cleanValue === 'yes') {
-          ledCount = this.calculateLedsFromDimensions(context);
-        } else {
-          const numericValue = parseFloat(cleanValue);
-          ledCount = !isNaN(numericValue) ? Math.max(0, numericValue) : 0;
-        }
-      }
-    }
+    const ledCount = this.getLedCount(context);
 
     if (ledCount === 0) return 0;
 
@@ -129,47 +106,27 @@ export class PsTypeTemplate implements ValidationTemplate {
     return Math.ceil(totalWattage / 60);
   }
 
-  /**
-   * Calculate LEDs from field2 dimensions (same logic as LedTypeTemplate)
-   */
-  private calculateLedsFromDimensions(context?: ValidationContext): number {
-    if (!context) return 0;
-
-    const field1 = context.rowData.field1; // Letter type
-    const field2 = context.rowData.field2; // Dimensions
-
-    if (!field1 || !field2 || field1.trim() === '' || field2.trim() === '') {
-      return 0;
+  private getLedCount(context: ValidationContext): number {
+    if (typeof context.calculatedValues?.ledCount === 'number') {
+      return context.calculatedValues.ledCount;
     }
 
-    try {
-      const dimensionGroups = field2.split(',').map(d => d.trim()).filter(d => d !== '');
-      let totalPerimeter = 0;
+    const metrics = this.getChannelLetterMetrics(context);
+    return metrics?.ledCount || 0;
+  }
 
-      for (const dimGroup of dimensionGroups) {
-        if (dimGroup.includes('x')) {
-          const [width, height] = dimGroup.split('x').map(d => parseFloat(d.trim()));
-          if (!isNaN(width) && !isNaN(height)) {
-            totalPerimeter += 2 * (width + height);
-          }
-        }
-      }
-
-      const segmentCount = dimensionGroups.length;
-      const ledsFromPerimeter = Math.ceil(totalPerimeter / 3);
-      const minimumLeds = segmentCount * 4;
-
-      return Math.max(ledsFromPerimeter, minimumLeds);
-    } catch (error) {
-      return 0;
-    }
+  private getChannelLetterMetrics(context: ValidationContext): ChannelLetterMetrics | null {
+    return (
+      (context.calculatedValues?.channelLetterMetrics as ChannelLetterMetrics | undefined) ||
+      calculateChannelLetterMetrics(context.rowData.field2)
+    );
   }
 
   getDescription(): string {
     return 'Validates PS type selection based on whether power supplies are present in the row';
   }
 
-  getParameterSchema(): Record<string, any> {
+  getParameterSchema(): Record<string, unknown> {
     return {
       // No parameters needed - purely context-dependent validation
     };

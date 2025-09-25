@@ -19,6 +19,7 @@ import { GridFooter } from './components/GridFooter';
 import { useEditLock } from '../../hooks/useEditLock';
 import { useProductTypes } from './hooks/useProductTypes';
 import { EditLockIndicator } from '../common/EditLockIndicator';
+import { useCustomerPreferencesWithCache } from './core/validation/context/useCustomerPreferences';
 
 // Import the save API
 import { jobVersioningApi } from '../../services/jobVersioningApi';
@@ -43,6 +44,7 @@ export const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
   onEstimateChange,
   onBackToEstimates,
   showNotification,
+  customerId,
   versioningMode = false,
   estimateId,
   isReadOnly = false,
@@ -53,6 +55,28 @@ export const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
   // Load product types from database
   const { productTypes, loading: productTypesLoading, error: productTypesError } = useProductTypes();
 
+  const estimateCustomerId = estimate?.customer_id ?? (estimate as any)?.customerId ?? null;
+  const effectiveCustomerId = customerId ?? estimateCustomerId ?? null;
+  const { preferences: customerPreferences } = useCustomerPreferencesWithCache(
+    effectiveCustomerId === null ? undefined : effectiveCustomerId
+  );
+
+  useEffect(() => {
+    if (estimate && effectiveCustomerId === null) {
+      console.warn('Customer preferences: no customer id resolved for estimate', {
+        explicitlySelectedCustomerId: customerId,
+        estimateCustomerId,
+        estimate
+      });
+    }
+  }, [estimate, effectiveCustomerId, estimateCustomerId, customerId]);
+
+  useEffect(() => {
+    if (customerPreferences) {
+      console.log('Loaded customer manufacturing preferences:', customerPreferences);
+    }
+  }, [customerPreferences]);
+
   // Minimal modal state to replace buttonGridState
   const [showClearConfirmation, setShowClearConfirmation] = useState(false);
   const [clearModalType, setClearModalType] = useState<'reset' | 'clearAll' | 'clearEmpty' | null>(null);
@@ -60,6 +84,7 @@ export const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
   // Template cache state - loads ALL templates once and caches for component lifecycle
   const [templateCache, setTemplateCache] = React.useState<Record<number, SimpleProductTemplate>>({});
   const [templatesLoaded, setTemplatesLoaded] = React.useState(false);
+  const [validationVersion, setValidationVersion] = useState(0);
 
   // Field prompts state (derived from template cache)
   const [fieldPromptsMap, setFieldPromptsMap] = React.useState<Record<number, Record<string, string | boolean>>>({});
@@ -114,7 +139,7 @@ export const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
       },
       validation: {
         enabled: !isReadOnly, // Enable validation only when editing
-        productValidations: new Map() // Will be populated when templates load
+        productValidations: new Map()
       },
       callbacks: {
         onRowsChange: (gridRows) => {
@@ -133,6 +158,7 @@ export const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
           // GridEngine state changes
         },
         onValidationChange: (hasErrors, errorCount) => {
+          setValidationVersion(prev => prev + 1);
           // Validation results from ValidationEngine
           onValidationChange?.(hasErrors, errorCount);
         }
@@ -141,11 +167,18 @@ export const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
         canEdit: !isReadOnly,
         canDelete: !isReadOnly,
         userRole: user?.role || 'viewer'
-      }
+      },
+      customerPreferences: customerPreferences || undefined
     };
 
     return new GridEngine(config);
   }, [isReadOnly, versioningMode, user?.role]);
+
+  useEffect(() => {
+    if (customerPreferences) {
+      gridEngine.updateConfig({ customerPreferences });
+    }
+  }, [customerPreferences, gridEngine]);
 
   // Update GridEngine configuration when product types load
   useEffect(() => {
@@ -197,12 +230,9 @@ export const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
 
   // Load ALL templates once when component mounts - cached for entire editing session
   useEffect(() => {
-    console.log('Template loading useEffect triggered');
     const loadAllTemplates = async () => {
       try {
-        console.log('Loading all templates...');
         const allTemplates = await fieldPromptsApi.getAllTemplates();
-        console.log('Templates loaded:', allTemplates);
 
         setTemplateCache(allTemplates);
 
@@ -221,16 +251,63 @@ export const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
 
         // Update GridEngine validation config with field validation rules
         const validationConfigs = new Map<number, Record<string, any>>();
-        console.log('Loading templates:', Object.keys(allTemplates));
+
         Object.entries(allTemplates).forEach(([productTypeId, template]) => {
           const id = parseInt(productTypeId);
-          console.log(`Template ${id}:`, template.validation_rules ? 'HAS validation rules' : 'NO validation rules');
-          if (template.validation_rules) {
-            console.log(`Setting validation rules for product ${id}:`, Object.keys(template.validation_rules));
+
+          if (template.validation_rules && Object.keys(template.validation_rules).length > 0) {
             validationConfigs.set(id, template.validation_rules);
+            return;
+          }
+
+          if (id === 1) {
+            validationConfigs.set(id, {
+              field1: {
+                function: 'non_empty',
+                error_level: 'warning',
+                field_category: 'complete_set'
+              },
+              field2: {
+                function: 'float_or_groups',
+                error_level: 'error',
+                field_category: 'complete_set',
+                params: {
+                  group_separator: '. . . . . ',
+                  number_separator: ',',
+                  allow_negative: false,
+                  min_value: 0
+                }
+              },
+              field3: {
+                function: 'led_override',
+                error_level: 'mixed',
+                field_category: 'sufficient',
+                params: {
+                  accepts: ['float', 'yes', 'no']
+                }
+              },
+              field5: {
+                function: 'float',
+                error_level: 'error',
+                field_category: 'sufficient',
+                params: {
+                  min: 0,
+                  allow_negative: false,
+                  decimal_places: 2
+                }
+              },
+              field9: {
+                function: 'ps_override',
+                error_level: 'mixed',
+                field_category: 'sufficient',
+                params: {
+                  accepts: ['float', 'yes', 'no']
+                }
+              }
+            });
           }
         });
-        console.log('Final validation configs:', Array.from(validationConfigs.keys()));
+        console.log(`Templates loaded for ${validationConfigs.size} products`);
         gridEngine.updateValidationConfig(validationConfigs);
 
         setTemplatesLoaded(true);
@@ -387,6 +464,48 @@ export const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
     if (!row) return;
 
     gridEngine.duplicateRow(row.id);
+  }, [displayRows, gridEngine]);
+
+  const handleClearRow = useCallback((rowIndex: number) => {
+    const row = displayRows[rowIndex];
+    if (!row) return;
+
+    const editableSet = new Set(row.editableFields || []);
+    const baseFields = ['quantity', 'field1', 'field2', 'field3', 'field4', 'field5', 'field6', 'field7', 'field8', 'field9', 'field10'];
+    const existingFields = Object.keys(row.data || {});
+    const fieldsToProcess = new Set([...baseFields, ...existingFields, ...editableSet]);
+
+    const updates: Record<string, string> = {};
+
+    fieldsToProcess.forEach((fieldName) => {
+      const normalized = fieldName.toLowerCase();
+      const isEditable = editableSet.size === 0 || editableSet.has(fieldName) || normalized === 'quantity';
+      const isGridField = normalized === 'quantity' || normalized.startsWith('field');
+
+      if (!isEditable && !isGridField) {
+        return;
+      }
+
+      const currentValue = row.data?.[fieldName] ?? '';
+
+      if (normalized === 'quantity') {
+        if (currentValue !== '1') {
+          updates[fieldName] = '1';
+        }
+        return;
+      }
+
+      const nextValue = '';
+      if ((isGridField || editableSet.has(fieldName)) && currentValue !== nextValue) {
+        updates[fieldName] = nextValue;
+      }
+    });
+
+    if (Object.keys(updates).length === 0) {
+      return;
+    }
+
+    gridEngine.updateSingleRow(row.id, updates);
   }, [displayRows, gridEngine]);
 
   // Drag and drop handling
@@ -655,11 +774,13 @@ export const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
         onInsertRow={handleInsertRow}
         onDeleteRow={handleDeleteRow}
         onDuplicateRow={handleDuplicateRow}
+        onClearRow={handleClearRow}
         onDragEnd={handleDragEnd}
         isReadOnly={gridState.editMode === 'readonly'}
         fieldPromptsMap={fieldPromptsMap}
         staticOptionsMap={staticOptionsMap}
         validationEngine={gridEngine.getValidationResults ? gridEngine : undefined}
+        validationVersion={validationVersion}
       />
 
       {/* Footer Section - Simple for now */}

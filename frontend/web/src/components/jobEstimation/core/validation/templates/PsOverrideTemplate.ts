@@ -2,17 +2,22 @@
 // Accepts float, "yes", "no" and calculates PS count based on LED wattage
 
 import { ValidationTemplate, ValidationResult, PsOverrideParams, ValidationContext } from './ValidationTemplate';
+import { calculateChannelLetterMetrics, ChannelLetterMetrics } from '../utils/channelLetterParser';
+
+type PsOverrideParsedValue = number | 'yes' | 'no' | null;
 
 export class PsOverrideTemplate implements ValidationTemplate {
   async validate(value: string, params: PsOverrideParams = {}, context?: ValidationContext): Promise<ValidationResult> {
     try {
+      const counts = this.resolveCounts(context);
+
       // Handle empty values
       if (!value || (typeof value === 'string' && value.trim() === '')) {
         // Empty is valid - will use default behavior
         return {
           isValid: true,
           parsedValue: null,
-          calculatedValue: this.calculateDefaultPsCount(context),
+          calculatedValue: counts.defaultPsCount,
           expectedFormat: this.generateExpectedFormat(params)
         };
       }
@@ -20,20 +25,22 @@ export class PsOverrideTemplate implements ValidationTemplate {
       const cleanValue = value.trim().toLowerCase();
 
       // Parse input based on type
-      const parseResult = this.parseInput(cleanValue, params, context);
+      const parseResult = this.parseInput(cleanValue, params, counts);
       if (!parseResult.isValid) {
         return parseResult;
       }
 
+      const parsedValue = parseResult.parsedValue as PsOverrideParsedValue;
+
       // Calculate PS count based on parsed input and context
-      const calculatedPsCount = this.calculatePsCount(parseResult.parsedValue, context);
+      const calculatedPsCount = this.calculatePsCount(parsedValue, context, counts);
 
       // Generate warnings if applicable
-      const warnings = this.generateWarnings(parseResult.parsedValue, context);
+      const warnings = this.generateWarnings(parsedValue, context);
 
       return {
         isValid: true,
-        parsedValue: parseResult.parsedValue,
+        parsedValue,
         calculatedValue: calculatedPsCount,
         warnings: warnings.length > 0 ? warnings : undefined,
         expectedFormat: this.generateExpectedFormat(params)
@@ -51,17 +58,40 @@ export class PsOverrideTemplate implements ValidationTemplate {
   /**
    * Parse input value into structured format
    */
-  private parseInput(value: string, params: PsOverrideParams, context?: ValidationContext): ValidationResult {
+  private parseInput(
+    value: string,
+    params: PsOverrideParams,
+    counts: {
+      savedLedCount: number;
+      defaultLedCount: number;
+      savedPsCount: number;
+      defaultPsCount: number;
+      actualLedCount: number;
+    }
+  ): ValidationResult {
     const accepts = params.accepts || ['float', 'yes', 'no'];
 
     // Check for "yes" - but reject if there are no LEDs
     if (accepts.includes('yes') && value === 'yes') {
-      const ledCount = context?.calculatedValues?.ledCount || 0;
-      if (ledCount === 0) {
+      if (counts.actualLedCount <= 0) {
         return {
           isValid: false,
           error: 'Cannot use "yes" for power supplies when there are no LEDs',
           expectedFormat: 'Use a specific number or "no" when no LEDs are present'
+        };
+      }
+      if (counts.defaultPsCount > 0) {
+        return {
+          isValid: false,
+          error: 'Power supplies are already included by default. Enter a number or "no" instead.',
+          expectedFormat: this.generateExpectedFormat(params)
+        };
+      }
+      if (counts.savedPsCount <= 0) {
+        return {
+          isValid: false,
+          error: 'No saved power supply count available to restore.',
+          expectedFormat: this.generateExpectedFormat(params)
         };
       }
       return { isValid: true, parsedValue: 'yes' };
@@ -69,6 +99,20 @@ export class PsOverrideTemplate implements ValidationTemplate {
 
     // Check for "no" - note: this means "don't use PS" even if LEDs exist
     if (accepts.includes('no') && value === 'no') {
+      if (counts.actualLedCount <= 0) {
+        return {
+          isValid: false,
+          error: 'Provide an explicit number of power supplies when there are no LEDs.',
+          expectedFormat: this.generateExpectedFormat(params)
+        };
+      }
+      if (counts.defaultPsCount === 0) {
+        return {
+          isValid: false,
+          error: 'Power supplies are already disabled by default. Enter a number if needed.',
+          expectedFormat: this.generateExpectedFormat(params)
+        };
+      }
       return { isValid: true, parsedValue: 'no' };
     }
 
@@ -98,10 +142,18 @@ export class PsOverrideTemplate implements ValidationTemplate {
   /**
    * Calculate PS count based on input and context
    */
-  private calculatePsCount(parsedValue: any, context?: ValidationContext): number {
+  private calculatePsCount(
+    parsedValue: PsOverrideParsedValue,
+    context: ValidationContext | undefined,
+    counts: {
+      savedLedCount: number;
+      defaultLedCount: number;
+      savedPsCount: number;
+      defaultPsCount: number;
+      actualLedCount: number;
+    }
+  ): number {
     if (!context) return 0;
-
-    const ledCount = context.calculatedValues?.ledCount || 0;
 
     // Handle different input types
     if (typeof parsedValue === 'number') {
@@ -110,13 +162,7 @@ export class PsOverrideTemplate implements ValidationTemplate {
     }
 
     if (parsedValue === 'yes') {
-      if (ledCount > 0) {
-        // Calculate from LED wattage
-        return this.calculatePsFromLeds(ledCount, context);
-      } else {
-        // No LEDs to power
-        return 0;
-      }
+      return counts.savedPsCount;
     }
 
     if (parsedValue === 'no') {
@@ -125,28 +171,15 @@ export class PsOverrideTemplate implements ValidationTemplate {
     }
 
     // No explicit input - use default behavior
-    return this.calculateDefaultPsCount(context);
+    return counts.defaultPsCount;
   }
 
   /**
    * Calculate default PS count based on customer preferences and LED count
    */
   private calculateDefaultPsCount(context?: ValidationContext): number {
-    if (!context) return 0;
-
-    const ledCount = context.calculatedValues?.ledCount || 0;
-
-    // No LEDs = no power supplies needed
-    if (ledCount === 0) return 0;
-
-    // Check customer preference for power supplies
-    if (context.customerPreferences.requires_transformers) {
-      // Customer default: include power supplies when LEDs exist
-      return this.calculatePsFromLeds(ledCount, context);
-    }
-
-    // Default: no power supplies unless explicitly requested
-    return 0;
+    const counts = this.resolveCounts(context);
+    return counts.defaultPsCount;
   }
 
   /**
@@ -175,6 +208,111 @@ export class PsOverrideTemplate implements ValidationTemplate {
       console.warn('Error calculating PS from LEDs:', error);
       return 1; // Fallback: 1 power supply
     }
+  }
+
+  private getLedCount(context: ValidationContext): number {
+    if (typeof context.calculatedValues?.ledCount === 'number') {
+      return context.calculatedValues.ledCount;
+    }
+
+    const metrics = this.getChannelLetterMetrics(context);
+    return metrics?.ledCount || 0;
+  }
+
+  private getSavedLedCount(context?: ValidationContext): number {
+    if (!context) return 0;
+    const savedLedCount = context.calculatedValues?.savedLedCount;
+    if (typeof savedLedCount === 'number') {
+      return Math.max(0, savedLedCount);
+    }
+
+    return Math.max(0, this.getLedCount(context));
+  }
+
+  private getDefaultLedCount(context: ValidationContext | undefined, savedLedCount: number): number {
+    if (!context) return 0;
+    const defaultLedCount = context.calculatedValues?.defaultLedCount;
+    if (typeof defaultLedCount === 'number') {
+      return Math.max(0, defaultLedCount);
+    }
+
+    return context.customerPreferences.use_leds ? savedLedCount : 0;
+  }
+
+  private getActualLedCount(context: ValidationContext | undefined, defaultLedCount: number): number {
+    if (!context) return defaultLedCount;
+    const ledCount = context.calculatedValues?.ledCount;
+    if (typeof ledCount === 'number') {
+      return Math.max(0, ledCount);
+    }
+    return defaultLedCount;
+  }
+
+  private getSavedPsCount(
+    context: ValidationContext | undefined,
+    savedLedCount: number
+  ): number {
+    if (!context) {
+      if (savedLedCount <= 0) {
+        return 0;
+      }
+      // Fallback: assume standard wattage when context unavailable
+      const estimatedTotalWattage = savedLedCount * 1.2;
+      return Math.max(0, Math.ceil(estimatedTotalWattage / 60));
+    }
+
+    const saved = context.calculatedValues?.savedPsCount;
+    if (typeof saved === 'number') {
+      return Math.max(0, saved);
+    }
+
+    if (savedLedCount <= 0) {
+      return 0;
+    }
+
+    return Math.max(0, this.calculatePsFromLeds(savedLedCount, context));
+  }
+
+  private getDefaultPsCount(
+    context: ValidationContext | undefined,
+    defaultLedCount: number,
+    savedPsCount: number
+  ): number {
+    if (!context) return 0;
+
+    const defaultPs = context.calculatedValues?.defaultPsCount;
+    if (typeof defaultPs === 'number') {
+      return Math.max(0, defaultPs);
+    }
+
+    if (defaultLedCount > 0 && context.customerPreferences.requires_transformers) {
+      return savedPsCount > 0 ? savedPsCount : this.calculatePsFromLeds(defaultLedCount, context);
+    }
+
+    return 0;
+  }
+
+  private resolveCounts(context?: ValidationContext) {
+    const savedLedCount = this.getSavedLedCount(context);
+    const defaultLedCount = this.getDefaultLedCount(context, savedLedCount);
+    const savedPsCount = this.getSavedPsCount(context, savedLedCount);
+    const defaultPsCount = this.getDefaultPsCount(context, defaultLedCount, savedPsCount);
+    const actualLedCount = this.getActualLedCount(context, defaultLedCount);
+
+    return {
+      savedLedCount,
+      defaultLedCount,
+      savedPsCount,
+      defaultPsCount,
+      actualLedCount
+    };
+  }
+
+  private getChannelLetterMetrics(context: ValidationContext): ChannelLetterMetrics | null {
+    return (
+      (context.calculatedValues?.channelLetterMetrics as ChannelLetterMetrics | undefined) ||
+      calculateChannelLetterMetrics(context.rowData.field2)
+    );
   }
 
   /**
@@ -250,15 +388,15 @@ export class PsOverrideTemplate implements ValidationTemplate {
   /**
    * Generate warnings for potentially confusing input
    */
-  private generateWarnings(parsedValue: any, context?: ValidationContext): string[] {
+  private generateWarnings(parsedValue: PsOverrideParsedValue, context?: ValidationContext): string[] {
     const warnings: string[] = [];
 
     if (!context) return warnings;
 
-    const ledCount = context.calculatedValues?.ledCount || 0;
+    const ledCount = this.getLedCount(context);
 
-    // Warning: requesting PS without LEDs
-    if ((parsedValue === 'yes' || typeof parsedValue === 'number') && ledCount === 0) {
+    // Warning only when auto-calculating without LEDs; explicit counts are allowed
+    if (parsedValue === 'yes' && ledCount === 0) {
       warnings.push('Power supplies requested but no LEDs detected');
     }
 
@@ -289,7 +427,7 @@ export class PsOverrideTemplate implements ValidationTemplate {
     return 'Context-aware power supply count validation with LED wattage calculations and customer preferences';
   }
 
-  getParameterSchema(): Record<string, any> {
+  getParameterSchema(): Record<string, unknown> {
     return {
       accepts: {
         type: 'array',
