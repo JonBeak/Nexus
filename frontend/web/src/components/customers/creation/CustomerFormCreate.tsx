@@ -1,5 +1,5 @@
 import React from 'react';
-import { CustomerFormCreateProps } from './CustomerCreationTypes';
+import { CustomerCreateData, CustomerFormCreateProps } from './CustomerCreationTypes';
 import { CustomerCreationValidation } from './CustomerCreationValidation';
 
 export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
@@ -15,9 +15,12 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
   };
 
   // Get validation styling for fields
-  const getFieldClass = (fieldName: string, value: any) => {
-    const error = CustomerCreationValidation.validateField(fieldName, value, formData);
-    return CustomerCreationValidation.getValidationClass(fieldName, value, !!error);
+  const getFieldClass = <K extends keyof CustomerCreateData>(
+    fieldName: K,
+    value: CustomerCreateData[K] | null | undefined
+  ) => {
+    const error = CustomerCreationValidation.validateField(fieldName, value);
+    return CustomerCreationValidation.getValidationClass(fieldName, value, Boolean(error));
   };
 
   return (

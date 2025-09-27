@@ -34,11 +34,11 @@ function ConfirmationModals({
 }: ConfirmationModalsProps) {
   const getAddressTypeLabels = (address: Address) => {
     const types = [];
-    if (Boolean(address.is_primary)) types.push('Primary');
-    if (Boolean(address.is_billing)) types.push('Billing');
-    if (Boolean(address.is_shipping)) types.push('Shipping');
-    if (Boolean(address.is_jobsite)) types.push('Jobsite');
-    if (Boolean(address.is_mailing)) types.push('Mailing');
+    if (address.is_primary) types.push('Primary');
+    if (address.is_billing) types.push('Billing');
+    if (address.is_shipping) types.push('Shipping');
+    if (address.is_jobsite) types.push('Jobsite');
+    if (address.is_mailing) types.push('Mailing');
     return types.length > 0 ? types.join(', ') : 'Address';
   };
 

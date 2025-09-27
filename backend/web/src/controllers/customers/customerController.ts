@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { CustomerService } from '../../services/customers/customerService';
+import { AddressService } from '../../services/customers/addressService';
 import { CustomerPermissions } from '../../utils/customers/permissions';
 
 export class CustomerController {
@@ -61,6 +62,34 @@ export class CustomerController {
     }
   }
 
+  static async getManufacturingPreferences(req: Request, res: Response) {
+    try {
+      const user = (req as any).user;
+
+      const canView = await CustomerPermissions.canViewCustomersHybrid(user);
+      if (!canView) {
+        return res.status(403).json({ success: false, error: 'Insufficient permissions to view customer preferences' });
+      }
+
+      const customerId = parseInt(req.params.id);
+
+      if (isNaN(customerId)) {
+        return res.status(400).json({ success: false, error: 'Invalid customer ID' });
+      }
+
+      const preferences = await CustomerService.getManufacturingPreferences(customerId);
+
+      if (!preferences) {
+        return res.status(404).json({ success: false, error: 'Customer preferences not found' });
+      }
+
+      return res.json({ success: true, data: preferences });
+    } catch (error) {
+      console.error('Error fetching customer manufacturing preferences:', error);
+      return res.status(500).json({ success: false, error: 'Failed to fetch customer manufacturing preferences' });
+    }
+  }
+
   static async updateCustomer(req: Request, res: Response) {
     try {
       const user = (req as any).user;
@@ -96,9 +125,63 @@ export class CustomerController {
         return res.status(403).json({ error: 'Insufficient permissions to create customers' });
       }
 
+      const { addresses = [] } = req.body;
+
       const newCustomer = await CustomerService.createCustomer(req.body);
+
+      if (Array.isArray(addresses) && addresses.length > 0) {
+        const createdBy = user?.username || 'system';
+        const normalizedAddresses = addresses
+          .filter((address: any) => address?.province_state_short && address.province_state_short.trim())
+          .map((address: any) => {
+            const getTrimmedString = (value: unknown): string | null => {
+              if (typeof value !== 'string') return null;
+              const trimmed = value.trim();
+              return trimmed.length > 0 ? trimmed : null;
+            };
+
+            const toNumberOrNull = (value: unknown): number | null => {
+              if (value === null || value === undefined) return null;
+              const parsed = Number(value);
+              return Number.isFinite(parsed) ? parsed : null;
+            };
+
+            return {
+              is_primary: Boolean(address?.is_primary),
+              is_billing: Boolean(address?.is_billing),
+              is_shipping: address?.is_shipping === undefined ? true : Boolean(address.is_shipping),
+              is_jobsite: Boolean(address?.is_jobsite),
+              is_mailing: Boolean(address?.is_mailing),
+              address_line1: getTrimmedString(address?.address_line1),
+              address_line2: getTrimmedString(address?.address_line2),
+              city: getTrimmedString(address?.city),
+              province_state_long: getTrimmedString(address?.province_state_long),
+              province_state_short: address.province_state_short.trim(),
+              postal_zip: getTrimmedString(address?.postal_zip),
+              country: getTrimmedString(address?.country) || 'Canada',
+              tax_override_percent: toNumberOrNull(address?.tax_override_percent),
+              tax_type: getTrimmedString(address?.tax_type),
+              tax_id: toNumberOrNull(address?.tax_id),
+              tax_override_reason: getTrimmedString(address?.tax_override_reason),
+              use_province_tax: address?.use_province_tax === undefined ? true : Boolean(address.use_province_tax),
+              comments: getTrimmedString(address?.comments)
+            };
+          });
+
+        const hasPrimaryAddress = normalizedAddresses.some(address => address.is_primary);
+
+        if (!hasPrimaryAddress && normalizedAddresses.length > 0) {
+          normalizedAddresses[0].is_primary = true;
+        }
+
+        for (const address of normalizedAddresses) {
+          await AddressService.addAddress(newCustomer.customer_id, address, createdBy);
+        }
+      }
+
+      const customerWithAddresses = await CustomerService.getCustomerById(newCustomer.customer_id);
       
-      res.status(201).json(newCustomer);
+      res.status(201).json(customerWithAddresses);
     } catch (error) {
       console.error('Error creating customer:', error);
       if (error instanceof Error && error.message === 'Company name is required') {

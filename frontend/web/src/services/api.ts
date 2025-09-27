@@ -96,6 +96,11 @@ export const customerApi = {
     return response.data;
   },
 
+  getManufacturingPreferences: async (id: number) => {
+    const response = await api.get(`/customers/${id}/manufacturing-preferences`);
+    return response.data;
+  },
+
   // Address management
   addAddress: async (customerId: number, addressData: any) => {
     const response = await api.post(`/customers/${customerId}/addresses`, addressData);

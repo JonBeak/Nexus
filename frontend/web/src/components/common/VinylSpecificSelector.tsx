@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Eye, Package, MapPin, Calendar, User, AlertTriangle, CheckCircle } from 'lucide-react';
+import { X, Package, MapPin, Calendar, User, CheckCircle } from 'lucide-react';
 import { VinylItem } from '../inventory/InventoryTab';
 
 interface VinylSpecificSelectorProps {

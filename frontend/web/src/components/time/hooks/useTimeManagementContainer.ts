@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { detectMultipleEntries } from '../../../lib/timeUtils';
 import type {
@@ -7,11 +7,35 @@ import type {
   TimeEntry,
   WeeklySummary,
   AnalyticsData,
-  MissingEntry
+  MissingEntry,
+  TimeUser,
+  AuthenticatedRequest,
+  BulkEditValues
 } from '../../../types/time';
 
+const getSaturdayOfWeek = (dateStr: string): string => {
+  const date = new Date(dateStr + 'T12:00:00');
+  const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+  const daysToSaturday = (6 - dayOfWeek) % 7;
+  const saturday = new Date(date);
+  saturday.setDate(date.getDate() - daysToSaturday - 7); // Previous Saturday to get Saturday-Friday week
+  return saturday.toISOString().split('T')[0];
+};
+
+const getFridayOfWeek = (dateStr: string): string => {
+  const date = new Date(dateStr + 'T12:00:00');
+  const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+  const daysToFriday = (5 - dayOfWeek + 7) % 7;
+  const friday = new Date(date);
+  friday.setDate(date.getDate() + daysToFriday);
+  if (dayOfWeek === 6) { // If it's Saturday, get next Friday
+    friday.setDate(date.getDate() + 6);
+  }
+  return friday.toISOString().split('T')[0];
+};
+
 interface UseTimeManagementContainerProps {
-  user: any;
+  user: TimeUser;
 }
 
 export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerProps) => {
@@ -25,7 +49,7 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
   };
 
   // Helper function to make authenticated requests
-  const makeAuthenticatedRequest = async (url: string, options: any = {}) => {
+  const makeAuthenticatedRequest: AuthenticatedRequest = useCallback(async (url, options = {}) => {
     const token = localStorage.getItem('access_token');
     
     if (!token) {
@@ -33,13 +57,15 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
     }
     
     try {
+      const headers = new Headers(options.headers ?? {});
+      headers.set('Authorization', `Bearer ${token}`);
+      if (!headers.has('Content-Type')) {
+        headers.set('Content-Type', 'application/json');
+      }
+
       const response = await fetch(url, {
         ...options,
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          ...options.headers
-        }
+        headers
       });
 
       // Only logout on authentication failures, not other errors
@@ -54,7 +80,7 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
       console.error('Network error:', error);
       throw error;
     }
-  };
+  }, []);
   
   // State management
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
@@ -67,7 +93,7 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
   const [weeklySummary, setWeeklySummary] = useState<WeeklySummary[]>([]);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [missingEntries, setMissingEntries] = useState<MissingEntry[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<TimeUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedEntries, setSelectedEntries] = useState<number[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -78,77 +104,23 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
     break_minutes: number;
   }>({ clock_in: '', clock_out: '', break_minutes: 0 });
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
-  const [bulkEditValues, setBulkEditValues] = useState<{
-    clock_in?: string;
-    clock_out?: string;
-    break_minutes?: number;
-  }>({});
+  const [bulkEditValues, setBulkEditValues] = useState<BulkEditValues>({});
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showScheduleManagement, setShowScheduleManagement] = useState(false);
   
-  // Check if user has access
-  useEffect(() => {
-    if (user?.role !== 'manager' && user?.role !== 'owner') {
-      navigate('/dashboard');
-    }
-  }, [user, navigate]);
-  
-  // Fetch users list
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-  
-  useEffect(() => {
-    if (viewMode === 'single') {
-      fetchTimeEntries();
-    } else if (viewMode === 'weekly') {
-      fetchWeeklySummary();
-    } else if (viewMode === 'bi-weekly') {
-      fetchWeeklySummary(); // Reuse weekly summary logic for bi-weekly
-    } else if (viewMode === 'monthly' || viewMode === 'quarterly' || viewMode === 'semi-yearly' || viewMode === 'yearly') {
-      fetchWeeklySummary(); // Reuse weekly summary logic for longer periods
-    } else if (viewMode === 'analytics') {
-      fetchAnalytics();
-    } else if (viewMode === 'missing') {
-      fetchMissingEntries();
-    }
-  }, [viewMode, selectedDate, endDate, dateRange, selectedGroup, filterStatus, searchTerm]);
-  
-  // Helper functions for date calculations
-  const getSaturdayOfWeek = (dateStr: string) => {
-    const date = new Date(dateStr + 'T12:00:00');
-    const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
-    const daysToSaturday = (6 - dayOfWeek) % 7;
-    const saturday = new Date(date);
-    saturday.setDate(date.getDate() - daysToSaturday - 7); // Previous Saturday to get Saturday-Friday week
-    return saturday.toISOString().split('T')[0];
-  };
-
-  const getFridayOfWeek = (dateStr: string) => {
-    const date = new Date(dateStr + 'T12:00:00');
-    const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
-    const daysToFriday = (5 - dayOfWeek + 7) % 7;
-    const friday = new Date(date);
-    friday.setDate(date.getDate() + daysToFriday);
-    if (dayOfWeek === 6) { // If it's Saturday, get next Friday
-      friday.setDate(date.getDate() + 6);
-    }
-    return friday.toISOString().split('T')[0];
-  };
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const res = await makeAuthenticatedRequest('http://192.168.2.14:3001/api/auth/users');
       if (res.ok) {
-        const data = await res.json();
+        const data: TimeUser[] = await res.json();
         setUsers(data);
       }
     } catch (error) {
       console.error('Error fetching users:', error);
     }
-  };
+  }, [makeAuthenticatedRequest]);
   
-  const fetchTimeEntries = async () => {
+  const fetchTimeEntries = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -164,9 +136,10 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
       );
       
       if (res.ok) {
-        const data = await res.json();
+        const data: { entries?: TimeEntry[] } | TimeEntry[] = await res.json();
         // Group by user and date to detect multiple entries
-        const entriesWithWarnings = detectMultipleEntries(data.entries || data);
+        const entries = Array.isArray(data) ? data : data.entries || [];
+        const entriesWithWarnings = detectMultipleEntries(entries);
         setTimeEntries(entriesWithWarnings);
       }
     } catch (error) {
@@ -174,9 +147,9 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
     } finally {
       setLoading(false);
     }
-  };
+  }, [makeAuthenticatedRequest, selectedDate, endDate, dateRange, filterStatus, selectedGroup, searchTerm]);
   
-  const fetchWeeklySummary = async () => {
+  const fetchWeeklySummary = useCallback(async () => {
     setLoading(true);
     try {
       let startDateParam, endDateParam;
@@ -236,7 +209,7 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
       );
       
       if (res.ok) {
-        const data = await res.json();
+        const data: WeeklySummary[] = await res.json();
         setWeeklySummary(data);
       }
     } catch (error) {
@@ -244,9 +217,9 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange, selectedDate, endDate, selectedGroup, viewMode, makeAuthenticatedRequest]);
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -260,7 +233,7 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
       );
       
       if (res.ok) {
-        const data = await res.json();
+        const data: AnalyticsData = await res.json();
         setAnalyticsData(data);
       }
     } catch (error) {
@@ -268,9 +241,9 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
     } finally {
       setLoading(false);
     }
-  };
+  }, [makeAuthenticatedRequest, selectedDate, endDate, dateRange, selectedGroup]);
 
-  const fetchMissingEntries = async () => {
+  const fetchMissingEntries = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -284,7 +257,7 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
       );
       
       if (res.ok) {
-        const data = await res.json();
+        const data: MissingEntry[] = await res.json();
         setMissingEntries(data);
       }
     } catch (error) {
@@ -292,9 +265,37 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
     } finally {
       setLoading(false);
     }
-  };
+  }, [makeAuthenticatedRequest, selectedDate, endDate, dateRange, selectedGroup]);
 
-  const addMissingEntry = async (missingEntry: any) => {
+  // Check if user has access
+  useEffect(() => {
+    if (user?.role !== 'manager' && user?.role !== 'owner') {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
+  
+  // Fetch users list
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  useEffect(() => {
+    if (viewMode === 'single') {
+      fetchTimeEntries();
+    } else if (viewMode === 'weekly') {
+      fetchWeeklySummary();
+    } else if (viewMode === 'bi-weekly') {
+      fetchWeeklySummary(); // Reuse weekly summary logic for bi-weekly
+    } else if (viewMode === 'monthly' || viewMode === 'quarterly' || viewMode === 'semi-yearly' || viewMode === 'yearly') {
+      fetchWeeklySummary(); // Reuse weekly summary logic for longer periods
+    } else if (viewMode === 'analytics') {
+      fetchAnalytics();
+    } else if (viewMode === 'missing') {
+      fetchMissingEntries();
+    }
+  }, [viewMode, fetchTimeEntries, fetchWeeklySummary, fetchAnalytics, fetchMissingEntries]);
+
+  const addMissingEntry = async (missingEntry: MissingEntry) => {
     const clockInTime = prompt(`Add time entry for ${missingEntry.first_name} ${missingEntry.last_name} on ${new Date(missingEntry.missing_date + 'T12:00:00').toLocaleDateString()}.\n\nClock in time (HH:MM format):`, missingEntry.expected_start);
     const clockOutTime = prompt(`Clock out time (HH:MM format):`, missingEntry.expected_end);
     
@@ -303,7 +304,12 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
       return;
     }
     
-    const breakMinutes = Number(prompt('Break minutes (0-480):', '30') || 0);
+    const breakInput = prompt('Break minutes (0-480):', '30');
+    const breakMinutes = Number(breakInput ?? 0);
+    if (Number.isNaN(breakMinutes)) {
+      alert('Invalid break minutes. Please try again.');
+      return;
+    }
     
     try {
       const res = await makeAuthenticatedRequest(
@@ -339,7 +345,7 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
     }
   };
   
-  const markExcused = async (missingEntry: any) => {
+  const markExcused = async (missingEntry: MissingEntry) => {
     const reason = prompt(`Mark ${missingEntry.first_name} ${missingEntry.last_name} as excused for ${new Date(missingEntry.missing_date + 'T12:00:00').toLocaleDateString()}.\n\nReason (optional):`);
     
     try {

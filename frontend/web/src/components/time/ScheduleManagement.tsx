@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar, Clock, Plus, Save, X } from 'lucide-react';
+import type { TimeUser, AuthenticatedRequest } from '../../types/time';
+
+const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 interface WorkSchedule {
   schedule_id?: number;
@@ -18,53 +21,37 @@ interface Holiday {
 }
 
 interface ScheduleManagementProps {
-  user: any;
   onClose: () => void;
 }
 
-export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ user, onClose }) => {
+export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<'schedules' | 'holidays'>('schedules');
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<TimeUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
   const [schedules, setSchedules] = useState<WorkSchedule[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(false);
   const [newHoliday, setNewHoliday] = useState({ name: '', date: '' });
 
-  const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
   // Helper function to make authenticated requests
-  const makeAuthenticatedRequest = async (url: string, options: any = {}) => {
+  const makeAuthenticatedRequest: AuthenticatedRequest = useCallback(async (url, options = {}) => {
     const token = localStorage.getItem('access_token');
-    
-    const headers = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-      ...options.headers
-    };
-    
+    const headers = new Headers(options.headers ?? {});
+    headers.set('Content-Type', 'application/json');
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
     return fetch(url, {
       ...options,
-      headers
+      headers,
     });
-  };
-
-  useEffect(() => {
-    fetchUsers();
-    fetchHolidays();
   }, []);
 
-  useEffect(() => {
-    if (selectedUser) {
-      fetchSchedules(selectedUser);
-    }
-  }, [selectedUser]);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const res = await makeAuthenticatedRequest('http://192.168.2.14:3001/api/auth/users');
       if (res.ok) {
-        const data = await res.json();
+        const data: TimeUser[] = await res.json();
         setUsers(data);
         if (data.length > 0) {
           setSelectedUser(data[0].user_id);
@@ -73,19 +60,19 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ user, on
     } catch (error) {
       console.error('Error fetching users:', error);
     }
-  };
-
-  const fetchSchedules = async (userId: number) => {
+  }, [makeAuthenticatedRequest]);
+ 
+  const fetchSchedules = useCallback(async (userId: number) => {
     try {
       const res = await makeAuthenticatedRequest(
         `http://192.168.2.14:3001/api/time-management/schedules/${userId}`
       );
       if (res.ok) {
-        const data = await res.json();
+        const data: WorkSchedule[] = await res.json();
         
         // Create default schedule if none exists
         if (data.length === 0) {
-          const defaultSchedule = daysOfWeek.map(day => ({
+          const defaultSchedule = DAYS_OF_WEEK.map(day => ({
             user_id: userId,
             day_of_week: day,
             is_work_day: !['Saturday', 'Sunday'].includes(day),
@@ -100,19 +87,30 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ user, on
     } catch (error) {
       console.error('Error fetching schedules:', error);
     }
-  };
+  }, [makeAuthenticatedRequest]);
 
-  const fetchHolidays = async () => {
+  const fetchHolidays = useCallback(async () => {
     try {
       const res = await makeAuthenticatedRequest('http://192.168.2.14:3001/api/time-management/holidays');
       if (res.ok) {
-        const data = await res.json();
+        const data: Holiday[] = await res.json();
         setHolidays(data);
       }
     } catch (error) {
       console.error('Error fetching holidays:', error);
     }
-  };
+  }, [makeAuthenticatedRequest]);
+
+  useEffect(() => {
+    fetchUsers();
+    fetchHolidays();
+  }, [fetchUsers, fetchHolidays]);
+
+  useEffect(() => {
+    if (selectedUser) {
+      fetchSchedules(selectedUser);
+    }
+  }, [selectedUser, fetchSchedules]);
 
   const saveSchedules = async () => {
     if (!selectedUser) return;
@@ -280,7 +278,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ user, on
     }
   };
 
-  const updateSchedule = (dayIndex: number, field: keyof WorkSchedule, value: any) => {
+  const updateSchedule = <K extends keyof WorkSchedule>(dayIndex: number, field: K, value: WorkSchedule[K]) => {
     setSchedules(prev => 
       prev.map((schedule, index) => 
         index === dayIndex ? { ...schedule, [field]: value } : schedule

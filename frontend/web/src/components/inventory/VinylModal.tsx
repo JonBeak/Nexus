@@ -1,17 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { vinylApi, suppliersApi, jobsApi } from '../../services/api';
-import { VinylItem } from './InventoryTab';
 import { AutofillComboBox } from '../common/AutofillComboBox';
+import {
+  JobSuggestion,
+  SupplierSummary,
+  VinylAutofillCombination,
+  VinylAutofillSuggestions,
+  VinylFormSubmission,
+  VinylItem,
+  VinylProduct
+} from './types';
+
+interface VinylFormState {
+  brand: string;
+  series: string;
+  colour_number: string;
+  colour_name: string;
+  width: string;
+  length_yards: string;
+  location: string;
+  disposition: 'in_stock' | 'used' | 'waste' | 'returned' | 'damaged';
+  supplier_id: string;
+  purchase_date: string;
+  storage_date: string;
+  notes: string;
+}
 
 interface VinylModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: VinylFormSubmission) => Promise<void> | void;
   title: string;
   initialData?: VinylItem | null;
-  autofillSuggestions?: any;
-  products?: any[];
+  autofillSuggestions?: VinylAutofillSuggestions;
+  products?: VinylProduct[];
 }
 
 export const VinylModal: React.FC<VinylModalProps> = ({
@@ -23,7 +46,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
   autofillSuggestions,
   products
 }) => {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<VinylFormState>({
     brand: '',
     series: '',
     colour_number: '',
@@ -38,8 +61,8 @@ export const VinylModal: React.FC<VinylModalProps> = ({
     notes: ''
   });
 
-  const [availableSuppliers, setAvailableSuppliers] = useState<any[]>([]);
-  const [availableJobs, setAvailableJobs] = useState<any[]>([]);
+  const [availableSuppliers, setAvailableSuppliers] = useState<SupplierSummary[]>([]);
+  const [availableJobs, setAvailableJobs] = useState<JobSuggestion[]>([]);
   const [selectedJobs, setSelectedJobs] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -91,7 +114,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
 
   const loadSuppliers = async () => {
     try {
-      const suppliers = await suppliersApi.getSuppliers({ active_only: true });
+      const suppliers = await suppliersApi.getSuppliers({ active_only: true }) as SupplierSummary[];
       setAvailableSuppliers(suppliers || []);
     } catch (error) {
       console.error('Error loading suppliers:', error);
@@ -101,7 +124,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
 
   const loadJobs = async () => {
     try {
-      const jobs = await jobsApi.getJobs({});
+      const jobs = await jobsApi.getJobs({}) as JobSuggestion[];
       setAvailableJobs(jobs || []);
     } catch (error) {
       console.error('Error loading jobs:', error);
@@ -113,7 +136,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
     try {
       // Use the main vinyl endpoint which now returns unified job_associations
       const vinylData = await vinylApi.getVinylItem(vinylId);
-      const jobIds = vinylData.job_associations?.map((link: any) => link.job_id) || [];
+      const jobIds = vinylData.job_associations?.map((link: { job_id: number }) => link.job_id) || [];
       setSelectedJobs(jobIds);
     } catch (error) {
       console.error('Error loading job associations:', error);
@@ -133,7 +156,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
     setLoading(true);
 
     try {
-      const submitData = {
+      const submitData: VinylFormSubmission = {
         ...formData,
         width: parseFloat(formData.width) || 0,
         length_yards: parseFloat(formData.length_yards) || 0,
@@ -158,7 +181,10 @@ export const VinylModal: React.FC<VinylModalProps> = ({
     }));
   };
 
-  const handleAutofillChange = (field: string, value: string) => {
+  const handleAutofillChange = (
+    field: 'brand' | 'series' | 'colour_number' | 'colour_name',
+    value: string
+  ) => {
     setFormData(prev => {
       const newData = {
         ...prev,
@@ -167,7 +193,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
 
       // Auto-populate the corresponding color field when brand, series, and one color field are selected
       if (newData.brand && newData.series && autofillSuggestions?.combinations) {
-        const matchingCombination = autofillSuggestions.combinations.find((combo: any) => 
+        const matchingCombination = autofillSuggestions.combinations.find((combo: VinylAutofillCombination) => 
           combo.brand === newData.brand && 
           combo.series === newData.series &&
           (
@@ -188,7 +214,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
 
       // Auto-populate width when we have a complete product combination
       if (newData.brand && newData.series && (newData.colour_number || newData.colour_name) && products) {
-        const matchingProduct = products.find((product: any) => {
+        const matchingProduct = products.find((product) => {
           const basicMatch = product.brand === newData.brand &&
                             product.series === newData.series &&
                             product.is_active;
@@ -241,13 +267,13 @@ export const VinylModal: React.FC<VinylModalProps> = ({
   const getSuggestions = (field: 'brand' | 'series' | 'colour_number' | 'colour_name') => {
     if (!autofillSuggestions?.combinations) return [];
 
-    let filtered = autofillSuggestions.combinations;
+    let filtered = [...autofillSuggestions.combinations];
     
     // Filter based on already selected values
     if (field === 'series' && formData.brand) {
-      filtered = filtered.filter((combo: any) => combo.brand === formData.brand);
+      filtered = filtered.filter((combo) => combo.brand === formData.brand);
     } else if ((field === 'colour_number' || field === 'colour_name') && formData.brand && formData.series) {
-      filtered = filtered.filter((combo: any) => 
+      filtered = filtered.filter((combo) => 
         combo.brand === formData.brand && combo.series === formData.series
       );
     }
@@ -257,13 +283,13 @@ export const VinylModal: React.FC<VinylModalProps> = ({
     
     if (field === 'colour_number') {
       // Use the separate colour_number field from backend
-      values = [...new Set(filtered.map((combo: any) => combo.colour_number).filter(Boolean))];
+      values = [...new Set(filtered.map((combo) => combo.colour_number).filter(Boolean))];
     } else if (field === 'colour_name') {
       // Use the separate colour_name field from backend
-      values = [...new Set(filtered.map((combo: any) => combo.colour_name).filter(Boolean))];
+      values = [...new Set(filtered.map((combo) => combo.colour_name).filter(Boolean))];
     } else {
       // For brand, series
-      values = [...new Set(filtered.map((combo: any) => combo[field]).filter(Boolean))];
+      values = [...new Set(filtered.map((combo) => combo[field] as string | undefined).filter(Boolean))];
     }
     
     return values.sort();

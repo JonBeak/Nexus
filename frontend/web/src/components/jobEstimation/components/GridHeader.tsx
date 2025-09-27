@@ -1,16 +1,12 @@
 import React from 'react';
 import { AlertTriangle, Lock, Save, Trash2, RotateCcw, Eraser, Plus } from 'lucide-react';
 import { GridEngine } from '../core/GridEngine';
-import { EditLockIndicator } from '../../common/EditLockIndicator';
 
 interface GridHeaderProps {
   gridEngine: GridEngine;
-  user: any;
   estimate?: any;
   versioningMode?: boolean;
   isCreatingNew: boolean;
-  onBackToEstimates: () => void;
-  editLock?: any; // From useEditLock hook
   onReset: () => void;
   onClearAll: () => void;
   onClearEmpty: () => void;
@@ -20,12 +16,9 @@ interface GridHeaderProps {
 
 export const GridHeader: React.FC<GridHeaderProps> = ({
   gridEngine,
-  user,
   estimate,
   versioningMode = false,
   isCreatingNew,
-  onBackToEstimates,
-  editLock,
   onReset,
   onClearAll,
   onClearEmpty,
@@ -34,13 +27,11 @@ export const GridHeader: React.FC<GridHeaderProps> = ({
 }) => {
   // Subscribe to GridEngine state changes
   const [gridState, setGridState] = React.useState(gridEngine.getState());
-  const [displayRows, setDisplayRows] = React.useState(gridEngine.getRows());
 
   React.useEffect(() => {
     // Update state when GridEngine changes
     const updateState = () => {
       setGridState(gridEngine.getState());
-      setDisplayRows(gridEngine.getRows());
     };
 
     // Initial update

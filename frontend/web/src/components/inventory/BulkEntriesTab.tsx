@@ -1,45 +1,18 @@
-import React, { useMemo } from 'react';
-import { VinylItem } from './InventoryTab';
+import React, { useMemo, useCallback } from 'react';
+import { VinylItem, VinylAutofillSuggestions } from './types';
 import { useBulkEntries } from '../../hooks/useBulkEntries';
 import { BulkEntriesTable } from './BulkEntriesTable';
 import { validateBulkEntries } from '../../utils/bulkEntryValidation';
 import { submitBulkEntries } from '../../services/bulkEntrySubmission';
-
-interface Job {
-  job_id: number;
-  customer_name: string;
-  job_name?: string;
-  job_description?: string;
-}
-
-interface Product {
-  brand: string;
-  series: string;
-  colour_number: string;
-  colour_name?: string;
-  available_widths?: string;
-  default_width?: number;
-  is_active: boolean;
-}
-
-interface BulkAutofillSuggestions {
-  combinations?: Array<{
-    brand: string;
-    series: string;
-    colour_number: string;
-    colour_name: string;
-  }>;
-}
 
 interface BulkEntriesTabProps {
   vinylItems: VinylItem[];
   onSuccess: () => void;
   showConfirmation: (title: string, message: string, onConfirm: () => void, type?: string, confirmText?: string) => void;
   showNotification: (message: string, type?: 'success' | 'error') => void;
-  bulkAutofillSuggestions: BulkAutofillSuggestions;
+  bulkAutofillSuggestions: VinylAutofillSuggestions;
   bulkLoadingSuggestions: boolean;
   loadBulkAutofillSuggestions: () => void;
-  products: Product[];
 }
 
 export const BulkEntriesTab: React.FC<BulkEntriesTabProps> = ({
@@ -49,12 +22,10 @@ export const BulkEntriesTab: React.FC<BulkEntriesTabProps> = ({
   showNotification,
   bulkAutofillSuggestions,
   bulkLoadingSuggestions,
-  loadBulkAutofillSuggestions,
-  products
+  loadBulkAutofillSuggestions
 }) => {
   const {
     bulkEntries,
-    setBulkEntries,
     availableJobs,
     isSaving,
     addNewBulkEntry,
@@ -76,6 +47,12 @@ export const BulkEntriesTab: React.FC<BulkEntriesTabProps> = ({
       loadAttempted.current = true;
       loadBulkAutofillSuggestions();
     }
+  }, [bulkLoadingSuggestions, bulkAutofillSuggestions, loadBulkAutofillSuggestions]);
+
+  const ensureBulkSuggestions = useCallback(() => {
+    if (bulkLoadingSuggestions) return;
+    if (bulkAutofillSuggestions.combinations && bulkAutofillSuggestions.combinations.length > 0) return;
+    loadBulkAutofillSuggestions();
   }, [bulkLoadingSuggestions, bulkAutofillSuggestions, loadBulkAutofillSuggestions]);
 
   // Count valid entries for display
@@ -220,7 +197,6 @@ export const BulkEntriesTab: React.FC<BulkEntriesTabProps> = ({
         bulkEntries={bulkEntries}
         vinylItems={vinylItems}
         bulkAutofillSuggestions={bulkAutofillSuggestions}
-        products={products}
         availableJobs={availableJobs}
         isSaving={isSaving}
         bulkLoadingSuggestions={bulkLoadingSuggestions}
@@ -230,6 +206,7 @@ export const BulkEntriesTab: React.FC<BulkEntriesTabProps> = ({
         handleJobChange={handleJobChange}
         removeJobField={removeJobField}
         clearSuccessfulEntries={clearSuccessfulEntries}
+        ensureSuggestionsLoaded={ensureBulkSuggestions}
       />
 
     </div>

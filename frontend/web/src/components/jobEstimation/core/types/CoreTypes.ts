@@ -35,6 +35,8 @@ export interface ProductTypeConfig {
   name: string;
   fields: DynamicField[][];      // 12-column field configuration
   category?: string;
+  calculationKey?: string | null;
+  pricingRules?: Record<string, unknown> | null;
 }
 
 export interface DynamicField {

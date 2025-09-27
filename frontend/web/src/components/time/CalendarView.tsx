@@ -1,34 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar, ChevronLeft, ChevronRight, Clock, Users, Save, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ChevronLeft, ChevronRight, Save, AlertTriangle } from 'lucide-react';
+import type { AuthenticatedRequest, TimeEntry } from '../../types/time';
 
 interface CalendarViewProps {
-  user: any;
   selectedDate: string;
   setSelectedDate: (date: string) => void;
   selectedGroup: string;
-  makeAuthenticatedRequest: (url: string, options?: any) => Promise<Response>;
+  makeAuthenticatedRequest: AuthenticatedRequest;
 }
 
-interface TimeEntry {
-  entry_id: number;
-  user_id: number;
-  clock_in: string;
-  clock_out: string | null;
-  break_minutes: number;
-  total_hours: number;
-  status: string;
-}
+type CalendarEntry = Omit<TimeEntry, 'entry_id'> & { entry_id: number | null };
 
 interface UserTimeData {
   user_id: number;
   first_name: string;
   last_name: string;
-  entries: { [date: string]: TimeEntry };
+  entries: Record<string, CalendarEntry>;
   multipleEntriesWarning: { [date: string]: boolean };
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({ 
-  user, 
   selectedDate, 
   setSelectedDate, 
   selectedGroup,
@@ -77,54 +68,28 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   // Get current week start (Saturday)
-  const getCurrentWeekStart = () => {
+  useEffect(() => {
     const today = new Date(selectedDate + 'T12:00:00');
-    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    
-    // Find the most recent Saturday (6 = Saturday)
-    // If today is Sunday (0), go back 1 day to Saturday
-    // If today is Monday (1), go back 2 days to Saturday
-    // If today is Tuesday (2), go back 3 days to Saturday
-    // etc.
+    const dayOfWeek = today.getDay();
     let daysBack;
     if (dayOfWeek === 6) {
-      daysBack = 0; // Today is Saturday
+      daysBack = 0;
     } else if (dayOfWeek === 0) {
-      daysBack = 1; // Today is Sunday, go back 1 day
+      daysBack = 1;
     } else {
-      daysBack = dayOfWeek + 1; // Monday=2, Tuesday=3, etc.
+      daysBack = dayOfWeek + 1;
     }
-    
     const saturday = new Date(today);
     saturday.setDate(today.getDate() - daysBack);
     saturday.setHours(12, 0, 0, 0);
-    
-    return saturday.toISOString().split('T')[0];
-  };
-
-  useEffect(() => {
-    const newWeekStart = getCurrentWeekStart();
+    const newWeekStart = saturday.toISOString().split('T')[0];
     setWeekStart(newWeekStart);
   }, [selectedDate]);
 
-  useEffect(() => {
-    if (weekStart && selectedGroup !== undefined) {
-      fetchTimeData();
+  const fetchTimeData = useCallback(async () => {
+    if (!weekStart) {
+      return;
     }
-  }, [weekStart, selectedGroup]);
-
-  // Force initial data fetch on component mount
-  useEffect(() => {
-    // Always trigger initial fetch regardless of conditions
-    const performInitialFetch = async () => {
-      if (weekStart) {
-        await fetchTimeData();
-      }
-    };
-    performInitialFetch();
-  }, []); // Only run once on mount
-
-  const fetchTimeData = async () => {
     setLoading(true);
     
     try {
@@ -143,15 +108,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       
       
       if (response.ok) {
-        const data = await response.json();
+        const data: { entries?: CalendarEntry[] } = await response.json();
         
         // Extract entries array from response object
         const entries = data.entries || [];
         
         // Group entries by user
-        const userMap: { [userId: number]: UserTimeData } = {};
+        const userMap: Record<number, UserTimeData> = {};
         
-        entries.forEach((entry: any) => {
+        entries.forEach((entry) => {
           if (!userMap[entry.user_id]) {
             userMap[entry.user_id] = {
               user_id: entry.user_id,
@@ -189,7 +154,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [weekStart, selectedGroup, makeAuthenticatedRequest]);
+
+  useEffect(() => {
+    fetchTimeData();
+  }, [fetchTimeData]);
 
   const navigateWeek = (direction: 'prev' | 'next') => {
     const current = new Date(weekStart + 'T12:00:00');
@@ -210,7 +179,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       if (userData.user_id === userId) {
         // Get existing entry or create a new one if it doesn't exist
         const existingEntry = userData.entries[date];
-        const entry = existingEntry ? { ...existingEntry } : {
+        const entry: CalendarEntry = existingEntry ? { ...existingEntry } : {
           entry_id: null, // Will be null for new entries
           user_id: userId,
           clock_in: '',
@@ -221,11 +190,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         };
         
         if (field === 'in') {
-          entry.clock_in = value ? date + 'T' + value + ':00.000Z' : '';
+          entry.clock_in = value ? `${date}T${value}:00.000Z` : '';
         } else if (field === 'out') {
-          entry.clock_out = value ? date + 'T' + value + ':00.000Z' : '';
+          entry.clock_out = value ? `${date}T${value}:00.000Z` : '';
         } else if (field === 'break') {
-          entry.break_minutes = parseInt(value) || 0;
+          const parsed = Number(value);
+          entry.break_minutes = Number.isNaN(parsed) ? 0 : parsed;
         }
         
         // Update completed
@@ -268,8 +238,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return isoString.replace('T', ' ').replace('.000Z', '');
   };
 
+  interface EntryUpdate {
+    entry_id: number | null;
+    user_id: number;
+    clock_in: string;
+    clock_out: string | null;
+    break_minutes: number;
+    isNew: boolean;
+  }
+
   const saveChanges = async () => {
-    
     if (editedCells.size === 0) {
       return;
     }
@@ -280,7 +258,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         const parts = cellKey.split('-');
         const userIdStr = parts[0];
         const date = `${parts[1]}-${parts[2]}-${parts[3]}`; // Reconstruct date
-        const field = parts[4];
         const userId = parseInt(userIdStr);
         const userData = timeData.find(ud => ud.user_id === userId);
         const entry = userData?.entries[date];
@@ -290,7 +267,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           return null;
         }
         
-        const update = {
+        const update: EntryUpdate = {
           entry_id: entry.entry_id,
           user_id: entry.user_id,
           clock_in: entry.clock_in,
@@ -300,17 +277,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         };
         
         return update;
-      }).filter(Boolean);
+      }).filter((update): update is EntryUpdate => Boolean(update));
       
       
       // Group updates by entry_id to avoid duplicate API calls
-      const uniqueUpdates = updates.reduce((acc: any[], update: any) => {
-        const existing = acc.find(u => u.entry_id === update.entry_id && u.isNew === update.isNew);
-        if (!existing) {
-          acc.push(update);
+      const uniqueUpdatesMap = new Map<string, EntryUpdate>();
+      updates.forEach(update => {
+        const key = `${update.entry_id ?? 'new'}-${update.user_id}`;
+        if (!uniqueUpdatesMap.has(key)) {
+          uniqueUpdatesMap.set(key, update);
         }
-        return acc;
-      }, []);
+      });
+      const uniqueUpdates = Array.from(uniqueUpdatesMap.values());
       
       
       // Save each updated entry

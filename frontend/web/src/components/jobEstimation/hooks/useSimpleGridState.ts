@@ -1,61 +1,214 @@
-import { useState, useRef, useMemo, useEffect } from 'react';
-import { EstimateRow, EditLockStatus } from '../types';
+import { useReducer, useRef, useEffect, useCallback, Dispatch, useMemo } from 'react';
+import { EditLockStatus } from '../types';
+import { GridRow } from '../core/types/LayerTypes';
 
-// Match the existing GridState interface exactly
-export interface GridState {
-  // Main estimate state
+export type ClearModalType = 'reset' | 'clearAll' | 'clearEmpty' | null;
+
+export const GRID_ACTIONS = {
+  SET_CURRENT_ESTIMATE: 'SET_CURRENT_ESTIMATE',
+  SET_CUSTOMERS: 'SET_CUSTOMERS',
+  SET_PRODUCT_TYPES: 'SET_PRODUCT_TYPES',
+  SET_DYNAMIC_TEMPLATES: 'SET_DYNAMIC_TEMPLATES',
+  SET_ROWS: 'SET_ROWS',
+  SET_LOADING: 'SET_LOADING',
+  SET_SAVING: 'SET_SAVING',
+  SET_HAS_UNSAVED_CHANGES: 'SET_HAS_UNSAVED_CHANGES',
+  SET_LAST_SAVED: 'SET_LAST_SAVED',
+  SET_VALIDATION_ERRORS: 'SET_VALIDATION_ERRORS',
+  SET_FIELD_BLUR_STATES: 'SET_FIELD_BLUR_STATES',
+  MARK_FIELD_BLURRED: 'MARK_FIELD_BLURRED',
+  SET_SHOW_CLEAR_CONFIRMATION: 'SET_SHOW_CLEAR_CONFIRMATION',
+  SET_CLEAR_MODAL_TYPE: 'SET_CLEAR_MODAL_TYPE',
+  SET_LOCK_STATUS: 'SET_LOCK_STATUS',
+  SET_SHOW_LOCK_CONFLICT: 'SET_SHOW_LOCK_CONFLICT',
+  SET_EFFECTIVE_READ_ONLY: 'SET_EFFECTIVE_READ_ONLY',
+  SET_LOADED_ESTIMATE_ID: 'SET_LOADED_ESTIMATE_ID'
+} as const;
+
+type GridActionType = (typeof GRID_ACTIONS)[keyof typeof GRID_ACTIONS];
+
+type PayloadAction<TType extends GridActionType, TPayload> = {
+  type: TType;
+  payload: TPayload;
+};
+
+type GridReducerState = {
   currentEstimate: any;
-  setCurrentEstimate: (estimate: any) => void;
-  
-  // Data state
   customers: any[];
-  setCustomers: (customers: any[]) => void;
   productTypes: any[];
-  setProductTypes: (types: any[]) => void;
   dynamicTemplates: Record<number, any>;
-  setDynamicTemplates: (templates: Record<number, any>) => void;
-  
-  // Grid rows state
-  rows: EstimateRow[];
-  setRows: (rows: EstimateRow[]) => void;
-  
-  // UI state
+  rows: GridRow[];
   loading: boolean;
-  setLoading: (loading: boolean) => void;
   saving: boolean;
-  setSaving: (saving: boolean) => void;
   hasUnsavedChanges: boolean;
-  setHasUnsavedChanges: (hasChanges: boolean) => void;
   lastSaved: Date | null;
-  setLastSaved: (date: Date | null) => void;
-  
-  // Validation state
   validationErrors: Record<string, Record<string, string[]>>;
-  setValidationErrors: (errors: Record<string, Record<string, string[]>>) => void;
-  
-  // ✅ BLUR-ONLY: Field blur state tracking
   fieldBlurStates: Record<string, Record<string, boolean>>;
+  showClearConfirmation: boolean;
+  clearModalType: ClearModalType;
+  lockStatus: EditLockStatus | null;
+  showLockConflict: boolean;
+  effectiveReadOnly: boolean;
+  loadedEstimateId: number | null;
+};
+
+export type GridAction =
+  | PayloadAction<typeof GRID_ACTIONS.SET_CURRENT_ESTIMATE, any>
+  | PayloadAction<typeof GRID_ACTIONS.SET_CUSTOMERS, any[]>
+  | PayloadAction<typeof GRID_ACTIONS.SET_PRODUCT_TYPES, any[]>
+  | PayloadAction<typeof GRID_ACTIONS.SET_DYNAMIC_TEMPLATES, Record<number, any>>
+  | PayloadAction<typeof GRID_ACTIONS.SET_ROWS, GridRow[]>
+  | PayloadAction<typeof GRID_ACTIONS.SET_LOADING, boolean>
+  | PayloadAction<typeof GRID_ACTIONS.SET_SAVING, boolean>
+  | PayloadAction<typeof GRID_ACTIONS.SET_HAS_UNSAVED_CHANGES, boolean>
+  | PayloadAction<typeof GRID_ACTIONS.SET_LAST_SAVED, Date | null>
+  | PayloadAction<typeof GRID_ACTIONS.SET_VALIDATION_ERRORS, Record<string, Record<string, string[]>>>
+  | PayloadAction<typeof GRID_ACTIONS.SET_FIELD_BLUR_STATES, Record<string, Record<string, boolean>>>
+  | PayloadAction<typeof GRID_ACTIONS.MARK_FIELD_BLURRED, { rowId: string; fieldName: string }>
+  | PayloadAction<typeof GRID_ACTIONS.SET_SHOW_CLEAR_CONFIRMATION, boolean>
+  | PayloadAction<typeof GRID_ACTIONS.SET_CLEAR_MODAL_TYPE, ClearModalType>
+  | PayloadAction<typeof GRID_ACTIONS.SET_LOCK_STATUS, EditLockStatus | null>
+  | PayloadAction<typeof GRID_ACTIONS.SET_SHOW_LOCK_CONFLICT, boolean>
+  | PayloadAction<typeof GRID_ACTIONS.SET_EFFECTIVE_READ_ONLY, boolean>
+  | PayloadAction<typeof GRID_ACTIONS.SET_LOADED_ESTIMATE_ID, number | null>;
+
+const createInitialState = (estimate: any, isReadOnly: boolean): GridReducerState => ({
+  currentEstimate: estimate,
+  customers: [],
+  productTypes: [],
+  dynamicTemplates: {},
+  rows: [],
+  loading: false,
+  saving: false,
+  hasUnsavedChanges: false,
+  lastSaved: null,
+  validationErrors: {},
+  fieldBlurStates: {},
+  showClearConfirmation: false,
+  clearModalType: null,
+  lockStatus: null,
+  showLockConflict: false,
+  effectiveReadOnly: isReadOnly,
+  loadedEstimateId: null
+});
+
+const gridStateReducer = (state: GridReducerState, action: GridAction): GridReducerState => {
+  switch (action.type) {
+    case GRID_ACTIONS.SET_CURRENT_ESTIMATE:
+      return state.currentEstimate === action.payload
+        ? state
+        : { ...state, currentEstimate: action.payload };
+
+    case GRID_ACTIONS.SET_CUSTOMERS:
+      return state.customers === action.payload ? state : { ...state, customers: action.payload };
+
+    case GRID_ACTIONS.SET_PRODUCT_TYPES:
+      return state.productTypes === action.payload ? state : { ...state, productTypes: action.payload };
+
+    case GRID_ACTIONS.SET_DYNAMIC_TEMPLATES:
+      return state.dynamicTemplates === action.payload
+        ? state
+        : { ...state, dynamicTemplates: action.payload };
+
+    case GRID_ACTIONS.SET_ROWS:
+      return state.rows === action.payload ? state : { ...state, rows: action.payload };
+
+    case GRID_ACTIONS.SET_LOADING:
+      return state.loading === action.payload ? state : { ...state, loading: action.payload };
+
+    case GRID_ACTIONS.SET_SAVING:
+      return state.saving === action.payload ? state : { ...state, saving: action.payload };
+
+    case GRID_ACTIONS.SET_HAS_UNSAVED_CHANGES:
+      return state.hasUnsavedChanges === action.payload
+        ? state
+        : { ...state, hasUnsavedChanges: action.payload };
+
+    case GRID_ACTIONS.SET_LAST_SAVED:
+      return state.lastSaved === action.payload ? state : { ...state, lastSaved: action.payload };
+
+    case GRID_ACTIONS.SET_VALIDATION_ERRORS:
+      return state.validationErrors === action.payload
+        ? state
+        : { ...state, validationErrors: action.payload };
+
+    case GRID_ACTIONS.SET_FIELD_BLUR_STATES:
+      return state.fieldBlurStates === action.payload
+        ? state
+        : { ...state, fieldBlurStates: action.payload };
+
+    case GRID_ACTIONS.MARK_FIELD_BLURRED: {
+      const { rowId, fieldName } = action.payload;
+      const existingRow = state.fieldBlurStates[rowId];
+      if (existingRow?.[fieldName]) {
+        return state;
+      }
+
+      return {
+        ...state,
+        fieldBlurStates: {
+          ...state.fieldBlurStates,
+          [rowId]: {
+            ...existingRow,
+            [fieldName]: true
+          }
+        }
+      };
+    }
+
+    case GRID_ACTIONS.SET_SHOW_CLEAR_CONFIRMATION:
+      return state.showClearConfirmation === action.payload
+        ? state
+        : { ...state, showClearConfirmation: action.payload, clearModalType: action.payload ? state.clearModalType : null };
+
+    case GRID_ACTIONS.SET_CLEAR_MODAL_TYPE:
+      return state.clearModalType === action.payload
+        ? state
+        : { ...state, clearModalType: action.payload };
+
+    case GRID_ACTIONS.SET_LOCK_STATUS:
+      return state.lockStatus === action.payload ? state : { ...state, lockStatus: action.payload };
+
+    case GRID_ACTIONS.SET_SHOW_LOCK_CONFLICT:
+      return state.showLockConflict === action.payload
+        ? state
+        : { ...state, showLockConflict: action.payload };
+
+    case GRID_ACTIONS.SET_EFFECTIVE_READ_ONLY:
+      return state.effectiveReadOnly === action.payload
+        ? state
+        : { ...state, effectiveReadOnly: action.payload };
+
+    case GRID_ACTIONS.SET_LOADED_ESTIMATE_ID:
+      return state.loadedEstimateId === action.payload
+        ? state
+        : { ...state, loadedEstimateId: action.payload };
+
+    default:
+      return state;
+  }
+};
+
+export interface GridState extends GridReducerState {
+  setCurrentEstimate: (estimate: any) => void;
+  setCustomers: (customers: any[]) => void;
+  setProductTypes: (types: any[]) => void;
+  setDynamicTemplates: (templates: Record<number, any>) => void;
+  setRows: (rows: GridRow[]) => void;
+  setLoading: (loading: boolean) => void;
+  setSaving: (saving: boolean) => void;
+  setHasUnsavedChanges: (hasChanges: boolean) => void;
+  setLastSaved: (date: Date | null) => void;
+  setValidationErrors: (errors: Record<string, Record<string, string[]>>) => void;
   setFieldBlurStates: (states: Record<string, Record<string, boolean>>) => void;
   markFieldAsBlurred: (rowId: string, fieldName: string) => void;
   hasFieldBeenBlurred: (rowId: string, fieldName: string) => boolean;
-  
-  // Modal state
-  showClearConfirmation: boolean;
   setShowClearConfirmation: (show: boolean) => void;
-  clearModalType: 'reset' | 'clearAll' | 'clearEmpty' | null;
-  setClearModalType: (type: 'reset' | 'clearAll' | 'clearEmpty' | null) => void;
-  
-  // Versioning system state
-  lockStatus: EditLockStatus | null;
+  setClearModalType: (type: ClearModalType) => void;
   setLockStatus: (status: EditLockStatus | null) => void;
-  showLockConflict: boolean;
   setShowLockConflict: (show: boolean) => void;
-  effectiveReadOnly: boolean;
   setEffectiveReadOnly: (readOnly: boolean) => void;
-  loadedEstimateId: number | null;
   setLoadedEstimateId: (id: number | null) => void;
-  
-  // Refs for auto-save (prevent stale closures)
   autoSaveTimeoutRef: React.RefObject<NodeJS.Timeout | null>;
   isUnloadingRef: React.RefObject<boolean>;
   navigationGuardRef: React.RefObject<((navigationFn: () => void) => void) | null>;
@@ -63,10 +216,10 @@ export interface GridState {
   currentEstimateRef: React.RefObject<any>;
   versioningModeRef: React.RefObject<boolean>;
   estimateIdRef: React.RefObject<number | undefined>;
-  rowsRef: React.RefObject<EstimateRow[]>;
-  
-  // Derived state
+  rowsRef: React.RefObject<GridRow[]>;
   hasValidationErrors: boolean;
+  dispatch: Dispatch<GridAction>;
+  state: GridReducerState;
 }
 
 export const useSimpleGridState = (
@@ -75,137 +228,150 @@ export const useSimpleGridState = (
   versioningMode: boolean,
   estimateId?: number
 ): GridState => {
-  // Simple state - no complex logic here
-  const [currentEstimate, setCurrentEstimate] = useState(estimate);
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [productTypes, setProductTypes] = useState<any[]>([]);
-  const [dynamicTemplates, setDynamicTemplates] = useState<Record<number, any>>({});
-  const [rows, setRows] = useState<EstimateRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [validationErrors, setValidationErrors] = useState<Record<string, Record<string, string[]>>>({});
-  const [fieldBlurStates, setFieldBlurStates] = useState<Record<string, Record<string, boolean>>>({});
-  const [showClearConfirmation, setShowClearConfirmation] = useState(false);
-  const [clearModalType, setClearModalType] = useState<'reset' | 'clearAll' | 'clearEmpty' | null>(null);
-  const [lockStatus, setLockStatus] = useState<EditLockStatus | null>(null);
-  const [showLockConflict, setShowLockConflict] = useState(false);
-  const [effectiveReadOnly, setEffectiveReadOnly] = useState(isReadOnly);
-  const [loadedEstimateId, setLoadedEstimateId] = useState<number | null>(null);
+  const [state, dispatch] = useReducer(
+    gridStateReducer,
+    undefined,
+    () => createInitialState(estimate, isReadOnly)
+  );
 
-  // Refs for autosave (prevent stale closures) - from original working version
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isUnloadingRef = useRef(false);
   const navigationGuardRef = useRef<((navigationFn: () => void) => void) | null>(null);
-  const hasUnsavedChangesRef = useRef(hasUnsavedChanges);
-  const currentEstimateRef = useRef(currentEstimate);
+  const hasUnsavedChangesRef = useRef(state.hasUnsavedChanges);
+  const currentEstimateRef = useRef(state.currentEstimate);
   const versioningModeRef = useRef(versioningMode);
   const estimateIdRef = useRef(estimateId);
-  const rowsRef = useRef<EstimateRow[]>(rows);
+  const rowsRef = useRef<GridRow[]>(state.rows);
 
-  // Update refs whenever state changes (from original working version)
   useEffect(() => {
-    hasUnsavedChangesRef.current = hasUnsavedChanges;
-    currentEstimateRef.current = currentEstimate;
-    versioningModeRef.current = versioningMode;
-    estimateIdRef.current = estimateId;
-    rowsRef.current = rows;
-  });
+    hasUnsavedChangesRef.current = state.hasUnsavedChanges;
+  }, [state.hasUnsavedChanges]);
 
-  // Sync local currentEstimate state when estimate prop changes
+  useEffect(() => {
+    currentEstimateRef.current = state.currentEstimate;
+  }, [state.currentEstimate]);
+
+  useEffect(() => {
+    versioningModeRef.current = versioningMode;
+  }, [versioningMode]);
+
+  useEffect(() => {
+    estimateIdRef.current = estimateId;
+  }, [estimateId]);
+
+  useEffect(() => {
+    rowsRef.current = state.rows;
+  }, [state.rows]);
+
   useEffect(() => {
     if (estimate) {
-      setCurrentEstimate(estimate);
+      dispatch({ type: GRID_ACTIONS.SET_CURRENT_ESTIMATE, payload: estimate });
     }
-  }, [estimate?.id]);
+  }, [estimate]);
 
+  const setCurrentEstimate = useCallback((value: any) => {
+    dispatch({ type: GRID_ACTIONS.SET_CURRENT_ESTIMATE, payload: value });
+  }, [dispatch]);
 
-  // Check if there are any validation errors
-  const hasValidationErrors = Object.keys(validationErrors).length > 0;
+  const setCustomers = useCallback((customers: any[]) => {
+    dispatch({ type: GRID_ACTIONS.SET_CUSTOMERS, payload: customers });
+  }, [dispatch]);
 
-  // ✅ BLUR-ONLY: Field blur state management functions
-  const markFieldAsBlurred = (rowId: string, fieldName: string) => {
-    setFieldBlurStates(prev => ({
-      ...prev,
-      [rowId]: {
-        ...prev[rowId],
-        [fieldName]: true
-      }
-    }));
-  };
+  const setProductTypes = useCallback((types: any[]) => {
+    dispatch({ type: GRID_ACTIONS.SET_PRODUCT_TYPES, payload: types });
+  }, [dispatch]);
 
-  const hasFieldBeenBlurred = (rowId: string, fieldName: string): boolean => {
-    return fieldBlurStates[rowId]?.[fieldName] || false;
-  };
+  const setDynamicTemplates = useCallback((templates: Record<number, any>) => {
+    dispatch({ type: GRID_ACTIONS.SET_DYNAMIC_TEMPLATES, payload: templates });
+  }, [dispatch]);
 
-  // ✅ CRITICAL FIX: REMOVE PRICING UPDATE TO CURRENT ESTIMATE
-  // The pricing data should be derived state, not stored in currentEstimate
-  // IMPORTANT: This useEffect was causing infinite loops by constantly updating currentEstimate
-  // which triggered gridState recreation -> baseGridActions recreation -> manager recreation
-  // PRICING DATA IS NOW PURELY DERIVED STATE - NO STATE UPDATES!
+  const setRows = useCallback((rows: GridRow[]) => {
+    dispatch({ type: GRID_ACTIONS.SET_ROWS, payload: rows });
+  }, [dispatch]);
 
-  // ✅ CRITICAL FIX: NO MORE MIXING PRICING WITH CURRENTESTIMATE
-  // Pricing data should be completely separate to prevent circular dependencies
-  // The issue was: pricing depends on rows -> currentEstimate includes pricing -> gridState changes -> recreates everything
+  const setLoading = useCallback((loading: boolean) => {
+    dispatch({ type: GRID_ACTIONS.SET_LOADING, payload: loading });
+  }, [dispatch]);
 
-  // ✅ CRITICAL FIX: Memoize the return object to prevent recreation on every render
-  // This was the ROOT CAUSE of infinite loops - gridState object changed every render
-  return useMemo(() => {
-    return {
-    // Main estimate state - STABLE VERSION WITHOUT PRICING MIXING
-    currentEstimate: currentEstimate,
+  const setSaving = useCallback((saving: boolean) => {
+    dispatch({ type: GRID_ACTIONS.SET_SAVING, payload: saving });
+  }, [dispatch]);
+
+  const setHasUnsavedChanges = useCallback((hasChanges: boolean) => {
+    dispatch({ type: GRID_ACTIONS.SET_HAS_UNSAVED_CHANGES, payload: hasChanges });
+  }, [dispatch]);
+
+  const setLastSaved = useCallback((date: Date | null) => {
+    dispatch({ type: GRID_ACTIONS.SET_LAST_SAVED, payload: date });
+  }, [dispatch]);
+
+  const setValidationErrors = useCallback((errors: Record<string, Record<string, string[]>>) => {
+    dispatch({ type: GRID_ACTIONS.SET_VALIDATION_ERRORS, payload: errors });
+  }, [dispatch]);
+
+  const setFieldBlurStates = useCallback((states: Record<string, Record<string, boolean>>) => {
+    dispatch({ type: GRID_ACTIONS.SET_FIELD_BLUR_STATES, payload: states });
+  }, [dispatch]);
+
+  const markFieldAsBlurred = useCallback((rowId: string, fieldName: string) => {
+    dispatch({ type: GRID_ACTIONS.MARK_FIELD_BLURRED, payload: { rowId, fieldName } });
+  }, [dispatch]);
+
+  const hasFieldBeenBlurred = useCallback(
+    (rowId: string, fieldName: string) => state.fieldBlurStates[rowId]?.[fieldName] || false,
+    [state.fieldBlurStates]
+  );
+
+  const setShowClearConfirmation = useCallback((show: boolean) => {
+    dispatch({ type: GRID_ACTIONS.SET_SHOW_CLEAR_CONFIRMATION, payload: show });
+  }, [dispatch]);
+
+  const setClearModalType = useCallback((type: ClearModalType) => {
+    dispatch({ type: GRID_ACTIONS.SET_CLEAR_MODAL_TYPE, payload: type });
+  }, [dispatch]);
+
+  const setLockStatus = useCallback((status: EditLockStatus | null) => {
+    dispatch({ type: GRID_ACTIONS.SET_LOCK_STATUS, payload: status });
+  }, [dispatch]);
+
+  const setShowLockConflict = useCallback((show: boolean) => {
+    dispatch({ type: GRID_ACTIONS.SET_SHOW_LOCK_CONFLICT, payload: show });
+  }, [dispatch]);
+
+  const setEffectiveReadOnly = useCallback((readOnly: boolean) => {
+    dispatch({ type: GRID_ACTIONS.SET_EFFECTIVE_READ_ONLY, payload: readOnly });
+  }, [dispatch]);
+
+  const setLoadedEstimateId = useCallback((id: number | null) => {
+    dispatch({ type: GRID_ACTIONS.SET_LOADED_ESTIMATE_ID, payload: id });
+  }, [dispatch]);
+
+  const hasValidationErrors = useMemo(
+    () => Object.keys(state.validationErrors).length > 0,
+    [state.validationErrors]
+  );
+
+  return {
+    ...state,
     setCurrentEstimate,
-    
-    // Data state
-    customers,
     setCustomers,
-    productTypes,
     setProductTypes,
-    dynamicTemplates,
     setDynamicTemplates,
-    
-    // Grid rows state
-    rows,
     setRows,
-    
-    // UI state
-    loading,
     setLoading,
-    saving,
     setSaving,
-    hasUnsavedChanges,
     setHasUnsavedChanges,
-    lastSaved,
     setLastSaved,
-    
-    // Validation state
-    validationErrors,
     setValidationErrors,
-    
-    // ✅ BLUR-ONLY: Field blur state
-    fieldBlurStates,
     setFieldBlurStates,
     markFieldAsBlurred,
     hasFieldBeenBlurred,
-    
-    // Modal state
-    showClearConfirmation,
     setShowClearConfirmation,
-    clearModalType,
     setClearModalType,
-    
-    // Versioning system state
-    lockStatus,
     setLockStatus,
-    showLockConflict,
     setShowLockConflict,
-    effectiveReadOnly,
     setEffectiveReadOnly,
-    loadedEstimateId,
     setLoadedEstimateId,
-    
-    // Refs
     autoSaveTimeoutRef,
     isUnloadingRef,
     navigationGuardRef,
@@ -214,32 +380,8 @@ export const useSimpleGridState = (
     versioningModeRef,
     estimateIdRef,
     rowsRef,
-    
-    // Derived state
-    hasValidationErrors
+    hasValidationErrors,
+    dispatch,
+    state
   };
-  }, [
-    // ✅ CRITICAL FIX: Use stable references to prevent infinite loops
-    // Exclude pricing data to break circular dependency
-    currentEstimate?.id, // Only the core estimate ID matters for stability
-    currentEstimate?.version_number, // Version number for state changes
-    currentEstimate?.is_draft, // Draft status for business logic
-    customers,
-    productTypes,
-    dynamicTemplates,
-    rows,
-    // ✅ REMOVED: loading, saving - These change frequently but don't affect core state structure
-    hasUnsavedChanges,
-    lastSaved,
-    // ✅ REMOVED: validationErrors, hasValidationErrors - These cause infinite rerender loops
-    showClearConfirmation,
-    clearModalType,
-    lockStatus,
-    showLockConflict,
-    effectiveReadOnly,
-    loadedEstimateId
-    // ✅ EXCLUDED: loading, saving - UI states that shouldn't trigger full gridState recreation
-    // ✅ EXCLUDED: pricingData - this is now purely derived and not part of state dependencies
-    // Excluded: All setter functions and refs (these are stable)
-  ]);
 };

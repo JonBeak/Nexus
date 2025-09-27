@@ -1,23 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   ShoppingCart as CartIcon, 
-  Package, 
   Trash2, 
   Send, 
-  Plus, 
-  Minus,
+  Plus,
   Building2,
-  DollarSign,
-  FileText,
   Mail,
-  Check,
   AlertCircle
 } from 'lucide-react';
-import type { ShoppingCart, SupplierCart, CartItem } from '../../services/shoppingCartApi';
 import { useShoppingCart } from '../../contexts/ShoppingCartContext';
+import type { User as AccountUser } from '../accounts/hooks/useAccountAPI';
 
 interface ShoppingCartProps {
-  user: any;
+  user?: AccountUser;
   showNotification: (message: string, type?: 'success' | 'error') => void;
 }
 
@@ -25,6 +20,7 @@ export const ShoppingCartComponent: React.FC<ShoppingCartProps> = ({
   user, 
   showNotification 
 }) => {
+  void user;
   const { 
     currentCart, 
     carts, 
@@ -32,7 +28,7 @@ export const ShoppingCartComponent: React.FC<ShoppingCartProps> = ({
     removeItemFromCart 
   } = useShoppingCart();
   
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newCartName, setNewCartName] = useState('');
 
@@ -44,7 +40,7 @@ export const ShoppingCartComponent: React.FC<ShoppingCartProps> = ({
     setNewCartName('');
   };
 
-  const handleRemoveItem = async (cartId: string, itemId: string) => {
+  const handleRemoveItem = async (itemId: string) => {
     await removeItemFromCart(itemId);
   };
 
@@ -199,7 +195,7 @@ export const ShoppingCartComponent: React.FC<ShoppingCartProps> = ({
                         )}
                       </div>
                       <button
-                        onClick={() => handleRemoveItem(currentCart.id, item.id)}
+                        onClick={() => handleRemoveItem(item.id)}
                         className="p-1 text-red-500 hover:text-red-700"
                       >
                         <Trash2 className="w-4 h-4" />

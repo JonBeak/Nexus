@@ -1,20 +1,5 @@
-import { useState } from 'react';
-
-export interface User {
-  user_id?: number;
-  username: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  role: 'manager' | 'designer' | 'production_staff' | 'owner';
-  user_group?: string;
-  hourly_wage?: number;
-  is_active: boolean;
-  auto_clock_in?: string;
-  auto_clock_out?: string;
-  created_at?: string;
-  last_login?: string;
-}
+import { useState, useCallback } from 'react';
+import type { AccountUser } from '../../../types/user';
 
 export interface LoginLog {
   log_id: number;
@@ -39,15 +24,15 @@ export interface VacationPeriod {
 export const useAccountAPI = () => {
   const [apiLoading, setApiLoading] = useState(false);
 
-  const getAuthHeaders = () => {
+  const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem('access_token');
     return {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
     };
-  };
+  }, []);
 
-  const fetchUsers = async (): Promise<User[]> => {
+  const fetchUsers = useCallback(async (): Promise<AccountUser[]> => {
     try {
       const response = await fetch('http://192.168.2.14:3001/api/accounts/users', {
         headers: getAuthHeaders()
@@ -60,9 +45,9 @@ export const useAccountAPI = () => {
       console.error('Error fetching users:', error);
       throw error;
     }
-  };
+  }, [getAuthHeaders]);
 
-  const fetchLoginLogs = async (userId?: number): Promise<LoginLog[]> => {
+  const fetchLoginLogs = useCallback(async (userId?: number): Promise<LoginLog[]> => {
     try {
       const url = userId 
         ? `http://192.168.2.14:3001/api/accounts/login-logs/user/${userId}`
@@ -80,9 +65,9 @@ export const useAccountAPI = () => {
       console.error('Error fetching login logs:', error);
       throw error;
     }
-  };
+  }, [getAuthHeaders]);
 
-  const fetchVacationPeriods = async (userId?: number): Promise<VacationPeriod[]> => {
+  const fetchVacationPeriods = useCallback(async (userId?: number): Promise<VacationPeriod[]> => {
     try {
       const url = userId 
         ? `http://192.168.2.14:3001/api/accounts/vacations/user/${userId}`
@@ -100,9 +85,9 @@ export const useAccountAPI = () => {
       console.error('Error fetching vacation periods:', error);
       throw error;
     }
-  };
+  }, [getAuthHeaders]);
 
-  const createUser = async (userData: User): Promise<void> => {
+  const createUser = useCallback(async (userData: AccountUser): Promise<void> => {
     setApiLoading(true);
     try {
       const response = await fetch('http://192.168.2.14:3001/api/accounts/users', {
@@ -118,9 +103,9 @@ export const useAccountAPI = () => {
     } finally {
       setApiLoading(false);
     }
-  };
+  }, [getAuthHeaders]);
 
-  const updateUser = async (userData: User): Promise<void> => {
+  const updateUser = useCallback(async (userData: AccountUser): Promise<void> => {
     if (!userData.user_id) throw new Error('User ID is required for update');
     
     setApiLoading(true);
@@ -138,9 +123,9 @@ export const useAccountAPI = () => {
     } finally {
       setApiLoading(false);
     }
-  };
+  }, [getAuthHeaders]);
 
-  const changePassword = async (userId: number, newPassword: string): Promise<void> => {
+  const changePassword = useCallback(async (userId: number, newPassword: string): Promise<void> => {
     setApiLoading(true);
     try {
       const response = await fetch(`http://192.168.2.14:3001/api/accounts/users/${userId}/password`, {
@@ -156,9 +141,9 @@ export const useAccountAPI = () => {
     } finally {
       setApiLoading(false);
     }
-  };
+  }, [getAuthHeaders]);
 
-  const createVacation = async (vacationData: VacationPeriod): Promise<void> => {
+  const createVacation = useCallback(async (vacationData: VacationPeriod): Promise<void> => {
     setApiLoading(true);
     try {
       const response = await fetch('http://192.168.2.14:3001/api/accounts/vacations', {
@@ -174,9 +159,9 @@ export const useAccountAPI = () => {
     } finally {
       setApiLoading(false);
     }
-  };
+  }, [getAuthHeaders]);
 
-  const deleteVacation = async (vacationId: number): Promise<void> => {
+  const deleteVacation = useCallback(async (vacationId: number): Promise<void> => {
     setApiLoading(true);
     try {
       const response = await fetch(`http://192.168.2.14:3001/api/accounts/vacations/${vacationId}`, {
@@ -191,7 +176,7 @@ export const useAccountAPI = () => {
     } finally {
       setApiLoading(false);
     }
-  };
+  }, [getAuthHeaders]);
 
   return {
     apiLoading,
@@ -205,3 +190,5 @@ export const useAccountAPI = () => {
     deleteVacation
   };
 };
+
+export type { AccountUser as User };

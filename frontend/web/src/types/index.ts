@@ -8,6 +8,8 @@ export interface Customer {
   email?: string;
   phone?: string;
   cash_yes_or_no: boolean;
+  city?: string;
+  state?: string;
   
   // Additional fields from database
   quickbooks_name?: string;
@@ -32,6 +34,7 @@ export interface Customer {
   led_colour?: string;
   led_watts?: string;
   led_price?: string;
+  leds_default_type?: string;
   
   powersupply_yes_or_no?: boolean;
   power_supply_id?: number;
@@ -40,6 +43,7 @@ export interface Customer {
   power_supply_volts?: number;
   power_supply_price?: string;
   power_supply_ul_listed?: boolean;
+  powersupply_default_type?: string;
   
   ul_yes_or_no?: boolean;
   drain_holes_yes_or_no?: boolean;
@@ -69,18 +73,23 @@ export interface Address {
   is_shipping: boolean;
   is_jobsite: boolean;
   is_mailing: boolean;
-  address_line1: string;
+  address_line1?: string;
   address_line2?: string;
-  city: string;
-  province_state_short: string;
-  postal_zip: string;
-  country: string;
+  city?: string;
+  province_state_short?: string;
+  province_state_long?: string;
+  postal_zip?: string;
+  country?: string;
   tax_override_percent?: number;
   tax_type?: string;
   tax_id?: number;
   tax_override_reason?: string;
   use_province_tax?: boolean;
   comments?: string;
+  contact_name?: string;
+  phone?: string;
+  email?: string;
+  instructions?: string;
   is_active?: boolean;
   isEditing?: boolean;
 }
@@ -104,6 +113,12 @@ export interface PowerSupplyType {
   ul_listed: boolean;
   is_default_non_ul: boolean;
   is_default_ul: boolean;
+}
+
+export interface ProvinceState {
+  province_short: string;
+  province_long: string;
+  country_group: string;
 }
 
 // Add a runtime export to test

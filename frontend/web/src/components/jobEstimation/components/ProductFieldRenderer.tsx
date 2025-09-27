@@ -11,6 +11,14 @@ export const ProductFieldRenderer: React.FC<FieldRendererProps> = ({
   validationErrors,
   hasFieldBeenBlurred
 }) => {
+  const fieldName = field?.name ?? '';
+  const upstreamValue = fieldName ? String(row.data[fieldName] ?? '') : '';
+  const [localValue, setLocalValue] = useState(upstreamValue);
+
+  useEffect(() => {
+    setLocalValue(upstreamValue);
+  }, [upstreamValue]);
+
   // For non-assembly rows, field should be defined
   if (!field) {
     // If this row has a productTypeId but no field config, show a placeholder indicating loading
@@ -23,15 +31,6 @@ export const ProductFieldRenderer: React.FC<FieldRendererProps> = ({
     }
     return <div className="w-full px-2 py-1 text-xs"></div>;
   }
-
-  // ✅ BLUR-ONLY: Local state management - no grid updates during typing
-  const initialValue = row.data[field.name] || '';
-  const [localValue, setLocalValue] = useState(initialValue);
-  
-  // Update local value when row data changes externally (e.g., data loading, undo operations)
-  useEffect(() => {
-    setLocalValue(row.data[field.name] || '');
-  }, [row.data[field.name]]);
 
   const cellKey = `${row.id}-${field.name}`;
   const hasErrors = validationErrors && validationErrors.length > 0;
@@ -49,8 +48,8 @@ export const ProductFieldRenderer: React.FC<FieldRendererProps> = ({
   
   // ✅ BLUR-ONLY: Commit handler - only updates grid state on blur
   const handleFieldCommit = () => {
-    if (onFieldCommit && localValue !== initialValue) {
-      onFieldCommit(rowIndex, field.name, localValue);
+    if (onFieldCommit && fieldName && localValue !== upstreamValue) {
+      onFieldCommit(rowIndex, fieldName, localValue);
     }
   };
   

@@ -1,25 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
-import { VinylProduct } from '../ProductsTab';
+import { ProductFilterType, VinylProduct, VinylProductStats } from '../types';
 import { useProductsAPI } from './useProductsAPI';
-import { useProductsFiltering } from './useProductsFiltering';
+import { ProductsColumnFilters, ProductsSortField, useProductsFiltering } from './useProductsFiltering';
 
 interface UseProductsDataReturn {
   products: VinylProduct[];
-  productsStats: any;
+  productsStats: VinylProductStats | null;
   productsLoading: boolean;
   productsError: string | null;
   refreshProducts: () => void;
   handleDelete: (id: number) => void;
   // Filtering interface
   searchTerm: string;
-  filterType: string;
-  columnFilters: any;
-  sortField: string;
+  filterType: ProductFilterType;
+  columnFilters: ProductsColumnFilters;
+  sortField: ProductsSortField;
   sortDirection: 'asc' | 'desc';
   setSearchTerm: (term: string) => void;
-  setFilterType: (type: string) => void;
-  handleColumnFilter: (column: string, value: string) => void;
-  handleSort: (field: string) => void;
+  setFilterType: (type: ProductFilterType) => void;
+  handleColumnFilter: (column: keyof ProductsColumnFilters, value: string) => void;
+  handleSort: (field: ProductsSortField) => void;
   clearAllFilters: () => void;
   getActiveFilterCount: () => number;
   getBrandOptions: string[];
@@ -36,9 +36,9 @@ interface UseProductsDataProps {
 
 export const useProductsData = ({ onDeleteProduct }: UseProductsDataProps): UseProductsDataReturn => {
   const [products, setProducts] = useState<VinylProduct[]>([]);
-  const [productsStats, setProductsStats] = useState<any>(null);
+  const [productsStats, setProductsStats] = useState<VinylProductStats | null>(null);
 
-  const { loading: productsLoading, error: productsError, loadProductsData, refreshData } = useProductsAPI();
+  const { loading: productsLoading, error: productsError, loadProductsData } = useProductsAPI();
   
   const filtering = useProductsFiltering(products);
 
@@ -47,23 +47,25 @@ export const useProductsData = ({ onDeleteProduct }: UseProductsDataProps): UseP
       const { products: loadedProducts, stats } = await loadProductsData();
       setProducts(loadedProducts);
       setProductsStats(stats);
-    } catch (err) {
+    } catch {
       // Error is handled by useProductsAPI
     }
   }, [loadProductsData]);
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [loadData]);
 
   const refreshProducts = useCallback(() => {
-    loadData();
+    void loadData();
   }, [loadData]);
 
   const handleDelete = useCallback((id: number) => {
     onDeleteProduct(id);
     // Refresh data after deletion
-    setTimeout(() => loadData(), 100);
+    setTimeout(() => {
+      void loadData();
+    }, 100);
   }, [onDeleteProduct, loadData]);
 
   return {

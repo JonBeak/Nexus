@@ -100,7 +100,7 @@ export const createCoreDataOperations = (): CoreDataOperations => {
       return normalized;
     },
 
-    cloneRow: (sourceRow, existingRows) => {
+    cloneRow: (sourceRow) => {
       const newId = idGenerator.generateTempId();
       
       return {

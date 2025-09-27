@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Package, AlertTriangle, CheckCircle, ShoppingCart, Plus, Edit, Calendar, User, FileText, Check, X } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Package, AlertTriangle, CheckCircle, ShoppingCart, Plus, Calendar, User, FileText, Check } from 'lucide-react';
+import type { User as AccountUser } from '../accounts/hooks/useAccountAPI';
 
 interface MaterialRequirement {
   id: string;
@@ -31,8 +32,8 @@ interface JobMaterialRequirement {
 }
 
 interface JobMaterialRequirementsProps {
-  user: any;
-  onAddToCart?: (items: any[]) => void;
+  user?: AccountUser;
+  onAddToCart?: (items: MaterialRequirement[]) => void;
   showNotification: (message: string, type?: 'success' | 'error') => void;
 }
 
@@ -41,15 +42,16 @@ export const JobMaterialRequirements: React.FC<JobMaterialRequirementsProps> = (
   onAddToCart,
   showNotification
 }) => {
+  void user;
   const [jobs, setJobs] = useState<JobMaterialRequirement[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedJob, setSelectedJob] = useState<number | null>(null);
   const [showAddMaterialModal, setShowAddMaterialModal] = useState(false);
-  const [editingJobId, setEditingJobId] = useState<number | null>(null);
+  const [, setEditingJobId] = useState<number | null>(null);
   const [editingMaterial, setEditingMaterial] = useState<{jobId: number, materialId: string} | null>(null);
   const [usageQuantity, setUsageQuantity] = useState<number>(0);
 
-  const loadJobsNeedingMaterials = async () => {
+  const loadJobsNeedingMaterials = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -144,11 +146,11 @@ export const JobMaterialRequirements: React.FC<JobMaterialRequirementsProps> = (
     } finally {
       setLoading(false);
     }
-  };
+  }, [showNotification]);
 
   useEffect(() => {
-    loadJobsNeedingMaterials();
-  }, []);
+    void loadJobsNeedingMaterials();
+  }, [loadJobsNeedingMaterials]);
 
   const getStatusColor = (status: string) => {
     switch (status) {

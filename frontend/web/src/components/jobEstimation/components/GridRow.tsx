@@ -5,7 +5,6 @@ import { CSS } from '@dnd-kit/utilities';
 import { EstimateRow, AssemblyOperations, RowOperations, AssemblyItemsCache } from '../types';
 import { getRowNumber, shouldShowField, getFieldForColumn } from '../utils/rowUtils';
 import { FieldRenderer } from './FieldRenderer';
-import { useDragDropContext } from '../managers/DragDropManager';
 import { CellStylingEngine } from '../utils/cellStylingEngine';
 
 interface GridRowProps {
@@ -32,36 +31,26 @@ export const GridRow: React.FC<GridRowProps> = ({
   validationErrors,
   hasFieldBeenBlurred
 }) => {
-  const { activeId, draggedRowIds } = useDragDropContext();
-  // Allow dragging of main rows AND sub-items, but NOT continuation rows
-  // Sub-items: !isMainRow but are actual products (not continuation rows from database)
   const canDragRow = row.isMainRow || (!row.isMainRow && row.productTypeId);
-  
-  // Only use sortable for main rows - continuation rows are just regular rows
-  const sortableConfig = canDragRow ? useSortable({ id: row.id }) : null;
-  
+
   const {
     attributes,
     listeners,
     setNodeRef,
     transform,
     transition,
-  } = sortableConfig || {
-    attributes: {},
-    listeners: {},
-    setNodeRef: () => {},
-    transform: null,
-    transition: undefined,
-  };
+    isDragging
+  } = useSortable({
+    id: row.id,
+    disabled: !canDragRow,
+    animateLayoutChanges: () => false
+  });
 
-  // Check if this row is part of the currently dragged group - O(1) lookup
-  const isPartOfDraggedGroup = activeId && draggedRowIds.has(row.id);
-  
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isPartOfDraggedGroup ? 0.5 : 1,
-    borderLeft: isPartOfDraggedGroup ? '3px solid #3b82f6' : 'none',
+    opacity: isDragging ? 0.5 : 1,
+    borderLeft: isDragging ? '3px solid #3b82f6' : 'none',
   };
 
   const indentStyle = { paddingLeft: `${row.indent * 16}px` };
@@ -137,7 +126,7 @@ export const GridRow: React.FC<GridRowProps> = ({
       ref={setNodeRef}
       style={style}
       className={`border-b border-gray-100 group hover:bg-gray-50 ${
-        isPartOfDraggedGroup ? 'ring-2 ring-blue-300 bg-blue-50' : ''
+        isDragging ? 'ring-2 ring-blue-300 bg-blue-50' : ''
       } ${
         assemblyColor ? `${assemblyColor} hover:brightness-95` : ''
       }`}
@@ -201,7 +190,7 @@ export const GridRow: React.FC<GridRowProps> = ({
         
         return (
           <td key={colIndex} className={cellClasses}>
-          {field && shouldShowField(row, colIndex) && (
+            {field && shouldShowField() && (
             <FieldRenderer
               row={row}
               rowIndex={rowIndex}
@@ -213,18 +202,12 @@ export const GridRow: React.FC<GridRowProps> = ({
               assemblyItemsCache={assemblyItemsCache}
               allRows={rows} // ✅ NEW: Required for database ID assembly reference conversion
               validationErrors={(() => {
-                // ✅ TEMPLATE-FIRST: Use field name from template-based resolution
-                // No more fieldConfig dependency - uses getFieldForColumn helper
-                let effectiveFieldName = fieldName;
-                
                 // Template-first approach should always provide fieldName from database
-                
-                const errors = effectiveFieldName ? validationErrors?.[effectiveFieldName] : undefined;
-                return errors;
+                return fieldName ? validationErrors?.[fieldName] : undefined;
               })()}
               hasFieldBeenBlurred={hasFieldBeenBlurred}
             />
-          )}
+            )}
           </td>
         );
       })}

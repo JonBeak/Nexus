@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Building } from 'lucide-react';
 import { customerApi } from '../../services/api';
 
@@ -21,12 +21,7 @@ export const CustomerPanel: React.FC<CustomerPanelProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Load customers on mount
-  useEffect(() => {
-    fetchCustomers();
-  }, []);
-
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
     setLoading(true);
     try {
       const response = await customerApi.getCustomers({ 
@@ -40,7 +35,12 @@ export const CustomerPanel: React.FC<CustomerPanelProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchTerm]);
+
+  // Load customers on mount
+  useEffect(() => {
+    fetchCustomers();
+  }, [fetchCustomers]);
 
   const filteredCustomers = customers.filter(customer =>
     customer.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||

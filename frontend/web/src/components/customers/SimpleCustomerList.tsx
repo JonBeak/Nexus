@@ -6,6 +6,7 @@ import { CustomerListHeader } from './components/CustomerListHeader';
 import { CustomerTable } from './components/CustomerTable';
 import CustomerDetailsModal from './CustomerDetailsModal';
 import { CustomerCreationModal } from './CustomerCreationModal';
+import { Customer } from '../../types';
 
 function SimpleCustomerList() {
   // Custom hooks for business logic
@@ -45,7 +46,7 @@ function SimpleCustomerList() {
   };
 
   // Customer action handlers
-  const handleDetailsClick = async (customer: any) => {
+  const handleDetailsClick = async (customer: Customer) => {
     await handleCustomerDetails(customer);
   };
 
@@ -53,7 +54,7 @@ function SimpleCustomerList() {
     await handleReactivateCustomer(customerId, searchTerm);
   };
 
-  const handleCustomerCreatedCallback = (newCustomer: any) => {
+  const handleCustomerCreatedCallback = (newCustomer: Customer) => {
     handleCustomerCreated(newCustomer, searchTerm);
   };
 

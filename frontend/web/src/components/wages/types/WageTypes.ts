@@ -63,22 +63,20 @@ export interface PaymentRecordEntry {
   net_pay: number;
 }
 
-export interface WageManagementProps {
-  user: any;
+export interface DeductionOverrideValues {
+  cpp?: number;
+  ei?: number;
+  tax?: number;
 }
 
+export type PayPeriodOverrides = Record<number, DeductionOverrideValues>;
+
 export interface DeductionOverrides {
-  [payPeriod: string]: {
-    [userId: number]: {
-      cpp?: number;
-      ei?: number;
-      tax?: number;
-    };
-  };
+  [payPeriod: string]: PayPeriodOverrides;
 }
 
 export interface EditingField {
   userId: number;
-  field: string;
+  field: 'cpp' | 'ei' | 'tax';
   value: string;
 }

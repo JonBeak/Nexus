@@ -1,7 +1,15 @@
 import React, { useState } from 'react';
+import type { AccountUser } from '../../types/user';
+
+interface LoginResponse {
+  accessToken: string;
+  refreshToken: string;
+  user: AccountUser;
+  error?: string;
+}
 
 interface SimpleLoginProps {
-  onLogin: (user: any) => void;
+  onLogin: (user: AccountUser) => void;
 }
 
 function SimpleLogin({ onLogin }: SimpleLoginProps) {
@@ -23,7 +31,7 @@ function SimpleLogin({ onLogin }: SimpleLoginProps) {
         body: JSON.stringify(credentials),
       });
 
-      const data = await response.json();
+      const data: LoginResponse = await response.json();
 
       if (response.ok) {
         localStorage.setItem('access_token', data.accessToken);
@@ -32,7 +40,8 @@ function SimpleLogin({ onLogin }: SimpleLoginProps) {
       } else {
         setError(data.error || 'Login failed');
       }
-    } catch (err) {
+    } catch (error) {
+      console.error('Login request failed', error);
       setError('Network error. Please try again.');
     } finally {
       setIsLoading(false);

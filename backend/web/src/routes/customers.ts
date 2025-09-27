@@ -19,6 +19,7 @@ router.get('/provinces-states', LookupController.getProvincesStates);
 // Customer Routes
 router.get('/', CustomerController.getCustomers);
 router.get('/:id', CustomerController.getCustomerById);
+router.get('/:id/manufacturing-preferences', CustomerController.getManufacturingPreferences);
 router.put('/:id', CustomerController.updateCustomer);
 router.post('/', CustomerController.createCustomer);
 router.post('/:id/deactivate', CustomerController.deactivateCustomer);

@@ -1,7 +1,7 @@
 // Float or Groups validation template - handles either a float or specific group format
 // Supports: float (e.g., "32") or groups format (e.g., "10,. . . . . 6,")
 
-import { ValidationTemplate, ValidationResult, ValidationContext } from './ValidationTemplate';
+import { ValidationTemplate, ValidationResult } from './ValidationTemplate';
 
 export interface FloatOrGroupsParams {
   min_value?: number;          // Minimum value for float or individual numbers
@@ -12,7 +12,7 @@ export interface FloatOrGroupsParams {
 }
 
 export class FloatOrGroupsTemplate implements ValidationTemplate {
-  async validate(value: string, params: FloatOrGroupsParams = {}, context?: ValidationContext): Promise<ValidationResult> {
+  async validate(value: string, params: FloatOrGroupsParams = {}): Promise<ValidationResult> {
     try {
       // Handle empty values
       if (!value || (typeof value === 'string' && value.trim() === '')) {
@@ -74,7 +74,7 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
     // Check if the original string represents the same number (catches cases like "123abc")
     if (value !== numericValue.toString() &&
         value !== numericValue.toFixed(0) &&
-        !this.isValidNumberFormat(value, numericValue)) {
+        !this.isValidNumberFormat(value)) {
       return { isValid: false };
     }
 
@@ -104,21 +104,38 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
    * Try to parse value as groups format: "numbers, . . . . . numbers,"
    */
   private tryParseAsGroups(value: string, params: FloatOrGroupsParams, groupSeparator: string, numberSeparator: string): ValidationResult {
-    // Check if value contains the group separator
-    if (!value.includes(groupSeparator)) {
+    const normalizedTarget = groupSeparator.replace(/\s+/g, ' ');
+    let groups: string[] | null = null;
+
+    if (normalizedTarget === '. . . . . ') {
+      const separatorRegex = /\.\s\.\s\.\s\.\s\.\s+/;
+      const match = value.match(separatorRegex);
+      if (!match) {
+        return { isValid: false };
+      }
+      // Require spaces between dots (reject legacy "....." styles)
+      const matchedSeparator = match[0];
+      if (!matchedSeparator.includes(' ')) {
+        return {
+          isValid: false,
+          error: 'Groups separator must include spaces between dots',
+          expectedFormat: this.generateExpectedFormat(params)
+        };
+      }
+      groups = value.split(separatorRegex);
+    } else if (value.includes(groupSeparator)) {
+      groups = value.split(groupSeparator);
+    } else {
       return { isValid: false };
     }
 
-    // Split into groups
-    const groups = value.split(groupSeparator);
-    if (groups.length !== 2) {
+    if (!groups || groups.length !== 2) {
       return {
         isValid: false,
-        error: `Expected exactly 2 groups separated by "${groupSeparator}"`,
+        error: `Expected exactly 2 groups separated by "${groupSeparator.trim()}"`,
         expectedFormat: this.generateExpectedFormat(params)
       };
     }
-
     const [group1Raw, group2Raw] = groups;
 
     // Parse each group
@@ -250,7 +267,7 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
   /**
    * Check if a string represents a valid number format
    */
-  private isValidNumberFormat(input: string, parsed: number): boolean {
+  private isValidNumberFormat(input: string): boolean {
     // Allow formats like: "123", "123.45", "-123", "-123.45", "123.", ".45"
     const validPatterns = [
       /^-?\d+$/,           // Integer: 123, -123

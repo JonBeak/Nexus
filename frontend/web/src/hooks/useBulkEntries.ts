@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { authApi, jobsApi } from '../services/api';
+import { JobSuggestion } from '../components/inventory/types';
 
 export interface BulkEntry {
   id: string;
@@ -26,64 +27,21 @@ export interface BulkEntry {
 
 export const useBulkEntries = () => {
   const [bulkEntries, setBulkEntries] = useState<BulkEntry[]>([]);
-  const [availableJobs, setAvailableJobs] = useState<any[]>([]);
+  const [availableJobs, setAvailableJobs] = useState<JobSuggestion[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
   // Get storage key for current user
-  const getStorageKey = () => {
+  const getStorageKey = useCallback(() => {
     return currentUserId ? `bulkEntries_${currentUserId}` : 'bulkEntries_guest';
-  };
+  }, [currentUserId]);
 
-  // Save bulk entries to localStorage
-  const saveBulkEntries = (entries: BulkEntry[]) => {
-    setIsSaving(true);
-    try {
-      localStorage.setItem(getStorageKey(), JSON.stringify(entries));
-      setTimeout(() => setIsSaving(false), 500); // Show saved indicator briefly
-    } catch (error) {
-      console.error('Failed to save bulk entries to localStorage:', error);
-      setIsSaving(false);
-    }
-  };
-
-  // Load bulk entries from localStorage
-  const loadBulkEntries = (): BulkEntry[] => {
-    try {
-      const stored = localStorage.getItem(getStorageKey());
-      if (stored) {
-        const entries = JSON.parse(stored);
-        // Validate entries have required structure
-        if (Array.isArray(entries) && entries.length > 0) {
-          return entries.map(entry => ({
-            ...entry,
-            // Ensure all required string fields exist
-            id: entry.id || Date.now().toString(),
-            type: entry.type || '',
-            brand: entry.brand || '',
-            series: entry.series || '',
-            colour_number: entry.colour_number || '',
-            colour_name: entry.colour_name || '',
-            width: entry.width || '',
-            length_yards: entry.length_yards || '',
-            location: entry.location || '',
-            supplier_id: entry.supplier_id || '',
-            purchase_date: entry.purchase_date || new Date().toISOString().split('T')[0],
-            storage_date: entry.storage_date || new Date().toISOString().split('T')[0],
-            notes: entry.notes || '',
-            job_ids: Array.isArray(entry.job_ids) ? entry.job_ids : [0]
-          }));
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load bulk entries from localStorage:', error);
-    }
-    
-    // Return 10 default entries if nothing loaded
-    return Array.from({ length: 10 }, (_, index) => ({
-      id: (Date.now() + index).toString(),
-      type: '' as any,
+  // Helper to create a default entry shell
+  function createDefaultEntry(offset = 0, idOverride?: string): BulkEntry {
+    return {
+      id: idOverride ?? (Date.now() + offset).toString(),
+      type: '',
       brand: '',
       series: '',
       colour_number: '',
@@ -94,10 +52,23 @@ export const useBulkEntries = () => {
       supplier_id: '',
       purchase_date: new Date().toISOString().split('T')[0],
       storage_date: new Date().toISOString().split('T')[0],
+      usage_date: new Date().toISOString().split('T')[0],
       notes: '',
-      job_ids: [0] // 0 represents empty/unselected
-    }));
-  };
+      job_ids: [0]
+    };
+  }
+
+  // Save bulk entries to localStorage
+  const saveBulkEntries = useCallback((entries: BulkEntry[]) => {
+    setIsSaving(true);
+    try {
+      localStorage.setItem(getStorageKey(), JSON.stringify(entries));
+      setTimeout(() => setIsSaving(false), 500); // Show saved indicator briefly
+    } catch (error) {
+      console.error('Failed to save bulk entries to localStorage:', error);
+      setIsSaving(false);
+    }
+  }, [getStorageKey]);
 
   // Initialize user and load data
   useEffect(() => {
@@ -131,6 +102,7 @@ export const useBulkEntries = () => {
                 supplier_id: entry.supplier_id || '',
                 purchase_date: entry.purchase_date || new Date().toISOString().split('T')[0],
                 storage_date: entry.storage_date || new Date().toISOString().split('T')[0],
+                usage_date: entry.usage_date || new Date().toISOString().split('T')[0],
                 notes: entry.notes || '',
                 job_ids: entry.job_ids || [0],
                 specific_vinyl_id: entry.specific_vinyl_id,
@@ -148,22 +120,7 @@ export const useBulkEntries = () => {
         
         // If no saved entries, create 10 default entries
         const createDefaultEntries = (count = 10) => {
-          return Array.from({ length: count }, (_, index) => ({
-            id: (Date.now() + index).toString(),
-            type: '' as any,
-            brand: '',
-            series: '',
-            colour_number: '',
-            colour_name: '',
-            width: '',
-            length_yards: '',
-            location: '',
-            supplier_id: '',
-            purchase_date: new Date().toISOString().split('T')[0],
-            storage_date: new Date().toISOString().split('T')[0],
-            notes: '',
-            job_ids: [0] // 0 represents empty/unselected
-          }));
+          return Array.from({ length: count }, (_, index) => createDefaultEntry(index));
         };
         setBulkEntries(createDefaultEntries());
         setIsInitialized(true);
@@ -182,8 +139,8 @@ export const useBulkEntries = () => {
   useEffect(() => {
     const loadJobs = async () => {
       try {
-        const jobs = await jobsApi.getRecentJobs(50);
-        setAvailableJobs(jobs);
+        const jobs = await jobsApi.getRecentJobs(50) as JobSuggestion[];
+        setAvailableJobs(jobs || []);
       } catch (error) {
         console.error('Failed to load jobs:', error);
         setAvailableJobs([]);
@@ -198,29 +155,12 @@ export const useBulkEntries = () => {
     if (isInitialized && currentUserId !== null && bulkEntries.length > 0) {
       saveBulkEntries(bulkEntries);
     }
-  }, [bulkEntries, currentUserId, isInitialized]);
+  }, [bulkEntries, currentUserId, isInitialized, saveBulkEntries]);
 
   const generateId = () => Date.now().toString() + Math.random().toString(36).substr(2, 9);
 
   const addNewBulkEntry = () => {
-    const newEntry: BulkEntry = {
-      id: generateId(),
-      type: '' as any, // Force user to select type
-      brand: '',
-      series: '',
-      colour_number: '',
-      colour_name: '',
-      width: '',
-      length_yards: '',
-      location: '',
-      supplier_id: '',
-      purchase_date: new Date().toISOString().split('T')[0],
-      storage_date: new Date().toISOString().split('T')[0],
-      usage_date: new Date().toISOString().split('T')[0],
-      notes: '',
-      job_ids: [0] // 0 represents empty/unselected
-    };
-    setBulkEntries(prev => [...prev, newEntry]);
+    setBulkEntries(prev => [...prev, createDefaultEntry(0, generateId())]);
   };
 
   const updateBulkEntry = (id: string, updates: Partial<BulkEntry>) => {
@@ -237,22 +177,7 @@ export const useBulkEntries = () => {
 
   const clearAllBulkEntries = () => {
     const createDefaultEntries = (count = 10) => {
-      return Array.from({ length: count }, (_, index) => ({
-        id: generateId() + index,
-        type: '' as any,
-        brand: '',
-        series: '',
-        colour_number: '',
-        colour_name: '',
-        width: '',
-        length_yards: '',
-        location: '',
-        supplier_id: '',
-        purchase_date: new Date().toISOString().split('T')[0],
-        storage_date: new Date().toISOString().split('T')[0],
-        notes: '',
-        job_ids: [0] // 0 represents empty/unselected
-      }));
+      return Array.from({ length: count }, (_, index) => createDefaultEntry(index, generateId()));
     };
     setBulkEntries(createDefaultEntries());
     

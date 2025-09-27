@@ -1,25 +1,21 @@
 import React from 'react';
 import { Clock, AlertTriangle } from 'lucide-react';
 import { formatTime, formatDate, getStatusColor } from '../utils/timeCalculations';
-import type { TimeEntry } from '../../../types/time';
+import type { TimeEntry, EditValues } from '../../../types/time';
 
 interface TimeEntriesTableProps {
   timeEntries: TimeEntry[];
   loading: boolean;
   selectedEntries: number[];
   editingEntry: number | null;
-  editValues: {
-    clock_in: string;
-    clock_out: string;
-    break_minutes: number;
-  };
+  editValues: EditValues;
   onSelectAll: () => void;
   onSelectEntry: (entryId: number) => void;
   onStartEditing: (entry: TimeEntry) => void;
   onCancelEditing: () => void;
   onSaveEdit: (entryId: number) => void;
   onDeleteEntry: (entryId: number) => void;
-  onEditValuesChange: (values: any) => void;
+  onEditValuesChange: (values: EditValues) => void;
 }
 
 export const TimeEntriesTable: React.FC<TimeEntriesTableProps> = ({

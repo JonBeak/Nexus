@@ -1,18 +1,135 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { AddressManagerCreateProps } from './CustomerCreationTypes';
-import { Address } from '../../../types/index';
+import { Address } from '../../../types';
+import { provincesApi } from '../../../services/api';
+import TaxInfoSection from '../components/TaxInfoSection';
 
 export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
   addresses,
   setAddresses,
   provincesStates
 }) => {
-  
-  const handleAddressChange = (index: number, field: string, value: any) => {
-    const newAddresses = [...addresses];
-    newAddresses[index] = { ...newAddresses[index], [field]: value };
-    setAddresses(newAddresses);
+  const [taxWarning, setTaxWarning] = useState('');
+  const [taxDisplayValues, setTaxDisplayValues] = useState<Record<string, string>>({});
+
+  const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500';
+
+  const buildAddressKey = useCallback(
+    (address: Partial<Address> | undefined, idx: number) =>
+      `${address?.address_id ?? 'new'}-${idx}`,
+    []
+  );
+
+  const getAddressKey = (idx: number) => buildAddressKey(addresses[idx], idx);
+
+  const handleAddressChange = useCallback(
+    <K extends keyof Address>(index: number, field: K, value: Address[K] | null) => {
+      const normalizedValue = value === null ? undefined : value;
+      const currentAddress = addresses[index];
+      const addressKey = buildAddressKey(currentAddress, index);
+
+      setAddresses((prev) => {
+        const next = [...prev];
+        const target = { ...next[index], [field]: normalizedValue } as Partial<Address>;
+
+        if (field === 'province_state_short' && typeof normalizedValue === 'string') {
+          const provinceShort = normalizedValue.trim();
+          target.province_state_short = provinceShort;
+
+          if (!provinceShort) {
+            target.province_state_long = undefined;
+            target.tax_id = undefined;
+            target.tax_type = undefined;
+            target.tax_override_percent = undefined;
+            target.use_province_tax = true;
+          } else {
+            const matchingProvince = provincesStates.find(
+              (province) => province.province_short === provinceShort
+            );
+
+            if (matchingProvince) {
+              target.province_state_long = matchingProvince.province_long;
+              target.country = matchingProvince.country_group === 'USA' ? 'USA' : 'Canada';
+            }
+          }
+        }
+
+        next[index] = target;
+        return next;
+      });
+
+      if (field === 'province_state_short' && typeof normalizedValue === 'string') {
+        const provinceShort = normalizedValue.trim();
+
+        if (!provinceShort) {
+          setTaxDisplayValues((prev) => {
+            const next = { ...prev };
+            delete next[addressKey];
+            return next;
+          });
+          setTaxWarning('');
+        } else {
+          void (async () => {
+            try {
+              const taxInfo = await provincesApi.getTaxInfo(provinceShort);
+              if (!taxInfo) {
+                return;
+              }
+
+              setAddresses((prev) => {
+                const next = [...prev];
+                const target = { ...next[index] } as Partial<Address>;
+                target.tax_id = taxInfo.tax_id;
+                target.tax_type = taxInfo.tax_name;
+                target.tax_override_percent = Number(taxInfo.tax_percent) / 100;
+                target.use_province_tax = true;
+                next[index] = target;
+                return next;
+              });
+
+              setTaxDisplayValues((prev) => {
+                const next = { ...prev };
+                delete next[addressKey];
+                return next;
+              });
+
+              setTaxWarning('');
+            } catch (error) {
+              console.error('Error fetching tax info:', error);
+            }
+          })();
+        }
+      }
+
+      if (field === 'tax_type' || field === 'tax_override_percent') {
+        setTaxWarning('');
+      }
+    },
+    [addresses, buildAddressKey, provincesStates, setAddresses]
+  );
+
+  const handleTaxDisplayValueChange = (
+    _addressKey: string,
+    displayValue: string,
+    addressIndex: number
+  ) => {
+    const addressKey = getAddressKey(addressIndex);
+    setTaxDisplayValues((prev) => ({ ...prev, [addressKey]: displayValue }));
+
+    const numericValue = parseFloat(displayValue);
+    const dbValue = Number.isNaN(numericValue) ? null : numericValue / 100;
+
+    // Fire and forget; no need to await inside the UI handler
+    handleAddressChange(addressIndex, 'tax_override_percent', dbValue as Address['tax_override_percent']);
+  };
+
+  const handleTaxDisplayValueBlur = (addressKey: string) => {
+    setTaxDisplayValues((prev) => {
+      const next = { ...prev };
+      delete next[addressKey];
+      return next;
+    });
   };
 
   const addAddress = () => {
@@ -47,16 +164,6 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
     } else {
       handleAddressChange(index, 'is_primary', false);
     }
-  };
-
-  const getAddressFieldClass = (value: any, required: boolean = false) => {
-    const baseClass = "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500";
-    
-    if (required && !value?.trim()) {
-      return `${baseClass} border-red-300`;
-    }
-    
-    return baseClass;
   };
 
   return (
@@ -145,13 +252,12 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
             <div>
               <label className="block text-sm font-semibold text-gray-600 mb-1">
                 Address Line 1
-                {index === 0 && <span className="text-red-500 ml-1">*</span>}
               </label>
               <input
                 type="text"
                 value={address.address_line1 || ''}
                 onChange={(e) => handleAddressChange(index, 'address_line1', e.target.value)}
-                className={getAddressFieldClass(address.address_line1, index === 0)}
+            className={inputClass}
                 placeholder="Street address"
               />
             </div>
@@ -161,20 +267,19 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
                 type="text"
                 value={address.address_line2 || ''}
                 onChange={(e) => handleAddressChange(index, 'address_line2', e.target.value)}
-                className={getAddressFieldClass(address.address_line2)}
+            className={inputClass}
                 placeholder="Suite, unit, building, floor, etc."
               />
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-600 mb-1">
                 City
-                {index === 0 && <span className="text-red-500 ml-1">*</span>}
               </label>
               <input
                 type="text"
                 value={address.city || ''}
                 onChange={(e) => handleAddressChange(index, 'city', e.target.value)}
-                className={getAddressFieldClass(address.city, index === 0)}
+            className={inputClass}
               />
             </div>
             <div>
@@ -185,7 +290,7 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
                 value={address.province_state_short || ''}
                 onChange={(e) => handleAddressChange(index, 'province_state_short', e.target.value)}
                 required
-                className={getAddressFieldClass(address.province_state_short, true)}
+                className={inputClass}
               >
                 <option value="">Select Province/State</option>
                 {/* Canadian Provinces */}
@@ -226,11 +331,21 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
                 type="text"
                 value={address.postal_zip || ''}
                 onChange={(e) => handleAddressChange(index, 'postal_zip', e.target.value)}
-                className={getAddressFieldClass(address.postal_zip)}
+            className={inputClass}
                 placeholder="Postal or ZIP code"
               />
             </div>
           </div>
+
+          <TaxInfoSection
+            address={address as Address}
+            addressIndex={index}
+            taxWarning={taxWarning}
+            taxDisplayValues={taxDisplayValues}
+            onAddressChange={handleAddressChange}
+            onTaxDisplayValueChange={handleTaxDisplayValueChange}
+            onTaxDisplayValueBlur={handleTaxDisplayValueBlur}
+          />
 
           {/* Address-specific contact info */}
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -240,7 +355,7 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
                 type="text"
                 value={address.contact_name || ''}
                 onChange={(e) => handleAddressChange(index, 'contact_name', e.target.value)}
-                className={getAddressFieldClass(address.contact_name)}
+            className={inputClass}
                 placeholder="Contact person at this address"
               />
             </div>
@@ -250,7 +365,7 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
                 type="text"
                 value={address.phone || ''}
                 onChange={(e) => handleAddressChange(index, 'phone', e.target.value)}
-                className={getAddressFieldClass(address.phone)}
+            className={inputClass}
                 placeholder="Phone number for this address"
               />
             </div>
@@ -260,7 +375,7 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
                 type="email"
                 value={address.email || ''}
                 onChange={(e) => handleAddressChange(index, 'email', e.target.value)}
-                className={getAddressFieldClass(address.email)}
+            className={inputClass}
                 placeholder="Email for this address"
               />
             </div>
@@ -273,7 +388,7 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
               rows={2}
               value={address.instructions || ''}
               onChange={(e) => handleAddressChange(index, 'instructions', e.target.value)}
-              className={getAddressFieldClass(address.instructions)}
+            className={inputClass}
               placeholder="Special delivery or access instructions for this address..."
             />
           </div>
@@ -295,7 +410,7 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
 
       {/* Validation hint */}
       <div className="mt-4 text-sm text-gray-600 bg-blue-50 p-3 rounded-lg border-l-4 border-blue-400">
-        <p><strong>Required:</strong> At least one address with Province/State and Address Line 1 is required.</p>
+        <p><strong>Required:</strong> Provide at least one address with a Province/State selected so taxes can be calculated.</p>
         <p><strong>Primary Address:</strong> When multiple addresses exist, one must be marked as primary.</p>
       </div>
     </div>

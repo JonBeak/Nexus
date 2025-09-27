@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { 
   Building2, 
   Mail, 
@@ -7,12 +7,10 @@ import {
   Edit, 
   Trash2, 
   Plus,
-  FileText,
-  DollarSign,
-  Clock,
-  Package
+  FileText
 } from 'lucide-react';
 import api from '../../services/api';
+import type { User as AccountUser } from '../accounts/hooks/useAccountAPI';
 
 interface Supplier {
   supplier_id: number;
@@ -27,7 +25,7 @@ interface Supplier {
 }
 
 interface SuppliersManagerProps {
-  user: any;
+  user?: AccountUser;
   showNotification: (message: string, type?: 'success' | 'error') => void;
 }
 
@@ -35,6 +33,7 @@ export const SuppliersManager: React.FC<SuppliersManagerProps> = ({
   user, 
   showNotification 
 }) => {
+  void user;
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -47,22 +46,25 @@ export const SuppliersManager: React.FC<SuppliersManagerProps> = ({
     notes: ''
   });
 
-  const loadSuppliers = async () => {
+  const loadSuppliers = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await api.get('/suppliers');
-      setSuppliers(response.data || []);
+      const response = await api.get<Supplier[] | { data?: Supplier[] }>('/suppliers');
+      const suppliersData = Array.isArray(response.data)
+        ? response.data
+        : response.data?.data ?? [];
+      setSuppliers(suppliersData ?? []);
     } catch (error) {
       console.error('Error loading suppliers:', error);
       showNotification('Failed to load suppliers', 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [showNotification]);
 
   useEffect(() => {
-    loadSuppliers();
-  }, []);
+    void loadSuppliers();
+  }, [loadSuppliers]);
 
   const handleSaveSupplier = async () => {
     if (!formData.name.trim()) {
@@ -82,7 +84,7 @@ export const SuppliersManager: React.FC<SuppliersManagerProps> = ({
       setShowAddModal(false);
       setEditingSupplier(null);
       setFormData({ name: '', contact_email: '', contact_phone: '', website: '', notes: '' });
-      loadSuppliers();
+      void loadSuppliers();
     } catch (error) {
       console.error('Error saving supplier:', error);
       showNotification('Failed to save supplier', 'error');
@@ -107,7 +109,7 @@ export const SuppliersManager: React.FC<SuppliersManagerProps> = ({
     try {
       await api.delete(`/suppliers/${supplierId}`);
       showNotification(`Deleted supplier: ${name}`, 'success');
-      loadSuppliers();
+      void loadSuppliers();
     } catch (error) {
       console.error('Error deleting supplier:', error);
       showNotification('Failed to delete supplier', 'error');

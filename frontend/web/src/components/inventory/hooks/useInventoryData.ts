@@ -1,20 +1,20 @@
-import { useState, useEffect } from 'react';
-import { VinylItem } from '../InventoryTab';
+import { useState, useEffect, useCallback } from 'react';
+import { InventoryFilterType, InventoryStats, VinylItem } from '../types';
 import { useInventoryAPI } from './useInventoryAPI';
 
 interface UseInventoryDataProps {
   propVinylItems?: VinylItem[];
-  propStats?: any;
+  propStats?: InventoryStats | null;
   propLoading?: boolean;
   onDataLoad?: () => void;
 }
 
 interface UseInventoryDataReturn {
   vinylItems: VinylItem[];
-  stats: any;
+  stats: InventoryStats | null;
   loading: boolean;
   error: string | null;
-  loadVinylData: (filterType?: string) => Promise<void>;
+  loadVinylData: (filterType?: InventoryFilterType) => Promise<void>;
   getDispositionStatus: (item: VinylItem) => { color: string; text: string };
 }
 
@@ -25,7 +25,7 @@ export const useInventoryData = ({
   onDataLoad
 }: UseInventoryDataProps): UseInventoryDataReturn => {
   const [localVinylItems, setLocalVinylItems] = useState<VinylItem[]>([]);
-  const [localStats, setLocalStats] = useState<any>(null);
+  const [localStats, setLocalStats] = useState<InventoryStats | null>(null);
   const { loading: apiLoading, error, loadVinylData: apiLoadVinylData } = useInventoryAPI();
 
   // Use props data if available, otherwise use local state
@@ -33,26 +33,27 @@ export const useInventoryData = ({
   const loading = propLoading !== undefined ? propLoading : apiLoading;
   const stats = propStats || localStats;
 
-  const loadVinylData = async (filterType?: string) => {
+  const loadVinylData = useCallback(async (filterType?: InventoryFilterType) => {
     // If we're using props data, delegate to parent
     if (propVinylItems && onDataLoad) {
       onDataLoad();
       return;
     }
-    
+
     // Otherwise load data locally
     try {
       const { items, stats: loadedStats } = await apiLoadVinylData(filterType);
       setLocalVinylItems(items);
       setLocalStats(loadedStats);
-    } catch (err) {
+    } catch (error) {
       // Error is handled by useInventoryAPI
+      console.error('Failed to load inventory data:', error);
     }
-  };
+  }, [apiLoadVinylData, onDataLoad, propVinylItems]);
 
   useEffect(() => {
-    loadVinylData();
-  }, []);
+    void loadVinylData();
+  }, [loadVinylData]);
 
   const getDispositionStatus = (item: VinylItem) => {
     switch (item.disposition) {

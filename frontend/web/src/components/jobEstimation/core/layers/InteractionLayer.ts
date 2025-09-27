@@ -1,6 +1,6 @@
 // Layer 3: User interaction capabilities and constraints
 
-import { GridRowDisplay, GridRowInteractive } from '../types/LayerTypes';
+import { GridRowWithCalculations, GridRowInteractive } from '../types/LayerTypes';
 import { InteractionContext } from '../types/GridTypes';
 
 export interface InteractionOperations {
@@ -11,7 +11,7 @@ export interface InteractionOperations {
    * @returns Rows with interaction properties added
    */
   calculateInteraction: (
-    displayRows: GridRowDisplay[],
+    displayRows: GridRowWithCalculations[],
     context: InteractionContext
   ) => GridRowInteractive[];
 
@@ -23,8 +23,8 @@ export interface InteractionOperations {
    * @returns Drag capabilities
    */
   calculateDragCapabilities: (
-    row: GridRowDisplay,
-    allRows: GridRowDisplay[],
+    row: GridRowWithCalculations,
+    allRows: GridRowWithCalculations[],
     context: InteractionContext
   ) => DragCapabilities;
 
@@ -36,9 +36,9 @@ export interface InteractionOperations {
    * @returns Drop zone configuration
    */
   calculateDropZones: (
-    row: GridRowDisplay,
-    previousRow?: GridRowDisplay,
-    nextRow?: GridRowDisplay
+    row: GridRowWithCalculations,
+    previousRow?: GridRowWithCalculations,
+    nextRow?: GridRowWithCalculations
   ) => 'above' | 'below' | 'both' | 'none';
 
   /**
@@ -48,7 +48,7 @@ export interface InteractionOperations {
    * @returns Array of editable field names
    */
   calculateEditableFields: (
-    row: GridRowDisplay,
+    row: GridRowWithCalculations,
     context: InteractionContext
   ) => string[];
 
@@ -59,7 +59,7 @@ export interface InteractionOperations {
    * @returns Action availability flags
    */
   calculateRowActions: (
-    row: GridRowDisplay,
+    row: GridRowWithCalculations,
     context: InteractionContext
   ) => RowActionFlags;
 }
@@ -128,8 +128,8 @@ export const createInteractionOperations = (): InteractionOperations => {
 
   // Helper function implementations
   function calculateDragCapabilities(
-    row: GridRowDisplay,
-    allRows: GridRowDisplay[],
+    row: GridRowWithCalculations,
+    allRows: GridRowWithCalculations[],
     context: InteractionContext
   ): DragCapabilities {
     // Can't drag in readonly mode
@@ -172,11 +172,7 @@ export const createInteractionOperations = (): InteractionOperations => {
     };
   }
 
-  function calculateDropZones(
-    row: GridRowDisplay,
-    previousRow?: GridRowDisplay,
-    nextRow?: GridRowDisplay
-  ): 'above' | 'below' | 'both' | 'none' {
+  function calculateDropZones(): 'above' | 'below' | 'both' | 'none' {
     // Most rows can accept drops above and below
     return 'both';
     
@@ -185,7 +181,7 @@ export const createInteractionOperations = (): InteractionOperations => {
   }
 
   function calculateEditableFields(
-    row: GridRowDisplay,
+    row: GridRowWithCalculations,
     context: InteractionContext
   ): string[] {
     // In readonly mode, no fields are editable
@@ -248,10 +244,7 @@ export const createInteractionOperations = (): InteractionOperations => {
     };
   }
 
-  function getRequiredFields(
-    row: GridRowDisplay,
-    context: InteractionContext
-  ): string[] {
+  function getRequiredFields(): string[] {
     // For now, no required fields in base layer
     // Future: Extract from product configuration
     return [];

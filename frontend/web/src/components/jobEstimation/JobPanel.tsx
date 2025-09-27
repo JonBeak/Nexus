@@ -87,6 +87,7 @@ export const JobPanel: React.FC<JobPanelProps> = ({
       setValidationSuggestion(null);
       return true;
     } catch (error) {
+      console.error('Error validating job name:', error);
       setValidationError('Error validating job name');
       return false;
     }

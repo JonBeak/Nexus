@@ -1,3 +1,5 @@
+import type { AuthenticatedRequest } from '../../../types/time';
+
 interface ExportDataParams {
   selectedDate: string;
   endDate: string;
@@ -5,7 +7,7 @@ interface ExportDataParams {
   selectedGroup: string;
   searchTerm: string;
   format: 'csv' | 'pdf';
-  makeAuthenticatedRequest: (url: string, options?: any) => Promise<Response>;
+  makeAuthenticatedRequest: AuthenticatedRequest;
 }
 
 export const exportData = async ({

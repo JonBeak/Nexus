@@ -1,13 +1,6 @@
-import { UserWageData, PaymentRecord } from '../types/WageTypes';
+import { UserWageData, PaymentRecord, DeductionOverrides } from '../types/WageTypes';
 
-interface PendingDeductionChange {
-  userId: number;
-  field: 'cpp' | 'ei' | 'tax';
-  value: number;
-  timestamp: number;
-}
-
-export const makeAuthenticatedRequest = async (url: string, options: any = {}) => {
+export const makeAuthenticatedRequest = async (url: string, options: RequestInit = {}) => {
   const token = localStorage.getItem('access_token');
   
   const headers = {
@@ -62,11 +55,18 @@ export const fetchWageData = async (biWeekStart: string, selectedGroup: string):
   }
 };
 
+interface PayrollChangeDto {
+  entry_id: number;
+  payroll_clock_in: string | null;
+  payroll_clock_out: string | null;
+  payroll_break_minutes: number | null;
+}
+
 export const savePayrollChanges = async (wageData: UserWageData[]) => {
-  const changes: any[] = [];
+  const changes: PayrollChangeDto[] = [];
   
   wageData.forEach(userData => {
-    Object.entries(userData.entries).forEach(([date, entry]) => {
+    Object.values(userData.entries).forEach(entry => {
       if (entry.payroll_adjusted) {
         changes.push({
           entry_id: entry.entry_id,
@@ -176,7 +176,7 @@ export const recordPayment = async (
   endDate: string,
   paymentDate: string,
   wageData: UserWageData[],
-  deductionOverrides: any
+  deductionOverrides: DeductionOverrides
 ) => {
   try {
     const token = localStorage.getItem('access_token');

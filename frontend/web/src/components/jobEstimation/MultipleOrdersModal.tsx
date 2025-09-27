@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, Package, AlertTriangle } from 'lucide-react';
 import { jobVersioningApi } from '../../services/api';
 
@@ -26,14 +26,7 @@ export const MultipleOrdersModal: React.FC<MultipleOrdersModalProps> = ({
   const [newJobName, setNewJobName] = useState(`${originalJobName} (B)`);
   const [suggestingName, setSuggestingName] = useState(false);
 
-  // Fetch suggested job name when modal opens
-  useEffect(() => {
-    if (isOpen && jobId && originalJobName) {
-      fetchSuggestedName();
-    }
-  }, [isOpen, jobId, originalJobName]);
-
-  const fetchSuggestedName = async () => {
+  const fetchSuggestedName = useCallback(async () => {
     setSuggestingName(true);
     try {
       const response = await jobVersioningApi.suggestJobNameSuffix(jobId, originalJobName);
@@ -47,7 +40,14 @@ export const MultipleOrdersModal: React.FC<MultipleOrdersModalProps> = ({
     } finally {
       setSuggestingName(false);
     }
-  };
+  }, [jobId, originalJobName]);
+
+  // Fetch suggested job name when modal opens
+  useEffect(() => {
+    if (isOpen && jobId && originalJobName) {
+      fetchSuggestedName();
+    }
+  }, [fetchSuggestedName, isOpen, jobId, originalJobName]);
 
   const handleConfirm = () => {
     if (newJobName.trim()) {

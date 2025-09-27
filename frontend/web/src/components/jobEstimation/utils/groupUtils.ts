@@ -31,8 +31,6 @@ export const findProductGroupStart = (index: number, rows: EstimateRow[]): numbe
 };
 
 export const findProductGroupEnd = (startIndex: number, rows: EstimateRow[]): number => {
-  const currentRow = rows[startIndex];
-  
   // First, find the group start to ensure we have the complete group
   const groupStart = findProductGroupStart(startIndex, rows);
   

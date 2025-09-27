@@ -223,6 +223,7 @@ GET    /api/pricing/discounts           - Volume discounts
 
 ### Integration Points
 - **Customer Preferences**: Automatically applied during estimation
+- **Customer Preferences API**: `GET /api/customers/:id/manufacturing-preferences` returns a pref_* snapshot used by the builder layer and cached for the session
 - **Tax Calculations**: Based on customer billing address using tax_rules
 - **Material Sourcing**: Real-time inventory checks and supplier integration
 - **Audit Trail**: Complete tracking of all business decisions

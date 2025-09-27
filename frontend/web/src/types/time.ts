@@ -3,20 +3,29 @@
  * Extracted from TimeManagement.tsx for reusability across components
  */
 
-import { User } from './index';
+export interface TimeUser {
+  user_id: number;
+  username?: string;
+  first_name?: string;
+  last_name?: string;
+  role: 'manager' | 'designer' | 'production_staff' | 'owner' | string;
+  user_group?: string;
+}
+
+export type AuthenticatedRequest = (url: string, options?: RequestInit) => Promise<Response>;
 
 // Core data interfaces
 export interface TimeEntry {
   entry_id: number;
   user_id: number;
-  first_name: string;
-  last_name: string;
+  first_name?: string;
+  last_name?: string;
   clock_in: string;
   clock_out: string | null;
   break_minutes: number;
   total_hours: number;
   status: 'active' | 'completed';
-  is_edited: boolean;
+  is_edited?: boolean;
   has_multiple_entries?: boolean;
 }
 
@@ -65,10 +74,6 @@ export type FilterStatus = 'all' | 'active' | 'completed';
 export type DateRange = 'single' | 'range';
 
 // Component props interfaces
-export interface TimeManagementProps {
-  user: User;
-}
-
 export interface FilterState {
   selectedDate: string;
   endDate: string;
@@ -80,7 +85,7 @@ export interface FilterState {
 
 export interface TimeFilterProps {
   filters: FilterState;
-  users: User[];
+  users: TimeUser[];
   viewMode: ViewMode;
   onFiltersChange: (filters: FilterState) => void;
   onViewModeChange: (mode: ViewMode) => void;
@@ -162,4 +167,67 @@ export interface BulkEditValues {
   clock_in?: string;
   clock_out?: string;
   break_minutes?: number;
+}
+
+export interface WeeklyEntry {
+  entry_id: number;
+  clock_in: string;
+  clock_out: string | null;
+  break_minutes: number;
+  total_hours: number;
+  status: string;
+  request_id: number | null;
+}
+
+export interface WeeklyData {
+  weekStart: string;
+  weekEnd: string;
+  weekTotal: number;
+  entries: WeeklyEntry[];
+}
+
+export interface ClockStatus {
+  isClocked: boolean;
+  currentEntry?: {
+    clock_in: string;
+    entry_id: number;
+  } | null;
+}
+
+export interface TimeNotification {
+  notification_id: number;
+  action: string;
+  reviewer_name: string;
+  reviewer_notes?: string;
+  created_at: string;
+  is_read: boolean;
+  is_cleared: boolean;
+}
+
+export interface TimeEditRequest {
+  request_id: number;
+  user_id: number;
+  username: string;
+  first_name: string;
+  last_name: string;
+  request_type: 'edit' | 'delete';
+  original_clock_in: string;
+  original_clock_out: string | null;
+  original_break_minutes: number;
+  requested_clock_in: string;
+  requested_clock_out: string | null;
+  requested_break_minutes: number;
+  reason: string;
+  reviewer_notes?: string;
+}
+
+export interface EditRequestDraft {
+  clockIn: string;
+  clockOut: string;
+  breakMinutes: number;
+  reason: string;
+}
+
+export interface DeleteRequestDraft {
+  reason: string;
 }

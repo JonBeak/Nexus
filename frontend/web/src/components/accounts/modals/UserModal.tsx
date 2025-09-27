@@ -1,27 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
-
-interface User {
-  user_id?: number;
-  username: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  role: 'manager' | 'designer' | 'production_staff' | 'owner';
-  user_group?: string;
-  hourly_wage?: number;
-  is_active: boolean;
-  auto_clock_in?: string;
-  auto_clock_out?: string;
-}
+import type { AccountUser } from '../../../types/user';
 
 interface UserModalProps {
   isOpen: boolean;
   onClose: () => void;
-  user?: User | null;
-  users?: User[];
-  onSave: (userData: User) => void;
-  currentUser: User;
+  user?: AccountUser | null;
+  users?: AccountUser[];
+  onSave: (userData: AccountUser) => void;
+  currentUser: AccountUser;
 }
 
 export const UserModal: React.FC<UserModalProps> = ({ 
@@ -32,7 +19,7 @@ export const UserModal: React.FC<UserModalProps> = ({
   onSave,
   currentUser
 }) => {
-  const [formData, setFormData] = useState<User>({
+  const [formData, setFormData] = useState<AccountUser>({
     username: '',
     first_name: '',
     last_name: '',
@@ -132,9 +119,9 @@ export const UserModal: React.FC<UserModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validateForm()) {
-      const userData = { ...formData };
+      const userData: AccountUser = { ...formData };
       if (!user) {
-        (userData as any).password = password;
+        userData.password = password;
         // Generate default email from username since backend still requires it
         userData.email = `${formData.username}@company.com`;
       }
@@ -142,7 +129,7 @@ export const UserModal: React.FC<UserModalProps> = ({
     }
   };
 
-  const handleInputChange = (field: keyof User, value: any) => {
+  const handleInputChange = <K extends keyof AccountUser>(field: K, value: AccountUser[K]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
@@ -280,7 +267,7 @@ export const UserModal: React.FC<UserModalProps> = ({
             </label>
             <select
               value={formData.role}
-              onChange={(e) => handleInputChange('role', e.target.value as User['role'])}
+              onChange={(e) => handleInputChange('role', e.target.value as AccountUser['role'])}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="production_staff">Production Staff</option>
@@ -351,7 +338,7 @@ export const UserModal: React.FC<UserModalProps> = ({
                   name="groupType"
                   value="custom"
                   checked={groupType === 'custom'}
-                  onChange={(e) => handleGroupTypeChange('custom')}
+                  onChange={() => handleGroupTypeChange('custom')}
                   className="mr-2"
                 />
                 Custom

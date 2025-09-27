@@ -1,20 +1,16 @@
 import React from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { AutofillComboBox } from '../../common/AutofillComboBox';
+import { InventoryUser } from '../types';
+import { ProductsColumnFilters, ProductsSortField } from '../hooks/useProductsFiltering';
 
 interface ProductsTableHeaderProps {
-  user: any;
-  sortField: string;
+  user: InventoryUser;
+  sortField: ProductsSortField;
   sortDirection: 'asc' | 'desc';
-  columnFilters: {
-    brand: string;
-    series: string;
-    colour_number: string;
-    colour_name: string;
-    suppliers: string;
-  };
-  onSort: (field: string) => void;
-  onColumnFilter: (column: string, value: string) => void;
+  columnFilters: ProductsColumnFilters;
+  onSort: (field: ProductsSortField) => void;
+  onColumnFilter: (column: keyof ProductsColumnFilters, value: string) => void;
   getBrandOptions: string[];
   getSeriesOptions: string[];
   getColourNumberOptions: string[];
@@ -35,14 +31,14 @@ export const ProductsTableHeader: React.FC<ProductsTableHeaderProps> = ({
   getColourNameOptions,
   getSupplierOptions
 }) => {
-  const getSortIcon = (field: string) => {
+  const getSortIcon = (field: ProductsSortField) => {
     if (sortField !== field) return null;
     return sortDirection === 'asc' ? 
       <ChevronUp className="w-3 h-3 inline ml-1" /> : 
       <ChevronDown className="w-3 h-3 inline ml-1" />;
   };
 
-  const handleFilterChange = (column: string) => (value: string) => {
+  const handleFilterChange = (column: keyof ProductsColumnFilters) => (value: string) => {
     if (value === '---') {
       onColumnFilter(column, '');
     } else {

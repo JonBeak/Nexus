@@ -2,9 +2,10 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import TimeTracking from '../time/TimeTracking';
 import TimeApprovals from '../time/TimeApprovals';
+import type { AccountUser } from '../../types/user';
 
 interface SimpleDashboardProps {
-  user: any;
+  user: AccountUser;
   onLogout: () => void;
 }
 
@@ -57,7 +58,7 @@ function SimpleDashboard({ user, onLogout }: SimpleDashboardProps) {
               // Staff Dashboard - Separate boxes
               <div className="space-y-8">
                 {/* Time Tracking Section */}
-                <TimeTracking user={user} />
+                <TimeTracking />
                 
                 {/* Staff Actions Section */}
                 <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-8">
@@ -113,7 +114,7 @@ function SimpleDashboard({ user, onLogout }: SimpleDashboardProps) {
               </div>
             ) : user.role === 'designer' ? (
               // Designer gets time tracking 
-              <TimeTracking user={user} />
+              <TimeTracking />
             ) : (
               // Manager and Owner Dashboard
               <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-8">
@@ -248,7 +249,7 @@ function SimpleDashboard({ user, onLogout }: SimpleDashboardProps) {
 
             {/* Time Approvals - For Managers and Owners */}
             {(user.role === 'manager' || user.role === 'owner') && (
-              <TimeApprovals user={user} />
+              <TimeApprovals />
             )}
             
             {/* System Status - Only for Owners */}

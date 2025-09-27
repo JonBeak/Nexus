@@ -1,17 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Calendar, Users, Filter, Download, Clock } from 'lucide-react';
 import { generateDatePresets, getCurrentPreset, type DatePreset } from '../../utils/datePresets';
-
-// Pure UI component for time management filters
-interface User {
-  user_id: number;
-  first_name: string;
-  last_name: string;
-  user_group?: string;
-}
-
-type ViewMode = 'calendar' | 'single' | 'weekly' | 'bi-weekly' | 'monthly' | 'quarterly' | 'semi-yearly' | 'yearly' | 'analytics' | 'missing';
-type FilterStatus = 'all' | 'active' | 'completed';
+import type { TimeUser, ViewMode, FilterStatus } from '../../types/time';
 
 interface TimeFiltersProps {
   // Filter state
@@ -27,7 +17,7 @@ interface TimeFiltersProps {
   showExportMenu: boolean;
   
   // Data
-  users: User[];
+  users: TimeUser[];
   
   // Event handlers
   onDateRangeChange: (range: 'single' | 'range') => void;

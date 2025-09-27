@@ -1,13 +1,10 @@
 import React from 'react';
+import type { BulkEditValues } from '../../../types/time';
 
 interface BulkEditModalProps {
   selectedEntries: number[];
-  bulkEditValues: {
-    clock_in?: string;
-    clock_out?: string;
-    break_minutes?: number;
-  };
-  onBulkEditValuesChange: (values: any) => void;
+  bulkEditValues: BulkEditValues;
+  onBulkEditValuesChange: (values: BulkEditValues) => void;
   onApplyChanges: () => void;
   onClose: () => void;
 }

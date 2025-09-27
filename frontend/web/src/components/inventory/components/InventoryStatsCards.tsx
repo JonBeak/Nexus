@@ -1,8 +1,9 @@
 import React from 'react';
 import { Package, TrendingUp, TrendingDown } from 'lucide-react';
+import { InventoryStats } from '../types';
 
 interface InventoryStatsCardsProps {
-  stats: any;
+  stats: InventoryStats | null;
 }
 
 export const InventoryStatsCards: React.FC<InventoryStatsCardsProps> = ({ stats }) => {

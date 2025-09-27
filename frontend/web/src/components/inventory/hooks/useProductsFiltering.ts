@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
-import { VinylProduct } from '../ProductsTab';
+import { ProductFilterType, VinylProduct } from '../types';
 
-interface ColumnFilters {
+export interface ProductsColumnFilters {
   brand: string;
   series: string;
   colour_number: string;
@@ -11,14 +11,14 @@ interface ColumnFilters {
 
 interface UseProductsFilteringReturn {
   searchTerm: string;
-  filterType: string;
-  columnFilters: ColumnFilters;
-  sortField: string;
+  filterType: ProductFilterType;
+  columnFilters: ProductsColumnFilters;
+  sortField: ProductsSortField;
   sortDirection: 'asc' | 'desc';
   setSearchTerm: (term: string) => void;
-  setFilterType: (type: string) => void;
-  handleColumnFilter: (column: string, value: string) => void;
-  handleSort: (field: string) => void;
+  setFilterType: (type: ProductFilterType) => void;
+  handleColumnFilter: (column: keyof ProductsColumnFilters, value: string) => void;
+  handleSort: (field: ProductsSortField) => void;
   clearAllFilters: () => void;
   getActiveFilterCount: () => number;
   getBrandOptions: string[];
@@ -29,27 +29,29 @@ interface UseProductsFilteringReturn {
   filteredAndSortedProducts: VinylProduct[];
 }
 
+export type ProductsSortField = 'brand' | 'series' | 'colour_number' | 'colour_name' | 'suppliers' | 'status';
+
 export const useProductsFiltering = (products: VinylProduct[]): UseProductsFilteringReturn => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('all');
-  const [columnFilters, setColumnFilters] = useState<ColumnFilters>({
+  const [filterType, setFilterType] = useState<ProductFilterType>('all');
+  const [columnFilters, setColumnFilters] = useState<ProductsColumnFilters>({
     brand: '',
     series: '',
     colour_number: '',
     colour_name: '',
     suppliers: ''
   });
-  const [sortField, setSortField] = useState<string>('brand');
+  const [sortField, setSortField] = useState<ProductsSortField>('brand');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
-  const handleColumnFilter = useCallback((column: string, value: string) => {
+  const handleColumnFilter = useCallback((column: keyof ProductsColumnFilters, value: string) => {
     setColumnFilters(prev => ({
       ...prev,
       [column]: value
     }));
   }, []);
 
-  const handleSort = useCallback((field: string) => {
+  const handleSort = useCallback((field: ProductsSortField) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
@@ -71,9 +73,8 @@ export const useProductsFiltering = (products: VinylProduct[]): UseProductsFilte
   }, []);
 
   const getActiveFilterCount = useCallback(() => {
-    return Object.values(columnFilters).filter(value => value !== '').length + 
-           (filterType !== 'all' ? 1 : 0) + 
-           (searchTerm !== '' ? 1 : 0);
+    const activeColumnFilters = Object.values(columnFilters).filter(value => value !== '').length;
+    return activeColumnFilters + (filterType !== 'all' ? 1 : 0) + (searchTerm !== '' ? 1 : 0);
   }, [columnFilters, filterType, searchTerm]);
 
   // Helper function to extract colour number with fallback
@@ -166,7 +167,7 @@ export const useProductsFiltering = (products: VinylProduct[]): UseProductsFilte
 
   // Filtered and sorted products
   const filteredAndSortedProducts = useMemo(() => {
-    let filtered = products.filter(product => {
+    const filtered = products.filter(product => {
       // Global search
       if (searchTerm) {
         const searchFields = [

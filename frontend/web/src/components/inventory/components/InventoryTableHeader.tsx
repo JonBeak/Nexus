@@ -1,19 +1,14 @@
 import React from 'react';
 import { AutofillComboBox } from '../../common/AutofillComboBox';
-
-interface ColumnFilters {
-  brand: string;
-  series: string;
-  colour_number: string;
-  colour_name: string;
-}
+import { InventoryUser } from '../types';
+import { InventoryColumnFilters, InventorySortField } from '../hooks/useInventoryFiltering';
 
 interface InventoryTableHeaderProps {
-  user: any;
-  columnFilters: ColumnFilters;
-  handleSort: (field: string) => void;
-  handleColumnFilter: (column: keyof ColumnFilters, value: string) => void;
-  getSortIcon: (field: string) => string;
+  user: InventoryUser;
+  columnFilters: InventoryColumnFilters;
+  handleSort: (field: InventorySortField) => void;
+  handleColumnFilter: (column: keyof InventoryColumnFilters, value: string) => void;
+  getSortIcon: (field: InventorySortField) => string;
   getBrandOptions: string[];
   getSeriesOptions: string[];
   getColourNumberOptions: string[];

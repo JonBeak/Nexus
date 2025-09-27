@@ -1,12 +1,10 @@
-import { useCallback, useEffect, useMemo } from 'react';
-import { EstimateRow } from '../types';
+import { useCallback, useEffect } from 'react';
+import { GridRow } from '../core/types/LayerTypes';
 import { GridState } from './useSimpleGridState';
-import { UnifiedAssemblySystem } from '../systems/UnifiedAssemblySystem';
-import { useDragDropContext } from '../managers/DragDropManager';
 
 export interface GridValidation {
   validateField: (field: any, value: any) => string[];
-  validateRow: (row: EstimateRow) => Record<string, string[]>;
+  validateRow: (row: GridRow) => Record<string, string[]>;
   validateAllRows: () => void;
   validateSingleFieldOnBlur: (rowIndex: number, fieldName: string, value: any) => void; // ✅ BLUR-ONLY
 }
@@ -15,11 +13,7 @@ export const useGridValidation = (
   gridState: GridState,
   onValidationChange?: (hasErrors: boolean, errorCount: number) => void
 ): GridValidation => {
-  const dragContext = useDragDropContext();
-  
-  // ✅ PHASE 2C: Create O(n) assembly validator instance
-  const unifiedSystem = useMemo(() => new UnifiedAssemblySystem(gridState.rows, () => {}, () => {}), [gridState.rows]);
-
+  const { rows, validationErrors, loadedEstimateId, setValidationErrors } = gridState;
   const validateField = useCallback((field: any, value: any): string[] => {
     const errors: string[] = [];
     
@@ -86,15 +80,15 @@ export const useGridValidation = (
     return errors;
   }, []);
 
-  const validateRow = useCallback((row: EstimateRow): Record<string, string[]> => {
-    // Validation system will be added later
+  const validateRow = useCallback((row: GridRow): Record<string, string[]> => {
+    void row;
     return {};
   }, []);
 
   const validateAllRows = useCallback(() => {
     const newErrors: Record<string, Record<string, string[]>> = {};
     
-    gridState.rows.forEach(row => {
+    rows.forEach(row => {
       const rowErrors = validateRow(row);
       if (Object.keys(rowErrors).length > 0) {
         newErrors[row.id] = rowErrors;
@@ -106,7 +100,7 @@ export const useGridValidation = (
       // Validation found errors in ${Object.keys(newErrors).length} rows
     }
     
-    gridState.setValidationErrors(newErrors);
+    setValidationErrors(newErrors);
     
     // Notify parent of validation state changes
     const errorCount = Object.values(newErrors).reduce((total, rowErrors) => 
@@ -115,7 +109,7 @@ export const useGridValidation = (
     if (onValidationChange) {
       onValidationChange(Object.keys(newErrors).length > 0, errorCount);
     }
-  }, [gridState.rows, validateRow, gridState.setValidationErrors, onValidationChange]);
+  }, [rows, validateRow, setValidationErrors, onValidationChange]);
 
   // ✅ BLUR-ONLY: Remove automatic validation on row changes
   // Validation now only occurs:
@@ -123,15 +117,10 @@ export const useGridValidation = (
   // 2. On data loading completion 
   // 3. On drag operations completion
   useEffect(() => {
-    // Skip validation entirely during drag operations for better drag performance
-    if (dragContext.isDragCalculating) {
-      return;
-    }
-    
     // Only validate when data is first loaded, not on every row change
-    if (gridState.rows.length > 0 && gridState.loadedEstimateId !== null) {
+    if (rows.length > 0 && loadedEstimateId !== null) {
       // Only run validation once after initial data load
-      const hasInitialData = gridState.rows.some(row => row.productTypeId);
+      const hasInitialData = rows.some(row => row.productTypeId);
       if (hasInitialData) {
         // Validate once after data load
         const timeoutId = setTimeout(() => {
@@ -142,30 +131,32 @@ export const useGridValidation = (
     }
   }, [
     // Only depend on data loading completion, not content changes
-    gridState.loadedEstimateId,
-    gridState.rows.length, // Only length matters for initial load
-    validateAllRows,
-    dragContext.isDragCalculating
+    loadedEstimateId,
+    rows.length, // Only length matters for initial load
+    rows,
+    validateAllRows
   ]);
 
   // ✅ BLUR-ONLY: Validate a single field when user blurs
   const validateSingleFieldOnBlur = useCallback((rowIndex: number, fieldName: string, value: any) => {
-    const row = gridState.rows[rowIndex];
+    const row = rows[rowIndex];
     if (!row) return;
+    void fieldName;
+    void value;
     
     // For now, just validate the whole row since fields are interconnected
     // This could be optimized further to validate only the specific field
     const rowErrors = validateRow(row);
     
     // Update validation errors for this row
-    const newErrors = { ...gridState.validationErrors };
+    const newErrors = { ...validationErrors };
     if (Object.keys(rowErrors).length > 0) {
       newErrors[row.id] = rowErrors;
     } else {
       delete newErrors[row.id];
     }
     
-    gridState.setValidationErrors(newErrors);
+    setValidationErrors(newErrors);
     
     // Notify parent of validation state changes
     const errorCount = Object.values(newErrors).reduce((total, rowErrors) => 
@@ -174,7 +165,7 @@ export const useGridValidation = (
     if (onValidationChange) {
       onValidationChange(Object.keys(newErrors).length > 0, errorCount);
     }
-  }, [gridState.rows, validateRow, gridState.setValidationErrors, onValidationChange]);
+  }, [rows, validateRow, setValidationErrors, validationErrors, onValidationChange]);
 
   return {
     validateField,

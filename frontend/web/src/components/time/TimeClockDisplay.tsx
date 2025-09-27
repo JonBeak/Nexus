@@ -1,16 +1,9 @@
 import React from 'react';
-
-interface ClockStatus {
-  isClocked: boolean;
-  currentEntry?: {
-    clock_in: string;
-    entry_id: number;
-  };
-}
+import type { ClockStatus, TimeNotification } from '../../types/time';
 
 interface TimeClockDisplayProps {
   clockStatus: ClockStatus | null;
-  notifications: any[];
+  notifications: TimeNotification[];
   onClockIn: () => void;
   onClockOut: () => void;
   onShowNotifications: () => void;

@@ -266,7 +266,7 @@ export class RowOperations {
     if (rowIndex === -1) return coreData;
 
     const sourceRow = coreData[rowIndex];
-    const newRow = this.config.coreOps.cloneRow(sourceRow, coreData);
+    const newRow = this.config.coreOps.cloneRow(sourceRow);
 
     // For main rows, also duplicate children
     const rowsToDuplicate = [newRow];
@@ -277,7 +277,7 @@ export class RowOperations {
         for (const childId of calculatedRow.childIds) {
           const childRow = coreData.find(r => r.id === childId);
           if (childRow) {
-            const duplicatedChild = this.config.coreOps.cloneRow(childRow, coreData);
+            const duplicatedChild = this.config.coreOps.cloneRow(childRow);
             // Update parent reference to new main row
             duplicatedChild.parentProductId = newRow.id;
             rowsToDuplicate.push(duplicatedChild);

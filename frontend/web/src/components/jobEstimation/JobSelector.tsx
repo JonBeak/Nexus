@@ -1,16 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Plus, Building, Calendar, AlertCircle, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Search, Plus, Building, Calendar, AlertCircle } from 'lucide-react';
 import { customerApi, jobVersioningApi } from '../../services/api';
 import { JobSelectorProps, JobSummary, JobValidationResponse } from './types';
+
+interface Customer {
+  customer_id: number;
+  company_name: string;
+  contact_name: string;
+}
 
 export const JobSelector: React.FC<JobSelectorProps> = ({
   customerId,
   onCustomerSelected,
   onJobSelected,
-  onCreateNewJob,
-  user
+  onCreateNewJob
 }) => {
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | undefined>(customerId);
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -22,19 +27,7 @@ export const JobSelector: React.FC<JobSelectorProps> = ({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [validationSuggestion, setValidationSuggestion] = useState<string | null>(null);
 
-  // Load customers on mount
-  useEffect(() => {
-    fetchCustomers();
-  }, []);
-
-  // Load jobs when customer is selected
-  useEffect(() => {
-    if (selectedCustomerId) {
-      fetchJobs();
-    }
-  }, [selectedCustomerId]);
-
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
     setLoading(true);
     try {
       const response = await customerApi.getCustomers({ 
@@ -48,9 +41,9 @@ export const JobSelector: React.FC<JobSelectorProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchTerm]);
 
-  const fetchJobs = async () => {
+  const fetchJobs = useCallback(async () => {
     if (!selectedCustomerId) return;
     
     setJobsLoading(true);
@@ -63,7 +56,19 @@ export const JobSelector: React.FC<JobSelectorProps> = ({
     } finally {
       setJobsLoading(false);
     }
-  };
+  }, [selectedCustomerId]);
+
+  // Load customers on mount
+  useEffect(() => {
+    fetchCustomers();
+  }, [fetchCustomers]);
+
+  // Load jobs when customer is selected
+  useEffect(() => {
+    if (selectedCustomerId) {
+      fetchJobs();
+    }
+  }, [selectedCustomerId, fetchJobs]);
 
   const handleCustomerSelect = (customerId: number) => {
     setSelectedCustomerId(customerId);
@@ -86,7 +91,7 @@ export const JobSelector: React.FC<JobSelectorProps> = ({
     if (!selectedCustomerId || !jobName.trim()) return false;
 
     try {
-      const response = await jobVersioningApi.validateJobName(selectedCustomerId, jobName.trim());
+      const response: JobValidationResponse = await jobVersioningApi.validateJobName(selectedCustomerId, jobName.trim());
       if (!response.valid) {
         setValidationError(response.message || 'Job name is not valid');
         setValidationSuggestion(response.suggestion || null);
@@ -96,6 +101,7 @@ export const JobSelector: React.FC<JobSelectorProps> = ({
       setValidationSuggestion(null);
       return true;
     } catch (error) {
+      console.error('Error validating job name:', error);
       setValidationError('Error validating job name');
       return false;
     }

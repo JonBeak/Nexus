@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   FileText, 
   Plus, 
@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   CheckCircle,
   Send,
-  Shield,
   Package
 } from 'lucide-react';
 import { jobVersioningApi } from '../../services/api';
@@ -32,13 +31,7 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
   const [duplicateNotes, setDuplicateNotes] = useState('');
   const [lockStatuses, setLockStatuses] = useState<Record<number, EditLockStatus>>({});
 
-  useEffect(() => {
-    if (jobId) {
-      fetchVersions();
-    }
-  }, [jobId]);
-
-  const fetchVersions = async () => {
+  const fetchVersions = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -58,7 +51,13 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [jobId]);
+
+  useEffect(() => {
+    if (jobId) {
+      fetchVersions();
+    }
+  }, [fetchVersions, jobId]);
 
   const checkEditLockStatus = async (estimateId: number) => {
     try {

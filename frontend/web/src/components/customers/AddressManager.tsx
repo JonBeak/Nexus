@@ -32,7 +32,6 @@ function AddressManager({
     loading,
     handleAddAddress,
     handleUpdateAddress,
-    handleDeleteAddress,
     handleMakePrimary,
     handleReactivateAddress,
     handleAddressChange,
@@ -49,7 +48,15 @@ function AddressManager({
     setSaveError
   );
 
+  const handleSaveAddress = async (index: number, addressData: Address) => {
+    if (!addressData.province_state_short?.trim()) {
+      setSaveError('Province/State is required for each address.');
+      return;
+    }
+    await handleUpdateAddress(index, addressData);
+  };
 
+  
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -110,7 +117,7 @@ function AddressManager({
                 {address.isEditing && (
                   <>
                     <button
-                      onClick={() => handleUpdateAddress(index, address)}
+                      onClick={() => handleSaveAddress(index, address)}
                       className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm font-semibold transition-colors"
                       disabled={loading}
                     >

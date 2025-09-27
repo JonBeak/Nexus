@@ -61,7 +61,7 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
     const textColorMatch = colorClasses.match(/text-([a-z]+)-([0-9]+)/);
     
     if (textColorMatch) {
-      const [, color, shade] = textColorMatch;
+      const [, color] = textColorMatch;
       return `text-${color}-600`; // Use 600 shade for text
     }
     

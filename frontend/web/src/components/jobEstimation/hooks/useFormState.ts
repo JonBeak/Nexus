@@ -31,6 +31,21 @@ export const useFormState = (): UseFormStateReturn => {
   const [overriddenFields, setOverriddenFields] = useState<Set<string>>(new Set());
   const [customerDefaults, setCustomerDefaultsState] = useState<Record<string, any>>({});
 
+  const setCustomerDefaults = useCallback((defaults: Record<string, any>) => {
+    setCustomerDefaultsState(defaults);
+  }, []);
+
+  const clearValidationError = useCallback((fieldName: string) => {
+    setValidationErrors(prev => {
+      if (prev[fieldName]) {
+        const newErrors = { ...prev };
+        delete newErrors[fieldName];
+        return newErrors;
+      }
+      return prev;
+    });
+  }, []);
+
   const updateField = useCallback((fieldName: string, value: any) => {
     setFormData(prev => ({
       ...prev,
@@ -50,11 +65,7 @@ export const useFormState = (): UseFormStateReturn => {
 
     // Clear validation error for this field
     clearValidationError(fieldName);
-  }, [customerDefaults]);
-
-  const setCustomerDefaults = useCallback((defaults: Record<string, any>) => {
-    setCustomerDefaultsState(defaults);
-  }, []);
+  }, [customerDefaults, clearValidationError]);
 
   const initializeForm = useCallback((
     fields: FormField[], 
@@ -130,17 +141,6 @@ export const useFormState = (): UseFormStateReturn => {
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   }, [formData]);
-
-  const clearValidationError = useCallback((fieldName: string) => {
-    setValidationErrors(prev => {
-      if (prev[fieldName]) {
-        const newErrors = { ...prev };
-        delete newErrors[fieldName];
-        return newErrors;
-      }
-      return prev;
-    });
-  }, []);
 
   const resetForm = useCallback(() => {
     setFormData({});

@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
-import { useAccountAPI, User, LoginLog, VacationPeriod } from './useAccountAPI';
-import { useNotifications } from '../components/NotificationSystem';
+import { useState, useEffect, useCallback } from 'react';
+import { useAccountAPI, LoginLog, VacationPeriod } from './useAccountAPI';
+import { useNotifications } from './useNotifications';
+import type { AccountUser } from '../../../types/user';
 
 export const useAccountManagement = () => {
-  const [users, setUsers] = useState<User[]>([]);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<'users' | 'logs' | 'vacations'>('users');
-  const [loading, setLoading] = useState(false);
+  type AccountTab = 'users' | 'logs' | 'vacations';
+
+  const [users, setUsers] = useState<AccountUser[]>([]);
+  const [selectedUser, setSelectedUser] = useState<AccountUser | null>(null);
+  const [activeTab, setActiveTab] = useState<AccountTab>('users');
   const [showUserModal, setShowUserModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showVacationModal, setShowVacationModal] = useState(false);
@@ -31,9 +33,39 @@ export const useAccountManagement = () => {
   const { showSuccess, showError } = useNotifications();
 
   // Load users on component mount
+  const loadUsers = useCallback(async () => {
+    try {
+      const userData = await fetchUsers();
+      setUsers(userData);
+    } catch (error) {
+      console.error('Failed to load users', error);
+      showError('Error', 'Failed to load users');
+    }
+  }, [fetchUsers, showError]);
+
+  const loadLoginLogs = useCallback(async (userId?: number) => {
+    try {
+      const logs = await fetchLoginLogs(userId);
+      setLoginLogs(logs);
+    } catch (error) {
+      console.error('Failed to load login logs', error);
+      showError('Error', 'Failed to load login logs');
+    }
+  }, [fetchLoginLogs, showError]);
+
+  const loadVacationPeriods = useCallback(async (userId?: number) => {
+    try {
+      const vacations = await fetchVacationPeriods(userId);
+      setVacationPeriods(vacations);
+    } catch (error) {
+      console.error('Failed to load vacation periods', error);
+      showError('Error', 'Failed to load vacation periods');
+    }
+  }, [fetchVacationPeriods, showError]);
+
   useEffect(() => {
     loadUsers();
-  }, []);
+  }, [loadUsers]);
 
   // Load data based on active tab
   useEffect(() => {
@@ -42,51 +74,23 @@ export const useAccountManagement = () => {
     } else if (activeTab === 'vacations') {
       loadVacationPeriods();
     }
-  }, [activeTab]);
+  }, [activeTab, loadLoginLogs, loadVacationPeriods]);
 
-  const loadUsers = async () => {
-    setLoading(true);
-    try {
-      const userData = await fetchUsers();
-      setUsers(userData);
-    } catch (error) {
-      showError('Error', 'Failed to load users');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadLoginLogs = async (userId?: number) => {
-    try {
-      const logs = await fetchLoginLogs(userId);
-      setLoginLogs(logs);
-    } catch (error) {
-      showError('Error', 'Failed to load login logs');
-    }
-  };
-
-  const loadVacationPeriods = async (userId?: number) => {
-    try {
-      const vacations = await fetchVacationPeriods(userId);
-      setVacationPeriods(vacations);
-    } catch (error) {
-      showError('Error', 'Failed to load vacation periods');
-    }
-  };
-
-  const handleCreateUser = async (userData: User) => {
+  const handleCreateUser = async (userData: AccountUser) => {
     try {
       await createUser(userData);
       showSuccess('User Created', `${userData.first_name} ${userData.last_name} has been created successfully.`);
       await loadUsers();
       setShowUserModal(false);
       setSelectedUser(null);
-    } catch (error: any) {
-      showError('Creation Failed', error.message);
+    } catch (error) {
+      console.error('User creation failed', error);
+      const message = error instanceof Error ? error.message : 'Failed to create user';
+      showError('Creation Failed', message);
     }
   };
 
-  const handleUpdateUser = async (userData: User) => {
+  const handleUpdateUser = async (userData: AccountUser) => {
     if (!userData.user_id) return;
     
     // Check if this would deactivate the last admin
@@ -108,12 +112,14 @@ export const useAccountManagement = () => {
       await loadUsers();
       setShowUserModal(false);
       setSelectedUser(null);
-    } catch (error: any) {
-      showError('Update Failed', error.message);
+    } catch (error) {
+      console.error('User update failed', error);
+      const message = error instanceof Error ? error.message : 'Failed to update user';
+      showError('Update Failed', message);
     }
   };
 
-  const handleUserSave = async (userData: User) => {
+  const handleUserSave = async (userData: AccountUser) => {
     if (userData.user_id) {
       await handleUpdateUser(userData);
     } else {
@@ -128,8 +134,10 @@ export const useAccountManagement = () => {
       showSuccess('Password Changed', `Password updated for ${targetUser?.first_name} ${targetUser?.last_name}`);
       setShowPasswordModal(false);
       setSelectedUser(null);
-    } catch (error: any) {
-      showError('Password Change Failed', error.message);
+    } catch (error) {
+      console.error('Password change failed', error);
+      const message = error instanceof Error ? error.message : 'Failed to change password';
+      showError('Password Change Failed', message);
     }
   };
 
@@ -142,8 +150,10 @@ export const useAccountManagement = () => {
       setShowVacationModal(false);
       setSelectedUser(null);
       setSelectedVacation(null);
-    } catch (error: any) {
-      showError('Creation Failed', error.message);
+    } catch (error) {
+      console.error('Vacation creation failed', error);
+      const message = error instanceof Error ? error.message : 'Failed to create vacation period';
+      showError('Creation Failed', message);
     }
   };
 
@@ -156,22 +166,24 @@ export const useAccountManagement = () => {
       await loadVacationPeriods();
       setShowDeleteConfirm(false);
       setDeleteTarget(null);
-    } catch (error: any) {
-      showError('Deletion Failed', error.message);
+    } catch (error) {
+      console.error('Vacation deletion failed', error);
+      const message = error instanceof Error ? error.message : 'Failed to delete vacation period';
+      showError('Deletion Failed', message);
     }
   };
 
-  const openUserModal = (user?: User) => {
+  const openUserModal = (user?: AccountUser) => {
     setSelectedUser(user || null);
     setShowUserModal(true);
   };
 
-  const openPasswordModal = (user: User) => {
+  const openPasswordModal = (user: AccountUser) => {
     setSelectedUser(user);
     setShowPasswordModal(true);
   };
 
-  const openVacationModal = (user?: User, vacation?: VacationPeriod) => {
+  const openVacationModal = (user?: AccountUser, vacation?: VacationPeriod) => {
     setSelectedUser(user || null);
     setSelectedVacation(vacation || null);
     setShowVacationModal(true);
@@ -182,7 +194,7 @@ export const useAccountManagement = () => {
     setShowDeleteConfirm(true);
   };
 
-  const viewUserLogs = (user: User) => {
+  const viewUserLogs = (user: AccountUser) => {
     setSelectedUser(user);
     setActiveTab('logs');
     loadLoginLogs(user.user_id);

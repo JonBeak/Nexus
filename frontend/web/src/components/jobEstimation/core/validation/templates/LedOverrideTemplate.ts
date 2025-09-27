@@ -2,11 +2,18 @@
 // Accepts float, "yes", "no" and calculates LED count based on business logic
 
 import { ValidationTemplate, ValidationResult, LedOverrideParams, ValidationContext } from './ValidationTemplate';
+import { calculateChannelLetterMetrics, ChannelLetterMetrics } from '../utils/channelLetterParser';
+
+type LedOverrideParsedValue = number | 'yes' | 'no' | null;
 
 export class LedOverrideTemplate implements ValidationTemplate {
   async validate(value: string, params: LedOverrideParams = {}, context?: ValidationContext): Promise<ValidationResult> {
     try {
       // DEBUG: LedOverrideTemplate validation
+
+      const savedLedCount = this.getSavedLedCount(context);
+      const defaultLedCount = this.getDefaultLedCount(context);
+      const hasChannelData = savedLedCount > 0;
 
       // Handle empty values
       if (!value || (typeof value === 'string' && value.trim() === '')) {
@@ -14,28 +21,38 @@ export class LedOverrideTemplate implements ValidationTemplate {
         return {
           isValid: true,
           parsedValue: null,
-          calculatedValue: this.calculateDefaultLedCount(context),
+          calculatedValue: defaultLedCount,
           expectedFormat: this.generateExpectedFormat(params)
         };
       }
 
-      const cleanValue = value.trim().toLowerCase();
+      const cleanValue = value.trim();
+      const normalizedValue = cleanValue.toLowerCase();
 
       // Parse input based on type
-      const parseResult = this.parseInput(cleanValue, params);
+      const parseResult = this.parseInput(normalizedValue, params, {
+        savedLedCount,
+        defaultLedCount,
+        hasChannelData
+      });
       if (!parseResult.isValid) {
         return parseResult;
       }
 
       // Calculate LED count based on parsed input and context
-      const calculatedLedCount = this.calculateLedCount(parseResult.parsedValue, context);
+      const parsedValue = parseResult.parsedValue as LedOverrideParsedValue;
+      const calculatedLedCount = this.calculateLedCount(parsedValue, {
+        savedLedCount,
+        defaultLedCount,
+        hasChannelData
+      });
 
       // Generate warnings if applicable
-      const warnings = this.generateWarnings(parseResult.parsedValue, context);
+      const warnings = this.generateWarnings(parsedValue, context);
 
       return {
         isValid: true,
-        parsedValue: parseResult.parsedValue,
+        parsedValue,
         calculatedValue: calculatedLedCount,
         warnings: warnings.length > 0 ? warnings : undefined,
         expectedFormat: this.generateExpectedFormat(params)
@@ -53,15 +70,43 @@ export class LedOverrideTemplate implements ValidationTemplate {
   /**
    * Parse input value into structured format
    */
-  private parseInput(value: string, params: LedOverrideParams): ValidationResult {
+  private parseInput(
+    value: string,
+    params: LedOverrideParams,
+    info: { savedLedCount: number; defaultLedCount: number; hasChannelData: boolean }
+  ): ValidationResult {
     const accepts = params.accepts || ['float', 'yes', 'no'];
     // Check for "yes"
     if (accepts.includes('yes') && value === 'yes') {
+      if (info.defaultLedCount > 0) {
+        return {
+          isValid: false,
+          error: 'LEDs are already included by default. Enter a number or "no" instead.',
+          expectedFormat: this.generateExpectedFormat(params)
+        };
+      }
+
+      if (!info.hasChannelData) {
+        return {
+          isValid: false,
+          error: 'Channel letter data is required before enabling LEDs.',
+          expectedFormat: this.generateExpectedFormat(params)
+        };
+      }
+
       return { isValid: true, parsedValue: 'yes' };
     }
 
     // Check for "no"
     if (accepts.includes('no') && value === 'no') {
+      if (info.defaultLedCount === 0) {
+        return {
+          isValid: false,
+          error: 'LEDs are already disabled by default. Enter a number if needed.',
+          expectedFormat: this.generateExpectedFormat(params)
+        };
+      }
+
       return { isValid: true, parsedValue: 'no' };
     }
 
@@ -91,11 +136,10 @@ export class LedOverrideTemplate implements ValidationTemplate {
   /**
    * Calculate LED count based on input and context
    */
-  private calculateLedCount(parsedValue: any, context?: ValidationContext): number {
-    if (!context) return 0;
-
-    const hasChannelLetters = this.hasChannelLetters(context);
-
+  private calculateLedCount(
+    parsedValue: LedOverrideParsedValue,
+    info: { savedLedCount: number; defaultLedCount: number; hasChannelData: boolean }
+  ): number {
     // Handle different input types
     if (typeof parsedValue === 'number') {
       // Explicit numeric override
@@ -103,13 +147,7 @@ export class LedOverrideTemplate implements ValidationTemplate {
     }
 
     if (parsedValue === 'yes') {
-      if (hasChannelLetters) {
-        // Calculate from channel letters data
-        return this.calculateLedsFromChannelLetters(context);
-      } else {
-        // No channel letters to calculate from
-        return 0;
-      }
+      return info.savedLedCount;
     }
 
     if (parsedValue === 'no') {
@@ -118,74 +156,58 @@ export class LedOverrideTemplate implements ValidationTemplate {
     }
 
     // No explicit input - use default behavior
-    return this.calculateDefaultLedCount(context);
-  }
-
-  /**
-   * Calculate default LED count based on customer preferences and context
-   */
-  private calculateDefaultLedCount(context?: ValidationContext): number {
-    if (!context) return 0;
-
-    const hasChannelLetters = this.hasChannelLetters(context);
-
-    if (hasChannelLetters && context.customerPreferences.use_leds) {
-      // Customer default: include LEDs with channel letters
-      return this.calculateLedsFromChannelLetters(context);
-    }
-
-    // Default: no LEDs
-    return 0;
+    return info.defaultLedCount;
   }
 
   /**
    * Check if channel letters exist (field1 and field2 filled)
    */
-  private hasChannelLetters(context: ValidationContext): boolean {
+  private hasChannelLetters(context: ValidationContext, metrics?: ChannelLetterMetrics | null): boolean {
     const field1 = context.rowData.field1;
     const field2 = context.rowData.field2;
-    return !!(field1 && field1.trim() && field2 && field2.trim());
+    const hasPairs = (metrics?.pairs?.length || 0) > 0 || (!!metrics && metrics.ledCount > 0);
+    return !!(field1 && field1.trim() && field2 && field2.trim() && hasPairs);
   }
 
-  /**
-   * Calculate LED count from channel letters data (field2)
-   */
-  private calculateLedsFromChannelLetters(context: ValidationContext): number {
-    const letterData = context.rowData.field2;
-    if (!letterData || !letterData.trim()) return 0;
+  private getChannelLetterMetrics(context: ValidationContext): ChannelLetterMetrics | null {
+    return (
+      (context.calculatedValues?.channelLetterMetrics as ChannelLetterMetrics | undefined) ||
+      calculateChannelLetterMetrics(context.rowData.field2)
+    );
+  }
 
-    try {
-      // Parse letter data to calculate LED count
-      // Format expected: "width x height, width x height" or similar
-      const segments = letterData.split(',').map(s => s.trim());
-      let totalLedCount = 0;
-
-      for (const segment of segments) {
-        const dimensions = segment.split('x').map(d => parseFloat(d.trim()));
-        if (dimensions.length >= 2 && !isNaN(dimensions[0]) && !isNaN(dimensions[1])) {
-          // Simple LED calculation: perimeter-based
-          const perimeter = 2 * (dimensions[0] + dimensions[1]);
-          const ledsForSegment = Math.ceil(perimeter / 3); // Rough estimate: 1 LED per 3 inches
-          totalLedCount += ledsForSegment;
-        }
-      }
-
-      return Math.max(totalLedCount, 4); // Minimum 4 LEDs
-    } catch (error) {
-      console.warn('Error calculating LEDs from channel letters:', error);
-      return 4; // Fallback minimum
+  private getSavedLedCount(context?: ValidationContext): number {
+    if (!context) return 0;
+    const saved = context.calculatedValues?.savedLedCount;
+    if (typeof saved === 'number') {
+      return Math.max(0, saved);
     }
+
+    const metrics = this.getChannelLetterMetrics(context);
+    return Math.max(0, metrics?.ledCount || 0);
+  }
+
+  private getDefaultLedCount(context?: ValidationContext): number {
+    if (!context) return 0;
+    const defaultCount = context.calculatedValues?.defaultLedCount;
+    if (typeof defaultCount === 'number') {
+      return Math.max(0, defaultCount);
+    }
+
+    const saved = this.getSavedLedCount(context);
+    return context.customerPreferences.use_leds ? saved : 0;
   }
 
   /**
    * Generate warnings for potentially confusing input
    */
-  private generateWarnings(parsedValue: any, context?: ValidationContext): string[] {
+  private generateWarnings(parsedValue: LedOverrideParsedValue, context?: ValidationContext): string[] {
     const warnings: string[] = [];
 
     if (!context) return warnings;
 
-    const hasChannelLetters = this.hasChannelLetters(context);
+    const metrics = this.getChannelLetterMetrics(context);
+    const hasChannelLetters = this.hasChannelLetters(context, metrics);
 
     // Warning: yes/no without channel letters
     if ((parsedValue === 'yes' || parsedValue === 'no') && !hasChannelLetters) {
@@ -219,7 +241,7 @@ export class LedOverrideTemplate implements ValidationTemplate {
     return 'Context-aware LED count validation with customer preferences and channel letters integration';
   }
 
-  getParameterSchema(): Record<string, any> {
+  getParameterSchema(): Record<string, unknown> {
     return {
       accepts: {
         type: 'array',

@@ -6,7 +6,7 @@ interface CustomerFormProps {
   isEditing: boolean;
   ledTypes: LedType[];
   powerSupplyTypes: PowerSupplyType[];
-  onInputChange: (field: string, value: any) => void;
+  onInputChange: <K extends keyof Customer>(field: K, value: Customer[K] | null) => void;
 }
 
 function CustomerForm({ formData, isEditing, ledTypes, powerSupplyTypes, onInputChange }: CustomerFormProps) {

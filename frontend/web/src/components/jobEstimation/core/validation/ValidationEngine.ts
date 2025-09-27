@@ -2,6 +2,7 @@
 // Handles incremental validation and result management
 
 import { GridRowCore } from '../types/CoreTypes';
+import { GridRow } from '../types/LayerTypes';
 import { ValidationTemplateRegistry } from './templates/ValidationTemplateRegistry';
 import { ValidationResultsManager } from './ValidationResultsManager';
 import { StructureValidator } from './validators/StructureValidator';
@@ -9,15 +10,17 @@ import { CellValidator } from './validators/CellValidator';
 import { RowValidator } from './validators/RowValidator';
 import { AssemblyAssigner } from './AssemblyAssigner';
 import { ValidationContext } from './templates/ValidationTemplate';
+import { CustomerManufacturingPreferences } from './context/useCustomerPreferences';
+import { ValidationContextBuilder } from './context/ValidationContextBuilder';
 
 export interface ValidationEngineConfig {
   productValidations: Map<number, Record<string, FieldValidationConfig>>; // Cached product validation configs
-  customerPreferences?: any; // Customer manufacturing preferences
+  customerPreferences?: CustomerManufacturingPreferences; // Customer manufacturing preferences
 }
 
 export interface FieldValidationConfig {
   function: string; // Template name (e.g., 'textsplit')
-  params: Record<string, any>; // Template-specific parameters
+  params: Record<string, unknown>; // Template-specific parameters
   error_level: 'error' | 'warning' | 'mixed';
   error_message?: string;
   field_category?: 'complete_set' | 'sufficient' | 'supplementary' | 'context_dependent';
@@ -50,12 +53,15 @@ export class ValidationEngine {
    * @param coreData - Current grid data
    * @param changedRowIds - Optional: only validate changed rows + dependencies
    * @param customerPreferences - Customer manufacturing preferences
+   * @param displayRows - Optional: display rows with metadata for pricing calculation
    */
   async validateGrid(
     coreData: GridRowCore[],
     changedRowIds?: Set<string>,
-    customerPreferences?: any
+    customerPreferences?: CustomerManufacturingPreferences,
+    displayRows?: GridRow[]
   ): Promise<void> {
+    const effectiveCustomerPreferences = customerPreferences ?? this.config.customerPreferences;
     const startTime = performance.now();
 
     try {
@@ -67,13 +73,39 @@ export class ValidationEngine {
       // Clear ALL validation results before re-validating
       this.resultsManager.clearAllResults();
 
+      // Store row metadata for pricing calculation layer (if display rows provided)
+      if (displayRows) {
+        for (const row of displayRows) {
+          this.resultsManager.setRowMetadata(row.id, {
+            displayNumber: row.displayNumber,
+            rowType: row.rowType,
+            productTypeId: row.productTypeId,
+            productTypeName: row.productTypeName,
+            parentId: row.parentId,
+            childIds: row.childIds
+          });
+        }
+      }
+
       // TWO-PHASE VALIDATION:
 
       // PHASE 1: Calculate derived values from basic fields
-      const calculatedValues = await this.calculateDerivedValues(rowsToValidate, customerPreferences);
+      const calculatedValues = ValidationContextBuilder.calculateDerivedValues(
+        rowsToValidate,
+        effectiveCustomerPreferences
+      );
+
+      // Store calculated values in ValidationResultsManager
+      for (const [rowId, values] of calculatedValues.entries()) {
+        this.resultsManager.setCalculatedValues(rowId, values);
+      }
 
       // PHASE 2: Context-aware validation with calculated values
-      const validationContext = this.buildValidationContext(coreData, customerPreferences, calculatedValues);
+      const validationContext = ValidationContextBuilder.buildContextsMap(
+        coreData,
+        effectiveCustomerPreferences,
+        calculatedValues
+      );
 
       // 1. Cell-level validation (field format, business rules) with context
       await this.validateCells(rowsToValidate, validationContext);
@@ -109,6 +141,10 @@ export class ValidationEngine {
    */
   hasBlockingErrors(): boolean {
     return this.resultsManager.hasBlockingErrors();
+  }
+
+  setCustomerPreferences(preferences?: CustomerManufacturingPreferences): void {
+    this.config.customerPreferences = preferences;
   }
 
   // Private methods
@@ -183,187 +219,6 @@ export class ValidationEngine {
   }
 
   /**
-   * PHASE 1: Calculate derived values from basic fields
-   */
-  private async calculateDerivedValues(
-    rows: GridRowCore[],
-    customerPreferences?: any
-  ): Promise<Map<string, any>> {
-    const calculatedValues = new Map<string, any>();
-
-    for (const row of rows) {
-      const rowCalculations: any = {};
-
-      // Calculate LED count for Channel Letters
-      if (row.productTypeId === 1) { // Channel Letters
-        rowCalculations.ledCount = this.calculateLedCount(row, customerPreferences);
-        rowCalculations.totalInches = this.calculateTotalInches(row);
-        rowCalculations.totalWattage = this.calculateTotalWattage(rowCalculations.ledCount);
-        rowCalculations.psCount = this.calculatePsCount(rowCalculations.ledCount, rowCalculations.totalWattage);
-      }
-
-      calculatedValues.set(row.id, rowCalculations);
-    }
-
-    return calculatedValues;
-  }
-
-  /**
-   * Build validation context for a row
-   */
-  private buildValidationContext(
-    allRows: GridRowCore[],
-    customerPreferences?: any,
-    calculatedValues?: Map<string, any>
-  ): Map<string, ValidationContext> {
-    const contexts = new Map<string, ValidationContext>();
-
-    // Build grid-wide context
-    const gridContext = {
-      hasAnyUL: this.hasAnyUL(allRows),
-      totalWattage: this.getTotalWattage(allRows, calculatedValues),
-      rowCount: allRows.length
-    };
-
-    for (const row of allRows) {
-      const rowCalculations = calculatedValues?.get(row.id) || {};
-
-      const context: ValidationContext = {
-        rowData: row.data,
-        customerPreferences: customerPreferences || {
-          use_leds: false,
-          default_led_type: 'Standard LED',
-          requires_transformers: false,
-          default_transformer: 'DC-60W',
-          default_ul_requirement: false
-        },
-        gridContext,
-        calculatedValues: rowCalculations
-      };
-
-      contexts.set(row.id, context);
-    }
-
-    return contexts;
-  }
-
-  /**
-   * Calculate LED count for a row
-   */
-  private calculateLedCount(row: GridRowCore, customerPreferences?: any): number {
-    const field1 = row.data.field1?.trim();
-    const field2 = row.data.field2?.trim();
-    const field3 = row.data.field3?.trim()?.toLowerCase();
-
-    // No channel letters data
-    if (!field1 || !field2) {
-      return typeof field3 === 'string' && !isNaN(parseFloat(field3)) ? parseFloat(field3) : 0;
-    }
-
-    // Handle field3 overrides
-    if (field3 === 'no') return 0;
-    if (field3 === 'yes' || !field3) {
-      // Calculate from field2 if customer uses LEDs or field3 is "yes"
-      if (customerPreferences?.use_leds || field3 === 'yes') {
-        return this.parseLedsFromChannelData(field2);
-      }
-      return 0;
-    }
-
-    // Numeric override
-    if (!isNaN(parseFloat(field3))) {
-      return parseFloat(field3);
-    }
-
-    return 0;
-  }
-
-  /**
-   * Parse LED count from channel letters data
-   */
-  private parseLedsFromChannelData(data: string): number {
-    try {
-      const segments = data.split(',').map(s => s.trim());
-      let totalLeds = 0;
-
-      for (const segment of segments) {
-        const dimensions = segment.split('x').map(d => parseFloat(d.trim()));
-        if (dimensions.length >= 2 && !isNaN(dimensions[0]) && !isNaN(dimensions[1])) {
-          const perimeter = 2 * (dimensions[0] + dimensions[1]);
-          totalLeds += Math.ceil(perimeter / 3); // 1 LED per 3 inches
-        }
-      }
-
-      return Math.max(totalLeds, 4); // Minimum 4 LEDs
-    } catch (error) {
-      return 4; // Fallback
-    }
-  }
-
-  /**
-   * Calculate total inches from channel letters data
-   */
-  private calculateTotalInches(row: GridRowCore): number {
-    const field2 = row.data.field2?.trim();
-    if (!field2) return 0;
-
-    try {
-      const segments = field2.split(',').map(s => s.trim());
-      let totalInches = 0;
-
-      for (const segment of segments) {
-        const dimensions = segment.split('x').map(d => parseFloat(d.trim()));
-        if (dimensions.length >= 1 && !isNaN(dimensions[0])) {
-          totalInches += dimensions[0]; // First dimension is typically height/width
-        }
-      }
-
-      return totalInches;
-    } catch (error) {
-      return 0;
-    }
-  }
-
-  /**
-   * Calculate total wattage from LED count
-   */
-  private calculateTotalWattage(ledCount: number): number {
-    return ledCount * 1.2; // Assume 1.2W per LED
-  }
-
-  /**
-   * Calculate power supply count from LED wattage
-   */
-  private calculatePsCount(ledCount: number, totalWattage: number): number {
-    if (ledCount === 0) return 0;
-    return Math.ceil(totalWattage / 60); // Assume 60W per PS
-  }
-
-  /**
-   * Check if any row has UL requirement
-   */
-  private hasAnyUL(rows: GridRowCore[]): boolean {
-    return rows.some(row => {
-      const ulField = row.data.field4?.trim()?.toLowerCase();
-      return ulField === 'yes' || (ulField && ulField !== 'no');
-    });
-  }
-
-  /**
-   * Get total wattage across all rows
-   */
-  private getTotalWattage(rows: GridRowCore[], calculatedValues?: Map<string, any>): number {
-    let total = 0;
-    for (const row of rows) {
-      const calculations = calculatedValues?.get(row.id);
-      if (calculations?.totalWattage) {
-        total += calculations.totalWattage;
-      }
-    }
-    return total;
-  }
-
-  /**
    * Update validation methods to accept context
    */
   private async validateCells(rows: GridRowCore[], contexts?: Map<string, ValidationContext>): Promise<void> {
@@ -374,9 +229,6 @@ export class ValidationEngine {
       const productValidation = this.config.productValidations.get(row.productTypeId || 0);
 
       if (productValidation && Object.keys(productValidation).length > 0) {
-        // DEBUG: Log that we found validation rules for this product
-        console.log(`Validating product ${row.productTypeId} with ${Object.keys(productValidation).length} rules:`, Object.keys(productValidation));
-
         for (const [fieldName, validationConfig] of Object.entries(productValidation)) {
           const fieldValue = row.data[fieldName];
 
@@ -397,15 +249,17 @@ export class ValidationEngine {
                       expectedFormat: result.expectedFormat || '',
                       value: fieldValue
                     });
+                  } else {
+                    // Validation passed - store parsed value for pricing calculation layer
+                    if (result.parsedValue !== undefined) {
+                      this.resultsManager.setParsedValue(row.id, fieldName, result.parsedValue);
+                    }
                   }
                 })
             );
           }
         }
       } else {
-        // DEBUG: Log that we didn't find validation rules
-        console.log(`No validation rules found for product ${row.productTypeId}`);
-        console.log('Available product validations:', Array.from(this.config.productValidations.keys()));
         // Check for missing product selection (structural validation)
         if (!row.productTypeId || row.productTypeId === 0) {
           this.resultsManager.setStructureError(row.id, {

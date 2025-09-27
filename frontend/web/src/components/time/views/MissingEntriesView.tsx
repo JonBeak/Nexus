@@ -55,7 +55,7 @@ export const MissingEntriesView: React.FC<MissingEntriesViewProps> = ({
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {missingEntries.map((entry, index) => (
+            {missingEntries.map((entry) => (
               <tr key={`${entry.user_id}-${entry.missing_date}`} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900">

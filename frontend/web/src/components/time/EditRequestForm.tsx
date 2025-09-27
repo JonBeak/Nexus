@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 interface WeeklyEntry {
   entry_id: number;
@@ -21,6 +21,9 @@ interface DeleteRequest {
   reason: string;
 }
 
+type EditRequestField = keyof EditRequest;
+type DeleteRequestField = keyof DeleteRequest;
+
 interface EditRequestFormProps {
   selectedEntry: WeeklyEntry | null;
   showEditModal: boolean;
@@ -31,8 +34,8 @@ interface EditRequestFormProps {
   onCloseDelete: () => void;
   onEditRequest: (e: React.FormEvent) => void;
   onDeleteRequest: (e: React.FormEvent) => void;
-  onEditRequestChange: (field: string, value: any) => void;
-  onDeleteRequestChange: (field: string, value: any) => void;
+  onEditRequestChange: <K extends EditRequestField>(field: K, value: EditRequest[K]) => void;
+  onDeleteRequestChange: <K extends DeleteRequestField>(field: K, value: DeleteRequest[K]) => void;
 }
 
 function EditRequestForm({
@@ -96,7 +99,7 @@ function EditRequestForm({
                 <input
                   type="number"
                   value={editRequest?.breakMinutes || 0}
-                  onChange={(e) => onEditRequestChange('breakMinutes', e.target.value)}
+                  onChange={(e) => onEditRequestChange('breakMinutes', Number(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-blue"
                   required
                 />

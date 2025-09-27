@@ -1,13 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { CheckCircle, XCircle, AlertCircle, X } from 'lucide-react';
-
-export interface Notification {
-  id: string;
-  type: 'success' | 'error' | 'warning';
-  title: string;
-  message?: string;
-  duration?: number;
-}
+import type { Notification } from '../hooks/useNotifications';
 
 interface NotificationSystemProps {
   notifications: Notification[];
@@ -115,44 +108,4 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
       </div>
     </div>
   );
-};
-
-// Hook for managing notifications
-export const useNotifications = () => {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-
-  const addNotification = (notification: Omit<Notification, 'id'>) => {
-    const id = Math.random().toString(36).substr(2, 9);
-    const newNotification: Notification = {
-      ...notification,
-      id
-    };
-    setNotifications(prev => [...prev, newNotification]);
-    return id;
-  };
-
-  const removeNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-  };
-
-  const showSuccess = (title: string, message?: string) => {
-    return addNotification({ type: 'success', title, message });
-  };
-
-  const showError = (title: string, message?: string) => {
-    return addNotification({ type: 'error', title, message });
-  };
-
-  const showWarning = (title: string, message?: string) => {
-    return addNotification({ type: 'warning', title, message });
-  };
-
-  return {
-    notifications,
-    addNotification,
-    removeNotification,
-    showSuccess,
-    showError,
-    showWarning
-  };
 };

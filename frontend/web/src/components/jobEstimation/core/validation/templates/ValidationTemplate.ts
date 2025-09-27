@@ -1,6 +1,8 @@
 // Base interface for all validation templates
 // Templates define HOW to validate, instances define WHAT to validate
 
+import { ChannelLetterMetrics } from '../utils/channelLetterParser';
+
 export interface ValidationTemplate {
   /**
    * Validates a field value using template-specific logic
@@ -9,7 +11,7 @@ export interface ValidationTemplate {
    * @param context - Optional validation context with customer prefs and grid state
    * @returns Validation result with success/error information
    */
-  validate(value: string, params: Record<string, any>, context?: ValidationContext): Promise<ValidationResult>;
+  validate(value: string, params: Record<string, unknown>, context?: ValidationContext): Promise<ValidationResult>;
 
   /**
    * Returns a human-readable description of what this template validates
@@ -19,16 +21,16 @@ export interface ValidationTemplate {
   /**
    * Returns the expected parameter schema for this template
    */
-  getParameterSchema(): Record<string, any>;
+  getParameterSchema(): Record<string, unknown>;
 }
 
 export interface ValidationResult {
   isValid: boolean;
   error?: string; // Human-readable error message
   expectedFormat?: string; // Help text for user
-  parsedValue?: any; // Successfully parsed value (for calculations)
+  parsedValue?: unknown; // Successfully parsed value (for calculations)
   warnings?: string[]; // Non-blocking warnings
-  calculatedValue?: any; // Calculated value based on context (for override templates)
+  calculatedValue?: unknown; // Calculated value based on context (for override templates)
 }
 
 // Context interface for context-aware validation
@@ -43,6 +45,7 @@ export interface ValidationContext {
     requires_transformers: boolean;
     default_transformer: string;
     default_ul_requirement: boolean;
+    pref_power_supply_is_ul_listed?: boolean;
     // ... other preferences
   };
 
@@ -59,6 +62,7 @@ export interface ValidationContext {
     psCount?: number;
     totalInches?: number;
     totalWattage?: number;
+    channelLetterMetrics?: ChannelLetterMetrics;
   };
 }
 

@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { AlertTriangle, ShoppingCart, Package, Layers, Zap, Battery } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ShoppingCart, Package, Layers, Zap, Battery } from 'lucide-react';
 import { useShoppingCart } from '../../contexts/ShoppingCartContext';
+import type { User as AccountUser } from '../accounts/hooks/useAccountAPI';
 
 interface LowStockItem {
   id: number;
@@ -18,10 +19,12 @@ interface LowStockItem {
 }
 
 interface LowStockAlertsProps {
-  user: any;
+  user?: AccountUser;
   onAddToCart?: (item: LowStockItem) => void;
   showNotification: (message: string, type?: 'success' | 'error') => void;
 }
+
+type StockFilter = 'all' | 'critical' | 'low';
 
 const getIconComponent = (iconName: string) => {
   switch (iconName) {
@@ -37,12 +40,13 @@ export const LowStockAlerts: React.FC<LowStockAlertsProps> = ({
   onAddToCart,
   showNotification
 }) => {
+  void user;
   const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'critical' | 'low'>('all');
+  const [filter, setFilter] = useState<StockFilter>('all');
   const { addLowStockItemToCart } = useShoppingCart();
 
-  const loadLowStockItems = async () => {
+  const loadLowStockItems = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -124,11 +128,11 @@ export const LowStockAlerts: React.FC<LowStockAlertsProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [showNotification]);
 
   useEffect(() => {
-    loadLowStockItems();
-  }, []);
+    void loadLowStockItems();
+  }, [loadLowStockItems]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -163,6 +167,7 @@ export const LowStockAlerts: React.FC<LowStockAlertsProps> = ({
         onAddToCart(item);
       }
     } catch (error) {
+      console.error('Error adding low stock item to cart:', error);
       showNotification('Failed to add item to cart', 'error');
     }
   };
@@ -185,6 +190,7 @@ export const LowStockAlerts: React.FC<LowStockAlertsProps> = ({
       
       showNotification(`Added ${criticalItems.length} critical items to cart`, 'success');
     } catch (error) {
+      console.error('Error adding critical low stock items:', error);
       showNotification('Failed to add some items to cart', 'error');
     }
   };
@@ -230,14 +236,14 @@ export const LowStockAlerts: React.FC<LowStockAlertsProps> = ({
       {/* Filter Tabs */}
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8">
-          {[
-            { key: 'all', label: `All (${lowStockItems.length})` },
-            { key: 'critical', label: `Critical (${criticalCount})` },
-            { key: 'low', label: `Low (${lowCount})` }
-          ].map((tab) => (
+          {([
+            { key: 'all' as const, label: `All (${lowStockItems.length})` },
+            { key: 'critical' as const, label: `Critical (${criticalCount})` },
+            { key: 'low' as const, label: `Low (${lowCount})` }
+          ]).map((tab) => (
             <button
               key={tab.key}
-              onClick={() => setFilter(tab.key as any)}
+              onClick={() => setFilter(tab.key)}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 filter === tab.key
                   ? 'border-red-500 text-red-600'

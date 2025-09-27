@@ -5,57 +5,17 @@ import { InventoryStatsCards } from './components/InventoryStatsCards';
 import { InventoryFilters } from './components/InventoryFilters';
 import { InventoryTableHeader } from './components/InventoryTableHeader';
 import { InventoryTableRow } from './components/InventoryTableRow';
-
-export interface VinylItem {
-  id: number;
-  brand: string;
-  series: string;
-  colour_number?: string;
-  colour_name?: string;
-  display_colour?: string;
-  width: number;
-  length_yards: number;
-  location: string;
-  product_name?: string;
-  current_stock?: number;
-  minimum_stock?: number;
-  unit?: string;
-  last_updated?: string;
-  purchase_date?: string;
-  storage_date?: string;
-  usage_date?: string;
-  expiration_date?: string;
-  return_date?: string;
-  notes?: string;
-  supplier?: string;
-  disposition: string;
-  label_id?: string;
-  storage_user_name?: string;
-  usage_user_name?: string;
-  storage_note?: string;
-  usage_note?: string;
-  supplier_id?: number;
-  supplier_name?: string;
-  // Unified job associations
-  job_associations?: {
-    job_id: number;
-    job_number: string;
-    job_name: string;
-    customer_name: string;
-    sequence_order: number;
-  }[];
-}
+import { InventoryStats, InventoryUser, VinylItem } from './types';
 
 interface InventoryTabProps {
-  user: any;
+  user: InventoryUser;
   vinylItems?: VinylItem[];
-  stats?: any;
+  stats?: InventoryStats | null;
   loading?: boolean;
   onShowAddModal: () => void;
   onEditItem: (item: VinylItem) => void;
   onDeleteItem: (id: number) => void;
   onChangeStatus: (item: VinylItem) => void;
-  showNotification: (message: string, type?: 'success' | 'error') => void;
   onDataLoad?: () => void;
 }
 
@@ -68,7 +28,6 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
   onEditItem,
   onDeleteItem,
   onChangeStatus,
-  showNotification,
   onDataLoad
 }) => {
   // Use extracted data management hook
@@ -100,13 +59,15 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
 
   // Reload data when filter type changes
   useEffect(() => {
-    loadVinylData(filterType);
-  }, [filterType]);
+    void loadVinylData(filterType);
+  }, [filterType, loadVinylData]);
 
   const handleDelete = (id: number) => {
     onDeleteItem(id);
     // Refresh data after deletion
-    setTimeout(() => loadVinylData(filterType), 100);
+    setTimeout(() => {
+      void loadVinylData(filterType);
+    }, 100);
   };
 
   return (
@@ -138,7 +99,9 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
             <div className="text-red-600 text-lg font-medium mb-2">Error</div>
             <p className="text-gray-500 mb-4">{error}</p>
             <button
-              onClick={loadVinylData}
+              onClick={() => {
+                void loadVinylData(filterType);
+              }}
               className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
             >
               Retry

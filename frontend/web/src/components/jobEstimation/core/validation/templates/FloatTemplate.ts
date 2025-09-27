@@ -4,7 +4,7 @@
 import { ValidationTemplate, ValidationResult, FloatParams } from './ValidationTemplate';
 
 export class FloatTemplate implements ValidationTemplate {
-  async validate(value: string, params: FloatParams, context?: any): Promise<ValidationResult> {
+  async validate(value: string, params: FloatParams = {}): Promise<ValidationResult> {
     try {
       // Handle empty values
       if (!value || (typeof value === 'string' && value.trim() === '')) {
@@ -33,7 +33,7 @@ export class FloatTemplate implements ValidationTemplate {
       // Check if the original string represents the same number (catches cases like "123abc")
       if (cleanValue !== parsedValue.toString() &&
           cleanValue !== parsedValue.toFixed(0) &&
-          !this.isValidNumberFormat(cleanValue, parsedValue)) {
+          !this.isValidNumberFormat(cleanValue)) {
         return {
           isValid: false,
           error: `"${cleanValue}" contains invalid characters`,
@@ -57,8 +57,11 @@ export class FloatTemplate implements ValidationTemplate {
       }
 
       // Validate decimal places if specified
-      if (params.decimal_places !== undefined) {
-        const decimalResult = this.validateDecimalPlaces(parsedValue, params.decimal_places, cleanValue);
+      const rawDecimalPlaces = typeof params.decimal_places === 'string'
+        ? parseInt(params.decimal_places, 10)
+        : params.decimal_places;
+      if (rawDecimalPlaces !== undefined && !Number.isNaN(rawDecimalPlaces)) {
+        const decimalResult = this.validateDecimalPlaces(parsedValue, rawDecimalPlaces, cleanValue);
         if (!decimalResult.isValid) {
           return decimalResult;
         }
@@ -82,7 +85,7 @@ export class FloatTemplate implements ValidationTemplate {
   /**
    * Check if a string represents a valid number format
    */
-  private isValidNumberFormat(input: string, parsed: number): boolean {
+  private isValidNumberFormat(input: string): boolean {
     // Allow formats like: "123", "123.45", "-123", "-123.45", "123.", ".45"
     const validPatterns = [
       /^-?\d+$/,           // Integer: 123, -123
@@ -97,7 +100,7 @@ export class FloatTemplate implements ValidationTemplate {
   /**
    * Validate numeric range constraints
    */
-  private validateRange(value: number, params: FloatParams, originalText: string): ValidationResult {
+  private validateRange(value: number, params: FloatParams = {}, originalText: string): ValidationResult {
     if (params.min !== undefined && value < params.min) {
       return {
         isValid: false,
@@ -141,14 +144,17 @@ export class FloatTemplate implements ValidationTemplate {
   /**
    * Generate helpful format description for users
    */
-  private generateExpectedFormat(params: FloatParams): string {
+  private generateExpectedFormat(params: FloatParams = {}): string {
     const parts: string[] = [];
+    const decimalPlaces = typeof params.decimal_places === 'string'
+      ? parseInt(params.decimal_places, 10)
+      : params.decimal_places;
 
     // Base description
-    if (params.decimal_places === 0) {
+    if (decimalPlaces === 0) {
       parts.push('whole numbers only');
-    } else if (params.decimal_places !== undefined) {
-      parts.push(`numbers with up to ${params.decimal_places} decimal places`);
+    } else if (decimalPlaces !== undefined && !Number.isNaN(decimalPlaces)) {
+      parts.push(`numbers with up to ${decimalPlaces} decimal places`);
     } else {
       parts.push('numbers (decimals allowed)');
     }

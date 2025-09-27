@@ -1,4 +1,4 @@
-# 🏗️ Future Grid Base Architecture - Detailed Layer Specifications
+# 🏗️ Grid Base Architecture - Detailed Layer Specifications
 
 ## 🔗 Complete Chain Overview
 
@@ -13,6 +13,9 @@ This document covers the **Base Layer** of the comprehensive Grid architecture r
 - ✅ Basic row operations (create, clone, merge)
 - ✅ Static product configurations from database
 - ✅ GridEngine orchestrator with minimal state
+- ✅ Receives Validation Results and formats the input grid accordingly to alert of invalid entries
+- ✅ Sends ValidationResultsManager back to parent after Validation Layer completion
+- ✅ Receives Assembly Calculation Results and formats the input grid accordingly to indicate Assembly Group members
 
 ### Upcoming Chain Links
 1. **Business Validation Layer** - Field type validation, business rules, error handling
@@ -22,20 +25,17 @@ This document covers the **Base Layer** of the comprehensive Grid architecture r
    - Error messages and tooltips
 2. **Assembly Layer** - Dynamic assembly management, color assignments, grouping logic
    - Assembly assignment rules (depends on validation)
-3. **Visual Styling Layer** - Conditional formatting, themes, visual feedback
-4. **Calculations Layer** - Pricing, totals, material calculations
-5. **Estimate Preview Layer** - Integration with EstimateTable and preview generation
+3. **Calculations Layer** - Pricing, totals, material calculations
+4. **Estimate Preview Box** - Integration with EstimateTable and preview generation
 
-Each layer builds upon this base architecture, maintaining the same principles of immutable transformations, pure functions, and layered separation of concerns.
+Each layer builds upon this base architecture, with each debounced auto-save triggering a cascade of events that processes data through these various layers to achieve the ultimate goal of creating a written model of the job and the estimate preview. Each layer will hold pure functions, and clear separation of concerns.
 
 ---
 
 ## 📋 Implementation Status
 
-**Active Replacement**: This architecture is being implemented to replace the existing broken grid system. See [REMOVED_COMPONENTS_LOG.md](./REMOVED_COMPONENTS_LOG.md) for details on what components are being replaced and why.
-
 **Implementation Date**: 2025-09-12  
-**Strategy**: Direct replacement with backward compatibility adapters
+**Strategy**: Direct replacement with NO backward compatibility. Features should work perfectly or fail clearly.
 
 ---
 Philosophy for this base layer:
@@ -47,7 +47,7 @@ Philosophy for this base layer:
   - Basic field states that are inherent to the data (value, placeholder/prompt, disabled state)
   - Essential calculations needed for structure (display numbers, relationships)
   - Product configurations (what fields each product type has)
-  - Semantic row types (main, continuation, subItem)
+  - Semantic row types (main, continuation, subItem, special)
   - Direct parent relationships (parentProductId)
   - Essential drag validation (continuation rows stay with parent)
   - Basic drop zone calculations and visual feedback
@@ -61,8 +61,8 @@ Philosophy for this base layer:
   - ValidationManager class (business validation moved to validation layer)
   - Error tooltips and complex visual feedback
 
-  The philosophy: "The base layer describes WHAT exists and its basic properties, but not
-   HOW it behaves or HOW it looks. Relationships are explicit and semantic, not inferred from positioning."
+  The philosophy: "The base layer describes WHAT exists and its basic properties, receives data on
+   how it behaves and how it looks. Does not do the calculations itself, just follows orders and does simple tasks."
 
 ---
 

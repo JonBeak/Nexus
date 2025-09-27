@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DollarSign, ArrowLeft, FileText } from 'lucide-react';
-import { WageManagementProps, UserWageData, PaymentRecord, DeductionOverrides, EditingField } from './types/WageTypes';
+import { UserWageData, PaymentRecord, DeductionOverrides, EditingField, PayPeriodOverrides, WageEntry } from './types/WageTypes';
+import { AccountUser } from '../../types/user';
+import { PendingChange } from './hooks/useAutoSave';
 import { 
   generateDateRange, 
   getCurrentPayPeriod, 
@@ -13,7 +15,6 @@ import {
   fetchUsers,
   fetchWageData as apiFetchWageData,
   savePayrollChanges,
-  updateDeductions,
   updateDeductionsBatch,
   recordPayment as apiRecordPayment,
   fetchPaymentHistory as apiFetchPaymentHistory,
@@ -27,13 +28,13 @@ import { DailyTimeGrid } from './components/DailyTimeGrid';
 import { PaymentHistory } from './components/PaymentHistory';
 import { WageControls } from './components/WageControls';
 
-export const WageManagement: React.FC<WageManagementProps> = ({ user }) => {
+export const WageManagement: React.FC = () => {
   const navigate = useNavigate();
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [biWeekStart, setBiWeekStart] = useState<string>(() => getCurrentPayPeriod());
   const [wageData, setWageData] = useState<UserWageData[]>([]);
   const [loading, setLoading] = useState(false);
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<AccountUser[]>([]);
   const [editedCells, setEditedCells] = useState<Set<string>>(new Set());
   const [originalWageData, setOriginalWageData] = useState<UserWageData[]>([]);
   const [roundingThreshold, setRoundingThreshold] = useState(12);
@@ -45,12 +46,12 @@ export const WageManagement: React.FC<WageManagementProps> = ({ user }) => {
   const [deductionOverrides, setDeductionOverrides] = useState<DeductionOverrides>({});
   const [editingField, setEditingField] = useState<EditingField | null>(null);
 
-  const dates = biWeekStart ? generateDateRange(biWeekStart) : [];
+  const dates = useMemo(() => (biWeekStart ? generateDateRange(biWeekStart) : []), [biWeekStart]);
 
-  // Memoized onSave function to prevent auto-save hook recreation
-  const handleAutoSave = useCallback(async (changes: any[], payPeriodStart: string, payPeriodEnd: string) => {
-    return await updateDeductionsBatch(changes, payPeriodStart, payPeriodEnd);
-  }, [updateDeductionsBatch]);
+  // Auto-save handler passed into useAutoSave hook
+  const handleAutoSave = async (changes: PendingChange[], payPeriodStart: string, payPeriodEnd: string) => {
+    return updateDeductionsBatch(changes, payPeriodStart, payPeriodEnd);
+  };
 
   // Initialize auto-save hook
   const {
@@ -67,28 +68,9 @@ export const WageManagement: React.FC<WageManagementProps> = ({ user }) => {
     loadUsers();
   }, []);
 
-  useEffect(() => {
-    if (biWeekStart) {
-      loadWageData();
-    }
-  }, [biWeekStart, selectedGroup]);
+  const loadWageData = useCallback(async () => {
+    if (!biWeekStart) return;
 
-  // Auto-adjust pay period when group selection changes
-  useEffect(() => {
-    if (biWeekStart && (selectedGroup === 'Group A' || selectedGroup === 'Group B')) {
-      const adjustedDate = adjustPayPeriodForGroup(biWeekStart, selectedGroup);
-      if (adjustedDate !== biWeekStart) {
-        setBiWeekStart(adjustedDate);
-      }
-    }
-  }, [selectedGroup]);
-
-  const loadUsers = async () => {
-    const userData = await fetchUsers();
-    setUsers(userData);
-  };
-
-  const loadWageData = async () => {
     setLoading(true);
     try {
       const data = await apiFetchWageData(biWeekStart, selectedGroup);
@@ -98,6 +80,25 @@ export const WageManagement: React.FC<WageManagementProps> = ({ user }) => {
     } finally {
       setLoading(false);
     }
+  }, [biWeekStart, selectedGroup]);
+
+  useEffect(() => {
+    loadWageData();
+  }, [loadWageData]);
+
+  // Auto-adjust pay period when group selection changes
+  useEffect(() => {
+    if (biWeekStart && (selectedGroup === 'Group A' || selectedGroup === 'Group B')) {
+      const adjustedDate = adjustPayPeriodForGroup(biWeekStart, selectedGroup);
+      if (adjustedDate !== biWeekStart) {
+        setBiWeekStart(adjustedDate);
+      }
+    }
+  }, [selectedGroup, biWeekStart]);
+
+  const loadUsers = async () => {
+    const userData = await fetchUsers();
+    setUsers(userData);
   };
 
   const handleNavigateBiWeek = (direction: 'prev' | 'next') => {
@@ -112,7 +113,23 @@ export const WageManagement: React.FC<WageManagementProps> = ({ user }) => {
     // Update local state immediately for responsive UI
     setWageData(prev => prev.map(userData => {
       if (userData.user_id === userId) {
-        const entry = userData.entries[date] || {} as any;
+        const entry: WageEntry = userData.entries[date]
+          ? { ...userData.entries[date] }
+          : {
+              entry_id: 0,
+              user_id,
+              entry_date: date,
+              clock_in: null,
+              clock_out: null,
+              break_minutes: 0,
+              payroll_clock_in: null,
+              payroll_clock_out: null,
+              payroll_break_minutes: null,
+              payroll_total_hours: null,
+              payroll_adjusted: false,
+              is_overtime: false,
+              is_holiday: false
+            };
         
         if (field === 'in') {
           entry.payroll_clock_in = value;
@@ -278,10 +295,10 @@ export const WageManagement: React.FC<WageManagementProps> = ({ user }) => {
   };
 
   // Fetch payment history
-  const loadPaymentHistory = async () => {
+  const loadPaymentHistory = useCallback(async () => {
     const data = await apiFetchPaymentHistory(showInactiveRecords);
     setPaymentHistory(data);
-  };
+  }, [showInactiveRecords]);
 
   // Toggle month expansion in history view
   const toggleMonth = (monthKey: string) => {
@@ -333,38 +350,38 @@ export const WageManagement: React.FC<WageManagementProps> = ({ user }) => {
   };
 
   // Load saved deductions when dates change
-  const loadDeductionOverridesData = async () => {
+  const loadDeductionOverridesData = useCallback(async () => {
     if (!biWeekStart || !dates.length) return;
-    
+
     const overrides = await apiLoadDeductionOverrides(biWeekStart, dates[dates.length - 1]);
     const payPeriodKey = `${biWeekStart}-${dates[dates.length - 1]}`;
-    
+
     setDeductionOverrides(prev => ({
       ...prev,
       [payPeriodKey]: overrides
     }));
-  };
+  }, [biWeekStart, dates]);
 
   // Load deductions when dates change
   useEffect(() => {
     if (biWeekStart && dates.length > 0) {
       loadDeductionOverridesData();
     }
-  }, [biWeekStart, dates.length]);
+  }, [biWeekStart, dates.length, loadDeductionOverridesData]);
 
   // Load payment history when switching tabs or show inactive toggle changes
   useEffect(() => {
     if (activeTab === 'history') {
       loadPaymentHistory();
     }
-  }, [activeTab, showInactiveRecords]);
+  }, [activeTab, showInactiveRecords, loadPaymentHistory]);
   
   // Helper function to get current pay period overrides
-  const getCurrentPayPeriodOverrides = () => {
+  const getCurrentPayPeriodOverrides = useCallback((): PayPeriodOverrides => {
     if (!dates.length) return {};
     const payPeriodKey = `${biWeekStart}-${dates[dates.length - 1]}`;
     return deductionOverrides[payPeriodKey] || {};
-  };
+  }, [biWeekStart, dates, deductionOverrides]);
 
   // Show loading state if biWeekStart is not initialized
   if (!biWeekStart) {
@@ -460,7 +477,6 @@ export const WageManagement: React.FC<WageManagementProps> = ({ user }) => {
             handleInputMouseUp={handleInputMouseUp}
             getSaveStatus={getFieldStatus}
             onRetryFailedSave={retryFailedSave}
-            biWeekStart={biWeekStart}
           />
           
           <DailyTimeGrid

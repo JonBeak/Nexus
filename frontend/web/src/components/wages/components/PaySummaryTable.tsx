@@ -1,6 +1,6 @@
 import React from 'react';
-import { Check, AlertCircle, Loader2, RotateCcw } from 'lucide-react';
-import { UserWageData, DeductionOverrides, EditingField } from '../types/WageTypes';
+import { Check, AlertCircle, Loader2 } from 'lucide-react';
+import { UserWageData, DeductionOverrides, EditingField, PayPeriodOverrides } from '../types/WageTypes';
 import { formatCurrency, calculatePaymentDate } from '../utils/WageCalculations';
 import { SaveStatus } from '../hooks/useAutoSave';
 
@@ -15,13 +15,12 @@ interface PaySummaryTableProps {
   onDeductionFocus: (userId: number, field: 'cpp' | 'ei' | 'tax') => void;
   onDeductionKeyDown: (e: React.KeyboardEvent, userId: number, field: 'cpp' | 'ei' | 'tax') => void;
   getInputValue: (userId: number, field: 'cpp' | 'ei' | 'tax') => string;
-  getCurrentPayPeriodOverrides: () => any;
+  getCurrentPayPeriodOverrides: () => PayPeriodOverrides;
   selectAllTextClick: (event: React.MouseEvent<HTMLInputElement>) => void;
   selectAllTextFocus: (event: React.FocusEvent<HTMLInputElement>) => void;
   handleInputMouseUp: (event: React.MouseEvent<HTMLInputElement>) => void;
   getSaveStatus: (userId: number, field: 'cpp' | 'ei' | 'tax') => SaveStatus;
   onRetryFailedSave: (userId: number, field: 'cpp' | 'ei' | 'tax') => void;
-  biWeekStart: string;
 }
 
 // Save status indicator component
@@ -71,8 +70,7 @@ export const PaySummaryTable: React.FC<PaySummaryTableProps> = ({
   selectAllTextFocus,
   handleInputMouseUp,
   getSaveStatus,
-  onRetryFailedSave,
-  biWeekStart
+  onRetryFailedSave
 }) => {
   return (
     <div className="max-w-full mx-auto px-4 pb-4">
@@ -172,10 +170,6 @@ export const PaySummaryTable: React.FC<PaySummaryTableProps> = ({
                 const totalHours = Number(userData.totals.regular_hours || 0) + 
                                   Number(userData.totals.overtime_hours || 0) + 
                                   Number(userData.totals.holiday_hours || 0);
-                const totalTax = userData.totals.federal_tax + userData.totals.provincial_tax;
-                const totalDeductions = userData.totals.cpp_deduction + 
-                                       userData.totals.ei_deduction + 
-                                       totalTax;
                 const grossPlusVac = userData.totals.gross_pay + userData.totals.vacation_pay;
                 
                 return (

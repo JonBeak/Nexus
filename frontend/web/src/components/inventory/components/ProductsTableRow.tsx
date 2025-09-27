@@ -1,10 +1,10 @@
 import React from 'react';
 import { Edit, Trash2 } from 'lucide-react';
-import { VinylProduct } from '../ProductsTab';
+import { InventoryUser, VinylProduct } from '../types';
 
 interface ProductsTableRowProps {
   product: VinylProduct;
-  user: any;
+  user: InventoryUser;
   onEditProduct: (product: VinylProduct) => void;
   onDeleteProduct: (id: number) => void;
 }

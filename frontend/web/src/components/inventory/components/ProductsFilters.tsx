@@ -1,12 +1,13 @@
 import React from 'react';
 import { Search, Plus, X } from 'lucide-react';
+import { InventoryUser, ProductFilterType } from '../types';
 
 interface ProductsFiltersProps {
-  user: any;
+  user: InventoryUser;
   searchTerm: string;
-  filterType: string;
+  filterType: ProductFilterType;
   onSearchChange: (value: string) => void;
-  onFilterTypeChange: (value: string) => void;
+  onFilterTypeChange: (value: ProductFilterType) => void;
   onShowAddModal: () => void;
   onClearFilters: () => void;
   activeFilterCount: number;
@@ -56,7 +57,7 @@ export const ProductsFilters: React.FC<ProductsFiltersProps> = ({
           <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Status</label>
           <select
             value={filterType}
-            onChange={(e) => onFilterTypeChange(e.target.value)}
+            onChange={(e) => onFilterTypeChange(e.target.value as ProductFilterType)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
           >
             <option value="all">All Products</option>

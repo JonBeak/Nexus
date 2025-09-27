@@ -1,7 +1,7 @@
 import { EstimateRow } from '../types';
 
 // Row creation utilities  
-export const createEmptyProductRow = (indent: number = 0, existingRows: EstimateRow[] = []): EstimateRow => {
+export const createEmptyProductRow = (indent: number = 0): EstimateRow => {
   // For new rows, use a temporary ID that will be replaced when saved
   // This ensures compatibility with the database loading system
   const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -121,7 +121,7 @@ export const getRowNumber = (rowIndex: number, rows: EstimateRow[]) => {
 };
 
 // Field visibility utilities  
-export const shouldShowField = (row: EstimateRow, fieldIndex: number): boolean => {
+export const shouldShowField = (): boolean => {
   // In uniform product system, all fields are determined by database templates
   // Show all 12 fields to support full template configurations
   return true;

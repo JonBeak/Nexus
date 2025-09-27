@@ -1,13 +1,6 @@
 import React from 'react';
-import { Address } from '../../../types';
+import { Address, ProvinceState } from '../../../types';
 import TaxInfoSection from './TaxInfoSection';
-
-interface ProvinceState {
-  province_state_id: number;
-  province_state_name: string;
-  province_state_short: string;
-  country: string;
-}
 
 interface AddressFormProps {
   address: Address;
@@ -15,7 +8,11 @@ interface AddressFormProps {
   provincesStates: ProvinceState[];
   taxWarning: string;
   taxDisplayValues: {[key: string]: string};
-  onAddressChange: (index: number, field: string, value: any) => void;
+  onAddressChange: <K extends keyof Address>(
+    index: number,
+    field: K,
+    value: Address[K] | null
+  ) => void;
   onTaxDisplayValueChange: (addressKey: string, displayValue: string, addressIndex: number) => void;
   onTaxDisplayValueBlur: (addressKey: string) => void;
 }

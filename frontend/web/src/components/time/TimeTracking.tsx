@@ -1,27 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import TimeClockDisplay from './TimeClockDisplay';
 import WeeklySummary from './WeeklySummary';
 import EditRequestForm from './EditRequestForm';
 import NotificationsModal from './NotificationsModal';
 import { timeApi } from '../../services/api';
+import type {
+  ClockStatus,
+  WeeklyData,
+  WeeklyEntry,
+  EditRequestDraft,
+  DeleteRequestDraft,
+  TimeNotification,
+  AuthenticatedRequest
+} from '../../types/time';
 
-interface TimeTrackingProps {
-  user: any;
-}
-
-function TimeTracking({ user }: TimeTrackingProps) {
-  const [clockStatus, setClockStatus] = useState<any>(null);
-  const [weeklyData, setWeeklyData] = useState<any>(null);
+function TimeTracking() {
+  const [clockStatus, setClockStatus] = useState<ClockStatus | null>(null);
+  const [weeklyData, setWeeklyData] = useState<WeeklyData | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [editRequest, setEditRequest] = useState<any>(null);
+  const [editRequest, setEditRequest] = useState<EditRequestDraft | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedEntry, setSelectedEntry] = useState<any>(null);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [selectedEntry, setSelectedEntry] = useState<WeeklyEntry | null>(null);
+  const [notifications, setNotifications] = useState<TimeNotification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showClearedNotifications, setShowClearedNotifications] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteRequest, setDeleteRequest] = useState<any>(null);
+  const [deleteRequest, setDeleteRequest] = useState<DeleteRequestDraft | null>(null);
 
   // Helper function to handle logout on auth failure
   const handleAuthFailure = () => {
@@ -31,7 +36,7 @@ function TimeTracking({ user }: TimeTrackingProps) {
   };
 
   // Helper function to make authenticated requests
-  const makeAuthenticatedRequest = async (url: string, options: any = {}) => {
+  const makeAuthenticatedRequest: AuthenticatedRequest = useCallback(async (url, options = {}) => {
     const token = localStorage.getItem('access_token');
     
     if (!token) {
@@ -39,13 +44,15 @@ function TimeTracking({ user }: TimeTrackingProps) {
       return new Response('', { status: 401 });
     }
     
+    const headers = new Headers(options.headers ?? {});
+    headers.set('Authorization', `Bearer ${token}`);
+    if (!headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+
     const response = await fetch(url, {
       ...options,
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...options.headers
-      }
+      headers
     });
 
     // Handle authentication and authorization errors differently
@@ -60,10 +67,10 @@ function TimeTracking({ user }: TimeTrackingProps) {
     }
 
     return response;
-  };
+  }, []);
 
   // Fetch clock status and weekly data
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const token = localStorage.getItem('access_token');
       if (!token) {
@@ -73,7 +80,7 @@ function TimeTracking({ user }: TimeTrackingProps) {
       
       // Fetch clock status
       try {
-        const statusData = await timeApi.getStatus();
+        const statusData: ClockStatus = await timeApi.getStatus();
         setClockStatus(statusData);
       } catch (error) {
         console.error('Failed to fetch status:', error);
@@ -81,7 +88,7 @@ function TimeTracking({ user }: TimeTrackingProps) {
 
       // Fetch weekly summary
       try {
-        const weekData = await timeApi.getWeeklySummaryAlt(weekOffset);
+        const weekData: WeeklyData = await timeApi.getWeeklySummaryAlt(weekOffset);
         setWeeklyData(weekData);
       } catch (error) {
         console.error('Failed to fetch weekly summary:', error);
@@ -92,19 +99,19 @@ function TimeTracking({ user }: TimeTrackingProps) {
       console.error('Error fetching time data:', error);
       setLoading(false);
     }
-  };
+  }, [weekOffset]);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       const res = await makeAuthenticatedRequest('http://192.168.2.14:3001/api/time/notifications');
       if (res.ok) {
-        const data = await res.json();
+        const data: TimeNotification[] = await res.json();
         setNotifications(data);
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);
     }
-  };
+  }, [makeAuthenticatedRequest]);
 
   const markNotificationAsRead = async (notificationId: number) => {
     try {
@@ -137,12 +144,10 @@ function TimeTracking({ user }: TimeTrackingProps) {
   useEffect(() => {
     fetchData();
     fetchNotifications();
-  }, [weekOffset]);
+  }, [fetchData, fetchNotifications]);
 
   const handleClockIn = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      
       const data = await timeApi.clockIn();
 
       if (data.success) {
@@ -173,6 +178,9 @@ function TimeTracking({ user }: TimeTrackingProps) {
 
   const handleEditRequest = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedEntry || !editRequest) {
+      return;
+    }
     try {
       const res = await makeAuthenticatedRequest('http://192.168.2.14:3001/api/time/edit-request', {
         method: 'POST',
@@ -180,7 +188,7 @@ function TimeTracking({ user }: TimeTrackingProps) {
           entry_id: selectedEntry.entry_id,
           requested_clock_in: editRequest.clockIn,
           requested_clock_out: editRequest.clockOut,
-          requested_break_minutes: parseInt(editRequest.breakMinutes),
+          requested_break_minutes: editRequest.breakMinutes,
           reason: editRequest.reason
         })
       });
@@ -203,6 +211,9 @@ function TimeTracking({ user }: TimeTrackingProps) {
 
   const handleDeleteRequest = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedEntry || !deleteRequest) {
+      return;
+    }
     try {
       const res = await makeAuthenticatedRequest('http://192.168.2.14:3001/api/time/delete-request', {
         method: 'POST',
@@ -228,7 +239,7 @@ function TimeTracking({ user }: TimeTrackingProps) {
     }
   };
 
-  const formatDateTime = (dateString: string) => {
+  const formatDateTime = (dateString: string | null) => {
     if (!dateString) return '';
     // Parse datetime string directly without timezone conversion
     // Expected format: "2025-08-26T07:30:00.000Z" or "2025-08-26 07:30:00"
@@ -236,7 +247,7 @@ function TimeTracking({ user }: TimeTrackingProps) {
     return cleanDateString;
   };
 
-  const handleRequestEdit = (entry: any) => {
+  const handleRequestEdit = (entry: WeeklyEntry) => {
     setSelectedEntry(entry);
     setEditRequest({
       clockIn: formatDateTime(entry.clock_in),
@@ -247,7 +258,7 @@ function TimeTracking({ user }: TimeTrackingProps) {
     setShowEditModal(true);
   };
 
-  const handleRequestDelete = (entry: any) => {
+  const handleRequestDelete = (entry: WeeklyEntry) => {
     setSelectedEntry(entry);
     setDeleteRequest({
       reason: ''
@@ -275,12 +286,12 @@ function TimeTracking({ user }: TimeTrackingProps) {
     setSelectedEntry(null);
   };
 
-  const handleEditRequestChange = (field: string, value: any) => {
-    setEditRequest((prev: any) => ({ ...prev, [field]: value }));
+  const handleEditRequestChange = <K extends keyof EditRequestDraft>(field: K, value: EditRequestDraft[K]) => {
+    setEditRequest(prev => (prev ? { ...prev, [field]: value } : prev));
   };
 
-  const handleDeleteRequestChange = (field: string, value: any) => {
-    setDeleteRequest((prev: any) => ({ ...prev, [field]: value }));
+  const handleDeleteRequestChange = <K extends keyof DeleteRequestDraft>(field: K, value: DeleteRequestDraft[K]) => {
+    setDeleteRequest(prev => (prev ? { ...prev, [field]: value } : prev));
   };
 
   if (loading) return <div className="text-center py-8">Loading...</div>;

@@ -1,5 +1,6 @@
 import React from 'react';
 import { CustomerTableRow } from './CustomerTableRow';
+import { Customer } from '../../../types';
 
 interface SearchBarProps {
   searchTerm: string;
@@ -45,14 +46,14 @@ const SearchBar: React.FC<SearchBarProps> = ({
 );
 
 interface CustomerTableProps {
-  customers: any[];
+  customers: Customer[];
   loading: boolean;
   error: string;
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   onSearch: (e: React.FormEvent) => void;
   onClearSearch: () => void;
-  onCustomerDetails: (customer: any) => Promise<void>;
+  onCustomerDetails: (customer: Customer) => Promise<void>;
   onReactivateCustomer: (customerId: number) => Promise<void>;
 }
 

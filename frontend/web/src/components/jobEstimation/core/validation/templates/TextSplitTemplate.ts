@@ -1,10 +1,10 @@
 // TextSplit validation template - handles 1D and 2D text splitting with comprehensive controls
 // Supports formats like "12+5+3", "12x8,15x10", "width:12|height:8,depth:5"
 
-import { ValidationTemplate, ValidationResult, TextSplitParams, ValidationContext } from './ValidationTemplate';
+import { ValidationTemplate, ValidationResult, TextSplitParams } from './ValidationTemplate';
 
 export class TextSplitTemplate implements ValidationTemplate {
-  async validate(value: string, params: TextSplitParams, context?: ValidationContext): Promise<ValidationResult> {
+  async validate(value: string, params: TextSplitParams): Promise<ValidationResult> {
     try {
       // Handle empty values
       if (!value || (typeof value === 'string' && value.trim() === '')) {

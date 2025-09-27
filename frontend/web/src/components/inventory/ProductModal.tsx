@@ -1,16 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { vinylProductsApi, suppliersApi } from '../../services/api';
-import { VinylProduct } from './ProductsTab';
+import { suppliersApi } from '../../services/api';
 import { AutofillComboBox } from '../common/AutofillComboBox';
+import {
+  SupplierSummary,
+  VinylAutofillCombination,
+  VinylAutofillSuggestions,
+  VinylProduct,
+  VinylProductFormSubmission
+} from './types';
+
+interface ProductFormState {
+  brand: string;
+  series: string;
+  colour_number: string;
+  colour_name: string;
+  default_width: string;
+  supplier_ids: number[];
+}
 
 interface ProductModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: VinylProductFormSubmission) => Promise<void> | void;
   title: string;
   initialData?: VinylProduct | null;
-  autofillSuggestions?: any;
+  autofillSuggestions?: VinylAutofillSuggestions;
 }
 
 export const ProductModal: React.FC<ProductModalProps> = ({
@@ -21,16 +36,16 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   initialData,
   autofillSuggestions
 }) => {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ProductFormState>({
     brand: '',
     series: '',
     colour_number: '',
     colour_name: '',
     default_width: '',
-    supplier_ids: [] as number[]
+    supplier_ids: []
   });
 
-  const [availableSuppliers, setAvailableSuppliers] = useState<any[]>([]);
+  const [availableSuppliers, setAvailableSuppliers] = useState<SupplierSummary[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -40,7 +55,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
       if (initialData) {
         const supplierIds = initialData.supplier_details ? 
-          initialData.supplier_details.map((s: any) => s.supplier_id) : [];
+          initialData.supplier_details.map((s) => s.supplier_id) : [];
         
         setFormData({
           brand: initialData.brand || '',
@@ -67,7 +82,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const loadSuppliers = async () => {
     try {
       setLoadingSuppliers(true);
-      const suppliers = await suppliersApi.getSuppliers({ active_only: true });
+      const suppliers = await suppliersApi.getSuppliers({ active_only: true }) as SupplierSummary[];
       setAvailableSuppliers(suppliers || []);
     } catch (error) {
       console.error('Error loading suppliers:', error);
@@ -89,7 +104,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     setLoading(true);
 
     try {
-      const submitData = {
+      const submitData: VinylProductFormSubmission = {
         ...formData,
         default_width: formData.default_width ? parseFloat(formData.default_width) : null
       };
@@ -109,7 +124,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     });
   };
 
-  const handleAutofillChange = (field: string, value: string) => {
+  const handleAutofillChange = (
+    field: 'brand' | 'series' | 'colour_number' | 'colour_name',
+    value: string
+  ) => {
     setFormData(prev => {
       const newData = {
         ...prev,
@@ -118,7 +136,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
       // Auto-populate any additional fields when we have a complete product combination
       if (newData.brand && newData.series && (newData.colour_number || newData.colour_name)) {
-        const matchingProduct = autofillSuggestions?.combinations?.find((combo: any) => {
+        const matchingProduct = autofillSuggestions?.combinations?.find((combo: VinylAutofillCombination) => {
           const basicMatch = combo.brand === newData.brand && combo.series === newData.series;
           
           if (!basicMatch) return false;
@@ -141,11 +159,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           return false;
         });
 
-        if (matchingProduct) {
-          // Auto-populate supplier IDs if available and not already set
-          if (matchingProduct.supplier_ids && newData.supplier_ids.length === 0) {
-            newData.supplier_ids = [...matchingProduct.supplier_ids];
-          }
+        if (matchingProduct?.supplier_ids && newData.supplier_ids.length === 0) {
+          newData.supplier_ids = [...matchingProduct.supplier_ids];
         }
       }
 
@@ -160,9 +175,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     
     // Filter based on already selected values
     if (field === 'series' && formData.brand) {
-      filtered = filtered.filter((combo: any) => combo.brand === formData.brand);
+      filtered = filtered.filter((combo) => combo.brand === formData.brand);
     } else if ((field === 'colour_number' || field === 'colour_name') && formData.brand && formData.series) {
-      filtered = filtered.filter((combo: any) => 
+      filtered = filtered.filter((combo) => 
         combo.brand === formData.brand && combo.series === formData.series
       );
     }
@@ -172,21 +187,21 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     
     if (field === 'colour_number') {
       // Parse colour numbers from the colour field (e.g., "807 Unknown Color" -> "807")
-      values = [...new Set(filtered.map((combo: any) => {
+      values = [...new Set(filtered.map((combo) => {
         if (!combo.colour) return null;
         const match = combo.colour.match(/^([0-9]+[a-zA-Z]*)/);
         return match ? match[1] : null;
       }).filter(Boolean))];
     } else if (field === 'colour_name') {
       // Parse colour names from the colour field (e.g., "807 Unknown Color" -> "Unknown Color")
-      values = [...new Set(filtered.map((combo: any) => {
+      values = [...new Set(filtered.map((combo) => {
         if (!combo.colour) return null;
         const match = combo.colour.match(/^[0-9]+[a-zA-Z]*\s+(.+)$/);
         return match ? match[1] : combo.colour; // If no number prefix, use the whole colour
       }).filter(Boolean))];
     } else {
       // For brand, series
-      values = [...new Set(filtered.map((combo: any) => combo[field]).filter(Boolean))];
+      values = [...new Set(filtered.map((combo) => combo[field]).filter(Boolean))];
     }
     
     return values.sort();

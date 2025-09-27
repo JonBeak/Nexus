@@ -1,18 +1,9 @@
 import React from 'react';
-
-interface Notification {
-  notification_id: number;
-  action: string;
-  reviewer_name: string;
-  reviewer_notes?: string;
-  created_at: string;
-  is_read: boolean;
-  is_cleared: boolean;
-}
+import type { TimeNotification } from '../../types/time';
 
 interface NotificationsModalProps {
   showNotifications: boolean;
-  notifications: Notification[];
+  notifications: TimeNotification[];
   showClearedNotifications: boolean;
   onClose: () => void;
   onToggleCleared: () => void;

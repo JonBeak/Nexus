@@ -1,13 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, Settings } from 'lucide-react';
-import { jobsApi, authApi } from '../../services/api';
-import { VinylItem } from './InventoryTab';
+import { X, Trash2 } from 'lucide-react';
+import { jobsApi } from '../../services/api';
 import { AutofillComboBox } from '../common/AutofillComboBox';
+import { JobSuggestion, StatusChangePayload, VinylItem } from './types';
+
+interface StatusChangeFormState {
+  disposition: StatusChangePayload['disposition'];
+  status_change_date: string;
+  notes: string;
+  jobs: string[];
+  job_ids: number[];
+}
 
 interface StatusChangeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: StatusChangePayload) => Promise<void> | void;
   item: VinylItem | null;
 }
 
@@ -17,16 +25,16 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
   onSubmit,
   item
 }) => {
-  const [formData, setFormData] = useState({
-    disposition: 'in_stock' as string,
+  const [formData, setFormData] = useState<StatusChangeFormState>({
+    disposition: 'in_stock',
     status_change_date: new Date().toISOString().split('T')[0],
     notes: '',
-    jobs: [''] as string[],
-    job_ids: [] as number[]
+    jobs: [''],
+    job_ids: []
   });
 
   const [loading, setLoading] = useState(false);
-  const [jobSuggestions, setJobSuggestions] = useState<any[]>([]);
+  const [jobSuggestions, setJobSuggestions] = useState<JobSuggestion[]>([]);
 
   useEffect(() => {
     if (isOpen && item) {
@@ -43,7 +51,7 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
 
   const loadJobSuggestions = async () => {
     try {
-      const jobs = await jobsApi.getJobs({ active_only: true });
+      const jobs = await jobsApi.getJobs({ active_only: true }) as JobSuggestion[];
       setJobSuggestions(jobs || []);
     } catch (error) {
       console.error('Error loading jobs:', error);
@@ -57,7 +65,7 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
 
     setLoading(true);
     try {
-      const submitData = {
+      const submitData: StatusChangePayload = {
         ...formData,
         job_ids: formData.job_ids.filter(id => id > 0)
       };
@@ -102,7 +110,7 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
   const handleJobSelect = (index: number, selectedValue: string) => {
     // Parse job ID from the selected value (format: "123 - Job Title")
     const jobIdMatch = selectedValue.match(/^(\d+)\s*-/);
-    const jobId = jobIdMatch ? parseInt(jobIdMatch[1]) : 0;
+    const jobId = jobIdMatch ? parseInt(jobIdMatch[1], 10) : 0;
     
     if (jobId > 0) {
       const newJobs = [...formData.jobs];

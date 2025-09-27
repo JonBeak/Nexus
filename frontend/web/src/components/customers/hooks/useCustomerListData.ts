@@ -1,22 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useCustomerAPI } from './useCustomerAPI';
+import { Customer } from '../../../types';
 
 interface UseCustomerListDataReturn {
-  customers: any[];
-  selectedCustomer: any;
+  customers: Customer[];
+  selectedCustomer: Customer | null;
   showCustomerDetails: boolean;
   showAddCustomerModal: boolean;
   scrollPosition: number;
   loading: boolean;
   error: string;
-  setSelectedCustomer: (customer: any) => void;
+  setSelectedCustomer: (customer: Customer | null) => void;
   setShowCustomerDetails: (show: boolean) => void;
   setShowAddCustomerModal: (show: boolean) => void;
   setScrollPosition: (position: number) => void;
   refreshCustomers: (searchTerm?: string, includeInactive?: boolean) => Promise<void>;
-  handleCustomerDetails: (customer: any) => Promise<void>;
+  handleCustomerDetails: (customer: Customer) => Promise<void>;
   handleReactivateCustomer: (customerId: number, searchTerm: string) => Promise<void>;
-  handleCustomerCreated: (newCustomer: any, searchTerm: string) => void;
+  handleCustomerCreated: (newCustomer: Customer, searchTerm: string) => void;
   handleCloseCustomerDetails: (searchTerm: string) => Promise<void>;
 }
 
@@ -24,8 +25,8 @@ export const useCustomerListData = (
   searchTerm: string, 
   showDeactivatedCustomers: boolean
 ): UseCustomerListDataReturn => {
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showCustomerDetails, setShowCustomerDetails] = useState(false);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [scrollPosition, setScrollPosition] = useState(0);
@@ -33,7 +34,10 @@ export const useCustomerListData = (
   const { fetchCustomers, fetchCustomerDetails, reactivateCustomer, loading, error } = useCustomerAPI();
 
   // Refresh customers with current filters
-  const refreshCustomers = async (search?: string, includeInactive?: boolean) => {
+  const refreshCustomers = useCallback(async (
+    search?: string,
+    includeInactive?: boolean
+  ) => {
     try {
       const customerData = await fetchCustomers(
         search ?? searchTerm, 
@@ -44,10 +48,10 @@ export const useCustomerListData = (
       // Error is already handled in useCustomerAPI
       console.error('Failed to refresh customers:', error);
     }
-  };
+  }, [fetchCustomers, searchTerm, showDeactivatedCustomers]);
 
   // Handle customer details modal opening
-  const handleCustomerDetails = async (customer: any) => {
+  const handleCustomerDetails = useCallback(async (customer: Customer) => {
     try {
       // Save current scroll position
       setScrollPosition(window.pageYOffset);
@@ -59,10 +63,13 @@ export const useCustomerListData = (
       // Error handling is done in fetchCustomerDetails
       console.error('Error in handleCustomerDetails:', error);
     }
-  };
+  }, [fetchCustomerDetails]);
 
   // Handle customer reactivation
-  const handleReactivateCustomer = async (customerId: number, currentSearchTerm: string) => {
+  const handleReactivateCustomer = useCallback(async (
+    customerId: number,
+    currentSearchTerm: string
+  ) => {
     try {
       await reactivateCustomer(customerId);
       await refreshCustomers(currentSearchTerm, showDeactivatedCustomers);
@@ -70,10 +77,13 @@ export const useCustomerListData = (
       // Error is already handled in reactivateCustomer
       console.error('Error in handleReactivateCustomer:', error);
     }
-  };
+  }, [reactivateCustomer, refreshCustomers, showDeactivatedCustomers]);
 
   // Handle new customer creation
-  const handleCustomerCreated = (newCustomer: any, currentSearchTerm: string) => {
+  const handleCustomerCreated = useCallback((
+    newCustomer: Customer,
+    currentSearchTerm: string
+  ) => {
     // Refresh customer list
     refreshCustomers(currentSearchTerm, showDeactivatedCustomers);
     
@@ -82,10 +92,10 @@ export const useCustomerListData = (
       setSelectedCustomer(newCustomer);
       setShowCustomerDetails(true);
     }
-  };
+  }, [refreshCustomers, showDeactivatedCustomers]);
 
   // Handle closing customer details modal
-  const handleCloseCustomerDetails = async (currentSearchTerm: string) => {
+  const handleCloseCustomerDetails = useCallback(async (currentSearchTerm: string) => {
     // Close modal
     setShowCustomerDetails(false);
     // Refresh customer data
@@ -94,7 +104,7 @@ export const useCustomerListData = (
     setTimeout(() => {
       window.scrollTo(0, scrollPosition);
     }, 100);
-  };
+  }, [refreshCustomers, scrollPosition, showDeactivatedCustomers]);
 
   // Load customers when search term or deactivated filter changes (debounced)
   useEffect(() => {
@@ -103,7 +113,7 @@ export const useCustomerListData = (
     }, 300); // 300ms debounce delay
 
     return () => clearTimeout(timeoutId);
-  }, [searchTerm, showDeactivatedCustomers]);
+  }, [refreshCustomers, searchTerm, showDeactivatedCustomers]);
 
   return {
     customers,

@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Plus, Edit, Trash2, FileText, Calendar, User } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Search, Edit, Trash2, FileText, Calendar, User, Plus } from 'lucide-react';
 import { jobEstimationApi } from '../../services/jobEstimationApi';
 
 interface EstimateListProps {
-  user: any;
-  onEditEstimate: (estimate: any) => void;
+  onCreateNew?: () => void;
+  onEditEstimate: (estimate: EstimatePayload) => void;
   showNotification: (message: string, type?: 'success' | 'error') => void;
 }
 
@@ -23,8 +23,10 @@ interface EstimateSummary {
   updated_at: string;
 }
 
+type EstimatePayload = EstimateSummary | Record<string, unknown>;
+
 export const EstimateList: React.FC<EstimateListProps> = ({
-  user,
+  onCreateNew,
   onEditEstimate,
   showNotification
 }) => {
@@ -33,11 +35,7 @@ export const EstimateList: React.FC<EstimateListProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
-  useEffect(() => {
-    loadEstimates();
-  }, [searchTerm, statusFilter]);
-
-  const loadEstimates = async () => {
+  const loadEstimates = useCallback(async () => {
     try {
       setLoading(true);
       const response = await jobEstimationApi.getEstimates({
@@ -93,7 +91,11 @@ export const EstimateList: React.FC<EstimateListProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchTerm, statusFilter, showNotification]);
+
+  useEffect(() => {
+    loadEstimates();
+  }, [loadEstimates]);
 
   const handleEditEstimate = async (estimate: EstimateSummary) => {
     try {
@@ -190,6 +192,17 @@ export const EstimateList: React.FC<EstimateListProps> = ({
               <option value="deactivated">Deactivated</option>
             </select>
           </div>
+          
+          {onCreateNew && (
+            <button
+              type="button"
+              onClick={onCreateNew}
+              className="flex items-center justify-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="text-sm font-medium">New Estimate</span>
+            </button>
+          )}
         </div>
       </div>
 

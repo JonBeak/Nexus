@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { ArrowLeft, Plus, Calculator, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { GridJobBuilderRefactored } from './GridJobBuilderRefactored';
@@ -11,6 +11,10 @@ import { BreadcrumbNavigation } from './BreadcrumbNavigation';
 import { jobVersioningApi, customerApi } from '../../services/api';
 import { EstimateVersion } from './types';
 import { getEstimateStatusText } from './utils/statusUtils';
+import type { GridRowWithCalculations } from './core/types/LayerTypes';
+import { ValidationResultsManager } from './core/validation/ValidationResultsManager';
+import { createCalculationOperations, EstimatePreviewData } from './core/layers/CalculationLayer';
+import { PricingCalculationContext } from './core/types/GridTypes';
 import './JobEstimation.css';
 
 interface JobEstimationDashboardProps {
@@ -35,13 +39,18 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
   const [isInBuilderMode, setIsInBuilderMode] = useState(false);
   const [customerName, setCustomerName] = useState<string | null>(null);
   const [jobName, setJobName] = useState<string | null>(null);
-  
+
+  // NEW: Complete customer context
+  const [cashCustomer, setCashCustomer] = useState<boolean>(false);
+  const [taxRate, setTaxRate] = useState<number>(0.13);
+
   // Validation state
   const [hasValidationErrors, setHasValidationErrors] = useState(false);
   const [validationErrorCount, setValidationErrorCount] = useState(0);
-  
-  // Grid rows state for assembly preview
-  const [gridRows, setGridRows] = useState<any[]>([]);
+
+  // Validation results and price calculation state
+  const [pricingContext, setPricingContext] = useState<PricingCalculationContext | null>(null);
+  const [estimatePreviewData, setEstimatePreviewData] = useState<EstimatePreviewData | null>(null);
   
   // Navigation guard from GridJobBuilder
   const [navigationGuard, setNavigationGuard] = useState<((fn: () => void) => void) | null>(null);
@@ -76,20 +85,30 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
       setIsInBuilderMode(false);
     }
     
-    // Get customer name for display
+    // Get complete customer data for display and pricing
     if (customerId) {
       try {
-        const response = await customerApi.getCustomers({ 
-          limit: 1000,
-          include_inactive: false 
-        });
-        const customer = response.customers?.find((c: any) => c.customer_id === customerId);
-        setCustomerName(customer?.company_name || null);
+        const customer = await customerApi.getCustomer(customerId);
+        setCustomerName(customer.company_name || null);
+        setCashCustomer(customer.cash_yes_or_no === 1);
+
+        // Get tax rate from billing address
+        const billingAddress = customer.addresses?.find((a: any) => a.is_billing);
+        if (billingAddress?.tax_override_percent) {
+          setTaxRate(billingAddress.tax_override_percent);
+        } else {
+          setTaxRate(1.0); // 100% indicates failure to fetch tax rate
+        }
       } catch (error) {
-        console.error('Error fetching customer name:', error);
+        console.error('Error fetching customer data:', error);
+        setCustomerName(null);
+        setCashCustomer(false);
+        setTaxRate(1.0); // 100% indicates failure
       }
     } else {
       setCustomerName(null);
+      setCashCustomer(false);
+      setTaxRate(3.0); // Default 300% when no customer selected (indicates failure)
     }
   };
 
@@ -137,7 +156,10 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
       
       if (estimate) {
         setSelectedEstimateId(estimateId);
-        setCurrentEstimate(estimate);
+        setCurrentEstimate({
+          ...estimate,
+          customer_id: estimate.customer_id ?? selectedCustomerId ?? null
+        });
         setIsInBuilderMode(true);
       }
     } catch (error) {
@@ -197,7 +219,10 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
       
       if (estimate) {
         setSelectedEstimateId(estimateId);
-        setCurrentEstimate(estimate);
+        setCurrentEstimate({
+          ...estimate,
+          customer_id: estimate.customer_id ?? job?.customer_id ?? selectedCustomerId ?? null
+        });
         setIsInBuilderMode(true);
       }
     } catch (error) {
@@ -214,39 +239,23 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
     console.log(`[${type}] ${message}`);
   };
   
-  // ✅ PHASE 4 FIX: Stabilize validation callback to prevent recreation
-  const handleValidationChange = useCallback((hasErrors: boolean, errorCount: number) => {
+  // Handle validation results and trigger price calculation
+  const handleValidationChange = useCallback((hasErrors: boolean, errorCount: number, context?: PricingCalculationContext) => {
     setHasValidationErrors(hasErrors);
     setValidationErrorCount(errorCount);
+    setPricingContext(context || null);
   }, []);
-  
-  // Handle grid rows change for assembly preview
-  const handleGridRowsChange = useCallback((rows: any[]) => {
-    // ✅ STABILITY FIX: Only update state if rows actually changed
-    setGridRows(currentRows => {
-      // Compare row structure to prevent unnecessary re-renders
-      if (currentRows.length !== rows.length) {
-        return rows;
-      }
-      
-      // Compare essential row properties for structural changes
-      const currentStructure = currentRows.map(row => 
-        `${row.id}-${row.productTypeId || 'empty'}-${row.assemblyGroup || 'none'}`
-      ).join('|');
-      
-      const newStructure = rows.map(row => 
-        `${row.id}-${row.productTypeId || 'empty'}-${row.assemblyGroup || 'none'}`
-      ).join('|');
-      
-      if (currentStructure !== newStructure) {
-        // Parent callback: Row structure changed
-        return rows;
-      }
-      
-      // No structural changes, keep current rows to prevent re-render
-      return currentRows;
-    });
-  }, []);
+
+  // Price calculation effect - triggers when validation completes
+  useEffect(() => {
+    if (pricingContext) {
+      const calculationOps = createCalculationOperations();
+      const calculated = calculationOps.calculatePricing(pricingContext);
+      setEstimatePreviewData(calculated);
+    } else {
+      setEstimatePreviewData(null);
+    }
+  }, [pricingContext]);
 
   if (!user || (user.role !== 'manager' && user.role !== 'owner')) {
     return (
@@ -339,11 +348,14 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
                   }
                 }}
                 showNotification={showNotification}
+                customerId={selectedCustomerId}
+                customerName={customerName}
+                cashCustomer={cashCustomer}
+                taxRate={taxRate}
                 versioningMode={true}
                 estimateId={selectedEstimateId}
                 onNavigateToEstimate={handleNavigateToEstimate}
                 onValidationChange={handleValidationChange}
-                onGridRowsChange={handleGridRowsChange}
                 onRequestNavigation={setNavigationGuard}
               />
             </div>
@@ -353,8 +365,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
                 showNotification={showNotification}
                 hasValidationErrors={hasValidationErrors}
                 validationErrorCount={validationErrorCount}
-                gridRows={gridRows}
-                useAssemblyGroups={true}
+                estimatePreviewData={estimatePreviewData}
               />
             </div>
           </div>
@@ -473,6 +484,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
                       showNotification={showNotification}
                       hasValidationErrors={hasValidationErrors}
                       validationErrorCount={validationErrorCount}
+                      estimatePreviewData={null}
                     />
                   </div>
                 </div>

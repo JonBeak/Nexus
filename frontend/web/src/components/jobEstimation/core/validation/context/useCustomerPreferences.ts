@@ -2,16 +2,43 @@
 // Integrates with validation system to provide context-aware validation
 
 import { useState, useEffect } from 'react';
-import api from '../../../../../services/api';
+import { customerApi } from '../../../../../services/api';
 
-export interface CustomerManufacturingPreferences {
-  customer_id: number;
+export interface RawCustomerManufacturingPreferences {
+  pref_customer_id: number;
+  pref_leds_enabled: boolean;
+  pref_led_id: number | null;
+  pref_led_product_code: string | null;
+  pref_led_brand: string | null;
+  pref_led_colour: string | null;
+  pref_led_watts: number | null;
+  pref_wire_length: number | null;
+  pref_power_supply_required: boolean;
+  pref_power_supply_id: number | null;
+  pref_power_supply_type: string | null;
+  pref_power_supply_watts: number | null;
+  pref_power_supply_volts: number | null;
+  pref_power_supply_is_ul_listed: boolean;
+  pref_ul_required: boolean;
+  pref_drain_holes_required: boolean | null;
+  pref_pattern_required: boolean | null;
+  pref_pattern_type: string | null;
+  pref_wiring_diagram_required: boolean | null;
+  pref_wiring_diagram_type: string | null;
+  pref_plug_and_play_required: boolean | null;
+  pref_shipping_required: boolean | null;
+  pref_shipping_multiplier: number | null;
+  pref_shipping_flat: number | null;
+  pref_manufacturing_comments: string | null;
+  pref_special_instructions: string | null;
+}
+
+export interface CustomerManufacturingPreferences extends RawCustomerManufacturingPreferences {
   use_leds: boolean;
   default_led_type: string;
   requires_transformers: boolean;
   default_transformer: string;
   default_ul_requirement: boolean;
-  // Add other preferences as needed
 }
 
 interface UseCustomerPreferencesResult {
@@ -36,17 +63,15 @@ export const useCustomerPreferences = (customerId?: number): UseCustomerPreferen
       setLoading(true);
       setError(null);
 
-      const response = await api.get(`/customers/${id}/manufacturing-preferences`);
+      const response = await customerApi.getManufacturingPreferences(id);
 
-      if (response.data.success) {
-        setPreferences(response.data.data);
+      if (response.success) {
+        setPreferences(normalizePreferences(response.data));
       } else {
-        // Customer might not have preferences set - use defaults
         setPreferences(getDefaultPreferences(id));
       }
     } catch (err) {
       console.warn('Error fetching customer preferences, using defaults:', err);
-      // Use defaults if fetch fails
       setPreferences(getDefaultPreferences(id));
       setError('Failed to load customer preferences, using defaults');
     } finally {
@@ -58,7 +83,6 @@ export const useCustomerPreferences = (customerId?: number): UseCustomerPreferen
     if (customerId) {
       fetchPreferences(customerId);
     } else {
-      // No customer selected - clear preferences
       setPreferences(null);
       setError(null);
     }
@@ -83,7 +107,32 @@ export const useCustomerPreferences = (customerId?: number): UseCustomerPreferen
  */
 function getDefaultPreferences(customerId: number): CustomerManufacturingPreferences {
   return {
-    customer_id: customerId,
+    pref_customer_id: customerId,
+    pref_leds_enabled: false,
+    pref_led_id: null,
+    pref_led_product_code: null,
+    pref_led_brand: null,
+    pref_led_colour: null,
+    pref_led_watts: null,
+    pref_wire_length: null,
+    pref_power_supply_required: false,
+    pref_power_supply_id: null,
+    pref_power_supply_type: 'DC-60W',
+    pref_power_supply_watts: null,
+    pref_power_supply_volts: null,
+    pref_power_supply_is_ul_listed: false,
+    pref_ul_required: false,
+    pref_drain_holes_required: null,
+    pref_pattern_required: null,
+    pref_pattern_type: null,
+    pref_wiring_diagram_required: null,
+    pref_wiring_diagram_type: null,
+    pref_plug_and_play_required: null,
+    pref_shipping_required: null,
+    pref_shipping_multiplier: null,
+    pref_shipping_flat: null,
+    pref_manufacturing_comments: null,
+    pref_special_instructions: null,
     use_leds: false,
     default_led_type: 'Standard LED',
     requires_transformers: false,
@@ -108,7 +157,6 @@ class PreferencesCache {
       return cached;
     }
 
-    // Cache expired or doesn't exist
     if (cached) {
       this.cache.delete(customerId);
       this.cacheTimestamps.delete(customerId);
@@ -120,11 +168,6 @@ class PreferencesCache {
   static set(customerId: number, preferences: CustomerManufacturingPreferences): void {
     this.cache.set(customerId, preferences);
     this.cacheTimestamps.set(customerId, Date.now());
-  }
-
-  static clear(): void {
-    this.cache.clear();
-    this.cacheTimestamps.clear();
   }
 
   static clearCustomer(customerId: number): void {
@@ -142,7 +185,6 @@ export const useCustomerPreferencesWithCache = (customerId?: number): UseCustome
   const [error, setError] = useState<string | null>(null);
 
   const fetchPreferences = async (id: number) => {
-    // Check cache first
     const cached = PreferencesCache.get(id);
     if (cached) {
       setPreferences(cached);
@@ -153,25 +195,24 @@ export const useCustomerPreferencesWithCache = (customerId?: number): UseCustome
       setLoading(true);
       setError(null);
 
-      const response = await api.get(`/customers/${id}/manufacturing-preferences`);
+      const response = await customerApi.getManufacturingPreferences(id);
 
       let prefs: CustomerManufacturingPreferences;
 
-      if (response.data.success) {
-        prefs = response.data.data;
+      if (response.success) {
+        prefs = normalizePreferences(response.data);
       } else {
         prefs = getDefaultPreferences(id);
       }
 
-      // Cache the result
       PreferencesCache.set(id, prefs);
       setPreferences(prefs);
-
+      console.log('Fetched manufacturing preferences for customer', id, prefs);
     } catch (err) {
       console.warn('Error fetching customer preferences, using defaults:', err);
-      const defaultPrefs = getDefaultPreferences(id);
-      PreferencesCache.set(id, defaultPrefs);
-      setPreferences(defaultPrefs);
+      const fallback = getDefaultPreferences(id);
+      PreferencesCache.set(id, fallback);
+      setPreferences(fallback);
       setError('Failed to load customer preferences, using defaults');
     } finally {
       setLoading(false);
@@ -181,6 +222,7 @@ export const useCustomerPreferencesWithCache = (customerId?: number): UseCustome
   useEffect(() => {
     if (customerId) {
       fetchPreferences(customerId);
+      console.log('Fetching manufacturing preferences for customer', customerId);
     } else {
       setPreferences(null);
       setError(null);
@@ -189,7 +231,6 @@ export const useCustomerPreferencesWithCache = (customerId?: number): UseCustome
 
   const refetch = () => {
     if (customerId) {
-      // Clear cache and refetch
       PreferencesCache.clearCustomer(customerId);
       fetchPreferences(customerId);
     }
@@ -203,5 +244,15 @@ export const useCustomerPreferencesWithCache = (customerId?: number): UseCustome
   };
 };
 
-// Export cache utility for manual cache management
 export { PreferencesCache };
+
+function normalizePreferences(raw: RawCustomerManufacturingPreferences): CustomerManufacturingPreferences {
+  return {
+    ...raw,
+    use_leds: raw.pref_leds_enabled,
+    default_led_type: raw.pref_led_product_code || raw.pref_led_brand || 'Standard LED',
+    requires_transformers: raw.pref_power_supply_required,
+    default_transformer: raw.pref_power_supply_type || 'DC-60W',
+    default_ul_requirement: raw.pref_ul_required
+  };
+}

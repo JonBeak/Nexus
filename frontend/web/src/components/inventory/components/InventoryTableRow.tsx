@@ -1,10 +1,10 @@
 import React from 'react';
 import { Edit, Trash2, Settings } from 'lucide-react';
-import { VinylItem } from '../InventoryTab';
+import { InventoryUser, VinylItem } from '../types';
 
 interface InventoryTableRowProps {
   item: VinylItem;
-  user: any;
+  user: InventoryUser;
   onEditItem: (item: VinylItem) => void;
   onDeleteItem: (id: number) => void;
   onChangeStatus: (item: VinylItem) => void;

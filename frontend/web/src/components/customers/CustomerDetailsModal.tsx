@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { customerApi } from '../../services/api';
 import CustomerForm from './CustomerForm';
 import AddressManager from './AddressManager';
@@ -34,7 +34,6 @@ function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) 
   const [deactivateConfirmation, setDeactivateConfirmation] = useState<DeactivateConfirmation>({show: false, customer: null});
 
   // Helper function to refresh customer details
-  // Helper function to refresh customer details
   const refreshCustomerDetails = async () => {
     try {
       const updatedCustomer = await customerApi.getCustomer(customer.customer_id);
@@ -44,16 +43,23 @@ function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) 
       console.error('Error refreshing customer details:', error);
     }
   };
-  useEffect(() => {
-    if (customer) {
-      setFormData({ ...customer });
-      // Initialize addresses based on current toggle state
+  
+  const refreshAddresses = useCallback(async () => {
+    try {
       if (showDeactivated) {
-        fetchDeactivatedAddresses();
+        const data = await customerApi.getAddresses(customer.customer_id, true);
+        setAddresses(data.addresses || []);
       } else {
-        setAddresses(customer.addresses || []);
+        const data = await customerApi.getCustomer(customer.customer_id);
+        setAddresses(data.addresses || []);
       }
+    } catch (error) {
+      console.error('Error refreshing addresses:', error);
     }
+  }, [customer.customer_id, showDeactivated]);
+
+  useEffect(() => {
+    setFormData({ ...customer });
   }, [customer]);
 
   // Fetch LED and Power Supply types on component mount
@@ -75,12 +81,10 @@ function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) 
     fetchTypes();
   }, []);
 
-  // Refetch addresses when showDeactivated toggle changes
+  // Refetch addresses when customer or toggle state changes
   useEffect(() => {
-    if (customer) {
-      refreshAddresses();
-    }
-  }, [showDeactivated]);
+    refreshAddresses();
+  }, [refreshAddresses]);
 
   if (!customer) return null;
 
@@ -90,8 +94,24 @@ function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) 
     setSaveError('');
   };
 
-  const handleInputChange = (field: string, value: any) => {
-    setFormData((prev: Customer) => ({ ...prev, [field]: value }));
+  const handleInputChange = <K extends keyof Customer>(
+    field: K,
+    value: Customer[K] | null
+  ) => {
+    setFormData(prev => {
+      const normalizedValue = value === null ? undefined : value;
+      const updated: Customer = {
+        ...prev,
+        [field]: normalizedValue
+      };
+
+      if (field === 'company_name') {
+        const companyName = typeof normalizedValue === 'string' ? normalizedValue : '';
+        updated.quickbooks_name = companyName;
+      }
+
+      return updated;
+    });
   };
 
   const handleSave = async () => {
@@ -106,25 +126,13 @@ function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) 
       // Refresh addresses based on current toggle state
       await refreshAddresses();
     } catch (error) {
+      console.error('Error saving customer:', error);
       setSaveError('Network error. Please try again.');
     } finally {
       setIsSaving(false);
     }
   };
-  
-  const refreshAddresses = async () => {
-    try {
-      if (showDeactivated) {
-        const data = await customerApi.getAddresses(customer.customer_id, true);
-        setAddresses(data.addresses || []);
-      } else {
-        const data = await customerApi.getCustomer(customer.customer_id);
-        setAddresses(data.addresses || []);
-      }
-    } catch (error) {
-      console.error('Error refreshing addresses:', error);
-    }
-  };
+
   const confirmDeleteAddress = (address: Address, index: number) => {
     setDeleteConfirmation({ show: true, address, index });
   };

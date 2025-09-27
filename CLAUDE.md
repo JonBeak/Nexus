@@ -31,7 +31,7 @@
       <CompletionCriteria>Must have complete confidence in understanding the problem AND the solution before proceeding</CompletionCriteria>
     </ResearchPhase>
 
-    <ProposalPhase>
+  <ProposalPhase>
       <Prerequisite>Only proceed after achieving complete confidence in the solution</Prerequisite>
       <ResponseFormat>Based on research, I recommend [solution]. This will modify [files] following [pattern]. Please confirm before I proceed.</ResponseFormat>
       <MustInclude>
@@ -44,7 +44,7 @@
       <WaitFor>Explicit confirmation before proceeding</WaitFor>
     </ProposalPhase>
 
-    <ImplementationPhase>
+  <ImplementationPhase>
       <RefactoringTrigger>
         <Condition>If changes will exceed 500 lines</Condition>
         <Actions>
@@ -62,7 +62,7 @@
       </DuringImplementation>
     </ImplementationPhase>
 
-    <VerificationPhase>
+  <VerificationPhase>
       <Action>Test with real production data (read-only)</Action>
       <Action>Verify no regression in working features</Action>
       <Action>Check all error paths</Action>
@@ -95,7 +95,7 @@
       </Authentication>
     </TechnologyStack>
 
-    <FileOrganization>
+  <FileOrganization>
       <Root>/home/jon/Nexus/</Root>
       <Structure>
         <Directory path="backend/web/">
@@ -126,6 +126,18 @@
     </FileOrganization>
   </SystemArchitecture>
 
+  <ImplementedRoutes>
+    <Route path="/login">Authentication with JWT refresh token system</Route>
+    <Route path="/dashboard">Main dashboard with role-based feature access</Route>
+    <Route path="/customers">Customer management with addresses and preferences - See Nexus_Customers.md</Route>
+    <Route path="/time-management">Time tracking, approvals, scheduling (Manager+ only) - See Nexus_TimeManagement.md</Route>
+    <Route path="/vinyl-inventory">Vinyl inventory management with bulk operations - See Nexus_Vinyls.md</Route>
+    <Route path="/wages">Payroll and wage management (Owner only) - See Nexus_WagesManagement.md</Route>
+    <Route path="/account-management">User account and RBAC management (Manager+ only) - See Nexus_AccountsManagement.md</Route>
+    <Route path="/supply-chain">Supply chain and supplier management (Manager+ only) - See Nexus_SupplyChain.md</Route>
+    <Route path="/job-estimation">Job estimation with complex product forms (Manager+ only) - See Nexus_JobEstimation.md</Route>
+  </ImplementedRoutes>
+
   <WorkingFeatures>
     <Feature name="CustomerManagement">Full CRUD with multi-address support (644+ customers, communication prefs, history tracking)</Feature>
     <Feature name="TimeTracking">Complete time management system (44 entries, approvals, scheduling, edit requests with notifications)</Feature>
@@ -135,13 +147,13 @@
     <Feature name="AuditSystem">Complete audit trail for all data changes (111+ tracked events)</Feature>
     <Feature name="TaxRules">Tax calculation system based on billing address (29 rules, 67 provinces)</Feature>
     <Feature name="JobEstimation">Currently in development. Major refactoring going on. Please check ArchitectureReference for more information</Feature>
-    <Feature name="SupplyChain">Supply chain management with suppliers, orders, cost tracking, low stock alerts</Feature>
     <Feature name="AccountManagement">User account system with role management, vacation tracking, schedule management</Feature>
     <Feature name="CompanyOperations">Holiday management, work schedules, company-wide settings</Feature>
   </WorkingFeatures>
 
   <FuturePriorities>
-    <Priority order="5">PDF export integration with persisted grid data</Priority>
+    <Priority order="4"><Feature name="SupplyChain">Supply chain management with suppliers, orders, cost tracking, low stock alerts</Feature></Priority>
+    <Priority order="5">Estimation PDF export integration with persisted grid data</Priority>
     <Priority order="6">Material requirements calculation from grid data for order conversion</Priority>
     <Priority order="7">Supply chain integration for real-time material costs in pricing</Priority>
     <Priority order="8">Job tracking dashboard enhancement (Quote → Production → Shipped workflow)</Priority>
@@ -151,23 +163,11 @@
 
   <BusinessDomainRules>
     <Rule name="TaxCalculation">Based on billing address using tax_rules table with provincial tax rates</Rule>
-    <Rule name="CustomerAddresses">Support billing, shipping, and multiple jobsite addresses with full audit trail</Rule>
     <Rule name="BusinessModel">Wholesale manufacturing for other sign companies (no permits/installation)</Rule>
     <Rule name="JobWorkflow">Quote → Approved → Order Form → Production → Shipped (with full status tracking)</Rule>
-    <Rule name="CustomerPreferences">Each customer has manufacturing preferences, communication settings, and pricing history</Rule>
     <Rule name="TimeTracking">Employee time entries require manager approval, with edit request workflow</Rule>
     <Rule name="InventoryControl">Vinyl inventory with low stock alerts, supplier cost tracking, and reservation system</Rule>
     <Rule name="RoleBasedAccess">Comprehensive RBAC system with granular permissions and audit logging</Rule>
-    <Rule name="EstimationWorkflow">Job estimates use 12-column dynamic grid system with assembly groupings, flexible field validation, and immutable versioning</Rule>
-    <Rule name="VersionControl">Once estimates are finalized (sent/approved/ordered), they become immutable for audit compliance</Rule>
-    <Rule name="JobHierarchy">Customer → Jobs → Estimate Versions with automatic version numbering and conflict prevention</Rule>
-    <Rule name="GridSystem">Products configured in 12-column flexible grid with continuation rows, sub-items, and colored assembly groupings</Rule>
-    <Rule name="AssemblyGroups">Visual organization system using colored groupings (10 colors: purple, blue, green, orange, pink, cyan, red, yellow, indigo, emerald) with user-defined assembly costs</Rule>
-    <Rule name="DataPersistence">✅ Grid data stored as flat items structure with assembly_group references, supporting parent-child relationships and flexible string-based validation</Rule>
-    <Rule name="DynamicTemplates">✅ Product field options populated from inventory database instead of hardcoded JSON</Rule>
-    <Rule name="ValidationSystem">✅ Comprehensive useGridValidation hook with field-level validation, red borders, error tooltips - purely informational, never blocks saves</Rule>
-    <Rule name="AutoSave">✅ Grid changes auto-saved with unsaved indicator + confirmation for destructive actions</Rule>
-    <Rule name="EstimatePreview">✅ EstimateTable uses assembly logic with multi-row support and validation overlay warnings</Rule>
   </BusinessDomainRules>
 
   <CodeStandards>
@@ -198,7 +198,7 @@ export const exampleController = async (req: Request, res: Response) => {
       </Example>
     </Backend>
 
-    <Frontend>
+  <Frontend>
       <PatternLocation>/home/jon/Nexus/frontend/web/src/components/</PatternLocation>
       <Example>
         <![CDATA[
@@ -235,7 +235,9 @@ export const ExampleComponent = ({ }: Props) => {
 
   <ArchitectureStandard>
     <EnhancedThreeLayer>
-      <MandatoryPattern>Route → Controller → Service → Repository → Database</MandatoryPattern>
+      <MandatoryPattern>
+        Route → Controller → Service → Repository → Database
+      </MandatoryPattern>
       
       <LayerResponsibilities>
         <Route>HTTP routing, middleware chains, authentication, permissions (15-25 lines per endpoint)</Route>
@@ -377,23 +379,6 @@ SELECT * FROM table_name LIMIT 10;
       <Usage>Reference during testing and before deployments</Usage>
     </TestingReference>
 
-    <ArchitectureReference>
-      <File>See /home/jon/Nexus/Future Grid Base Architecture.md for complete layered grid architecture specification</File>
-      <Usage>Reference for GridJobBuilder refactoring, layered calculation system, and performance optimizations</Usage>
-      <Scope>Base layer foundation - Core types, relationship calculations, display layer, interaction layer, GridEngine orchestrator</Scope>
-    </ArchitectureReference>
-
-    <ImplementedRoutes>
-      <Route path="/login">Authentication with JWT refresh token system</Route>
-      <Route path="/dashboard">Main dashboard with role-based feature access</Route>
-      <Route path="/customers">Customer management with addresses and preferences</Route>
-      <Route path="/time-management">Time tracking, approvals, scheduling (Manager+ only)</Route>
-      <Route path="/vinyl-inventory">Vinyl inventory management with bulk operations</Route>
-      <Route path="/wages">Payroll and wage management (Owner only)</Route>
-      <Route path="/account-management">User account and RBAC management (Manager+ only)</Route>
-      <Route path="/supply-chain">Supply chain and supplier management (Manager+ only)</Route>
-      <Route path="/job-estimation">Job estimation with complex product forms (Manager+ only)</Route>
-    </ImplementedRoutes>
   </QuickReference>
 
   <FinalReminder>

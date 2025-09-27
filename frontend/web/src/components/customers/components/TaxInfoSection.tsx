@@ -6,7 +6,11 @@ interface TaxInfoSectionProps {
   addressIndex: number;
   taxWarning: string;
   taxDisplayValues: {[key: string]: string};
-  onAddressChange: (index: number, field: string, value: any) => void;
+  onAddressChange: <K extends keyof Address>(
+    index: number,
+    field: K,
+    value: Address[K] | null
+  ) => void;
   onTaxDisplayValueChange: (addressKey: string, displayValue: string, addressIndex: number) => void;
   onTaxDisplayValueBlur: (addressKey: string) => void;
 }

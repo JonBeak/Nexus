@@ -20,6 +20,7 @@ export interface Customer extends RowDataPacket {
   active: boolean;
 }
 
+
 export interface CustomerFilters {
   page?: number;
   limit?: number;
@@ -215,6 +216,80 @@ export class CustomerService {
     return {
       ...customers[0],
       addresses: addresses || []
+    };
+  }
+
+  static async getManufacturingPreferences(customerId: number) {
+    const preferencesQuery = `
+      SELECT
+        c.customer_id,
+        c.leds_yes_or_no,
+        c.led_id,
+        c.wire_length,
+        c.powersupply_yes_or_no,
+        c.power_supply_id,
+        c.ul_yes_or_no,
+        c.drain_holes_yes_or_no,
+        c.pattern_yes_or_no,
+        c.pattern_type,
+        c.wiring_diagram_yes_or_no,
+        c.wiring_diagram_type,
+        c.plug_n_play_yes_or_no,
+        c.shipping_yes_or_no,
+        c.shipping_multiplier,
+        c.shipping_flat,
+        c.comments,
+        c.special_instructions,
+        l.product_code AS led_product_code,
+        l.brand AS led_brand,
+        l.colour AS led_colour,
+        l.watts AS led_watts,
+        ps.transformer_type AS power_supply_type,
+        ps.watts AS power_supply_watts,
+        ps.volts AS power_supply_volts,
+        ps.ul_listed AS power_supply_ul_listed
+      FROM customers c
+      LEFT JOIN leds l ON c.led_id = l.led_id
+      LEFT JOIN power_supplies ps ON c.power_supply_id = ps.power_supply_id
+      WHERE c.customer_id = ?
+        AND c.active = 1
+    `;
+
+    const rows = await query(preferencesQuery, [customerId]) as RowDataPacket[];
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    const row = rows[0];
+
+    return {
+      pref_customer_id: row.customer_id,
+      pref_leds_enabled: Boolean(row.leds_yes_or_no),
+      pref_led_id: row.led_id ?? null,
+      pref_led_product_code: row.led_product_code ?? null,
+      pref_led_brand: row.led_brand ?? null,
+      pref_led_colour: row.led_colour ?? null,
+      pref_led_watts: row.led_watts ?? null,
+      pref_wire_length: row.wire_length ?? null,
+      pref_power_supply_required: Boolean(row.powersupply_yes_or_no),
+      pref_power_supply_id: row.power_supply_id ?? null,
+      pref_power_supply_type: row.power_supply_type ?? null,
+      pref_power_supply_watts: row.power_supply_watts ?? null,
+      pref_power_supply_volts: row.power_supply_volts ?? null,
+      pref_power_supply_is_ul_listed: row.power_supply_ul_listed === 1,
+      pref_ul_required: Boolean(row.ul_yes_or_no),
+      pref_drain_holes_required: row.drain_holes_yes_or_no === null ? null : Boolean(row.drain_holes_yes_or_no),
+      pref_pattern_required: row.pattern_yes_or_no === null ? null : Boolean(row.pattern_yes_or_no),
+      pref_pattern_type: row.pattern_type ?? null,
+      pref_wiring_diagram_required: row.wiring_diagram_yes_or_no === null ? null : Boolean(row.wiring_diagram_yes_or_no),
+      pref_wiring_diagram_type: row.wiring_diagram_type ?? null,
+      pref_plug_and_play_required: row.plug_n_play_yes_or_no === null ? null : Boolean(row.plug_n_play_yes_or_no),
+      pref_shipping_required: row.shipping_yes_or_no === null ? null : Boolean(row.shipping_yes_or_no),
+      pref_shipping_multiplier: row.shipping_multiplier ?? null,
+      pref_shipping_flat: row.shipping_flat ?? null,
+      pref_manufacturing_comments: row.comments ?? null,
+      pref_special_instructions: row.special_instructions ?? null
     };
   }
 

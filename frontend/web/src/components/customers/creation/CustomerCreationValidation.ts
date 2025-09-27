@@ -1,5 +1,5 @@
 import { CustomerCreateData, ValidationResult, ValidationError } from './CustomerCreationTypes';
-import { Address } from '../../../types/index';
+import { Address } from '../../../types';
 
 export class CustomerCreationValidation {
   static validateCustomerData(formData: CustomerCreateData, addresses: Partial<Address>[]): ValidationResult {
@@ -34,14 +34,13 @@ export class CustomerCreationValidation {
 
   private static validateAddresses(addresses: Partial<Address>[], errors: ValidationError[]): void {
     const validAddresses = addresses.filter(addr => 
-      addr.province_state_short?.trim() && 
-      addr.address_line1?.trim()
+      addr.province_state_short?.trim()
     );
 
     if (validAddresses.length === 0) {
       errors.push({
         field: 'addresses',
-        message: 'At least one address with Province/State and Address Line 1 is required'
+        message: 'At least one address with a Province/State is required'
       });
     }
 
@@ -131,56 +130,78 @@ export class CustomerCreationValidation {
   }
 
   private static isValidPhone(phone: string): boolean {
-    // Basic phone validation - allows various formats
-    const phoneRegex = /^[\+]?[1-9][\d]{0,15}$|^[\(\+]?[1-9][\d\s\-\(\)\.]{6,20}$/;
-    return phoneRegex.test(phone.replace(/\s/g, ''));
+    // Basic phone validation - allows optional +country code and common separators
+    const normalized = phone.replace(/\s/g, '');
+    const phoneRegex = /^(\+?[1-9]\d{0,15}|[+(]?[1-9][\d\s().-]{6,20})$/;
+    return phoneRegex.test(normalized);
   }
 
   // Field-specific validation helpers
-  static validateField(fieldName: string, value: any, formData?: CustomerCreateData): string | null {
+  static validateField<K extends keyof CustomerCreateData>(
+    fieldName: K,
+    value: CustomerCreateData[K] | null | undefined
+  ): string | null {
     switch (fieldName) {
       case 'company_name':
-        return !value?.trim() ? 'Company name is required' : null;
-      
+        return typeof value === 'string' && value.trim()
+          ? null
+          : 'Company name is required';
+
       case 'email':
       case 'invoice_email':
-        return value && !this.isValidEmail(value) ? 'Invalid email format' : null;
-      
+        return value && typeof value === 'string' && !this.isValidEmail(value)
+          ? 'Invalid email format'
+          : null;
+
       case 'phone':
-        return value && !this.isValidPhone(value) ? 'Invalid phone number format' : null;
-      
+        return value && typeof value === 'string' && !this.isValidPhone(value)
+          ? 'Invalid phone number format'
+          : null;
+
       case 'discount':
-        return value !== undefined && (value < 0 || value > 100) ? 'Discount must be between 0-100%' : null;
-      
+        return value !== undefined && value !== null && typeof value === 'number' && (value < 0 || value > 100)
+          ? 'Discount must be between 0-100%'
+          : null;
+
       case 'wire_length':
-        return value !== undefined && value < 0 ? 'Wire length must be positive' : null;
-      
+        return value !== undefined && value !== null && typeof value === 'number' && value < 0
+          ? 'Wire length must be positive'
+          : null;
+
       case 'default_turnaround':
-        return value !== undefined && value < 0 ? 'Turnaround must be positive' : null;
-      
+        return value !== undefined && value !== null && typeof value === 'number' && value < 0
+          ? 'Turnaround must be positive'
+          : null;
+
       case 'shipping_multiplier':
-        return value !== undefined && value <= 0 ? 'Multiplier must be greater than 0' : null;
-      
-      
+        return value !== undefined && value !== null && typeof value === 'number' && value <= 0
+          ? 'Multiplier must be greater than 0'
+          : null;
+
       default:
         return null;
     }
   }
 
   // Get validation styling for form fields
-  static getValidationClass(fieldName: string, value: any, hasError: boolean = false): string {
+  static getValidationClass<K extends keyof CustomerCreateData>(
+    fieldName: K,
+    value: CustomerCreateData[K] | null | undefined,
+    hasError: boolean = false
+  ): string {
     const baseClass = "w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500";
-    
+
     if (hasError) {
       return `${baseClass} border-red-500 focus:border-red-500 focus:ring-red-200`;
     }
-    
-    // Required fields get different styling
-    const requiredFields = ['company_name'];
-    if (requiredFields.includes(fieldName) && !value?.trim()) {
+
+    const requiredFields: Array<keyof CustomerCreateData> = ['company_name'];
+    const stringValue = typeof value === 'string' ? value : '';
+
+    if (requiredFields.includes(fieldName) && !stringValue.trim()) {
       return `${baseClass} border-gray-300 focus:border-purple-500`;
     }
-    
+
     return `${baseClass} border-gray-300 focus:border-purple-500`;
   }
 }

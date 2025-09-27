@@ -5,20 +5,27 @@ import { UserModal } from './modals/UserModal';
 import { PasswordModal } from './modals/PasswordModal';
 import { VacationModal } from './modals/VacationModal';
 import { ConfirmDialog } from './components/ConfirmDialog';
-import { NotificationSystem, useNotifications } from './components/NotificationSystem';
+import { NotificationSystem } from './components/NotificationSystem';
+import { useNotifications } from './hooks/useNotifications';
 import { useAccountManagement } from './hooks/useAccountManagement';
 import { UsersTab } from './components/tabs/UsersTab';
 import { LoginLogsTab } from './components/tabs/LoginLogsTab';
 import { VacationTab } from './components/tabs/VacationTab';
+import type { AccountUser } from '../../types/user';
 
 interface AccountManagementProps {
-  user: any;
+  user: AccountUser;
 }
 
 export const AccountManagement: React.FC<AccountManagementProps> = ({ user }) => {
   const navigate = useNavigate();
   const { notifications, removeNotification } = useNotifications();
-  
+  const tabs = [
+    { id: 'users', label: 'User Accounts', icon: Users },
+    { id: 'logs', label: 'Login Logs', icon: Activity },
+    { id: 'vacations', label: 'Vacation Periods', icon: Calendar }
+  ] as const;
+
   const {
     users,
     selectedUser,
@@ -87,14 +94,10 @@ export const AccountManagement: React.FC<AccountManagementProps> = ({ user }) =>
         {/* Tabs */}
         <div className="mb-8">
           <nav className="flex space-x-8">
-            {[
-              { id: 'users', label: 'User Accounts', icon: Users },
-              { id: 'logs', label: 'Login Logs', icon: Activity },
-              { id: 'vacations', label: 'Vacation Periods', icon: Calendar }
-            ].map(({ id, label, icon: Icon }) => (
+            {tabs.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
-                onClick={() => setActiveTab(id as any)}
+                onClick={() => setActiveTab(id)}
                 className={`flex items-center space-x-2 px-4 py-2 border-b-2 font-medium transition-colors ${
                   activeTab === id
                     ? 'border-indigo-500 text-indigo-600'

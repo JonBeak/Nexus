@@ -1,448 +1,374 @@
-# 🎯 Validation Layer Architecture - Complete Specification
+# Channel Letters Validation Layer Architecture
 
-## Date: 2025-09-16
+## Overview
 
-## 📋 Layer Position in Architecture Chain
+The validation system is a sophisticated multi-layer architecture that provides real-time, context-aware validation for the job estimation grid. It operates on a two-phase validation pipeline with database-driven configuration and template-based extensibility.
 
-This document covers the **Validation Layer** - the first future layer built on top of the Base Layer.
+## Layer 1: Database Configuration Layer
 
-### Architecture Progression:
-1. ✅ **Base Layer** - Core data structures, relationships, display, interaction (COMPLETE)
-1a.❌ **Base Formatting Layer** - Colour coding mandatory input fields backgrounds/special fields. On row change like relationships calculations. (FUTURE)
-2. 🔄 **Validation Layer** - Field validation, business rules, pricing logic, Assembly Validation (IN PROGRESS)
-3. ❌ **Assembly Layer** - Dynamic assembly management, color assignments (FUTURE)
-4. ❌ **Visual Styling Layer** - Conditional formatting, themes (FUTURE)
-5. ❌ **Calculations Layer** - Pricing, totals, material calculations (FUTURE)
+### Storage Structure
 
----
-
-## 🏗️ Validation Layer Overview
-
-### **Philosophy:**
-> "Validation happens AFTER autosave, is debounced, and provides visual feedback without blocking user input"
-
-### **Key Principles:**
-- ✅ **Post-Autosave Trigger** - Validation runs after data is saved (500ms debounce)
-- ✅ **Database-Driven Rules** - Validation rules stored in database, cached on load
-- ✅ **Non-Blocking Visual Feedback** - Red borders for errors, orange for warnings
-- ✅ **Incremental Updates** - Only validate changed rows + dependencies
-- ✅ **Flexible Field Categories** - mandatory/sufficient/supplementary markers
-- ✅ **Pricing Integration** - Controls estimate calculations and preview display
-
----
-
-## 🗃️ Database Schema
-
-### **Validation Rules Table:**
 ```sql
-CREATE TABLE validation_rules (
+-- product_types table
+CREATE TABLE product_types (
   id INT PRIMARY KEY,
-  function_name VARCHAR(50) NOT NULL, -- 'textsplit', 'float', 'required', etc.
-  description TEXT,
-  parameters_schema JSON -- Defines what parameters this rule accepts
+  name VARCHAR(255),
+  field_prompts JSON,        -- Field labels and UI configuration
+  static_options JSON,       -- Dropdown options and static data
+  validation_rules JSON      -- Validation configuration per field
 );
 ```
 
-### **Product Types Integration:**
-```sql
--- Use existing product_types table validation_rules column. Can change name to validation_config
-product_types.validation_rules
+### Validation Rules Schema
 
--- Example validation_config:
-{
-  "field1": {
-    "function": "textsplit",
-    "params": {"delimiter": "+", "parse_as": "float", "min": 0, "max": 99},
-    "error_level": "error",
-    "field_category": "mandatory",
-    "error_message": "Enter numbers separated by + (0-99 each)"
-  },
-  "quantity": {
-    "function": "float",
-    "params": {"min": 0, "allow_negative": false},
-    "error_level": "error",
-    "field_category": "sufficient"
-  },
-  "price_adjustment": {
-    "function": "float",
-    "params": {"allow_negative": true},
-    "error_level": "warning",
-    "field_category": "supplementary"
-  }
-}
-```
-
----
-
-## 🔧 Field Categories & Business Logic
-
-### **Field Categories:**
-| Category | Purpose | Pricing Impact | Estimate Preview |
-|----------|---------|----------------|------------------|
-| `complete_set` | Fields that must be ALL filled together for pricing | Must be fully completed for pricing | Must be fully completed for preview |
-| `sufficient` | Enough alone for basic pricing | Enables pricing | Enables preview |
-| `supplementary` | Enhances pricing calculations | Optional for pricing | Hidden if alone |
-| `context_dependent` | Category changes based on context/preferences | Dynamic based on context | Dynamic based on context |
-
-### **Validation & Pricing Logic:**
-
-#### **Validation Warnings/Errors:**
-```
-Empty Row: No validation, no warnings ✅
-Row with Data: Apply field format validation ✅
-Partial Complete Set: Show warnings for missing complete_set fields ✅
-Context-Dependent: Apply dynamic validation based on customer preferences ✅
-```
-
-#### **Pricing Calculation Blocking:**
-```
-Block Pricing IF:
-- Empty row (no fields filled)
-- Invalid field input format
-- Invalid field input range
-- Partial complete_set completion
-
-Allow Pricing IF:
-- All complete_set fields complete
-- OR at least one sufficient field filled
-- OR only supplementary fields filled
-- Context-dependent fields (based on calculation results)
-```
-
-#### **Estimate Preview Display:**
-```
-Show in Estimate Preview:
-- Rows with all complete_set fields complete
-- Rows with sufficient fields filled
-- Special rows without need for input fields (subtotal, divider)
-
-Hide from Estimate Preview:
-- Empty rows
-- Rows with partial complete_set completion
-- Rows with only supplementary fields filled
-```
-
----
-
-## 📁 File Structure & Implementation Status
-
-```
-/core/validation/
-├── ValidationEngine.ts                 🔄 UPDATE - Add context support, two-phase validation
-├── ValidationResultsManager.ts         ✅ COMPLETE - Efficient result storage
-│
-├── templates/
-│   ├── ValidationTemplate.ts           🔄 UPDATE - Add context parameter
-│   ├── TextSplitTemplate.ts           ✅ COMPLETE - 1D/2D text parsing
-│   ├── FloatTemplate.ts                🆕 NEW - Basic numeric validation
-│   ├── RequiredTemplate.ts            🆕 NEW - Non-empty validation
-│   ├── LedOverrideTemplate.ts         🆕 NEW - LED business logic with context
-│   ├── PsOverrideTemplate.ts          🆕 NEW - Power supply override logic
-│   ├── UlOverrideTemplate.ts          🆕 NEW - UL certification with currency
-│   └── ValidationTemplateRegistry.ts   🔄 UPDATE - Register new templates
-│
-├── validators/
-│   ├── CellValidator.ts                🔄 UPDATE - Pass context to templates
-│   ├── RowValidator.ts                 🔄 UPDATE - Support context_dependent categories
-│   └── StructureValidator.ts           ✅ COMPLETE - AssemblyAssigner integration
-│
-├── context/
-│   ├── ValidationContextBuilder.ts     🆕 NEW - Build validation context with preferences
-│   └── useCustomerPreferences.ts      🆕 NEW - React hook for customer preferences
-│
-├── business/
-│   └── ProductSelector.ts              🆕 NEW - Product selection from validated data
-│
-└── cache/
-    └── ValidationCache.ts              ❌ TODO - Rule caching system
-```
-
----
-
-## 🎯 Context-Aware Validation System
-
-### **ValidationContext Interface:**
-```typescript
-interface ValidationContext {
-  // Current row data
-  rowData: Record<string, string>;
-
-  // Customer preferences from customer_manufacturing_preferences table
-  customerPreferences: {
-    use_leds: boolean;
-    default_led_type: string;
-    requires_transformers: boolean;
-    default_transformer: string;
-    default_ul_requirement: boolean;
-    // ... other preferences
-  };
-
-  // Grid-wide context (other rows affect validation)
-  gridContext: {
-    hasAnyUL: boolean;
-    totalWattage: number;
-    rowCount: number;
-  };
-
-  // Calculated values from Phase 1
-  calculatedValues: {
-    ledCount?: number;
-    psCount?: number;
-    totalInches?: number;
-    totalWattage?: number;
-  };
-}
-```
-
-### **Two-Phase Validation Pipeline:**
-```
-Phase 1: Calculate Derived Values
-├── Parse field1 & field2 (Channel Letters data)
-├── Calculate LED count (based on data + field3 + customer prefs)
-├── Calculate PS count (based on LED wattage)
-└── Calculate total inches/wattage
-
-Phase 2: Context-Aware Validation
-├── Validate fields with calculated dependencies
-├── Apply customer preference defaults
-├── Determine product selections
-└── Update UI with validation results
-```
-
-### **Override Template Pattern:**
-```typescript
-// All override templates follow this pattern:
-// 1. Accept float, "yes", "no" (+ currency for UL)
-// 2. Use context for default behavior
-// 3. Return parsed value + business logic
-
-class LedOverrideTemplate {
-  async validate(value: string, params: any, context: ValidationContext) {
-    // Syntax validation first
-    const parsed = this.parseInput(value); // float/"yes"/"no"
-    if (!parsed.isValid) return parsed;
-
-    // Business logic with context
-    const ledCount = this.calculateLedCount(parsed.value, context);
-    return { isValid: true, parsedValue: parsed.value, calculatedValue: ledCount };
-  }
-}
-```
-
----
-
-## 🎯 TextSplit Template - Comprehensive Implementation
-
-### **Supported Parameters:**
-```typescript
-interface TextSplitParams {
-  // Delimiters
-  delimiter: string;          // Primary delimiter (1st dimension)
-  delimiter2?: string;        // Optional secondary delimiter (2D parsing)
-
-  // Parsing
-  parse_as: 'string' | 'float' | 'integer';
-
-  // 1st Dimension Controls
-  required_count?: number;    // Exactly N groups/items
-  min_count?: number;         // Minimum N groups/items
-  max_count?: number;         // Maximum N groups/items
-
-  // 2nd Dimension Controls (for 2D parsing)
-  required_count2?: number;   // Each group exactly N items
-  min_count2?: number;        // Each group minimum N items
-  max_count2?: number;        // Each group maximum N items
-
-  // Value Controls (numeric parsing)
-  min?: number;               // Minimum value
-  max?: number;               // Maximum value
-
-  // Behavior Controls
-  allow_empty?: boolean;      // Allow empty values
-  trim_whitespace?: boolean;  // Remove spaces (default: true)
-}
-```
-
-### **Example Configurations:**
-```typescript
-// 1D Math Expression: "12 + 5 + 3"
-{
-  delimiter: "+",
-  parse_as: "float",
-  min_count: 2, max_count: 10,
-  min: 0, max: 999
-}
-
-// 2D Dimensions: "12x8, 15x10, 20x12"
-{
-  delimiter: ",", delimiter2: "x",
-  parse_as: "float",
-  min_count: 1, max_count: 20,
-  required_count2: 2,
-  min: 0.1, max: 999.9
-}
-
-// Flexible Measurements: "width:12|height:8, depth:5"
-{
-  delimiter: ",", delimiter2: "|",
-  parse_as: "string",
-  min_count: 1,
-  min_count2: 1, max_count2: 10
-}
-```
-
----
-
-## 🔄 Integration Flow
-
-### **Validation Trigger (Post-Autosave):**
-```
-User Input → GridEngine.updateSingleRow() → AutoSave (500ms debounce)
-    ↓
-AutoSave Completes → ValidationEngine.validateGrid() → Update UI
-```
-
-### **Validation Pipeline:**
-```
-1. CellValidator: Field format validation using templates
-2. RowValidator: Completeness + pricing eligibility
-3. StructureValidator: Business rules + assembly logic
-4. ValidationResultsManager: Store results efficiently
-5. UI Update: Apply red/orange borders, update estimate preview
-```
-
-### **Performance Optimizations:**
-- ✅ **Incremental Validation** - Only changed rows + dependencies
-- ✅ **Parallel Cell Validation** - Promise.all() for field validations
-- ✅ **Efficient Result Storage** - Maps instead of React state
-- ✅ **Template Caching** - Rules loaded once on startup
-- ✅ **Debounced Execution** - Batch validation after autosave
-
----
-
-## 🚀 Implementation Progress
-
-### **Completed (✅)**
-1. **Core Architecture** - ValidationEngine orchestrator with layered approach
-2. **TextSplit Template** - Comprehensive 1D/2D text parsing with all parameters
-3. **Field Categories** - complete_set/sufficient/supplementary system
-4. **Row Validation Logic** - Pricing and estimate preview control
-5. **Results Management** - Efficient validation result storage
-6. **Cell Validation** - Template-based field validation
-
-### **In Progress (🔄)**
-1. **Context-Aware Validation** - Customer preferences integration
-2. **Override Templates** - LED, PS, UL business logic templates
-3. **Two-Phase Validation** - Calculate then validate workflow
-4. **Product Selection Logic** - Separate validation from business rules
-5. **Documentation Updates** - Updated field categories and architecture
-
-### **Remaining TODO (❌)**
-1. **ValidationCache** - Rule and product validation caching system
-2. **GridEngine Integration** - Wire validation into post-autosave pipeline
-3. **UI Visual Feedback** - Modify FieldCell components for red/orange borders
-4. **Additional Templates** - email, phone, etc. (as needed per product)
-
----
-
-## 🎯 Example Product Configuration
-
-### **Product: "Aluminum Sign Panel"**
 ```json
 {
-  "validation_config": {
-    "quantity": {
-      "function": "float",
-      "params": {"min": 1, "allow_negative": false},
-      "error_level": "error",
-      "field_category": "sufficient"
+  "field1": {
+    "function": "non_empty",          // Template alias for required
+    "error_level": "warning",
+    "field_category": "complete_set",
+    "products_affected": ["channel_letters"]
+  },
+  "field2": {
+    "function": "float_or_groups",
+    "params": {
+      "group_separator": "..... ",
+      "number_separator": ",",
+      "allow_negative": false,
+      "min_value": 0
     },
-    "dimensions": {
-      "function": "textsplit",
-      "params": {
-        "delimiter": "x",
-        "parse_as": "float",
-        "required_count": 2,
-        "min": 1, "max": 120
-      },
-      "error_level": "error",
-      "field_category": "mandatory",
-      "error_message": "Enter width x height (1-120 inches each)"
-    },
-    "material": {
-      "function": "textsplit",
-      "params": {
-        "delimiter": ",",
-        "parse_as": "string",
-        "min_count": 1, "max_count": 3
-      },
-      "error_level": "error",
-      "field_category": "mandatory"
-    },
-    "coating": {
-      "function": "textsplit",
-      "params": {
-        "delimiter": ",",
-        "parse_as": "string",
-        "max_count": 2
-      },
-      "error_level": "warning",
-      "field_category": "supplementary"
-    },
-    "rush_charge": {
-      "function": "float",
-      "params": {"allow_negative": false},
-      "error_level": "warning",
-      "field_category": "supplementary"
+    "error_level": "error",
+    "field_category": "complete_set",
+    "products_affected": ["channel_letters", "leds", "power_supplies", "extra_wire"]
+  }
+}
+```
+
+### Current Channel Letters Configuration
+
+- field1: non_empty - Letter type selection (warning-level guidance)
+- field2: float_or_groups - Supports the new grouped `widths..... heights` format or numeric totals
+- field3: led_override - LED count with context-aware overrides
+- field4: ul_override - UL requirements
+- field5: float - Pin count
+- field6: float - Extra wire length
+- field8: led_type - LED type selection gated by LEDs present
+- field9: ps_override - Power supply count
+- field10: ps_type - PS type selection tied to PS availability
+
+All channel-letter defaults now live in `defaultValidationConfigs.ts`, giving us a frontend-controlled safety net whenever the API omits validation rules.
+
+---
+
+## Layer 2: Backend API Layer
+
+### Template Service (dynamicTemplateService.ts)
+
+```typescript
+async getAllFieldPrompts(): Promise<Record<number, SimpleProductTemplate>> {
+  // 1. Query database for all product types
+  const [rows] = await pool.execute(
+    'SELECT id, field_prompts, static_options, validation_rules FROM product_types'
+  );
+
+  // 2. Process dynamic dropdown options
+  // 3. Build complete template objects
+  // 4. Return structured data
+}
+```
+
+### API Endpoint
+
+```json
+// GET /api/job-estimation/templates/all
+{
+  "success": true,
+  "data": {
+    "1": {  // Channel Letters
+      "field_prompts": { "field1": "Letter Type", ... },
+      "static_options": { "field8": ["Standard LED", "RGB LED"], ... },
+      "validation_rules": { "field1": { "function": "required" }, ... }
     }
   }
 }
 ```
 
-### **Row Examples & Behavior:**
+---
+
+## Layer 3: Frontend Validation Engine
+
+### GridJobBuilderRefactored.tsx (Configuration Layer)
+
+```typescript
+// 1. Load templates from API
+const allTemplates = await fieldPromptsApi.getAllTemplates();
+
+// 2. Extract validation rules
+const validationConfigs = new Map<number, Record<string, unknown>>();
+Object.entries(allTemplates).forEach(([productTypeId, template]) => {
+  if (template.validation_rules && Object.keys(template.validation_rules).length > 0) {
+    validationConfigs.set(parseInt(productTypeId), template.validation_rules);
+  }
+});
+
+// 3. Merge in frontend defaults (Channel Letters baseline) and configure engine
+const finalValidationConfigs = applyDefaultValidationConfigs(validationConfigs);
+gridEngine.updateValidationConfig(finalValidationConfigs);
 ```
-[empty] → No validation, No pricing, No estimate ✅
 
-[quantity: 5] → No warnings, Pricing ✅, Estimate ✅ (sufficient)
+### GridEngine.ts (Orchestration Layer)
 
-[dimensions: "12x8"] → Warning (partial mandatory), No pricing, No estimate
+```typescript
+class GridEngine {
+  private validationEngine: ValidationEngine;
 
-[quantity: 5, dimensions: "12x8", material: "aluminum"] → No warnings, Pricing ✅, Estimate ✅ (complete)
+  // Triggers validation after any data change
+  private recalculateAllLayers() {
+    // ... layer calculations ...
 
-[coating: "powder coat"] → Warning (supplementary only), Pricing ✅, No estimate
-
-[dimensions: "12x8x3"] → Error (expects 2 dimensions), No pricing, No estimate
+    // Trigger validation (debounced to prevent excessive calls)
+    if (this.validationEngine) {
+      this.triggerValidationDebounced(); // 150ms debounce
+    }
+  }
+}
 ```
 
 ---
 
-## 🔮 Future Extensions
+## Layer 4: Validation Engine Core
 
-### **Additional Templates (As Needed):**
-- `float` - Simple numeric validation
-- `required` - Non-empty field validation
-- `email` - Email format validation
-- `phone` - Phone number validation
-- `currency` - Money format validation
-- `dimensions` - Specialized dimension parsing
-- `color_code` - Hex/named color validation
+### ValidationEngine.ts (Two-Phase Pipeline)
 
-### **Advanced Features:**
-- **Conditional Validation** - Rules that depend on other field values
-- **Cross-Row Validation** - Assembly-level business rules
-- **Dynamic Rule Loading** - Real-time rule updates without restart
-- **Validation History** - Track validation changes over time
-- **Performance Analytics** - Validation timing and optimization metrics
+```typescript
+async validateGrid(rows: GridRowCore[]): Promise<void> {
+  // PHASE 1: Calculate derived values
+  const calculatedValues = await this.calculateDerivedValues(rows, customerPreferences);
+  // Example: LED count, PS count, total wattage, perimeter
+
+  // PHASE 2: Context-aware validation
+  const contexts = this.buildValidationContext(rows, customerPreferences, calculatedValues);
+
+  // Execute validation layers
+  await this.validateCells(rows, contexts);      // Field-level validation
+  await this.validateRows(rows, contexts);       // Row completeness
+  await this.validateStructure(rows, contexts);  // Grid-wide rules
+}
+```
+
+### Phase 1: Derived Value Calculation
+
+```typescript
+// Channel Letters specific calculations
+if (row.productTypeId === 1) {
+  const metrics = calculateChannelLetterMetrics(row.data.field2);
+  rowCalculations.channelLetterMetrics = metrics;
+  rowCalculations.ledCount = this.calculateLedCount(row, customerPreferences, metrics);
+  rowCalculations.totalInches = metrics?.totalWidth || 0;
+  rowCalculations.totalWattage = this.calculateTotalWattage(rowCalculations.ledCount);
+  rowCalculations.psCount = this.calculatePsCount(rowCalculations.ledCount, rowCalculations.totalWattage);
+}
+```
+
+> **Note:** `calculateChannelLetterMetrics` currently returns placeholder totals while we finish the grouped-format math. The structure is already plumbed through the validation context so we can drop in the final calculations without further refactors.
+```
+
+### Phase 2: Context Building
+
+```typescript
+const context: ValidationContext = {
+  rowData: row.data,
+  customerPreferences: {
+    use_leds: false,
+    default_led_type: 'Standard LED',
+    requires_transformers: false,
+    default_ul_requirement: false
+  },
+  gridContext: {
+    hasAnyUL: this.hasAnyUL(allRows),
+    totalWattage: this.getTotalWattage(allRows),
+    rowCount: allRows.length
+  },
+  calculatedValues: rowCalculations
+};
+```
 
 ---
 
-## 📝 Next Implementation Steps
+## Layer 5: Validation Templates
 
-1. **Complete StructureValidator** - Implement hardcoded business rules
-2. **Build ValidationCache** - Efficient rule and config caching
-3. **GridEngine Integration** - Wire into existing autosave pipeline
-4. **UI Integration** - Add visual feedback to FieldCell components
-5. **Testing** - Unit tests for templates and edge cases
-6. **Performance Optimization** - Profile and optimize validation speed
+### Template Architecture
 
-This validation layer provides a robust, flexible foundation for complex business rule validation while maintaining excellent performance and user experience.
+```typescript
+interface ValidationTemplate {
+  validate(value: string, params: Record<string, unknown>, context?: ValidationContext): Promise<ValidationResult>;
+  getDescription(): string;
+  getParameterSchema(): Record<string, unknown>;
+}
+```
+
+### Template Registry (ValidationTemplateRegistry.ts)
+
+```typescript
+class ValidationTemplateRegistry {
+  constructor() {
+    // Basic templates
+    this.registerTemplate('required', new RequiredTemplate());
+    this.registerTemplate('float', new FloatTemplate());
+    this.registerTemplate('textsplit', new TextSplitTemplate());
+
+    // Context-aware templates
+    this.registerTemplate('led_override', new LedOverrideTemplate());
+    this.registerTemplate('ps_override', new PsOverrideTemplate());
+    this.registerTemplate('ul_override', new UlOverrideTemplate());
+
+    // Specialized templates
+    this.registerTemplate('float_or_groups', new FloatOrGroupsTemplate());
+  }
+}
+```
+
+### Template Examples
+
+#### TextSplitTemplate (Dimensions)
+
+```typescript
+// Validates "12x8,15x10" format
+validate("12x8,15x10", {
+  delimiter: ",",      // Split groups
+  delimiter2: "x",     // Split dimensions
+  parse_as: "float",   // Parse as numbers
+  required_count2: 2   // Require width x height
+})
+```
+
+#### LedOverrideTemplate (Context-Aware)
+
+```typescript
+// Validates LED count with business logic
+validate("yes", { accepts: ["float", "yes", "no"] }, context) {
+  if (value === "yes") {
+    // Calculate from channel letter dimensions
+    return this.calculateLedsFromChannelLetters(context);
+  }
+}
+```
+
+---
+
+## Layer 6: Validation Results Management
+
+### ValidationResultsManager.ts
+
+```typescript
+class ValidationResultsManager {
+  private cellErrors = new Map<string, CellValidationError>();
+  private cellWarnings = new Map<string, CellValidationWarning>();
+  private structureErrors = new Map<string, StructureValidationError>();
+
+  setCellError(rowId: string, fieldName: string, error: CellValidationError): void {
+    const key = `${rowId}.${fieldName}`;
+    this.cellErrors.set(key, error);
+  }
+
+  getValidationSummary(): ValidationSummary {
+    return {
+      errorCount: this.cellErrors.size,
+      warningCount: this.cellWarnings.size,
+      hasErrors: this.cellErrors.size > 0
+    };
+  }
+}
+```
+
+---
+
+## Layer 7: UI Feedback Layer
+
+### Visual Indicators
+
+```typescript
+// Red borders for errors
+className={`border ${hasError ? 'border-red-500' : 'border-gray-300'}`}
+
+// Error tooltips
+{hasError && (
+  <div className="absolute bg-red-100 border border-red-300 rounded p-2">
+    {error.message}
+    <div className="text-xs text-gray-600">{error.expectedFormat}</div>
+  </div>
+)}
+```
+
+### Validation Summary
+
+```typescript
+// Shows total error count in EstimateTable
+<div className="text-red-600">
+  {errorCount} validation {errorCount === 1 ? 'error' : 'errors'}
+</div>
+```
+
+---
+
+## Data Flow Diagram
+
+```
+Database (validation_rules)
+    ↓
+Backend API (/templates/all)
+    ↓
+Frontend Template Loading
+    ↓
+GridEngine Configuration
+    ↓
+User Input → Grid Change
+    ↓
+ValidationEngine.validateGrid()
+    ↓
+Phase 1: Calculate Values → Phase 2: Validate with Context
+    ↓
+Template.validate() → ValidationResult
+    ↓
+ValidationResultsManager → Store Results
+    ↓
+UI → Red Borders + Tooltips
+```
+
+---
+
+## Key Features
+
+### 🔄 Real-Time Validation
+
+- Triggers on every field change (debounced)
+- Updates immediately with visual feedback
+- No blocking - validation is informational only
+
+### 📊 Context-Aware Logic
+
+- LED count affects PS validation
+- Customer preferences influence defaults
+- Grid-wide state (UL requirements) affects individual fields
+
+### 🎯 Template Extensibility
+
+- New validation types via template registration
+- Database-driven configuration
+- Reusable validation logic across products
+
+### ⚡ Performance Optimized
+
+- Validation debouncing (150ms)
+- Efficient result caching
+- Minimal re-computation
+
+### 🏗️ Separation of Concerns
+
+- Database: Configuration storage
+- Backend: Template serving
+- ValidationEngine: Business logic
+- Templates: Reusable validation rules
+- UI: Visual feedback only
+
+This architecture provides a scalable, maintainable, and extensible validation system that can handle complex business rules while maintaining excellent performance and user experience.

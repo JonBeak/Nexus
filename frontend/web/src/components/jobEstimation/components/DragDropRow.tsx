@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Plus, GripVertical, Trash2, Copy } from 'lucide-react';
+import { Plus, GripVertical, Trash2, Copy, Eraser } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GridRow } from '../core/types/LayerTypes';
@@ -22,9 +22,9 @@ interface DragDropRowProps {
   onInsertRow: (afterIndex: number) => void;
   onDeleteRow: (rowIndex: number) => void;
   onDuplicateRow: (rowIndex: number) => void;
+  onClearRow: (rowIndex: number) => void;
   isReadOnly: boolean;
   fieldPrompts?: Record<string, string>; // Field prompts for this product type
-  fieldEnabled?: Record<string, boolean>; // Field enable states
   staticOptions?: Record<string, string[]>; // Static dropdown options
   validationStates?: Record<string, 'error' | 'warning' | 'valid'>; // Validation states
 }
@@ -39,18 +39,12 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
   onInsertRow,
   onDeleteRow,
   onDuplicateRow,
+  onClearRow,
   isReadOnly,
   fieldPrompts,
-  fieldEnabled,
   staticOptions,
   validationStates
 }) => {
-  // Use sortable for draggable rows only
-  const sortableConfig = row.isDraggable ? useSortable({ 
-    id: row.id,
-    animateLayoutChanges: () => false  // Disable row movement animations
-  }) : null;
-  
   const {
     attributes,
     listeners,
@@ -58,14 +52,11 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
     transform,
     transition,
     isDragging
-  } = sortableConfig || {
-    attributes: {},
-    listeners: {},
-    setNodeRef: () => {},
-    transform: null,
-    transition: undefined,
-    isDragging: false
-  };
+  } = useSortable({ 
+    id: row.id,
+    animateLayoutChanges: () => false,
+    disabled: !row.isDraggable
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -79,11 +70,9 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
     paddingLeft: row.nestingLevel === 'sub' ? '16px' : '0px' 
   };
 
-  // Get field data for 12 columns - using existing row data structure
   const getFieldData = (colIndex: number) => {
-    const fieldKeys = Object.keys(row.data);
-    const fieldName = fieldKeys[colIndex];
-    const fieldValue = fieldName ? row.data[fieldName] : '';
+    const fieldName = `field${colIndex + 1}`;
+    const fieldValue = row.data?.[fieldName] ?? '';
     return { fieldName, fieldValue };
   };
 
@@ -96,7 +85,7 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
       }`}
     >
       {/* Row Number & Drag Handle - matches original exactly */}
-      <td className="w-4 px-0.5 py-1 border-r">
+      <td className="w-4 px-0.5 py-0.25 border-r">
         <div className="flex items-center h-full">
           {/* Drag Handle - Left Aligned */}
           {row.isDraggable && (
@@ -123,7 +112,7 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
       </td>
       
       {/* Product Type Selector */}
-      <td className="px-2 py-0.5" style={indentStyle}>
+      <td className="px-2 py-0" style={indentStyle}>
         <ProductTypeSelector
           row={row}
           rowIndex={rowIndex}
@@ -134,7 +123,7 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
       </td>
       
       {/* QTY Column */}
-      <td className="px-1 py-0.5 w-5 border-l border-gray-100">
+      <td className="px-0.5 py-0 w-4 border-l border-gray-100">
         <FieldCell
           fieldName="quantity"
           fieldValue={row.data?.quantity || ''}
@@ -152,68 +141,79 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
       {/* 10 Dynamic Field Columns */}
       {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(colIndex => {
         const { fieldName, fieldValue } = getFieldData(colIndex);
-        
+
         return (
-          <td key={colIndex} className="px-1 py-0.5 w-6 border-l border-gray-100">
-            {fieldName && (
-              <FieldCell
-                fieldName={fieldName}
-                fieldValue={fieldValue}
-                fieldType={(staticOptions?.[fieldName] && staticOptions[fieldName].length > 0) ? "select" : "text"}
-                placeholder={`F${colIndex + 1}`}
-                isEditable={!isReadOnly && row.editableFields.includes(fieldName)}
-                onCommit={(value) => onFieldCommit(rowIndex, fieldName, value)}
-                staticDataCache={staticDataCache}
-                fieldPrompt={fieldPrompts?.[fieldName]}
-                fieldEnabled={fieldPrompts?.[`${fieldName}_enabled`] === true}
-                options={staticOptions?.[fieldName]}
-                validationState={validationStates?.[fieldName]}
-              />
-            )}
+          <td key={colIndex} className="px-0.5 py-0 w-6 border-l border-gray-100">
+            <FieldCell
+              fieldName={fieldName}
+              fieldValue={fieldValue}
+              fieldType={(staticOptions?.[fieldName] && staticOptions[fieldName].length > 0) ? 'select' : 'text'}
+              placeholder={`F${colIndex + 1}`}
+              isEditable={!isReadOnly && row.editableFields.includes(fieldName)}
+              onCommit={(value) => onFieldCommit(rowIndex, fieldName, value)}
+              staticDataCache={staticDataCache}
+              fieldPrompt={fieldPrompts?.[fieldName]}
+              fieldEnabled={fieldPrompts?.[`${fieldName}_enabled`] === true}
+              options={staticOptions?.[fieldName]}
+              validationState={validationStates?.[fieldName]}
+            />
           </td>
         );
       })}
       
       {/* Actions - add row button on all rows except continuation rows */}
-      <td className="w-4 px-1.5 py-0.5 border-l">
-        <div className="flex items-center space-x-1">
+      <td className="w-5 px-1 py-0 border-l">
+        <div className="flex items-center justify-center gap-0.5">
           {/* Add Row button - show on all rows except continuation rows */}
           {!isReadOnly && row.rowType !== 'continuation' ? (
             <button
               onClick={() => onInsertRow(rowIndex)}
-              className="w-3 h-3 text-xs text-gray-400 hover:text-green-600 hover:bg-green-50 rounded"
+              className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:text-green-600 hover:bg-green-50 transition-colors"
               title="Insert row"
             >
-              <Plus className="w-3 h-3" />
+              <Plus className="w-4 h-4" />
             </button>
           ) : (
-            <div className="w-3 h-3"></div>
+            <div className="w-5 h-5" />
           )}
           
           {/* Duplicate button - show when allowed */}
           {!isReadOnly && row.canDuplicate ? (
             <button
               onClick={() => onDuplicateRow(rowIndex)}
-              className="w-3 h-3 text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+              className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
               title="Duplicate"
             >
-              <Copy className="w-3 h-3" />
+              <Copy className="w-4 h-4" />
             </button>
           ) : (
-            <div className="w-3 h-3"></div>
+            <div className="w-5 h-5" />
+          )}
+
+          {/* Clear button - resets editable fields and quantity */}
+          {!isReadOnly && row.editableFields?.length ? (
+            <button
+              onClick={() => onClearRow(rowIndex)}
+              className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:text-orange-600 hover:bg-orange-50 transition-colors"
+              title="Clear row"
+            >
+              <Eraser className="w-4 h-4" />
+            </button>
+          ) : (
+            <div className="w-5 h-5" />
           )}
           
           {/* Delete button - show when allowed */}
           {!isReadOnly && row.canDelete ? (
             <button
               onClick={() => onDeleteRow(rowIndex)}
-              className="w-3 h-3 text-xs text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+              className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors"
               title="Delete"
             >
-              <Trash2 className="w-3 h-3" />
+              <Trash2 className="w-4 h-4" />
             </button>
           ) : (
-            <div className="w-3 h-3"></div>
+            <div className="w-5 h-5" />
           )}
         </div>
       </td>

@@ -1,21 +1,5 @@
 import React from 'react';
-
-interface WeeklyEntry {
-  entry_id: number;
-  clock_in: string;
-  clock_out: string | null;
-  break_minutes: number;
-  total_hours: number;
-  status: string;
-  request_id: number | null;
-}
-
-interface WeeklyData {
-  weekStart: string;
-  weekEnd: string;
-  weekTotal: number;
-  entries: WeeklyEntry[];
-}
+import type { WeeklyData, WeeklyEntry } from '../../types/time';
 
 interface WeeklySummaryProps {
   weeklyData: WeeklyData | null;
@@ -33,11 +17,11 @@ function WeeklySummary({
   onRequestDelete 
 }: WeeklySummaryProps) {
   // Helper function to safely format numbers
-  const formatHours = (value: any): string => {
+  const formatHours = (value: unknown): string => {
     // Handle null, undefined, empty string
     if (value == null || value === '') {
       // If weekTotal is null, calculate it from entries as fallback
-      if (value === null && weeklyData?.entries?.length > 0) {
+      if (value === null && weeklyData?.entries?.length) {
         const calculated = weeklyData.entries.reduce((sum, entry) => {
           const hours = Number(entry.total_hours) || 0;
           return sum + hours;
@@ -59,7 +43,7 @@ function WeeklySummary({
   };
   const formatTime = (dateString: string | null) => {
     if (!dateString) return '-';
-    
+
     // Parse datetime string directly without timezone conversion
     const cleanDateString = dateString.replace(' ', 'T').replace('.000Z', '');
     const hour = parseInt(cleanDateString.substring(11, 13) || '0');
@@ -82,33 +66,6 @@ function WeeklySummary({
     // Create local date to avoid timezone conversion
     const localDate = new Date(year, month, day);
     return localDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  };
-
-  const formatWeekRange = (startDate: string, endDate: string) => {
-    if (!startDate || !endDate) return '';
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
-    const startStr = start.toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      month: 'short', 
-      day: 'numeric' 
-    });
-    const endStr = end.toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      month: 'short', 
-      day: 'numeric' 
-    });
-    
-    return `${startStr} - ${endStr}`;
-  };
-
-  const formatDateTime = (dateString: string) => {
-    if (!dateString) return '';
-    // Parse datetime string directly without timezone conversion
-    // Expected format: "2025-08-26T07:30:00.000Z" or "2025-08-26 07:30:00"
-    const cleanDateString = dateString.replace(' ', 'T').replace('.000Z', '').substring(0, 16);
-    return cleanDateString;
   };
 
   return (
@@ -259,3 +216,21 @@ function WeeklySummary({
 }
 
 export default WeeklySummary;
+  const formatWeekRange = (startDate: string, endDate: string) => {
+    if (!startDate || !endDate) return '';
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    const startStr = start.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
+    });
+    const endStr = end.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
+    });
+
+    return `${startStr} - ${endStr}`;
+  };

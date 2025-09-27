@@ -4,7 +4,7 @@
 import { ValidationTemplate, ValidationResult, RequiredParams } from './ValidationTemplate';
 
 export class RequiredTemplate implements ValidationTemplate {
-  async validate(value: string, params: RequiredParams = {}, context?: any): Promise<ValidationResult> {
+  async validate(value: string, params: RequiredParams = {}): Promise<ValidationResult> {
     try {
       // Check if value is null, undefined, or empty string
       if (value === null || value === undefined || value === '') {

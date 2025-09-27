@@ -4,39 +4,20 @@ import { ProductsStatsCards } from './components/ProductsStatsCards';
 import { ProductsFilters } from './components/ProductsFilters';
 import { ProductsTableHeader } from './components/ProductsTableHeader';
 import { ProductsTableRow } from './components/ProductsTableRow';
-
-export interface VinylProduct {
-  product_id: number;
-  brand: string;
-  series: string;
-  colour: string; // Keep for backward compatibility
-  colour_number: string;
-  colour_name: string;
-  default_width?: number;
-  default_length_yards?: number;
-  suppliers?: string;
-  supplier_details?: any[];
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  created_by_name?: string;
-  updated_by_name?: string;
-}
+import { InventoryUser, VinylProduct } from './types';
 
 interface ProductsTabProps {
-  user: any;
+  user: InventoryUser;
   onShowAddModal: () => void;
   onEditProduct: (product: VinylProduct) => void;
   onDeleteProduct: (id: number) => void;
-  showNotification: (message: string, type?: 'success' | 'error') => void;
 }
 
 export const ProductsTab: React.FC<ProductsTabProps> = ({
   user,
   onShowAddModal,
   onEditProduct,
-  onDeleteProduct,
-  showNotification
+  onDeleteProduct
 }) => {
   const {
     productsStats,

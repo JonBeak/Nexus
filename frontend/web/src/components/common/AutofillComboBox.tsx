@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Check } from 'lucide-react';
 
@@ -14,6 +14,7 @@ interface AutofillComboBoxProps {
   className?: string;
   name?: string;
   onTab?: () => void;
+  onSuggestionsNeeded?: () => void;
 }
 
 export const AutofillComboBox: React.FC<AutofillComboBoxProps> = ({
@@ -27,60 +28,71 @@ export const AutofillComboBox: React.FC<AutofillComboBoxProps> = ({
   disabled = false,
   className = '',
   name,
-  onTab
+  onTab,
+  onSuggestionsNeeded
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const justSelectedRef = useRef(false);
 
-  useEffect(() => {
-    // Filter suggestions based on current input - show suggestions that CONTAIN the typed text
+  const filteredSuggestions = useMemo(() => {
     const searchValue = (value || '').toLowerCase();
-    const filtered = suggestions.filter(suggestion =>
-      suggestion === '---' || // Always include the clear filter option
+    return suggestions.filter(suggestion =>
+      suggestion === '---' ||
       (suggestion && suggestion.toLowerCase().includes(searchValue))
     );
-    setFilteredSuggestions(filtered);
+  }, [suggestions, value]);
+
+  useEffect(() => {
     setHighlightedIndex(-1);
   }, [value, suggestions]);
 
   // Calculate dropdown position relative to viewport
-  const updateDropdownPosition = () => {
+  const updateDropdownPosition = useCallback(() => {
     if (!containerRef.current) return;
     
     const rect = containerRef.current.getBoundingClientRect();
     const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
     const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
     
-    setDropdownPosition({
-      top: rect.bottom + scrollTop + 4, // 4px gap like mt-1
+    const nextPosition = {
+      top: rect.bottom + scrollTop + 4,
       left: rect.left + scrollLeft,
       width: rect.width
+    };
+
+    setDropdownPosition(prev => {
+      if (prev && prev.top === nextPosition.top && prev.left === nextPosition.left && prev.width === nextPosition.width) {
+        return prev;
+      }
+      return nextPosition;
     });
-  };
+  }, []);
 
   // Update position when dropdown opens or on scroll/resize
-  useEffect(() => {
-    if (isOpen) {
-      updateDropdownPosition();
-      
-      const handleScroll = () => updateDropdownPosition();
-      const handleResize = () => updateDropdownPosition();
-      
-      window.addEventListener('scroll', handleScroll, true); // Capture phase for nested scrollers
-      window.addEventListener('resize', handleResize);
-      
-      return () => {
-        window.removeEventListener('scroll', handleScroll, true);
-        window.removeEventListener('resize', handleResize);
-      };
+  useLayoutEffect(() => {
+    if (!isOpen) {
+      setDropdownPosition(null);
+      return;
     }
-  }, [isOpen]);
+
+    updateDropdownPosition();
+
+    const handleScroll = () => updateDropdownPosition();
+    const handleResize = () => updateDropdownPosition();
+
+    window.addEventListener('scroll', handleScroll, true); // Capture phase for nested scrollers
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [isOpen, updateDropdownPosition]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -101,6 +113,7 @@ export const AutofillComboBox: React.FC<AutofillComboBoxProps> = ({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     onChange(newValue);
+    onSuggestionsNeeded?.();
     if (!isOpen && newValue) {
       setIsOpen(true);
     }
@@ -118,6 +131,7 @@ export const AutofillComboBox: React.FC<AutofillComboBoxProps> = ({
     if (suggestions.length > 0) {
       setIsOpen(true);
     }
+    onSuggestionsNeeded?.();
   };
 
   const handleSuggestionClick = (suggestion: string) => {
@@ -130,12 +144,35 @@ export const AutofillComboBox: React.FC<AutofillComboBoxProps> = ({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!isOpen) {
       if (e.key === 'ArrowDown' && filteredSuggestions.length > 0) {
+        onSuggestionsNeeded?.();
         setIsOpen(true);
         setHighlightedIndex(0);
         e.preventDefault();
       }
       return;
     }
+
+    const getFocusableElements = (form?: HTMLFormElement | null) => {
+      if (!form) {
+        return [];
+      }
+
+      return Array.from(form.elements).filter((element): element is HTMLElement => {
+        if (!(element instanceof HTMLElement)) {
+          return false;
+        }
+
+        if (element instanceof HTMLInputElement && element.type === 'hidden') {
+          return false;
+        }
+
+        if ('disabled' in element && (element as HTMLButtonElement).disabled) {
+          return false;
+        }
+
+        return element.tabIndex >= 0;
+      });
+    };
 
     switch (e.key) {
       case 'ArrowDown':
@@ -173,16 +210,11 @@ export const AutofillComboBox: React.FC<AutofillComboBoxProps> = ({
               onTab();
             } else {
               // Default form navigation
-              const form = inputRef.current?.form;
-              if (form) {
-                const elements = Array.from(form.elements).filter((el: any) => 
-                  el.type !== 'hidden' && !el.disabled && el.tabIndex >= 0
-                ) as HTMLElement[];
-                const currentIndex = elements.indexOf(inputRef.current as HTMLElement);
-                const nextElement = elements[currentIndex + 1] as HTMLInputElement;
-                if (nextElement && nextElement.focus) {
-                  nextElement.focus();
-                }
+              const elements = getFocusableElements(inputRef.current?.form);
+              const currentIndex = elements.indexOf(inputRef.current as HTMLElement);
+              const nextElement = elements[currentIndex + 1];
+              if (nextElement) {
+                nextElement.focus();
               }
             }
           }, 0);
@@ -195,16 +227,11 @@ export const AutofillComboBox: React.FC<AutofillComboBoxProps> = ({
               onTab();
             } else {
               // Default form navigation
-              const form = inputRef.current?.form;
-              if (form) {
-                const elements = Array.from(form.elements).filter((el: any) => 
-                  el.type !== 'hidden' && !el.disabled && el.tabIndex >= 0
-                ) as HTMLElement[];
-                const currentIndex = elements.indexOf(inputRef.current as HTMLElement);
-                const nextElement = elements[currentIndex + 1] as HTMLInputElement;
-                if (nextElement && nextElement.focus) {
-                  nextElement.focus();
-                }
+              const elements = getFocusableElements(inputRef.current?.form);
+              const currentIndex = elements.indexOf(inputRef.current as HTMLElement);
+              const nextElement = elements[currentIndex + 1];
+              if (nextElement) {
+                nextElement.focus();
               }
             }
           }, 0);
@@ -250,6 +277,9 @@ export const AutofillComboBox: React.FC<AutofillComboBoxProps> = ({
               // When opening dropdown, show all available suggestions
               setIsOpen(suggestions.length > 0 || value.trim().length > 0);
             }
+            if (!isOpen) {
+              onSuggestionsNeeded?.();
+            }
           }}
           className={`absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}
         >
@@ -257,7 +287,7 @@ export const AutofillComboBox: React.FC<AutofillComboBoxProps> = ({
         </div>
       </div>
 
-      {isOpen && (filteredSuggestions.length > 0 || loading) && createPortal(
+      {isOpen && dropdownPosition && (filteredSuggestions.length > 0 || loading) && createPortal(
         <div 
           ref={dropdownRef}
           className="fixed z-[9999] bg-white border border-gray-300 rounded-md shadow-lg"

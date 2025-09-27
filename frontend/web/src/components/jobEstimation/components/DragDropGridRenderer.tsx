@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, DragStartEvent } from '@dnd-kit/core';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { GridRow } from '../core/types/LayerTypes';
 import { DragDropRow } from './DragDropRow';
@@ -19,12 +19,13 @@ interface DragDropGridRendererProps {
   onInsertRow: (afterIndex: number) => void;
   onDeleteRow: (rowIndex: number) => void;
   onDuplicateRow: (rowIndex: number) => void;
+  onClearRow: (rowIndex: number) => void;
   onDragEnd: (event: DragEndEvent) => void;
   isReadOnly: boolean;
   fieldPromptsMap?: Record<number, Record<string, string>>; // Prompts by product type
-  fieldEnabledMap?: Record<number, Record<string, boolean>>; // Enable states by product type
   staticOptionsMap?: Record<number, Record<string, string[]>>; // Options by product type
   validationEngine?: any; // Reference to validation engine (placeholder)
+  validationVersion?: number;
 }
 
 export const DragDropGridRenderer: React.FC<DragDropGridRendererProps> = ({
@@ -36,12 +37,13 @@ export const DragDropGridRenderer: React.FC<DragDropGridRendererProps> = ({
   onInsertRow,
   onDeleteRow,
   onDuplicateRow,
+  onClearRow,
   onDragEnd,
   isReadOnly,
   fieldPromptsMap,
-  fieldEnabledMap,
   staticOptionsMap,
-  validationEngine
+  validationEngine,
+  validationVersion = 0
 }) => {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -112,17 +114,22 @@ export const DragDropGridRenderer: React.FC<DragDropGridRendererProps> = ({
                 <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 8</th>
                 <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 9</th>
                 <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 10</th>
-                <th className="w-4 px-1 py-1 text-xs font-medium text-gray-600 text-center">Actions</th>
+                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Actions</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row, index) => {
                 // Calculate validation states for this row if validation engine provided
-                const validationStates = validationEngine?.getValidationResults
+                const validationManager = validationEngine?.getValidationResults?.();
+                const baseFieldNames = ['quantity', 'field1', 'field2', 'field3', 'field4', 'field5', 'field6', 'field7', 'field8', 'field9', 'field10'];
+                const dataFieldNames = Object.keys(row.data || {});
+                const fieldNames = new Set<string>([...baseFieldNames, ...dataFieldNames]);
+                void validationVersion; // Ensure updates trigger re-computation
+                const validationStates = validationManager
                   ? Object.fromEntries(
-                      Object.keys(row.data || {}).map(fieldName => [
+                      Array.from(fieldNames).map(fieldName => [
                         fieldName,
-                        validationEngine.getValidationResults().getCellValidationState(row.id, fieldName)
+                        validationManager.getCellValidationState(row.id, fieldName)
                       ])
                     )
                   : undefined;
@@ -139,9 +146,9 @@ export const DragDropGridRenderer: React.FC<DragDropGridRendererProps> = ({
                     onInsertRow={onInsertRow}
                     onDeleteRow={onDeleteRow}
                     onDuplicateRow={onDuplicateRow}
+                    onClearRow={onClearRow}
                     isReadOnly={isReadOnly}
                     fieldPrompts={fieldPromptsMap?.[row.productTypeId || 0]}
-                    fieldEnabled={fieldEnabledMap?.[row.productTypeId || 0]}
                     staticOptions={staticOptionsMap?.[row.productTypeId || 0]}
                     validationStates={validationStates}
                   />

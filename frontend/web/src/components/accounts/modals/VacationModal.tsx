@@ -100,7 +100,7 @@ export const VacationModal: React.FC<VacationModalProps> = ({
     }
   };
 
-  const handleInputChange = (field: keyof VacationPeriod, value: any) => {
+  const handleInputChange = <K extends keyof VacationPeriod>(field: K, value: VacationPeriod[K]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));

@@ -1,6 +1,6 @@
 // Grid-level types and configurations
 
-import { GridRow, GridRowCore, ProductTypeConfig } from './CoreTypes';
+import { GridRow, ProductTypeConfig } from './CoreTypes';
 
 export interface GridState {
   // Core data
@@ -33,16 +33,19 @@ export interface DragState {
   };
 }
 
-export interface CalculationContext {
-  // External dependencies
-  productTypes: ProductTypeConfig[]; // Product field configurations
+export interface PricingCalculationContext {
+  // Existing validation data
+  validationResultsManager: any; // ValidationResultsManager - avoiding circular import (now includes row metadata)
+  customerPreferences?: any; // CustomerManufacturingPreferences - avoiding circular import
 
-  // Current state
-  currentRows: GridRowCore[];        // Input data for calculations
-  previousRows?: GridRow[];          // Previous state for diff calculations
+  // NEW: Customer context
+  customerId?: number;
+  customerName?: string;
+  cashCustomer?: boolean;        // From cash_yes_or_no field
+  taxRate?: number;              // Pre-calculated from billing address
 
-  // Calculation flags
-  forceRecalculation?: boolean;      // Ignore memoization
+  // NEW: Estimate context
+  estimateId?: number;
 }
 
 export interface UpdateOptions {

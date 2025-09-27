@@ -74,36 +74,34 @@ export const FieldCell: React.FC<FieldCellProps> = ({
   const fieldClasses = `${baseClasses} ${valueClasses}`;
 
   // Use fieldPrompt as placeholder - no fallback, should fail clearly if missing
-  const displayPlaceholder = fieldPrompt;
+  const displayPlaceholder = fieldPrompt ?? placeholder ?? '';
 
   switch (fieldType) {
-    case 'select':
-      // Try to get options from staticDataCache first, then fallback to passed options
+    case 'select': {
       let selectOptions = options;
       if (staticDataCache && fieldName && staticDataCache[fieldName]) {
-        selectOptions = staticDataCache[fieldName].map((item: any) => 
-          typeof item === 'string' ? item : item.name || item.label || item.value
+        selectOptions = staticDataCache[fieldName].map((item: unknown) =>
+          typeof item === 'string' ? item : (item as Record<string, string>)["name"] || (item as Record<string, string>)["label"] || (item as Record<string, string>)["value"]
         );
       }
-      
+
       if (!selectOptions || selectOptions.length === 0) {
-        // No options available - render as text input
         return (
           <input
             type="text"
             value={localValue}
-            onChange={(e) => setLocalValue(e.target.value)}
+            onChange={(event) => setLocalValue(event.target.value)}
             onBlur={handleCommit}
             className={fieldClasses}
             placeholder={displayPlaceholder}
           />
         );
       }
-      
+
       return (
         <select
           value={localValue}
-          onChange={(e) => setLocalValue(e.target.value)}
+          onChange={(event) => setLocalValue(event.target.value)}
           onBlur={handleCommit}
           className={`${fieldClasses} appearance-none`}
         >
@@ -115,26 +113,27 @@ export const FieldCell: React.FC<FieldCellProps> = ({
           ))}
         </select>
       );
-    
+    }
+
     case 'number':
       return (
         <input
           type="text"
           value={localValue}
-          onChange={(e) => setLocalValue(e.target.value)}
+          onChange={(event) => setLocalValue(event.target.value)}
           onBlur={handleCommit}
           className={fieldClasses}
           placeholder={displayPlaceholder}
         />
       );
-    
+
     case 'text':
     default:
       return (
         <input
           type="text"
           value={localValue}
-          onChange={(e) => setLocalValue(e.target.value)}
+          onChange={(event) => setLocalValue(event.target.value)}
           onBlur={handleCommit}
           className={fieldClasses}
           placeholder={displayPlaceholder}

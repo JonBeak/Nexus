@@ -1,12 +1,17 @@
 import { useState } from 'react';
 import { vinylApi } from '../../../services/api';
-import { VinylItem } from '../InventoryTab';
+import { InventoryFilterType, InventoryStats, VinylItem } from '../types';
+
+interface InventoryApiResult {
+  items: VinylItem[];
+  stats: InventoryStats;
+}
 
 interface UseInventoryAPIReturn {
   loading: boolean;
   error: string | null;
-  loadVinylData: (filterType?: string) => Promise<{ items: VinylItem[]; stats: any }>;
-  refreshData: (filterType?: string) => Promise<void>;
+  loadVinylData: (filterType?: InventoryFilterType) => Promise<InventoryApiResult>;
+  refreshData: (filterType?: InventoryFilterType) => Promise<void>;
   clearError: () => void;
 }
 
@@ -14,7 +19,7 @@ export const useInventoryAPI = (): UseInventoryAPIReturn => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadVinylData = async (filterType?: string): Promise<{ items: VinylItem[]; stats: any }> => {
+  const loadVinylData = async (filterType?: InventoryFilterType): Promise<InventoryApiResult> => {
     try {
       setLoading(true);
       setError(null);
@@ -25,10 +30,10 @@ export const useInventoryAPI = (): UseInventoryAPIReturn => {
       ]);
       
       return {
-        items: itemsResponse || [],
-        stats: statsResponse || {}
+        items: (itemsResponse || []) as VinylItem[],
+        stats: (statsResponse || {}) as InventoryStats
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading vinyl data:', err);
       const errorMessage = 'Failed to load vinyl inventory';
       setError(errorMessage);
@@ -38,7 +43,7 @@ export const useInventoryAPI = (): UseInventoryAPIReturn => {
     }
   };
 
-  const refreshData = async (filterType?: string): Promise<void> => {
+  const refreshData = async (filterType?: InventoryFilterType): Promise<void> => {
     await loadVinylData(filterType);
   };
 

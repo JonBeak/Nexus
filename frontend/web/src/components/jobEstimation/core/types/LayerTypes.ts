@@ -2,6 +2,16 @@
 
 import { GridRowCore, GridRowMetadata } from './CoreTypes';
 
+export type CalculationStatus = 'pending' | 'not_configured' | 'error';
+
+export interface RowCalculationResult {
+  key?: string | null;
+  status: CalculationStatus;
+  display: string;
+  data?: Record<string, unknown> | null;
+  error?: string;
+}
+
 // Layer 1: Relationship calculations
 export interface GridRowWithRelationships extends GridRowCore {
   // Parent/child structure
@@ -25,8 +35,13 @@ export interface GridRowDisplay extends GridRowWithRelationships {
   staticFieldOptions: Record<string, string[]>;
 }
 
-// Layer 3: Interaction calculations
-export interface GridRowInteractive extends GridRowDisplay {
+// Layer 3: Calculation results
+export interface GridRowWithCalculations extends GridRowDisplay {
+  calculation?: RowCalculationResult;
+}
+
+// Layer 4: Interaction calculations
+export interface GridRowInteractive extends GridRowWithCalculations {
   // Drag & drop properties (includes parent-child behavior)
   isDraggable: boolean;          // Can this row be physically dragged?
   isDropTarget: boolean;         // Can accept dropped rows?

@@ -15,8 +15,24 @@ export const formatTime = (dateString: string | null) => {
 };
 
 export const formatDate = (dateString: string) => {
-  // Handle YYYY-MM-DD format to avoid timezone issues
-  const [year, month, day] = dateString.split('-').map(Number);
+  if (!dateString) return '-';
+
+  // Normalise to YYYY-MM-DD by stripping any time component first
+  const [datePart] = dateString.includes('T')
+    ? dateString.split('T')
+    : dateString.split(' ');
+
+  if (!datePart) return '-';
+
+  const [yearStr, monthStr, dayStr] = datePart.split('-');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+
+  if ([year, month, day].some(Number.isNaN)) {
+    return '-';
+  }
+
   const date = new Date(year, month - 1, day);
   return date.toLocaleDateString('en-US', { 
     weekday: 'short', 

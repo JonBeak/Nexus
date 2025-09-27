@@ -1,5 +1,8 @@
 // Shared types for job estimation system
 
+import { ValidationResultsManager } from '../core/validation/ValidationResultsManager';
+import { PricingCalculationContext } from '../core/types/GridTypes';
+
 export interface FieldOption {
   value: string;
   label: string;
@@ -52,6 +55,9 @@ export interface EstimateRow {
   
   // Text/spacing
   text_content?: string; // For text lines, notes, section headers
+
+  // Calculation output
+  calculation?: RowCalculationResult;
 }
 
 export interface GridJobBuilderProps {
@@ -59,16 +65,18 @@ export interface GridJobBuilderProps {
   estimate: any;
   isCreatingNew: boolean;
   onEstimateChange: (estimate: any) => void;
-  onBackToEstimates: () => void;
   showNotification: (message: string, type?: 'success' | 'error') => void;
+  customerId?: number | null;
+  // NEW: Customer context for pricing calculations
+  customerName?: string | null;
+  cashCustomer?: boolean;
+  taxRate?: number;
   // Versioning system props
   versioningMode?: boolean;
   estimateId?: number;
   isReadOnly?: boolean;
   // Validation callback
-  onValidationChange?: (hasErrors: boolean, errorCount: number) => void;
-  // Grid rows callback for assembly preview
-  onGridRowsChange?: (rows: EstimateRow[]) => void;
+  onValidationChange?: (hasErrors: boolean, errorCount: number, context?: PricingCalculationContext) => void;
   // Navigation guard callback
   onRequestNavigation?: (navigationGuard: ((navigationFn?: () => void) => void) | null) => void;
 }
@@ -95,7 +103,7 @@ export interface AssemblyOperations {
   getAvailableItems: (includeAssigned?: boolean) => Array<{id: string, number: number, name: string}>;
   isItemInAssembly: (itemId: string, assemblyIndex: number) => boolean;
   getAssemblyColor: (assemblyIndex: number) => string;
-  getAssemblyIndex: (rowIndex: number) => number;
+  getAssemblyIndex: () => number;
   // ✅ CONSOLIDATION: New methods moved from AssemblyReferenceUpdater
   findRowByLogicalNumber: (targetNumber: number) => number;
   countAssemblyFieldUsage: (targetNumber: string, excludeAssemblyId?: string, excludeFieldName?: string) => number;
@@ -264,3 +272,4 @@ export interface WorkflowState {
     status?: string;
   };
 }
+import type { RowCalculationResult } from '../core/types/LayerTypes';

@@ -1,13 +1,9 @@
 import React from 'react';
 import { Package, TrendingUp } from 'lucide-react';
+import { VinylProductStats } from '../types';
 
 interface ProductsStatsCardsProps {
-  stats: {
-    total_products?: number;
-    active_products?: number;
-    brand_count?: number;
-    supplier_count?: number;
-  } | null;
+  stats: VinylProductStats | null;
 }
 
 export const ProductsStatsCards: React.FC<ProductsStatsCardsProps> = ({ stats }) => {

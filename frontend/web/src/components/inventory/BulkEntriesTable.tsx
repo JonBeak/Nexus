@@ -1,7 +1,7 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Plus, Trash2, AlertTriangle, CheckCircle, XCircle, Loader } from 'lucide-react';
 import { BulkEntry } from '../../hooks/useBulkEntries';
-import { VinylItem } from './InventoryTab';
+import { JobSuggestion, VinylItem, VinylAutofillSuggestions } from './types';
 import { CombinedVinylDropdown } from '../common/CombinedVinylDropdown';
 import { VinylSpecificSelector } from '../common/VinylSpecificSelector';
 import { AutofillComboBox } from '../common/AutofillComboBox';
@@ -12,38 +12,14 @@ import {
   getNotePlaceholder 
 } from '../../utils/bulkEntryValidation';
 
-interface Job {
-  job_id: number;
-  customer_name: string;
-  job_name?: string;
-  job_description?: string;
-}
-
-interface Product {
-  brand: string;
-  series: string;
-  colour_number: string;
-  colour_name?: string;
-  available_widths?: string;
-  default_width?: number;
-  is_active: boolean;
-}
-
-interface BulkAutofillSuggestions {
-  combinations?: Array<{
-    brand: string;
-    series: string;
-    colour_number: string;
-    colour_name: string;
-  }>;
-}
+const USE_AUTOFILL_TYPES = new Set<BulkEntry['type']>(['use', 'waste', 'returned', 'damaged']);
+const DEFAULT_WIDTH_OPTIONS = ['48', '24', '60', '54', '12'];
 
 interface BulkEntriesTableProps {
   bulkEntries: BulkEntry[];
   vinylItems: VinylItem[];
-  bulkAutofillSuggestions: BulkAutofillSuggestions;
-  products: Product[];
-  availableJobs: Job[];
+  bulkAutofillSuggestions: VinylAutofillSuggestions;
+  availableJobs: JobSuggestion[];
   isSaving: boolean;
   bulkLoadingSuggestions: boolean;
   updateBulkEntry: (id: string, updates: Partial<BulkEntry>) => void;
@@ -52,13 +28,13 @@ interface BulkEntriesTableProps {
   handleJobChange: (entryId: string, jobIndex: number, value: string) => void;
   removeJobField: (entryId: string, jobIndex: number) => void;
   clearSuccessfulEntries?: () => void;
+  ensureSuggestionsLoaded?: () => void;
 }
 
 export const BulkEntriesTable: React.FC<BulkEntriesTableProps> = ({
   bulkEntries,
   vinylItems,
   bulkAutofillSuggestions,
-  products,
   availableJobs,
   isSaving,
   bulkLoadingSuggestions,
@@ -67,7 +43,8 @@ export const BulkEntriesTable: React.FC<BulkEntriesTableProps> = ({
   addNewBulkEntry,
   handleJobChange,
   removeJobField,
-  clearSuccessfulEntries
+  clearSuccessfulEntries,
+  ensureSuggestionsLoaded
 }) => {
   const [specificSelectorOpen, setSpecificSelectorOpen] = React.useState<string | null>(null);
   const [specificSelectorSpecs, setSpecificSelectorSpecs] = React.useState<{
@@ -86,6 +63,29 @@ export const BulkEntriesTable: React.FC<BulkEntriesTableProps> = ({
       series
     );
   }, [vinylItems, bulkAutofillSuggestions.combinations]);
+
+  const suggestionCache = useMemo(() => {
+    const cache = new Map<string, { width: string[]; length_yards: string[] }>();
+    const suggestionsSource = bulkAutofillSuggestions;
+
+    bulkEntries.forEach((entry) => {
+      const shouldAutofill = USE_AUTOFILL_TYPES.has(entry.type);
+      const widthSuggestions = shouldAutofill
+        ? getBulkSuggestions(entry.id, 'width', entry, vinylItems, suggestionsSource)
+        : DEFAULT_WIDTH_OPTIONS;
+
+      const lengthSuggestions = shouldAutofill
+        ? getBulkSuggestions(entry.id, 'length_yards', entry, vinylItems, suggestionsSource)
+        : [];
+
+      cache.set(entry.id, {
+        width: widthSuggestions,
+        length_yards: lengthSuggestions
+      });
+    });
+
+    return cache;
+  }, [bulkEntries, vinylItems, bulkAutofillSuggestions]);
 
   // Tab navigation handler
   const createTabHandler = (entryId: string, currentField: string) => {
@@ -147,16 +147,34 @@ export const BulkEntriesTable: React.FC<BulkEntriesTableProps> = ({
     colour_number: string;
     colour_name: string;
   }) => {
-    updateBulkEntry(entryId, {
+    const baseUpdates: Partial<BulkEntry> = {
       brand: value.brand,
       series: value.series,
       colour_number: value.colour_number,
       colour_name: value.colour_name
-    });
+    };
+
+    const isClearingSelection = !value.brand && !value.series && !value.colour_number && !value.colour_name;
+    if (isClearingSelection) {
+      baseUpdates.specific_vinyl_id = undefined;
+    }
+
+    const entry = bulkEntries.find(e => e.id === entryId);
+    const updatedEntry = entry ? { ...entry, ...baseUpdates } : undefined;
+
+    if (!isClearingSelection && updatedEntry) {
+      if (!updatedEntry.width?.trim()) {
+        const widthSuggestions = getBulkSuggestions(entryId, 'width', updatedEntry, vinylItems, bulkAutofillSuggestions);
+        if (widthSuggestions.length === 1) {
+          baseUpdates.width = widthSuggestions[0];
+        }
+      }
+    }
+
+    updateBulkEntry(entryId, baseUpdates);
 
     // Show specific vinyl selector for 'use' type entries
-    const entry = bulkEntries.find(e => e.id === entryId);
-    if (entry && (entry.type === 'use' || entry.type === 'waste' || entry.type === 'returned' || entry.type === 'damaged') && 
+    if (!isClearingSelection && entry && (entry.type === 'use' || entry.type === 'waste' || entry.type === 'returned' || entry.type === 'damaged') && 
         value.brand && value.series && (value.colour_number || value.colour_name)) {
       setSpecificSelectorSpecs(value);
       setSpecificSelectorOpen(entryId);
@@ -200,45 +218,25 @@ export const BulkEntriesTable: React.FC<BulkEntriesTableProps> = ({
 
     const updates: Partial<BulkEntry> = { [field]: value };
 
-    // Smart autofill logic
+    // Smart autofill logic limited to non-product interactions
     if (field === 'type') {
-      // Clear location for non-store types and auto-populate notes prefix
       if (value !== 'store') {
         updates.location = '';
       }
-      
-      // Auto-populate notes with type-specific prefix
+
       const prefix = getNotePlaceholder(value);
       const currentNotes = entry.notes || '';
-      
-      // Only update notes if it's empty or starts with a different prefix
       const prefixes = ['Storage: ', 'Usage: ', 'Waste: ', 'Return: ', 'Damage: '];
       const startsWithPrefix = prefixes.some(p => currentNotes.startsWith(p));
-      
+
       if (!currentNotes || startsWithPrefix) {
         updates.notes = prefix + (startsWithPrefix ? currentNotes.substring(currentNotes.indexOf(' ') + 1) : currentNotes);
       }
     }
 
-    // Handle brand change - trigger intelligent suggestions
-    if (field === 'brand') {
-      const updatedEntry = { ...entry, ...updates };
-      
-      // If brand matches existing inventory, suggest common combinations
-      const matchingItems = vinylItems.filter(item => 
-        item.brand === value &&
-        (!updatedEntry.series || item.series === updatedEntry.series) &&
-        (!updatedEntry.width || item.width === updatedEntry.width)
-      );
-
-      // Let user see all available series options
-    }
-
-    // Handle colour_number change with cross-autofill
     if (field === 'colour_number') {
       const updatedEntry = { ...entry, ...updates };
-      
-      // Cross-autofill colour_name if we have a mapping (contextual to current brand/series)
+
       if (value && !updatedEntry.colour_name && updatedEntry.brand && updatedEntry.series) {
         const contextualMapping = getColourMapping(updatedEntry.brand, updatedEntry.series);
         const colourName = contextualMapping.numberToName[value];
@@ -248,11 +246,9 @@ export const BulkEntriesTable: React.FC<BulkEntriesTableProps> = ({
       }
     }
 
-    // Handle colour_name change with cross-autofill
     if (field === 'colour_name') {
       const updatedEntry = { ...entry, ...updates };
-      
-      // Cross-autofill colour_number if we have a mapping (contextual to current brand/series)
+
       if (value && !updatedEntry.colour_number && updatedEntry.brand && updatedEntry.series) {
         const contextualMapping = getColourMapping(updatedEntry.brand, updatedEntry.series);
         const colourNumber = contextualMapping.nameToNumber[value];
@@ -262,46 +258,6 @@ export const BulkEntriesTable: React.FC<BulkEntriesTableProps> = ({
       }
     }
 
-    // Handle width change - suggest common widths for current brand/series
-    if (field === 'width') {
-      const updatedEntry = { ...entry, ...updates };
-      
-      // Find matching product for width validation
-      const matchingProduct = products.find((product: any) => 
-        product.brand === updatedEntry.brand && 
-        product.series === updatedEntry.series &&
-        product.colour_number === updatedEntry.colour_number
-      );
-
-      if (matchingProduct && matchingProduct.available_widths) {
-        // Validate width is available for this product
-        const availableWidths = matchingProduct.available_widths.split(',').map((w: string) => w.trim());
-        // Note: Width validation is informational only - user can still enter custom widths
-      }
-    }
-
-    // Apply autofill suggestions for remaining fields based on current combination
-    if (['width'].includes(field)) {
-      const updatedEntry = { ...entry, ...updates };
-      
-      // Check for exact matches and suggest completing fields
-      const additionalUpdates: Partial<BulkEntry> = {};
-      
-      // Only check width since other fields are now handled by CombinedVinylDropdown
-      if (!updatedEntry.width) {
-        const viableOptions = getBulkSuggestions(entryId, 'width', updatedEntry, vinylItems, bulkAutofillSuggestions);
-        
-        // If only one option, auto-fill it
-        if (viableOptions.length === 1) {
-          additionalUpdates.width = viableOptions[0];
-        }
-      }
-      
-      // Merge additional updates
-      Object.assign(updates, additionalUpdates);
-    }
-
-    // Update the entry
     updateBulkEntry(entryId, updates);
     
     // Auto-focus next field logic
@@ -464,6 +420,7 @@ export const BulkEntriesTable: React.FC<BulkEntriesTableProps> = ({
                             name={`${entry.id}-vinyl_product`}
                             loading={bulkLoadingSuggestions}
                             onTab={createTabHandler(entry.id, 'vinyl_product')}
+                            onSuggestionsNeeded={ensureSuggestionsLoaded}
                           />
                           {/* Show specific vinyl indicator */}
                           {entry.specific_vinyl_id && (
@@ -497,14 +454,15 @@ export const BulkEntriesTable: React.FC<BulkEntriesTableProps> = ({
                           label=""
                           value={entry.width}
                           onChange={(value) => handleBulkEntryChange(entry.id, 'width', value)}
-                          suggestions={['use', 'waste', 'returned', 'damaged'].includes(entry.type) ? 
-                            getBulkSuggestions(entry.id, 'width', entry, vinylItems, bulkAutofillSuggestions) : 
-                            ['48', '24', '60', '54', '12']
+                          suggestions={USE_AUTOFILL_TYPES.has(entry.type)
+                            ? suggestionCache.get(entry.id)?.width || []
+                            : DEFAULT_WIDTH_OPTIONS
                           }
                           placeholder="Width"
                           className="w-20"
                           name={`${entry.id}-width`}
                           onTab={createTabHandler(entry.id, 'width')}
+                          onSuggestionsNeeded={ensureSuggestionsLoaded}
                         />
                       </td>
                       <td className="px-2 py-1 whitespace-nowrap">
@@ -513,11 +471,12 @@ export const BulkEntriesTable: React.FC<BulkEntriesTableProps> = ({
                             label=""
                             value={entry.length_yards}
                             onChange={(value) => handleBulkEntryChange(entry.id, 'length_yards', value)}
-                            suggestions={getBulkSuggestions(entry.id, 'length_yards', entry, vinylItems, bulkAutofillSuggestions)}
+                            suggestions={suggestionCache.get(entry.id)?.length_yards || []}
                             placeholder="Length"
                             className="w-20"
                             name={`${entry.id}-length_yards`}
                             onTab={createTabHandler(entry.id, 'length_yards')}
+                            onSuggestionsNeeded={ensureSuggestionsLoaded}
                           />
                         ) : (
                           <input

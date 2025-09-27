@@ -1,7 +1,8 @@
 import React from 'react';
+import type { User as AccountUser } from '../accounts/hooks/useAccountAPI';
 
 interface UnifiedInventoryProps {
-  user: any;
+  user?: AccountUser;
   onDataChange: () => void;
   showNotification: (message: string, type?: 'success' | 'error') => void;
 }
@@ -11,6 +12,9 @@ export const UnifiedInventory: React.FC<UnifiedInventoryProps> = ({
   onDataChange,
   showNotification
 }) => {
+  void user;
+  void onDataChange;
+  void showNotification;
   return (
     <div className="space-y-6">
       <div className="text-center py-12">

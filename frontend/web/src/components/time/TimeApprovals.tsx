@@ -1,15 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import type { AuthenticatedRequest, TimeEditRequest, EditRequestDraft } from '../../types/time';
 
-interface TimeApprovalsProps {
-  user: any;
-}
-
-function TimeApprovals({ user }: TimeApprovalsProps) {
-  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+function TimeApprovals() {
+  const [pendingRequests, setPendingRequests] = useState<TimeEditRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [selectedRequest, setSelectedRequest] = useState<TimeEditRequest | null>(null);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
-  const [modifiedValues, setModifiedValues] = useState<any>({});
+  const [modifiedValues, setModifiedValues] = useState<Partial<EditRequestDraft>>({});
   const [reviewerNotes, setReviewerNotes] = useState('');
   const [isModifyMode, setIsModifyMode] = useState(false);
 
@@ -21,7 +18,7 @@ function TimeApprovals({ user }: TimeApprovalsProps) {
   };
 
   // Helper function to make authenticated requests
-  const makeAuthenticatedRequest = async (url: string, options: any = {}) => {
+  const makeAuthenticatedRequest: AuthenticatedRequest = useCallback(async (url, options = {}) => {
     const token = localStorage.getItem('access_token');
     
     if (!token) {
@@ -29,13 +26,15 @@ function TimeApprovals({ user }: TimeApprovalsProps) {
       return new Response('', { status: 401 });
     }
     
+    const headers = new Headers(options.headers ?? {});
+    headers.set('Authorization', `Bearer ${token}`);
+    if (!headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+
     const response = await fetch(url, {
       ...options,
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...options.headers
-      }
+      headers
     });
 
     // Handle authentication and authorization errors differently
@@ -50,14 +49,14 @@ function TimeApprovals({ user }: TimeApprovalsProps) {
     }
 
     return response;
-  };
+  }, []);
 
-  const fetchPendingRequests = async () => {
+  const fetchPendingRequests = useCallback(async () => {
     try {
       const res = await makeAuthenticatedRequest('http://192.168.2.14:3001/api/time/pending-requests');
       
       if (res.ok) {
-        const data = await res.json();
+        const data: TimeEditRequest[] = await res.json();
         setPendingRequests(data);
       }
       setLoading(false);
@@ -65,16 +64,25 @@ function TimeApprovals({ user }: TimeApprovalsProps) {
       console.error('Error fetching pending requests:', error);
       setLoading(false);
     }
-  };
+  }, [makeAuthenticatedRequest]);
 
   useEffect(() => {
     fetchPendingRequests();
-  }, []);
+  }, [fetchPendingRequests]);
 
   const handleProcessRequest = async (action: 'approve' | 'reject') => {
+    if (!selectedRequest) {
+      return;
+    }
     try {
-
-      const body: any = {
+      const body: {
+        request_id: number;
+        action: 'approve' | 'reject' | 'modify';
+        reviewer_notes: string;
+        modified_clock_in?: string;
+        modified_clock_out?: string;
+        modified_break_minutes?: number;
+      } = {
         request_id: selectedRequest.request_id,
         action: isModifyMode ? 'modify' : action,
         reviewer_notes: reviewerNotes
@@ -84,9 +92,11 @@ function TimeApprovals({ user }: TimeApprovalsProps) {
       if (isModifyMode) {
         body.modified_clock_in = modifiedValues.clockIn || formatDateTimeForInput(selectedRequest.requested_clock_in);
         body.modified_clock_out = modifiedValues.clockOut || formatDateTimeForInput(selectedRequest.requested_clock_out);
-        body.modified_break_minutes = modifiedValues.breakMinutes !== undefined ? parseInt(modifiedValues.breakMinutes) : selectedRequest.requested_break_minutes;
-        
-      } else {
+        const breakMinutes = modifiedValues.breakMinutes ?? selectedRequest.requested_break_minutes;
+        const parsedBreakMinutes = typeof breakMinutes === 'number' ? breakMinutes : Number(breakMinutes);
+        body.modified_break_minutes = Number.isNaN(parsedBreakMinutes)
+          ? selectedRequest.requested_break_minutes
+          : parsedBreakMinutes;
       }
 
 
@@ -116,6 +126,9 @@ function TimeApprovals({ user }: TimeApprovalsProps) {
   };
 
   const handleModifyToggle = () => {
+    if (!selectedRequest) {
+      return;
+    }
     if (isModifyMode) {
       // Reset to original requested values
       setModifiedValues({
@@ -134,13 +147,12 @@ function TimeApprovals({ user }: TimeApprovalsProps) {
     setIsModifyMode(!isModifyMode);
   };
 
-  const formatDateTime = (dateString: string) => {
+  const formatDateTime = (dateString: string | null) => {
     if (!dateString) return '-';
-    
+
     // Parse datetime string directly without timezone conversion
     // Expected format: "2025-08-26T07:30:00.000Z" or "2025-08-26 07:30:00"
     const cleanDateString = dateString.replace(' ', 'T').replace('.000Z', '');
-    const date = new Date(cleanDateString + (cleanDateString.includes('T') ? '' : 'T00:00:00'));
     
     // Force local interpretation to avoid timezone conversion
     const year = parseInt(cleanDateString.substring(0, 4));
@@ -159,9 +171,9 @@ function TimeApprovals({ user }: TimeApprovalsProps) {
     });
   };
 
-  const formatDateTimeForInput = (dateString: string) => {
+  const formatDateTimeForInput = (dateString: string | null) => {
     if (!dateString) return '';
-    
+
     // Parse datetime string directly without timezone conversion
     // Expected format: "2025-08-26T07:30:00.000Z" or "2025-08-26 07:30:00"
     const cleanDateString = dateString.replace(' ', 'T').replace('.000Z', '').substring(0, 16);
@@ -235,6 +247,9 @@ function TimeApprovals({ user }: TimeApprovalsProps) {
                       onClick={() => {
                         setSelectedRequest(request);
                         setShowApprovalModal(true);
+                        setModifiedValues({});
+                        setReviewerNotes('');
+                        setIsModifyMode(false);
                       }}
                       className="bg-primary-blue hover:bg-primary-blue-dark text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors"
                     >
@@ -346,15 +361,20 @@ function TimeApprovals({ user }: TimeApprovalsProps) {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-600 mb-1">Break Minutes</label>
-                    <input
-                      type="number"
-                      value={modifiedValues.breakMinutes !== undefined ? modifiedValues.breakMinutes : selectedRequest.requested_break_minutes}
-                      onChange={(e) => setModifiedValues({...modifiedValues, breakMinutes: e.target.value})}
-                      disabled={!isModifyMode}
-                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 text-sm ${
-                        isModifyMode 
-                          ? 'border-gray-300 focus:ring-primary-blue bg-white' 
-                          : 'border-gray-200 bg-gray-50 text-gray-600'
+                  <input
+                    type="number"
+                    min={0}
+                    max={480}
+                    value={modifiedValues.breakMinutes !== undefined ? modifiedValues.breakMinutes : selectedRequest.requested_break_minutes}
+                    onChange={(e) => setModifiedValues({
+                      ...modifiedValues,
+                      breakMinutes: Number(e.target.value)
+                    })}
+                    disabled={!isModifyMode}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 text-sm ${
+                      isModifyMode 
+                        ? 'border-gray-300 focus:ring-primary-blue bg-white' 
+                        : 'border-gray-200 bg-gray-50 text-gray-600'
                       }`}
                     />
                   </div>

@@ -14,14 +14,14 @@ import { TimeAnalyticsView } from './views/TimeAnalyticsView';
 import { MissingEntriesView } from './views/MissingEntriesView';
 import { BulkEditModal } from './modals/BulkEditModal';
 import { ScheduleManagement } from './ScheduleManagement';
-import { WeeklySummary } from './WeeklySummary';
 
 // Utils
 import { navigateDate } from './utils/timeCalculations';
 import { exportData } from './utils/exportUtils';
+import type { TimeUser } from '../../types/time';
 
 interface TimeManagementProps {
-  user: any;
+  user: TimeUser;
 }
 
 export const TimeManagement: React.FC<TimeManagementProps> = ({ user }) => {
@@ -168,7 +168,6 @@ export const TimeManagement: React.FC<TimeManagementProps> = ({ user }) => {
       <div className="max-w-none mx-auto px-4 sm:px-6 lg:px-8 py-6" style={{ maxWidth: '1408px' }}>
         {container.viewMode === 'calendar' ? (
           <CalendarView 
-            user={user}
             selectedDate={container.selectedDate}
             setSelectedDate={container.setSelectedDate}
             selectedGroup={container.selectedGroup}
@@ -370,7 +369,6 @@ export const TimeManagement: React.FC<TimeManagementProps> = ({ user }) => {
       {/* Schedule Management Modal */}
       {container.showScheduleManagement && (
         <ScheduleManagement
-          user={user}
           onClose={() => container.setShowScheduleManagement(false)}
         />
       )}

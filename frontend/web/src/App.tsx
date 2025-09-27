@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 
 // Import extracted components
 import SimpleLogin from './components/auth/SimpleLogin';
@@ -12,18 +12,21 @@ import VinylInventory from './components/inventory/VinylInventory';
 import { SupplyChainDashboard } from './components/supplyChain/SupplyChainDashboard';
 import { JobEstimationDashboard } from './components/jobEstimation/JobEstimationDashboard';
 import { authApi } from './services/api';
+import type { AccountUser } from './types/user';
 
 function AppContent() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AccountUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
-  const location = useLocation();
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    setUser(null);
+    navigate('/login');
+  }, [navigate]);
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     const token = localStorage.getItem('access_token');
     const refreshToken = localStorage.getItem('refresh_token');
 
@@ -36,25 +39,22 @@ function AppContent() {
     try {
       // Use the authApi which will automatically handle refresh via interceptor
       const data = await authApi.getCurrentUser();
-      setUser(data.user);
+      setUser(data.user as AccountUser);
     } catch (error) {
       console.error('Auth check failed:', error);
       handleLogout();
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [handleLogout]);
 
-  const handleLogin = (userData: any) => {
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  const handleLogin = (userData: AccountUser) => {
     setUser(userData);
     navigate('/dashboard');
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    setUser(null);
-    navigate('/login');
   };
 
   if (isLoading) {
@@ -91,7 +91,7 @@ function AppContent() {
       } />
       
       <Route path="/wages" element={
-        user && user.role === 'owner' ? <WageManagement user={user} /> : <Navigate to="/dashboard" />
+        user && user.role === 'owner' ? <WageManagement /> : <Navigate to="/dashboard" />
       } />
       
       <Route path="/account-management" element={

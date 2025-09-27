@@ -173,9 +173,7 @@ export const validateNumberingConsistency = (
  * @returns Updated rows with corrected numbering
  */
 export const recalculateNumberingAfterChange = (
-  rows: GridRowWithRelationships[],
-  changeType: 'insert' | 'delete' | 'move',
-  changeIndex: number
+  rows: GridRowWithRelationships[]
 ): GridRowWithRelationships[] => {
   // For simplicity, recalculate all numbering
   // The relationship layer will handle this automatically

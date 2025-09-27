@@ -18,12 +18,30 @@ export interface StructureValidationError {
   rule: string;
 }
 
+export interface RowMetadata {
+  displayNumber: string;           // "1", "1.a", "2"
+  rowType: 'main' | 'subItem' | 'continuation';
+  productTypeId: number;
+  productTypeName: string;
+  parentId?: string;
+  childIds: string[];
+}
+
 export class ValidationResultsManager {
   private cellErrors = new Map<string, CellValidationError>(); // rowId.fieldName -> error
   private cellWarnings = new Map<string, CellValidationWarning>(); // rowId.fieldName -> warning
   private structureErrors = new Map<string, StructureValidationError>(); // rowId -> structure error
   private hasBlockingErrorsFlag = false;
   private lastValidatedAt = new Date();
+
+  // NEW: Store parsed values for pricing calculation layer
+  private parsedValues = new Map<string, unknown>(); // rowId.fieldName -> parsed value
+
+  // NEW: Store calculated values for pricing calculation layer
+  private calculatedValues = new Map<string, Record<string, unknown>>(); // rowId -> calculated values
+
+  // NEW: Store row metadata for pricing calculation layer
+  private rowMetadata = new Map<string, RowMetadata>(); // rowId -> metadata
 
   /**
    * Set a cell validation error
@@ -114,6 +132,12 @@ export class ValidationResultsManager {
 
     // Clear structure errors for this row
     this.structureErrors.delete(rowId);
+
+    // Clear parsed values for this row
+    this.clearRowParsedValues(rowId);
+
+    // Clear row metadata
+    this.rowMetadata.delete(rowId);
   }
 
   /**
@@ -123,6 +147,9 @@ export class ValidationResultsManager {
     this.cellErrors.clear();
     this.cellWarnings.clear();
     this.structureErrors.clear();
+    this.parsedValues.clear();
+    this.calculatedValues.clear();
+    this.rowMetadata.clear();
     this.hasBlockingErrorsFlag = false;
   }
 
@@ -208,5 +235,110 @@ export class ValidationResultsManager {
    */
   markValidated(): void {
     this.lastValidatedAt = new Date();
+  }
+
+  // NEW: Parsed value management methods
+
+  /**
+   * Set a parsed value from validation
+   */
+  setParsedValue(rowId: string, fieldName: string, value: unknown): void {
+    const key = `${rowId}.${fieldName}`;
+    this.parsedValues.set(key, value);
+  }
+
+  /**
+   * Get a parsed value
+   */
+  getParsedValue(rowId: string, fieldName: string): unknown {
+    const key = `${rowId}.${fieldName}`;
+    return this.parsedValues.get(key);
+  }
+
+  /**
+   * Get all parsed values for a row (for pricing calculation)
+   */
+  getAllParsedValues(rowId: string): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of this.parsedValues) {
+      if (key.startsWith(`${rowId}.`)) {
+        const fieldName = key.substring(rowId.length + 1);
+        result[fieldName] = value;
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Clear parsed values for a specific row
+   */
+  private clearRowParsedValues(rowId: string): void {
+    // Clear parsed values for this row
+    const parsedKeysToDelete: string[] = [];
+    for (const key of this.parsedValues.keys()) {
+      if (key.startsWith(`${rowId}.`)) {
+        parsedKeysToDelete.push(key);
+      }
+    }
+    for (const key of parsedKeysToDelete) {
+      this.parsedValues.delete(key);
+    }
+  }
+
+  /**
+   * Set calculated values for a row (from validation layer)
+   */
+  setCalculatedValues(rowId: string, values: Record<string, unknown>): void {
+    this.calculatedValues.set(rowId, values);
+  }
+
+  /**
+   * Get calculated values for a row (for pricing calculation)
+   */
+  getCalculatedValues(rowId: string): Record<string, unknown> {
+    return this.calculatedValues.get(rowId) || {};
+  }
+
+  /**
+   * Get all validated row IDs (for pricing calculation)
+   */
+  getValidatedRowIds(): string[] {
+    const rowIds = new Set<string>();
+
+    // Extract row IDs from parsed values
+    for (const key of this.parsedValues.keys()) {
+      const rowId = key.split('.')[0];
+      rowIds.add(rowId);
+    }
+
+    // Extract row IDs from calculated values
+    for (const rowId of this.calculatedValues.keys()) {
+      rowIds.add(rowId);
+    }
+
+    return Array.from(rowIds);
+  }
+
+  // NEW: Row metadata management methods
+
+  /**
+   * Set row metadata for pricing calculation layer
+   */
+  setRowMetadata(rowId: string, metadata: RowMetadata): void {
+    this.rowMetadata.set(rowId, metadata);
+  }
+
+  /**
+   * Get row metadata for a specific row
+   */
+  getRowMetadata(rowId: string): RowMetadata | undefined {
+    return this.rowMetadata.get(rowId);
+  }
+
+  /**
+   * Get all row metadata (for pricing calculation)
+   */
+  getAllRowMetadata(): Map<string, RowMetadata> {
+    return new Map(this.rowMetadata);
   }
 }

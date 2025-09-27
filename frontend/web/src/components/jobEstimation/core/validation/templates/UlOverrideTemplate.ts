@@ -124,8 +124,6 @@ export class UlOverrideTemplate implements ValidationTemplate {
   private calculateUlRequirement(parsedValue: any, context?: ValidationContext): any {
     if (!context) return null;
 
-    const ledCount = context.calculatedValues?.ledCount || 0;
-
     // Handle different input types
     if (parsedValue === 'yes') {
       // Explicit yes - include UL with default cost
@@ -171,8 +169,6 @@ export class UlOverrideTemplate implements ValidationTemplate {
     const warnings: string[] = [];
 
     if (!context) return warnings;
-
-    const ledCount = context.calculatedValues?.ledCount || 0;
 
     // Note: UL can be standalone product, so no warning for UL without LEDs
     // This is explicitly allowed per business requirements

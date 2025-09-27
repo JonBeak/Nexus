@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Customer } from '../../../types';
 
 interface UseCustomerListFilteringReturn {
   searchTerm: string;
@@ -7,7 +8,7 @@ interface UseCustomerListFilteringReturn {
   setShowDeactivatedCustomers: (show: boolean) => void;
   handleSearch: (e: React.FormEvent, fetchCustomers: (search: string) => Promise<void>) => void;
   handleClearSearch: (fetchCustomers: (search: string) => Promise<void>) => void;
-  getActiveCustomerCount: (customers: any[]) => number;
+  getActiveCustomerCount: (customers: Customer[]) => number;
 }
 
 export const useCustomerListFiltering = (): UseCustomerListFilteringReturn => {
@@ -20,8 +21,11 @@ export const useCustomerListFiltering = (): UseCustomerListFilteringReturn => {
     fetchCustomers: (search: string) => Promise<void>
   ) => {
     e.preventDefault();
-    // Search is now handled automatically by debounced useEffect in useCustomerListData
-    // This just prevents the form from refreshing the page
+    try {
+      await fetchCustomers(searchTerm);
+    } catch (error) {
+      console.error('Search failed:', error);
+    }
   };
 
   // Handle clearing search
@@ -35,7 +39,7 @@ export const useCustomerListFiltering = (): UseCustomerListFilteringReturn => {
   };
 
   // Get count of active customers for display
-  const getActiveCustomerCount = (customers: any[]): number => {
+  const getActiveCustomerCount = (customers: Customer[]): number => {
     return customers.filter(c => c.active !== false && c.active !== 0).length;
   };
 

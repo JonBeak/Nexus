@@ -152,7 +152,7 @@ export class StructureValidator {
     const results: StructureValidationResult[] = [];
 
     // Find all assembly groups in the grid
-    const assemblyGroups = this.identifyAssemblyGroups(coreData);
+    const assemblyGroups = this.identifyAssemblyGroups();
 
     for (const group of assemblyGroups) {
       // Rule 1: Assembly members must be back-to-back
@@ -248,7 +248,7 @@ export class StructureValidator {
     const results: StructureValidationResult[] = [];
 
     // Find all assembly groups
-    const assemblyGroups = this.identifyAssemblyGroups(coreData);
+    const assemblyGroups = this.identifyAssemblyGroups();
 
     for (const group of assemblyGroups) {
       if (group.memberRowIds.length < 2) continue; // Single-member groups can't be split
@@ -395,7 +395,7 @@ export class StructureValidator {
    * Identify assembly groups in the grid
    * This is a placeholder - implementation depends on how assembly membership is tracked
    */
-  private identifyAssemblyGroups(coreData: GridRowCore[]): AssemblyGroup[] {
+  private identifyAssemblyGroups(): AssemblyGroup[] {
     // Placeholder implementation - you'll need to implement based on how assemblies are tracked
     // This might involve checking row metadata, assembly IDs, or other markers
 

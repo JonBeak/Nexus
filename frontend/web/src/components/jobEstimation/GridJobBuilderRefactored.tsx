@@ -8,7 +8,7 @@ import { GridJobBuilderProps } from './types';
 
 // Base Layer architecture
 import { GridEngine, GridEngineConfig } from './core/GridEngine';
-import { estimateRowsToGridRowCores, gridRowCoresToEstimateRows, gridRowsToEstimateRows } from './core/adapters/EstimateRowAdapter';
+import { estimateRowsToGridRowCores, gridRowCoresToEstimateRows } from './core/adapters/EstimateRowAdapter';
 
 // UI components
 import { DragDropGridRenderer } from './components/DragDropGridRenderer';
@@ -27,12 +27,32 @@ import { fieldPromptsApi, SimpleProductTemplate } from '../../services/fieldProm
 
 // Helper function to convert ProductType to ProductTypeConfig
 const convertProductTypeToConfig = (productType: any): any => {
+  // Parse pricing rules so calculation layer can locate the engine key
+  let pricingRules: Record<string, unknown> | null = null;
+  if (productType.pricing_rules) {
+    if (typeof productType.pricing_rules === 'string') {
+      try {
+        pricingRules = JSON.parse(productType.pricing_rules);
+      } catch (error) {
+        console.warn('Failed to parse pricing_rules JSON for product type', productType.id, error);
+      }
+    } else if (typeof productType.pricing_rules === 'object') {
+      pricingRules = productType.pricing_rules as Record<string, unknown>;
+    }
+  }
+
+  const calculationKey = typeof pricingRules?.calculation_type === 'string'
+    ? String(pricingRules.calculation_type)
+    : null;
+
   // For now, create a basic config - will be enhanced when we implement dynamic templates
   return {
     id: productType.id,
     name: productType.name,
     fields: [], // TODO: Load from input_template when dynamic templates are integrated
-    category: productType.category
+    category: productType.category,
+    pricingRules,
+    calculationKey
   };
 };
 
@@ -45,11 +65,13 @@ export const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
   onBackToEstimates,
   showNotification,
   customerId,
+  customerName,
+  cashCustomer,
+  taxRate,
   versioningMode = false,
   estimateId,
   isReadOnly = false,
   onValidationChange,
-  onGridRowsChange,
   onRequestNavigation
 }) => {
   // Load product types from database
@@ -143,24 +165,21 @@ export const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
       },
       callbacks: {
         onRowsChange: (gridRows) => {
-          // Convert to EstimateRow format for parent components
-          const estimateRows = gridRowsToEstimateRows(gridRows);
-
+          // Pass GridRowWithCalculations directly - no conversion needed
           // Filter out empty rows for parent callback
-          const activeRows = estimateRows.filter(row =>
+          const activeRows = gridRows.filter(row =>
             row.productTypeId ||
             Object.values(row.data || {}).some(value => value && String(value).trim() !== '')
           );
 
-          onGridRowsChange?.(activeRows);
         },
         onStateChange: (state) => {
           // GridEngine state changes
         },
-        onValidationChange: (hasErrors, errorCount) => {
+        onValidationChange: (hasErrors, errorCount, resultsManager) => {
           setValidationVersion(prev => prev + 1);
           // Validation results from ValidationEngine
-          onValidationChange?.(hasErrors, errorCount);
+          onValidationChange?.(hasErrors, errorCount, resultsManager);
         }
       },
       permissions: {
@@ -168,7 +187,14 @@ export const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
         canDelete: !isReadOnly,
         userRole: user?.role || 'viewer'
       },
-      customerPreferences: customerPreferences || undefined
+      customerPreferences: customerPreferences || undefined,
+
+      // NEW: Customer context for pricing calculations
+      customerId: effectiveCustomerId || undefined,
+      customerName: customerName || undefined,
+      cashCustomer: cashCustomer || false,
+      taxRate: taxRate || 2.0,
+      estimateId: estimateId || undefined
     };
 
     return new GridEngine(config);
@@ -242,8 +268,37 @@ export const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
 
         Object.entries(allTemplates).forEach(([productTypeId, template]) => {
           const id = parseInt(productTypeId);
-          newFieldPrompts[id] = template.field_prompts;
-          newStaticOptions[id] = template.static_options;
+
+          const normalizedPrompts: Record<string, string | boolean> = {
+            ...(template.field_prompts || {})
+          };
+
+          const normalizedStaticOptions: Record<string, string[]> = {
+            ...(template.static_options || {})
+          };
+
+          if (id === 1) {
+            normalizedPrompts.field6 = 'Pins Type';
+            normalizedPrompts.field6_enabled = true;
+
+            if (!normalizedStaticOptions.field6 || normalizedStaticOptions.field6.length === 0) {
+              normalizedStaticOptions.field6 = [
+                'Pins',
+                'Pins + Spacer',
+                'Pins + Rivnut',
+                'Pins + Rivnut + Spacer'
+              ];
+            }
+
+            normalizedPrompts.field7 = 'Extra Wire (ft)';
+            normalizedPrompts.field7_enabled = true;
+            if (!normalizedStaticOptions.field7) {
+              normalizedStaticOptions.field7 = [];
+            }
+          }
+
+          newFieldPrompts[id] = normalizedPrompts;
+          newStaticOptions[id] = normalizedStaticOptions;
         });
 
         setFieldPromptsMap(newFieldPrompts);
@@ -256,7 +311,30 @@ export const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
           const id = parseInt(productTypeId);
 
           if (template.validation_rules && Object.keys(template.validation_rules).length > 0) {
-            validationConfigs.set(id, template.validation_rules);
+            const rules: Record<string, any> = { ...template.validation_rules };
+
+            if (id === 1 && !rules.field6) {
+              rules.field6 = {
+                function: 'non_empty',
+                error_level: 'warning',
+                field_category: 'supplementary'
+              };
+            }
+
+            if (id === 1 && !rules.field7) {
+              rules.field7 = {
+                function: 'float',
+                error_level: 'mixed',
+                field_category: 'supplementary',
+                params: {
+                  min: 0,
+                  allow_negative: false,
+                  decimal_places: 2
+                }
+              };
+            }
+
+            validationConfigs.set(id, rules);
             return;
           }
 
@@ -290,6 +368,21 @@ export const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
                 function: 'float',
                 error_level: 'error',
                 field_category: 'sufficient',
+                params: {
+                  min: 0,
+                  allow_negative: false,
+                  decimal_places: 2
+                }
+              },
+              field6: {
+                function: 'non_empty',
+                error_level: 'warning',
+                field_category: 'supplementary'
+              },
+              field7: {
+                function: 'float',
+                error_level: 'mixed',
+                field_category: 'supplementary',
                 params: {
                   min: 0,
                   allow_negative: false,

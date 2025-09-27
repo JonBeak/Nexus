@@ -3,7 +3,6 @@ import { ProductType, GroupedProductTypes } from '../hooks/useProductTypes';
 
 interface ProductDropdownOptionsProps {
   groupedProducts: GroupedProductTypes;
-  selectedProductId?: number | null;
   placeholder?: string;
   showCategories?: boolean;
 }
@@ -14,7 +13,6 @@ interface ProductDropdownOptionsProps {
  */
 export const ProductDropdownOptions: React.FC<ProductDropdownOptionsProps> = ({
   groupedProducts,
-  selectedProductId,
   placeholder = "Select Product Type",
   showCategories = true
 }) => {

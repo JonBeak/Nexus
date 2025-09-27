@@ -32,11 +32,12 @@ export class ProductSelector {
 
     // Route to product-specific selector based on product type
     switch (row.productTypeId) {
-      case 1: // Channel Letters
+      case 1: { // Channel Letters
         const channelResult = this.selectChannelLettersProducts(row, context);
         products.push(...channelResult.products);
         warnings.push(...channelResult.warnings);
         break;
+      }
 
       // Add other product type selectors here
       // case 2: // Vinyl
@@ -78,8 +79,9 @@ export class ProductSelector {
     const field2 = row.data.field2?.trim(); // Letter data
     const field3 = row.data.field3?.trim(); // LED override
     const field4 = row.data.field4?.trim(); // UL override
-    const field5 = row.data.field5?.trim(); // Pins
-    const field6 = row.data.field6?.trim(); // Extra wire
+    const field5 = row.data.field5?.trim(); // Pins count
+    const field6 = row.data.field6?.trim(); // Pins type
+    const field7 = row.data.field7?.trim(); // Extra wire
     const field8 = row.data.field8?.trim(); // LED type
     const field9 = row.data.field9?.trim(); // PS override
     const field10 = row.data.field10?.trim(); // PS type
@@ -148,21 +150,23 @@ export class ProductSelector {
       if (field5) {
         const pinsQuantity = parseFloat(field5);
         if (!isNaN(pinsQuantity) && pinsQuantity > 0) {
+          const pinsType = field6 || 'Pins';
           products.push({
             productType: 'Pins',
-            description: `${pinsQuantity} Mounting Pins`,
+            description: `${pinsQuantity} ${pinsType}`,
             quantity: pinsQuantity,
             included: true, // Included in channel letters price
             metadata: {
-              includedInChannelLetters: true
+              includedInChannelLetters: true,
+              pinsType: pinsType
             }
           });
         }
       }
 
-      // 6. EXTRA WIRE (if field1, field2, and field6 exist)
-      if (field6) {
-        const wireLength = parseFloat(field6);
+      // 6. EXTRA WIRE (if field1, field2, and field7 exist)
+      if (field7) {
+        const wireLength = parseFloat(field7);
         if (!isNaN(wireLength) && wireLength > 0) {
           products.push({
             productType: 'Extra Wire',
@@ -213,12 +217,14 @@ export class ProductSelector {
       if (field5) {
         const pinsQuantity = parseFloat(field5);
         if (!isNaN(pinsQuantity) && pinsQuantity > 0) {
+          const pinsType = field6 || 'Pins';
           products.push({
             productType: 'Pins',
-            description: `${pinsQuantity} Mounting Pins (Standalone)`,
+            description: `${pinsQuantity} ${pinsType} (Standalone)`,
             quantity: pinsQuantity,
             metadata: {
-              standalone: true
+              standalone: true,
+              pinsType: pinsType
             }
           });
         }
@@ -295,6 +301,19 @@ export class ProductSelector {
   private static determinePowerSupplyType(context: ValidationContext): string {
     const totalWattage = context.calculatedValues.totalWattage || 0;
     const isUL = context.gridContext.hasAnyUL;
+    const preferredType = context.customerPreferences.default_transformer;
+    const preferredIsUL = context.customerPreferences.pref_power_supply_is_ul_listed;
+
+    if (preferredType) {
+      if (isUL && preferredIsUL === false) {
+        // Customer default is not UL rated but UL required – fall back to UL option
+      } else if (!isUL && preferredIsUL === true && !preferredType.toLowerCase().includes('ul')) {
+        // Customer preference is UL-rated but UL not required – still respect preference
+        return preferredType;
+      } else {
+        return preferredType;
+      }
+    }
 
     // Auto-select based on wattage and UL requirement
     if (totalWattage <= 60) {

@@ -249,8 +249,8 @@ export class RowValidator {
     context?: ValidationContext
   ): 'complete_set' | 'sufficient' | 'supplementary' {
     if (config.field_category === 'context_dependent') {
-      // Handle context-dependent field categories
-      // For now, default to sufficient - can be extended for specific business rules
+      // Placeholder hook for future context-aware behaviour
+      void context?.customerPreferences;
       return 'sufficient';
     }
 

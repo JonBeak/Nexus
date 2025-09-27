@@ -65,7 +65,7 @@ export class DataPersistence {
    * @param fieldPromptsMap - Field prompts for existing compatibility
    * @returns Core rows from backend
    */
-  async reloadFromBackend(estimateId: number, jobVersioningApi: any, fieldPromptsMap: any): Promise<GridRowCore[]> {
+  async reloadFromBackend(estimateId: number, jobVersioningApi: any): Promise<GridRowCore[]> {
     try {
       const response = await jobVersioningApi.loadGridData(estimateId);
       const savedRows = response.data || [];

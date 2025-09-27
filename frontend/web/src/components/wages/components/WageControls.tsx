@@ -1,12 +1,13 @@
 import React from 'react';
 import { Calendar, Users, ChevronLeft, ChevronRight, Settings, CheckCircle } from 'lucide-react';
 import { getPayPeriodInfo } from '../utils/WageCalculations';
+import { AccountUser } from '../../../types/user';
 
 interface WageControlsProps {
   selectedGroup: string;
   biWeekStart: string;
   dates: string[];
-  users: any[];
+  users: AccountUser[];
   roundingThreshold: number;
   showSettings: boolean;
   activeTab: 'current' | 'history';

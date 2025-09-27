@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Loader } from 'lucide-react';
-import { Customer, Address } from '../../types/index';
+import { Address } from '../../types/index';
 import { customerApi, provincesApi } from '../../services/api';
 import { CustomerFormCreate } from './creation/CustomerFormCreate';
 import { AddressManagerCreate } from './creation/AddressManagerCreate';
@@ -62,23 +62,38 @@ export const CustomerCreationModal: React.FC<CustomerCreationModalProps> = ({
   };
 
 
-  const handleInputChange = (field: string, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    
-    // Auto-fill QuickBooks name when company name changes
-    if (field === 'company_name' && value && !formData.quickbooks_name) {
-      setFormData(prev => ({ ...prev, quickbooks_name: value }));
-    }
-    
-    // Clear validation errors when user starts typing
+  const handleInputChange = <K extends keyof CustomerCreateData>(
+    field: K,
+    value: CustomerCreateData[K] | null
+  ) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value === null ? undefined : value
+    }));
+
     if (validationErrors.length > 0) {
       setValidationErrors([]);
     }
   };
 
+  // Mirror QuickBooks name to company name so downstream integrations remain consistent
+  useEffect(() => {
+    const latestCompanyName = formData.company_name || '';
+
+    setFormData(prev => {
+      if (prev.quickbooks_name === latestCompanyName) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        quickbooks_name: latestCompanyName
+      };
+    });
+  }, [formData.company_name]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     // Comprehensive validation using the new validation system
     const validation = CustomerCreationValidation.validateCustomerData(formData, addresses);
     
@@ -101,23 +116,33 @@ export const CustomerCreationModal: React.FC<CustomerCreationModalProps> = ({
         shipping_multiplier: formData.shipping_multiplier || 1.5,
         shipping_flat: formData.shipping_flat || 0, // CORRECTED: was flat_shipping_rate
         default_turnaround: formData.default_turnaround || 10,
-        // Only include addresses that have required fields
-        addresses: addresses.filter(addr => 
-          addr.province_state_short?.trim() && addr.address_line1?.trim()
-        )
+        // Only include addresses that carry the minimum province/state data for tax purposes
+        addresses: addresses
+          .filter(addr => addr.province_state_short?.trim())
+          .map(addr => ({
+            ...addr,
+            address_line1: addr.address_line1?.trim() || undefined,
+            city: addr.city?.trim() || undefined
+          }))
       };
 
       const response = await customerApi.createCustomer(customerData);
-      
+      const createdCustomer = response?.customer ?? response;
+
+      if (!createdCustomer?.customer_id) {
+        throw new Error('Customer payload missing identifier');
+      }
+
       showNotification('Customer created successfully', 'success');
-      onCustomerCreated(response.customer);
+      onCustomerCreated(createdCustomer);
       onClose();
       
       // Reset form
       resetForm();
     } catch (error) {
       console.error('Error creating customer:', error);
-      showNotification('Failed to create customer', 'error');
+      const message = error instanceof Error ? error.message : 'Failed to create customer';
+      showNotification(message, 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -148,9 +173,9 @@ export const CustomerCreationModal: React.FC<CustomerCreationModalProps> = ({
       <div className="flex items-center justify-center min-h-screen px-4">
         <div className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" onClick={onClose} />
         
-        <div className="relative bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[95vh] overflow-hidden">
+        <div className="relative flex flex-col bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[95vh] overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div className="flex-shrink-0 flex items-center justify-between p-6 border-b border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900">Create New Customer</h3>
             <button
               onClick={onClose}
@@ -173,7 +198,7 @@ export const CustomerCreationModal: React.FC<CustomerCreationModalProps> = ({
           )}
 
           {/* Form Content */}
-          <div className="p-6 overflow-y-auto max-h-[calc(95vh-140px)]">
+          <div className="flex-1 overflow-y-auto p-6">
             <form onSubmit={handleSubmit} className="space-y-8">
               {/* Customer Form Component */}
               <CustomerFormCreate
@@ -193,7 +218,7 @@ export const CustomerCreationModal: React.FC<CustomerCreationModalProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200">
+          <div className="flex-shrink-0 flex justify-end items-center gap-4 px-6 py-5 border-t border-gray-200 rounded-b-lg bg-white">
             <button
               type="button"
               onClick={onClose}

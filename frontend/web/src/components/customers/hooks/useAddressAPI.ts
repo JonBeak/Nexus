@@ -1,13 +1,6 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { customerApi, provincesApi } from '../../../services/api';
-import { Address, Customer } from '../../../types';
-
-interface ProvinceState {
-  province_state_id: number;
-  province_state_name: string;
-  province_state_short: string;
-  country: string;
-}
+import { Address, Customer, ProvinceState } from '../../../types';
 
 interface TaxInfo {
   tax_id: number;
@@ -23,7 +16,7 @@ export const useAddressAPI = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Fetch provinces/states data
-  const fetchProvincesStates = async (): Promise<ProvinceState[]> => {
+  const fetchProvincesStates = useCallback(async (): Promise<ProvinceState[]> => {
     try {
       setLoading(true);
       const data = await provincesApi.getProvinces();
@@ -36,10 +29,10 @@ export const useAddressAPI = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Fetch tax information for a province
-  const fetchTaxInfo = async (provinceCode: string): Promise<TaxInfo | null> => {
+  const fetchTaxInfo = useCallback(async (provinceCode: string): Promise<TaxInfo | null> => {
     try {
       const data = await provincesApi.getTaxInfo(provinceCode);
       return data;
@@ -47,10 +40,10 @@ export const useAddressAPI = () => {
       console.error('Error fetching tax info:', err);
       return null;
     }
-  };
+  }, []);
 
   // Refresh addresses for a customer
-  const refreshAddresses = async (
+  const refreshAddresses = useCallback(async (
     customer: Customer,
     showDeactivated: boolean
   ): Promise<Address[]> => {
@@ -71,10 +64,10 @@ export const useAddressAPI = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Add new address
-  const addAddress = async (customerId: number, addressData: Address): Promise<boolean> => {
+  const addAddress = useCallback(async (customerId: number, addressData: Address): Promise<boolean> => {
     try {
       setLoading(true);
       await customerApi.addAddress(customerId, addressData);
@@ -88,10 +81,10 @@ export const useAddressAPI = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Update existing address
-  const updateAddress = async (
+  const updateAddress = useCallback(async (
     customerId: number, 
     addressId: string | number, 
     addressData: Address
@@ -109,10 +102,13 @@ export const useAddressAPI = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Delete address
-  const deleteAddress = async (customerId: number, addressId: string | number): Promise<boolean> => {
+  const deleteAddress = useCallback(async (
+    customerId: number,
+    addressId: string | number
+  ): Promise<boolean> => {
     try {
       setLoading(true);
       await customerApi.deleteAddress(customerId, addressId);
@@ -126,10 +122,10 @@ export const useAddressAPI = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Make address primary
-  const makePrimaryAddress = async (
+  const makePrimaryAddress = useCallback(async (
     customer: Customer,
     addressId: string | number
   ): Promise<boolean> => {
@@ -146,10 +142,13 @@ export const useAddressAPI = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Reactivate address
-  const reactivateAddress = async (customerId: number, addressId: string | number): Promise<boolean> => {
+  const reactivateAddress = useCallback(async (
+    customerId: number,
+    addressId: string | number
+  ): Promise<boolean> => {
     try {
       setLoading(true);
       await customerApi.reactivateAddress(customerId, addressId);
@@ -163,7 +162,9 @@ export const useAddressAPI = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  const clearError = useCallback(() => setError(null), []);
 
   return {
     loading,
@@ -176,6 +177,6 @@ export const useAddressAPI = () => {
     deleteAddress,
     makePrimaryAddress,
     reactivateAddress,
-    clearError: () => setError(null)
+    clearError
   };
 };

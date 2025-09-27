@@ -1,13 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Address, Customer } from '../../../types';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Address, Customer, ProvinceState } from '../../../types';
 import { useAddressAPI } from './useAddressAPI';
-
-interface ProvinceState {
-  province_state_id: number;
-  province_state_name: string;
-  province_state_short: string;
-  country: string;
-}
 
 export const useAddressManagement = (
   customer: Customer,
@@ -19,18 +12,40 @@ export const useAddressManagement = (
   const [provincesStates, setProvincesStates] = useState<ProvinceState[]>([]);
   const [taxWarning, setTaxWarning] = useState<string>('');
   const [taxDisplayValues, setTaxDisplayValues] = useState<{[key: string]: string}>({});
+  const editBackupsRef = useRef<Record<number, Address>>({});
 
-  const api = useAddressAPI();
+  const buildAddressKey = useCallback((address: Address, index: number) => {
+    return `${address.address_id}-${index}`;
+  }, []);
+
+  const {
+    loading,
+    error,
+    fetchProvincesStates,
+    fetchTaxInfo,
+    refreshAddresses,
+    addAddress,
+    updateAddress,
+    deleteAddress,
+    makePrimaryAddress,
+    reactivateAddress,
+    clearError
+  } = useAddressAPI();
 
   // Fetch provinces/states on component mount
   useEffect(() => {
     const loadProvincesStates = async () => {
-      const data = await api.fetchProvincesStates();
+      const data = await fetchProvincesStates();
       setProvincesStates(data);
     };
 
     loadProvincesStates();
-  }, []);
+  }, [fetchProvincesStates]);
+
+  const fetchDeactivatedAddresses = useCallback(async () => {
+    const refreshedAddresses = await refreshAddresses(customer, true);
+    setAddresses(refreshedAddresses);
+  }, [customer, refreshAddresses, setAddresses]);
 
   // Refetch addresses when showDeactivated toggle changes
   useEffect(() => {
@@ -38,24 +53,18 @@ export const useAddressManagement = (
       if (showDeactivated) {
         fetchDeactivatedAddresses();
       } else {
-        const activeAddresses = addresses.filter(addr => addr.is_active !== false);
-        setAddresses(activeAddresses);
+        setAddresses(prev => prev.filter(addr => addr.is_active !== false));
       }
     }
-  }, [showDeactivated]);
+  }, [customer, fetchDeactivatedAddresses, setAddresses, showDeactivated]);
 
   // Handle API errors by setting save error
   useEffect(() => {
-    if (api.error) {
-      setSaveError(api.error);
-      api.clearError();
+    if (error) {
+      setSaveError(error);
+      clearError();
     }
-  }, [api.error, setSaveError]);
-
-  const fetchDeactivatedAddresses = async () => {
-    const refreshedAddresses = await api.refreshAddresses(customer, true);
-    setAddresses(refreshedAddresses);
-  };
+  }, [clearError, error, setSaveError]);
 
   const handleAddAddress = () => {
     const newAddress: Address = {
@@ -89,14 +98,15 @@ export const useAddressManagement = (
     let success = false;
 
     if (address.address_id === 'new') {
-      success = await api.addAddress(customer.customer_id, addressData);
+      success = await addAddress(customer.customer_id, addressData);
     } else {
-      success = await api.updateAddress(customer.customer_id, address.address_id, addressData);
+      success = await updateAddress(customer.customer_id, address.address_id, addressData);
     }
     
     if (success) {
-      const refreshedAddresses = await api.refreshAddresses(customer, showDeactivated);
+      const refreshedAddresses = await refreshAddresses(customer, showDeactivated);
       setAddresses(refreshedAddresses);
+      delete editBackupsRef.current[addressIndex];
     }
   };
 
@@ -106,16 +116,17 @@ export const useAddressManagement = (
       const newAddresses = addresses.filter((_, i) => i !== addressIndex);
       setAddresses(newAddresses);
     } else {
-      const success = await api.deleteAddress(customer.customer_id, address.address_id);
+      const success = await deleteAddress(customer.customer_id, address.address_id);
       if (success) {
-        const refreshedAddresses = await api.refreshAddresses(customer, showDeactivated);
+        const refreshedAddresses = await refreshAddresses(customer, showDeactivated);
         setAddresses(refreshedAddresses);
       }
     }
+    delete editBackupsRef.current[addressIndex];
   };
 
   const handleMakePrimary = async (addressId: string | number) => {
-    const success = await api.makePrimaryAddress(customer, addressId);
+    const success = await makePrimaryAddress(customer, addressId);
     if (success) {
       // Update local state to reflect the change
       setAddresses(addresses.map(addr => ({
@@ -127,78 +138,127 @@ export const useAddressManagement = (
 
   const handleReactivateAddress = async (addressIndex: number) => {
     const address = addresses[addressIndex];
-    const success = await api.reactivateAddress(customer.customer_id, address.address_id);
+    const success = await reactivateAddress(customer.customer_id, address.address_id);
     if (success) {
-      const refreshedAddresses = await api.refreshAddresses(customer, showDeactivated);
+      const refreshedAddresses = await refreshAddresses(customer, showDeactivated);
       setAddresses(refreshedAddresses);
     }
   };
 
-  const handleAddressChange = async (index: number, field: string, value: any) => {
-    const newAddresses = [...addresses];
-    newAddresses[index] = { ...newAddresses[index], [field]: value };
-    
-    // Handle province change - auto-populate tax fields if they're empty
-    if (field === 'province_state_short' && value) {
-      const currentAddress = newAddresses[index];
-      const hasExistingTaxData = currentAddress.tax_id || currentAddress.tax_type || currentAddress.tax_override_percent;
-      
-      const taxInfo = await api.fetchTaxInfo(value);
-      if (taxInfo) {
-        // Auto-populate if no existing tax data
-        if (!hasExistingTaxData) {
-          newAddresses[index] = {
-            ...newAddresses[index],
-            tax_id: taxInfo.tax_id,
-            tax_type: taxInfo.tax_name,
-            tax_override_percent: taxInfo.tax_percent / 100, // Convert 13.00 to 0.13 for database
-            use_province_tax: true
-          };
-          setTaxWarning('');
-        } else {
-          // Check for mismatch and show warning
-          const currentTaxPercent = parseFloat(currentAddress.tax_override_percent?.toString() || '0') * 100;
-          const expectedTaxPercent = parseFloat(taxInfo.tax_percent.toString());
-          
-          if (currentAddress.tax_type !== taxInfo.tax_name || 
-              Math.abs(currentTaxPercent - expectedTaxPercent) > 0.01) {
-            setTaxWarning(`Warning: Tax settings don't match ${value}. Expected: ${taxInfo.tax_name} at ${taxInfo.tax_percent}%`);
-          } else {
+  const handleAddressChange = useCallback(
+    <K extends keyof Address>(index: number, field: K, value: Address[K] | null) => {
+      const normalizedValue = value === null ? undefined : value;
+      const existingAddress = addresses[index];
+      const addressKey = buildAddressKey(existingAddress, index);
+
+      setAddresses((prev) => {
+        const next = [...prev];
+        const target = { ...next[index], [field]: normalizedValue } as Address;
+
+        if (field === 'province_state_short' && typeof normalizedValue === 'string') {
+          const provinceShort = normalizedValue.trim();
+          target.province_state_short = provinceShort;
+
+          if (!provinceShort) {
+            target.province_state_long = undefined;
+            target.tax_id = undefined;
+            target.tax_type = undefined;
+            target.tax_override_percent = undefined;
+            target.use_province_tax = true;
+            setTaxDisplayValues((prevValues) => {
+              const nextValues = { ...prevValues };
+              delete nextValues[addressKey];
+              return nextValues;
+            });
             setTaxWarning('');
+          } else {
+            const matchingProvince = provincesStates.find(
+              (province) => province.province_short === provinceShort
+            );
+
+            if (matchingProvince) {
+              target.province_state_long = matchingProvince.province_long;
+              target.country = matchingProvince.country_group === 'USA' ? 'USA' : 'Canada';
+            }
           }
         }
+
+        if (field === 'tax_type' || field === 'tax_override_percent') {
+          setTaxWarning('');
+        }
+
+        next[index] = target;
+        return next;
+      });
+
+      if (field === 'province_state_short' && typeof normalizedValue === 'string') {
+        const provinceShort = normalizedValue.trim();
+        if (provinceShort) {
+          void (async () => {
+            try {
+              const taxInfo = await fetchTaxInfo(provinceShort);
+              if (!taxInfo) {
+                return;
+              }
+
+              setAddresses((prev) => {
+                const next = [...prev];
+                const target = { ...next[index] } as Address;
+                target.tax_id = taxInfo.tax_id;
+                target.tax_type = taxInfo.tax_name;
+                target.tax_override_percent = Number(taxInfo.tax_percent) / 100;
+                target.use_province_tax = true;
+                next[index] = target;
+                return next;
+              });
+
+              setTaxDisplayValues((prevValues) => {
+                const nextValues = { ...prevValues };
+                delete nextValues[addressKey];
+                return nextValues;
+              });
+
+              setTaxWarning('');
+            } catch (error) {
+              console.error('Error fetching tax info:', error);
+            }
+          })();
+        } else {
+          setTaxDisplayValues((prevValues) => {
+            const nextValues = { ...prevValues };
+            delete nextValues[addressKey];
+            return nextValues;
+          });
+          setTaxWarning('');
+        }
       }
-    }
-    
-    // Clear tax warning when tax fields are manually changed
-    if (field === 'tax_type' || field === 'tax_override_percent') {
-      setTaxWarning('');
-    }
-    
-    setAddresses(newAddresses);
-  };
+    },
+    [addresses, buildAddressKey, fetchTaxInfo, provincesStates, setAddresses]
+  );
 
   const getAddressTypeLabels = (address: Address): string => {
     const types = [];
-    if (Boolean(address.is_primary)) types.push('Primary');
-    if (Boolean(address.is_billing)) types.push('Billing');
-    if (Boolean(address.is_shipping)) types.push('Shipping');
-    if (Boolean(address.is_jobsite)) types.push('Jobsite');
-    if (Boolean(address.is_mailing)) types.push('Mailing');
+    if (address.is_primary) types.push('Primary');
+    if (address.is_billing) types.push('Billing');
+    if (address.is_shipping) types.push('Shipping');
+    if (address.is_jobsite) types.push('Jobsite');
+    if (address.is_mailing) types.push('Mailing');
     return types.length > 0 ? types.join(', ') : 'Address';
   };
 
   const handleTaxDisplayValueChange = (
-    addressKey: string, 
-    displayValue: string, 
+    _addressKey: string,
+    displayValue: string,
     addressIndex: number
   ) => {
+    const key = buildAddressKey(addresses[addressIndex], addressIndex);
+
     // Update display value immediately for smooth typing
-    setTaxDisplayValues(prev => ({ ...prev, [addressKey]: displayValue }));
-    
+    setTaxDisplayValues(prev => ({ ...prev, [key]: displayValue }));
+
     // Convert to decimal for storage
     const numValue = parseFloat(displayValue);
-    const dbValue = numValue ? numValue / 100 : null;
+    const dbValue = Number.isNaN(numValue) ? null : numValue / 100;
     handleAddressChange(addressIndex, 'tax_override_percent', dbValue);
   };
 
@@ -212,6 +272,7 @@ export const useAddressManagement = (
   };
 
   const startEditing = (addressIndex: number) => {
+    editBackupsRef.current[addressIndex] = { ...addresses[addressIndex] };
     const newAddresses = [...addresses];
     newAddresses[addressIndex] = { ...newAddresses[addressIndex], isEditing: true };
     setAddresses(newAddresses);
@@ -223,12 +284,20 @@ export const useAddressManagement = (
       handleDeleteAddress(addressIndex);
     } else {
       const newAddresses = [...addresses];
-      const originalAddress = customer.addresses?.find((a: Address) => a.address_id === address.address_id);
+      const backup = editBackupsRef.current[addressIndex];
+      const originalAddress = backup || customer.addresses?.find((a: Address) => a.address_id === address.address_id);
       if (originalAddress) {
         newAddresses[addressIndex] = { ...originalAddress, isEditing: false };
         setAddresses(newAddresses);
+        const key = buildAddressKey(originalAddress, addressIndex);
+        setTaxDisplayValues((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
       }
     }
+    delete editBackupsRef.current[addressIndex];
   };
 
   return {
@@ -236,7 +305,7 @@ export const useAddressManagement = (
     provincesStates,
     taxWarning,
     taxDisplayValues,
-    loading: api.loading,
+    loading,
 
     // Handlers
     handleAddAddress,

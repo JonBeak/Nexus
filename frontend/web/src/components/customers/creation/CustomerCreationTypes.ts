@@ -1,4 +1,4 @@
-import { Customer, Address, LedType, PowerSupplyType } from '../../../types/index';
+import { Customer, Address, LedType, PowerSupplyType, ProvinceState } from '../../../types/index';
 
 export interface CustomerCreateData {
   company_name: string;
@@ -42,7 +42,10 @@ export interface CustomerFormCreateProps {
   formData: CustomerCreateData;
   ledTypes: LedType[];
   powerSupplyTypes: PowerSupplyType[];
-  onInputChange: (field: string, value: any) => void;
+  onInputChange: <K extends keyof CustomerCreateData>(
+    field: K,
+    value: CustomerCreateData[K] | null
+  ) => void;
 }
 
 export interface AddressManagerCreateProps {

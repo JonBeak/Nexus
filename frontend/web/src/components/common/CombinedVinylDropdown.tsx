@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Check } from 'lucide-react';
 
@@ -34,6 +34,7 @@ interface CombinedVinylDropdownProps {
   className?: string;
   name?: string;
   onTab?: () => void;
+  onSuggestionsNeeded?: () => void;
 }
 
 export const CombinedVinylDropdown: React.FC<CombinedVinylDropdownProps> = ({
@@ -47,7 +48,8 @@ export const CombinedVinylDropdown: React.FC<CombinedVinylDropdownProps> = ({
   disabled = false,
   className = '',
   name,
-  onTab
+  onTab,
+  onSuggestionsNeeded
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -60,17 +62,17 @@ export const CombinedVinylDropdown: React.FC<CombinedVinylDropdownProps> = ({
   const justSelectedRef = useRef(false);
 
   // Format combination into display string: "{Brand} {Series}-{Code} {Name}"
-  const formatCombination = (combo: VinylCombination): string => {
+  const formatCombination = useCallback((combo: VinylCombination): string => {
     const brandSeries = `${combo.brand} ${combo.series}`;
     const codeNamePart = combo.colour_number && combo.colour_name ? 
       `${combo.colour_number} ${combo.colour_name}` : 
       (combo.colour_number || combo.colour_name || '');
     
     return codeNamePart ? `${brandSeries}-${codeNamePart}` : brandSeries;
-  };
+  }, []);
 
   // Parse display string back into components
-  const parseCombination = (displayString: string): { brand: string; series: string; colour_number: string; colour_name: string } => {
+  const parseCombination = useCallback((displayString: string): { brand: string; series: string; colour_number: string; colour_name: string } => {
     // Find the combination that matches this display string
     const matchingCombo = combinations.find(combo => formatCombination(combo) === displayString);
     
@@ -85,15 +87,15 @@ export const CombinedVinylDropdown: React.FC<CombinedVinylDropdownProps> = ({
     
     // Fallback parsing if no exact match found
     return { brand: '', series: '', colour_number: '', colour_name: '' };
-  };
+  }, [combinations, formatCombination]);
 
   // Get current display value
-  const getCurrentDisplayValue = (): string => {
+  const getCurrentDisplayValue = useCallback((): string => {
     if (!value.brand && !value.series && !value.colour_number && !value.colour_name) {
       return '';
     }
     return formatCombination(value as VinylCombination);
-  };
+  }, [value, formatCombination]);
 
   // Filter combinations based on search term
   useEffect(() => {
@@ -107,7 +109,7 @@ export const CombinedVinylDropdown: React.FC<CombinedVinylDropdownProps> = ({
     
     setFilteredOptions(formatted);
     setHighlightedIndex(-1);
-  }, [searchTerm, combinations]);
+  }, [searchTerm, combinations, formatCombination]);
 
   // Calculate dropdown position relative to viewport
   const updateDropdownPosition = () => {
@@ -162,9 +164,29 @@ export const CombinedVinylDropdown: React.FC<CombinedVinylDropdownProps> = ({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setSearchTerm(newValue);
+    onSuggestionsNeeded?.();
+
+    const trimmed = newValue.trim();
+    const hasSelection = value.brand || value.series || value.colour_number || value.colour_name;
+
+    if (!trimmed && hasSelection) {
+      onChange({ brand: '', series: '', colour_number: '', colour_name: '' });
+      justSelectedRef.current = false;
+    }
     
     if (!isOpen && newValue) {
       setIsOpen(true);
+    }
+  };
+
+  const handleInputBlur = () => {
+    const trimmed = searchTerm.trim();
+    const hasSelection = value.brand || value.series || value.colour_number || value.colour_name;
+
+    if (!trimmed && hasSelection) {
+      onChange({ brand: '', series: '', colour_number: '', colour_name: '' });
+      setSearchTerm('');
+      justSelectedRef.current = false;
     }
   };
 
@@ -176,6 +198,7 @@ export const CombinedVinylDropdown: React.FC<CombinedVinylDropdownProps> = ({
     
     const currentValue = getCurrentDisplayValue();
     setSearchTerm(currentValue);
+    onSuggestionsNeeded?.();
     
     if (combinations.length > 0) {
       setIsOpen(true);
@@ -194,6 +217,7 @@ export const CombinedVinylDropdown: React.FC<CombinedVinylDropdownProps> = ({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!isOpen) {
       if (e.key === 'ArrowDown' && filteredOptions.length > 0) {
+        onSuggestionsNeeded?.();
         setIsOpen(true);
         setHighlightedIndex(0);
         e.preventDefault();
@@ -248,10 +272,13 @@ export const CombinedVinylDropdown: React.FC<CombinedVinylDropdownProps> = ({
 
   // Initialize search term with current value when component mounts or value changes
   useEffect(() => {
-    if (!searchTerm) {
-      setSearchTerm(getCurrentDisplayValue());
-    }
-  }, [value]);
+    setSearchTerm(prev => {
+      if (prev) {
+        return prev;
+      }
+      return getCurrentDisplayValue();
+    });
+  }, [value, getCurrentDisplayValue]);
 
   return (
     <div className={`relative ${className}`} ref={containerRef}>
@@ -270,6 +297,7 @@ export const CombinedVinylDropdown: React.FC<CombinedVinylDropdownProps> = ({
           onChange={handleInputChange}
           onFocus={handleInputFocus}
           onKeyDown={handleKeyDown}
+          onBlur={handleInputBlur}
           placeholder={placeholder}
           required={required}
           disabled={disabled}
@@ -284,6 +312,7 @@ export const CombinedVinylDropdown: React.FC<CombinedVinylDropdownProps> = ({
             } else {
               const currentValue = getCurrentDisplayValue();
               setSearchTerm(currentValue);
+              onSuggestionsNeeded?.();
               setIsOpen(combinations.length > 0);
             }
           }}

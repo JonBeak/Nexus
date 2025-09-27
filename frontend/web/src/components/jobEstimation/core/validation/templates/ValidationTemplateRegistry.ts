@@ -9,8 +9,8 @@ import { LedOverrideTemplate } from './LedOverrideTemplate';
 import { PsOverrideTemplate } from './PsOverrideTemplate';
 import { UlOverrideTemplate } from './UlOverrideTemplate';
 import { FloatOrGroupsTemplate } from './FloatOrGroupsTemplate';
-// import { LedTypeTemplate } from './LedTypeTemplate';
-// import { PsTypeTemplate } from './PsTypeTemplate';
+import { LedTypeTemplate } from './LedTypeTemplate';
+import { PsTypeTemplate } from './PsTypeTemplate';
 
 export class ValidationTemplateRegistry {
   private templates = new Map<string, ValidationTemplate>();
@@ -20,8 +20,10 @@ export class ValidationTemplateRegistry {
     this.registerTemplate('textsplit', new TextSplitTemplate());
 
     // Register basic validation templates
+    const requiredTemplate = new RequiredTemplate();
     this.registerTemplate('float', new FloatTemplate());
-    this.registerTemplate('required', new RequiredTemplate());
+    this.registerTemplate('required', requiredTemplate);
+    this.registerTemplate('non_empty', requiredTemplate);
 
     // Register context-aware override templates
     this.registerTemplate('led_override', new LedOverrideTemplate());
@@ -30,9 +32,8 @@ export class ValidationTemplateRegistry {
 
     // Register specialized templates
     this.registerTemplate('float_or_groups', new FloatOrGroupsTemplate());
-    // Temporarily disabled until TypeScript interfaces are fixed:
-    // this.registerTemplate('led_type', new LedTypeTemplate());
-    // this.registerTemplate('ps_type', new PsTypeTemplate());
+    this.registerTemplate('led_type', new LedTypeTemplate());
+    this.registerTemplate('ps_type', new PsTypeTemplate());
 
     // Future templates can be registered here:
     // this.registerTemplate('email', new EmailTemplate());
@@ -80,7 +81,7 @@ export class ValidationTemplateRegistry {
    * @param name - Template function name
    * @returns Template metadata or null if not found
    */
-  getTemplateInfo(name: string): { description: string; parameters: Record<string, any> } | null {
+  getTemplateInfo(name: string): { description: string; parameters: Record<string, unknown> } | null {
     const template = this.getTemplate(name);
     if (!template) return null;
 

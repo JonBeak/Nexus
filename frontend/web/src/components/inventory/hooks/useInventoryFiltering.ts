@@ -1,66 +1,72 @@
-import { useState, useMemo } from 'react';
-import { VinylItem } from '../InventoryTab';
+import { useState, useMemo, useCallback } from 'react';
+import { InventoryFilterType, VinylItem } from '../types';
 
-interface ColumnFilters {
+export interface InventoryColumnFilters {
   brand: string;
   series: string;
   colour_number: string;
   colour_name: string;
 }
 
+export type InventorySortField = keyof Pick<
+  VinylItem,
+  'brand' | 'series' | 'colour_number' | 'colour_name' | 'width' | 'length_yards' |
+    'disposition' | 'storage_date' | 'purchase_date' | 'created_at' | 'updated_at'
+>;
+
 interface UseInventoryFilteringReturn {
   searchTerm: string;
   setSearchTerm: (term: string) => void;
-  filterType: string;
-  setFilterType: (type: string) => void;
-  sortField: string;
-  setSortField: (field: string) => void;
+  filterType: InventoryFilterType;
+  setFilterType: (type: InventoryFilterType) => void;
+  sortField: InventorySortField;
+  setSortField: (field: InventorySortField) => void;
   sortDirection: 'asc' | 'desc';
   setSortDirection: (direction: 'asc' | 'desc') => void;
-  columnFilters: ColumnFilters;
-  setColumnFilters: (filters: ColumnFilters) => void;
+  columnFilters: InventoryColumnFilters;
+  setColumnFilters: (filters: InventoryColumnFilters) => void;
   filteredItems: VinylItem[];
   sortedItems: VinylItem[];
   getBrandOptions: string[];
   getSeriesOptions: string[];
   getColourNumberOptions: string[];
   getColourNameOptions: string[];
-  handleSort: (field: string) => void;
-  handleColumnFilter: (column: keyof ColumnFilters, value: string) => void;
+  handleSort: (field: InventorySortField) => void;
+  handleColumnFilter: (column: keyof InventoryColumnFilters, value: string) => void;
   clearAllFilters: () => void;
   getActiveFilterCount: () => number;
-  getSortIcon: (field: string) => string;
+  getSortIcon: (field: InventorySortField) => string;
 }
 
 export const useInventoryFiltering = (vinylItems: VinylItem[]): UseInventoryFilteringReturn => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('in_stock');
-  const [sortField, setSortField] = useState<string>('created_at');
+  const [filterType, setFilterType] = useState<InventoryFilterType>('in_stock');
+  const [sortField, setSortField] = useState<InventorySortField>('created_at');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [columnFilters, setColumnFilters] = useState<ColumnFilters>({
+  const [columnFilters, setColumnFilters] = useState<InventoryColumnFilters>({
     brand: '',
     series: '',
     colour_number: '',
     colour_name: ''
   });
 
-  const handleSort = (field: string) => {
+  const handleSort = useCallback((field: InventorySortField) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
       setSortField(field);
       setSortDirection('asc');
     }
-  };
+  }, [sortField, sortDirection]);
 
-  const handleColumnFilter = (column: keyof ColumnFilters, value: string) => {
+  const handleColumnFilter = useCallback((column: keyof InventoryColumnFilters, value: string) => {
     setColumnFilters(prev => ({
       ...prev,
       [column]: value
     }));
-  };
+  }, []);
 
-  const clearAllFilters = () => {
+  const clearAllFilters = useCallback(() => {
     setColumnFilters({
       brand: '',
       series: '',
@@ -68,16 +74,23 @@ export const useInventoryFiltering = (vinylItems: VinylItem[]): UseInventoryFilt
       colour_name: ''
     });
     setSearchTerm('');
-  };
+  }, []);
 
-  const getActiveFilterCount = () => {
+  const getActiveFilterCount = useCallback(() => {
     const filterCount = Object.values(columnFilters).filter(value => value.trim() !== '').length;
     return searchTerm.trim() !== '' ? filterCount + 1 : filterCount;
-  };
+  }, [columnFilters, searchTerm]);
 
-  const getSortIcon = (field: string): string => {
+  const getSortIcon = (field: InventorySortField): string => {
     if (sortField !== field) return '';
     return sortDirection === 'asc' ? '↑' : '↓';
+  };
+
+  const normalizeValue = (value: VinylItem[InventorySortField] | undefined): string => {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    return String(value).toLowerCase();
   };
 
   // Filter items based on all criteria
@@ -111,18 +124,9 @@ export const useInventoryFiltering = (vinylItems: VinylItem[]): UseInventoryFilt
   // Sort the filtered items
   const sortedItems = useMemo(() => {
     return [...filteredItems].sort((a, b) => {
-      let aValue: any = a[sortField as keyof VinylItem];
-      let bValue: any = b[sortField as keyof VinylItem];
-      
-      // Handle null/undefined values
-      if (aValue == null && bValue == null) return 0;
-      if (aValue == null) return sortDirection === 'asc' ? -1 : 1;
-      if (bValue == null) return sortDirection === 'asc' ? 1 : -1;
-      
-      // Convert to string for comparison if not already
-      aValue = String(aValue).toLowerCase();
-      bValue = String(bValue).toLowerCase();
-      
+      const aValue = normalizeValue(a[sortField]);
+      const bValue = normalizeValue(b[sortField]);
+
       if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
       if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
       return 0;
@@ -131,13 +135,11 @@ export const useInventoryFiltering = (vinylItems: VinylItem[]): UseInventoryFilt
 
   // Generate contextual dropdown options with counts
   const getBrandOptions = useMemo(() => {
-    const { series, colour_number, colour_name } = columnFilters;
-    
     const contextualItems = vinylItems.filter(item => {
       const matchesStatus = filterType === 'all' || item.disposition === filterType;
-      const matchesSeries = !series || (item.series && item.series.toLowerCase().includes(series.toLowerCase()));
-      const matchesColourNumber = !colour_number || (item.colour_number && item.colour_number.toLowerCase().includes(colour_number.toLowerCase()));
-      const matchesColourName = !colour_name || (item.colour_name && item.colour_name.toLowerCase().includes(colour_name.toLowerCase()));
+      const matchesSeries = !columnFilters.series || (item.series && item.series.toLowerCase().includes(columnFilters.series.toLowerCase()));
+      const matchesColourNumber = !columnFilters.colour_number || (item.colour_number && item.colour_number.toLowerCase().includes(columnFilters.colour_number.toLowerCase()));
+      const matchesColourName = !columnFilters.colour_name || (item.colour_name && item.colour_name.toLowerCase().includes(columnFilters.colour_name.toLowerCase()));
       return matchesStatus && matchesSeries && matchesColourNumber && matchesColourName;
     });
     
@@ -152,16 +154,14 @@ export const useInventoryFiltering = (vinylItems: VinylItem[]): UseInventoryFilt
     const brandOptions = brands.map(brand => `${brand} (${brandCounts[brand]})`);
     
     return ['---', ...brandOptions];
-  }, [vinylItems, columnFilters.series, columnFilters.colour_number, columnFilters.colour_name, filterType]);
+  }, [vinylItems, columnFilters, filterType]);
 
   const getSeriesOptions = useMemo(() => {
-    const { brand, colour_number, colour_name } = columnFilters;
-    
     const contextualItems = vinylItems.filter(item => {
       const matchesStatus = filterType === 'all' || item.disposition === filterType;
-      const matchesBrand = !brand || (item.brand && item.brand.toLowerCase().includes(brand.toLowerCase()));
-      const matchesColourNumber = !colour_number || (item.colour_number && item.colour_number.toLowerCase().includes(colour_number.toLowerCase()));
-      const matchesColourName = !colour_name || (item.colour_name && item.colour_name.toLowerCase().includes(colour_name.toLowerCase()));
+      const matchesBrand = !columnFilters.brand || (item.brand && item.brand.toLowerCase().includes(columnFilters.brand.toLowerCase()));
+      const matchesColourNumber = !columnFilters.colour_number || (item.colour_number && item.colour_number.toLowerCase().includes(columnFilters.colour_number.toLowerCase()));
+      const matchesColourName = !columnFilters.colour_name || (item.colour_name && item.colour_name.toLowerCase().includes(columnFilters.colour_name.toLowerCase()));
       return matchesStatus && matchesBrand && matchesColourNumber && matchesColourName;
     });
     
@@ -176,16 +176,14 @@ export const useInventoryFiltering = (vinylItems: VinylItem[]): UseInventoryFilt
     const seriesOptions = series.map(series => `${series} (${seriesCounts[series]})`);
     
     return ['---', ...seriesOptions];
-  }, [vinylItems, columnFilters.brand, columnFilters.colour_number, columnFilters.colour_name, filterType]);
+  }, [vinylItems, columnFilters, filterType]);
 
   const getColourNumberOptions = useMemo(() => {
-    const { brand, series, colour_name } = columnFilters;
-    
     const contextualItems = vinylItems.filter(item => {
       const matchesStatus = filterType === 'all' || item.disposition === filterType;
-      const matchesBrand = !brand || (item.brand && item.brand.toLowerCase().includes(brand.toLowerCase()));
-      const matchesSeries = !series || (item.series && item.series.toLowerCase().includes(series.toLowerCase()));
-      const matchesColourName = !colour_name || (item.colour_name && item.colour_name.toLowerCase().includes(colour_name.toLowerCase()));
+      const matchesBrand = !columnFilters.brand || (item.brand && item.brand.toLowerCase().includes(columnFilters.brand.toLowerCase()));
+      const matchesSeries = !columnFilters.series || (item.series && item.series.toLowerCase().includes(columnFilters.series.toLowerCase()));
+      const matchesColourName = !columnFilters.colour_name || (item.colour_name && item.colour_name.toLowerCase().includes(columnFilters.colour_name.toLowerCase()));
       return matchesStatus && matchesBrand && matchesSeries && matchesColourName;
     });
     
@@ -200,16 +198,14 @@ export const useInventoryFiltering = (vinylItems: VinylItem[]): UseInventoryFilt
     const colourNumberOptions = colourNumbers.map(num => `${num} (${colourNumberCounts[num]})`);
     
     return ['---', ...colourNumberOptions];
-  }, [vinylItems, columnFilters.brand, columnFilters.series, columnFilters.colour_name, filterType]);
+  }, [vinylItems, columnFilters, filterType]);
 
   const getColourNameOptions = useMemo(() => {
-    const { brand, series, colour_number } = columnFilters;
-    
     const contextualItems = vinylItems.filter(item => {
       const matchesStatus = filterType === 'all' || item.disposition === filterType;
-      const matchesBrand = !brand || (item.brand && item.brand.toLowerCase().includes(brand.toLowerCase()));
-      const matchesSeries = !series || (item.series && item.series.toLowerCase().includes(series.toLowerCase()));
-      const matchesColourNumber = !colour_number || (item.colour_number && item.colour_number.toLowerCase().includes(colour_number.toLowerCase()));
+      const matchesBrand = !columnFilters.brand || (item.brand && item.brand.toLowerCase().includes(columnFilters.brand.toLowerCase()));
+      const matchesSeries = !columnFilters.series || (item.series && item.series.toLowerCase().includes(columnFilters.series.toLowerCase()));
+      const matchesColourNumber = !columnFilters.colour_number || (item.colour_number && item.colour_number.toLowerCase().includes(columnFilters.colour_number.toLowerCase()));
       return matchesStatus && matchesBrand && matchesSeries && matchesColourNumber;
     });
     
@@ -224,7 +220,7 @@ export const useInventoryFiltering = (vinylItems: VinylItem[]): UseInventoryFilt
     const colourNameOptions = colourNames.map(name => `${name} (${colourNameCounts[name]})`);
     
     return ['---', ...colourNameOptions];
-  }, [vinylItems, columnFilters.brand, columnFilters.series, columnFilters.colour_number, filterType]);
+  }, [vinylItems, columnFilters, filterType]);
 
   return {
     searchTerm,

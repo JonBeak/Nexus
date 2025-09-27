@@ -1,8 +1,9 @@
 import React from 'react';
+import { Customer } from '../../../types';
 
 interface CustomerTableRowProps {
-  customer: any;
-  onDetailsClick: (customer: any) => Promise<void>;
+  customer: Customer;
+  onDetailsClick: (customer: Customer) => Promise<void>;
   onReactivateClick: (customerId: number) => Promise<void>;
 }
 

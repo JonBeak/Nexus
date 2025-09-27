@@ -1,6 +1,5 @@
 import React from 'react';
 import { FieldRendererProps } from '../types';
-import { AssemblyFieldRenderer } from './AssemblyFieldRenderer';
 import { ProductFieldRenderer } from './ProductFieldRenderer';
 
 export const FieldRenderer: React.FC<FieldRendererProps> = (props) => {

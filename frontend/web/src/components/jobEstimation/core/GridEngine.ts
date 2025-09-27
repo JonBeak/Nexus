@@ -2,7 +2,7 @@
 
 import { GridRowCore, ProductTypeConfig } from './types/CoreTypes';
 import { GridRow } from './types/LayerTypes';
-import { GridState, CalculationContext, UpdateOptions, DisplayContext, InteractionContext } from './types/GridTypes';
+import { GridState, UpdateOptions, DisplayContext, InteractionContext, PricingCalculationContext } from './types/GridTypes';
 
 // Layer operations
 import { createCoreDataOperations, CoreDataOperations } from './layers/CoreDataLayer';
@@ -17,6 +17,8 @@ import { DataPersistence } from './persistence/DataPersistence';
 
 // Validation system
 import { ValidationEngine } from './validation/ValidationEngine';
+import { ValidationResultsManager } from './validation/ValidationResultsManager';
+import { CustomerManufacturingPreferences } from './validation/context/useCustomerPreferences';
 
 export interface GridEngineConfig {
   productTypes: ProductTypeConfig[];
@@ -29,23 +31,34 @@ export interface GridEngineConfig {
   validation?: {
     enabled: boolean;
     productValidations: Map<number, Record<string, any>>; // Field validation configs by product type
+    customerPreferences?: CustomerManufacturingPreferences;
   };
   callbacks?: {
     onRowsChange?: (rows: GridRow[]) => void;
     onStateChange?: (state: GridState) => void;
-    onValidationChange?: (hasErrors: boolean, errorCount: number) => void;
+    onValidationChange?: (hasErrors: boolean, errorCount: number, context?: PricingCalculationContext) => void;
   };
   permissions?: {
     canEdit: boolean;
     canDelete: boolean;
     userRole: string;
   };
+  customerPreferences?: CustomerManufacturingPreferences;
+
+  // NEW: Customer context for pricing calculations
+  customerId?: number;
+  customerName?: string;
+  cashCustomer?: boolean;
+  taxRate?: number;
+
+  // NEW: Estimate context
+  estimateId?: number;
 }
 
 export class GridEngine {
   // Private state
   private coreData: GridRowCore[] = [];
-  private calculatedRows: GridRow[] = [];
+  private inputGridRows: GridRow[] = [];
   private state: GridState;
   private config: GridEngineConfig;
 
@@ -87,7 +100,8 @@ export class GridEngine {
     // Initialize validation engine if enabled
     if (this.config.validation?.enabled && this.config.validation.productValidations) {
       this.validationEngine = new ValidationEngine({
-        productValidations: this.config.validation.productValidations
+        productValidations: this.config.validation.productValidations,
+        customerPreferences: this.config.validation.customerPreferences || this.config.customerPreferences
       });
     }
   }
@@ -127,13 +141,13 @@ export class GridEngine {
       rowId,
       fieldUpdates,
       this.coreData,
-      this.calculatedRows
+      this.inputGridRows
     );
 
     // Update internal state
     this.coreData = result.coreData;
-    this.calculatedRows = result.calculatedRows;
-    this.state.rows = this.calculatedRows;
+    this.inputGridRows = result.calculatedRows;
+    this.state.rows = this.inputGridRows;
 
     // Mark as having unsaved changes and trigger auto-save
     this.state.hasUnsavedChanges = true;
@@ -177,7 +191,7 @@ export class GridEngine {
       rowType,
       parentProductId,
       this.coreData,
-      this.calculatedRows
+      this.inputGridRows
     );
 
     this.updateCoreData(newCoreData);
@@ -192,7 +206,7 @@ export class GridEngine {
     const newCoreData = this.rowOps.deleteRow(
       rowId,
       this.coreData,
-      this.calculatedRows
+      this.inputGridRows
     );
 
     this.updateCoreData(newCoreData);
@@ -207,7 +221,7 @@ export class GridEngine {
     const newCoreData = this.rowOps.duplicateRow(
       rowId,
       this.coreData,
-      this.calculatedRows
+      this.inputGridRows
     );
 
     this.updateCoreData(newCoreData);
@@ -233,10 +247,10 @@ export class GridEngine {
 
 
   /**
-   * Gets current calculated rows
+   * Gets current input grid rows
    */
   getRows(): GridRow[] {
-    return [...this.calculatedRows];
+    return [...this.inputGridRows];
   }
 
   /**
@@ -271,10 +285,19 @@ export class GridEngine {
    * Updates configuration after initialization
    */
   updateConfig(updates: Partial<GridEngineConfig>): void {
-    this.config = {
+    const nextConfig: GridEngineConfig = {
       ...this.config,
       ...updates
     };
+
+    if (updates.validation) {
+      nextConfig.validation = {
+        ...this.config.validation,
+        ...updates.validation
+      };
+    }
+
+    this.config = nextConfig;
 
     // Update RowOperations config if product types changed
     if (updates.productTypes) {
@@ -284,6 +307,15 @@ export class GridEngine {
       });
       this.recalculateAllLayers({ forceRecalculation: true });
       this.notifyStateChange();
+    }
+
+    if (updates.customerPreferences || updates.validation?.customerPreferences) {
+      if (this.validationEngine && this.config.validation?.enabled) {
+        this.validationEngine.setCustomerPreferences(
+          updates.validation?.customerPreferences || updates.customerPreferences
+        );
+        this.triggerValidationDebounced();
+      }
     }
   }
 
@@ -346,7 +378,8 @@ export class GridEngine {
       // Re-initialize validation engine with new config
       if (this.config.validation.enabled) {
         this.validationEngine = new ValidationEngine({
-          productValidations: productValidations
+          productValidations: productValidations,
+          customerPreferences: this.config.validation.customerPreferences || this.config.customerPreferences
         });
       }
     }
@@ -356,12 +389,11 @@ export class GridEngine {
    * Reloads grid data from backend API and updates GridEngine state
    * @param estimateId - Estimate ID to load data for
    * @param jobVersioningApi - API client for loading data
-   * @param fieldPromptsMap - Field prompts for existing compatibility
    */
-  async reloadFromBackend(estimateId: number, jobVersioningApi: any, fieldPromptsMap: any): Promise<void> {
+  async reloadFromBackend(estimateId: number, jobVersioningApi: any): Promise<void> {
     try {
       // Delegate to DataPersistence module
-      const coreRows = await this.persistence.reloadFromBackend(estimateId, jobVersioningApi, fieldPromptsMap);
+      const coreRows = await this.persistence.reloadFromBackend(estimateId, jobVersioningApi);
 
       this.updateCoreData(coreRows, { markAsDirty: false });
 
@@ -408,13 +440,6 @@ export class GridEngine {
    * @param options - Calculation options
    */
   private recalculateAllLayers(options: UpdateOptions = {}): void {
-    const context: CalculationContext = {
-      productTypes: this.config.productTypes,
-      currentRows: this.coreData,
-      previousRows: this.calculatedRows,
-      forceRecalculation: options.forceRecalculation
-    };
-
     // Layer 1: Calculate relationships
     const withRelationships = this.relationshipOps.calculateRelationships(this.coreData);
 
@@ -436,7 +461,7 @@ export class GridEngine {
     const withInteraction = this.interactionOps.calculateInteraction(withDisplay, interactionContext);
 
     // Add metadata to each row
-    this.calculatedRows = withInteraction.map(row => ({
+    this.inputGridRows = withInteraction.map(row => ({
       ...row,
       metadata: {
         lastModified: new Date(),
@@ -445,7 +470,7 @@ export class GridEngine {
     }));
 
     // Update state
-    this.state.rows = this.calculatedRows;
+    this.state.rows = this.inputGridRows;
 
     // Trigger validation after layer recalculation (for grid load/reload)
     // Debounced to prevent excessive validation calls during initialization
@@ -469,7 +494,7 @@ export class GridEngine {
         // Trigger validation after successful auto-save
         this.triggerValidation();
       },
-      (error) => {
+      () => {
         this.state.isAutoSaving = false;
         this.notifyStateChange();
       }
@@ -501,8 +526,13 @@ export class GridEngine {
     if (!this.validationEngine) return;
 
     try {
-      // Run validation on current core data
-      await this.validationEngine.validateGrid(this.coreData);
+      // Run validation on current core data with display rows for metadata
+      await this.validationEngine.validateGrid(
+        this.coreData,
+        undefined,
+        this.config.validation?.customerPreferences || this.config.customerPreferences,
+        this.inputGridRows // Pass display rows for metadata
+      );
 
       // Check validation results and notify callbacks
       const hasErrors = this.validationEngine.hasBlockingErrors();
@@ -510,10 +540,23 @@ export class GridEngine {
       // Get actual error counts from ValidationResultsManager
       const summary = this.getValidationResults()?.getValidationSummary();
       const errorCount = summary ? summary.cellErrorCount + summary.structureErrorCount : 0;
-      const warningCount = summary ? summary.cellWarningCount : 0;
+
+      // Create pricing calculation context
+      const pricingCalculationContext: PricingCalculationContext = {
+        validationResultsManager: this.validationEngine?.getResultsManager(),
+        customerPreferences: this.config.customerPreferences,
+        customerId: this.config.customerId,
+        customerName: this.config.customerName,
+        cashCustomer: this.config.cashCustomer,
+        taxRate: this.config.taxRate,
+        estimateId: this.config.estimateId
+      };
 
       // Notify callbacks about validation state
-      this.config.callbacks?.onValidationChange?.(hasErrors, errorCount);
+      this.config.callbacks?.onValidationChange?.(hasErrors, errorCount, pricingCalculationContext);
+
+      // Notify subscribers
+      this.notifyStateChange();
 
     } catch (error) {
       console.error('Validation error:', error);
@@ -522,7 +565,7 @@ export class GridEngine {
   }
 
   private notifyStateChange(): void {
-    this.config.callbacks?.onRowsChange?.(this.calculatedRows);
+    this.config.callbacks?.onRowsChange?.(this.inputGridRows);
     this.config.callbacks?.onStateChange?.(this.state);
   }
 }

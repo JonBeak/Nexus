@@ -29,6 +29,7 @@ export class EstimateVersionService {
         `SELECT
           e.id,
           e.job_id,
+          j.customer_id AS customer_id,
           e.job_code,
           e.version_number,
           e.parent_estimate_id,

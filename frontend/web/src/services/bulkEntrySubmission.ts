@@ -1,5 +1,5 @@
 import { BulkEntry } from '../hooks/useBulkEntries';
-import { VinylItem } from '../components/inventory/InventoryTab';
+import { JobSuggestion, VinylItem } from '../components/inventory/types';
 import { vinylApi } from './api';
 import { validateBulkEntries } from '../utils/bulkEntryValidation';
 
@@ -12,7 +12,7 @@ interface SubmissionResult {
 export const submitBulkEntries = async (
   bulkEntries: BulkEntry[],
   vinylItems: VinylItem[],
-  availableJobs: any[],
+  availableJobs: JobSuggestion[],
   showNotification: (message: string, type?: 'success' | 'error') => void
 ): Promise<{
   success: boolean;
@@ -112,17 +112,6 @@ export const submitBulkEntries = async (
 
           // Mark this vinyl as used
           usedVinylIds.add(matchingVinyl.id);
-
-          // Convert type to disposition value
-          const getDispositionValue = (type: string) => {
-            switch (type) {
-              case 'use': return 'used';
-              case 'waste': return 'waste';
-              case 'returned': return 'returned';
-              case 'damaged': return 'damaged';
-              default: return 'used';
-            }
-          };
 
           // Use the specialized endpoint for marking as used
           const result = await vinylApi.markVinylAsUsed(matchingVinyl.id, {

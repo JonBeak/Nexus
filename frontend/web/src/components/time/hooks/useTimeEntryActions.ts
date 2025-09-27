@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import type { TimeEntry } from '../../../types/time';
+import type { TimeEntry, AuthenticatedRequest, BulkEditValues } from '../../../types/time';
 
 interface UseTimeEntryActionsProps {
-  makeAuthenticatedRequest: (url: string, options?: any) => Promise<Response>;
+  makeAuthenticatedRequest: AuthenticatedRequest;
   onDataRefresh: () => void;
 }
 
@@ -125,7 +125,7 @@ export const useTimeEntryActions = ({
     }
   };
   
-  const bulkEdit = async (selectedEntries: number[], bulkEditValues: any) => {
+  const bulkEdit = async (selectedEntries: number[], bulkEditValues: BulkEditValues) => {
     try {
       const res = await makeAuthenticatedRequest(
         'http://192.168.2.14:3001/api/time-management/bulk-edit',

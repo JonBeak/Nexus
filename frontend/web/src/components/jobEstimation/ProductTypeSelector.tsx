@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { ChevronDown, AlertCircle } from 'lucide-react';
 import { useProductTypes } from './hooks/useProductTypes';
 import { ProductDropdownOptions } from './components/ProductDropdownOptions';
@@ -25,13 +25,11 @@ export const ProductTypeSelector: React.FC<ProductTypeSelectorProps> = ({
   showCategories = true
 }) => {
   const { groupedProductTypes, loading, error } = useProductTypes();
-  const [isOpen, setIsOpen] = useState(false);
 
   const handleSelectChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const value = event.target.value;
     const productId = value ? Number(value) : null;
     onProductSelect(productId);
-    setIsOpen(false);
   };
 
   // Debug: Log product types to see categories
@@ -43,12 +41,6 @@ export const ProductTypeSelector: React.FC<ProductTypeSelectorProps> = ({
   });
 
   // Find selected product name for display
-  const selectedProduct = [
-    ...groupedProductTypes.normal,
-    ...groupedProductTypes.sub_item,
-    ...groupedProductTypes.special
-  ].find(pt => pt.id === selectedProductId);
-
   if (loading) {
     return (
       <div className={`relative ${className}`}>

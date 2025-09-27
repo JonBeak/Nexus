@@ -78,7 +78,15 @@ export const gridRowCoresToEstimateRows = (gridRowCores: GridRowCore[]): Estimat
  * @returns Array of EstimateRow objects
  */
 export const gridRowsToEstimateRows = (gridRows: GridRow[]): EstimateRow[] => {
-  return gridRows.map(gridRow => gridRowCoreToEstimateRow(gridRow));
+  return gridRows.map(gridRow => {
+    const estimateRow = gridRowCoreToEstimateRow(gridRow);
+
+    if (gridRow.calculation) {
+      estimateRow.calculation = gridRow.calculation;
+    }
+
+    return estimateRow;
+  });
 };
 
 // Helper functions

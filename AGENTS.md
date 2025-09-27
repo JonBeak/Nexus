@@ -38,3 +38,8 @@
 - Principle of least privilege for DB users; verify `/api/health` before deploys.
 - Do not introduce new dependencies without discussing impact (size, security, licensing).
 
+
+- Do not run git commands unless explicitly requested by the user.
+
+## Communication Expectations
+- When direction is unclear or requirements could be interpreted multiple ways, pause and ask the user for clarification instead of assuming the intent.

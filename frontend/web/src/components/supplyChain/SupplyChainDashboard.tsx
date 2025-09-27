@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Package, Layers, AlertTriangle, ShoppingCart, Settings } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getDashboardStatsApi } from '../../services/supplyChainApi';
 import type { DashboardStats } from '../../services/supplyChainApi';
 import api from '../../services/api';
 import { ProductCatalog } from './ProductCatalog';
@@ -13,9 +12,10 @@ import { ShoppingCartComponent } from './ShoppingCart';
 import { SuppliersManager } from './SuppliersManager';
 import { InventoryTab } from '../inventory/InventoryTab';
 import { ShoppingCartProvider } from '../../contexts/ShoppingCartContext';
+import type { User as AccountUser } from '../accounts/hooks/useAccountAPI';
 
 interface SupplyChainDashboardProps {
-  user: any;
+  user: AccountUser | null;
 }
 
 type TabType = 'overview' | 'shopping-cart' | 'vinyl-inventory' | 'inventory' | 'suppliers' | 'products' | 'low-stock';
@@ -27,22 +27,32 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       
       // Load real data from existing APIs
       const [vinylProductsRes, vinylInventoryRes] = await Promise.all([
-        api.get('/vinyl-products'),
-        api.get('/vinyl')
+        api.get<{ data?: unknown[] }>('/vinyl-products'),
+        api.get<{ data?: Array<{ total_quantity: string | number }> }>('/vinyl')
       ]);
 
-      const totalProducts = vinylProductsRes.data?.data?.length || 0;
-      const totalInventoryItems = vinylInventoryRes.data?.data?.length || 0;
-      const totalAvailableQuantity = vinylInventoryRes.data?.data?.reduce((sum: number, item: any) => 
-        sum + (parseFloat(item.total_quantity) || 0), 0
-      ) || 0;
+      const products = Array.isArray(vinylProductsRes.data)
+        ? vinylProductsRes.data
+        : vinylProductsRes.data?.data ?? [];
+      const inventoryItems = Array.isArray(vinylInventoryRes.data)
+        ? vinylInventoryRes.data
+        : vinylInventoryRes.data?.data ?? [];
+
+      const totalProducts = products.length;
+      const totalInventoryItems = inventoryItems.length;
+      const totalAvailableQuantity = inventoryItems.reduce((sum, item) => {
+        const quantity = typeof item.total_quantity === 'string'
+          ? parseFloat(item.total_quantity)
+          : item.total_quantity;
+        return sum + (Number.isFinite(quantity) ? Number(quantity) : 0);
+      }, 0);
 
       const stats = {
         total_categories: 3, // Vinyl, LED, Power Supply
@@ -54,8 +64,9 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
       };
       
       setStats(stats);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading dashboard stats:', err);
+      setError('Unable to load supply chain stats right now. Showing sample data.');
       // Fallback to mock data if API fails
       const mockStats = {
         total_categories: 3,
@@ -69,11 +80,11 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadStats();
-  }, []);
+    void loadStats();
+  }, [loadStats]);
 
   const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
     // TODO: Implement notification system

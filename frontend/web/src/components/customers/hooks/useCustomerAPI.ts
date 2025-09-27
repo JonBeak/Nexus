@@ -1,34 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { customerApi } from '../../../services/api';
-
-// Type definitions
-interface LedType {
-  led_id: number;
-  product_code: string;
-  price: string;
-  watts: string;
-  colour: string;
-  brand: string;
-  is_default: boolean;
-}
-
-interface PowerSupplyType {
-  power_supply_id: number;
-  transformer_type: string;
-  price: string;
-  watts: number;
-  volts: number;
-  ul_listed: boolean;
-  is_default_non_ul: boolean;
-  is_default_ul: boolean;
-}
+import { Customer, LedType, PowerSupplyType } from '../../../types';
 
 interface UseCustomerAPIReturn {
   ledTypes: LedType[];
   powerSupplyTypes: PowerSupplyType[];
-  fetchCustomers: (search?: string, includeInactive?: boolean) => Promise<any[]>;
+  fetchCustomers: (search?: string, includeInactive?: boolean) => Promise<Customer[]>;
   reactivateCustomer: (customerId: number) => Promise<void>;
-  fetchCustomerDetails: (customerId: number, fallbackCustomer: any) => Promise<any>;
+  fetchCustomerDetails: (customerId: number, fallbackCustomer: Customer) => Promise<Customer>;
   loading: boolean;
   error: string;
 }
@@ -59,7 +38,10 @@ export const useCustomerAPI = (): UseCustomerAPIReturn => {
   }, []);
 
   // Centralized customer fetching with error handling
-  const fetchCustomers = async (search: string = '', includeInactive: boolean = false): Promise<any[]> => {
+  const fetchCustomers = useCallback(async (
+    search: string = '',
+    includeInactive: boolean = false
+  ): Promise<Customer[]> => {
     setLoading(true);
     setError('');
 
@@ -79,10 +61,10 @@ export const useCustomerAPI = (): UseCustomerAPIReturn => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Reactivate customer with error handling
-  const reactivateCustomer = async (customerId: number): Promise<void> => {
+  const reactivateCustomer = useCallback(async (customerId: number): Promise<void> => {
     try {
       await customerApi.reactivateCustomer(customerId);
     } catch (error) {
@@ -90,10 +72,13 @@ export const useCustomerAPI = (): UseCustomerAPIReturn => {
       alert('Failed to reactivate customer. Please try again.');
       throw error;
     }
-  };
+  }, []);
 
   // Fetch customer details with fallback handling
-  const fetchCustomerDetails = async (customerId: number, fallbackCustomer: any): Promise<any> => {
+  const fetchCustomerDetails = useCallback(async (
+    customerId: number,
+    fallbackCustomer: Customer
+  ): Promise<Customer> => {
     try {
       // Use the customerApi which handles auth automatically via interceptors
       const detailedCustomer = await customerApi.getCustomer(customerId);
@@ -104,7 +89,7 @@ export const useCustomerAPI = (): UseCustomerAPIReturn => {
       // Fallback to basic customer data
       return fallbackCustomer;
     }
-  };
+  }, []);
 
   return {
     ledTypes,
