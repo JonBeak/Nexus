@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { detectMultipleEntries } from '../../../lib/timeUtils';
+import { timeApi, authApi } from '../../../services/api';
 import type {
   ViewMode,
   FilterStatus,
@@ -9,30 +10,8 @@ import type {
   AnalyticsData,
   MissingEntry,
   TimeUser,
-  AuthenticatedRequest,
   BulkEditValues
 } from '../../../types/time';
-
-const getSaturdayOfWeek = (dateStr: string): string => {
-  const date = new Date(dateStr + 'T12:00:00');
-  const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
-  const daysToSaturday = (6 - dayOfWeek) % 7;
-  const saturday = new Date(date);
-  saturday.setDate(date.getDate() - daysToSaturday - 7); // Previous Saturday to get Saturday-Friday week
-  return saturday.toISOString().split('T')[0];
-};
-
-const getFridayOfWeek = (dateStr: string): string => {
-  const date = new Date(dateStr + 'T12:00:00');
-  const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
-  const daysToFriday = (5 - dayOfWeek + 7) % 7;
-  const friday = new Date(date);
-  friday.setDate(date.getDate() + daysToFriday);
-  if (dayOfWeek === 6) { // If it's Saturday, get next Friday
-    friday.setDate(date.getDate() + 6);
-  }
-  return friday.toISOString().split('T')[0];
-};
 
 interface UseTimeManagementContainerProps {
   user: TimeUser;
@@ -41,52 +20,13 @@ interface UseTimeManagementContainerProps {
 export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerProps) => {
   const navigate = useNavigate();
   
-  // Helper function to handle logout on auth failure
-  const handleAuthFailure = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    window.location.reload();
-  };
-
-  // Helper function to make authenticated requests
-  const makeAuthenticatedRequest: AuthenticatedRequest = useCallback(async (url, options = {}) => {
-    const token = localStorage.getItem('access_token');
-    
-    if (!token) {
-      return new Response('', { status: 401 });
-    }
-    
-    try {
-      const headers = new Headers(options.headers ?? {});
-      headers.set('Authorization', `Bearer ${token}`);
-      if (!headers.has('Content-Type')) {
-        headers.set('Content-Type', 'application/json');
-      }
-
-      const response = await fetch(url, {
-        ...options,
-        headers
-      });
-
-      // Only logout on authentication failures, not other errors
-      if (response.status === 401) {
-        alert('Your session has expired. Please log in again.');
-        handleAuthFailure();
-        return new Response('', { status: 401 });
-      }
-
-      return response;
-    } catch (error) {
-      console.error('Network error:', error);
-      throw error;
-    }
-  }, []);
-  
   // State management
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [dateRange, setDateRange] = useState<'single' | 'range'>('single');
+  const [displayStartDate, setDisplayStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [displayEndDate, setDisplayEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
@@ -110,162 +50,90 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
   
   const fetchUsers = useCallback(async () => {
     try {
-      const res = await makeAuthenticatedRequest('http://192.168.2.14:3001/api/auth/users');
-      if (res.ok) {
-        const data: TimeUser[] = await res.json();
-        setUsers(data);
-      }
+      const data: TimeUser[] = await authApi.getUsers();
+      setUsers(data);
     } catch (error) {
       console.error('Error fetching users:', error);
     }
-  }, [makeAuthenticatedRequest]);
+  }, []);
   
   const fetchTimeEntries = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
+      const data: { entries?: TimeEntry[] } | TimeEntry[] = await timeApi.getEntries({
         startDate: selectedDate,
         endDate: dateRange === 'range' ? endDate : selectedDate,
         status: filterStatus,
         group: selectedGroup,
         search: searchTerm
       });
-      
-      const res = await makeAuthenticatedRequest(
-        `http://192.168.2.14:3001/api/time-management/entries?${params}`
-      );
-      
-      if (res.ok) {
-        const data: { entries?: TimeEntry[] } | TimeEntry[] = await res.json();
-        // Group by user and date to detect multiple entries
-        const entries = Array.isArray(data) ? data : data.entries || [];
-        const entriesWithWarnings = detectMultipleEntries(entries);
-        setTimeEntries(entriesWithWarnings);
-      }
+
+      // Handle dual response format: Array OR {entries: Array}
+      const entries = Array.isArray(data) ? data : data.entries || [];
+      const entriesWithWarnings = detectMultipleEntries(entries);
+      setTimeEntries(entriesWithWarnings);
     } catch (error) {
       console.error('Error fetching time entries:', error);
     } finally {
       setLoading(false);
     }
-  }, [makeAuthenticatedRequest, selectedDate, endDate, dateRange, filterStatus, selectedGroup, searchTerm]);
+  }, [selectedDate, endDate, dateRange, filterStatus, selectedGroup, searchTerm]);
   
   const fetchWeeklySummary = useCallback(async () => {
     setLoading(true);
     try {
-      let startDateParam, endDateParam;
-      
-      if (dateRange === 'range') {
-        startDateParam = selectedDate;
-        endDateParam = endDate;
-      } else {
-        // Calculate date ranges based on view mode
-        const currentDate = new Date(selectedDate + 'T12:00:00');
-        
-        if (viewMode === 'weekly') {
-          startDateParam = getSaturdayOfWeek(selectedDate);
-          endDateParam = getFridayOfWeek(selectedDate);
-        } else if (viewMode === 'bi-weekly') {
-          const weekStartSat = getSaturdayOfWeek(selectedDate);
-          const biWeekStart = new Date(weekStartSat + 'T12:00:00');
-          biWeekStart.setDate(biWeekStart.getDate() - 7);
-          startDateParam = biWeekStart.toISOString().split('T')[0];
-          endDateParam = getFridayOfWeek(selectedDate);
-        } else if (viewMode === 'monthly') {
-          const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-          const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-          startDateParam = monthStart.toISOString().split('T')[0];
-          endDateParam = monthEnd.toISOString().split('T')[0];
-        } else if (viewMode === 'quarterly') {
-          const quarter = Math.floor(currentDate.getMonth() / 3);
-          const quarterStart = new Date(currentDate.getFullYear(), quarter * 3, 1);
-          const quarterEnd = new Date(currentDate.getFullYear(), quarter * 3 + 3, 0);
-          startDateParam = quarterStart.toISOString().split('T')[0];
-          endDateParam = quarterEnd.toISOString().split('T')[0];
-        } else if (viewMode === 'semi-yearly') {
-          const half = currentDate.getMonth() < 6 ? 0 : 1;
-          const halfStart = new Date(currentDate.getFullYear(), half * 6, 1);
-          const halfEnd = new Date(currentDate.getFullYear(), half * 6 + 6, 0);
-          startDateParam = halfStart.toISOString().split('T')[0];
-          endDateParam = halfEnd.toISOString().split('T')[0];
-        } else if (viewMode === 'yearly') {
-          const yearStart = new Date(currentDate.getFullYear(), 0, 1);
-          const yearEnd = new Date(currentDate.getFullYear(), 11, 31);
-          startDateParam = yearStart.toISOString().split('T')[0];
-          endDateParam = yearEnd.toISOString().split('T')[0];
-        } else {
-          startDateParam = selectedDate;
-          endDateParam = selectedDate;
-        }
-      }
-      
-      const params = new URLSearchParams({
+      // Use the date range selected by the user (via dateRange filters or Quick Select)
+      const startDateParam = selectedDate;
+      const endDateParam = dateRange === 'range' ? endDate : selectedDate;
+
+      // Update display dates for UI
+      setDisplayStartDate(startDateParam);
+      setDisplayEndDate(endDateParam);
+
+      const data: WeeklySummary[] = await timeApi.getWeeklySummary({
         startDate: startDateParam,
         endDate: endDateParam,
         group: selectedGroup
       });
-      
-      const res = await makeAuthenticatedRequest(
-        `http://192.168.2.14:3001/api/time-management/weekly-summary?${params}`
-      );
-      
-      if (res.ok) {
-        const data: WeeklySummary[] = await res.json();
-        setWeeklySummary(data);
-      }
+      setWeeklySummary(data);
     } catch (error) {
       console.error('Error fetching weekly summary:', error);
     } finally {
       setLoading(false);
     }
-  }, [dateRange, selectedDate, endDate, selectedGroup, viewMode, makeAuthenticatedRequest]);
+  }, [dateRange, selectedDate, endDate, selectedGroup]);
 
   const fetchAnalytics = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
+      const data: AnalyticsData = await timeApi.getAnalyticsOverview({
         startDate: selectedDate,
         endDate: dateRange === 'range' ? endDate : selectedDate,
         group: selectedGroup
       });
-      
-      const res = await makeAuthenticatedRequest(
-        `http://192.168.2.14:3001/api/time-management/analytics-overview?${params}`
-      );
-      
-      if (res.ok) {
-        const data: AnalyticsData = await res.json();
-        setAnalyticsData(data);
-      }
+      setAnalyticsData(data);
     } catch (error) {
       console.error('Error fetching analytics:', error);
     } finally {
       setLoading(false);
     }
-  }, [makeAuthenticatedRequest, selectedDate, endDate, dateRange, selectedGroup]);
+  }, [selectedDate, endDate, dateRange, selectedGroup]);
 
   const fetchMissingEntries = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
+      const data: MissingEntry[] = await timeApi.getMissingEntries({
         startDate: selectedDate,
         endDate: dateRange === 'range' ? endDate : selectedDate,
         group: selectedGroup
       });
-      
-      const res = await makeAuthenticatedRequest(
-        `http://192.168.2.14:3001/api/time-management/missing-entries?${params}`
-      );
-      
-      if (res.ok) {
-        const data: MissingEntry[] = await res.json();
-        setMissingEntries(data);
-      }
+      setMissingEntries(data);
     } catch (error) {
       console.error('Error fetching missing entries:', error);
     } finally {
       setLoading(false);
     }
-  }, [makeAuthenticatedRequest, selectedDate, endDate, dateRange, selectedGroup]);
+  }, [selectedDate, endDate, dateRange, selectedGroup]);
 
   // Check if user has access
   useEffect(() => {
@@ -279,15 +147,21 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
     fetchUsers();
   }, [fetchUsers]);
 
+  // Auto-update endDate when in calendar mode (2-week range)
+  useEffect(() => {
+    if (viewMode === 'calendar') {
+      const start = new Date(selectedDate + 'T12:00:00');
+      const end = new Date(start);
+      end.setDate(start.getDate() + 13); // 2 weeks = 14 days (0-13)
+      setEndDate(end.toISOString().split('T')[0]);
+    }
+  }, [viewMode, selectedDate]);
+
   useEffect(() => {
     if (viewMode === 'single') {
       fetchTimeEntries();
-    } else if (viewMode === 'weekly') {
+    } else if (viewMode === 'summary') {
       fetchWeeklySummary();
-    } else if (viewMode === 'bi-weekly') {
-      fetchWeeklySummary(); // Reuse weekly summary logic for bi-weekly
-    } else if (viewMode === 'monthly' || viewMode === 'quarterly' || viewMode === 'semi-yearly' || viewMode === 'yearly') {
-      fetchWeeklySummary(); // Reuse weekly summary logic for longer periods
     } else if (viewMode === 'analytics') {
       fetchAnalytics();
     } else if (viewMode === 'missing') {
@@ -298,47 +172,36 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
   const addMissingEntry = async (missingEntry: MissingEntry) => {
     const clockInTime = prompt(`Add time entry for ${missingEntry.first_name} ${missingEntry.last_name} on ${new Date(missingEntry.missing_date + 'T12:00:00').toLocaleDateString()}.\n\nClock in time (HH:MM format):`, missingEntry.expected_start);
     const clockOutTime = prompt(`Clock out time (HH:MM format):`, missingEntry.expected_end);
-    
+
     if (!clockInTime || !clockOutTime) {
       alert('Both clock in and clock out times are required');
       return;
     }
-    
+
     const breakInput = prompt('Break minutes (0-480):', '30');
     const breakMinutes = Number(breakInput ?? 0);
     if (Number.isNaN(breakMinutes)) {
       alert('Invalid break minutes. Please try again.');
       return;
     }
-    
+
     try {
-      const res = await makeAuthenticatedRequest(
-        'http://192.168.2.14:3001/api/time-management/entries',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            user_id: missingEntry.user_id,
-            clock_in: `${missingEntry.missing_date} ${clockInTime}:00`,
-            clock_out: `${missingEntry.missing_date} ${clockOutTime}:00`,
-            break_minutes: breakMinutes,
-            notes: 'Added from missing entries',
-            status: 'completed'
-          })
+      await timeApi.createEntry({
+        user_id: missingEntry.user_id,
+        date: missingEntry.missing_date,
+        clock_in: `${missingEntry.missing_date} ${clockInTime}:00`,
+        clock_out: `${missingEntry.missing_date} ${clockOutTime}:00`,
+        break_minutes: breakMinutes
+      });
+
+      alert('Time entry added successfully');
+      setMissingEntries([]);
+      setTimeout(() => {
+        fetchMissingEntries();
+        if (viewMode === 'single') {
+          fetchTimeEntries();
         }
-      );
-      
-      if (res.ok) {
-        alert('Time entry added successfully');
-        setMissingEntries([]);
-        setTimeout(() => {
-          fetchMissingEntries();
-          if (viewMode === 'single') {
-            fetchTimeEntries();
-          }
-        }, 100);
-      } else {
-        alert('Failed to add time entry');
-      }
+      }, 100);
     } catch (error) {
       console.error('Error adding time entry:', error);
       alert('Error adding time entry');
@@ -347,32 +210,21 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
   
   const markExcused = async (missingEntry: MissingEntry) => {
     const reason = prompt(`Mark ${missingEntry.first_name} ${missingEntry.last_name} as excused for ${new Date(missingEntry.missing_date + 'T12:00:00').toLocaleDateString()}.\n\nReason (optional):`);
-    
+
     try {
-      const res = await makeAuthenticatedRequest(
-        'http://192.168.2.14:3001/api/time-management/entries',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            user_id: missingEntry.user_id,
-            clock_in: `${missingEntry.missing_date} 12:00:00`,
-            clock_out: `${missingEntry.missing_date} 12:00:00`,
-            break_minutes: 0,
-            notes: reason ? `Excused: ${reason}` : 'Excused absence',
-            status: 'completed'
-          })
-        }
-      );
-      
-      if (res.ok) {
-        alert('Marked as excused');
-        setMissingEntries([]);
-        setTimeout(() => {
-          fetchMissingEntries();
-        }, 100);
-      } else {
-        alert('Failed to mark as excused');
-      }
+      await timeApi.createEntry({
+        user_id: missingEntry.user_id,
+        date: missingEntry.missing_date,
+        clock_in: `${missingEntry.missing_date} 12:00:00`,
+        clock_out: `${missingEntry.missing_date} 12:00:00`,
+        break_minutes: 0
+      });
+
+      alert('Marked as excused');
+      setMissingEntries([]);
+      setTimeout(() => {
+        fetchMissingEntries();
+      }, 100);
     } catch (error) {
       console.error('Error marking as excused:', error);
       alert('Error marking as excused');
@@ -402,6 +254,8 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
     bulkEditValues,
     showExportMenu,
     showScheduleManagement,
+    displayStartDate,
+    displayEndDate,
     
     // Setters
     setViewMode,
@@ -431,11 +285,7 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
     fetchWeeklySummary,
     fetchAnalytics,
     fetchMissingEntries,
-    makeAuthenticatedRequest,
     addMissingEntry,
     markExcused,
-    
-    // Helper functions
-    handleAuthFailure
   };
 };

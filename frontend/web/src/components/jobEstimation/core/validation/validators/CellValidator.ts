@@ -101,12 +101,8 @@ export class CellValidator {
    * @returns True if field should be validated
    */
   shouldValidateField(fieldValue: string, config: FieldValidationConfig): boolean {
-    // Always validate if it's an error-level rule (required fields)
-    if (config.error_level === 'error') {
-      return true;
-    }
-
-    // For warning-level rules, only validate if field has content
+    // Only validate fields that have content
+    // Empty fields are allowed - complimentary_fields/supplementary_to handle required logic
     return fieldValue && typeof fieldValue === 'string' && fieldValue.trim() !== '';
   }
 

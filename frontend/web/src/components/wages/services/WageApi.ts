@@ -1,28 +1,10 @@
+import api from '../../../services/api';
 import { UserWageData, PaymentRecord, DeductionOverrides } from '../types/WageTypes';
-
-export const makeAuthenticatedRequest = async (url: string, options: RequestInit = {}) => {
-  const token = localStorage.getItem('access_token');
-  
-  const headers = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
-    ...options.headers
-  };
-  
-  return fetch(url, {
-    ...options,
-    headers
-  });
-};
 
 export const fetchUsers = async () => {
   try {
-    const res = await makeAuthenticatedRequest('http://192.168.2.14:3001/api/auth/users');
-    if (res.ok) {
-      const data = await res.json();
-      return data;
-    }
-    return [];
+    const res = await api.get('/auth/users');
+    return res.data;
   } catch (error) {
     console.error('Error fetching users:', error);
     return [];
@@ -33,22 +15,15 @@ export const fetchWageData = async (biWeekStart: string, selectedGroup: string):
   try {
     const endDate = new Date(biWeekStart + 'T12:00:00');
     endDate.setDate(endDate.getDate() + 13);
-    
-    const params = new URLSearchParams({
+
+    const params = {
       startDate: biWeekStart,
       endDate: endDate.toISOString().split('T')[0],
       group: selectedGroup
-    });
-    
-    const res = await makeAuthenticatedRequest(
-      `http://192.168.2.14:3001/api/wages/bi-weekly?${params}`
-    );
-    
-    if (res.ok) {
-      const data = await res.json();
-      return data;
-    }
-    return [];
+    };
+
+    const res = await api.get('/wages/bi-weekly', { params });
+    return res.data;
   } catch (error) {
     console.error('Error fetching wage data:', error);
     return [];
@@ -64,7 +39,7 @@ interface PayrollChangeDto {
 
 export const savePayrollChanges = async (wageData: UserWageData[]) => {
   const changes: PayrollChangeDto[] = [];
-  
+
   wageData.forEach(userData => {
     Object.values(userData.entries).forEach(entry => {
       if (entry.payroll_adjusted) {
@@ -77,22 +52,16 @@ export const savePayrollChanges = async (wageData: UserWageData[]) => {
       }
     });
   });
-  
+
   if (changes.length === 0) {
     alert('No changes to save');
     return false;
   }
-  
+
   try {
-    const res = await makeAuthenticatedRequest(
-      'http://192.168.2.14:3001/api/wages/update-payroll',
-      {
-        method: 'PUT',
-        body: JSON.stringify({ changes })
-      }
-    );
-    
-    if (res.ok) {
+    const res = await api.put('/wages/update-payroll', { changes });
+
+    if (res.data) {
       alert('Changes saved successfully');
       return true;
     } else {
@@ -114,22 +83,14 @@ export const updateDeductions = async (
   value: number
 ): Promise<boolean> => {
   try {
-    const token = localStorage.getItem('access_token');
-    const response = await fetch('http://192.168.2.14:3001/api/wages/update-deductions', {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        user_id: userId,
-        pay_period_start: biWeekStart,
-        pay_period_end: endDate,
-        [field === 'tax' ? 'federal_tax' : `${field}_deduction`]: value
-      })
+    const response = await api.put('/wages/update-deductions', {
+      user_id: userId,
+      pay_period_start: biWeekStart,
+      pay_period_end: endDate,
+      [field === 'tax' ? 'federal_tax' : `${field}_deduction`]: value
     });
-    
-    return response.ok;
+
+    return !!response.data;
   } catch (error) {
     console.error('Error saving deduction:', error);
     return false;
@@ -147,7 +108,6 @@ export const updateDeductionsBatch = async (
   endDate: string
 ): Promise<boolean> => {
   try {
-    const token = localStorage.getItem('access_token');
     const updates = changes.map(change => ({
       user_id: change.userId,
       pay_period_start: biWeekStart,
@@ -155,16 +115,8 @@ export const updateDeductionsBatch = async (
       [change.field === 'tax' ? 'federal_tax' : `${change.field}_deduction`]: change.value
     }));
 
-    const response = await fetch('http://192.168.2.14:3001/api/wages/update-deductions-batch', {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ updates })
-    });
-    
-    return response.ok;
+    const response = await api.put('/wages/update-deductions-batch', { updates });
+    return !!response.data;
   } catch (error) {
     console.error('Error saving deduction batch:', error);
     return false;
@@ -179,8 +131,6 @@ export const recordPayment = async (
   deductionOverrides: DeductionOverrides
 ) => {
   try {
-    const token = localStorage.getItem('access_token');
-    
     // Prepare payment record data
     const recordData = {
       pay_period_start: biWeekStart,
@@ -201,22 +151,15 @@ export const recordPayment = async (
           ei_deduction: currentOverrides?.ei ?? 0,
           federal_tax: currentOverrides?.tax ?? 0,
           provincial_tax: 0,
-          net_pay: (user.totals.gross_pay + user.totals.vacation_pay) - 
+          net_pay: (user.totals.gross_pay + user.totals.vacation_pay) -
                    ((currentOverrides?.cpp ?? 0) + (currentOverrides?.ei ?? 0) + (currentOverrides?.tax ?? 0))
         };
       })
     };
 
-    const response = await fetch('http://192.168.2.14:3001/api/wages/record-payment', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(recordData)
-    });
+    const response = await api.post('/wages/record-payment', recordData);
 
-    if (response.ok) {
+    if (response.data) {
       alert('Payment recorded successfully!');
       return true;
     } else {
@@ -232,24 +175,9 @@ export const recordPayment = async (
 
 export const fetchPaymentHistory = async (includeInactive = false): Promise<PaymentRecord[]> => {
   try {
-    const token = localStorage.getItem('access_token');
-    const params = new URLSearchParams();
-    if (includeInactive) {
-      params.set('includeInactive', 'true');
-    }
-    
-    const url = `http://192.168.2.14:3001/api/wages/payment-history${params.toString() ? `?${params.toString()}` : ''}`;
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      return data;
-    }
-    return [];
+    const params = includeInactive ? { includeInactive: true } : {};
+    const response = await api.get('/wages/payment-history', { params });
+    return response.data;
   } catch (error) {
     console.error('Error fetching payment history:', error);
     return [];
@@ -258,21 +186,10 @@ export const fetchPaymentHistory = async (includeInactive = false): Promise<Paym
 
 export const loadDeductionOverrides = async (biWeekStart: string, endDate: string) => {
   try {
-    const token = localStorage.getItem('access_token');
-    const response = await fetch(
-      `http://192.168.2.14:3001/api/wages/deduction-overrides?startDate=${biWeekStart}&endDate=${endDate}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      }
-    );
-    
-    if (response.ok) {
-      const overrides = await response.json();
-      return overrides;
-    }
-    return {};
+    const response = await api.get('/wages/deduction-overrides', {
+      params: { startDate: biWeekStart, endDate }
+    });
+    return response.data;
   } catch (error) {
     console.error('Error loading deduction overrides:', error);
     return {};
@@ -281,19 +198,8 @@ export const loadDeductionOverrides = async (biWeekStart: string, endDate: strin
 
 export const deletePaymentRecord = async (recordId: number): Promise<boolean> => {
   try {
-    const token = localStorage.getItem('access_token');
-    const response = await fetch(`http://192.168.2.14:3001/api/wages/payment-record/${recordId}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (response.ok) {
-      return true;
-    }
-    return false;
+    const response = await api.delete(`/wages/payment-record/${recordId}`);
+    return !!response.data;
   } catch (error) {
     console.error('Error deactivating payment record:', error);
     return false;
@@ -302,19 +208,8 @@ export const deletePaymentRecord = async (recordId: number): Promise<boolean> =>
 
 export const reactivatePaymentRecord = async (recordId: number): Promise<boolean> => {
   try {
-    const token = localStorage.getItem('access_token');
-    const response = await fetch(`http://192.168.2.14:3001/api/wages/payment-record/${recordId}/reactivate`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (response.ok) {
-      return true;
-    }
-    return false;
+    const response = await api.post(`/wages/payment-record/${recordId}/reactivate`);
+    return !!response.data;
   } catch (error) {
     console.error('Error reactivating payment record:', error);
     return false;

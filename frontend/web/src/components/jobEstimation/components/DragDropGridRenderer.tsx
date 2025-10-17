@@ -9,11 +9,13 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { GridRow } from '../core/types/LayerTypes';
 import { DragDropRow } from './DragDropRow';
+import { ProductType } from '../hooks/useProductTypes';
+import { GridEngine } from '../core/GridEngine';
 
 interface DragDropGridRendererProps {
   rows: GridRow[];
-  productTypes: any[]; // Database product types
-  staticDataCache?: Record<string, any[]>; // Database options cache
+  productTypes: ProductType[];
+  staticDataCache?: Record<string, string[]>;
   onFieldCommit: (rowIndex: number, fieldName: string, value: string) => void;
   onProductTypeSelect: (rowIndex: number, productTypeId: number) => void;
   onInsertRow: (afterIndex: number) => void;
@@ -24,8 +26,10 @@ interface DragDropGridRendererProps {
   isReadOnly: boolean;
   fieldPromptsMap?: Record<number, Record<string, string>>; // Prompts by product type
   staticOptionsMap?: Record<number, Record<string, string[]>>; // Options by product type
-  validationEngine?: any; // Reference to validation engine (placeholder)
+  validationEngine?: GridEngine;
   validationVersion?: number;
+  hoveredRowId?: string | null; // Cross-component hover state
+  onRowHover?: (rowId: string | null) => void; // Hover handler
 }
 
 export const DragDropGridRenderer: React.FC<DragDropGridRendererProps> = ({
@@ -43,7 +47,9 @@ export const DragDropGridRenderer: React.FC<DragDropGridRendererProps> = ({
   fieldPromptsMap,
   staticOptionsMap,
   validationEngine,
-  validationVersion = 0
+  validationVersion = 0,
+  hoveredRowId = null,
+  onRowHover = () => {}
 }) => {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -134,6 +140,9 @@ export const DragDropGridRenderer: React.FC<DragDropGridRendererProps> = ({
                     )
                   : undefined;
 
+                // Check for structure errors (e.g., sub-item placement issues)
+                const structureError = validationManager?.getStructureError?.(row.id);
+
                 return (
                   <DragDropRow
                     key={row.id}
@@ -151,6 +160,9 @@ export const DragDropGridRenderer: React.FC<DragDropGridRendererProps> = ({
                     fieldPrompts={fieldPromptsMap?.[row.productTypeId || 0]}
                     staticOptions={staticOptionsMap?.[row.productTypeId || 0]}
                     validationStates={validationStates}
+                    structureError={structureError}
+                    hoveredRowId={hoveredRowId}
+                    onRowHover={onRowHover}
                   />
                 );
               })}

@@ -1,10 +1,12 @@
 /**
  * Vinyl Inventory Routes (New Architecture)
  * Clean routes that delegate to controllers
+ * Now with RBAC permission middleware
  */
 
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth';
+import { requirePermission } from '../middleware/rbac';
 import * as vinylInventoryController from '../controllers/vinyl/vinylInventoryController';
 
 const router = Router();
@@ -12,20 +14,24 @@ const router = Router();
 // All vinyl routes require authentication
 router.use(authenticateToken);
 
-// Vinyl Inventory Routes
-router.get('/', vinylInventoryController.getVinylItems);
-router.get('/stats/summary', vinylInventoryController.getVinylStats);
-router.get('/recent/for-copying', vinylInventoryController.getRecentVinylForCopying);
-router.get('/:id', vinylInventoryController.getVinylItemById);
-router.get('/:id/job-links', vinylInventoryController.getJobLinks);
+// Vinyl Inventory Routes with RBAC permissions
+// GET routes - require vinyl.read permission
+router.get('/', requirePermission('vinyl.read'), vinylInventoryController.getVinylItems);
+router.get('/stats/summary', requirePermission('vinyl.read'), vinylInventoryController.getVinylStats);
+router.get('/recent/for-copying', requirePermission('vinyl.read'), vinylInventoryController.getRecentVinylForCopying);
+router.get('/:id', requirePermission('vinyl.read'), vinylInventoryController.getVinylItemById);
+router.get('/:id/job-links', requirePermission('vinyl.read'), vinylInventoryController.getJobLinks);
 
-router.post('/', vinylInventoryController.createVinylItem);
-router.post('/status-change', vinylInventoryController.changeVinylStatus);
+// POST routes - require vinyl.create permission
+router.post('/', requirePermission('vinyl.create'), vinylInventoryController.createVinylItem);
+router.post('/status-change', requirePermission('vinyl.update'), vinylInventoryController.changeVinylStatus);
 
-router.put('/:id', vinylInventoryController.updateVinylItem);
-router.put('/:id/use', vinylInventoryController.markVinylAsUsed);
-router.put('/:id/job-links', vinylInventoryController.updateJobLinks);
+// PUT routes - require vinyl.update permission
+router.put('/:id', requirePermission('vinyl.update'), vinylInventoryController.updateVinylItem);
+router.put('/:id/use', requirePermission('vinyl.update'), vinylInventoryController.markVinylAsUsed);
+router.put('/:id/job-links', requirePermission('vinyl.update'), vinylInventoryController.updateJobLinks);
 
-router.delete('/:id', vinylInventoryController.deleteVinylItem);
+// DELETE routes - require vinyl.delete permission
+router.delete('/:id', requirePermission('vinyl.delete'), vinylInventoryController.deleteVinylItem);
 
 export default router;

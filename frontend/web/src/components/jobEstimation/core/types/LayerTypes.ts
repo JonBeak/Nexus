@@ -2,7 +2,7 @@
 
 import { GridRowCore, GridRowMetadata } from './CoreTypes';
 
-export type CalculationStatus = 'pending' | 'not_configured' | 'error';
+export type CalculationStatus = 'pending' | 'not_configured' | 'error' | 'completed';
 
 export interface RowCalculationResult {
   key?: string | null;

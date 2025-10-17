@@ -79,6 +79,9 @@ export interface GridJobBuilderProps {
   onValidationChange?: (hasErrors: boolean, errorCount: number, context?: PricingCalculationContext) => void;
   // Navigation guard callback
   onRequestNavigation?: (navigationGuard: ((navigationFn?: () => void) => void) | null) => void;
+  // Cross-component hover state
+  hoveredRowId?: string | null;
+  onRowHover?: (rowId: string | null) => void;
 }
 
 export interface DragDropContextType {

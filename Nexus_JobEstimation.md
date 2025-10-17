@@ -17,4 +17,4 @@
 <Rule name="DynamicTemplates">✅ Product field options populated from inventory database instead of hardcoded JSON</Rule>
 <Rule name="ValidationSystem">✅ Comprehensive useGridValidation hook with field-level validation, red borders, error tooltips - purely informational, never blocks saves</Rule>
 <Rule name="AutoSave">✅ Grid changes auto-saved with unsaved indicator + confirmation for destructive actions</Rule>
-<Rule name="EstimatePreview">✅ EstimateTable uses assembly logic with multi-row support and validation overlay warnings</Rule>
+<Rule name="EstimatePreview">✅ EstimateTable uses assembly logic with multi-row support and validation error overlays</Rule>

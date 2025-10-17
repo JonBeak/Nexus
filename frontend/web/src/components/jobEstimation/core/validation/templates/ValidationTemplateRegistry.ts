@@ -9,8 +9,14 @@ import { LedOverrideTemplate } from './LedOverrideTemplate';
 import { PsOverrideTemplate } from './PsOverrideTemplate';
 import { UlOverrideTemplate } from './UlOverrideTemplate';
 import { FloatOrGroupsTemplate } from './FloatOrGroupsTemplate';
+import { FloatOrDimensionsTemplate } from './FloatOrDimensionsTemplate';
+import { ThreeDimensionsTemplate } from './ThreeDimensionsTemplate';
+import { ConditionalDimensionsTemplate } from './ConditionalDimensionsTemplate';
 import { LedTypeTemplate } from './LedTypeTemplate';
 import { PsTypeTemplate } from './PsTypeTemplate';
+import { PsPriceOverrideTemplate } from './PsPriceOverrideTemplate';
+import { OrRequiredTemplate } from './OrRequiredTemplate';
+import { MultiplierTemplate } from './MultiplierTemplate';
 
 export class ValidationTemplateRegistry {
   private templates = new Map<string, ValidationTemplate>();
@@ -28,12 +34,18 @@ export class ValidationTemplateRegistry {
     // Register context-aware override templates
     this.registerTemplate('led_override', new LedOverrideTemplate());
     this.registerTemplate('ps_override', new PsOverrideTemplate());
+    this.registerTemplate('ps_price_override', new PsPriceOverrideTemplate());
     this.registerTemplate('ul_override', new UlOverrideTemplate());
 
     // Register specialized templates
     this.registerTemplate('float_or_groups', new FloatOrGroupsTemplate());
+    this.registerTemplate('floatordimensions', new FloatOrDimensionsTemplate());
+    this.registerTemplate('threedimensions', new ThreeDimensionsTemplate());
+    this.registerTemplate('conditionaldimensions', new ConditionalDimensionsTemplate());
     this.registerTemplate('led_type', new LedTypeTemplate());
     this.registerTemplate('ps_type', new PsTypeTemplate());
+    this.registerTemplate('or_required', new OrRequiredTemplate());
+    this.registerTemplate('multiplier', new MultiplierTemplate());
 
     // Future templates can be registered here:
     // this.registerTemplate('email', new EmailTemplate());

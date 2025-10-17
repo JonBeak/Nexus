@@ -58,19 +58,21 @@ export class JobEstimationRepository {
 
   async getEstimateById(id: number): Promise<RowDataPacket | null> {
     const [estimateRows] = await pool.execute<RowDataPacket[]>(
-      `SELECT je.*, c.company_name as customer_name, tr.tax_percent as tax_rate
+      `SELECT je.*, c.company_name as customer_name,
+        COALESCE(tr.tax_percent, 1.0) as tax_rate
        FROM job_estimates je
        LEFT JOIN customers c ON je.customer_id = c.customer_id
-       LEFT JOIN customer_addresses ca ON c.customer_id = ca.customer_id 
+       LEFT JOIN customer_addresses ca ON c.customer_id = ca.customer_id
          AND (ca.is_billing = 1 OR (ca.is_primary = 1 AND NOT EXISTS(
-           SELECT 1 FROM customer_addresses ca2 
+           SELECT 1 FROM customer_addresses ca2
            WHERE ca2.customer_id = c.customer_id AND ca2.is_billing = 1
          )))
-       LEFT JOIN tax_rules tr ON ca.province_state_short = tr.province_state_code AND tr.is_active = 1
+       LEFT JOIN provinces_tax pt ON ca.province_state_short = pt.province_short AND pt.is_active = 1
+       LEFT JOIN tax_rules tr ON pt.tax_name = tr.tax_name AND tr.is_active = 1
        WHERE je.id = ?`,
       [id]
     );
-    
+
     return estimateRows.length > 0 ? estimateRows[0] : null;
   }
 
@@ -111,22 +113,19 @@ export class JobEstimationRepository {
 
   async getProductTypes(category?: string): Promise<RowDataPacket[]> {
     let sql = `
-      SELECT id, name, category, display_order, default_unit, is_active, 
+      SELECT id, name, category, display_order, default_unit, is_active,
              input_template, pricing_rules, complexity_rules, material_rules,
              created_at, updated_at
-      FROM product_types 
+      FROM product_types
       WHERE is_active = TRUE
     `;
     const params: any[] = [];
-    
+
     if (category) {
       sql += ` AND category = ?`;
       params.push(category);
     }
-    
-    // Order by ID (database insertion order) to maintain user's preferred sequence
-    sql += ` ORDER BY id ASC`;
-    
+
     const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
     return rows;
   }

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useInventoryData } from './hooks/useInventoryData';
 import { useInventoryFiltering } from './hooks/useInventoryFiltering';
 import { InventoryStatsCards } from './components/InventoryStatsCards';
@@ -31,7 +31,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
   onDataLoad
 }) => {
   // Use extracted data management hook
-  const { vinylItems, stats, loading, error, loadVinylData, getDispositionStatus } = useInventoryData({
+  const { vinylItems, stats, loading, error, getDispositionStatus } = useInventoryData({
     propVinylItems,
     propStats,
     propLoading,
@@ -57,17 +57,9 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
     getSortIcon
   } = useInventoryFiltering(vinylItems);
 
-  // Reload data when filter type changes
-  useEffect(() => {
-    void loadVinylData(filterType);
-  }, [filterType, loadVinylData]);
-
+  // Parent handles deletion and data reload
   const handleDelete = (id: number) => {
     onDeleteItem(id);
-    // Refresh data after deletion
-    setTimeout(() => {
-      void loadVinylData(filterType);
-    }, 100);
   };
 
   return (
@@ -98,14 +90,16 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
           <div className="text-center py-12">
             <div className="text-red-600 text-lg font-medium mb-2">Error</div>
             <p className="text-gray-500 mb-4">{error}</p>
-            <button
-              onClick={() => {
-                void loadVinylData(filterType);
-              }}
-              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
-            >
-              Retry
-            </button>
+            {onDataLoad && (
+              <button
+                onClick={() => {
+                  onDataLoad();
+                }}
+                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+              >
+                Retry
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">

@@ -43,6 +43,12 @@ router.post('/save/:sessionId', authenticateToken, controller.saveDraft);
 // RATE LOOKUP ROUTES
 // =====================================================
 
+// Get all pricing data for session caching
+router.get('/all-pricing-data', authenticateToken, controller.getAllPricingData);
+
+// Get Push Thru assembly pricing
+router.get('/push-thru-assembly', authenticateToken, controller.getPushThruAssemblyPricing);
+
 // Get available rate types for category (for dropdowns)
 router.get('/rates/:category', authenticateToken, controller.getRateTypes);
 

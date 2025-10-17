@@ -345,6 +345,7 @@ export class GridDataService {
           itemIndex: item.item_index,   // ✅ DISPLAY ROW NUMBER: Database-stored display number for assembly fields
           productTypeId: item.product_type_id,
           productTypeName: item.product_type_name || item.item_name,
+          productTypeCategory: item.product_type_category, // ✅ CRITICAL: For rowType determination
           assemblyId: item.assembly_group_id !== null ? item.assembly_group_id.toString() : undefined,
           indent: 0,
           data: {

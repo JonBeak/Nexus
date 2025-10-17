@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { vinylApi } from '../../../services/api';
 import { InventoryFilterType, InventoryStats, VinylItem } from '../types';
 
@@ -19,16 +19,16 @@ export const useInventoryAPI = (): UseInventoryAPIReturn => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadVinylData = async (filterType?: InventoryFilterType): Promise<InventoryApiResult> => {
+  const loadVinylData = useCallback(async (filterType?: InventoryFilterType): Promise<InventoryApiResult> => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const [itemsResponse, statsResponse] = await Promise.all([
         vinylApi.getVinylItems({ disposition: filterType !== 'all' ? filterType : undefined }),
         vinylApi.getVinylStats()
       ]);
-      
+
       return {
         items: (itemsResponse || []) as VinylItem[],
         stats: (statsResponse || {}) as InventoryStats
@@ -41,15 +41,15 @@ export const useInventoryAPI = (): UseInventoryAPIReturn => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const refreshData = async (filterType?: InventoryFilterType): Promise<void> => {
+  const refreshData = useCallback(async (filterType?: InventoryFilterType): Promise<void> => {
     await loadVinylData(filterType);
-  };
+  }, [loadVinylData]);
 
-  const clearError = () => {
+  const clearError = useCallback(() => {
     setError(null);
-  };
+  }, []);
 
   return {
     loading,

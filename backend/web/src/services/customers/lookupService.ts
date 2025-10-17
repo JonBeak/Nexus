@@ -19,20 +19,37 @@ export class LookupService {
 
   static async getTaxInfoByProvince(province: string) {
     const taxInfo = await query(
-      'SELECT tax_id, province_short, province_long, tax_name, tax_percent, tax_description FROM provinces_tax WHERE province_short = ? AND is_active = 1',
+      `SELECT
+        pt.tax_id,
+        pt.province_short,
+        pt.province_long,
+        pt.tax_name,
+        COALESCE(tr.tax_percent, 1.0) as tax_percent
+      FROM provinces_tax pt
+      LEFT JOIN tax_rules tr ON pt.tax_name = tr.tax_name AND tr.is_active = 1
+      WHERE pt.province_short = ? AND pt.is_active = 1`,
       [province.toUpperCase()]
     );
-    
+
     if (taxInfo.length === 0) {
       return null;
     }
-    
+
     return taxInfo[0];
   }
 
   static async getAllProvincesTaxInfo() {
     const provincesData = await query(
-      'SELECT tax_id, province_short, province_long, tax_name, tax_percent FROM provinces_tax WHERE is_active = 1 ORDER BY province_long',
+      `SELECT
+        pt.tax_id,
+        pt.province_short,
+        pt.province_long,
+        pt.tax_name,
+        COALESCE(tr.tax_percent, 1.0) as tax_percent
+      FROM provinces_tax pt
+      LEFT JOIN tax_rules tr ON pt.tax_name = tr.tax_name AND tr.is_active = 1
+      WHERE pt.is_active = 1
+      ORDER BY pt.province_long`,
       []
     );
     return provincesData;
@@ -40,19 +57,17 @@ export class LookupService {
 
   static async getProvincesStates() {
     const provincesStates = await query(
-      `SELECT province_short, province_long, 
-        CASE 
-          WHEN province_short IN ('ON', 'BC', 'AB', 'SK', 'MB', 'QC', 'NB', 'NS', 'PE', 'NL', 'YT', 'NT', 'NU') THEN 'Canada'
-          WHEN province_short IN ('EXEMPT', 'ZERO', 'USA') THEN 'Special'
-          ELSE 'USA'
-        END as country_group
-      FROM provinces_tax 
-      WHERE is_active = 1 
-      ORDER BY 
-        CASE 
-          WHEN province_short IN ('ON', 'BC', 'AB', 'SK', 'MB', 'QC', 'NB', 'NS', 'PE', 'NL', 'YT', 'NT', 'NU') THEN 1
-          WHEN province_short IN ('EXEMPT', 'ZERO', 'USA') THEN 3
-          ELSE 2
+      `SELECT
+        province_short,
+        province_long,
+        country as country_group
+      FROM provinces_tax
+      WHERE is_active = 1
+      ORDER BY
+        CASE
+          WHEN country = 'Canada' THEN 1
+          WHEN country = 'United States' THEN 2
+          ELSE 3
         END,
         province_long`,
       []

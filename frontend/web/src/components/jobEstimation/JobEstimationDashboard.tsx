@@ -1,14 +1,13 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { ArrowLeft, Plus, Calculator, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { GridJobBuilderRefactored } from './GridJobBuilderRefactored';
+import GridJobBuilderRefactored from './GridJobBuilderRefactored';
 import { EstimateTable } from './EstimateTable';
-import { EstimateList } from './EstimateList';
 import { CustomerPanel } from './CustomerPanel';
 import { JobPanel } from './JobPanel';
 import { VersionManager } from './VersionManager';
 import { BreadcrumbNavigation } from './BreadcrumbNavigation';
-import { jobVersioningApi, customerApi } from '../../services/api';
+import { jobVersioningApi, customerApi, provincesApi } from '../../services/api';
 import { EstimateVersion } from './types';
 import { getEstimateStatusText } from './utils/statusUtils';
 import type { GridRowWithCalculations } from './core/types/LayerTypes';
@@ -21,15 +20,11 @@ interface JobEstimationDashboardProps {
   user: any;
 }
 
-type TabType = 'estimates' | 'versioned-workflow' | 'builder';
+type TabType = 'versioned-workflow';
 
 export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ user }) => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('versioned-workflow');
-  
-  // Legacy estimate handling
-  const [selectedEstimate, setSelectedEstimate] = useState<any>(null);
-  const [isCreatingNew, setIsCreatingNew] = useState(false);
   
   // 3-Panel state management
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
@@ -51,27 +46,13 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
   // Validation results and price calculation state
   const [pricingContext, setPricingContext] = useState<PricingCalculationContext | null>(null);
   const [estimatePreviewData, setEstimatePreviewData] = useState<EstimatePreviewData | null>(null);
-  
+
   // Navigation guard from GridJobBuilder
   const [navigationGuard, setNavigationGuard] = useState<((fn: () => void) => void) | null>(null);
+
+  // Cross-component hover state for row highlighting
+  const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
   
-  const handleCreateNew = () => {
-    setSelectedEstimate(null);
-    setIsCreatingNew(true);
-    setActiveTab('builder');
-  };
-
-  const handleEditEstimate = (estimate: any) => {
-    setSelectedEstimate(estimate);
-    setIsCreatingNew(false);
-    setActiveTab('builder');
-  };
-
-  const handleBackToEstimates = () => {
-    setActiveTab('estimates');
-    setSelectedEstimate(null);
-    setIsCreatingNew(false);
-  };
 
   // 3-Panel handlers
   const handleCustomerSelected = async (customerId: number | null) => {
@@ -92,23 +73,26 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
         setCustomerName(customer.company_name || null);
         setCashCustomer(customer.cash_yes_or_no === 1);
 
-        // Get tax rate from billing address
+        // Get tax rate from billing address (or primary as fallback)
         const billingAddress = customer.addresses?.find((a: any) => a.is_billing);
-        if (billingAddress?.tax_override_percent) {
-          setTaxRate(billingAddress.tax_override_percent);
+        const addressToUse = billingAddress || customer.addresses?.find((a: any) => a.is_primary);
+
+        if (!addressToUse) {
+          setTaxRate(1.0); // 100% = ERROR: no billing or primary address
+        } else if (addressToUse.tax_override_percent != null) {
+          setTaxRate(addressToUse.tax_override_percent);
+        } else if (addressToUse.province_state_short) {
+          const taxInfo = await provincesApi.getTaxInfo(addressToUse.province_state_short);
+          setTaxRate(taxInfo?.tax_percent ?? 1.0); // 100% = ERROR: lookup failed
         } else {
-          setTaxRate(1.0); // 100% indicates failure to fetch tax rate
+          setTaxRate(1.0); // 100% = ERROR: no province
         }
       } catch (error) {
         console.error('Error fetching customer data:', error);
-        setCustomerName(null);
-        setCashCustomer(false);
-        setTaxRate(1.0); // 100% indicates failure
+        setTaxRate(1.0); // 100% = ERROR
       }
     } else {
-      setCustomerName(null);
-      setCashCustomer(false);
-      setTaxRate(3.0); // Default 300% when no customer selected (indicates failure)
+      setTaxRate(1.0); // 100% = ERROR: no customer
     }
   };
 
@@ -203,16 +187,31 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
         setJobName(job.job_name);
       }
       
-      // Get customer info
+      // Get customer info and tax rate
       if (job) {
         setSelectedCustomerId(job.customer_id);
-        const customerResponse = await customerApi.getCustomers();
-        const customer = customerResponse.data?.find((c: any) => c.customer_id === job.customer_id);
+        const customer = await customerApi.getCustomer(job.customer_id);
         if (customer) {
           setCustomerName(customer.company_name);
+          setCashCustomer(customer.cash_yes_or_no === 1);
+
+          // Get tax rate from billing address (or primary as fallback)
+          const billingAddress = customer.addresses?.find((a: any) => a.is_billing);
+          const addressToUse = billingAddress || customer.addresses?.find((a: any) => a.is_primary);
+
+          if (!addressToUse) {
+            setTaxRate(1.0); // 100% = ERROR: no billing or primary address
+          } else if (addressToUse.tax_override_percent != null) {
+            setTaxRate(addressToUse.tax_override_percent);
+          } else if (addressToUse.province_state_short) {
+            const taxInfo = await provincesApi.getTaxInfo(addressToUse.province_state_short);
+            setTaxRate(taxInfo?.tax_percent ?? 1.0); // 100% = ERROR: lookup failed
+          } else {
+            setTaxRate(1.0); // 100% = ERROR: no province
+          }
         }
       }
-      
+
       // Load the specific estimate version
       const versionsResponse = await jobVersioningApi.getEstimateVersions(jobId);
       const estimate = versionsResponse.data?.find((v: any) => v.id === estimateId);
@@ -248,13 +247,22 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
 
   // Price calculation effect - triggers when validation completes
   useEffect(() => {
-    if (pricingContext) {
-      const calculationOps = createCalculationOperations();
-      const calculated = calculationOps.calculatePricing(pricingContext);
-      setEstimatePreviewData(calculated);
-    } else {
-      setEstimatePreviewData(null);
-    }
+    const calculatePricing = async () => {
+      if (pricingContext) {
+        try {
+          const calculationOps = createCalculationOperations();
+          const calculated = await calculationOps.calculatePricing(pricingContext);
+          setEstimatePreviewData(calculated);
+        } catch (error) {
+          console.error('Error calculating pricing:', error);
+          setEstimatePreviewData(null);
+        }
+      } else {
+        setEstimatePreviewData(null);
+      }
+    };
+
+    calculatePricing();
   }, [pricingContext]);
 
   if (!user || (user.role !== 'manager' && user.role !== 'owner')) {
@@ -278,7 +286,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
     // Show builder mode if estimate is selected
     if (isInBuilderMode && currentEstimate) {
       return (
-        <div className="h-full">
+        <div>
           <BreadcrumbNavigation
             customerName={customerName || undefined}
             jobName={jobName || undefined}
@@ -332,7 +340,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
               }
             }}
           />
-          <div className="flex gap-6 h-[calc(100%-60px)] mt-4">
+          <div className="flex gap-6 mt-4">
             <div className="flex-1 min-w-0">
               <GridJobBuilderRefactored
                 user={user}
@@ -357,15 +365,19 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
                 onNavigateToEstimate={handleNavigateToEstimate}
                 onValidationChange={handleValidationChange}
                 onRequestNavigation={setNavigationGuard}
+                hoveredRowId={hoveredRowId}
+                onRowHover={setHoveredRowId}
               />
             </div>
-            <div className="w-[600px] flex-shrink-0">
+            <div className="w-[700px] flex-shrink-0">
               <EstimateTable
                 estimate={currentEstimate}
                 showNotification={showNotification}
                 hasValidationErrors={hasValidationErrors}
                 validationErrorCount={validationErrorCount}
                 estimatePreviewData={estimatePreviewData}
+                hoveredRowId={hoveredRowId}
+                onRowHover={setHoveredRowId}
               />
             </div>
           </div>
@@ -409,7 +421,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen bg-gray-50 overflow-y-scroll">
       <div className="max-w-[1920px] mx-auto p-6">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
@@ -431,74 +443,11 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
             <h1 className="text-2xl font-bold text-gray-900">Job Estimation</h1>
           </div>
           
-          {/* Tab Selector */}
-          <div className="flex space-x-2">
-            <button
-              onClick={() => setActiveTab('versioned-workflow')}
-              className={`px-3 py-2 rounded font-medium text-base ${
-                activeTab === 'versioned-workflow'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <FileText className="w-4 h-4" />
-                <span>Versioned Workflow</span>
-              </div>
-            </button>
-            <button
-              onClick={() => setActiveTab('estimates')}
-              className={`px-3 py-2 rounded font-medium text-base ${
-                activeTab === 'estimates'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <Calculator className="w-4 h-4" />
-                <span>Legacy Estimates</span>
-              </div>
-            </button>
-          </div>
         </div>
 
         {/* Content Area */}
-        <div className="h-[calc(100vh-180px)]">
-          {activeTab === 'estimates' && (
-            <>
-              {selectedEstimate || isCreatingNew ? (
-                <div className="flex gap-6 h-full">
-                  <div className="flex-1 min-w-0">
-                    <GridJobBuilder
-                      user={user}
-                      estimate={selectedEstimate}
-                      isCreatingNew={isCreatingNew}
-                      onEstimateChange={setSelectedEstimate}
-                      onBackToEstimates={handleBackToEstimates}
-                      showNotification={showNotification}
-                    />
-                  </div>
-                  <div className="w-[600px] flex-shrink-0">
-                    <EstimateTable
-                      estimate={selectedEstimate}
-                      showNotification={showNotification}
-                      hasValidationErrors={hasValidationErrors}
-                      validationErrorCount={validationErrorCount}
-                      estimatePreviewData={null}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <EstimateList
-                  user={user}
-                  onCreateNew={handleCreateNew}
-                  onEditEstimate={handleEditEstimate}
-                />
-              )}
-            </>
-          )}
-          
-          {activeTab === 'versioned-workflow' && render3PanelWorkflow()}
+        <div>
+          {render3PanelWorkflow()}
         </div>
       </div>
     </div>

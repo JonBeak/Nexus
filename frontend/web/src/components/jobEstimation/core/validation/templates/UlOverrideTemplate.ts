@@ -1,222 +1,211 @@
-// UL Override validation template - context-aware UL certification validation
-// Accepts float, "yes", "no", "$amount" and determines UL requirements based on LED count
+// UL Override validation template - validates UL field input format for Channel Letters
+// Accepts "yes", "no", float numbers, or "$float" format with redundancy checking
 
-import { ValidationTemplate, ValidationResult, UlOverrideParams, ValidationContext } from './ValidationTemplate';
+import { ValidationTemplate, ValidationResult, ValidationContext } from './ValidationTemplate';
 
 export class UlOverrideTemplate implements ValidationTemplate {
-  async validate(value: string, params: UlOverrideParams = {}, context?: ValidationContext): Promise<ValidationResult> {
+  async validate(value: string, _params: Record<string, unknown> = {}, context?: ValidationContext): Promise<ValidationResult> {
     try {
-      // Handle empty values
+      // Handle empty values - always valid
       if (!value || (typeof value === 'string' && value.trim() === '')) {
-        // Empty is valid - will use default behavior
         return {
           isValid: true,
           parsedValue: null,
-          calculatedValue: this.calculateDefaultUlRequirement(context),
-          expectedFormat: this.generateExpectedFormat(params)
+          expectedFormat: this.generateExpectedFormat()
         };
       }
 
       const cleanValue = value.trim();
 
-      // Parse input based on type
-      const parseResult = this.parseInput(cleanValue, params);
+      // Parse and validate input
+      const parseResult = this.parseInput(cleanValue, context);
       if (!parseResult.isValid) {
         return parseResult;
       }
 
-      // Calculate UL requirement based on parsed input and context
-      const calculatedUlRequirement = this.calculateUlRequirement(parseResult.parsedValue, context);
-
-      // Generate warnings if applicable
-      const warnings = this.generateWarnings(parseResult.parsedValue, context);
+      // Check for redundancy with customer preferences
+      const redundancyCheck = this.checkRedundancy(parseResult.parsedValue, context);
+      if (!redundancyCheck.isValid) {
+        return redundancyCheck;
+      }
 
       return {
         isValid: true,
         parsedValue: parseResult.parsedValue,
-        calculatedValue: calculatedUlRequirement,
-        warnings: warnings.length > 0 ? warnings : undefined,
-        expectedFormat: this.generateExpectedFormat(params)
+        expectedFormat: this.generateExpectedFormat()
       };
 
     } catch (error) {
       return {
         isValid: false,
-        error: `Validation error: ${error.message}`,
-        expectedFormat: this.generateExpectedFormat(params)
+        error: `Validation error: ${error instanceof Error ? error.message : String(error)}`,
+        expectedFormat: this.generateExpectedFormat()
       };
     }
   }
 
   /**
-   * Parse input value into structured format
+   * Parse input value and validate format
    */
-  private parseInput(value: string, params: UlOverrideParams): ValidationResult {
-    const accepts = params.accepts || ['float', 'yes', 'no', 'currency'];
+  private parseInput(value: string, _context?: ValidationContext): ValidationResult {
     const lower = value.toLowerCase();
 
     // Check for "yes"
-    if (accepts.includes('yes') && lower === 'yes') {
+    if (lower === 'yes') {
       return { isValid: true, parsedValue: 'yes' };
     }
 
     // Check for "no"
-    if (accepts.includes('no') && lower === 'no') {
+    if (lower === 'no') {
       return { isValid: true, parsedValue: 'no' };
     }
 
-    // Check for currency format: $amount
-    if (accepts.includes('currency') && value.startsWith('$')) {
-      const amountStr = value.substring(1);
-      const amount = parseFloat(amountStr);
+    // Check for currency format: $amount or -$amount or $-amount
+    if (value.includes('$')) {
+      // Handle different negative formats
+      let cleanedValue = value.replace(/\s/g, ''); // Remove spaces
+      let isNegative = false;
+      let amountStr = '';
 
-      if (isNaN(amount)) {
+      if (cleanedValue.startsWith('-$')) {
+        // Format: -$123.45
+        isNegative = true;
+        amountStr = cleanedValue.substring(2);
+      } else if (cleanedValue.startsWith('$-')) {
+        // Format: $-123.45
+        isNegative = true;
+        amountStr = cleanedValue.substring(2);
+      } else if (cleanedValue.startsWith('$')) {
+        // Format: $123.45
+        amountStr = cleanedValue.substring(1);
+        // Check if amount itself is negative
+        if (amountStr.startsWith('-')) {
+          isNegative = true;
+          amountStr = amountStr.substring(1);
+        }
+      } else {
         return {
           isValid: false,
-          error: 'Invalid currency format',
-          expectedFormat: this.generateExpectedFormat(params)
+          error: 'Invalid currency format. Use $123.45, -$123.45, or $-123.45',
+          expectedFormat: this.generateExpectedFormat()
         };
       }
 
-      if (amount < 0) {
+      // Validate the numeric part
+      const numValue = this.validateNumericFormat(amountStr);
+      if (numValue === null) {
         return {
           isValid: false,
-          error: 'UL cost cannot be negative',
-          expectedFormat: this.generateExpectedFormat(params)
+          error: 'Invalid number format in currency value',
+          expectedFormat: this.generateExpectedFormat()
         };
       }
 
+      const finalValue = isNegative ? -numValue : numValue;
       return {
         isValid: true,
-        parsedValue: { type: 'currency', amount: amount }
+        parsedValue: { type: 'currency', amount: finalValue }
       };
     }
 
-    // Check for numeric value (float)
-    if (accepts.includes('float')) {
-      const numericValue = parseFloat(value);
-      if (!isNaN(numericValue)) {
-        if (numericValue < 0) {
-          return {
-            isValid: false,
-            error: 'UL cost cannot be negative',
-            expectedFormat: this.generateExpectedFormat(params)
-          };
-        }
-        return {
-          isValid: true,
-          parsedValue: { type: 'float', amount: numericValue }
-        };
-      }
+    // Check for plain numeric value (float)
+    const numValue = this.validateNumericFormat(value);
+    if (numValue !== null) {
+      return {
+        isValid: true,
+        parsedValue: { type: 'float', amount: numValue }
+      };
     }
 
     // Invalid input
     return {
       isValid: false,
-      error: `Invalid input. Expected: ${accepts.join(', ')}`,
-      expectedFormat: this.generateExpectedFormat(params)
+      error: 'Invalid input. Expected: "yes", "no", number, or $amount',
+      expectedFormat: this.generateExpectedFormat()
     };
   }
 
   /**
-   * Calculate UL requirement based on input and context
+   * Validate numeric format (no scientific notation)
    */
-  private calculateUlRequirement(parsedValue: any, context?: ValidationContext): any {
-    if (!context) return null;
+  private validateNumericFormat(value: string): number | null {
+    // Remove spaces
+    const cleaned = value.trim();
 
-    // Handle different input types
-    if (parsedValue === 'yes') {
-      // Explicit yes - include UL with default cost
-      return { required: true, cost: 'default' };
+    // Check for scientific notation
+    if (cleaned.toLowerCase().includes('e')) {
+      return null; // Reject scientific notation
     }
 
-    if (parsedValue === 'no') {
-      // Explicit no - exclude UL
-      return { required: false, cost: 0 };
+    // Check for valid number format
+    const isNegative = cleaned.startsWith('-');
+    const absoluteValue = isNegative ? cleaned.substring(1) : cleaned;
+
+    // Validate format: optional digits, optional decimal point, optional digits
+    // Must have at least one digit somewhere
+    const validFormat = /^\d*\.?\d+$/.test(absoluteValue);
+    if (!validFormat) {
+      return null;
     }
 
-    if (typeof parsedValue === 'object' && parsedValue.type) {
-      // Explicit cost override (currency or float)
-      return { required: true, cost: parsedValue.amount };
+    const parsed = parseFloat(cleaned);
+    if (isNaN(parsed)) {
+      return null;
     }
 
-    // No explicit input - use default behavior
-    return this.calculateDefaultUlRequirement(context);
+    return parsed;
   }
 
   /**
-   * Calculate default UL requirement based on LED count and customer preferences
+   * Check for redundancy with customer preferences
    */
-  private calculateDefaultUlRequirement(context?: ValidationContext): any {
-    if (!context) return null;
-
-    const ledCount = context.calculatedValues?.ledCount || 0;
-
-    // UL certification only applies when LEDs exist
-    if (ledCount > 0 && context.customerPreferences.default_ul_requirement) {
-      // Customer default: include UL when LEDs exist
-      return { required: true, cost: 'default' };
+  private checkRedundancy(parsedValue: any, context?: ValidationContext): ValidationResult {
+    if (!context || !context.customerPreferences) {
+      // Can't check redundancy without customer preferences
+      return { isValid: true, parsedValue };
     }
 
-    // Default: no UL requirement
-    return { required: false, cost: 0 };
-  }
+    const customerULPref = context.customerPreferences.pref_ul_required;
 
-  /**
-   * Generate warnings for potentially confusing input
-   */
-  private generateWarnings(parsedValue: any, context?: ValidationContext): string[] {
-    const warnings: string[] = [];
+    // Check if yes/no matches customer preference (redundant)
+    if (parsedValue === 'yes' && customerULPref === true) {
+      return {
+        isValid: false,
+        error: 'Redundant: "yes" matches customer UL preference',
+        expectedFormat: this.generateExpectedFormat()
+      };
+    }
 
-    if (!context) return warnings;
+    if (parsedValue === 'no' && customerULPref === false) {
+      return {
+        isValid: false,
+        error: 'Redundant: "no" matches customer UL preference',
+        expectedFormat: this.generateExpectedFormat()
+      };
+    }
 
-    // Note: UL can be standalone product, so no warning for UL without LEDs
-    // This is explicitly allowed per business requirements
-
-    return warnings;
+    // Numeric values are never redundant
+    return { isValid: true, parsedValue };
   }
 
   /**
    * Generate expected format description
    */
-  private generateExpectedFormat(params: UlOverrideParams): string {
-    const accepts = params.accepts || ['float', 'yes', 'no', 'currency'];
-    const formats: string[] = [];
-
-    if (accepts.includes('yes')) {
-      formats.push('"yes" (include UL with default cost)');
-    }
-    if (accepts.includes('no')) {
-      formats.push('"no" (no UL certification)');
-    }
-    if (accepts.includes('float')) {
-      formats.push('number (custom UL cost)');
-    }
-    if (accepts.includes('currency')) {
-      formats.push('$amount (custom UL cost with currency symbol)');
-    }
-
-    return `Accepts: ${formats.join(', ')}`;
+  private generateExpectedFormat(): string {
+    return 'Accepts: "yes", "no", number, or $amount (negative allowed)';
   }
 
   getDescription(): string {
-    return 'Context-aware UL certification validation with LED count dependencies and currency support';
+    return 'UL field validation for Channel Letters - validates format and checks redundancy';
   }
 
   getParameterSchema(): Record<string, any> {
     return {
-      accepts: {
-        type: 'array',
-        items: { type: 'string', enum: ['float', 'yes', 'no', 'currency'] },
+      productTypeId: {
+        type: 'number',
         required: false,
-        description: 'Allowed input types',
-        default: ['float', 'yes', 'no', 'currency']
-      },
-      require_symbol: {
-        type: 'boolean',
-        required: false,
-        description: 'Whether currency input must have $ symbol',
-        default: false
+        description: 'Product type ID for product-specific validation',
+        default: 1
       }
     };
   }

@@ -2,6 +2,7 @@
 
 import { PricingCalculationContext } from '../types/GridTypes';
 import { runRowPricingCalculationFromValidationOutput } from '../calculations/CalculationEngine';
+import { applySpecialItemsPostProcessing } from '../calculations/utils/SpecialItemsPostProcessor';
 
 export interface EstimateLineItem {
   // Grid reference
@@ -45,12 +46,12 @@ export interface EstimatePreviewData {
 export interface CalculationOperations {
   calculatePricing: (
     context: PricingCalculationContext
-  ) => EstimatePreviewData;
+  ) => Promise<EstimatePreviewData>;
 }
 
 export const createCalculationOperations = (): CalculationOperations => {
   return {
-    calculatePricing: (context) => {
+    calculatePricing: async (context) => {
       if (!context.validationResultsManager) {
         return createEmptyEstimateData(context);
       }
@@ -58,47 +59,64 @@ export const createCalculationOperations = (): CalculationOperations => {
       const items: EstimateLineItem[] = [];
       const rowMetadata = context.validationResultsManager.getAllRowMetadata();
 
+      // Track whether UL has been added in any previous rows
+      let ulExistsInJob = false;
+
       // Build product lines without estimatePreviewDisplayNumbers
       for (const [rowId, metadata] of rowMetadata) {
-        const calculation = runRowPricingCalculationFromValidationOutput(
+        console.log(`[CalculationLayer] Processing row ${rowId}:`, {
+          metadata,
+          contextCustomerId: context.customerId,
+          contextTaxRate: context.taxRate,
+          validationManager: !!context.validationResultsManager
+        });
+
+        const calculation = await runRowPricingCalculationFromValidationOutput(
           rowId,
-          context
+          context,
+          ulExistsInJob
         );
 
+        console.log(`[CalculationLayer] Calculation result for row ${rowId}:`, {
+          status: calculation.status,
+          display: calculation.display,
+          data: calculation.data,
+          error: calculation.error
+        });
+
         if (calculation.status === 'completed' && calculation.data) {
-          // Handle multi-component products (like Channel Letters)
+          // All products must return components array
           if (calculation.data.components?.length > 0) {
+            const overallQuantity = calculation.data.quantity || 1;
             for (const component of calculation.data.components) {
+              const componentUnitPrice = component.price || 0;
+              const componentExtendedPrice = componentUnitPrice * overallQuantity;
               items.push({
                 rowId,
                 inputGridDisplayNumber: metadata.displayNumber,
                 productTypeId: metadata.productTypeId,
                 productTypeName: metadata.productTypeName,
-                itemName: component.description || 'Component',
+                itemName: component.name ?? '',
                 description: '', // Blank for now
-                calculationDisplay: calculation.display,
+                calculationDisplay: (component as any).calculationDisplay || '',  // Use component-specific display if available
                 calculationComponents: calculation.data.components,
-                unitPrice: component.price || 0,
-                quantity: 1,
-                extendedPrice: component.price || 0,
+                unitPrice: componentUnitPrice,
+                quantity: overallQuantity,
+                extendedPrice: componentExtendedPrice,
                 // assemblyGroupId: undefined // Unused for now
               });
             }
+
+            // Check if this row added UL - update flag for next rows
+            const hasULComponent = calculation.data.components.some(c => c.type === 'ul');
+            if (hasULComponent) {
+              ulExistsInJob = true;
+            }
           } else {
-            // Single line item
-            items.push({
+            // No components returned - this is an error
+            console.error(`[CalculationLayer] Product calculator for ${metadata.productTypeName} returned no components`, {
               rowId,
-              inputGridDisplayNumber: metadata.displayNumber,
-              productTypeId: metadata.productTypeId,
-              productTypeName: metadata.productTypeName,
-              itemName: calculation.data.itemName || metadata.productTypeName || 'Line Item',
-              description: '', // Blank for now
-              calculationDisplay: calculation.display,
-              calculationComponents: undefined,
-              unitPrice: calculation.data.unitPrice || 0,
-              quantity: calculation.data.quantity || 1,
-              extendedPrice: (calculation.data.unitPrice || 0) * (calculation.data.quantity || 1),
-              // assemblyGroupId: undefined // Unused for now
+              calculation
             });
           }
         }
@@ -107,13 +125,20 @@ export const createCalculationOperations = (): CalculationOperations => {
       // TODO: Calculate estimatePreviewDisplayNumbers here later
       // assignEstimateDisplayNumbers(items);
 
-      // Calculate totals
-      const subtotal = items.reduce((sum, item) => sum + item.extendedPrice, 0);
+      // Apply Special Items Post-Processing ONLY if there are no blocking validation errors
+      // If validation errors exist, skip post-processing to avoid incorrect calculations
+      const hasBlockingErrors = context.validationResultsManager.hasBlockingErrors();
+      const processedItems = hasBlockingErrors
+        ? items // Skip post-processing if validation errors exist
+        : applySpecialItemsPostProcessing(items, context); // Process in order: Empty Row > Assembly > Divider > Multiplier > Discount/Fee > Subtotal
+
+      // Calculate totals (using processed items with modified quantities)
+      const subtotal = processedItems.reduce((sum, item) => sum + item.extendedPrice, 0);
       const taxRate = context.taxRate || 4.0; // Default to 400% if not provided (indicates failure)
       const taxAmount = subtotal * taxRate;
 
       return {
-        items,
+        items: processedItems,
         subtotal,
         taxRate,
         taxAmount,

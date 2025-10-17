@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { pool } from '../config/database';
 import { User } from '../types';
+import { getUserPermissions, hasPermission } from '../middleware/rbac';
 
 const DEFAULT_REFRESH_TOKEN_TTL = 48 * 60 * 60 * 1000; // 48 hours fallback
 

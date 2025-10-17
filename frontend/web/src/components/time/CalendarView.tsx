@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Save, AlertTriangle } from 'lucide-react';
-import type { AuthenticatedRequest, TimeEntry } from '../../types/time';
+import { timeApi } from '../../services/api';
+import type { TimeEntry } from '../../types/time';
 
 interface CalendarViewProps {
   selectedDate: string;
   setSelectedDate: (date: string) => void;
   selectedGroup: string;
-  makeAuthenticatedRequest: AuthenticatedRequest;
 }
 
 type CalendarEntry = Omit<TimeEntry, 'entry_id'> & { entry_id: number | null };
@@ -19,11 +19,10 @@ interface UserTimeData {
   multipleEntriesWarning: { [date: string]: boolean };
 }
 
-export const CalendarView: React.FC<CalendarViewProps> = ({ 
-  selectedDate, 
-  setSelectedDate, 
-  selectedGroup,
-  makeAuthenticatedRequest 
+export const CalendarView: React.FC<CalendarViewProps> = ({
+  selectedDate,
+  setSelectedDate,
+  selectedGroup
 }) => {
   // Initialize weekStart immediately
   const [weekStart, setWeekStart] = useState<string>(() => {
@@ -91,70 +90,54 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       return;
     }
     setLoading(true);
-    
+
     try {
       const endDate = new Date(weekStart + 'T12:00:00');
       endDate.setDate(endDate.getDate() + 13); // Get 2-week end (Friday of following week)
-      
-      const params = new URLSearchParams({
+
+      const data: { entries?: CalendarEntry[] } | CalendarEntry[] = await timeApi.getEntries({
         startDate: weekStart,
         endDate: endDate.toISOString().split('T')[0],
-        group: selectedGroup
+        group: selectedGroup,
+        status: 'all',
+        search: ''
       });
 
-      const url = `http://192.168.2.14:3001/api/time-management/entries?${params}`;
-      
-      const response = await makeAuthenticatedRequest(url);
-      
-      
-      if (response.ok) {
-        const data: { entries?: CalendarEntry[] } = await response.json();
-        
-        // Extract entries array from response object
-        const entries = data.entries || [];
-        
-        // Group entries by user
-        const userMap: Record<number, UserTimeData> = {};
-        
-        entries.forEach((entry) => {
-          if (!userMap[entry.user_id]) {
-            userMap[entry.user_id] = {
-              user_id: entry.user_id,
-              first_name: entry.first_name,
-              last_name: entry.last_name,
-              entries: {},
-              multipleEntriesWarning: {}
-            };
-          }
-          
-          const entryDate = entry.clock_in.split('T')[0];
-          
-          // Check if there's already an entry for this date
-          if (userMap[entry.user_id].entries[entryDate]) {
-            // Mark this date as having multiple entries
-            userMap[entry.user_id].multipleEntriesWarning[entryDate] = true;
-          }
-          
-          userMap[entry.user_id].entries[entryDate] = entry;
-        });
-        
-        setTimeData(Object.values(userMap));
-        
-      } else {
-        console.error('API request failed:', response.status, response.statusText);
-        try {
-          const errorText = await response.text();
-          console.error('Error response:', errorText);
-        } catch (textError) {
-          console.error('Could not read error response:', textError);
+      // Extract entries array from response object (handles dual format)
+      const entries = Array.isArray(data) ? data : data.entries || [];
+
+      // Group entries by user
+      const userMap: Record<number, UserTimeData> = {};
+
+      entries.forEach((entry) => {
+        if (!userMap[entry.user_id]) {
+          userMap[entry.user_id] = {
+            user_id: entry.user_id,
+            first_name: entry.first_name,
+            last_name: entry.last_name,
+            entries: {},
+            multipleEntriesWarning: {}
+          };
         }
-      }
+
+        const entryDate = entry.clock_in.split('T')[0];
+
+        // Check if there's already an entry for this date
+        if (userMap[entry.user_id].entries[entryDate]) {
+          // Mark this date as having multiple entries
+          userMap[entry.user_id].multipleEntriesWarning[entryDate] = true;
+        }
+
+        userMap[entry.user_id].entries[entryDate] = entry;
+      });
+
+      setTimeData(Object.values(userMap));
     } catch (error) {
       console.error('Error fetching time data:', error);
     } finally {
       setLoading(false);
     }
-  }, [weekStart, selectedGroup, makeAuthenticatedRequest]);
+  }, [weekStart, selectedGroup]);
 
   useEffect(() => {
     fetchTimeData();
@@ -293,47 +276,27 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       
       // Save each updated entry
       for (const update of uniqueUpdates) {
-        let response;
-        
-        if (update.isNew) {
-          // Create new entry
-          response = await makeAuthenticatedRequest(
-            'http://192.168.2.14:3001/api/time-management/entries',
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                user_id: update.user_id,
-                clock_in: convertToMySQLDateTime(update.clock_in),
-                clock_out: convertToMySQLDateTime(update.clock_out),
-                break_minutes: update.break_minutes,
-                status: 'completed'
-              })
-            }
-          );
-        } else {
-          // Update existing entry
-          response = await makeAuthenticatedRequest(
-            `http://192.168.2.14:3001/api/time-management/entries/${update.entry_id}`,
-            {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                clock_in: convertToMySQLDateTime(update.clock_in),
-                clock_out: convertToMySQLDateTime(update.clock_out),
-                break_minutes: update.break_minutes
-              })
-            }
-          );
-        }
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Failed to save entry:', update.entry_id || 'new', errorText);
+        try {
+          if (update.isNew) {
+            // Create new entry
+            const date = update.clock_in.split('T')[0];
+            await timeApi.createEntry({
+              user_id: update.user_id,
+              date: date,
+              clock_in: convertToMySQLDateTime(update.clock_in) || '',
+              clock_out: convertToMySQLDateTime(update.clock_out) || '',
+              break_minutes: update.break_minutes
+            });
+          } else {
+            // Update existing entry
+            await timeApi.updateEntry(update.entry_id!, {
+              clock_in: convertToMySQLDateTime(update.clock_in) || undefined,
+              clock_out: convertToMySQLDateTime(update.clock_out) || undefined,
+              break_minutes: update.break_minutes
+            });
+          }
+        } catch (error) {
+          console.error('Failed to save entry:', update.entry_id || 'new', error);
         }
       }
       

@@ -1,90 +1,118 @@
 /**
  * Vinyl Permissions Utility
  * Centralized permission checks for vinyl inventory system
+ * Updated to use RBAC system instead of hardcoded role checks
  */
 
 import { User } from '../../types';
+import { hasPermission } from '../../middleware/rbac';
 
 export class VinylPermissions {
   /**
    * Check if user can view vinyl inventory
-   * Based on existing route permissions - managers and owners only
+   * Uses RBAC permission: vinyl.read
    */
-  static canViewVinylInventory(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
+  static async canViewVinylInventory(user: User): Promise<boolean> {
+    return await hasPermission(user.user_id, 'vinyl.read');
   }
 
   /**
    * Check if user can manage vinyl inventory (create, update, delete)
-   * Based on existing route permissions - managers and owners only
+   * Uses RBAC permissions: vinyl.create, vinyl.update, vinyl.delete
    */
-  static canManageVinylInventory(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
+  static async canManageVinylInventory(user: User): Promise<boolean> {
+    // Check if user has at least update permission (most common operation)
+    return await hasPermission(user.user_id, 'vinyl.update');
+  }
+
+  /**
+   * Check if user can create vinyl items
+   * Uses RBAC permission: vinyl.create
+   */
+  static async canCreateVinyl(user: User): Promise<boolean> {
+    return await hasPermission(user.user_id, 'vinyl.create');
+  }
+
+  /**
+   * Check if user can update vinyl items
+   * Uses RBAC permission: vinyl.update
+   */
+  static async canUpdateVinyl(user: User): Promise<boolean> {
+    return await hasPermission(user.user_id, 'vinyl.update');
+  }
+
+  /**
+   * Check if user can delete vinyl items
+   * Uses RBAC permission: vinyl.delete
+   */
+  static async canDeleteVinyl(user: User): Promise<boolean> {
+    return await hasPermission(user.user_id, 'vinyl.delete');
   }
 
   /**
    * Check if user can view vinyl products catalog
-   * Based on existing route permissions - managers and owners only
+   * Uses RBAC permission: vinyl.read
    */
-  static canViewVinylProducts(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
+  static async canViewVinylProducts(user: User): Promise<boolean> {
+    return await hasPermission(user.user_id, 'vinyl.read');
   }
 
   /**
    * Check if user can manage vinyl products (create, update, delete)
-   * Based on existing route permissions - managers and owners only
+   * Uses RBAC permission: vinyl.update
    */
-  static canManageVinylProducts(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
+  static async canManageVinylProducts(user: User): Promise<boolean> {
+    return await hasPermission(user.user_id, 'vinyl.update');
   }
 
   /**
    * Check if user can mark vinyl as used
-   * Managers and owners can mark vinyl as used
+   * Uses RBAC permission: vinyl.update
    */
-  static canMarkVinylAsUsed(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
+  static async canMarkVinylAsUsed(user: User): Promise<boolean> {
+    return await hasPermission(user.user_id, 'vinyl.update');
   }
 
   /**
    * Check if user can view vinyl statistics
-   * Same as view permissions - managers and owners only
+   * Uses RBAC permission: vinyl.read
    */
-  static canViewVinylStats(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
+  static async canViewVinylStats(user: User): Promise<boolean> {
+    return await hasPermission(user.user_id, 'vinyl.read');
   }
 
   /**
    * Check if user can manage job associations for vinyl
-   * Same as manage permissions - managers and owners only
+   * Uses RBAC permission: vinyl.update
    */
-  static canManageJobAssociations(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
+  static async canManageJobAssociations(user: User): Promise<boolean> {
+    return await hasPermission(user.user_id, 'vinyl.update');
   }
 
   /**
    * Check if user can perform bulk operations
-   * Same as manage permissions - managers and owners only
+   * Uses RBAC permission: vinyl.update
    */
-  static canPerformBulkOperations(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
+  static async canPerformBulkOperations(user: User): Promise<boolean> {
+    return await hasPermission(user.user_id, 'vinyl.update');
   }
 
   /**
    * Generic permission check helper
    * Throws error if user doesn't have required permission
    */
-  static requirePermission(user: User, permissionCheck: (user: User) => boolean, action: string): void {
-    if (!permissionCheck(user)) {
+  static async requirePermission(user: User, permissionCheck: (user: User) => Promise<boolean>, action: string): Promise<void> {
+    const hasAccess = await permissionCheck(user);
+    if (!hasAccess) {
       throw new Error(`Insufficient permissions to ${action}`);
     }
   }
 
   /**
    * Check if user can access vinyl system at all
-   * Basic access check for vinyl routes
+   * Basic access check for vinyl routes - uses vinyl.read permission
    */
-  static canAccessVinylSystem(user: User): boolean {
-    return user.role === 'manager' || user.role === 'owner';
+  static async canAccessVinylSystem(user: User): Promise<boolean> {
+    return await hasPermission(user.user_id, 'vinyl.read');
   }
 }

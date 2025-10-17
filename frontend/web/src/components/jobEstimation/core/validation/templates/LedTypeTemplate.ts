@@ -3,13 +3,16 @@
 
 import { ValidationTemplate, ValidationResult, ValidationContext } from './ValidationTemplate';
 import { calculateChannelLetterMetrics, ChannelLetterMetrics } from '../utils/channelLetterParser';
+import { validateNumericInput } from '../utils/numericValidation';
 
-export type LedTypeParams = Record<string, never>;
+export type LedTypeParams = {
+  led_count_field: string; // Which field contains LED count (e.g., 'field3' for Channel Letters, 'field1' for LED)
+};
 
 export class LedTypeTemplate implements ValidationTemplate {
   async validate(
     value: string,
-    _params?: LedTypeParams,
+    params: LedTypeParams = {},
     context?: ValidationContext
   ): Promise<ValidationResult> {
     try {
@@ -25,7 +28,10 @@ export class LedTypeTemplate implements ValidationTemplate {
       const cleanValue = value.trim();
 
       // Check if there are any LEDs in this row
-      const ledCount = this.calculateLedCount(context);
+      if (!params.led_count_field) {
+        throw new Error('led_count_field parameter is required');
+      }
+      const ledCount = this.calculateLedCount(context, params.led_count_field);
 
       if (ledCount === 0) {
         return {
@@ -54,21 +60,21 @@ export class LedTypeTemplate implements ValidationTemplate {
   }
 
   /**
-   * Calculate LED count from field3 and context
+   * Calculate LED count from specified field and context
    */
-  private calculateLedCount(context?: ValidationContext): number {
+  private calculateLedCount(context: ValidationContext | undefined, ledCountField: string): number {
     if (!context) return 0;
 
     if (typeof context.calculatedValues?.ledCount === 'number') {
       return context.calculatedValues.ledCount;
     }
 
-    const field3Value = context.rowData.field3;
-    if (!field3Value || field3Value.trim() === '') {
+    const ledFieldValue = context.rowData[ledCountField];
+    if (!ledFieldValue || ledFieldValue.trim() === '') {
       return context.customerPreferences?.use_leds ? this.calculateLedsFromData(context) : 0;
     }
 
-    const cleanValue = field3Value.trim().toLowerCase();
+    const cleanValue = ledFieldValue.trim().toLowerCase();
 
     if (cleanValue === 'no') {
       return 0;
@@ -78,9 +84,13 @@ export class LedTypeTemplate implements ValidationTemplate {
       return this.calculateLedsFromData(context);
     }
 
-    const numericValue = parseFloat(cleanValue);
-    if (!isNaN(numericValue)) {
-      return Math.max(0, numericValue);
+    const numericResult = validateNumericInput(cleanValue, {
+      allowNegative: false,
+      minValue: 0,
+      allowEmpty: false
+    });
+    if (numericResult.isValid && numericResult.value !== undefined) {
+      return numericResult.value;
     }
 
     return this.calculateLedsFromData(context);
@@ -109,7 +119,11 @@ export class LedTypeTemplate implements ValidationTemplate {
 
   getParameterSchema(): Record<string, unknown> {
     return {
-      // No parameters needed - purely context-dependent validation
+      led_count_field: {
+        type: 'string',
+        required: true,
+        description: 'Field containing LED count (e.g., "field3" for Channel Letters, "field1" for LED)'
+      }
     };
   }
 }

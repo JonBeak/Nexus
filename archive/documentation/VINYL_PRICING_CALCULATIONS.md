@@ -2,70 +2,68 @@
 
 ## Rate Structure (Configurable Values)
 
-| Rate Code | Description | Value | Excel Ref |
-|-----------|-------------|-------|-----------|
-| APP_SHEET | Application/Sheet Fee | $40.00 | $I$112 |
-| CUT_APP_SHEET | Cut Application/Sheet Fee | $80.00 | $I$113 |
-| T_PER_YARD | Standard Vinyl per Yard | $55.00 | $I$114 |
-| PERF_PER_YARD | Perforated Vinyl per Yard | $110.00 | $I$115 |
-| PC_24IN | 24" Standard Piece | $55.00 | $I$116 |
-| PC_24IN_COLOR | 24" Color Piece | $85.00 | $I$117 |
-| PC_24IN_PERF | 24" Perforated Piece | $80.00 | $I$118 |
-| DIG_PER_SQFT | Digital Print per SqFt | $8.00 | $I$119 |
+| Rate Code | Description | Value | Database Code |
+|-----------|-------------|-------|---------------|
+| APP_SHEET | Application/Sheet Fee | $40.00 | FEE_SHEET |
+| CUT_APP_SHEET | Cut Application/Sheet Fee | $80.00 | FEE_CUT_SHEET (legacy) |
+| T_PER_YARD | Standard Vinyl per Yard | $55.00 | VINYL_TRANS |
+| PERF_PER_YARD | Perforated Vinyl per Yard | $110.00 | VINYL_PERF |
+| DIG_PER_SQFT | Digital Print per SqFt | $8.00 | DIGITAL_PRINT |
 
-## Calculation Methods by Vinyl Type
+**Note**: 24" piece pricing (PC_24IN variants) removed from current implementation.
 
-### 1. Standard Vinyl (T)
-**Formula**: `ROUNDUP(yards/3,0) * APP_SHEET + yards * T_PER_YARD`
-**Logic**: 
-- Application fee charged per 3-yard increment (rounded up)
-- Plus linear yards at standard rate
-**Examples**:
-- 7 yards = ROUNDUP(7/3,0) * $40 + 7 * $55 = 3 * $40 + $385 = $505
+## Current Field Configuration (Updated)
 
-### 2. Translucent Color Vinyl (Tc) 
-**Formula**: `ROUNDUP(yards/3,0) * CUT_APP_SHEET + yards * T_PER_YARD`
+### Field Mappings:
+- **field1**: T (Type - space-separated vinyl product IDs for standard vinyl)
+- **field2**: Tc (Type color - space-separated vinyl product IDs for translucent/color)
+- **field3**: Perf (Perforated - space-separated vinyl product IDs for perforated)
+- **field4**: Perf c (Perforated color - space-separated vinyl product IDs)
+- **field5**: Application (simple float - application fee multiplier or count)
+- **field6-10**: Dig WxH (Digital print dimensions - "WxH" format, e.g., "24x36")
+
+## Calculation Methods by Field
+
+### Fields 1-4: Vinyl Product Selection (T, Tc, Perf, Perf c)
+**Input Format**: Space-separated vinyl product IDs (e.g., "53 564 12")
 **Logic**:
-- Uses higher application fee for translucent/color
-- Same per-yard rate as standard
-**Examples**:
-- 7 yards = ROUNDUP(7/3,0) * $80 + 7 * $55 = 3 * $80 + $385 = $625
+- Each ID maps to a vinyl product in `vinyl_products` table
+- Products have `default_width` in inches
+- Convert to yards: `width_inches / 36`
+- Sum all yards from all product IDs
+- Calculate based on vinyl type (translucent vs perforated)
 
-### 3. Perforated Vinyl (Perf)
-**Formula**: `ROUNDUP(yards/3,0) * APP_SHEET + yards * PERF_PER_YARD`
-**Logic**:
-- Standard application fee
-- Higher per-yard rate for perforated material
-**Examples**:
-- 7 yards = ROUNDUP(7/3,0) * $40 + 7 * $110 = 3 * $40 + $770 = $890
+**Translucent (T, Tc) Formula**:
+```
+total_yards = SUM(product_widths / 36)
+application_fee = ROUNDUP(total_yards/3, 0) * APP_SHEET
+material_cost = total_yards * T_PER_YARD
+total = application_fee + material_cost
+```
 
-### 4. Perforated Color Vinyl (Perf c)
-**Formula**: `ROUNDUP(yards/3,0) * CUT_APP_SHEET + yards * PERF_PER_YARD`
-**Logic**:
-- Higher application fee for color
-- Higher per-yard rate for perforated
-**Examples**:
-- 7 yards = ROUNDUP(7/3,0) * $80 + 7 * $110 = 3 * $80 + $770 = $1010
+**Perforated (Perf, Perf c) Formula**:
+```
+total_yards = SUM(product_widths / 36)
+application_fee = ROUNDUP(total_yards/3, 0) * APP_SHEET
+material_cost = total_yards * PERF_PER_YARD
+total = application_fee + material_cost
+```
 
-### 5. 24-inch Standard Pieces (24in)
-**Formula**: `pieces * PC_24IN`
-**Logic**: Simple per-piece pricing for pre-cut 24" material
 **Examples**:
-- 5 pieces = 5 * $55 = $275
+- Input: "53 564" (two product IDs with 54" width each)
+- Total width: 108 inches = 3 yards
+- Translucent: ROUNDUP(3/3,0) * $40 + 3 * $55 = $40 + $165 = $205
+- Perforated: ROUNDUP(3/3,0) * $40 + 3 * $110 = $40 + $330 = $370
 
-### 6. 24-inch Color Pieces (24in c)
-**Formula**: `pieces * PC_24IN_COLOR`
-**Logic**: Higher rate for color 24" pieces
+### Field 5: Application Fee
+**Input Format**: Single float (e.g., "40", "60", "80")
+**Formula**: `value` (direct fee)
+**Logic**: Direct application fee amount - user enters the total fee, not a multiplier
 **Examples**:
-- 5 pieces = 5 * $85 = $425
+- Input: "60"
+- Cost: $60
 
-### 7. 24-inch Perforated Pieces (24in perf)
-**Formula**: `pieces * PC_24IN_PERF`
-**Logic**: Special rate for perforated 24" pieces
-**Examples**:
-- 5 pieces = 5 * $80 = $400
-
-### 8-10. Digital Print Vinyl (Dig WxH - 3 columns)
+### Fields 6-10: Digital Print Vinyl (Dig WxH)
 **Formula**: `calculated_sqft * DIG_PER_SQFT + setup_fee`
 **Logic**:
 - Dimensions parsed from "WxH" format (e.g., "12x8")
@@ -81,65 +79,88 @@
 
 ## Input Processing Logic
 
-### Linear Yard Inputs (T, Tc, Perf, Perf c)
-- Input can be space-separated numbers: "3 4 2"
-- Each number treated as separate yard quantity
-- All quantities summed for total calculation
-- Text parsing: `TEXTSPLIT(input," ",,TRUE)*1`
+### Vinyl Product ID Inputs (fields 1-4: T, Tc, Perf, Perf c)
+- Input: Space-separated product IDs from `vinyl_products` table
+- Example: "53 564 12"
+- Each ID is looked up in database to get `default_width` (in inches)
+- Convert each width to yards: `width_inches / 36`
+- Sum all yards for total calculation
+- Validation: Parsed as array of floats [53, 564, 12]
 
-### Piece Inputs (24in variants)
-- Direct numeric input for piece count
-- Descriptive text generated: "5 (24\"pcs)"
+### Application Fee Input (field 5)
+- Input: Direct dollar amount as single float
+- Example: "60", "40", "80"
+- No calculation needed - this IS the application fee
+- Validation: Single float, no scientific notation
 
-### Digital Print Inputs (Dig)
-- Accepts "WxH" format: "12x8", "24x18"
-- Accepts direct sqft: "5.5"
-- Dimension parsing with quarter-foot precision
-- Setup fee applied when content exists
+### Digital Print Inputs (fields 6-10: Dig WxH)
+- Input: "WxH" format where W and H are dimensions in inches
+- Example: "12x8", "24x36", "48 x 96" (spaces ignored)
+- Validation: Parsed as [width, height] array
+- Quarter-foot precision conversion: `ROUNDUP(dimension*4/12, 0) / 4`
+- Setup fee ($60) applied once if ANY digital print field has content
+- Each field calculated independently and summed
 
-## Database Schema Requirements
+## Database Schema (Implemented)
 
-### 1. Vinyl Rate Configuration Table
+### 1. vinyl_pricing table
+**Current Structure**:
 ```sql
-CREATE TABLE vinyl_pricing_rates (
+CREATE TABLE vinyl_pricing (
   id INT PRIMARY KEY AUTO_INCREMENT,
-  rate_code VARCHAR(20) UNIQUE NOT NULL,
-  rate_description VARCHAR(100) NOT NULL,
-  rate_value DECIMAL(8,4) NOT NULL,
-  rate_unit VARCHAR(20) NOT NULL, -- 'PER_YARD', 'PER_PIECE', 'PER_SQFT', 'PER_APPLICATION'
-  effective_date DATE NOT NULL,
-  is_active BOOLEAN DEFAULT true,
+  vinyl_component VARCHAR(100) NOT NULL,
+  component_code VARCHAR(20) UNIQUE NOT NULL,
+  componentl_type VARCHAR(20) NOT NULL,
+  price DECIMAL(8,4) NOT NULL,
+  effective_date DATE,
+  is_active BOOLEAN DEFAULT 1,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
-### 2. Vinyl Product Types Table
-```sql  
-CREATE TABLE vinyl_product_types (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  product_code VARCHAR(20) UNIQUE NOT NULL, -- 'T', 'TC', 'PERF', 'PERF_C', '24IN', '24IN_C', '24IN_PERF', 'DIG'
-  product_name VARCHAR(100) NOT NULL,
-  calculation_type ENUM('LINEAR_YARD', 'PIECE', 'DIGITAL_PRINT') NOT NULL,
-  app_fee_rate_code VARCHAR(20), -- References vinyl_pricing_rates.rate_code
-  base_rate_code VARCHAR(20), -- References vinyl_pricing_rates.rate_code
-  setup_fee_multiplier DECIMAL(4,2) DEFAULT 0, -- For digital print setup fee
-  effective_date DATE NOT NULL,
-  is_active BOOLEAN DEFAULT true
+**Active Rates**:
+- `VINYL_TRANS` (Translucent): $55.00/yard
+- `VINYL_PERF` (Perforated): $110.00/yard
+- `DIGITAL_PRINT`: $8.00/sqft
+- `FEE_SHEET` (Application): $40.00
+- Legacy 24" rates (ignored in current implementation)
+
+### 2. vinyl_products table
+**Current Structure**:
+```sql
+CREATE TABLE vinyl_products (
+  product_id INT PRIMARY KEY AUTO_INCREMENT,
+  brand VARCHAR(100),
+  series VARCHAR(100),
+  type VARCHAR(100),
+  default_width DECIMAL(5,2), -- Width in inches
+  colour_number VARCHAR(20),
+  colour_name VARCHAR(100),
+  is_active BOOLEAN DEFAULT 1,
+  ...
 );
 ```
 
-### 3. Calculation Engine Requirements
-- Parse space-separated yard inputs: "3 4 2"
-- Calculate application fees: `ROUNDUP(total_yards/3,0)`
-- Parse dimension inputs: "12x8" with quarter-foot precision
-- Handle setup fees for digital prints
-- Support multiple input formats per product type
+**Usage**: Fields 1-4 reference `product_id` to lookup `default_width` for yard calculations.
 
-## Implementation Priority
-1. Create configurable rate tables
-2. Build calculation engine for each vinyl type
-3. Implement input parsing logic
-4. Add frontend interface for rate management
-5. Integrate with job builder for real-time pricing
+## Calculation Engine Requirements
 
-This documentation provides complete formula replication of your Excel vinyl pricing system with configurable rates stored in the database.
+### Calculator Implementation (`vinylPricing.ts`)
+1. **Fetch pricing rates** from `vinyl_pricing` table
+2. **Process fields 1-4**:
+   - Lookup product IDs in `vinyl_products`
+   - Sum widths and convert to yards
+   - Apply yard-based pricing
+3. **Process field 5**: Direct application fee
+4. **Process fields 6-10**:
+   - Parse WxH dimensions
+   - Quarter-foot precision rounding
+   - Calculate sqft and apply digital print rate
+   - Add one-time setup fee if any digital content exists
+5. **Generate components** for estimate preview breakdown
+
+## Implementation Status
+✅ Database tables exist with pricing data
+✅ Validation layer complete (fields 1-10)
+⏳ Calculation engine (next step)
+⏳ Estimate preview integration

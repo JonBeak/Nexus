@@ -4,7 +4,8 @@
  * Simplified for Base Layer - no complex validation or styling
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ExpandableFieldInput } from './ExpandableFieldInput';
 
 interface FieldCellProps {
   fieldName: string;
@@ -17,7 +18,9 @@ interface FieldCellProps {
   staticDataCache?: Record<string, any[]>; // Database options cache
   fieldPrompt?: string; // Meaningful label like "Type", "Inches"
   fieldEnabled?: boolean; // Whether field is active (default: true)
-  validationState?: 'error' | 'warning' | 'valid'; // Placeholder for validation
+  validationState?: 'error' | 'valid'; // Validation state
+  allowExpansion?: boolean; // Enable expandable overlay for text fields
+  productTypeId?: number; // Product type ID for special styling
 }
 
 export const FieldCell: React.FC<FieldCellProps> = ({
@@ -31,11 +34,15 @@ export const FieldCell: React.FC<FieldCellProps> = ({
   staticDataCache,
   fieldPrompt,
   fieldEnabled = true,
-  validationState = 'valid'
+  validationState = 'valid',
+  allowExpansion = false,
+  productTypeId
 }) => {
   // Local state for blur-only validation pattern
   const [localValue, setLocalValue] = useState(fieldValue);
-  
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const selectRef = useRef<HTMLSelectElement>(null);
+
   // Update local value when fieldValue changes externally
   useEffect(() => {
     setLocalValue(fieldValue);
@@ -48,8 +55,17 @@ export const FieldCell: React.FC<FieldCellProps> = ({
     }
   };
 
-  // Don't render anything if field is disabled
+  // If field is disabled, show prompt as read-only label (for special items like Divider)
   if (!fieldEnabled) {
+    // Show prompt text if available (for informational display)
+    if (fieldPrompt && fieldPrompt.trim() !== '') {
+      return (
+        <div className="w-full px-2 py-1 text-xs text-gray-500 text-center italic">
+          {fieldPrompt}
+        </div>
+      );
+    }
+    // Otherwise render nothing
     return null;
   }
 
@@ -62,16 +78,52 @@ export const FieldCell: React.FC<FieldCellProps> = ({
     );
   }
 
-  // Base field classes with validation state styling
-  const getValidationBorder = () => {
-    if (validationState === 'error') return 'border-red-500';
-    if (validationState === 'warning') return 'border-orange-500';
-    return 'border-gray-300';
+  // Enhanced field classes with validation state styling
+  // Priority: Error (red) > Valid with value (blue/orange) > Default (gray)
+  const getFieldStyling = () => {
+    const hasValue = !!localValue;
+
+    // Error styling ALWAYS takes priority
+    if (validationState === 'error') {
+      return {
+        borderClass: 'border border-red-500',
+        bgClass: 'bg-red-100',
+        textClass: hasValue ? 'text-black' : 'text-gray-400'
+      };
+    }
+
+    // Valid field with value gets border highlight for fields1-10 or QTY with value != "1"
+    const isField1to10 = fieldName.match(/^field([1-9]|10)$/);
+    const isQtyNotOne = fieldName === 'quantity' && hasValue && localValue !== '1';
+    const isMultiplier = productTypeId === 23; // Multiplier special item
+
+    if (hasValue && (isField1to10 || isQtyNotOne)) {
+      // Multiplier fields get orange highlighting (matches Divider background with darker border)
+      if (isMultiplier) {
+        return {
+          borderClass: 'border border-orange-600',
+          bgClass: 'bg-orange-200',
+          textClass: 'text-black'
+        };
+      }
+      // Regular fields get blue highlighting
+      return {
+        borderClass: 'border border-blue-500',
+        bgClass: 'bg-sky-50/25',
+        textClass: 'text-black'
+      };
+    }
+
+    // Default styling (no value or regular field)
+    return {
+      borderClass: 'border border-gray-300',
+      bgClass: 'bg-white',
+      textClass: hasValue ? 'text-black' : 'text-gray-400'
+    };
   };
 
-  const baseClasses = `w-full px-2 py-1 text-xs border ${getValidationBorder()} rounded focus:bg-white focus:border focus:border-blue-300 text-center placeholder-gray-500`;
-  const valueClasses = localValue ? 'text-black' : 'text-gray-500';
-  const fieldClasses = `${baseClasses} ${valueClasses}`;
+  const styling = getFieldStyling();
+  const fieldClasses = `w-full px-2 py-1 text-xs ${styling.borderClass} ${styling.bgClass} ${styling.textClass} rounded focus:bg-white focus:border focus:border-blue-300 text-center placeholder-gray-400`;
 
   // Use fieldPrompt as placeholder - no fallback, should fail clearly if missing
   const displayPlaceholder = fieldPrompt ?? placeholder ?? '';
@@ -100,15 +152,52 @@ export const FieldCell: React.FC<FieldCellProps> = ({
 
       return (
         <select
+          ref={selectRef}
           value={localValue}
-          onChange={(event) => setLocalValue(event.target.value)}
-          onBlur={handleCommit}
+          onChange={(event) => {
+            const newValue = event.target.value;
+            setLocalValue(newValue);
+            // Immediately commit for select fields (discrete choice, not progressive typing)
+            if (newValue !== fieldValue) {
+              onCommit(newValue);
+            }
+            // Keep focus on the select so user can Tab to next field immediately
+            // The dropdown will close automatically after selection
+            setIsDropdownOpen(false);
+          }}
+          onMouseDown={() => {
+            // Dropdown opens on mouse down
+            setIsDropdownOpen(true);
+          }}
+          onKeyDown={(event) => {
+            // Handle keyboard interactions
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+              if (!isDropdownOpen) {
+                // Block all arrow keys when dropdown is closed
+                event.preventDefault();
+                return;
+              }
+            } else if (event.key === ' ' || event.key === 'Enter') {
+              // Space or Enter opens the dropdown
+              if (!isDropdownOpen) {
+                setIsDropdownOpen(true);
+              }
+            } else if (event.key === 'Escape') {
+              // Escape closes the dropdown
+              setIsDropdownOpen(false);
+            }
+          }}
+          onBlur={() => {
+            // Dropdown closes on blur
+            setIsDropdownOpen(false);
+            handleCommit();
+          }}
           className={`${fieldClasses} appearance-none`}
         >
-          <option value="" className="text-gray-500">{displayPlaceholder}</option>
+          <option value="" className="text-gray-400">{displayPlaceholder}</option>
           {selectOptions.map((option) => (
             <option key={option} value={option} className="text-black">
-              {option}
+              {option + '\u00A0\u00A0'}
             </option>
           ))}
         </select>
@@ -130,13 +219,14 @@ export const FieldCell: React.FC<FieldCellProps> = ({
     case 'text':
     default:
       return (
-        <input
-          type="text"
+        <ExpandableFieldInput
           value={localValue}
-          onChange={(event) => setLocalValue(event.target.value)}
-          onBlur={handleCommit}
-          className={fieldClasses}
+          onChange={setLocalValue}
+          onCommit={handleCommit}
           placeholder={displayPlaceholder}
+          isReadOnly={false}
+          className={fieldClasses}
+          allowExpansion={allowExpansion}
         />
       );
   }

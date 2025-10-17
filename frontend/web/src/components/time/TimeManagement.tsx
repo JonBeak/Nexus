@@ -29,14 +29,13 @@ export const TimeManagement: React.FC<TimeManagementProps> = ({ user }) => {
   
   // Main container hook - all state and API logic
   const container = useTimeManagementContainer({ user });
-  
+
   // Entry actions hook - CRUD operations
   const entryActions = useTimeEntryActions({
-    makeAuthenticatedRequest: container.makeAuthenticatedRequest,
     onDataRefresh: () => {
       if (container.viewMode === 'single') {
         container.fetchTimeEntries();
-      } else if (['weekly', 'bi-weekly', 'monthly', 'quarterly', 'semi-yearly', 'yearly'].includes(container.viewMode)) {
+      } else if (container.viewMode === 'summary') {
         container.fetchWeeklySummary();
       } else if (container.viewMode === 'analytics') {
         container.fetchAnalytics();
@@ -88,15 +87,14 @@ export const TimeManagement: React.FC<TimeManagementProps> = ({ user }) => {
       dateRange: container.dateRange,
       selectedGroup: container.selectedGroup,
       searchTerm: container.searchTerm,
-      format,
-      makeAuthenticatedRequest: container.makeAuthenticatedRequest
+      format
     });
     container.setShowExportMenu(false);
   };
 
   // Date navigation
   const handleNavigateDate = (direction: 'prev' | 'next') => {
-    navigateDate(container.selectedDate, container.viewMode, direction, container.setSelectedDate);
+    navigateDate(container.selectedDate, direction, container.setSelectedDate);
   };
 
   // Date preset handler
@@ -167,11 +165,10 @@ export const TimeManagement: React.FC<TimeManagementProps> = ({ user }) => {
       {/* Content Area */}
       <div className="max-w-none mx-auto px-4 sm:px-6 lg:px-8 py-6" style={{ maxWidth: '1408px' }}>
         {container.viewMode === 'calendar' ? (
-          <CalendarView 
+          <CalendarView
             selectedDate={container.selectedDate}
             setSelectedDate={container.setSelectedDate}
             selectedGroup={container.selectedGroup}
-            makeAuthenticatedRequest={container.makeAuthenticatedRequest}
           />
         ) : container.viewMode === 'single' ? (
           <TimeEntriesTable
@@ -188,15 +185,14 @@ export const TimeManagement: React.FC<TimeManagementProps> = ({ user }) => {
             onDeleteEntry={entryActions.deleteEntry}
             onEditValuesChange={entryActions.setEditValues}
           />
-        ) : ['weekly', 'bi-weekly', 'monthly', 'quarterly', 'semi-yearly', 'yearly'].includes(container.viewMode) ? (
+        ) : container.viewMode === 'summary' ? (
           <div className="bg-white shadow rounded-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">
-                {container.viewMode === 'monthly' ? 'Monthly' : 
-                 container.viewMode === 'quarterly' ? 'Quarterly' :
-                 container.viewMode === 'semi-yearly' ? 'Semi-Yearly' :
-                 container.viewMode === 'yearly' ? 'Yearly' :
-                 container.viewMode === 'bi-weekly' ? 'Bi-Weekly' : 'Weekly'} Summary
+                Time Summary
+                <span className="ml-3 text-sm font-normal text-gray-500">
+                  ({container.displayStartDate} to {container.displayEndDate})
+                </span>
               </h3>
             </div>
             <table className="min-w-full divide-y divide-gray-200">

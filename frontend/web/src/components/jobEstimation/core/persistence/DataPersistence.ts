@@ -71,20 +71,32 @@ export class DataPersistence {
       const savedRows = response.data || [];
 
       if (savedRows.length > 0) {
-        const coreRows = savedRows.map((row: any, index: number) => ({
-          id: row.id || `row-${index + 1}`,
-          rowType: row.rowType || 'main',
-          productTypeId: row.productTypeId,
-          productTypeName: row.productTypeName,
-          data: row.data || {},
-          parentProductId: row.parentProductId || undefined,
-          dbId: row.dbId,
-          itemIndex: row.itemIndex,
-          assemblyId: row.assemblyId,
-          fieldConfig: row.fieldConfig || [],
-          isMainRow: row.isMainRow,
-          indent: row.indent || 0
-        }));
+        const coreRows = savedRows.map((row: any, index: number) => {
+          // Derive rowType from backend data
+          let rowType: 'main' | 'continuation' | 'subItem';
+          if (row.productTypeCategory === 'sub_item') {
+            rowType = 'subItem';
+          } else if (row.parentProductId) {
+            rowType = 'continuation';
+          } else {
+            rowType = 'main';
+          }
+
+          return {
+            id: row.id || `row-${index + 1}`,
+            rowType,
+            productTypeId: row.productTypeId,
+            productTypeName: row.productTypeName,
+            data: row.data || {},
+            parentProductId: row.parentProductId || undefined,
+            dbId: row.dbId,
+            itemIndex: row.itemIndex,
+            assemblyId: row.assemblyId,
+            fieldConfig: row.fieldConfig || [],
+            isMainRow: row.isMainRow,
+            indent: row.indent || 0
+          };
+        });
 
         return coreRows;
       } else {

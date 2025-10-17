@@ -1,22 +1,29 @@
 // Structure-level validation
 // Validates business rules, sub-item placement, assembly logic, and row ordering
 
-import { GridRowCore } from '../../types/CoreTypes';
+import { GridRowCore, ProductTypeConfig } from '../../types/CoreTypes';
 
 export interface StructureValidationResult {
   rowId: string;
   error: string;
   rule: string;
-  severity: 'error' | 'warning';
+  severity: 'error';
 }
 
 export class StructureValidator {
+  private productTypes: ProductTypeConfig[] = [];
+
   /**
    * Validate structural business rules across the entire grid
    * @param coreData - Complete grid data for structural analysis
+   * @param productTypes - Product type configurations for category checking
    * @returns Array of structure validation errors
    */
-  async validateStructure(coreData: GridRowCore[]): Promise<StructureValidationResult[]> {
+  async validateStructure(coreData: GridRowCore[], productTypes?: ProductTypeConfig[]): Promise<StructureValidationResult[]> {
+    // Store productTypes for use in helper methods
+    if (productTypes) {
+      this.productTypes = productTypes;
+    }
     const results: StructureValidationResult[] = [];
 
     // 1. Validate sub-item placement rules
@@ -31,10 +38,7 @@ export class StructureValidator {
     // 4. Validate assembly group rules
     results.push(...this.validateAssemblyGroups(coreData));
 
-    // 5. Validate row ordering constraints
-    results.push(...this.validateRowOrdering(coreData));
-
-    // 6. Validate subtotal lines don't split assembly groups (checked after assembly validation)
+    // 5. Validate subtotal lines don't split assembly groups (checked after assembly validation)
     results.push(...this.validateSubtotalPlacement(coreData));
 
     return results;
@@ -105,9 +109,9 @@ export class StructureValidator {
         if (parentFound && !this.isContinuationProperlyPlaced(coreData, i)) {
           results.push({
             rowId: row.id,
-            error: 'Continuation rows should be placed immediately after their parent product',
+            error: 'Continuation rows must be placed immediately after their parent product',
             rule: 'continuation_misplaced',
-            severity: 'warning'
+            severity: 'error'
           });
         }
       }
@@ -125,14 +129,14 @@ export class StructureValidator {
     for (let i = 0; i < coreData.length; i++) {
       const row = coreData[i];
 
-      // Rule: Special items (if they exist) should not have sub-items
-      if (row.rowType === 'main' && this.isSpecialItem(row)) {
-        const hasSubItems = this.hasSubItems(coreData, i);
-        if (hasSubItems) {
+      // Rule: Sub-items cannot be placed under special items
+      if (row.rowType === 'subItem') {
+        const parent = this.findParentProduct(coreData, i);
+        if (parent && this.isSpecialItem(parent)) {
           results.push({
             rowId: row.id,
-            error: 'Special items cannot have sub-items',
-            rule: 'special_item_with_children',
+            error: 'Sub-items cannot be placed under special items',
+            rule: 'sub_item_under_special',
             severity: 'error'
           });
         }
@@ -147,6 +151,8 @@ export class StructureValidator {
 
   /**
    * Validate assembly group rules
+   * TODO: Future feature - assembly validation not yet implemented
+   * Currently returns no errors because identifyAssemblyGroups() returns empty array
    */
   private validateAssemblyGroups(coreData: GridRowCore[]): StructureValidationResult[] {
     const results: StructureValidationResult[] = [];
@@ -180,13 +186,13 @@ export class StructureValidator {
         }
       }
 
-      // Rule 3: Assembly row should be at the bottom of the group
+      // Rule 3: Assembly row must be at the bottom of the group
       if (group.assemblyRowId && !this.isAssemblyRowAtBottom(coreData, group)) {
         results.push({
           rowId: group.assemblyRowId,
-          error: 'Assembly row should be placed at the bottom of the assembly group',
+          error: 'Assembly row must be placed at the bottom of the assembly group',
           rule: 'assembly_row_not_at_bottom',
-          severity: 'warning'
+          severity: 'error'
         });
       }
 
@@ -210,39 +216,10 @@ export class StructureValidator {
   }
 
   /**
-   * Validate row ordering constraints
-   */
-  private validateRowOrdering(coreData: GridRowCore[]): StructureValidationResult[] {
-    const results: StructureValidationResult[] = [];
-
-    for (let i = 0; i < coreData.length; i++) {
-      const row = coreData[i];
-
-      // Rule: Main products inserted between parent and sub-items will cause reassignment
-      // This is handled by the base grid automatically, so just warn about potential confusion
-      if (row.rowType === 'main' && i > 0) {
-        const previousRow = coreData[i - 1];
-        if (previousRow.rowType === 'main') {
-          // Check if previous row had sub-items that will now be reassigned
-          const nextRow = coreData[i + 1];
-          if (nextRow && nextRow.rowType === 'subItem') {
-            results.push({
-              rowId: row.id,
-              error: 'Inserting products between a parent and its sub-items will reassign the sub-items',
-              rule: 'main_product_reassigns_children',
-              severity: 'warning'
-            });
-          }
-        }
-      }
-    }
-
-    return results;
-  }
-
-  /**
    * Validate that subtotal lines don't split assembly groups
    * Checked after assembly validation
+   * TODO: Future feature - assembly validation not yet implemented
+   * Currently returns no errors because identifyAssemblyGroups() returns empty array
    */
   private validateSubtotalPlacement(coreData: GridRowCore[]): StructureValidationResult[] {
     const results: StructureValidationResult[] = [];
@@ -286,7 +263,7 @@ export class StructureValidator {
               rowId: memberId,
               error: 'Assembly group is split by a subtotal or divider line',
               rule: 'assembly_split_by_subtotal',
-              severity: 'warning'
+              severity: 'error'
             });
           }
         }
@@ -337,62 +314,32 @@ export class StructureValidator {
   }
 
   /**
-   * Check if a row is a special item (implementation depends on product type classification)
+   * Check if a row is a special item (uses product type category)
    */
   private isSpecialItem(row: GridRowCore): boolean {
-    // This would depend on how special items are identified in your system
-    // For now, return false as most items are regular products
-    // You might check productTypeName or productTypeId against a list of special types
+    if (!row.productTypeId) return false;
 
-    if (!row.productTypeName) return false;
-
-    // Example special item types (adjust based on your business logic)
-    const specialItemTypes = [
-      'Subtotal',
-      'Divider',
-      'Section Header',
-      'Assembly Fee',
-      'Discount Line'
-    ];
-
-    return specialItemTypes.includes(row.productTypeName);
+    // Check if product type category is 'special'
+    const productType = this.productTypes.find(pt => pt.id === row.productTypeId);
+    return productType?.category === 'special';
   }
 
   /**
    * Check if a row is a subtotal or divider row
+   * Uses product type category instead of hardcoded names for consistency
    */
   private isSubtotalOrDividerRow(row: GridRowCore): boolean {
-    if (!row.productTypeName) return false;
+    if (!row.productTypeId) return false;
 
-    const subtotalTypes = [
-      'Subtotal',
-      'Divider',
-      'Section Break',
-      'Separator',
-      'Total Line'
-    ];
-
-    return subtotalTypes.includes(row.productTypeName);
-  }
-
-  /**
-   * Check if a main product has sub-items following it
-   */
-  private hasSubItems(coreData: GridRowCore[], mainRowIndex: number): boolean {
-    for (let i = mainRowIndex + 1; i < coreData.length; i++) {
-      const nextRow = coreData[i];
-      if (nextRow.rowType === 'main') {
-        break; // Reached next main product
-      }
-      if (nextRow.rowType === 'subItem') {
-        return true;
-      }
-    }
-    return false;
+    // Check if product type category is 'special' (consistent with isSpecialItem)
+    // Special items include: Subtotal, Divider, Text/Note, etc.
+    const productType = this.productTypes.find(pt => pt.id === row.productTypeId);
+    return productType?.category === 'special';
   }
 
   /**
    * Identify assembly groups in the grid
+   * TODO: Future feature - assembly validation not yet implemented
    * This is a placeholder - implementation depends on how assembly membership is tracked
    */
   private identifyAssemblyGroups(): AssemblyGroup[] {
@@ -409,6 +356,7 @@ export class StructureValidator {
 
   /**
    * Check if assembly members are contiguous (back-to-back)
+   * TODO: Future feature - used by assembly validation stubs
    */
   private areAssemblyMembersContiguous(coreData: GridRowCore[], memberRowIds: string[]): boolean {
     if (memberRowIds.length <= 1) return true;
@@ -431,6 +379,7 @@ export class StructureValidator {
 
   /**
    * Check if assembly row is at the bottom of its group
+   * TODO: Future feature - used by assembly validation stubs
    */
   private isAssemblyRowAtBottom(coreData: GridRowCore[], group: AssemblyGroup): boolean {
     if (!group.assemblyRowId || group.memberRowIds.length === 0) return true;

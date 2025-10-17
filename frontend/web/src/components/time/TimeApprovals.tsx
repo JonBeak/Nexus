@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { AuthenticatedRequest, TimeEditRequest, EditRequestDraft } from '../../types/time';
+import { timeApi } from '../../services/api';
+import type { TimeEditRequest, EditRequestDraft } from '../../types/time';
 
 function TimeApprovals() {
   const [pendingRequests, setPendingRequests] = useState<TimeEditRequest[]>([]);
@@ -10,61 +11,16 @@ function TimeApprovals() {
   const [reviewerNotes, setReviewerNotes] = useState('');
   const [isModifyMode, setIsModifyMode] = useState(false);
 
-  // Helper function to handle logout on auth failure
-  const handleAuthFailure = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    window.location.reload();
-  };
-
-  // Helper function to make authenticated requests
-  const makeAuthenticatedRequest: AuthenticatedRequest = useCallback(async (url, options = {}) => {
-    const token = localStorage.getItem('access_token');
-    
-    if (!token) {
-      handleAuthFailure();
-      return new Response('', { status: 401 });
-    }
-    
-    const headers = new Headers(options.headers ?? {});
-    headers.set('Authorization', `Bearer ${token}`);
-    if (!headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json');
-    }
-
-    const response = await fetch(url, {
-      ...options,
-      headers
-    });
-
-    // Handle authentication and authorization errors differently
-    if (response.status === 401) {
-      alert('Your session has expired. Please log in again.');
-      handleAuthFailure();
-      return new Response('', { status: 401 });
-    } else if (response.status === 403) {
-      alert('Insufficient permissions for this operation.');
-      // Don't logout on 403 - just show error
-      return response;
-    }
-
-    return response;
-  }, []);
-
   const fetchPendingRequests = useCallback(async () => {
     try {
-      const res = await makeAuthenticatedRequest('http://192.168.2.14:3001/api/time/pending-requests');
-      
-      if (res.ok) {
-        const data: TimeEditRequest[] = await res.json();
-        setPendingRequests(data);
-      }
+      const data: TimeEditRequest[] = await timeApi.getPendingRequests();
+      setPendingRequests(data);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching pending requests:', error);
       setLoading(false);
     }
-  }, [makeAuthenticatedRequest]);
+  }, []);
 
   useEffect(() => {
     fetchPendingRequests();
@@ -99,29 +55,20 @@ function TimeApprovals() {
           : parsedBreakMinutes;
       }
 
+      await timeApi.processRequest(body);
 
-      const res = await makeAuthenticatedRequest('http://192.168.2.14:3001/api/time/process-request', {
-        method: 'POST',
-        body: JSON.stringify(body)
-      });
-      
-      if (res.ok) {
-        const actionPastTense = body.action === 'modify' ? 'modified' : body.action === 'approve' ? 'approved' : 'rejected';
-        alert(`Request ${actionPastTense} successfully!`);
-        // FIXED: Clear all state properly
-        setShowApprovalModal(false);
-        setSelectedRequest(null);
-        setModifiedValues({}); // Clear modified values
-        setReviewerNotes('');
-        setIsModifyMode(false);
-        fetchPendingRequests();
-      } else {
-        const errorData = await res.json();
-        alert(`Error processing request: ${errorData.error || 'Unknown error'}`);
-      }
-    } catch (error) {
+      const actionPastTense = body.action === 'modify' ? 'modified' : body.action === 'approve' ? 'approved' : 'rejected';
+      alert(`Request ${actionPastTense} successfully!`);
+      // Clear all state properly
+      setShowApprovalModal(false);
+      setSelectedRequest(null);
+      setModifiedValues({});
+      setReviewerNotes('');
+      setIsModifyMode(false);
+      fetchPendingRequests();
+    } catch (error: any) {
       console.error('Error processing request:', error);
-      alert('Error processing request. Please try again.');
+      alert(`Error processing request: ${error.response?.data?.error || 'Unknown error'}`);
     }
   };
 

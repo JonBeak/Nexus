@@ -1,14 +1,13 @@
 import { useState } from 'react';
-import type { TimeEntry, AuthenticatedRequest, BulkEditValues } from '../../../types/time';
+import { timeApi } from '../../../services/api';
+import type { TimeEntry, BulkEditValues } from '../../../types/time';
 
 interface UseTimeEntryActionsProps {
-  makeAuthenticatedRequest: AuthenticatedRequest;
   onDataRefresh: () => void;
 }
 
-export const useTimeEntryActions = ({ 
-  makeAuthenticatedRequest, 
-  onDataRefresh 
+export const useTimeEntryActions = ({
+  onDataRefresh
 }: UseTimeEntryActionsProps) => {
   
   const [editingEntry, setEditingEntry] = useState<number | null>(null);
@@ -51,27 +50,15 @@ export const useTimeEntryActions = ({
   
   const saveEdit = async (entryId: number) => {
     try {
-      const updates = {
+      await timeApi.updateEntry(entryId, {
         clock_in: editValues.clock_in.replace('T', ' '),
-        clock_out: editValues.clock_out ? editValues.clock_out.replace('T', ' ') : null,
+        clock_out: editValues.clock_out ? editValues.clock_out.replace('T', ' ') : undefined,
         break_minutes: editValues.break_minutes
-      };
-      
-      const res = await makeAuthenticatedRequest(
-        `http://192.168.2.14:3001/api/time-management/entries/${entryId}`, 
-        {
-          method: 'PUT',
-          body: JSON.stringify(updates)
-        }
-      );
-      
-      if (res.ok) {
-        setEditingEntry(null);
-        setEditValues({ clock_in: '', clock_out: '', break_minutes: 0 });
-        onDataRefresh(); // Refresh the data
-      } else {
-        console.error('Failed to save edit');
-      }
+      });
+
+      setEditingEntry(null);
+      setEditValues({ clock_in: '', clock_out: '', break_minutes: 0 });
+      onDataRefresh(); // Refresh the data
     } catch (error) {
       console.error('Error saving edit:', error);
     }
@@ -81,18 +68,10 @@ export const useTimeEntryActions = ({
     if (!confirm('Are you sure you want to delete this entry? This cannot be undone.')) {
       return;
     }
-    
+
     try {
-      const res = await makeAuthenticatedRequest(
-        `http://192.168.2.14:3001/api/time-management/entries/${entryId}`,
-        { method: 'DELETE' }
-      );
-      
-      if (res.ok) {
-        onDataRefresh(); // Refresh the data
-      } else {
-        console.error('Failed to delete entry');
-      }
+      await timeApi.deleteEntry(entryId);
+      onDataRefresh(); // Refresh the data
     } catch (error) {
       console.error('Error deleting entry:', error);
     }
@@ -102,23 +81,11 @@ export const useTimeEntryActions = ({
     if (!confirm(`Are you sure you want to delete ${selectedEntries.length} entries? This cannot be undone.`)) {
       return;
     }
-    
+
     try {
-      const res = await makeAuthenticatedRequest(
-        'http://192.168.2.14:3001/api/time-management/bulk-delete',
-        {
-          method: 'DELETE',
-          body: JSON.stringify({ entryIds: selectedEntries })
-        }
-      );
-      
-      if (res.ok) {
-        onDataRefresh();
-        return true; // Success
-      } else {
-        console.error('Failed to delete entries');
-        return false;
-      }
+      await timeApi.deleteEntries(selectedEntries);
+      onDataRefresh();
+      return true; // Success
     } catch (error) {
       console.error('Error deleting entries:', error);
       return false;
@@ -127,24 +94,13 @@ export const useTimeEntryActions = ({
   
   const bulkEdit = async (selectedEntries: number[], bulkEditValues: BulkEditValues) => {
     try {
-      const res = await makeAuthenticatedRequest(
-        'http://192.168.2.14:3001/api/time-management/bulk-edit',
-        {
-          method: 'PUT',
-          body: JSON.stringify({ 
-            entryIds: selectedEntries,
-            updates: bulkEditValues
-          })
-        }
-      );
-      
-      if (res.ok) {
-        onDataRefresh();
-        return true; // Success
-      } else {
-        console.error('Failed to edit entries');
-        return false;
-      }
+      await timeApi.bulkEdit({
+        entryIds: selectedEntries,
+        updates: bulkEditValues
+      });
+
+      onDataRefresh();
+      return true; // Success
     } catch (error) {
       console.error('Error editing entries:', error);
       return false;
@@ -159,20 +115,9 @@ export const useTimeEntryActions = ({
     date: string;
   }) => {
     try {
-      const res = await makeAuthenticatedRequest(
-        'http://192.168.2.14:3001/api/time-management/entries',
-        {
-          method: 'POST',
-          body: JSON.stringify(entryData)
-        }
-      );
-      
-      if (res.ok) {
-        onDataRefresh();
-        return true;
-      } else {
-        return false;
-      }
+      await timeApi.createEntry(entryData);
+      onDataRefresh();
+      return true;
     } catch (error) {
       console.error('Error adding time entry:', error);
       return false;

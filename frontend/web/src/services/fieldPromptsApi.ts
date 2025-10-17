@@ -7,7 +7,6 @@ export interface FieldPrompts {
 export interface SimpleProductTemplate {
   field_prompts: FieldPrompts;
   static_options: Record<string, string[]>;
-  validation_rules: Record<string, any>;
 }
 
 /**

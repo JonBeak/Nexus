@@ -161,10 +161,7 @@ export const useAddressManagement = (
 
           if (!provinceShort) {
             target.province_state_long = undefined;
-            target.tax_id = undefined;
-            target.tax_type = undefined;
             target.tax_override_percent = undefined;
-            target.use_province_tax = true;
             setTaxDisplayValues((prevValues) => {
               const nextValues = { ...prevValues };
               delete nextValues[addressKey];
@@ -178,12 +175,12 @@ export const useAddressManagement = (
 
             if (matchingProvince) {
               target.province_state_long = matchingProvince.province_long;
-              target.country = matchingProvince.country_group === 'USA' ? 'USA' : 'Canada';
+              target.country = matchingProvince.country_group;
             }
           }
         }
 
-        if (field === 'tax_type' || field === 'tax_override_percent') {
+        if (field === 'tax_override_percent') {
           setTaxWarning('');
         }
 
@@ -201,16 +198,8 @@ export const useAddressManagement = (
                 return;
               }
 
-              setAddresses((prev) => {
-                const next = [...prev];
-                const target = { ...next[index] } as Address;
-                target.tax_id = taxInfo.tax_id;
-                target.tax_type = taxInfo.tax_name;
-                target.tax_override_percent = Number(taxInfo.tax_percent) / 100;
-                target.use_province_tax = true;
-                next[index] = target;
-                return next;
-              });
+              // Note: We no longer auto-fill tax_override_percent
+              // Users must manually enter override if they want non-default tax
 
               setTaxDisplayValues((prevValues) => {
                 const nextValues = { ...prevValues };

@@ -2,6 +2,7 @@
 // Supports formats like "12+5+3", "12x8,15x10", "width:12|height:8,depth:5"
 
 import { ValidationTemplate, ValidationResult, TextSplitParams } from './ValidationTemplate';
+import { validateNumericInput, validateIntegerInput } from '../utils/numericValidation';
 
 export class TextSplitTemplate implements ValidationTemplate {
   async validate(value: string, params: TextSplitParams): Promise<ValidationResult> {
@@ -211,25 +212,37 @@ export class TextSplitTemplate implements ValidationTemplate {
 
         switch (params.parse_as) {
           case 'float':
-            parsedValue = parseFloat(part);
-            if (isNaN(parsedValue)) {
+            const floatResult = validateNumericInput(part, {
+              allowNegative: params.allow_negative !== false,
+              minValue: params.min_value,
+              maxValue: params.max_value,
+              allowEmpty: false
+            });
+            if (!floatResult.isValid) {
               return {
                 isValid: false,
-                error: `"${part}" is not a valid number`,
+                error: `"${part}": ${floatResult.error}`,
                 expectedFormat: this.generateExpectedFormat(params)
               };
             }
+            parsedValue = floatResult.value!;
             break;
 
           case 'integer':
-            parsedValue = parseInt(part, 10);
-            if (isNaN(parsedValue) || !Number.isInteger(parseFloat(part))) {
+            const intResult = validateIntegerInput(part, {
+              allowNegative: params.allow_negative !== false,
+              minValue: params.min_value,
+              maxValue: params.max_value,
+              allowEmpty: false
+            });
+            if (!intResult.isValid) {
               return {
                 isValid: false,
-                error: `"${part}" is not a valid integer`,
+                error: `"${part}": ${intResult.error}`,
                 expectedFormat: this.generateExpectedFormat(params)
               };
             }
+            parsedValue = intResult.value!;
             break;
 
           case 'string':

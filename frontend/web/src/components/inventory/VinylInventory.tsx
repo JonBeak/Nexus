@@ -119,8 +119,6 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
   }, [showNotification]);
 
   const loadBulkAutofillSuggestions = useCallback(async () => {
-    if (bulkLoadingSuggestions) return;
-
     setBulkLoadingSuggestions(true);
     try {
       const response = await vinylProductsApi.getAutofillSuggestions({}) as VinylAutofillSuggestions;
@@ -131,7 +129,7 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
     } finally {
       setBulkLoadingSuggestions(false);
     }
-  }, [bulkLoadingSuggestions]);
+  }, []);
 
   const loadProductsData = useCallback(async () => {
     try {
@@ -143,22 +141,16 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
     }
   }, []);
 
-  // Load data when component mounts or tab changes
+  // Load autofill suggestions once on mount
+  useEffect(() => {
+    void loadBulkAutofillSuggestions();
+  }, [loadBulkAutofillSuggestions]);
+
+  // Load vinyl and product data when component mounts or tab changes
   useEffect(() => {
     void loadVinylData();
     void loadProductsData();
-
-    if (!bulkLoadingSuggestions && (!bulkAutofillSuggestions.combinations || bulkAutofillSuggestions.combinations.length === 0)) {
-      void loadBulkAutofillSuggestions();
-    }
-  }, [
-    activeTab,
-    loadVinylData,
-    loadProductsData,
-    loadBulkAutofillSuggestions,
-    bulkLoadingSuggestions,
-    bulkAutofillSuggestions
-  ]);
+  }, [activeTab, loadVinylData, loadProductsData]);
 
   // Event handlers
   const handleDeleteVinyl = async (id: number) => {
@@ -187,6 +179,8 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
       async () => {
         try {
           await vinylProductsApi.deleteVinylProduct(id);
+          await loadProductsData();
+          await loadBulkAutofillSuggestions(); // Reload suggestions - product catalog changed
           showNotification('Product deleted successfully', 'success');
         } catch (error) {
           console.error('Failed to delete product:', error);
@@ -242,6 +236,8 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
     try {
       await vinylProductsApi.createVinylProduct(productData);
       setShowAddProductModal(false);
+      await loadProductsData();
+      await loadBulkAutofillSuggestions(); // Reload suggestions - product catalog changed
       showNotification('Product added successfully', 'success');
     } catch (error) {
       console.error('Failed to add product:', error);
@@ -254,6 +250,7 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
       await vinylProductsApi.updateVinylProduct(id, updates);
       setEditingProduct(null);
       await loadProductsData();
+      await loadBulkAutofillSuggestions(); // Reload suggestions - product catalog changed
       showNotification('Product updated successfully', 'success');
     } catch (error) {
       console.error('Failed to update product:', error);
@@ -368,7 +365,6 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
             showNotification={showNotification}
             bulkAutofillSuggestions={bulkAutofillSuggestions}
             bulkLoadingSuggestions={bulkLoadingSuggestions}
-            loadBulkAutofillSuggestions={loadBulkAutofillSuggestions}
             products={products}
           />
         </div>

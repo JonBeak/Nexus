@@ -36,11 +36,16 @@ export const useProductTypes = () => {
         const response = await api.get('/job-estimation/product-types');
         
         if (response.data.success) {
-          // Filter active products and sort by ID (database insertion order)
+          // Filter active products and sort by display_order, then id
           const activeProducts = response.data.data
             .filter((pt: ProductType) => pt.is_active)
-            .sort((a: ProductType, b: ProductType) => a.id - b.id);
-          
+            .sort((a: ProductType, b: ProductType) => {
+              if (a.display_order !== b.display_order) {
+                return a.display_order - b.display_order;
+              }
+              return a.id - b.id;
+            });
+
           setProductTypes(activeProducts);
         } else {
           setError('Failed to load product types');

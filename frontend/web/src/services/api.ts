@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { triggerSessionExpired } from '../contexts/SessionContext';
 export { jobVersioningApi } from './jobVersioningApi';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -29,34 +30,33 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      
+
       const refreshToken = localStorage.getItem('refresh_token');
       if (refreshToken) {
         try {
           const response = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
           const { accessToken, refreshToken: newRefreshToken } = response.data;
-          
+
           localStorage.setItem('access_token', accessToken);
           localStorage.setItem('refresh_token', newRefreshToken);
-          
+
           // Retry the original request with new token
           originalRequest.headers.Authorization = `Bearer ${accessToken}`;
           return api(originalRequest);
         } catch (refreshError) {
-          // Refresh failed, redirect to login
+          // Refresh failed - show modal then redirect
           console.error('Token refresh failed:', refreshError);
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          window.location.href = '/';
+          triggerSessionExpired();
+          // Note: SessionExpiredModal will handle cleanup and redirect
           return Promise.reject(refreshError);
         }
       } else {
-        // No refresh token, redirect to login
-        localStorage.removeItem('access_token');
-        window.location.href = '/';
+        // No refresh token - show modal then redirect
+        triggerSessionExpired();
+        // Note: SessionExpiredModal will handle cleanup and redirect
       }
     }
     return Promise.reject(error);
@@ -66,6 +66,11 @@ api.interceptors.response.use(
 export const authApi = {
   getCurrentUser: async () => {
     const response = await api.get('/auth/me');
+    return response.data;
+  },
+
+  getUsers: async () => {
+    const response = await api.get('/auth/users');
     return response.data;
   },
 };
@@ -432,10 +437,16 @@ export const timeApi = {
     return response.data;
   },
 
+  // Delete single time entry
+  deleteEntry: async (id: number) => {
+    const response = await api.delete(`/time-management/entries/${id}`);
+    return response.data;
+  },
+
   // Delete time entries (bulk)
   deleteEntries: async (ids: number[]) => {
-    const response = await api.delete('/time-management/entries', { 
-      data: { ids } 
+    const response = await api.delete('/time-management/bulk-delete', {
+      data: { entryIds: ids }
     });
     return response.data;
   },
@@ -469,12 +480,14 @@ export const timeApi = {
 
   // Bulk edit entries
   bulkEdit: async (data: {
-    entry_ids: number[];
-    clock_in?: string;
-    clock_out?: string;
-    break_minutes?: number;
+    entryIds: number[];
+    updates: {
+      clock_in?: string;
+      clock_out?: string;
+      break_minutes?: number;
+    };
   }) => {
-    const response = await api.put('/time-management/entries/bulk', data);
+    const response = await api.put('/time-management/bulk-edit', data);
     return response.data;
   },
 
@@ -498,6 +511,129 @@ export const timeApi = {
   // Weekly summary (alternative endpoint)
   getWeeklySummaryAlt: async (weekOffset: number = 0) => {
     const response = await api.get(`/time/weekly-summary?weekOffset=${weekOffset}`);
+    return response.data;
+  },
+
+  // Notifications
+  getNotifications: async () => {
+    const response = await api.get('/time/notifications');
+    return response.data;
+  },
+
+  markNotificationAsRead: async (notificationId: number) => {
+    const response = await api.put(`/time/notifications/${notificationId}/read`);
+    return response.data;
+  },
+
+  clearAllNotifications: async () => {
+    const response = await api.put('/time/notifications/clear-all');
+    return response.data;
+  },
+
+  // Edit/Delete Requests
+  submitEditRequest: async (data: {
+    entry_id: number;
+    requested_clock_in: string;
+    requested_clock_out: string;
+    requested_break_minutes: number;
+    reason: string;
+  }) => {
+    const response = await api.post('/time/edit-request', data);
+    return response.data;
+  },
+
+  submitDeleteRequest: async (data: {
+    entry_id: number;
+    reason: string;
+  }) => {
+    const response = await api.post('/time/delete-request', data);
+    return response.data;
+  },
+
+  getPendingRequests: async () => {
+    const response = await api.get('/time/pending-requests');
+    return response.data;
+  },
+
+  processRequest: async (data: {
+    request_id: number;
+    action: 'approve' | 'reject' | 'modify';
+    reviewer_notes: string;
+    modified_clock_in?: string;
+    modified_clock_out?: string;
+    modified_break_minutes?: number;
+  }) => {
+    const response = await api.post('/time/process-request', data);
+    return response.data;
+  },
+
+  // Schedules & Holidays
+  getSchedules: async (userId: number) => {
+    const response = await api.get(`/time-management/schedules/${userId}`);
+    return response.data;
+  },
+
+  updateSchedules: async (userId: number, schedules: any[]) => {
+    const response = await api.put(`/time-management/schedules/${userId}`, { schedules });
+    return response.data;
+  },
+
+  getHolidays: async () => {
+    const response = await api.get('/time-management/holidays');
+    return response.data;
+  },
+
+  createHoliday: async (data: { holiday_name: string; holiday_date: string }) => {
+    const response = await api.post('/time-management/holidays', data);
+    return response.data;
+  },
+
+  deleteHoliday: async (holidayId: number) => {
+    const response = await api.delete(`/time-management/holidays/${holidayId}`);
+    return response.data;
+  },
+
+  exportHolidays: async () => {
+    const response = await api.get('/time-management/holidays/export', {
+      responseType: 'text'
+    });
+    return response.data;
+  },
+
+  importHolidays: async (data: { csvData: string; overwriteAll?: boolean }) => {
+    const response = await api.post('/time-management/holidays/import', data);
+    return response.data;
+  },
+
+  // Calendar Data
+  getCalendarData: async (params: {
+    startDate: string;
+    endDate: string;
+    group?: string;
+  }) => {
+    const response = await api.get('/time-management/calendar-data', { params });
+    return response.data;
+  },
+
+  updateCalendarEntry: async (data: {
+    user_id: number;
+    date: string;
+    clock_in?: string;
+    clock_out?: string;
+    break_minutes?: number;
+    entry_id?: number | null;
+  }) => {
+    const response = await api.post('/time-management/calendar-entry', data);
+    return response.data;
+  },
+
+  // Analytics Overview (different from getAnalytics)
+  getAnalyticsOverview: async (params: {
+    startDate: string;
+    endDate: string;
+    group?: string;
+  }) => {
+    const response = await api.get('/time-management/analytics-overview', { params });
     return response.data;
   },
 };
@@ -557,4 +693,6 @@ export const provincesApi = {
 };
 
 
+// Export as both default and named export for compatibility
+export { api as apiClient };
 export default api;

@@ -2,7 +2,9 @@
 
 ## Overview
 
-The validation system is a sophisticated multi-layer architecture that provides real-time, context-aware validation for the job estimation grid. It operates on a two-phase validation pipeline with database-driven configuration and template-based extensibility.
+The validation system is a sophisticated multi-layer architecture that provides real-time, context-aware validation for the job estimation grid. It operates on a two-phase validation pipeline with **frontend-only** template-based validation.
+
+**Architecture Note:** All validation is handled in the frontend. The backend only stores field prompts and static options - no validation rules are stored in the database.
 
 ## Layer 1: Database Configuration Layer
 
@@ -14,39 +16,15 @@ CREATE TABLE product_types (
   id INT PRIMARY KEY,
   name VARCHAR(255),
   field_prompts JSON,        -- Field labels and UI configuration
-  static_options JSON,       -- Dropdown options and static data
-  validation_rules JSON      -- Validation configuration per field
+  static_options JSON        -- Dropdown options and static data
 );
 ```
 
-### Validation Rules Schema
-
-```json
-{
-  "field1": {
-    "function": "non_empty",          // Template alias for required
-    "error_level": "warning",
-    "field_category": "complete_set",
-    "products_affected": ["channel_letters"]
-  },
-  "field2": {
-    "function": "float_or_groups",
-    "params": {
-      "group_separator": "..... ",
-      "number_separator": ",",
-      "allow_negative": false,
-      "min_value": 0
-    },
-    "error_level": "error",
-    "field_category": "complete_set",
-    "products_affected": ["channel_letters", "leds", "power_supplies", "extra_wire"]
-  }
-}
-```
+**Note:** No `validation_rules` column exists. All validation is defined in frontend code using validation templates and product-specific configurations.
 
 ### Current Channel Letters Configuration
 
-- field1: non_empty - Letter type selection (warning-level guidance)
+- field1: non_empty - Letter type selection
 - field2: float_or_groups - Supports the new grouped `widths..... heights` format or numeric totals
 - field3: led_override - LED count with context-aware overrides
 - field4: ul_override - UL requirements
@@ -56,7 +34,7 @@ CREATE TABLE product_types (
 - field9: ps_override - Power supply count
 - field10: ps_type - PS type selection tied to PS availability
 
-All channel-letter defaults now live in `defaultValidationConfigs.ts`, giving us a frontend-controlled safety net whenever the API omits validation rules.
+All validation rules live in frontend code (`defaultValidationConfigs.ts` and product-specific config files).
 
 ---
 
@@ -68,14 +46,16 @@ All channel-letter defaults now live in `defaultValidationConfigs.ts`, giving us
 async getAllFieldPrompts(): Promise<Record<number, SimpleProductTemplate>> {
   // 1. Query database for all product types
   const [rows] = await pool.execute(
-    'SELECT id, field_prompts, static_options, validation_rules FROM product_types'
+    'SELECT id, field_prompts, static_options FROM product_types'
   );
 
-  // 2. Process dynamic dropdown options
-  // 3. Build complete template objects
-  // 4. Return structured data
+  // 2. Process dynamic dropdown options (from inventory tables)
+  // 3. Build complete template objects (prompts + options only)
+  // 4. Return structured data (NO validation rules)
 }
 ```
+
+**Note:** Backend only serves field prompts and static options. No validation logic exists on the backend.
 
 ### API Endpoint
 
@@ -86,30 +66,39 @@ async getAllFieldPrompts(): Promise<Record<number, SimpleProductTemplate>> {
   "data": {
     "1": {  // Channel Letters
       "field_prompts": { "field1": "Letter Type", ... },
-      "static_options": { "field8": ["Standard LED", "RGB LED"], ... },
-      "validation_rules": { "field1": { "function": "required" }, ... }
+      "static_options": { "field8": ["Standard LED", "RGB LED"], ... }
     }
   }
 }
 ```
 
+**Note:** No `validation_rules` field in API response. Validation configured entirely in frontend code.
+
 ---
 
 ## Layer 3: Frontend Validation Engine
 
-### GridJobBuilderRefactored.tsx (Configuration Layer)
+### Validation Configuration (defaultValidationConfigs.ts)
 
 ```typescript
-// 1. Load templates from API
-const allTemplates = await fieldPromptsApi.getAllTemplates();
-
-// 2. Extract validation rules
-const validationConfigs = new Map<number, Record<string, unknown>>();
-Object.entries(allTemplates).forEach(([productTypeId, template]) => {
-  if (template.validation_rules && Object.keys(template.validation_rules).length > 0) {
-    validationConfigs.set(parseInt(productTypeId), template.validation_rules);
+// Validation rules defined in frontend code
+export const channelLettersValidationConfig: Record<string, FieldValidationConfig> = {
+  field1: {
+    template: 'non_empty',
+    complimentary_fields: ['field2'],
+    required: true
+  },
+  field2: {
+    template: 'float_or_groups',
+    params: { group_separator: '..... ', number_separator: ',' },
+    complimentary_fields: ['field1']
+  },
+  field8: {
+    template: 'required',
+    supplementary_to: ['field3']
   }
-});
+  // ... additional fields
+};
 
 // 3. Merge in frontend defaults (Channel Letters baseline) and configure engine
 const finalValidationConfigs = applyDefaultValidationConfigs(validationConfigs);
@@ -263,7 +252,6 @@ validate("yes", { accepts: ["float", "yes", "no"] }, context) {
 ```typescript
 class ValidationResultsManager {
   private cellErrors = new Map<string, CellValidationError>();
-  private cellWarnings = new Map<string, CellValidationWarning>();
   private structureErrors = new Map<string, StructureValidationError>();
 
   setCellError(rowId: string, fieldName: string, error: CellValidationError): void {
@@ -274,7 +262,6 @@ class ValidationResultsManager {
   getValidationSummary(): ValidationSummary {
     return {
       errorCount: this.cellErrors.size,
-      warningCount: this.cellWarnings.size,
       hasErrors: this.cellErrors.size > 0
     };
   }

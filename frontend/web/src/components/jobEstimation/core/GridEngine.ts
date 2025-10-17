@@ -20,6 +20,9 @@ import { ValidationEngine } from './validation/ValidationEngine';
 import { ValidationResultsManager } from './validation/ValidationResultsManager';
 import { CustomerManufacturingPreferences } from './validation/context/useCustomerPreferences';
 
+// Pricing lookup tables
+import { generateBackerLookupTables, BackerLookupTables } from './calculations/backerPricingLookup';
+
 export interface GridEngineConfig {
   productTypes: ProductTypeConfig[];
   staticDataCache?: Record<string, any[]>;  // Database options (materials, colors, etc.)
@@ -30,7 +33,6 @@ export interface GridEngineConfig {
   };
   validation?: {
     enabled: boolean;
-    productValidations: Map<number, Record<string, any>>; // Field validation configs by product type
     customerPreferences?: CustomerManufacturingPreferences;
   };
   callbacks?: {
@@ -75,6 +77,11 @@ export class GridEngine {
 
   // Validation system
   private validationEngine?: ValidationEngine;
+  private validationVersion = 0;
+
+  // Pricing lookup tables (lazy-loaded for performance)
+  private backerLookupTables?: BackerLookupTables;
+  private backerLookupsInitialized = false;
 
   constructor(config: GridEngineConfig) {
     this.config = config;
@@ -98,12 +105,38 @@ export class GridEngine {
     });
 
     // Initialize validation engine if enabled
-    if (this.config.validation?.enabled && this.config.validation.productValidations) {
-      this.validationEngine = new ValidationEngine({
-        productValidations: this.config.validation.productValidations,
-        customerPreferences: this.config.validation.customerPreferences || this.config.customerPreferences
-      });
+    if (this.config.validation?.enabled) {
+      this.validationEngine = this.createValidationEngine();
     }
+
+    // Initialize pricing lookup tables asynchronously (don't block constructor)
+    this.initializePricingLookups();
+  }
+
+  /**
+   * Initialize pricing lookup tables asynchronously
+   * Called in constructor - doesn't block initialization
+   */
+  private async initializePricingLookups(): Promise<void> {
+    try {
+      this.backerLookupTables = await generateBackerLookupTables();
+      this.backerLookupsInitialized = true;
+      console.log('[GridEngine] Backer pricing lookups initialized successfully');
+    } catch (error) {
+      console.error('[GridEngine] Failed to initialize backer pricing lookups:', error);
+      // Don't throw - allow grid to work, but backer calculations will fail gracefully
+    }
+  }
+
+  /**
+   * Create a ValidationEngine instance with current configuration
+   * Centralized factory method to avoid code duplication
+   */
+  private createValidationEngine(): ValidationEngine {
+    return new ValidationEngine({
+      customerPreferences: this.config.validation?.customerPreferences || this.config.customerPreferences,
+      productTypes: this.config.productTypes
+    });
   }
 
   /**
@@ -194,7 +227,17 @@ export class GridEngine {
       this.inputGridRows
     );
 
-    this.updateCoreData(newCoreData);
+    // Find the newly inserted row (it will be the one that doesn't exist in current data)
+    const newRow = newCoreData.find(row => !this.coreData.find(r => r.id === row.id));
+
+    if (newRow && newRow.productTypeId) {
+      // First update core data, then process the product type for proper initialization
+      this.updateCoreData(newCoreData);
+      // This ensures the row gets the same initialization as database-loaded rows
+      this.updateRowProductType(newRow.id, newRow.productTypeId, newRow.productTypeName || '');
+    } else {
+      this.updateCoreData(newCoreData);
+    }
   }
 
   /**
@@ -305,6 +348,12 @@ export class GridEngine {
         productTypes: this.config.productTypes,
         coreOps: this.coreOps
       });
+
+      // Update ValidationEngine with new productTypes for structure validation
+      if (this.validationEngine && this.config.validation?.enabled) {
+        this.validationEngine = this.createValidationEngine();
+      }
+
       this.recalculateAllLayers({ forceRecalculation: true });
       this.notifyStateChange();
     }
@@ -368,22 +417,6 @@ export class GridEngine {
     return this.validationEngine?.hasBlockingErrors() || false;
   }
 
-  /**
-   * Update validation configuration with product validation rules
-   */
-  updateValidationConfig(productValidations: Map<number, Record<string, any>>): void {
-    if (this.config.validation) {
-      this.config.validation.productValidations = productValidations;
-
-      // Re-initialize validation engine with new config
-      if (this.config.validation.enabled) {
-        this.validationEngine = new ValidationEngine({
-          productValidations: productValidations,
-          customerPreferences: this.config.validation.customerPreferences || this.config.customerPreferences
-        });
-      }
-    }
-  }
 
   /**
    * Reloads grid data from backend API and updates GridEngine state
@@ -526,6 +559,9 @@ export class GridEngine {
     if (!this.validationEngine) return;
 
     try {
+      // Increment validation version for React dependency tracking
+      this.validationVersion++;
+
       // Run validation on current core data with display rows for metadata
       await this.validationEngine.validateGrid(
         this.coreData,
@@ -549,7 +585,9 @@ export class GridEngine {
         customerName: this.config.customerName,
         cashCustomer: this.config.cashCustomer,
         taxRate: this.config.taxRate,
-        estimateId: this.config.estimateId
+        estimateId: this.config.estimateId,
+        validationVersion: this.validationVersion,
+        backerLookupTables: this.backerLookupTables // Pass lookup tables for performance
       };
 
       // Notify callbacks about validation state

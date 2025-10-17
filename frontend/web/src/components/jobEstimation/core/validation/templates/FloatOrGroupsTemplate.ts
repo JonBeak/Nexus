@@ -2,6 +2,7 @@
 // Supports: float (e.g., "32") or groups format (e.g., "10,. . . . . 6,")
 
 import { ValidationTemplate, ValidationResult } from './ValidationTemplate';
+import { validateNumericInput } from '../utils/numericValidation';
 
 export interface FloatOrGroupsParams {
   min_value?: number;          // Minimum value for float or individual numbers
@@ -59,43 +60,21 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
    * Try to parse value as a simple float
    */
   private tryParseAsFloat(value: string, params: FloatOrGroupsParams): ValidationResult {
-    const numericValue = parseFloat(value);
+    // Use strict numeric validation for float parsing
+    const numericResult = validateNumericInput(value, {
+      allowNegative: params.allow_negative !== false,
+      minValue: params.min_value,
+      maxValue: params.max_value,
+      allowEmpty: false
+    });
 
-    // Check if parsing was successful
-    if (isNaN(numericValue)) {
+    if (!numericResult.isValid) {
       return { isValid: false };
-    }
-
-    // Check for scientific notation (not allowed)
-    if (value.toLowerCase().includes('e')) {
-      return { isValid: false };
-    }
-
-    // Check if the original string represents the same number (catches cases like "123abc")
-    if (value !== numericValue.toString() &&
-        value !== numericValue.toFixed(0) &&
-        !this.isValidNumberFormat(value)) {
-      return { isValid: false };
-    }
-
-    // Check negative constraint
-    if (params.allow_negative === false && numericValue < 0) {
-      return {
-        isValid: false,
-        error: 'Negative numbers are not allowed',
-        expectedFormat: this.generateExpectedFormat(params)
-      };
-    }
-
-    // Check value range constraints
-    const rangeResult = this.validateRange(numericValue, params, value);
-    if (!rangeResult.isValid) {
-      return rangeResult;
     }
 
     return {
       isValid: true,
-      parsedValue: numericValue,
+      parsedValue: numericResult.value,
       expectedFormat: this.generateExpectedFormat(params)
     };
   }
@@ -198,44 +177,23 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
         };
       }
 
-      const numericValue = parseFloat(numberStr);
+      // Use strict numeric validation for group numbers
+      const numericResult = validateNumericInput(numberStr, {
+        allowNegative: params.allow_negative !== false,
+        minValue: params.min_value,
+        maxValue: params.max_value,
+        allowEmpty: false
+      });
 
-      if (isNaN(numericValue)) {
+      if (!numericResult.isValid) {
         return {
           isValid: false,
-          error: `"${numberStr}" in group ${groupNum} is not a valid number`,
+          error: `"${numberStr}" in group ${groupNum}: ${numericResult.error}`,
           expectedFormat: this.generateExpectedFormat(params)
         };
       }
 
-      // Check for scientific notation
-      if (numberStr.toLowerCase().includes('e')) {
-        return {
-          isValid: false,
-          error: `"${numberStr}" in group ${groupNum} uses scientific notation, which is not allowed`,
-          expectedFormat: this.generateExpectedFormat(params)
-        };
-      }
-
-      // Check negative constraint
-      if (params.allow_negative === false && numericValue < 0) {
-        return {
-          isValid: false,
-          error: `"${numberStr}" in group ${groupNum} is negative, which is not allowed`,
-          expectedFormat: this.generateExpectedFormat(params)
-        };
-      }
-
-      // Check value range constraints
-      const rangeResult = this.validateRange(numericValue, params, numberStr);
-      if (!rangeResult.isValid) {
-        return {
-          ...rangeResult,
-          error: `${rangeResult.error} (in group ${groupNum})`
-        };
-      }
-
-      parsedNumbers.push(numericValue);
+      parsedNumbers.push(numericResult.value!);
     }
 
     return { isValid: true, parsedValue: parsedNumbers };

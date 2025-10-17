@@ -36,7 +36,6 @@ export interface ProductTemplate {
 export interface SimpleProductTemplate {
   field_prompts: FieldPrompts;
   static_options: Record<string, string[]>;
-  validation_rules: Record<string, any>;
 }
 
 export interface DynamicFieldConfig {
@@ -60,7 +59,7 @@ export class DynamicTemplateService {
     try {
       // Get all product types with their templates
       const [rows] = await pool.execute<RowDataPacket[]>(
-        'SELECT id, field_prompts, static_options, validation_rules FROM product_types ORDER BY id'
+        'SELECT id, field_prompts, static_options FROM product_types'
       );
 
       // Collect all unique dynamic sources across all product types
@@ -106,8 +105,7 @@ export class DynamicTemplateService {
 
         allTemplates[row.id] = {
           field_prompts: row.field_prompts || {},
-          static_options: staticOptions,
-          validation_rules: row.validation_rules || {}
+          static_options: staticOptions
         };
       }
 
@@ -123,9 +121,9 @@ export class DynamicTemplateService {
    */
   async getFieldPrompts(productTypeId: number): Promise<SimpleProductTemplate> {
     try {
-      // Get field_prompts, static_options, and validation_rules from product_types
+      // Get field_prompts and static_options from product_types
       const [rows] = await pool.execute<RowDataPacket[]>(
-        'SELECT field_prompts, static_options, validation_rules FROM product_types WHERE id = ?',
+        'SELECT field_prompts, static_options FROM product_types WHERE id = ?',
         [productTypeId]
       );
 
@@ -137,8 +135,7 @@ export class DynamicTemplateService {
 
       return {
         field_prompts: row.field_prompts || {},
-        static_options: row.static_options || {},
-        validation_rules: row.validation_rules || {}
+        static_options: row.static_options || {}
       };
     } catch (error) {
       console.error('DynamicTemplateService.getFieldPrompts error:', error);

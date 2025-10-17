@@ -12,7 +12,6 @@ interface BulkEntriesTabProps {
   showNotification: (message: string, type?: 'success' | 'error') => void;
   bulkAutofillSuggestions: VinylAutofillSuggestions;
   bulkLoadingSuggestions: boolean;
-  loadBulkAutofillSuggestions: () => void;
 }
 
 export const BulkEntriesTab: React.FC<BulkEntriesTabProps> = ({
@@ -21,8 +20,7 @@ export const BulkEntriesTab: React.FC<BulkEntriesTabProps> = ({
   showConfirmation,
   showNotification,
   bulkAutofillSuggestions,
-  bulkLoadingSuggestions,
-  loadBulkAutofillSuggestions
+  bulkLoadingSuggestions
 }) => {
   const {
     bulkEntries,
@@ -39,21 +37,8 @@ export const BulkEntriesTab: React.FC<BulkEntriesTabProps> = ({
     removeJobField
   } = useBulkEntries();
 
-  const loadAttempted = React.useRef(false);
-
-  // Load autofill suggestions if not already loaded
-  React.useEffect(() => {
-    if (!bulkLoadingSuggestions && !loadAttempted.current && (!bulkAutofillSuggestions.combinations || bulkAutofillSuggestions.combinations.length === 0)) {
-      loadAttempted.current = true;
-      loadBulkAutofillSuggestions();
-    }
-  }, [bulkLoadingSuggestions, bulkAutofillSuggestions, loadBulkAutofillSuggestions]);
-
-  const ensureBulkSuggestions = useCallback(() => {
-    if (bulkLoadingSuggestions) return;
-    if (bulkAutofillSuggestions.combinations && bulkAutofillSuggestions.combinations.length > 0) return;
-    loadBulkAutofillSuggestions();
-  }, [bulkLoadingSuggestions, bulkAutofillSuggestions, loadBulkAutofillSuggestions]);
+  // Parent (VinylInventory) handles loading suggestions on mount
+  // No need to duplicate loading logic here
 
   // Count valid entries for display
   const validEntryCount = useMemo(() => {
@@ -206,7 +191,6 @@ export const BulkEntriesTab: React.FC<BulkEntriesTabProps> = ({
         handleJobChange={handleJobChange}
         removeJobField={removeJobField}
         clearSuccessfulEntries={clearSuccessfulEntries}
-        ensureSuggestionsLoaded={ensureBulkSuggestions}
       />
 
     </div>

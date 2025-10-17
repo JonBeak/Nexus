@@ -13,6 +13,8 @@ import { SupplyChainDashboard } from './components/supplyChain/SupplyChainDashbo
 import { JobEstimationDashboard } from './components/jobEstimation/JobEstimationDashboard';
 import { authApi } from './services/api';
 import type { AccountUser } from './types/user';
+import { SessionProvider } from './contexts/SessionContext';
+import { SessionExpiredModal } from './components/common/SessionExpiredModal';
 
 function AppContent() {
   const [user, setUser] = useState<AccountUser | null>(null);
@@ -114,9 +116,12 @@ function AppContent() {
 
 function App() {
   return (
-    <Router>
-      <AppContent />
-    </Router>
+    <SessionProvider>
+      <Router>
+        <AppContent />
+        <SessionExpiredModal />
+      </Router>
+    </SessionProvider>
   );
 }
 

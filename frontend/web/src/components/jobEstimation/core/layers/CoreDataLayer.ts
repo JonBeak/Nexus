@@ -79,8 +79,8 @@ export const createCoreDataOperations = (): CoreDataOperations => {
       return {
         id: tempId,
         rowType,
-        productTypeId: 27, // "Empty Row" product type
-        productTypeName: 'Empty Row',
+        productTypeId: 0, // No product type selected - user must choose
+        productTypeName: 'Select Type',
         data: {},
         parentProductId
       };

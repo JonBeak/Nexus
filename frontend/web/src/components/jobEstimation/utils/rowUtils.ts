@@ -1,6 +1,6 @@
 import { EstimateRow } from '../types';
 
-// Row creation utilities  
+// Row creation utilities
 export const createEmptyProductRow = (indent: number = 0): EstimateRow => {
   // For new rows, use a temporary ID that will be replaced when saved
   // This ensures compatibility with the database loading system
@@ -8,8 +8,8 @@ export const createEmptyProductRow = (indent: number = 0): EstimateRow => {
   return {
     id: tempId,
     indent,
-    productTypeId: 27, // "Empty Row" product type
-    productTypeName: 'Empty Row',
+    productTypeId: 0, // No product type selected - user must choose
+    productTypeName: 'Select Type',
     data: {},
     isMainRow: true
   };

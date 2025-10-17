@@ -2,7 +2,7 @@
 
 ## Overview
 
-The LED Neon system calculates pricing for LED neon installations with custom-cut backing panels (PVC or Acrylic), LED neon strip integration, connections, welding, standoffs, and transformers. The system uses length-based pricing with sophisticated material calculations and connection logic.
+The LED Neon system calculates pricing for LED neon installations with custom-cut backing panels (PVC or Acrylic), LED neon strip integration, solders, standoffs, and power supplies. The system uses length-based pricing with sophisticated material calculations and solder logic.
 
 ## Rate Structure (Configurable Values)
 
@@ -13,11 +13,11 @@ The LED Neon system calculates pricing for LED neon installations with custom-cu
 | LED Neon Watts | 4.8W/ft | Power consumption per foot |
 | Standoff Cost | $15.00 | Cost per standoff |
 
-### Connection Pricing (B213-C215)
-| Connection Type | Price | Usage |
-|-----------------|-------|--------|
-| Clear Acrylic Connections | $14.00 | Default (clear acrylic + not opaque) |
-| Opaque Connections | $7.00 | Opaque acrylic or PVC material |
+### Solder Pricing
+| Solder Type | Price | Usage |
+|-------------|-------|--------|
+| Clear Solders | $14.00 | Default (clear acrylic + not opaque) |
+| Opaque Solders | $7.00 | Opaque acrylic or PVC material |
 
 ### Material Options (from Substrate Table)
 | Material | Sheet Cost | Cut Rate |
@@ -35,60 +35,61 @@ The LED Neon system calculates pricing for LED neon installations with custom-cu
 ## Calculation Logic
 
 ### 1. Material Selection
-**Business Logic**: Default Acrylic, any input switches to PVC
+**Business Logic**: Material selected from dropdown by name
 
 ```
 Material Selection Logic:
-IF material_input is empty OR material_input = FALSE:
-    material_type = "Acrylic 12mm"
-ELSE:
-    material_type = "PVC 12mm"
+field2 contains the actual material name from dropdown selection.
+Materials are from substrate_cut_pricing table.
 
-Material Properties Lookup:
-material_sheet_cost = VLOOKUP(material_type, substrate_table, sheet_cost_column)
-material_cut_rate = VLOOKUP(material_type, substrate_table, cut_rate_column)
+Available materials:
+- "Acrylic 12mm" ($370/sheet, $120/sheet cutting)
+- "PVC 12mm" ($225/sheet, $120/sheet cutting)
+- Other materials as configured in database
+
+Lookup:
+material_pricing = substrate_cut_pricing_map[field2_value]
 
 Examples:
-- Input: "" (empty) → "Acrylic 12mm" ($370 sheet, $120 cut)
-- Input: "1" → "PVC 12mm" ($225 sheet, $120 cut)
-- Input: "PVC" → "PVC 12mm" ($225 sheet, $120 cut)
+- Input: "Acrylic 12mm" → Uses Acrylic 12mm pricing
+- Input: "PVC 12mm" → Uses PVC 12mm pricing
+- Input: "" (empty) → No base substrate calculated
 ```
 
 ### 2. Dimension Processing
-**Business Logic**: Parse XY dimensions for backing panel, sort largest first
+**Business Logic**: Parse XY dimensions for backing panel as entered (no sorting)
 
 ```
-Step 1: Parse and sort dimensions
-dimensions = TEXTSPLIT(input, "x")
-sorted_dims = SORT(dimensions, -1, TRUE)
+Step 1: Parse dimensions
+dimensions = input.split("x")
 
 Step 2: Extract width and height
-IF COLUMNS(dimensions) >= 1:
-    width = sorted_dims[0]
-    IF COLUMNS(dimensions) >= 2:
-        height = sorted_dims[1]
-    ELSE:
-        height = width  // Square if only one dimension
+IF dimensions.length === 2:
+    width = dimensions[0]
+    height = dimensions[1]
+ELSE:
+    // field1 accepts either dimensions (WxH) OR total square inches as float
 
-Example: "24x18" → Width=24", Height=18"
-Example: "36" → Width=36", Height=36"
+Example: "24x18" → Width=24", Height=18" (as entered)
+Example: "18x24" → Width=18", Height=24" (different from above - no sorting)
 ```
 
 ### 3. Area Calculation with Waste
-**Business Logic**: 10% waste factor for cutting efficiency
+**Business Logic**: 21% waste factor for cutting efficiency
 
 ```
-Formula: area_sqft = ROUNDUP(width * 1.1 * height * 1.1 / 144, 0)
+Formula: area_sqft = ROUNDUP((width * height) * 1.21 / 144, 0)
 
 Calculation Steps:
-- waste_width = width * 1.1  (10% waste)
-- waste_height = height * 1.1  (10% waste)
-- area_sqft = ROUNDUP(waste_width * waste_height / 144, 0)
+- Calculate raw area: width * height (in square inches)
+- Apply 21% waste factor: raw_area * 1.21
+- Convert to square feet: waste_area / 144
+- Round up to nearest whole sqft
 
 Example: 24" × 18" backing panel
-- waste_width = 24 * 1.1 = 26.4"
-- waste_height = 18 * 1.1 = 19.8"
-- area_sqft = ROUNDUP(26.4 * 19.8 / 144, 0) = ROUNDUP(3.63, 0) = 4 sqft
+- raw_area = 24 * 18 = 432 sq in
+- waste_area = 432 * 1.21 = 522.72 sq in
+- area_sqft = ROUNDUP(522.72 / 144, 0) = ROUNDUP(3.63, 0) = 4 sqft
 ```
 
 ### 4. Base Material Cost Calculation
@@ -116,25 +117,30 @@ Example: 4 sqft Acrylic 12mm backing
 ```
 
 ### 5. LED Length Processing
-**Business Logic**: Convert inches to feet for linear pricing
+**Business Logic**: Convert inches to feet for linear pricing (exact division, no rounding for precision)
 
 ```
-LED_length_feet = ROUNDUP(LED_length_inches / 12, 0)
+LED_length_feet = LED_length_inches / 12
 
 LED_cost = LED_length_feet * LED_price_per_foot
 LED_cost = LED_length_feet * $11.00
 
-LED_watts = LED_length_feet * LED_watts_per_foot  
+LED_watts = LED_length_feet * LED_watts_per_foot
 LED_watts = LED_length_feet * 4.8W
 
 Example: 120" LED length
-- LED_length_feet = ROUNDUP(120 / 12, 0) = 10 feet
-- LED_cost = 10 * $11.00 = $110
-- LED_watts = 10 * 4.8W = 48W
+- LED_length_feet = 120 / 12 = 10.0 feet
+- LED_cost = 10.0 * $11.00 = $110.00
+- LED_watts = 10.0 * 4.8W = 48W
+
+Example: 125" LED length
+- LED_length_feet = 125 / 12 = 10.417 feet (exact division)
+- LED_cost = 10.417 * $11.00 = $114.58
+- LED_watts = 10.417 * 4.8W = 50.0W
 ```
 
-### 6. Opacity & Connection Logic
-**Business Logic**: Material and opacity determine connection type
+### 6. Opacity & Solder Logic
+**Business Logic**: Material and opacity determine solder type
 
 ```
 Opacity Detection:
@@ -143,42 +149,73 @@ IF opacity_input is empty:
 ELSE:
     is_opaque = TRUE (opaque)
 
-Connection Type Selection:
+Solder Type Selection:
 IF is_opaque OR material_type = "PVC 12mm":
-    connection_price = $7.00  (opaque connections)
+    solder_price = $7.00  (opaque solders)
 ELSE:
-    connection_price = $14.00  (clear acrylic connections)
+    solder_price = $14.00  (clear solders)
 
-Connection Cost:
-connection_cost = weld_count * connection_price
+Solder Cost:
+solder_cost = solder_count * solder_price
 
 Examples:
-- Clear Acrylic: 5 welds × $14.00 = $70.00
-- Opaque Acrylic: 5 welds × $7.00 = $35.00  
-- PVC (any): 5 welds × $7.00 = $35.00
+- Clear Acrylic: 5 solders × $14.00 = $70.00
+- Opaque Acrylic: 5 solders × $7.00 = $35.00
+- PVC (any): 5 solders × $7.00 = $35.00
 ```
 
-### 7. Transformer Calculation
-**Uses Channel Letter Logic with LED wattage**
+### 7. Power Supply Calculation
+**Uses powerSupplySelector.ts with smart optimization logic**
 
 ```
 Step 1: Calculate total wattage
 total_watts = LED_length_feet * 4.8W
 
-Step 2: Select transformer type
-IF total_watts > 50W:
-    transformer_type = "Speedbox 150W"
+Step 2: Handle field7 PS# override
+IF field7 = "no" OR field7 = 0:
+    Skip power supplies entirely
+ELSE IF field7 = "yes":
+    Use auto-calculation (proceed to Step 3)
+ELSE IF field7 is a number > 0:
+    Use that exact count with appropriate default PS (Speedbox 60W if optimizing, else customer pref/default non-UL)
 ELSE:
-    transformer_type = "Speedbox 60W"
+    Use auto-calculation (proceed to Step 3)
 
-Step 3: Calculate quantity needed
-transformers_needed = ROUNDUP(total_watts / transformer_rated_watts, 0)
-transformer_cost = transformers_needed * transformer_price
+Step 3: Determine if UL optimization applies
+use_optimization = UL_required OR customer_pref_PS_is_Speedbox_60W
 
-Example: 10 feet LED neon (48W)
-- Transformer: "Speedbox 60W" (under 50W threshold)
-- Quantity: ROUNDUP(48W / 60W, 0) = 1 transformer
-- Cost: 1 × $120 = $120
+Step 4: Power supply selection hierarchy
+IF use_optimization = TRUE:
+    // UL Optimization Algorithm (PS#2 Speedbox 60W + PS#3 Speedbox 150W combo)
+    remainder = total_watts % PS3_watts
+    IF remainder = 0:
+        ps3_count = total_watts / PS3_watts
+        ps2_count = 0
+    ELSE IF remainder < PS2_watts:
+        ps2_count = 1
+        ps3_count = FLOOR(total_watts / PS3_watts)
+    ELSE:
+        ps3_count = CEIL(total_watts / PS3_watts)
+        ps2_count = 0
+
+    total_cost = (ps2_count * PS2_price) + (ps3_count * PS3_price)
+ELSE:
+    // Standard Selection
+    IF customer_has_preferred_PS:
+        ps_type = customer_pref_PS_type
+    ELSE:
+        ps_type = default_non_UL_PS
+
+    ps_count = CEIL(total_watts / ps_watts)
+    total_cost = ps_count * ps_price
+
+Examples:
+- 48W, UL required: Uses 1× Speedbox 60W (optimization)
+- 180W, UL required: Uses 1× Speedbox 150W + 1× Speedbox 60W (optimization)
+- 48W, customer prefers Speedbox 60W: Uses 1× Speedbox 60W (optimization triggered by preference)
+- 48W, no UL, different preference: Uses customer's preferred PS or default non-UL
+- Field7 = "2", UL required: Uses 2× Speedbox 60W (numeric override with optimization)
+- Field7 = "no": Skip all power supplies (explicit user override)
 ```
 
 ### 8. Standoff Cost Calculation
@@ -204,32 +241,32 @@ Input: TRUE → "PVC 12mm"
 
 ### Complete LED Neon Example
 **Input Set:**
-- Dimensions: "24x18" 
+- Dimensions: "24x18"
 - LED Length: "120" inches
-- Material: "" (empty = Acrylic)
+- Material: "Acrylic 12mm"
 - Opacity: "opaque"
-- Welds: "5"  
+- Solders: "5"
 - Standoffs: "8"
 
 **Calculations:**
 ```
-1. Material: "Acrylic 12mm" (default)
-2. Area: 24×18 with 10% waste = 4 sqft
+1. Material: "Acrylic 12mm"
+2. Area: 24×18 with 21% waste = 4 sqft
 3. Base Cost: $175 (material + cutting with 1.5× multipliers)
 4. LED: 10 feet × $11.00 = $110
-5. Connections: 5 welds × $7.00 = $35 (opaque pricing)
-6. Transformers: 1 Speedbox 60W = $120  
+5. Solders: 5 solders × $7.00 = $35 (opaque pricing)
+6. Power Supplies: Calculated via powerSupplySelector (varies by customer prefs/UL)
 7. Standoffs: 8 × $15.00 = $120
 
-Total: $560
+Total: $440 + Power Supplies
 ```
 
-### Connection Pricing Examples
+### Solder Pricing Examples
 ```
-Clear Acrylic + Clear: 5 welds × $14.00 = $70
-Clear Acrylic + Opaque: 5 welds × $7.00 = $35
-PVC + Clear: 5 welds × $7.00 = $35 (PVC forces opaque pricing)
-PVC + Opaque: 5 welds × $7.00 = $35
+Clear Acrylic + Clear: 5 solders × $14.00 = $70
+Clear Acrylic + Opaque: 5 solders × $7.00 = $35
+PVC + Clear: 5 solders × $7.00 = $35 (PVC forces opaque pricing)
+PVC + Opaque: 5 solders × $7.00 = $35
 ```
 
 ## Error Handling
@@ -250,7 +287,7 @@ Material Selection:
 - Empty/FALSE → Acrylic
 
 Quantities:
-- Welds, Standoffs must be numeric
+- Solders, Standoffs must be numeric
 - Default to 0 if empty
 ```
 
@@ -307,15 +344,16 @@ INSERT INTO led_neon_materials VALUES
 1. **Material Selection**: Default Acrylic, any input = PVC
 2. **Enhanced Substrate**: Uses substrate logic with 1.5× cutting multipliers  
 3. **Linear LED Pricing**: $11/foot with inches-to-feet conversion
-4. **Smart Connections**: Material + opacity determine connection type/price
-5. **Welding Integration**: Connection count × connection price
+4. **Smart Solders**: Material + opacity determine solder type/price
+5. **Solder Integration**: Solder count × solder price
 6. **Standoff Pricing**: Simple linear at $15 each
-7. **Transformer Logic**: Same as Channel Letters (Speedbox selection)
+7. **Power Supply Logic**: Complex multi-path selection (see powerSupplySelector.ts)
 
 **Sophistication:**
-- **Waste Management**: 10% dimensional waste (1.1 × 1.1)
+- **Waste Management**: 21% dimensional waste (1.21 multiplier)
 - **Material Intelligence**: PVC forces opaque pricing regardless of opacity input
 - **Enhanced Costing**: 1.5× multipliers on cutting rates vs standard substrate
-- **Length Flexibility**: Inches input, feet pricing, automatic conversion
+- **Length Flexibility**: Inches input, feet pricing, exact division (no rounding)
+- **Complex Power Supply Logic**: Multi-path selection with UL optimization (see powerSupplySelector.ts)
 
 This documentation captures the complete LED Neon pricing system with material selection, enhanced substrate calculations, linear LED pricing, and intelligent connection logic.

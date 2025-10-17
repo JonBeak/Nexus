@@ -1,9 +1,9 @@
 /**
  * Vinyl Inventory Service
  * Business logic layer for vinyl inventory management
+ * Permission checks now handled at route level via RBAC middleware
  */
 
-import { VinylPermissions } from '../../utils/vinyl/permissions';
 import { User } from '../../types';
 import { VinylInventoryRepository } from '../../repositories/vinyl/vinylInventoryRepository';
 import { VinylProductsRepository } from '../../repositories/vinyl/vinylProductsRepository';
@@ -25,19 +25,9 @@ export class VinylInventoryService {
    */
   static async getVinylItems(
     user: User,
-    filters: VinylInventoryFilters = {},
-    options: VinylInventoryServiceOptions = {}
+    filters: VinylInventoryFilters = {}
   ): Promise<VinylResponse<VinylItem[]>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        VinylPermissions.requirePermission(
-          user,
-          VinylPermissions.canViewVinylInventory,
-          'view vinyl inventory'
-        );
-      }
-
       const items = await VinylInventoryRepository.getVinylItems(filters);
       return { success: true, data: items };
     } catch (error: any) {
@@ -54,19 +44,9 @@ export class VinylInventoryService {
    */
   static async getVinylItemById(
     user: User,
-    id: number,
-    options: VinylInventoryServiceOptions = {}
+    id: number
   ): Promise<VinylResponse<VinylItem>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        VinylPermissions.requirePermission(
-          user,
-          VinylPermissions.canViewVinylInventory,
-          'view vinyl inventory'
-        );
-      }
-
       const item = await VinylInventoryRepository.getVinylItemById(id);
 
       if (!item) {
@@ -92,19 +72,9 @@ export class VinylInventoryService {
    */
   static async createVinylItem(
     user: User,
-    data: CreateVinylItemRequest,
-    options: VinylInventoryServiceOptions = {}
+    data: CreateVinylItemRequest
   ): Promise<VinylResponse<{ id: number; product_id?: number }>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        VinylPermissions.requirePermission(
-          user,
-          VinylPermissions.canManageVinylInventory,
-          'create vinyl items'
-        );
-      }
-
       // Validate required fields
       const validation = this.validateVinylItemData(data);
       if (!validation.isValid) {
@@ -167,19 +137,9 @@ export class VinylInventoryService {
   static async updateVinylItem(
     user: User,
     id: number,
-    data: UpdateVinylItemRequest,
-    options: VinylInventoryServiceOptions = {}
+    data: UpdateVinylItemRequest
   ): Promise<VinylResponse<{ updated: boolean }>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        VinylPermissions.requirePermission(
-          user,
-          VinylPermissions.canManageVinylInventory,
-          'update vinyl items'
-        );
-      }
-
       // Check if item exists
       const exists = await VinylInventoryRepository.vinylItemExists(id);
       if (!exists) {
@@ -260,13 +220,6 @@ export class VinylInventoryService {
     data: MarkVinylAsUsedRequest
   ): Promise<VinylResponse<{ updated: boolean }>> {
     try {
-      // Check permissions
-      VinylPermissions.requirePermission(
-        user,
-        VinylPermissions.canMarkVinylAsUsed,
-        'mark vinyl as used'
-      );
-
       // Check if item exists and is in stock
       const item = await VinylInventoryRepository.getVinylItemById(id);
       if (!item) {
@@ -313,13 +266,6 @@ export class VinylInventoryService {
     jobIds: number[]
   ): Promise<VinylResponse<{ updated: boolean }>> {
     try {
-      // Check permissions
-      VinylPermissions.requirePermission(
-        user,
-        VinylPermissions.canManageJobAssociations,
-        'manage job associations'
-      );
-
       // Check if item exists
       const exists = await VinylInventoryRepository.vinylItemExists(id);
       if (!exists) {
@@ -353,13 +299,6 @@ export class VinylInventoryService {
     id: number
   ): Promise<VinylResponse<{ deleted: boolean }>> {
     try {
-      // Check permissions
-      VinylPermissions.requirePermission(
-        user,
-        VinylPermissions.canManageVinylInventory,
-        'delete vinyl items'
-      );
-
       // Check if item exists
       const exists = await VinylInventoryRepository.vinylItemExists(id);
       if (!exists) {
@@ -390,13 +329,6 @@ export class VinylInventoryService {
    */
   static async getVinylStats(user: User): Promise<VinylResponse<any>> {
     try {
-      // Check permissions
-      VinylPermissions.requirePermission(
-        user,
-        VinylPermissions.canViewVinylStats,
-        'view vinyl statistics'
-      );
-
       const stats = await VinylInventoryRepository.getVinylStats();
       return { success: true, data: stats };
     } catch (error: any) {
@@ -416,13 +348,6 @@ export class VinylInventoryService {
     limit: number = 10
   ): Promise<VinylResponse<VinylItem[]>> {
     try {
-      // Check permissions
-      VinylPermissions.requirePermission(
-        user,
-        VinylPermissions.canViewVinylInventory,
-        'view vinyl inventory'
-      );
-
       const items = await VinylInventoryRepository.getRecentVinylForCopying(limit);
       return { success: true, data: items };
     } catch (error: any) {
@@ -442,21 +367,6 @@ export class VinylInventoryService {
     statusData: StatusChangeRequest
   ): Promise<VinylResponse<{ updated: boolean }>> {
     try {
-      // Check permissions based on status change
-      if (statusData.disposition === 'used') {
-        return this.markVinylAsUsed(user, statusData.vinyl_id, {
-          usage_note: statusData.notes,
-          job_ids: statusData.job_ids
-        });
-      }
-
-      // For other status changes (waste, returned)
-      VinylPermissions.requirePermission(
-        user,
-        VinylPermissions.canManageVinylInventory,
-        'change vinyl status'
-      );
-
       const updateData: UpdateVinylItemRequest = {
         disposition: statusData.disposition,
         notes: statusData.notes

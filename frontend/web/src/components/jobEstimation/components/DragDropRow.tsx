@@ -11,12 +11,14 @@ import { CSS } from '@dnd-kit/utilities';
 import { GridRow } from '../core/types/LayerTypes';
 import { FieldCell } from './FieldCell';
 import { ProductTypeSelector } from './ProductTypeSelector';
+import { StructureValidationError } from '../core/validation/ValidationResultsManager';
+import { ProductType } from '../hooks/useProductTypes';
 
 interface DragDropRowProps {
   row: GridRow;
   rowIndex: number;
-  productTypes: any[]; // Database product types
-  staticDataCache?: Record<string, any[]>; // Database options cache
+  productTypes: ProductType[];
+  staticDataCache?: Record<string, string[]>;
   onFieldCommit: (rowIndex: number, fieldName: string, value: string) => void;
   onProductTypeSelect: (rowIndex: number, productTypeId: number) => void;
   onInsertRow: (afterIndex: number) => void;
@@ -26,7 +28,10 @@ interface DragDropRowProps {
   isReadOnly: boolean;
   fieldPrompts?: Record<string, string>; // Field prompts for this product type
   staticOptions?: Record<string, string[]>; // Static dropdown options
-  validationStates?: Record<string, 'error' | 'warning' | 'valid'>; // Validation states
+  validationStates?: Record<string, 'error' | 'valid'>; // Validation states
+  structureError?: StructureValidationError; // Structure validation error
+  hoveredRowId?: string | null; // Cross-component hover state
+  onRowHover?: (rowId: string | null) => void; // Hover handler
 }
 
 export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
@@ -43,7 +48,10 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
   isReadOnly,
   fieldPrompts,
   staticOptions,
-  validationStates
+  validationStates,
+  structureError,
+  hoveredRowId = null,
+  onRowHover = () => {}
 }) => {
   const {
     attributes,
@@ -65,24 +73,28 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
     borderLeft: isDragging ? '3px solid #3b82f6' : 'none',
   };
 
-  // Calculate indentation for sub-items and continuation rows
-  const indentStyle = { 
-    paddingLeft: row.nestingLevel === 'sub' ? '16px' : '0px' 
-  };
-
   const getFieldData = (colIndex: number) => {
     const fieldName = `field${colIndex + 1}`;
     const fieldValue = row.data?.[fieldName] ?? '';
     return { fieldName, fieldValue };
   };
 
+  const isHighlighted = hoveredRowId === row.id;
+  const isDivider = row.productTypeId === 25; // Divider special item
+
   return (
-    <tr 
+    <tr
       ref={setNodeRef}
       style={style}
-      className={`border-b border-gray-100 group hover:bg-gray-50 ${
+      className={`border-b border-gray-100 group transition-colors ${
+        isDivider ? 'bg-orange-200 hover:bg-orange-200' : 'hover:bg-gray-50'
+      } ${
         isDragging ? 'ring-2 ring-blue-300 bg-blue-50' : ''
+      } ${
+        isHighlighted ? 'relative z-10 outline outline-2 outline-blue-300 bg-gray-50' : ''
       }`}
+      onMouseEnter={() => onRowHover(row.id)}
+      onMouseLeave={() => onRowHover(null)}
     >
       {/* Row Number & Drag Handle - matches original exactly */}
       <td className="w-4 px-0.5 py-0.25 border-r">
@@ -110,15 +122,17 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
           )}
         </div>
       </td>
-      
+
       {/* Product Type Selector */}
-      <td className="px-2 py-0" style={indentStyle}>
+      <td className={`py-0 ${row.nestingLevel === 'sub' ? 'pl-5' : ''}`}>
         <ProductTypeSelector
           row={row}
           rowIndex={rowIndex}
           productTypes={productTypes}
           onProductTypeSelect={onProductTypeSelect}
           isReadOnly={isReadOnly}
+          validationState={structureError ? 'error' : 'valid'}
+          errorMessage={structureError?.message}
         />
       </td>
       
@@ -135,6 +149,8 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
           fieldPrompt={fieldPrompts?.['quantity']}
           fieldEnabled={fieldPrompts?.['qty_enabled'] === true}
           validationState={validationStates?.['quantity']}
+          allowExpansion={fieldPrompts?.['quantity_expandable'] === true}
+          productTypeId={row.productTypeId}
         />
       </td>
       
@@ -156,6 +172,8 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
               fieldEnabled={fieldPrompts?.[`${fieldName}_enabled`] === true}
               options={staticOptions?.[fieldName]}
               validationState={validationStates?.[fieldName]}
+              allowExpansion={fieldPrompts?.[`${fieldName}_expandable`] === true}
+              productTypeId={row.productTypeId}
             />
           </td>
         );

@@ -2,6 +2,7 @@
 // Templates define HOW to validate, instances define WHAT to validate
 
 import { ChannelLetterMetrics } from '../utils/channelLetterParser';
+import { CustomerManufacturingPreferences } from '../context/useCustomerPreferences';
 
 export interface ValidationTemplate {
   /**
@@ -29,7 +30,6 @@ export interface ValidationResult {
   error?: string; // Human-readable error message
   expectedFormat?: string; // Help text for user
   parsedValue?: unknown; // Successfully parsed value (for calculations)
-  warnings?: string[]; // Non-blocking warnings
   calculatedValue?: unknown; // Calculated value based on context (for override templates)
 }
 
@@ -39,19 +39,10 @@ export interface ValidationContext {
   rowData: Record<string, string>;
 
   // Customer preferences from customer_manufacturing_preferences table
-  customerPreferences: {
-    use_leds: boolean;
-    default_led_type: string;
-    requires_transformers: boolean;
-    default_transformer: string;
-    default_ul_requirement: boolean;
-    pref_power_supply_is_ul_listed?: boolean;
-    // ... other preferences
-  };
+  customerPreferences: CustomerManufacturingPreferences;
 
   // Grid-wide context (other rows affect validation)
   gridContext: {
-    hasAnyUL: boolean;
     totalWattage: number;
     rowCount: number;
   };

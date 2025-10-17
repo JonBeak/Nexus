@@ -10,8 +10,7 @@ import type {
   WeeklyEntry,
   EditRequestDraft,
   DeleteRequestDraft,
-  TimeNotification,
-  AuthenticatedRequest
+  TimeNotification
 } from '../../types/time';
 
 function TimeTracking() {
@@ -27,47 +26,6 @@ function TimeTracking() {
   const [showClearedNotifications, setShowClearedNotifications] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteRequest, setDeleteRequest] = useState<DeleteRequestDraft | null>(null);
-
-  // Helper function to handle logout on auth failure
-  const handleAuthFailure = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    window.location.reload();
-  };
-
-  // Helper function to make authenticated requests
-  const makeAuthenticatedRequest: AuthenticatedRequest = useCallback(async (url, options = {}) => {
-    const token = localStorage.getItem('access_token');
-    
-    if (!token) {
-      handleAuthFailure();
-      return new Response('', { status: 401 });
-    }
-    
-    const headers = new Headers(options.headers ?? {});
-    headers.set('Authorization', `Bearer ${token}`);
-    if (!headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json');
-    }
-
-    const response = await fetch(url, {
-      ...options,
-      headers
-    });
-
-    // Handle authentication and authorization errors differently
-    if (response.status === 401) {
-      alert('Your session has expired. Please log in again.');
-      handleAuthFailure();
-      return new Response('', { status: 401 });
-    } else if (response.status === 403) {
-      alert('Insufficient permissions for this operation.');
-      // Don't logout on 403 - just show error
-      return response;
-    }
-
-    return response;
-  }, []);
 
   // Fetch clock status and weekly data
   const fetchData = useCallback(async () => {
@@ -103,26 +61,19 @@ function TimeTracking() {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const res = await makeAuthenticatedRequest('http://192.168.2.14:3001/api/time/notifications');
-      if (res.ok) {
-        const data: TimeNotification[] = await res.json();
-        setNotifications(data);
-      }
+      const data: TimeNotification[] = await timeApi.getNotifications();
+      setNotifications(data);
     } catch (error) {
       console.error('Error fetching notifications:', error);
     }
-  }, [makeAuthenticatedRequest]);
+  }, []);
 
   const markNotificationAsRead = async (notificationId: number) => {
     try {
-      const res = await makeAuthenticatedRequest(`http://192.168.2.14:3001/api/time/notifications/${notificationId}/read`, {
-        method: 'PUT'
-      });
-      if (res.ok) {
-        setNotifications(prev => prev.map(n => 
-          n.notification_id === notificationId ? { ...n, is_read: true } : n
-        ));
-      }
+      await timeApi.markNotificationAsRead(notificationId);
+      setNotifications(prev => prev.map(n =>
+        n.notification_id === notificationId ? { ...n, is_read: true } : n
+      ));
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
@@ -130,12 +81,8 @@ function TimeTracking() {
 
   const clearAllNotifications = async () => {
     try {
-      const res = await makeAuthenticatedRequest('http://192.168.2.14:3001/api/time/notifications/clear-all', {
-        method: 'PUT'
-      });
-      if (res.ok) {
-        setNotifications(prev => prev.map(n => ({ ...n, is_cleared: true })));
-      }
+      await timeApi.clearAllNotifications();
+      setNotifications(prev => prev.map(n => ({ ...n, is_cleared: true })));
     } catch (error) {
       console.error('Error clearing notifications:', error);
     }
@@ -150,7 +97,7 @@ function TimeTracking() {
     try {
       const data = await timeApi.clockIn();
 
-      if (data.success) {
+      if (data.message && data.message.includes('successfully')) {
         fetchData();
       } else {
         alert(`Error clocking in: ${data.error || 'Unknown error'}`);
@@ -165,7 +112,7 @@ function TimeTracking() {
     try {
       const data = await timeApi.clockOut();
 
-      if (data.success) {
+      if (data.message && data.message.includes('successfully')) {
         fetchData();
       } else {
         alert(`Error clocking out: ${data.error || 'Unknown error'}`);
@@ -182,30 +129,22 @@ function TimeTracking() {
       return;
     }
     try {
-      const res = await makeAuthenticatedRequest('http://192.168.2.14:3001/api/time/edit-request', {
-        method: 'POST',
-        body: JSON.stringify({
-          entry_id: selectedEntry.entry_id,
-          requested_clock_in: editRequest.clockIn,
-          requested_clock_out: editRequest.clockOut,
-          requested_break_minutes: editRequest.breakMinutes,
-          reason: editRequest.reason
-        })
+      await timeApi.submitEditRequest({
+        entry_id: selectedEntry.entry_id,
+        requested_clock_in: editRequest.clockIn,
+        requested_clock_out: editRequest.clockOut,
+        requested_break_minutes: editRequest.breakMinutes,
+        reason: editRequest.reason
       });
-      
-      if (res.ok) {
-        alert('Edit request submitted successfully!');
-        setShowEditModal(false);
-        setEditRequest(null);
-        setSelectedEntry(null);
-        fetchData();
-      } else {
-        const errorData = await res.json();
-        alert(`Error submitting request: ${errorData.error || 'Unknown error'}`);
-      }
-    } catch (error) {
+
+      alert('Edit request submitted successfully!');
+      setShowEditModal(false);
+      setEditRequest(null);
+      setSelectedEntry(null);
+      fetchData();
+    } catch (error: any) {
       console.error('Error submitting edit request:', error);
-      alert('Error submitting edit request. Please try again.');
+      alert(`Error submitting request: ${error.response?.data?.error || 'Unknown error'}`);
     }
   };
 
@@ -215,27 +154,19 @@ function TimeTracking() {
       return;
     }
     try {
-      const res = await makeAuthenticatedRequest('http://192.168.2.14:3001/api/time/delete-request', {
-        method: 'POST',
-        body: JSON.stringify({
-          entry_id: selectedEntry.entry_id,
-          reason: deleteRequest.reason
-        })
+      await timeApi.submitDeleteRequest({
+        entry_id: selectedEntry.entry_id,
+        reason: deleteRequest.reason
       });
-      
-      if (res.ok) {
-        alert('Delete request submitted successfully!');
-        setShowDeleteModal(false);
-        setDeleteRequest(null);
-        setSelectedEntry(null);
-        fetchData();
-      } else {
-        const errorData = await res.json();
-        alert(`Error submitting delete request: ${errorData.error || 'Unknown error'}`);
-      }
-    } catch (error) {
+
+      alert('Delete request submitted successfully!');
+      setShowDeleteModal(false);
+      setDeleteRequest(null);
+      setSelectedEntry(null);
+      fetchData();
+    } catch (error: any) {
       console.error('Error submitting delete request:', error);
-      alert('Error submitting delete request. Please try again.');
+      alert(`Error submitting delete request: ${error.response?.data?.error || 'Unknown error'}`);
     }
   };
 

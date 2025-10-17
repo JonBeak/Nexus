@@ -124,7 +124,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
           {/* US States */}
           <optgroup label="United States">
             {provincesStates
-              .filter(p => p.country_group === 'USA')
+              .filter(p => p.country_group === 'United States')
               .map(state => (
                 <option key={state.province_short} value={state.province_short}>
                   {state.province_long} ({state.province_short})
@@ -134,7 +134,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
           {/* Special Options */}
           <optgroup label="Special">
             {provincesStates
-              .filter(p => p.country_group === 'Special')
+              .filter(p => p.country_group === 'N/A')
               .map(special => (
                 <option key={special.province_short} value={special.province_short}>
                   {special.province_long}

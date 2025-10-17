@@ -3,13 +3,16 @@
 
 import { ValidationTemplate, ValidationResult, ValidationContext } from './ValidationTemplate';
 import { calculateChannelLetterMetrics, ChannelLetterMetrics } from '../utils/channelLetterParser';
+import { validateNumericInput } from '../utils/numericValidation';
 
-export type PsTypeParams = Record<string, never>;
+export type PsTypeParams = {
+  ps_count_field: string; // Which field contains PS count (e.g., 'field9' for Channel Letters, 'field4' for LED)
+};
 
 export class PsTypeTemplate implements ValidationTemplate {
   async validate(
     value: string,
-    _params?: PsTypeParams,
+    params: PsTypeParams = {},
     context?: ValidationContext
   ): Promise<ValidationResult> {
     try {
@@ -25,7 +28,10 @@ export class PsTypeTemplate implements ValidationTemplate {
       const cleanValue = value.trim();
 
       // Check if there are any power supplies in this row
-      const psCount = this.calculatePsCount(context);
+      if (!params.ps_count_field) {
+        throw new Error('ps_count_field parameter is required');
+      }
+      const psCount = this.calculatePsCount(context, params.ps_count_field);
 
       if (psCount === 0) {
         return {
@@ -54,14 +60,14 @@ export class PsTypeTemplate implements ValidationTemplate {
   }
 
   /**
-   * Calculate PS count from field9 and context
+   * Calculate PS count from specified field and context
    */
-  private calculatePsCount(context?: ValidationContext): number {
+  private calculatePsCount(context: ValidationContext | undefined, psCountField: string): number {
     if (!context) return 0;
 
-    const field9Value = context.rowData.field9;
-    if (field9Value && field9Value.trim() !== '') {
-      const cleanValue = field9Value.trim().toLowerCase();
+    const psFieldValue = context.rowData[psCountField];
+    if (psFieldValue && psFieldValue.trim() !== '') {
+      const cleanValue = psFieldValue.trim().toLowerCase();
 
       if (cleanValue === 'no') {
         return 0;
@@ -71,9 +77,13 @@ export class PsTypeTemplate implements ValidationTemplate {
         return this.calculatePsFromLeds(context);
       }
 
-      const numericValue = parseFloat(cleanValue);
-      if (!isNaN(numericValue)) {
-        return Math.max(0, numericValue);
+      const numericResult = validateNumericInput(cleanValue, {
+        allowNegative: false,
+        minValue: 0,
+        allowEmpty: false
+      });
+      if (numericResult.isValid && numericResult.value !== undefined) {
+        return numericResult.value;
       }
     }
 
@@ -128,7 +138,11 @@ export class PsTypeTemplate implements ValidationTemplate {
 
   getParameterSchema(): Record<string, unknown> {
     return {
-      // No parameters needed - purely context-dependent validation
+      ps_count_field: {
+        type: 'string',
+        required: true,
+        description: 'Field containing PS count (e.g., "field9" for Channel Letters, "field4" for LED)'
+      }
     };
   }
 }

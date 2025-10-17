@@ -69,7 +69,7 @@ export interface MissingEntry {
 }
 
 // Type definitions
-export type ViewMode = 'calendar' | 'single' | 'weekly' | 'bi-weekly' | 'monthly' | 'quarterly' | 'semi-yearly' | 'yearly' | 'analytics' | 'missing';
+export type ViewMode = 'calendar' | 'single' | 'summary' | 'analytics' | 'missing';
 export type FilterStatus = 'all' | 'active' | 'completed';
 export type DateRange = 'single' | 'range';
 

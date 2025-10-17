@@ -257,7 +257,51 @@ export class PricingCalculationController {
   // =====================================================
   // RATE LOOKUP ENDPOINTS
   // =====================================================
-  
+
+  /**
+   * Get all pricing data for session caching
+   * GET /api/pricing/all-pricing-data
+   */
+  getAllPricingData = async (req: Request, res: Response) => {
+    try {
+      const allPricingData = await this.rateLookupService.getAllPricingData();
+
+      res.json({
+        success: true,
+        data: allPricingData
+      });
+
+    } catch (error) {
+      console.error('Error getting all pricing data:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get pricing data'
+      });
+    }
+  };
+
+  /**
+   * Get Push Thru assembly pricing
+   * GET /api/pricing/push-thru-assembly
+   */
+  getPushThruAssemblyPricing = async (req: Request, res: Response) => {
+    try {
+      const assemblyPricing = await this.rateLookupService.getPushThruAssemblyPricing();
+
+      res.json({
+        success: true,
+        data: assemblyPricing
+      });
+
+    } catch (error) {
+      console.error('Error getting Push Thru assembly pricing:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get Push Thru assembly pricing'
+      });
+    }
+  };
+
   /**
    * Get available rate types for category (for dropdowns)
    * GET /api/pricing/rates/:category

@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { customerApi } from '../../../../../services/api';
+import { PricingDataResource, PowerSupply } from '../../../../../services/pricingDataResource';
 
 export interface RawCustomerManufacturingPreferences {
   pref_customer_id: number;
@@ -37,8 +38,6 @@ export interface CustomerManufacturingPreferences extends RawCustomerManufacturi
   use_leds: boolean;
   default_led_type: string;
   requires_transformers: boolean;
-  default_transformer: string;
-  default_ul_requirement: boolean;
 }
 
 interface UseCustomerPreferencesResult {
@@ -46,6 +45,100 @@ interface UseCustomerPreferencesResult {
   loading: boolean;
   error: string | null;
   refetch: () => void;
+}
+
+let systemDefaultPreferences: CustomerManufacturingPreferences | null = null;
+let systemDefaultsPromise: Promise<CustomerManufacturingPreferences> | null = null;
+
+function createBlankPreferences(): CustomerManufacturingPreferences {
+  return {
+    pref_customer_id: 0,
+    pref_leds_enabled: false,
+    pref_led_id: null,
+    pref_led_product_code: null,
+    pref_led_brand: null,
+    pref_led_colour: null,
+    pref_led_watts: null,
+    pref_wire_length: null,
+    pref_power_supply_required: false,
+    pref_power_supply_id: null,
+    pref_power_supply_type: null,
+    pref_power_supply_watts: null,
+    pref_power_supply_volts: null,
+    pref_power_supply_is_ul_listed: false,
+    pref_ul_required: false,
+    pref_drain_holes_required: null,
+    pref_pattern_required: null,
+    pref_pattern_type: null,
+    pref_wiring_diagram_required: null,
+    pref_wiring_diagram_type: null,
+    pref_plug_and_play_required: null,
+    pref_shipping_required: null,
+    pref_shipping_multiplier: null,
+    pref_shipping_flat: null,
+    pref_manufacturing_comments: null,
+    pref_special_instructions: null,
+    use_leds: false,
+    default_led_type: 'Standard LED',
+    requires_transformers: false
+  };
+}
+
+async function loadSystemDefaultPreferences(): Promise<CustomerManufacturingPreferences> {
+  if (systemDefaultPreferences) {
+    return {
+      ...systemDefaultPreferences
+    };
+  }
+
+  if (systemDefaultsPromise) {
+    return systemDefaultsPromise;
+  }
+
+  systemDefaultsPromise = (async () => {
+    let defaultNonUl: PowerSupply | null = null;
+    let defaultUl: PowerSupply | null = null;
+
+    try {
+      const [nonUl, ul] = await Promise.all([
+        PricingDataResource.getDefaultNonULPowerSupply(),
+        PricingDataResource.getDefaultULPowerSupply()
+      ]);
+
+      defaultNonUl = nonUl;
+      defaultUl = ul;
+    } catch (error) {
+      console.warn('Failed to load default power supplies, using blank defaults', error);
+    }
+
+    const selectedDefault = defaultNonUl ?? defaultUl;
+
+    systemDefaultPreferences = {
+      ...createBlankPreferences(),
+      pref_power_supply_id: selectedDefault?.power_supply_id ?? null,
+      pref_power_supply_type: selectedDefault?.transformer_type ?? null,
+      pref_power_supply_watts: selectedDefault?.watts ?? null,
+      pref_power_supply_volts: selectedDefault?.volts ?? null,
+      pref_power_supply_is_ul_listed: Boolean(selectedDefault?.ul_listed),
+      pref_ul_required: Boolean(selectedDefault?.ul_listed)
+    };
+
+    systemDefaultsPromise = null;
+
+    return {
+      ...systemDefaultPreferences
+    };
+  })();
+
+  return systemDefaultsPromise;
+}
+
+export async function ensureSystemDefaultPreferences(): Promise<CustomerManufacturingPreferences> {
+  return loadSystemDefaultPreferences();
+}
+
+export function getSystemDefaultPreferencesSnapshot(): CustomerManufacturingPreferences | null {
+  return systemDefaultPreferences ? { ...systemDefaultPreferences } : null;
 }
 
 /**
@@ -68,11 +161,13 @@ export const useCustomerPreferences = (customerId?: number): UseCustomerPreferen
       if (response.success) {
         setPreferences(normalizePreferences(response.data));
       } else {
-        setPreferences(getDefaultPreferences(id));
+        const fallback = await getDefaultPreferences(id);
+        setPreferences(fallback);
       }
     } catch (err) {
       console.warn('Error fetching customer preferences, using defaults:', err);
-      setPreferences(getDefaultPreferences(id));
+      const fallback = await getDefaultPreferences(id);
+      setPreferences(fallback);
       setError('Failed to load customer preferences, using defaults');
     } finally {
       setLoading(false);
@@ -105,39 +200,12 @@ export const useCustomerPreferences = (customerId?: number): UseCustomerPreferen
 /**
  * Get default manufacturing preferences for a customer
  */
-function getDefaultPreferences(customerId: number): CustomerManufacturingPreferences {
+async function getDefaultPreferences(customerId: number): Promise<CustomerManufacturingPreferences> {
+  const systemDefaults = await loadSystemDefaultPreferences();
+
   return {
-    pref_customer_id: customerId,
-    pref_leds_enabled: false,
-    pref_led_id: null,
-    pref_led_product_code: null,
-    pref_led_brand: null,
-    pref_led_colour: null,
-    pref_led_watts: null,
-    pref_wire_length: null,
-    pref_power_supply_required: false,
-    pref_power_supply_id: null,
-    pref_power_supply_type: 'DC-60W',
-    pref_power_supply_watts: null,
-    pref_power_supply_volts: null,
-    pref_power_supply_is_ul_listed: false,
-    pref_ul_required: false,
-    pref_drain_holes_required: null,
-    pref_pattern_required: null,
-    pref_pattern_type: null,
-    pref_wiring_diagram_required: null,
-    pref_wiring_diagram_type: null,
-    pref_plug_and_play_required: null,
-    pref_shipping_required: null,
-    pref_shipping_multiplier: null,
-    pref_shipping_flat: null,
-    pref_manufacturing_comments: null,
-    pref_special_instructions: null,
-    use_leds: false,
-    default_led_type: 'Standard LED',
-    requires_transformers: false,
-    default_transformer: 'DC-60W',
-    default_ul_requirement: false
+    ...systemDefaults,
+    pref_customer_id: customerId
   };
 }
 
@@ -202,7 +270,7 @@ export const useCustomerPreferencesWithCache = (customerId?: number): UseCustome
       if (response.success) {
         prefs = normalizePreferences(response.data);
       } else {
-        prefs = getDefaultPreferences(id);
+        prefs = await getDefaultPreferences(id);
       }
 
       PreferencesCache.set(id, prefs);
@@ -210,7 +278,7 @@ export const useCustomerPreferencesWithCache = (customerId?: number): UseCustome
       console.log('Fetched manufacturing preferences for customer', id, prefs);
     } catch (err) {
       console.warn('Error fetching customer preferences, using defaults:', err);
-      const fallback = getDefaultPreferences(id);
+      const fallback = await getDefaultPreferences(id);
       PreferencesCache.set(id, fallback);
       setPreferences(fallback);
       setError('Failed to load customer preferences, using defaults');
@@ -251,8 +319,6 @@ function normalizePreferences(raw: RawCustomerManufacturingPreferences): Custome
     ...raw,
     use_leds: raw.pref_leds_enabled,
     default_led_type: raw.pref_led_product_code || raw.pref_led_brand || 'Standard LED',
-    requires_transformers: raw.pref_power_supply_required,
-    default_transformer: raw.pref_power_supply_type || 'DC-60W',
-    default_ul_requirement: raw.pref_ul_required
+    requires_transformers: raw.pref_power_supply_required
   };
 }

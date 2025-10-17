@@ -178,22 +178,58 @@ LED_total_cost = LED_count * LED_unit_price
 Example: 5 LEDs × $1.75 = $8.75
 ```
 
-### 10. Transformer Calculation
-**Uses Channel Letter Transformer Logic**
+### 10. Power Supply Calculation
+**Uses powerSupplySelector.ts with smart optimization logic**
 
 ```
 Step 1: Calculate total wattage
 LED_total_watts = LED_count * LED_watts_per_unit
 
-Step 2: Determine transformer type
-IF total_watts > 50W:
-    transformer_type = "Speedbox 150W"
+Step 2: Handle field5 PS# override
+IF field5 = "no" OR field5 = 0:
+    Skip power supplies entirely
+ELSE IF field5 = "yes":
+    Use auto-calculation (proceed to Step 3)
+ELSE IF field5 is a number > 0:
+    Use that exact count with appropriate default PS (Speedbox 60W if optimizing, else customer pref/default non-UL)
 ELSE:
-    transformer_type = "Speedbox 60W"
+    Use auto-calculation (proceed to Step 3)
 
-Step 3: Calculate quantity needed
-transformers_needed = ROUNDUP(total_watts / transformer_max_watts, 0)
-transformer_cost = transformers_needed * transformer_unit_price
+Step 3: Determine if UL optimization applies
+use_optimization = UL_required OR customer_pref_PS_is_Speedbox_60W
+
+Step 4: Power supply selection hierarchy
+IF use_optimization = TRUE:
+    // UL Optimization Algorithm (PS#2 Speedbox 60W + PS#3 Speedbox 150W combo)
+    remainder = total_watts % PS3_watts
+    IF remainder = 0:
+        ps3_count = total_watts / PS3_watts
+        ps2_count = 0
+    ELSE IF remainder < PS2_watts:
+        ps2_count = 1
+        ps3_count = FLOOR(total_watts / PS3_watts)
+    ELSE:
+        ps3_count = CEIL(total_watts / PS3_watts)
+        ps2_count = 0
+
+    total_cost = (ps2_count * PS2_price) + (ps3_count * PS3_price)
+ELSE:
+    // Standard Selection
+    IF customer_has_preferred_PS:
+        ps_type = customer_pref_PS_type
+    ELSE:
+        ps_type = default_non_UL_PS
+
+    ps_count = CEIL(total_watts / ps_watts)
+    total_cost = ps_count * ps_price
+
+Examples:
+- 48W, UL required: Uses 1× Speedbox 60W (optimization)
+- 180W, UL required: Uses 1× Speedbox 150W + 1× Speedbox 60W (optimization)
+- 48W, customer prefers Speedbox 60W: Uses 1× Speedbox 60W (optimization triggered by preference)
+- 48W, no UL, different preference: Uses customer's preferred PS or default non-UL
+- Field5 = "2", UL required: Uses 2× Speedbox 60W (numeric override with optimization)
+- Field5 = "no": Skip all power supplies (explicit user override)
 ```
 
 ### 11. UL Cost Calculation

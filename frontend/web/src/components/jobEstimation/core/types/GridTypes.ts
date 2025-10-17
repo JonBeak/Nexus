@@ -46,6 +46,12 @@ export interface PricingCalculationContext {
 
   // NEW: Estimate context
   estimateId?: number;
+
+  // NEW: Validation version to force React useEffect re-trigger
+  validationVersion?: number;    // Incremented each time validation runs
+
+  // NEW: Pre-calculated pricing lookup tables (for performance)
+  backerLookupTables?: any;      // BackerLookupTables - avoiding circular import
 }
 
 export interface UpdateOptions {

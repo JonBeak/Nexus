@@ -41,5 +41,10 @@
 
 - Do not run git commands unless explicitly requested by the user.
 
+## Change Approval Workflow
+- Always attempt to implement requested edits, requesting any necessary approvals to proceed.
+- Present the drafted diff or patch for user approval before writing changes to disk.
+- Apply approved changes promptly once the user confirms.
+
 ## Communication Expectations
 - When direction is unclear or requirements could be interpreted multiple ways, pause and ask the user for clarification instead of assuming the intent.

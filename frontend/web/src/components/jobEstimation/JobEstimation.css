@@ -83,3 +83,8 @@
   border-bottom: 1px solid #e5e7eb;
   margin-bottom: 1rem;
 }
+
+/* Always reserve space for scrollbar to prevent layout shift */
+.job-estimation-root {
+  overflow-y: scroll;
+}

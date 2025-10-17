@@ -52,8 +52,12 @@ export const useInventoryData = ({
   }, [apiLoadVinylData, onDataLoad, propVinylItems]);
 
   useEffect(() => {
-    void loadVinylData();
-  }, [loadVinylData]);
+    // Only auto-load if we're managing our own data (no props provided)
+    // If parent is providing data, let parent handle loading
+    if (!propVinylItems) {
+      void loadVinylData();
+    }
+  }, [loadVinylData, propVinylItems]);
 
   const getDispositionStatus = (item: VinylItem) => {
     switch (item.disposition) {

@@ -198,15 +198,12 @@ export class CustomerService {
         postal_zip,
         country,
         tax_override_percent,
-        tax_type,
-        tax_id,
         tax_override_reason,
-        use_province_tax,
         comments,
         is_active,
         created_date,
         updated_date
-      FROM customer_addresses 
+      FROM customer_addresses
       WHERE customer_id = ? AND is_active = 1
       ORDER BY customer_address_sequence ASC
     `;

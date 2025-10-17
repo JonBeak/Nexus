@@ -2,6 +2,7 @@
 // Supports parameters for min/max values, decimal places, negative numbers
 
 import { ValidationTemplate, ValidationResult, FloatParams } from './ValidationTemplate';
+import { validateNumericInput } from '../utils/numericValidation';
 
 export class FloatTemplate implements ValidationTemplate {
   async validate(value: string, params: FloatParams = {}): Promise<ValidationResult> {
@@ -18,58 +19,28 @@ export class FloatTemplate implements ValidationTemplate {
       // Clean the input
       const cleanValue = value.trim();
 
-      // Try to parse as float
-      const parsedValue = parseFloat(cleanValue);
+      // Use strict numeric validation
+      const numericResult = validateNumericInput(cleanValue, {
+        allowNegative: params.allow_negative !== false,
+        minValue: params.min,
+        maxValue: params.max,
+        decimalPlaces: typeof params.decimal_places === 'string'
+          ? parseInt(params.decimal_places, 10)
+          : params.decimal_places,
+        allowEmpty: false
+      });
 
-      // Check if parsing was successful
-      if (isNaN(parsedValue)) {
+      if (!numericResult.isValid) {
         return {
           isValid: false,
-          error: `"${cleanValue}" is not a valid number`,
+          error: numericResult.error || 'Invalid number format',
           expectedFormat: this.generateExpectedFormat(params)
         };
-      }
-
-      // Check if the original string represents the same number (catches cases like "123abc")
-      if (cleanValue !== parsedValue.toString() &&
-          cleanValue !== parsedValue.toFixed(0) &&
-          !this.isValidNumberFormat(cleanValue)) {
-        return {
-          isValid: false,
-          error: `"${cleanValue}" contains invalid characters`,
-          expectedFormat: this.generateExpectedFormat(params)
-        };
-      }
-
-      // Validate negative numbers
-      if (params.allow_negative === false && parsedValue < 0) {
-        return {
-          isValid: false,
-          error: 'Negative numbers are not allowed',
-          expectedFormat: this.generateExpectedFormat(params)
-        };
-      }
-
-      // Validate range constraints
-      const rangeResult = this.validateRange(parsedValue, params, cleanValue);
-      if (!rangeResult.isValid) {
-        return rangeResult;
-      }
-
-      // Validate decimal places if specified
-      const rawDecimalPlaces = typeof params.decimal_places === 'string'
-        ? parseInt(params.decimal_places, 10)
-        : params.decimal_places;
-      if (rawDecimalPlaces !== undefined && !Number.isNaN(rawDecimalPlaces)) {
-        const decimalResult = this.validateDecimalPlaces(parsedValue, rawDecimalPlaces, cleanValue);
-        if (!decimalResult.isValid) {
-          return decimalResult;
-        }
       }
 
       return {
         isValid: true,
-        parsedValue: parsedValue,
+        parsedValue: numericResult.value,
         expectedFormat: this.generateExpectedFormat(params)
       };
 

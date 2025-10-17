@@ -3,6 +3,7 @@
 
 import { ValidationTemplate, ValidationResult, LedOverrideParams, ValidationContext } from './ValidationTemplate';
 import { calculateChannelLetterMetrics, ChannelLetterMetrics } from '../utils/channelLetterParser';
+import { validateNumericInput } from '../utils/numericValidation';
 
 type LedOverrideParsedValue = number | 'yes' | 'no' | null;
 
@@ -47,14 +48,10 @@ export class LedOverrideTemplate implements ValidationTemplate {
         hasChannelData
       });
 
-      // Generate warnings if applicable
-      const warnings = this.generateWarnings(parsedValue, context);
-
       return {
         isValid: true,
         parsedValue,
         calculatedValue: calculatedLedCount,
-        warnings: warnings.length > 0 ? warnings : undefined,
         expectedFormat: this.generateExpectedFormat(params)
       };
 
@@ -110,18 +107,25 @@ export class LedOverrideTemplate implements ValidationTemplate {
       return { isValid: true, parsedValue: 'no' };
     }
 
-    // Check for numeric value
+    // Check for numeric value using strict validation
     if (accepts.includes('float')) {
-      const numericValue = parseFloat(value);
-      if (!isNaN(numericValue)) {
-        if (numericValue < 0) {
-          return {
-            isValid: false,
-            error: 'LED count cannot be negative',
-            expectedFormat: this.generateExpectedFormat(params)
-          };
-        }
-        return { isValid: true, parsedValue: numericValue };
+      const numericResult = validateNumericInput(value, {
+        allowNegative: false,
+        minValue: 0,
+        allowEmpty: false
+      });
+
+      if (numericResult.isValid && numericResult.value !== undefined) {
+        return { isValid: true, parsedValue: numericResult.value };
+      }
+
+      // If validation failed but we have an error, use the specific error
+      if (numericResult.error) {
+        return {
+          isValid: false,
+          error: numericResult.error,
+          expectedFormat: this.generateExpectedFormat(params)
+        };
       }
     }
 
@@ -198,24 +202,6 @@ export class LedOverrideTemplate implements ValidationTemplate {
     return context.customerPreferences.use_leds ? saved : 0;
   }
 
-  /**
-   * Generate warnings for potentially confusing input
-   */
-  private generateWarnings(parsedValue: LedOverrideParsedValue, context?: ValidationContext): string[] {
-    const warnings: string[] = [];
-
-    if (!context) return warnings;
-
-    const metrics = this.getChannelLetterMetrics(context);
-    const hasChannelLetters = this.hasChannelLetters(context, metrics);
-
-    // Warning: yes/no without channel letters
-    if ((parsedValue === 'yes' || parsedValue === 'no') && !hasChannelLetters) {
-      warnings.push('yes/no has no effect without channel letters data');
-    }
-
-    return warnings;
-  }
 
   /**
    * Generate expected format description

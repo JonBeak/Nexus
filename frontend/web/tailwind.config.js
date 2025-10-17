@@ -6,6 +6,9 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        mono: ['"Courier New"', 'Courier', 'monospace'],
+      },
       colors: {
         // Primary brand colors
         primary: {

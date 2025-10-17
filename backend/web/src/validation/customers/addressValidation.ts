@@ -35,8 +35,8 @@ export class AddressValidation {
 
     // Validate boolean fields
     const booleanFields = [
-      'is_primary', 'is_billing', 'is_shipping', 'is_jobsite', 
-      'is_mailing', 'use_province_tax'
+      'is_primary', 'is_billing', 'is_shipping', 'is_jobsite',
+      'is_mailing'
     ];
 
     booleanFields.forEach(field => {
@@ -49,12 +49,6 @@ export class AddressValidation {
       }
     });
 
-    // Validate foreign key references
-    if (data.tax_id !== null && data.tax_id !== undefined && 
-        (isNaN(Number(data.tax_id)) || Number(data.tax_id) <= 0)) {
-      errors.push('Tax ID must be a valid positive number');
-    }
-
     // Validate string length limits
     const stringLimits = {
       address_line1: 255,
@@ -62,7 +56,6 @@ export class AddressValidation {
       city: 100,
       province_state_long: 100,
       postal_zip: 20,
-      tax_type: 50,
       tax_override_reason: 255,
       comments: 1000
     };

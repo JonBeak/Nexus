@@ -92,12 +92,9 @@ export class AssemblyAssigner {
     // Placeholder implementation - you'll need to implement based on your assembly UI design
     // This might check row.data for assembly fields, or row metadata, or other markers
 
-    // Example: Look for assembly-related data fields
+    // Look for assembly-related data fields
     const assemblyId = row.data.assembly_id || undefined;
     const assemblyGroupId = row.data.assembly_group_id || undefined;
-
-    // Or look in metadata if that's where assembly info is stored
-    // const assemblyId = row.metadata?.assemblyId;
 
     return {
       assemblyId,
@@ -211,18 +208,29 @@ export class AssemblyAssigner {
   validateAssignments(assignments: AssemblyAssignment[]): AssignmentValidationError[] {
     const errors: AssignmentValidationError[] = [];
 
-    // Check for orphaned sub-items (sub-items without parent assembly)
+    // Create assignment lookup for validation
+    const assignmentMap = new Map(assignments.map(a => [a.rowId, a]));
+
+    // Check for assembly inheritance consistency: children must match parent's assembly
     for (const assignment of assignments) {
-      if (assignment.inheritedFromParent && !assignment.assemblyGroupId) {
-        errors.push({
-          rowId: assignment.rowId,
-          errorType: 'orphaned_sub_item',
-          message: 'Sub-item parent is not in an assembly group'
-        });
+      if (assignment.inheritedFromParent) {
+        // Find the parent assignment
+        const parentAssignment = assignmentMap.get(assignment.inheritedFromParent);
+
+        if (parentAssignment) {
+          // Validate that child's assembly matches parent's assembly (including null/undefined)
+          if (assignment.assemblyGroupId !== parentAssignment.assemblyGroupId) {
+            errors.push({
+              rowId: assignment.rowId,
+              errorType: 'assembly_inheritance_mismatch',
+              message: `Sub-item assembly group doesn't match parent (parent: ${parentAssignment.assemblyGroupId || 'none'}, child: ${assignment.assemblyGroupId || 'none'})`
+            });
+          }
+        }
       }
     }
 
-    // Check for assembly group consistency
+    // Check for assembly group consistency (only when groups actually exist)
     const groupSummary = this.getAssemblyGroupSummary(assignments);
     for (const group of groupSummary) {
       if (group.mainProductIds.length === 0) {
@@ -261,6 +269,6 @@ export interface AssemblyGroupSummary {
 
 export interface AssignmentValidationError {
   rowId: string;
-  errorType: 'orphaned_sub_item' | 'assembly_no_main_products' | 'circular_reference';
+  errorType: 'assembly_inheritance_mismatch' | 'assembly_no_main_products' | 'circular_reference';
   message: string;
 }

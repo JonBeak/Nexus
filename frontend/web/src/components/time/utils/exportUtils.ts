@@ -1,4 +1,4 @@
-import type { AuthenticatedRequest } from '../../../types/time';
+import { timeApi } from '../../../services/api';
 
 interface ExportDataParams {
   selectedDate: string;
@@ -7,7 +7,6 @@ interface ExportDataParams {
   selectedGroup: string;
   searchTerm: string;
   format: 'csv' | 'pdf';
-  makeAuthenticatedRequest: AuthenticatedRequest;
 }
 
 export const exportData = async ({
@@ -16,37 +15,26 @@ export const exportData = async ({
   dateRange,
   selectedGroup,
   searchTerm,
-  format,
-  makeAuthenticatedRequest
+  format
 }: ExportDataParams) => {
   try {
-    const params = new URLSearchParams({
+    const blob = await timeApi.exportData({
       startDate: selectedDate,
       endDate: dateRange === 'range' ? endDate : selectedDate,
       group: selectedGroup,
       format: format,
       search: searchTerm
     });
-    
-    const res = await makeAuthenticatedRequest(
-      `http://192.168.2.14:3001/api/time-management/export?${params}`
-    );
-    
-    if (res.ok) {
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `time-entries-${selectedDate}${dateRange === 'range' ? `-to-${endDate}` : ''}.${format}`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      return true;
-    } else {
-      console.error('Export failed');
-      return false;
-    }
+
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `time-entries-${selectedDate}${dateRange === 'range' ? `-to-${endDate}` : ''}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    return true;
   } catch (error) {
     console.error('Error exporting data:', error);
     return false;

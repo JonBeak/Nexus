@@ -1,5 +1,6 @@
 import React from 'react';
 import type { ClockStatus, TimeNotification } from '../../types/time';
+import ClockSlider from './ClockSlider';
 
 interface TimeClockDisplayProps {
   clockStatus: ClockStatus | null;
@@ -48,7 +49,7 @@ function TimeClockDisplay({
       <div className="text-center">
         {clockStatus?.isClocked ? (
           <>
-            <div className="mb-6">
+            <div className="mb-8">
               <p className="text-lg text-gray-600 mb-2">Clocked in since</p>
               <p className="text-2xl font-bold text-primary-blue">
                 {formatTime(clockStatus.currentEntry!.clock_in)}
@@ -57,22 +58,18 @@ function TimeClockDisplay({
                 {formatDate(clockStatus.currentEntry!.clock_in)}
               </p>
             </div>
-            <button
-              onClick={onClockOut}
-              className="bg-red-600 hover:bg-red-700 text-white px-12 py-6 rounded-2xl font-bold text-2xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-            >
-              Clock Out
-            </button>
+            <ClockSlider
+              isClocked={true}
+              onConfirm={onClockOut}
+            />
           </>
         ) : (
           <>
-            <p className="text-lg text-gray-600 mb-6">Not currently clocked in</p>
-            <button
-              onClick={onClockIn}
-              className="bg-green-600 hover:bg-green-700 text-white px-12 py-6 rounded-2xl font-bold text-2xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-            >
-              Clock In
-            </button>
+            <p className="text-lg text-gray-600 mb-8">Not currently clocked in</p>
+            <ClockSlider
+              isClocked={false}
+              onConfirm={onClockIn}
+            />
           </>
         )}
       </div>
