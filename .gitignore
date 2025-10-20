@@ -68,3 +68,5 @@ backups/
 .claude/.env
 backend/web/.env
 frontend/web/.env
+backend/web/.env.production
+frontend/web/.env.production
