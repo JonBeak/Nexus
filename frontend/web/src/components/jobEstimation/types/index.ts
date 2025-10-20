@@ -218,29 +218,12 @@ export interface JobValidationResponse {
 }
 
 // Component Props for Versioning System
-export interface JobSelectorProps {
-  customerId?: number;
-  onCustomerSelected: (customerId: number) => void;
-  onJobSelected: (jobId: number) => void;
-  onCreateNewJob: (jobName: string) => void;
-  user: any;
-}
 
 export interface VersionManagerProps {
   jobId: number;
   currentEstimateId?: number;
   onVersionSelected: (estimateId: number) => void;
   onCreateNewVersion: (parentId?: number) => void;
-  user: any;
-}
-
-export interface EstimateActionsProps {
-  estimateId: number;
-  estimate: EstimateVersion;
-  onSaveDraft: () => void;
-  onFinalize: (status: EstimateFinalizationData['status']) => void;
-  onStatusChange: (action: string) => void;
-  onNavigateToEstimate?: (jobId: number, estimateId: number) => void;
   user: any;
 }
 
