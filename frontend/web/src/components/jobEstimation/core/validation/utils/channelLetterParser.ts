@@ -1,3 +1,5 @@
+import { parseChannelLetterFormula, looksLikeFormula, FormulaParseResult } from './channelLetterFormulaParser';
+
 export interface ChannelLetterPair {
   linearInches: number;
   leds: number;
@@ -8,11 +10,13 @@ export interface ChannelLetterMetrics {
   totalWidth: number;
   totalPerimeter: number;
   ledCount: number;
+  pieceCount?: number; // Total piece count (for formulas)
 }
 
 export type ChannelLetterInput =
   | { type: 'pairs'; pairs: ChannelLetterPair[] }
-  | { type: 'float'; value: number };
+  | { type: 'float'; value: number }
+  | { type: 'formula'; result: FormulaParseResult };
 
 const GROUP_SEPARATOR_REGEX = /\.\s+\.\s+\.\s+\.\s+\.\s+/;
 const CANONICAL_GROUP_SEPARATOR = '. . . . . ';
@@ -20,11 +24,16 @@ const PLACEHOLDER_CHANNEL_LETTER_METRICS: ChannelLetterMetrics = {
   pairs: [],
   totalWidth: 0,
   totalPerimeter: 0,
-  ledCount: 0
+  ledCount: 0,
+  pieceCount: 0
 };
 
 /**
- * Parse channel letter input field into either paired dimensions (new grouped format) or a float value.
+ * Parse channel letter input field into grouped format, formula, or float value.
+ * Priority:
+ * 1. Grouped format (e.g., "10, . . . . . 6,") - most specific pattern
+ * 2. Formula format (e.g., "48x48*12 + 30*12") - NEW!
+ * 3. Float format (e.g., "32") - fallback
  */
 export function parseChannelLetterInput(rawValue: string | undefined | null): ChannelLetterInput | null {
   if (!rawValue) {
@@ -36,12 +45,8 @@ export function parseChannelLetterInput(rawValue: string | undefined | null): Ch
     return null;
   }
 
-  // Reject legacy "WxH" formatting explicitly
-  if (/[xX]/.test(value)) {
-    return null;
-  }
-
-  // New format: list of widths, separator, list of heights (each value ending with comma)
+  // PRIORITY 1: Try grouped format first (most specific pattern)
+  // Format: "10, . . . . . 6," (linear inches, separator, LED counts)
   if (GROUP_SEPARATOR_REGEX.test(value)) {
     const normalizedValue = value.replace(GROUP_SEPARATOR_REGEX, CANONICAL_GROUP_SEPARATOR);
     const [widthGroupRaw, heightGroupRaw, ...extra] = normalizedValue.split(CANONICAL_GROUP_SEPARATOR);
@@ -71,7 +76,19 @@ export function parseChannelLetterInput(rawValue: string | undefined | null): Ch
     return { type: 'pairs', pairs };
   }
 
-  // Float fallback
+  // PRIORITY 2: Try formula format (NEW!)
+  // Format: "48x48*12 + 30*12 + 15" (dimension calculations)
+  if (looksLikeFormula(value)) {
+    try {
+      const result = parseChannelLetterFormula(value);
+      return { type: 'formula', result };
+    } catch (error) {
+      // Formula parsing failed - will fall through to float check
+      console.warn('Formula parsing failed:', error.message);
+    }
+  }
+
+  // PRIORITY 3: Float fallback
   if (/^-?\d+(\.\d+)?$/.test(value)) {
     const floatValue = parseFloat(value);
     if (isFinite(floatValue)) {
@@ -99,7 +116,34 @@ export function calculateChannelLetterMetrics(rawValue: string | undefined | nul
       pairs: parsed.pairs,
       totalWidth: totalLinearInches,
       totalPerimeter: totalLinearInches,
-      ledCount: totalLedCount
+      ledCount: totalLedCount,
+      pieceCount: parsed.pairs.length
+    };
+  }
+
+  if (parsed.type === 'formula') {
+    // Formula provides complete metrics including piece count
+    const { totalLinearInches, totalLEDs, totalPieceCount, entries } = parsed.result;
+
+    // Convert formula entries to pairs format for compatibility
+    // Each entry with quantity > 1 needs to be expanded into multiple pairs
+    // For example: 30*12 should create 12 pairs of (30", X LEDs)
+    const pairs: ChannelLetterPair[] = [];
+    for (const entry of entries) {
+      for (let i = 0; i < entry.quantity; i++) {
+        pairs.push({
+          linearInches: entry.linearInches,  // Individual letter size
+          leds: entry.leds                    // Individual LED count
+        });
+      }
+    }
+
+    return {
+      pairs,
+      totalWidth: totalLinearInches,
+      totalPerimeter: totalLinearInches,
+      ledCount: totalLEDs,
+      pieceCount: totalPieceCount
     };
   }
 
@@ -109,7 +153,8 @@ export function calculateChannelLetterMetrics(rawValue: string | undefined | nul
       pairs: [],
       totalWidth: value,
       totalPerimeter: value,
-      ledCount: value
+      ledCount: value,
+      pieceCount: 1
     };
   }
 

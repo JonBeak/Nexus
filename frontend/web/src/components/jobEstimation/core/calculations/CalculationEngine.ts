@@ -20,7 +20,9 @@ import { calculateMaterialCut } from './materialCutPricing';
 import { calculateLed } from './ledPricing';
 import { calculateEmptyRow } from './emptyRowPricing';
 import { calculateDivider } from './dividerPricing';
+import { calculateSubtotal } from './subtotalPricing';
 import { calculateMultiplier } from './multiplierPricing';
+import { calculateDiscountFee } from './discountFeePricing';
 
 // Future Enhancement: Dynamic calculator registry
 // Instead of switch statement, could use Map<number, ProductCalculator>
@@ -143,16 +145,20 @@ export const runRowPricingCalculationFromValidationOutput = async (
     case 25: // Divider (marker for Multiplier sections, doesn't render in preview)
       return await calculateDivider(validatedInput);
 
+    case 21: // Subtotal (section boundary marker, doesn't render in preview yet)
+      return await calculateSubtotal(validatedInput);
+
     case 27: // Empty Row (spacing/formatting, optional label in field1)
       return await calculateEmptyRow(validatedInput);
 
     case 23: // Multiplier (quantity multiplier, doesn't render in preview, post-processed)
       return await calculateMultiplier(validatedInput);
 
+    case 22: // Discount/Fee (pricing adjustment, doesn't render input row, post-processor creates line item)
+      return await calculateDiscountFee(validatedInput);
+
     // Add more product types as needed:
     // case 14: Assembly
-    // case 21: Subtotal
-    // case 22: Discount/Fee
 
     default:
       return {

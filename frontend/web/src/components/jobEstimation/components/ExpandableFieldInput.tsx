@@ -28,6 +28,7 @@ interface ExpandableFieldInputProps {
   isReadOnly?: boolean;
   className?: string;
   allowExpansion: boolean;
+  title?: string; // Tooltip text (native title attribute)
 }
 
 export const ExpandableFieldInput: React.FC<ExpandableFieldInputProps> = ({
@@ -37,7 +38,8 @@ export const ExpandableFieldInput: React.FC<ExpandableFieldInputProps> = ({
   placeholder = '',
   isReadOnly = false,
   className = '',
-  allowExpansion
+  allowExpansion,
+  title
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [localValue, setLocalValue] = useState(value);
@@ -264,6 +266,7 @@ export const ExpandableFieldInput: React.FC<ExpandableFieldInputProps> = ({
         className={className}
         placeholder={placeholder}
         readOnly={isReadOnly}
+        title={title || placeholder}
       />
     );
   }
@@ -286,6 +289,7 @@ export const ExpandableFieldInput: React.FC<ExpandableFieldInputProps> = ({
         className={className}
         placeholder={placeholder}
         readOnly={isReadOnly}
+        title={title || placeholder}
       />
 
       {/* Manual expand icon - show when text ≤10 chars and not expanded */}

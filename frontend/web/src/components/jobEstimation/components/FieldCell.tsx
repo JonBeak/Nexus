@@ -21,6 +21,7 @@ interface FieldCellProps {
   validationState?: 'error' | 'valid'; // Validation state
   allowExpansion?: boolean; // Enable expandable overlay for text fields
   productTypeId?: number; // Product type ID for special styling
+  fieldTooltip?: string; // Optional tooltip text shown on hover (native title attribute)
 }
 
 export const FieldCell: React.FC<FieldCellProps> = ({
@@ -36,7 +37,8 @@ export const FieldCell: React.FC<FieldCellProps> = ({
   fieldEnabled = true,
   validationState = 'valid',
   allowExpansion = false,
-  productTypeId
+  productTypeId,
+  fieldTooltip
 }) => {
   // Local state for blur-only validation pattern
   const [localValue, setLocalValue] = useState(fieldValue);
@@ -96,16 +98,80 @@ export const FieldCell: React.FC<FieldCellProps> = ({
     const isField1to10 = fieldName.match(/^field([1-9]|10)$/);
     const isQtyNotOne = fieldName === 'quantity' && hasValue && localValue !== '1';
     const isMultiplier = productTypeId === 23; // Multiplier special item
+    const isDiscountFee = productTypeId === 22; // Discount/Fee special item
+    const isSubtotal = productTypeId === 21; // Subtotal special item
 
     if (hasValue && (isField1to10 || isQtyNotOne)) {
-      // Multiplier fields get orange highlighting (matches Divider background with darker border)
+      // Multiplier fields get checkpoint-specific colors
       if (isMultiplier) {
+        if (fieldName === 'field1') {
+          // Field 1: Divider checkpoint → Orange
+          return {
+            borderClass: 'border border-orange-600',
+            bgClass: 'bg-orange-200',
+            textClass: 'text-black'
+          };
+        } else if (fieldName === 'field2') {
+          // Field 2: Subtotal checkpoint → Gray
+          return {
+            borderClass: 'border border-gray-600',
+            bgClass: 'bg-gray-400',
+            textClass: 'text-black'
+          };
+        } else if (fieldName === 'field3') {
+          // Field 3: Whole estimate → Blue (regular)
+          return {
+            borderClass: 'border border-blue-500',
+            bgClass: 'bg-sky-50/25',
+            textClass: 'text-black'
+          };
+        }
+      }
+
+      // Discount/Fee fields get checkpoint-specific colors
+      if (isDiscountFee) {
+        if (fieldName === 'field2' || fieldName === 'field3') {
+          // Fields 2/3: Divider checkpoint → Orange
+          return {
+            borderClass: 'border border-orange-600',
+            bgClass: 'bg-orange-200',
+            textClass: 'text-black'
+          };
+        } else if (fieldName === 'field5' || fieldName === 'field6') {
+          // Fields 5/6: Subtotal checkpoint → Gray
+          return {
+            borderClass: 'border border-gray-600',
+            bgClass: 'bg-gray-400',
+            textClass: 'text-black'
+          };
+        } else if (fieldName === 'field8' || fieldName === 'field9') {
+          // Fields 8/9: Whole estimate → Blue (regular)
+          return {
+            borderClass: 'border border-blue-500',
+            bgClass: 'bg-sky-50/25',
+            textClass: 'text-black'
+          };
+        }
+      }
+
+      // Subtotal field1 gets black outline with white background
+      if (isSubtotal && fieldName === 'field1') {
         return {
-          borderClass: 'border border-orange-600',
-          bgClass: 'bg-orange-200',
+          borderClass: 'border border-black',
+          bgClass: 'bg-white',
           textClass: 'text-black'
         };
       }
+
+      // Discount/Fee field10 (notes) gets black outline with white background
+      if (isDiscountFee && fieldName === 'field10') {
+        return {
+          borderClass: 'border border-black',
+          bgClass: 'bg-white',
+          textClass: 'text-black'
+        };
+      }
+
       // Regular fields get blue highlighting
       return {
         borderClass: 'border border-blue-500',
@@ -146,6 +212,7 @@ export const FieldCell: React.FC<FieldCellProps> = ({
             onBlur={handleCommit}
             className={fieldClasses}
             placeholder={displayPlaceholder}
+            title={fieldTooltip || displayPlaceholder}
           />
         );
       }
@@ -193,6 +260,7 @@ export const FieldCell: React.FC<FieldCellProps> = ({
             handleCommit();
           }}
           className={`${fieldClasses} appearance-none`}
+          title={fieldTooltip || displayPlaceholder}
         >
           <option value="" className="text-gray-400">{displayPlaceholder}</option>
           {selectOptions.map((option) => (
@@ -213,6 +281,7 @@ export const FieldCell: React.FC<FieldCellProps> = ({
           onBlur={handleCommit}
           className={fieldClasses}
           placeholder={displayPlaceholder}
+          title={fieldTooltip || displayPlaceholder}
         />
       );
 
@@ -227,6 +296,7 @@ export const FieldCell: React.FC<FieldCellProps> = ({
           isReadOnly={false}
           className={fieldClasses}
           allowExpansion={allowExpansion}
+          title={fieldTooltip || displayPlaceholder}
         />
       );
   }

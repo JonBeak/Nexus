@@ -14,13 +14,14 @@ import { ValidatedPricingInput } from './types/CalculatorTypes';
  * The multiplication logic is handled in CalculationLayer.ts
  *
  * Field mapping:
- * - Field 1: Multiplier value (affects rows above, stopping at first Divider/Subtotal)
- * - Field 2: Multiplier value (affects ALL rows above, ignores Dividers/Subtotals)
- * - Both fields are cumulative (Field1 × Field2)
+ * - Field 1: Multiplier value (affects rows above, stopping at first Divider)
+ * - Field 2: Multiplier value (affects rows above, stopping at first Subtotal)
+ * - Field 3: Multiplier value (affects ALL rows above in entire estimate)
+ * - All three fields are cumulative (Field1 × Field2 × Field3)
  * - Multiple Multipliers are cumulative
  *
  * Grid behavior:
- * - Accepts numeric input in Field 1 and/or Field 2
+ * - Accepts numeric input in Field 1, Field 2, and/or Field 3
  * - Validation ensures positive numbers only
  *
  * Estimate Preview behavior:

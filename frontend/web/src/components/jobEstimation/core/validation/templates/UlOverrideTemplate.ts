@@ -1,5 +1,6 @@
 // UL Override validation template - validates UL field input format for Channel Letters
 // Accepts "yes", "no", float numbers, or "$float" format with redundancy checking
+// NOTE: 0 and $0 are automatically converted to "no"
 
 import { ValidationTemplate, ValidationResult, ValidationContext } from './ValidationTemplate';
 
@@ -102,6 +103,15 @@ export class UlOverrideTemplate implements ValidationTemplate {
       }
 
       const finalValue = isNegative ? -numValue : numValue;
+
+      // Treat $0 as "no"
+      if (finalValue === 0) {
+        return {
+          isValid: true,
+          parsedValue: 'no'
+        };
+      }
+
       return {
         isValid: true,
         parsedValue: { type: 'currency', amount: finalValue }
@@ -111,6 +121,14 @@ export class UlOverrideTemplate implements ValidationTemplate {
     // Check for plain numeric value (float)
     const numValue = this.validateNumericFormat(value);
     if (numValue !== null) {
+      // Treat 0 as "no"
+      if (numValue === 0) {
+        return {
+          isValid: true,
+          parsedValue: 'no'
+        };
+      }
+
       return {
         isValid: true,
         parsedValue: { type: 'float', amount: numValue }
@@ -192,7 +210,7 @@ export class UlOverrideTemplate implements ValidationTemplate {
    * Generate expected format description
    */
   private generateExpectedFormat(): string {
-    return 'Accepts: "yes", "no", number, or $amount (negative allowed)';
+    return 'Accepts: "yes", "no", number (0 = no), or $amount';
   }
 
   getDescription(): string {

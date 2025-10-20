@@ -52,12 +52,66 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
 
   // Cross-component hover state for row highlighting
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
-  
+
+  // Dynamic viewport control - enable zoom out only in builder mode
+  useEffect(() => {
+    const viewportMeta = document.querySelector('meta[name="viewport"]');
+
+    if (viewportMeta) {
+      if (isInBuilderMode) {
+        // Builder mode: allow zooming out to 0.2x
+        viewportMeta.setAttribute('content', 'width=device-width, initial-scale=0.5, minimum-scale=0.2, maximum-scale=5.0, user-scalable=yes');
+      } else {
+        // 3-panel nav mode: normal zoom (minimum 1.0)
+        viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes');
+      }
+    }
+  }, [isInBuilderMode]);
+
+  // Restore original viewport when leaving the entire page
+  useEffect(() => {
+    const viewportMeta = document.querySelector('meta[name="viewport"]');
+    const originalContent = viewportMeta?.getAttribute('content');
+
+    return () => {
+      if (viewportMeta && originalContent) {
+        viewportMeta.setAttribute('content', originalContent);
+      }
+    };
+  }, []);
+
+  // Reusable function to reload complete customer data (name, cash flag, tax rate)
+  // Used by: handleCustomerSelected, breadcrumb navigation, handleVersionSelected, handleNavigateToEstimate
+  const reloadCustomerData = useCallback(async (customerId: number) => {
+    try {
+      const customer = await customerApi.getCustomer(customerId);
+      setCustomerName(customer.company_name || null);
+      setCashCustomer(customer.cash_yes_or_no === 1);
+
+      // Get tax rate from billing address (or primary as fallback)
+      const billingAddress = customer.addresses?.find((a: any) => a.is_billing);
+      const addressToUse = billingAddress || customer.addresses?.find((a: any) => a.is_primary);
+
+      if (!addressToUse) {
+        setTaxRate(1.0); // 100% = ERROR: no billing or primary address
+      } else if (addressToUse.tax_override_percent != null) {
+        setTaxRate(addressToUse.tax_override_percent);
+      } else if (addressToUse.province_state_short) {
+        const taxInfo = await provincesApi.getTaxInfo(addressToUse.province_state_short);
+        setTaxRate(taxInfo?.tax_percent ?? 1.0); // 100% = ERROR: lookup failed
+      } else {
+        setTaxRate(1.0); // 100% = ERROR: no province
+      }
+    } catch (error) {
+      console.error('Error fetching customer data:', error);
+      setTaxRate(1.0); // 100% = ERROR
+    }
+  }, []); // Empty deps - only uses stable state setters and external APIs
 
   // 3-Panel handlers
   const handleCustomerSelected = async (customerId: number | null) => {
     setSelectedCustomerId(customerId);
-    
+
     // Reset downstream selections if customer changes
     if (customerId !== selectedCustomerId) {
       setSelectedJobId(null);
@@ -65,33 +119,14 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
       setCurrentEstimate(null);
       setIsInBuilderMode(false);
     }
-    
+
     // Get complete customer data for display and pricing
     if (customerId) {
-      try {
-        const customer = await customerApi.getCustomer(customerId);
-        setCustomerName(customer.company_name || null);
-        setCashCustomer(customer.cash_yes_or_no === 1);
-
-        // Get tax rate from billing address (or primary as fallback)
-        const billingAddress = customer.addresses?.find((a: any) => a.is_billing);
-        const addressToUse = billingAddress || customer.addresses?.find((a: any) => a.is_primary);
-
-        if (!addressToUse) {
-          setTaxRate(1.0); // 100% = ERROR: no billing or primary address
-        } else if (addressToUse.tax_override_percent != null) {
-          setTaxRate(addressToUse.tax_override_percent);
-        } else if (addressToUse.province_state_short) {
-          const taxInfo = await provincesApi.getTaxInfo(addressToUse.province_state_short);
-          setTaxRate(taxInfo?.tax_percent ?? 1.0); // 100% = ERROR: lookup failed
-        } else {
-          setTaxRate(1.0); // 100% = ERROR: no province
-        }
-      } catch (error) {
-        console.error('Error fetching customer data:', error);
-        setTaxRate(1.0); // 100% = ERROR
-      }
+      await reloadCustomerData(customerId);
     } else {
+      // Clear customer data when deselected
+      setCustomerName(null);
+      setCashCustomer(false);
       setTaxRate(1.0); // 100% = ERROR: no customer
     }
   };
@@ -137,12 +172,20 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
       // Load the estimate version details
       const versions = await jobVersioningApi.getEstimateVersions(selectedJobId!);
       const estimate = versions.data?.find((v: EstimateVersion) => v.id === estimateId);
-      
+
       if (estimate) {
+        // If we're in "All Customers" mode (selectedCustomerId is null) but the estimate has a customer,
+        // we need to load that customer's data
+        const estimateCustomerId = estimate.customer_id ?? selectedCustomerId ?? null;
+        if (estimateCustomerId && !selectedCustomerId) {
+          setSelectedCustomerId(estimateCustomerId);
+          await reloadCustomerData(estimateCustomerId);
+        }
+
         setSelectedEstimateId(estimateId);
         setCurrentEstimate({
           ...estimate,
-          customer_id: estimate.customer_id ?? selectedCustomerId ?? null
+          customer_id: estimateCustomerId
         });
         setIsInBuilderMode(true);
       }
@@ -179,43 +222,24 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
     try {
       // Set the job as selected
       setSelectedJobId(jobId);
-      
+
       // Get job name for display
       const jobsResponse = await jobVersioningApi.getAllJobsWithActivity();
       const job = jobsResponse.data?.find((j: any) => j.job_id === jobId);
       if (job) {
         setJobName(job.job_name);
       }
-      
-      // Get customer info and tax rate
-      if (job) {
+
+      // Get customer info and tax rate using reusable function
+      if (job?.customer_id) {
         setSelectedCustomerId(job.customer_id);
-        const customer = await customerApi.getCustomer(job.customer_id);
-        if (customer) {
-          setCustomerName(customer.company_name);
-          setCashCustomer(customer.cash_yes_or_no === 1);
-
-          // Get tax rate from billing address (or primary as fallback)
-          const billingAddress = customer.addresses?.find((a: any) => a.is_billing);
-          const addressToUse = billingAddress || customer.addresses?.find((a: any) => a.is_primary);
-
-          if (!addressToUse) {
-            setTaxRate(1.0); // 100% = ERROR: no billing or primary address
-          } else if (addressToUse.tax_override_percent != null) {
-            setTaxRate(addressToUse.tax_override_percent);
-          } else if (addressToUse.province_state_short) {
-            const taxInfo = await provincesApi.getTaxInfo(addressToUse.province_state_short);
-            setTaxRate(taxInfo?.tax_percent ?? 1.0); // 100% = ERROR: lookup failed
-          } else {
-            setTaxRate(1.0); // 100% = ERROR: no province
-          }
-        }
+        await reloadCustomerData(job.customer_id);
       }
 
       // Load the specific estimate version
       const versionsResponse = await jobVersioningApi.getEstimateVersions(jobId);
       const estimate = versionsResponse.data?.find((v: any) => v.id === estimateId);
-      
+
       if (estimate) {
         setSelectedEstimateId(estimateId);
         setCurrentEstimate({
@@ -293,16 +317,20 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
             version={`v${currentEstimate.version_number}`}
             status={getEstimateStatusText(currentEstimate)}
             onNavigateToCustomerSelection={() => {
-              const navAction = () => {
+              const navAction = async () => {
                 // Navigate back to customer selection, reset all downstream state
                 setIsInBuilderMode(false);
                 setSelectedEstimateId(null);
                 setCurrentEstimate(null);
                 setSelectedJobId(null);
                 setJobName(null);
-                // Keep: selectedCustomerId, customerName (preserve customer selection)
+
+                // Reload customer data to ensure fresh context
+                if (selectedCustomerId) {
+                  await reloadCustomerData(selectedCustomerId);
+                }
               };
-              
+
               if (navigationGuard) {
                 navigationGuard(navAction);
               } else {
@@ -340,45 +368,49 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
               }
             }}
           />
-          <div className="flex gap-6 mt-4">
-            <div className="flex-1 min-w-0">
-              <GridJobBuilderRefactored
-                user={user}
-                estimate={currentEstimate}
-                isCreatingNew={false}
-                onEstimateChange={setCurrentEstimate}
-                onBackToEstimates={() => {
-                  const navAction = () => navigate('/dashboard');
-                  if (navigationGuard) {
-                    navigationGuard(navAction);
-                  } else {
-                    navAction();
-                  }
-                }}
-                showNotification={showNotification}
-                customerId={selectedCustomerId}
-                customerName={customerName}
-                cashCustomer={cashCustomer}
-                taxRate={taxRate}
-                versioningMode={true}
-                estimateId={selectedEstimateId}
-                onNavigateToEstimate={handleNavigateToEstimate}
-                onValidationChange={handleValidationChange}
-                onRequestNavigation={setNavigationGuard}
-                hoveredRowId={hoveredRowId}
-                onRowHover={setHoveredRowId}
-              />
-            </div>
-            <div className="w-[700px] flex-shrink-0">
-              <EstimateTable
-                estimate={currentEstimate}
-                showNotification={showNotification}
-                hasValidationErrors={hasValidationErrors}
-                validationErrorCount={validationErrorCount}
-                estimatePreviewData={estimatePreviewData}
-                hoveredRowId={hoveredRowId}
-                onRowHover={setHoveredRowId}
-              />
+          {/* Unified scrollable container - breakpoint at 1650px matches content width */}
+          <div className="estimate-builder-scroll-container">
+            <div className="estimate-builder-layout-container">
+              {/* Mobile: EstimateTable first, Desktop (≥1650px): Grid first */}
+              <div className="estimate-builder-grid-wrapper">
+                <GridJobBuilderRefactored
+                  user={user}
+                  estimate={currentEstimate}
+                  isCreatingNew={false}
+                  onEstimateChange={setCurrentEstimate}
+                  onBackToEstimates={() => {
+                    const navAction = () => navigate('/dashboard');
+                    if (navigationGuard) {
+                      navigationGuard(navAction);
+                    } else {
+                      navAction();
+                    }
+                  }}
+                  showNotification={showNotification}
+                  customerId={selectedCustomerId}
+                  customerName={customerName}
+                  cashCustomer={cashCustomer}
+                  taxRate={taxRate}
+                  versioningMode={true}
+                  estimateId={selectedEstimateId}
+                  onNavigateToEstimate={handleNavigateToEstimate}
+                  onValidationChange={handleValidationChange}
+                  onRequestNavigation={setNavigationGuard}
+                  hoveredRowId={hoveredRowId}
+                  onRowHover={setHoveredRowId}
+                />
+              </div>
+              <div className="estimate-builder-preview-wrapper">
+                <EstimateTable
+                  estimate={currentEstimate}
+                  showNotification={showNotification}
+                  hasValidationErrors={hasValidationErrors}
+                  validationErrorCount={validationErrorCount}
+                  estimatePreviewData={estimatePreviewData}
+                  hoveredRowId={hoveredRowId}
+                  onRowHover={setHoveredRowId}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -421,10 +453,10 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
   };
 
   return (
-    <div className="h-screen bg-gray-50 overflow-y-scroll">
-      <div className="max-w-[1920px] mx-auto p-6">
+    <div className="min-h-screen bg-gray-50">
+      <div className={`max-w-[1920px] mx-auto ${isInBuilderMode ? 'estimate-builder-mobile-unified' : 'p-6'}`}>
         {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <button
               onClick={() => {

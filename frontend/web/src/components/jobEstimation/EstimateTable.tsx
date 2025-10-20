@@ -107,9 +107,10 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
 
     estimatePreviewData.items.forEach(item => {
       const isEmptyRow = item.productTypeId === 27;
+      const isSubtotal = item.productTypeId === 21;
 
-      if (isEmptyRow) {
-        // Empty Row: show item name and calculation display (if present) but no qty/prices
+      if (isEmptyRow || isSubtotal) {
+        // Empty Row or Subtotal: show calculation display but no qty/prices
         const displayText = item.calculationDisplay || '';
         text += `${displayText}\t\t\t\t\n`;
       } else {
@@ -217,6 +218,8 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                       {estimatePreviewData.items.map((item, index) => {
                         // Check if this is an Empty Row (Product Type 27)
                         const isEmptyRow = item.productTypeId === 27;
+                        // Check if this is a Subtotal (Product Type 21)
+                        const isSubtotal = item.productTypeId === 21;
 
                         return (
                           <tr
@@ -231,21 +234,25 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                           >
                             <td className="px-2 py-1 text-gray-600 text-sm border-r border-gray-200">{item.inputGridDisplayNumber}</td>
                             <td className="px-2 py-1">
-                              <div className="font-medium text-gray-900 text-sm">{item.itemName}</div>
+                              {isSubtotal ? (
+                                <div></div>
+                              ) : (
+                                <div className="font-medium text-gray-900 text-sm">{item.itemName}</div>
+                              )}
                             </td>
                             <td className="px-2 py-1 max-w-xs">
                               {item.calculationDisplay && (
-                                <div className="text-[11px] text-gray-500 whitespace-pre-wrap">{item.calculationDisplay}</div>
+                                <div className={`text-[11px] ${isSubtotal ? 'text-gray-700 font-medium' : 'text-gray-500'} whitespace-pre-wrap`}>{item.calculationDisplay}</div>
                               )}
                             </td>
                             <td
-                              className={`px-2 py-1 text-center text-sm text-gray-900 border-l border-gray-200 ${!isEmptyRow && item.quantity !== 1 ? 'font-bold' : ''}`}
-                              style={{ backgroundColor: isEmptyRow ? 'transparent' : getQuantityBackground(item.quantity) }}
+                              className={`px-2 py-1 text-center text-sm text-gray-900 border-l border-gray-200 ${!isEmptyRow && !isSubtotal && item.quantity !== 1 ? 'font-bold' : ''}`}
+                              style={{ backgroundColor: (isEmptyRow || isSubtotal) ? 'transparent' : getQuantityBackground(item.quantity) }}
                             >
-                              {isEmptyRow ? '' : item.quantity}
+                              {(isEmptyRow || isSubtotal) ? '' : item.quantity}
                             </td>
                             <td className="pl-2 pr-1 py-1 text-gray-900 text-xs border-l border-gray-200">
-                              {isEmptyRow ? (
+                              {(isEmptyRow || isSubtotal) ? (
                                 <div className="flex items-baseline">
                                   <span className="flex-1 text-right text-sm"></span>
                                 </div>
@@ -257,7 +264,7 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                               )}
                             </td>
                             <td className="pl-2 pr-1 py-1 text-gray-900 font-semibold text-xs border-l border-gray-200">
-                              {isEmptyRow ? (
+                              {(isEmptyRow || isSubtotal) ? (
                                 <div className="flex items-baseline">
                                   <span className="flex-1 text-right text-sm"></span>
                                 </div>

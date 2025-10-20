@@ -20,4 +20,6 @@ export { shippingValidation } from './Shipping';
 export { ledValidation } from './LED';
 export { emptyRowValidation } from './EmptyRow';
 export { dividerValidation } from './Divider';
+export { subtotalValidation } from './Subtotal';
 export { multiplierValidation } from './Multiplier';
+export { discountFeeValidation } from './DiscountFee';

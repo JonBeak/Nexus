@@ -73,7 +73,7 @@ export const backerValidation: Record<string, FieldValidationConfig> = {
     }
   },
   field6: {
-    function: 'floatordimensions',
+    function: 'twodimensions',
     error_level: 'error',
     params: {
       delimiter: 'x',
@@ -84,7 +84,7 @@ export const backerValidation: Record<string, FieldValidationConfig> = {
     }
   },
   field7: {
-    function: 'floatordimensions',
+    function: 'twodimensions',
     error_level: 'error',
     params: {
       delimiter: 'x',
@@ -95,7 +95,7 @@ export const backerValidation: Record<string, FieldValidationConfig> = {
     }
   },
   field8: {
-    function: 'floatordimensions',
+    function: 'twodimensions',
     error_level: 'error',
     params: {
       delimiter: 'x',
@@ -106,7 +106,7 @@ export const backerValidation: Record<string, FieldValidationConfig> = {
     }
   },
   field9: {
-    function: 'floatordimensions',
+    function: 'twodimensions',
     error_level: 'error',
     params: {
       delimiter: 'x',

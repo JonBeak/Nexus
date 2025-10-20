@@ -81,32 +81,32 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
   };
 
   return (
-    <nav className="bg-white border-b border-gray-200 px-6 py-4">
-      <div className="flex items-center space-x-3 text-base">
+    <nav className="bg-white border-b border-gray-200 px-4 py-4">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
         {breadcrumbs.map((crumb, index) => (
           <React.Fragment key={index}>
             <div
-              className={`flex items-center space-x-2 ${
-                crumb.onClick 
-                  ? 'cursor-pointer hover:text-purple-600 transition-colors' 
+              className={`flex items-center gap-2 ${
+                crumb.onClick
+                  ? 'cursor-pointer hover:text-purple-600 transition-colors'
                   : ''
               } ${
-                crumb.active 
-                  ? `font-medium ${status ? getStatusColor(status) : 'text-purple-600'}` 
+                crumb.active
+                  ? `font-medium ${status ? getStatusColor(status) : 'text-purple-600'}`
                   : 'text-gray-500'
               }`}
               onClick={crumb.onClick}
             >
-              <crumb.icon className="w-5 h-5 flex-shrink-0" />
-              <span className="truncate max-w-xs">{crumb.label}</span>
-              
+              <crumb.icon className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0" />
+              <span className="truncate max-w-[150px] md:max-w-xs">{crumb.label}</span>
+
               {/* Status badge for version breadcrumb */}
               {index === breadcrumbs.length - 1 && status && getStatusBadge(status)}
             </div>
-            
+
             {/* Separator */}
             {index < breadcrumbs.length - 1 && (
-              <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+              <ChevronRight className="w-4 h-4 md:w-5 md:h-5 text-gray-400 flex-shrink-0" />
             )}
           </React.Fragment>
         ))}

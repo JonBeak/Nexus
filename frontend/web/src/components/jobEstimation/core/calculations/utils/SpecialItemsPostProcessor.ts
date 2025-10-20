@@ -7,6 +7,8 @@ import { PricingCalculationContext } from '../../types/GridTypes';
 import { processEmptyRows } from './emptyRowProcessor';
 import { processDividers } from './dividerProcessor';
 import { processMultipliers } from './multiplierProcessor';
+import { processDiscountsFees } from './discountFeeProcessor';
+import { processSubtotals } from './subtotalProcessor';
 
 /**
  * Post-process special items in the correct order
@@ -19,8 +21,8 @@ import { processMultipliers } from './multiplierProcessor';
  * 2. Assembly - Future implementation (group related items, calculate assembly pricing)
  * 3. Divider - Pass-through (future: section headers, visual separators in preview)
  * 4. Multiplier - ✅ Implemented: Modify quantities of affected items retroactively
- * 5. Discount/Fee - Future implementation (apply discounts/fees to subtotals)
- * 6. Subtotal - Future implementation (calculate section subtotals)
+ * 5. Discount/Fee - ✅ Implemented: Apply discounts/fees and create line items
+ * 6. Subtotal - ✅ Implemented: Calculate and display section subtotals with tax breakdown
  *
  * Architecture Benefits:
  * - Clear separation: special items handled separately from regular products
@@ -55,11 +57,11 @@ export const applySpecialItemsPostProcessing = (
   // Step 4: Multiplier - Modify quantities retroactively
   processedItems = processMultipliers(processedItems, context);
 
-  // Step 5: Discount/Fee - Future implementation
-  // processedItems = processDiscountsFees(processedItems, context);
+  // Step 5: Discount/Fee - Apply discounts/fees and create line items
+  processedItems = processDiscountsFees(processedItems, context);
 
-  // Step 6: Subtotal - Future implementation
-  // processedItems = processSubtotals(processedItems, context);
+  // Step 6: Subtotal - Calculate and display section subtotals with tax breakdown
+  processedItems = processSubtotals(processedItems, context);
 
   console.log('[SpecialItemsPostProcessor] Post-processing complete', {
     finalItemCount: processedItems.length

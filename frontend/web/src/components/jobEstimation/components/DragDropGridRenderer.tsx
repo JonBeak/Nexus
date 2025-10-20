@@ -86,7 +86,7 @@ export const DragDropGridRenderer: React.FC<DragDropGridRendererProps> = ({
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div>
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -99,11 +99,11 @@ export const DragDropGridRenderer: React.FC<DragDropGridRendererProps> = ({
           }
         }}
       >
-        <SortableContext 
-          items={sortableItems} 
+        <SortableContext
+          items={sortableItems}
           strategy={verticalListSortingStrategy}
         >
-          <table className="w-full text-sm table-fixed">
+          <table className="w-full text-sm table-fixed min-w-[1100px]">
             {/* Header - matches original GridBody exactly */}
             <thead className="bg-gray-50 border-b-2 border-gray-200">
               <tr>

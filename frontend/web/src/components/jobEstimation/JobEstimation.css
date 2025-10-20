@@ -21,21 +21,34 @@
     flex-direction: column;
     gap: 1rem;
     height: auto;
+    padding: 0 1rem; /* Add horizontal padding when stacked */
   }
-  
+
   .three-panel-container > div {
     min-height: 400px;
+  }
+
+  /* Make CustomerPanel shorter when stacked vertically */
+  .three-panel-container > div:first-child {
+    min-height: 300px;
+    max-height: 350px;
   }
 }
 
 /* Mobile Layout */
 @media (max-width: 640px) {
   .three-panel-container {
-    padding: 0.5rem;
+    padding: 0 1rem; /* Consistent horizontal padding */
   }
-  
+
   .three-panel-container > div {
     min-height: 300px;
+  }
+
+  /* CustomerPanel shorter on mobile */
+  .three-panel-container > div:first-child {
+    min-height: 250px;
+    max-height: 300px;
   }
 }
 
@@ -87,4 +100,170 @@
 /* Always reserve space for scrollbar to prevent layout shift */
 .job-estimation-root {
   overflow-y: scroll;
+}
+
+/* Custom breakpoint for estimate builder: 1700px */
+/* This matches the actual minimum width needed: 900px grid + 700px preview + ~100px gaps/padding */
+
+/* Version Manager Responsive Views */
+/* Desktop: Show table, hide cards */
+.version-table-view {
+  display: block;
+}
+
+.version-card-view {
+  display: none;
+}
+
+/* Tablet and Mobile: Hide table, show cards */
+@media (max-width: 1024px) {
+  .version-table-view {
+    display: none;
+  }
+
+  .version-card-view {
+    display: block;
+  }
+}
+
+/* Estimate Builder Responsive Improvements */
+/* Simple container - no overflow, let browser handle zoom/scroll naturally */
+.estimate-builder-scroll-container {
+  /* No overflow restrictions - let the browser handle page zoom/scroll */
+}
+
+/* Square corners for all inputs and buttons in estimate builder */
+.estimate-builder-mobile-unified input,
+.estimate-builder-mobile-unified select,
+.estimate-builder-mobile-unified textarea,
+.estimate-builder-mobile-unified button {
+  border-radius: 0 !important;
+}
+
+/* Estimate Builder Layout - Custom breakpoint at 1700px */
+.estimate-builder-layout-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem; /* Gap between elements */
+  min-width: 1100px; /* Wider minimum for mobile */
+}
+
+.estimate-builder-grid-wrapper {
+  order: 2;
+  width: 100%;
+  min-width: 1100px; /* Wider grid on mobile */
+}
+
+.estimate-builder-preview-wrapper {
+  order: 1;
+  width: 70%; /* Narrower at 70% */
+  min-width: 600px; /* Slightly narrower minimum */
+}
+
+/* Desktop layout: side by side when screen >= 1700px */
+@media (min-width: 1700px) {
+  .estimate-builder-layout-container {
+    flex-direction: row;
+    gap: 1.5rem;
+    min-width: 0;
+    width: 100%; /* Reset width on desktop */
+  }
+
+  .estimate-builder-grid-wrapper {
+    order: 1;
+    flex: 1;
+    width: auto;
+    min-width: 0;
+    max-width: 1200px; /* Prevent grid from getting too wide */
+  }
+
+  /* Allow grid table to squish in horizontal mode */
+  .estimate-builder-grid-wrapper table {
+    min-width: 0 !important;
+  }
+
+  .estimate-builder-preview-wrapper {
+    order: 2;
+    width: 700px;
+    max-width: 700px; /* Fixed width on desktop */
+    flex-shrink: 0;
+    margin-bottom: 0 !important; /* Reset mobile spacing */
+  }
+
+  .estimate-builder-scroll-container {
+    margin-top: 1rem;
+    padding: 0; /* Reset mobile padding */
+  }
+
+  .estimate-builder-mobile-unified {
+    padding: 1.5rem !important;
+    min-width: 0; /* Reset mobile min-width */
+  }
+
+  /* Add spacing back to header on desktop */
+  .estimate-builder-mobile-unified > div:first-child {
+    margin-bottom: 1.5rem !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  /* Reset breadcrumb on desktop */
+  .estimate-builder-mobile-unified nav {
+    min-width: 0 !important;
+    padding-left: 1.5rem !important;
+    padding-right: 1.5rem !important;
+  }
+}
+
+/* Mobile-specific improvements - below 1700px */
+@media (max-width: 1699px) {
+  .estimate-builder-scroll-container {
+    /* Add padding around elements */
+    padding: 1rem;
+  }
+
+  /* Make page width match grid width */
+  .estimate-builder-mobile-unified {
+    min-width: 1100px;
+    padding: 1rem 0 0 0 !important; /* Top padding only */
+    max-width: none !important;
+    position: relative; /* For ::before positioning */
+  }
+
+  /* Extend gray background to match content width */
+  .min-h-screen.bg-gray-50:has(.estimate-builder-mobile-unified) {
+    min-width: 1100px;
+  }
+
+  /* Remove component borders/shadows/rounded corners on mobile */
+  .estimate-builder-mobile-unified .bg-white,
+  .estimate-builder-mobile-unified .rounded-lg,
+  .estimate-builder-mobile-unified .rounded,
+  .estimate-builder-mobile-unified .shadow,
+  .estimate-builder-mobile-unified .shadow-sm {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  /* Breadcrumb nav matches grid width */
+  .estimate-builder-mobile-unified nav {
+    border-bottom: 1px solid #e5e7eb !important;
+    border-radius: 0 !important;
+    margin-bottom: 1rem !important;
+    min-width: 1100px;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  /* Add spacing between elements */
+  .estimate-builder-preview-wrapper {
+    margin-bottom: 1rem !important;
+  }
+
+  /* Header padding on mobile */
+  .estimate-builder-mobile-unified > div:first-child {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    margin-bottom: 1rem !important;
+  }
 }

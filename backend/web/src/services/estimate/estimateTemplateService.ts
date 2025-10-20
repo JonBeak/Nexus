@@ -64,11 +64,17 @@ export class EstimateTemplateService {
       // Custom
       { productTypeId: 9, productTypeName: 'Custom', order: 16, isMain: true },
 
+      // Multiplier
+      { productTypeId: 23, productTypeName: 'Multiplier', order: 17, isMain: true },
+
+      // Discount/Fee
+      { productTypeId: 22, productTypeName: 'Discount/Fee', order: 18, isMain: true },
+
       // UL
-      { productTypeId: 12, productTypeName: 'UL', order: 17, isMain: true },
+      { productTypeId: 12, productTypeName: 'UL', order: 19, isMain: true },
 
       // Shipping
-      { productTypeId: 13, productTypeName: 'Shipping', order: 18, isMain: true }
+      { productTypeId: 13, productTypeName: 'Shipping', order: 20, isMain: true }
     ];
 
     // Track parent IDs for sub-items
@@ -474,11 +480,17 @@ export class EstimateTemplateService {
       // Custom
       { productTypeId: 9, productTypeName: 'Custom', order: startingOrder + 15, isMain: true },
 
+      // Multiplier
+      { productTypeId: 23, productTypeName: 'Multiplier', order: startingOrder + 16, isMain: true },
+
+      // Discount/Fee
+      { productTypeId: 22, productTypeName: 'Discount/Fee', order: startingOrder + 17, isMain: true },
+
       // UL
-      { productTypeId: 12, productTypeName: 'UL', order: startingOrder + 16, isMain: true },
+      { productTypeId: 12, productTypeName: 'UL', order: startingOrder + 18, isMain: true },
 
       // Shipping
-      { productTypeId: 13, productTypeName: 'Shipping', order: startingOrder + 17, isMain: true }
+      { productTypeId: 13, productTypeName: 'Shipping', order: startingOrder + 19, isMain: true }
     ];
 
     for (const row of templateRows) {

@@ -24,9 +24,10 @@ interface RowPosition {
  * 1. Build ordered array of all rows (from metadata)
  * 2. Find all Multiplier rows
  * 3. For each Multiplier row:
- *    a. Determine scope for Field 1 (stops at Divider/Subtotal)
- *    b. Determine scope for Field 2 (all rows above)
- *    c. Apply multipliers to affected items
+ *    a. Determine scope for Field 1 (stops at Divider)
+ *    b. Determine scope for Field 2 (stops at Subtotal)
+ *    c. Determine scope for Field 3 (all rows above)
+ *    d. Apply multipliers to affected items
  * 4. Multiple multipliers are cumulative (multiply together)
  *
  * @param items - Array of estimate line items
@@ -75,22 +76,30 @@ export const processMultipliers = (
       const parsedValues = context.validationResultsManager.getAllParsedValues(multiplierRow.rowId);
       const field1Value = parsedValues.field1 as number | undefined;
       const field2Value = parsedValues.field2 as number | undefined;
+      const field3Value = parsedValues.field3 as number | undefined;
 
       console.log(`[MultiplierProcessor] Processing Multiplier at index ${multiplierRow.index}:`, {
         field1Value,
-        field2Value
+        field2Value,
+        field3Value
       });
 
-      // Field 1: Affects rows above, stopping at first Divider/Subtotal
+      // Field 1: Affects rows above, stopping at first Divider
       if (field1Value && field1Value > 0) {
         const affectedIndices = getField1AffectedIndices(multiplierRow.index, rowPositions);
         applyMultiplierToIndices(affectedIndices, field1Value, rowPositions, multiplierMap);
       }
 
-      // Field 2: Affects ALL rows above
+      // Field 2: Affects rows above, stopping at first Subtotal
       if (field2Value && field2Value > 0) {
-        const affectedIndices = getField2AffectedIndices(multiplierRow.index);
+        const affectedIndices = getField2AffectedIndices(multiplierRow.index, rowPositions);
         applyMultiplierToIndices(affectedIndices, field2Value, rowPositions, multiplierMap);
+      }
+
+      // Field 3: Affects ALL rows above (entire estimate)
+      if (field3Value && field3Value > 0) {
+        const affectedIndices = getField3AffectedIndices(multiplierRow.index);
+        applyMultiplierToIndices(affectedIndices, field3Value, rowPositions, multiplierMap);
       }
     }
 
@@ -131,8 +140,8 @@ export const processMultipliers = (
 };
 
 /**
- * Get indices of rows affected by Field 1 (stops at Divider/Subtotal)
- * Scans UPWARD from Multiplier until hitting Divider/Subtotal or start of grid
+ * Get indices of rows affected by Field 1 (stops at Divider)
+ * Scans UPWARD from Multiplier until hitting Divider or start of grid
  */
 const getField1AffectedIndices = (
   multiplierIndex: number,
@@ -144,8 +153,8 @@ const getField1AffectedIndices = (
   for (let i = multiplierIndex - 1; i >= 0; i--) {
     const productTypeId = rowPositions[i].metadata.productTypeId;
 
-    // Stop at Divider or Subtotal (don't include them)
-    if (productTypeId === DIVIDER_PRODUCT_TYPE_ID || productTypeId === SUBTOTAL_PRODUCT_TYPE_ID) {
+    // Stop at Divider only (don't include it)
+    if (productTypeId === DIVIDER_PRODUCT_TYPE_ID) {
       break;
     }
 
@@ -156,10 +165,35 @@ const getField1AffectedIndices = (
 };
 
 /**
- * Get indices of rows affected by Field 2 (all rows above)
+ * Get indices of rows affected by Field 2 (stops at Subtotal)
+ * Scans UPWARD from Multiplier until hitting Subtotal or start of grid
+ */
+const getField2AffectedIndices = (
+  multiplierIndex: number,
+  rowPositions: RowPosition[]
+): number[] => {
+  const affectedIndices: number[] = [];
+
+  // Scan upward from the row ABOVE the Multiplier
+  for (let i = multiplierIndex - 1; i >= 0; i--) {
+    const productTypeId = rowPositions[i].metadata.productTypeId;
+
+    // Stop at Subtotal only (don't include it)
+    if (productTypeId === SUBTOTAL_PRODUCT_TYPE_ID) {
+      break;
+    }
+
+    affectedIndices.push(i);
+  }
+
+  return affectedIndices;
+};
+
+/**
+ * Get indices of rows affected by Field 3 (all rows above)
  * Includes ALL rows from start of grid up to (but not including) the Multiplier
  */
-const getField2AffectedIndices = (multiplierIndex: number): number[] => {
+const getField3AffectedIndices = (multiplierIndex: number): number[] => {
   const affectedIndices: number[] = [];
 
   // All rows above the Multiplier

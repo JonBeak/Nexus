@@ -1,8 +1,12 @@
-// Float or Groups validation template - handles either a float or specific group format
-// Supports: float (e.g., "32") or groups format (e.g., "10,. . . . . 6,")
+// Float or Groups validation template - handles float, groups format, or calculation formulas
+// Supports:
+//   - Float (e.g., "32")
+//   - Groups format (e.g., "10,. . . . . 6,")
+//   - Formula (e.g., "48x48*12 + 30*12 + 15")
 
 import { ValidationTemplate, ValidationResult } from './ValidationTemplate';
 import { validateNumericInput } from '../utils/numericValidation';
+import { parseChannelLetterFormula, looksLikeFormula } from '../utils/channelLetterFormulaParser';
 
 export interface FloatOrGroupsParams {
   min_value?: number;          // Minimum value for float or individual numbers
@@ -34,16 +38,22 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
         return floatResult;
       }
 
-      // If not a float, try to parse as groups format
+      // Second, try to parse as groups format
       const groupsResult = this.tryParseAsGroups(cleanValue, params, groupSeparator, numberSeparator);
       if (groupsResult.isValid) {
         return groupsResult;
       }
 
-      // Neither format worked
+      // Third, try to parse as a formula (NEW!)
+      const formulaResult = this.tryParseAsFormula(cleanValue, params);
+      if (formulaResult.isValid) {
+        return formulaResult;
+      }
+
+      // None of the formats worked
       return {
         isValid: false,
-        error: 'Value must be either a number or groups format',
+        error: 'Value must be a number, groups format, or calculation formula',
         expectedFormat: this.generateExpectedFormat(params)
       };
 
@@ -148,6 +158,38 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
   }
 
   /**
+   * Try to parse value as a calculation formula
+   * Formula syntax: "48x48*12 + 30*12 + 15 + (30x30)*15"
+   * Returns parsed entries with calculated linear inches and LEDs
+   */
+  private tryParseAsFormula(value: string, params: FloatOrGroupsParams): ValidationResult {
+    // Quick heuristic check before attempting to parse
+    if (!looksLikeFormula(value)) {
+      return { isValid: false };
+    }
+
+    try {
+      // Parse the formula
+      const result = parseChannelLetterFormula(value);
+
+      // The formula parser returns a FormulaParseResult with entries and totals
+      // We return this as the parsedValue for the validation layer to use
+      return {
+        isValid: true,
+        parsedValue: result,
+        expectedFormat: this.generateExpectedFormat(params)
+      };
+    } catch (error) {
+      // Formula parsing failed - return validation error
+      return {
+        isValid: false,
+        error: `Formula error: ${error.message}`,
+        expectedFormat: this.generateExpectedFormat(params)
+      };
+    }
+  }
+
+  /**
    * Parse a group of numbers ending with comma
    */
   private parseNumberGroup(groupText: string, numberSeparator: string, params: FloatOrGroupsParams, groupNum: number): ValidationResult & { parsedValue?: number[] } {
@@ -243,10 +285,15 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
     const groupSeparator = params.group_separator || '. . . . . ';
     const numberSeparator = params.number_separator || ',';
 
-    let formatDesc = 'Either:\n';
+    let formatDesc = 'Accepts three formats:\n';
     formatDesc += '• A single number (e.g., "32", "15.5")\n';
     formatDesc += `• Two groups of numbers: "num,num,${numberSeparator}${groupSeparator}num,num,${numberSeparator}"\n`;
-    formatDesc += `Examples: "10,${groupSeparator}6," or "7,9,5,${groupSeparator}3,5,2,"`;
+    formatDesc += '  Examples: "10,. . . . . 6," or "7,9,5,. . . . . 3,5,2,"\n';
+    formatDesc += '• Calculation formula (e.g., "48x48*12 + 30*12 + 15")\n';
+    formatDesc += '  - WxH*Q: Q pieces of WxH dimensions\n';
+    formatDesc += '  - N*Q: Q pieces of N linear inches\n';
+    formatDesc += '  - N: 1 piece of N linear inches\n';
+    formatDesc += '  - Use + to combine entries';
 
     // Add constraints
     const constraints: string[] = [];
@@ -268,7 +315,7 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
   }
 
   getDescription(): string {
-    return 'Validates either a single float or two groups of numbers separated by dots, commonly used for LED counts or measurements';
+    return 'Validates float, grouped format, or calculation formulas for channel letter dimensions and quantities';
   }
 
   getParameterSchema(): Record<string, any> {

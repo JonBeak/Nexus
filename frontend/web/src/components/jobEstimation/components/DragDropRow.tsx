@@ -81,14 +81,22 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
 
   const isHighlighted = hoveredRowId === row.id;
   const isDivider = row.productTypeId === 25; // Divider special item
+  const isSubtotal = row.productTypeId === 21; // Subtotal special item
+
+  // Get cell background for QTY and Field columns only
+  const getCellBackground = () => {
+    if (isDivider) return 'bg-orange-200';
+    if (isSubtotal) return 'bg-gray-400';
+    return '';
+  };
+
+  const cellBackgroundClass = getCellBackground();
 
   return (
     <tr
       ref={setNodeRef}
       style={style}
-      className={`border-b border-gray-100 group transition-colors ${
-        isDivider ? 'bg-orange-200 hover:bg-orange-200' : 'hover:bg-gray-50'
-      } ${
+      className={`border-b border-gray-100 group transition-colors hover:bg-gray-50 ${
         isDragging ? 'ring-2 ring-blue-300 bg-blue-50' : ''
       } ${
         isHighlighted ? 'relative z-10 outline outline-2 outline-blue-300 bg-gray-50' : ''
@@ -137,7 +145,7 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
       </td>
       
       {/* QTY Column */}
-      <td className="px-0.5 py-0 w-4 border-l border-gray-100">
+      <td className={`px-0.5 py-0 w-4 border-l border-gray-100 ${cellBackgroundClass}`}>
         <FieldCell
           fieldName="quantity"
           fieldValue={row.data?.quantity || ''}
@@ -159,7 +167,7 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
         const { fieldName, fieldValue } = getFieldData(colIndex);
 
         return (
-          <td key={colIndex} className="px-0.5 py-0 w-6 border-l border-gray-100">
+          <td key={colIndex} className={`px-0.5 py-0 w-6 border-l border-gray-100 ${cellBackgroundClass}`}>
             <FieldCell
               fieldName={fieldName}
               fieldValue={fieldValue}
@@ -174,6 +182,7 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
               validationState={validationStates?.[fieldName]}
               allowExpansion={fieldPrompts?.[`${fieldName}_expandable`] === true}
               productTypeId={row.productTypeId}
+              fieldTooltip={fieldPrompts?.[`${fieldName}_tooltip`]}
             />
           </td>
         );

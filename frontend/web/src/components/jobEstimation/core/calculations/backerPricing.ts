@@ -325,7 +325,12 @@ export const calculateBacker = async (
     // Aluminum Backer component (all fields 1-3 consolidated)
     if (aluminumResults.length > 0) {
       const totalPrice = aluminumResults.reduce((sum, r) => sum + r.cost, 0);
-      const calculationDisplay = aluminumResults.map(r => r.inputDisplay).join('\n');
+
+      // If only one piece, show dimensions without price; if multiple, show prices for each
+      const calculationDisplay = aluminumResults.length === 1
+        ? aluminumResults[0].inputDisplay.split(':')[0].trim() // Remove price portion
+        : aluminumResults.map(r => r.inputDisplay).join('\n');
+
       components.push({
         name: 'Aluminum Backer',
         price: totalPrice,
@@ -337,7 +342,12 @@ export const calculateBacker = async (
     // Hinged Raceway component (all fields 4-5 consolidated)
     if (racewayResults.length > 0) {
       const totalPrice = racewayResults.reduce((sum, r) => sum + r.cost, 0);
-      const calculationDisplay = racewayResults.map(r => r.inputDisplay).join('\n');
+
+      // If only one piece, show dimensions without price; if multiple, show prices for each
+      const calculationDisplay = racewayResults.length === 1
+        ? racewayResults[0].inputDisplay.split(':')[0].trim() // Remove price portion
+        : racewayResults.map(r => r.inputDisplay).join('\n');
+
       components.push({
         name: 'Hinged Raceway',
         price: totalPrice,
@@ -349,7 +359,12 @@ export const calculateBacker = async (
     // ACM Backer component (all fields 6-9 consolidated)
     if (acmResults.length > 0) {
       const totalPrice = acmResults.reduce((sum, r) => sum + r.cost, 0);
-      const calculationDisplay = acmResults.map(r => r.inputDisplay).join('\n');
+
+      // If only one piece, show dimensions without price; if multiple, show prices for each
+      const calculationDisplay = acmResults.length === 1
+        ? acmResults[0].inputDisplay.split(':')[0].trim() // Remove price portion
+        : acmResults.map(r => r.inputDisplay).join('\n');
+
       components.push({
         name: 'ACM Backer',
         price: totalPrice,

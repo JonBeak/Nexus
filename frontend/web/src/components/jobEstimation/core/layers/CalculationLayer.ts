@@ -120,6 +120,13 @@ export const createCalculationOperations = (): CalculationOperations => {
             });
           }
         }
+
+        // Reset UL tracker at Subtotal lines (Product Type 21)
+        // Each section between subtotals tracks UL independently
+        if (metadata.productTypeId === 21) {
+          ulExistsInJob = false;
+          console.log(`[CalculationLayer] Reset UL tracker at Subtotal row ${rowId}`);
+        }
       }
 
       // TODO: Calculate estimatePreviewDisplayNumbers here later
@@ -133,7 +140,10 @@ export const createCalculationOperations = (): CalculationOperations => {
         : applySpecialItemsPostProcessing(items, context); // Process in order: Empty Row > Assembly > Divider > Multiplier > Discount/Fee > Subtotal
 
       // Calculate totals (using processed items with modified quantities)
-      const subtotal = processedItems.reduce((sum, item) => sum + item.extendedPrice, 0);
+      // Exclude Subtotal items (productTypeId 21) from final total - they are informational only
+      const subtotal = processedItems
+        .filter(item => item.productTypeId !== 21)
+        .reduce((sum, item) => sum + item.extendedPrice, 0);
       const taxRate = context.taxRate || 4.0; // Default to 400% if not provided (indicates failure)
       const taxAmount = subtotal * taxRate;
 

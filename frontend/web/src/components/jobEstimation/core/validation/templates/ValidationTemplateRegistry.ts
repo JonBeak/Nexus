@@ -10,6 +10,7 @@ import { PsOverrideTemplate } from './PsOverrideTemplate';
 import { UlOverrideTemplate } from './UlOverrideTemplate';
 import { FloatOrGroupsTemplate } from './FloatOrGroupsTemplate';
 import { FloatOrDimensionsTemplate } from './FloatOrDimensionsTemplate';
+import { TwoDimensionsTemplate } from './TwoDimensionsTemplate';
 import { ThreeDimensionsTemplate } from './ThreeDimensionsTemplate';
 import { ConditionalDimensionsTemplate } from './ConditionalDimensionsTemplate';
 import { LedTypeTemplate } from './LedTypeTemplate';
@@ -17,6 +18,7 @@ import { PsTypeTemplate } from './PsTypeTemplate';
 import { PsPriceOverrideTemplate } from './PsPriceOverrideTemplate';
 import { OrRequiredTemplate } from './OrRequiredTemplate';
 import { MultiplierTemplate } from './MultiplierTemplate';
+import { OptionalTextTemplate } from './OptionalTextTemplate';
 
 export class ValidationTemplateRegistry {
   private templates = new Map<string, ValidationTemplate>();
@@ -30,6 +32,7 @@ export class ValidationTemplateRegistry {
     this.registerTemplate('float', new FloatTemplate());
     this.registerTemplate('required', requiredTemplate);
     this.registerTemplate('non_empty', requiredTemplate);
+    this.registerTemplate('optional_text', new OptionalTextTemplate());
 
     // Register context-aware override templates
     this.registerTemplate('led_override', new LedOverrideTemplate());
@@ -40,6 +43,7 @@ export class ValidationTemplateRegistry {
     // Register specialized templates
     this.registerTemplate('float_or_groups', new FloatOrGroupsTemplate());
     this.registerTemplate('floatordimensions', new FloatOrDimensionsTemplate());
+    this.registerTemplate('twodimensions', new TwoDimensionsTemplate());
     this.registerTemplate('threedimensions', new ThreeDimensionsTemplate());
     this.registerTemplate('conditionaldimensions', new ConditionalDimensionsTemplate());
     this.registerTemplate('led_type', new LedTypeTemplate());

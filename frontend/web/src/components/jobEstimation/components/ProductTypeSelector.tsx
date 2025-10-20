@@ -78,7 +78,7 @@ export const ProductTypeSelector: React.FC<ProductTypeSelectorProps> = ({
       aria-label="Select product type"
       title={hasError ? errorMessage : "Select product type"}
     >
-      <option value="">Select Type</option>
+      <option value="">Clear Product Type</option>
       
       {/* Normal Products */}
       {groupedProductTypes.normal && groupedProductTypes.normal.length > 0 && (

@@ -12,7 +12,7 @@ import { AssemblyAssigner } from './AssemblyAssigner';
 import { ValidationContext } from './templates/ValidationTemplate';
 import { CustomerManufacturingPreferences } from './context/useCustomerPreferences';
 import { ValidationContextBuilder } from './context/ValidationContextBuilder';
-import { channelLettersValidation, vinylValidation, substrateCutValidation, backerValidation, pushThruValidation, bladeSignValidation, ledNeonValidation, paintingValidation, customValidation, wiringValidation, materialCutValidation, ulValidation, shippingValidation, ledValidation, emptyRowValidation, dividerValidation, multiplierValidation } from './productValidationConfigs';
+import { channelLettersValidation, vinylValidation, substrateCutValidation, backerValidation, pushThruValidation, bladeSignValidation, ledNeonValidation, paintingValidation, customValidation, wiringValidation, materialCutValidation, ulValidation, shippingValidation, ledValidation, emptyRowValidation, dividerValidation, subtotalValidation, multiplierValidation, discountFeeValidation } from './productValidationConfigs';
 
 export interface ValidationEngineConfig {
   customerPreferences?: CustomerManufacturingPreferences; // Customer manufacturing preferences
@@ -63,7 +63,7 @@ export class ValidationEngine {
 
     // Add validation rules for each product type
     // Use switch for clarity and easy expansion
-    const productTypes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 23, 25, 26, 27, 28]; // Add more product type IDs as needed
+    const productTypes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28]; // Add more product type IDs as needed
 
     for (const productType of productTypes) {
       switch (productType) {
@@ -129,6 +129,12 @@ export class ValidationEngine {
           break;
 
         // Special Items
+        case 21: // Subtotal
+          validations.set(21, subtotalValidation);
+          break;
+        case 22: // Discount/Fee
+          validations.set(22, discountFeeValidation);
+          break;
         case 23: // Multiplier
           validations.set(23, multiplierValidation);
           break;
@@ -397,9 +403,9 @@ export class ValidationEngine {
 
       // VALIDATION WALL: Block products without validation implementations
       // Allow productTypeId: 0 ("Select Type") to pass through - it won't be calculated anyway
-      // Currently implemented: Channel Letters (ID 1), Vinyl (ID 2), Substrate Cut (ID 3), Backer (ID 4), Push Thru (ID 5), Blade Sign (ID 6), LED Neon (ID 7), Painting (ID 8), Custom (ID 9), Wiring (ID 10), Material Cut (ID 11), UL (ID 12), Shipping (ID 13), ↳ Vinyl (ID 16), ↳ Painting (ID 17), ↳ LED (ID 18), ↳ Wiring (ID 19), ↳ Material Cut (ID 20), Multiplier (ID 23), Divider (ID 25), LED (ID 26), Empty Row (ID 27), ↳ Substrate Cut (ID 28)
+      // Currently implemented: Channel Letters (ID 1), Vinyl (ID 2), Substrate Cut (ID 3), Backer (ID 4), Push Thru (ID 5), Blade Sign (ID 6), LED Neon (ID 7), Painting (ID 8), Custom (ID 9), Wiring (ID 10), Material Cut (ID 11), UL (ID 12), Shipping (ID 13), ↳ Vinyl (ID 16), ↳ Painting (ID 17), ↳ LED (ID 18), ↳ Wiring (ID 19), ↳ Material Cut (ID 20), Subtotal (ID 21), Discount/Fee (ID 22), Multiplier (ID 23), Divider (ID 25), LED (ID 26), Empty Row (ID 27), ↳ Substrate Cut (ID 28)
       // This applies to both main products and sub-items
-      const implementedProducts = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 23, 25, 26, 27, 28]; // Select Type, Channel Letters, Vinyl, Substrate Cut, Backer, Push Thru, Blade Sign, LED Neon, Painting, Custom, Wiring, Material Cut, UL, Shipping, ↳ Vinyl, ↳ Painting, ↳ LED, ↳ Wiring, ↳ Material Cut, Multiplier, Divider, LED, Empty Row, ↳ Substrate Cut
+      const implementedProducts = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28]; // Select Type, Channel Letters, Vinyl, Substrate Cut, Backer, Push Thru, Blade Sign, LED Neon, Painting, Custom, Wiring, Material Cut, UL, Shipping, ↳ Vinyl, ↳ Painting, ↳ LED, ↳ Wiring, ↳ Material Cut, Subtotal, Discount/Fee, Multiplier, Divider, LED, Empty Row, ↳ Substrate Cut
       if (!implementedProducts.includes(row.productTypeId)) {
         for (const [fieldName, fieldValue] of Object.entries(row.data)) {
           if (fieldValue && fieldValue !== '') {
@@ -417,7 +423,7 @@ export class ValidationEngine {
       }
 
       // QUANTITY VALIDATION: Run for ALL products except special items that don't need quantity
-      const specialItemsWithoutQuantity = [0, 23, 25, 27]; // Select Type, Multiplier, Divider, Empty Row
+      const specialItemsWithoutQuantity = [0, 21, 22, 23, 25, 27]; // Select Type, Subtotal, Discount/Fee, Multiplier, Divider, Empty Row
       const needsQuantity = !specialItemsWithoutQuantity.includes(row.productTypeId);
 
       if (needsQuantity) {
