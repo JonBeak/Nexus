@@ -90,7 +90,7 @@ export const createCalculationOperations = (): CalculationOperations => {
             const overallQuantity = calculation.data.quantity || 1;
             for (const component of calculation.data.components) {
               const componentUnitPrice = component.price || 0;
-              const componentExtendedPrice = componentUnitPrice * overallQuantity;
+              const componentExtendedPrice = Math.round((componentUnitPrice * overallQuantity) * 100) / 100;
               items.push({
                 rowId,
                 inputGridDisplayNumber: metadata.displayNumber,
@@ -141,18 +141,21 @@ export const createCalculationOperations = (): CalculationOperations => {
 
       // Calculate totals (using processed items with modified quantities)
       // Exclude Subtotal items (productTypeId 21) from final total - they are informational only
-      const subtotal = processedItems
+      const rawSubtotal = processedItems
         .filter(item => item.productTypeId !== 21)
         .reduce((sum, item) => sum + item.extendedPrice, 0);
+      const subtotal = Math.round(rawSubtotal * 100) / 100; // Round to 2 decimal places
       const taxRate = context.taxRate || 4.0; // Default to 400% if not provided (indicates failure)
-      const taxAmount = subtotal * taxRate;
+      const rawTaxAmount = subtotal * taxRate;
+      const taxAmount = Math.round(rawTaxAmount * 100) / 100; // Round to 2 decimal places
+      const total = Math.round((subtotal + taxAmount) * 100) / 100; // Round to 2 decimal places
 
       return {
         items: processedItems,
         subtotal,
         taxRate,
         taxAmount,
-        total: subtotal + taxAmount,
+        total,
         customerId: context.customerId,
         customerName: context.customerName,
         estimateId: context.estimateId,

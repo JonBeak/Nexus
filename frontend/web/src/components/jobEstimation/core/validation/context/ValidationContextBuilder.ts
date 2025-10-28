@@ -17,6 +17,7 @@ export interface RowCalculatedValues {
   defaultPsCount?: number;
   savedTotalWattage?: number;
   channelLetterMetrics?: ChannelLetterMetrics | null;
+  sectionHasUL?: boolean;  // Section-level UL flag for PS optimization
   [key: string]: unknown;
 }
 
@@ -44,7 +45,7 @@ export class ValidationContextBuilder {
         const defaultLedCount = customerPreferences?.use_leds ? savedLedCount : 0;
         const savedTotalWattage = this.calculateTotalWattage(savedLedCount);
         const savedPsCount = savedLedCount > 0 ? this.calculatePsCount(savedLedCount, savedTotalWattage) : 0;
-        const defaultPsCount = defaultLedCount > 0 && customerPreferences?.requires_transformers ? savedPsCount : 0;
+        const defaultPsCount = defaultLedCount > 0 && customerPreferences?.pref_power_supply_required ? savedPsCount : 0;
 
         calculations.channelLetterMetrics = metrics;
         calculations.savedLedCount = savedLedCount;
@@ -66,7 +67,43 @@ export class ValidationContextBuilder {
         calculations.totalPerimeter = metrics?.totalPerimeter || 0;
         const finalTotalWattage = this.calculateTotalWattage(finalLedCount);
         calculations.totalWattage = finalTotalWattage;
-        calculations.psCount = this.calculatePsCount(finalLedCount, finalTotalWattage);
+
+        // Calculate final PS count with customer preference and user overrides
+        // Hierarchy: base calculation → customer preference → user override (field9)
+        let finalPsCount = 0;
+        if (finalLedCount > 0) {
+          // Base calculation
+          const basePsCount = this.calculatePsCount(finalLedCount, finalTotalWattage);
+
+          // Parse field9 override (string → number/'yes'/'no'/null)
+          const field9Raw = row.data.field9?.toString().trim() || '';
+          let psCountOverride: number | 'yes' | 'no' | null = null;
+
+          const numeric = parseFloat(field9Raw);
+          if (!isNaN(numeric) && field9Raw !== '') {
+            psCountOverride = numeric;
+          } else if (field9Raw.toLowerCase() === 'yes') {
+            psCountOverride = 'yes';
+          } else if (field9Raw.toLowerCase() === 'no') {
+            psCountOverride = 'no';
+          }
+
+          // Apply override logic
+          if (psCountOverride === 'no' || psCountOverride === 0) {
+            // User explicitly disabled power supplies
+            finalPsCount = 0;
+          } else if (typeof psCountOverride === 'number' && psCountOverride > 0) {
+            // User specified exact count
+            finalPsCount = psCountOverride;
+          } else if (psCountOverride === 'yes') {
+            // User explicitly wants calculated PSs - OVERRIDE customer preference
+            finalPsCount = basePsCount;
+          } else {
+            // No user input (null) - respect customer preference
+            finalPsCount = customerPreferences?.pref_power_supply_required ? basePsCount : 0;
+          }
+        }
+        calculations.psCount = finalPsCount;
       }
 
       // Blade Sign (Product Type 6) - Calculate derived values
@@ -93,8 +130,17 @@ export class ValidationContextBuilder {
         Object.assign(calculations, ledCalcs);
       }
 
+      // Push Thru (Product Type 5) - Calculate LED count from field5
+      if (row.productTypeId === 5) {
+        const pushThruCalcs = this.calculatePushThruValues(row, customerPreferences);
+        Object.assign(calculations, pushThruCalcs);
+      }
+
       calculatedValues.set(row.id, calculations);
     }
+
+    // PHASE 2: Calculate section-level UL and propagate to all rows
+    this.calculateSectionLevelUL(rows, calculatedValues, customerPreferences);
 
     return calculatedValues;
   }
@@ -214,6 +260,7 @@ export class ValidationContextBuilder {
   /**
    * Calculate Blade Sign derived values
    * Handles dimensions parsing, sqft calculation with circle logic, and LED count
+   * LED calculations work independently of dimensions to support LED-only rows
    */
   private static calculateBladeSignValues(
     row: GridRowCore,
@@ -225,89 +272,138 @@ export class ValidationContextBuilder {
     const field2Value = row.data.field2;
     const shape = (row.data.field1 || '').toLowerCase();
 
-    if (!field2Value) {
-      return calculations;
-    }
-
     let width: number | null = null;
     let height: number | null = null;
     let sqft = 0;
+    let dimensionBasedLedCount = 0;
 
-    // Parse dimensions - field2 will already be validated by floatordimensions template
-    // So we just need to extract the parsed result
-    if (typeof field2Value === 'string') {
-      const parts = field2Value.split('x').map(p => parseFloat(p.trim()));
-      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-        width = parts[0];
-        height = parts[1];
-      } else if (parts.length === 1 && !isNaN(parts[0])) {
-        width = parts[0];
-        height = parts[0]; // Square
+    // PART 1: Calculate dimension-based values (if field2 is provided)
+    if (field2Value) {
+      // Parse dimensions - field2 will already be validated by floatordimensions template
+      // So we just need to extract the parsed result
+      if (typeof field2Value === 'string') {
+        const parts = field2Value.split('x').map(p => parseFloat(p.trim()));
+        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+          width = parts[0];
+          height = parts[1];
+        } else if (parts.length === 1 && !isNaN(parts[0])) {
+          width = parts[0];
+          height = parts[0]; // Square
+        }
+      }
+
+      if (width && height) {
+        // Calculate actual area in square inches based on shape
+        let sqInches: number;
+        const rectangleSqInches = width * height;
+
+        if (shape === 'circle') {
+          // Ellipse: area = π × (X/2) × (Y/2) = π × X × Y / 4
+          const ellipseSqInches = (Math.PI * width * height) / 4;
+
+          // Average of ellipse and rectangle (business rule: circle should be cheaper)
+          sqInches = (ellipseSqInches + rectangleSqInches) / 2;
+        } else {
+          // Rectangle (default)
+          sqInches = rectangleSqInches;
+        }
+
+        sqft = sqInches / 144;
+
+        calculations.sqft = sqft;
+        calculations.sqInches = sqInches;  // Store actual area for reuse
+        calculations.width = width;
+        calculations.height = height;
+
+        // Calculate LED count from dimensions using MAX(area-based, perimeter-based)
+        // Formula: MAX(ROUNDUP(sqinches/100*9, 0), ROUNDUP(SQRT(sqinches)*1.4, 0))
+        // IMPORTANT: Uses actual shape area (not bounding box)!
+        const areaBasedLeds = Math.ceil((sqInches / 100) * 9);
+        const perimeterBasedLeds = Math.ceil(Math.sqrt(sqInches) * 1.4);
+        dimensionBasedLedCount = Math.max(areaBasedLeds, perimeterBasedLeds);
       }
     }
 
-    if (width && height) {
-      // Calculate actual area in square inches based on shape
-      let sqInches: number;
-      const rectangleSqInches = width * height;
+    // PART 2: Calculate LED-related values (works independently of dimensions)
+    // This allows LEDs#, PS#, and UL to work even without field2
+    const rawField3 = row.data.field3?.trim();
+    const normalizedField3 = rawField3?.toLowerCase();
+    const numericOverride = rawField3 !== undefined && rawField3 !== '' && !isNaN(Number(rawField3))
+      ? Number(rawField3)
+      : null;
 
-      if (shape === 'circle') {
-        // Ellipse: area = π × (X/2) × (Y/2) = π × X × Y / 4
-        const ellipseSqInches = (Math.PI * width * height) / 4;
+    // Determine savedLedCount (from dimensions if available, otherwise 0)
+    const savedLedCount = dimensionBasedLedCount;
 
-        // Average of ellipse and rectangle (business rule: circle should be cheaper)
-        sqInches = (ellipseSqInches + rectangleSqInches) / 2;
-      } else {
-        // Rectangle (default)
-        sqInches = rectangleSqInches;
-      }
+    // Determine defaultLedCount (apply customer preference)
+    const defaultLedCount = customerPreferences?.use_leds ? savedLedCount : 0;
 
-      sqft = sqInches / 144;
+    calculations.savedLedCount = savedLedCount;
+    calculations.defaultLedCount = defaultLedCount;
 
-      calculations.sqft = sqft;
-      calculations.sqInches = sqInches;  // Store actual area for reuse
-      calculations.width = width;
-      calculations.height = height;
+    // Calculate final LED count based on field3 override logic
+    let finalLedCount = defaultLedCount;
+
+    if (numericOverride !== null) {
+      // Explicit numeric override (works even without dimensions)
+      finalLedCount = numericOverride;
+    } else if (normalizedField3 === 'no') {
+      // Explicitly disable LEDs
+      finalLedCount = 0;
+    } else if (normalizedField3 === 'yes') {
+      // Use saved LED count (from dimensions if available, or customer preference)
+      finalLedCount = savedLedCount;
     }
+    // Otherwise use defaultLedCount (already set above)
 
-    // Calculate LED count using MAX(area-based, perimeter-based)
-    // Formula: MAX(ROUNDUP(sqinches/100*9, 0), ROUNDUP(SQRT(sqinches)*1.4, 0))
-    // IMPORTANT: Uses actual shape area (not bounding box)!
-    if (sqft > 0) {
-      const sqInches = calculations.sqInches as number; // Reuse calculated area
-      const areaBasedLeds = Math.ceil((sqInches / 100) * 9);
-      const perimeterBasedLeds = Math.ceil(Math.sqrt(sqInches) * 1.4);
-      const calculatedLedCount = Math.max(areaBasedLeds, perimeterBasedLeds);
+    calculations.ledCount = finalLedCount;
 
-      calculations.savedLedCount = calculatedLedCount;
-      calculations.defaultLedCount = customerPreferences?.use_leds ? calculatedLedCount : 0;
-
-      // Apply field3 override logic (similar to Channel Letters)
-      const rawField3 = row.data.field3?.trim();
-      const normalizedField3 = rawField3?.toLowerCase();
-      const numericOverride = rawField3 !== undefined && rawField3 !== '' && !isNaN(Number(rawField3))
-        ? Number(rawField3)
-        : null;
-
-      let finalLedCount = calculations.defaultLedCount;
-
-      if (numericOverride !== null) {
-        finalLedCount = numericOverride;
-      } else if (normalizedField3 === 'no') {
-        finalLedCount = 0;
-      } else if (normalizedField3 === 'yes') {
-        finalLedCount = calculatedLedCount;
-      }
-
-      calculations.ledCount = finalLedCount;
-
-      // Calculate wattage and PS count
+    // Calculate wattage and PS count (if any LEDs)
+    if (finalLedCount > 0) {
       const totalWattage = this.calculateTotalWattage(finalLedCount);
       calculations.totalWattage = totalWattage;
-      const estimatedPsCount = this.calculatePsCount(finalLedCount, totalWattage);
-      calculations.psCount = estimatedPsCount;
-      calculations.savedPsCount = estimatedPsCount;
-      calculations.defaultPsCount = customerPreferences?.requires_transformers ? estimatedPsCount : 0;
+      const basePsCount = this.calculatePsCount(finalLedCount, totalWattage);
+      calculations.savedPsCount = basePsCount;
+      calculations.defaultPsCount = customerPreferences?.pref_power_supply_required ? basePsCount : 0;
+
+      // Calculate final PS count with customer preference and user overrides
+      // Hierarchy: base calculation → customer preference → user override (field4)
+      let finalPsCount = 0;
+
+      // Parse field4 override (string → number/'yes'/'no'/null)
+      const field4Raw = row.data.field4?.toString().trim() || '';
+      let psCountOverride: number | 'yes' | 'no' | null = null;
+
+      const numeric = parseFloat(field4Raw);
+      if (!isNaN(numeric) && field4Raw !== '') {
+        psCountOverride = numeric;
+      } else if (field4Raw.toLowerCase() === 'yes') {
+        psCountOverride = 'yes';
+      } else if (field4Raw.toLowerCase() === 'no') {
+        psCountOverride = 'no';
+      }
+
+      // Apply override logic
+      if (psCountOverride === 'no' || psCountOverride === 0) {
+        // User explicitly disabled power supplies
+        finalPsCount = 0;
+      } else if (typeof psCountOverride === 'number' && psCountOverride > 0) {
+        // User specified exact count
+        finalPsCount = psCountOverride;
+      } else if (psCountOverride === 'yes') {
+        // User explicitly wants calculated PSs - OVERRIDE customer preference
+        finalPsCount = basePsCount;
+      } else {
+        // No user input (null) - respect customer preference
+        finalPsCount = customerPreferences?.pref_power_supply_required ? basePsCount : 0;
+      }
+      calculations.psCount = finalPsCount;
+    } else {
+      // No LEDs - zero out wattage and PS count
+      calculations.totalWattage = 0;
+      calculations.psCount = 0;
+      calculations.savedPsCount = 0;
+      calculations.defaultPsCount = 0;
     }
 
     return calculations;
@@ -345,10 +441,42 @@ export class ValidationContextBuilder {
     calculations.savedLedCount = 1;
     calculations.defaultLedCount = 1;
 
-    // PS calculation - estimate based on wattage
-    const estimatedPsCount = Math.ceil(totalWattage / 60); // Assuming 60W PS default
-    calculations.savedPsCount = estimatedPsCount;
-    calculations.defaultPsCount = estimatedPsCount;
+    // Calculate PS count with customer preference and user overrides
+    // Hierarchy: base calculation → customer preference → user override (field7)
+    const basePsCount = Math.ceil(totalWattage / 60); // Assuming 60W PS default
+    calculations.savedPsCount = basePsCount;
+    calculations.defaultPsCount = customerPreferences?.pref_power_supply_required ? basePsCount : 0;
+
+    let finalPsCount = 0;
+
+    // Parse field7 override (string → number/'yes'/'no'/null)
+    const field7Raw = row.data.field7?.toString().trim() || '';
+    let psCountOverride: number | 'yes' | 'no' | null = null;
+
+    const numeric = parseFloat(field7Raw);
+    if (!isNaN(numeric) && field7Raw !== '') {
+      psCountOverride = numeric;
+    } else if (field7Raw.toLowerCase() === 'yes') {
+      psCountOverride = 'yes';
+    } else if (field7Raw.toLowerCase() === 'no') {
+      psCountOverride = 'no';
+    }
+
+    // Apply override logic
+    if (psCountOverride === 'no' || psCountOverride === 0) {
+      // User explicitly disabled power supplies
+      finalPsCount = 0;
+    } else if (typeof psCountOverride === 'number' && psCountOverride > 0) {
+      // User specified exact count
+      finalPsCount = psCountOverride;
+    } else if (psCountOverride === 'yes') {
+      // User explicitly wants calculated PSs - OVERRIDE customer preference
+      finalPsCount = basePsCount;
+    } else {
+      // No user input (null) - respect customer preference
+      finalPsCount = customerPreferences?.pref_power_supply_required ? basePsCount : 0;
+    }
+    calculations.psCount = finalPsCount;
 
     return calculations;
   }
@@ -383,13 +511,266 @@ export class ValidationContextBuilder {
     const totalWattage = this.calculateTotalWattage(ledCount);
     calculations.totalWattage = totalWattage;
 
-    // Calculate PS count
-    const estimatedPsCount = this.calculatePsCount(ledCount, totalWattage);
-    calculations.savedPsCount = estimatedPsCount;
-    calculations.defaultPsCount = customerPreferences?.requires_transformers ? estimatedPsCount : 0;
-    calculations.psCount = calculations.defaultPsCount;
+    // Calculate PS count with customer preference and user overrides
+    // Hierarchy: base calculation → customer preference → user override (field4)
+    const basePsCount = this.calculatePsCount(ledCount, totalWattage);
+    calculations.savedPsCount = basePsCount;
+    calculations.defaultPsCount = customerPreferences?.pref_power_supply_required ? basePsCount : 0;
+
+    let finalPsCount = 0;
+
+    // Parse field4 override (string → number/'yes'/'no'/null)
+    const field4Raw = row.data.field4?.toString().trim() || '';
+    let psCountOverride: number | 'yes' | 'no' | null = null;
+
+    const numeric = parseFloat(field4Raw);
+    if (!isNaN(numeric) && field4Raw !== '') {
+      psCountOverride = numeric;
+    } else if (field4Raw.toLowerCase() === 'yes') {
+      psCountOverride = 'yes';
+    } else if (field4Raw.toLowerCase() === 'no') {
+      psCountOverride = 'no';
+    }
+
+    // Apply override logic
+    if (psCountOverride === 'no' || psCountOverride === 0) {
+      // User explicitly disabled power supplies
+      finalPsCount = 0;
+    } else if (typeof psCountOverride === 'number' && psCountOverride > 0) {
+      // User specified exact count
+      finalPsCount = psCountOverride;
+    } else if (psCountOverride === 'yes') {
+      // User explicitly wants calculated PSs - OVERRIDE customer preference
+      finalPsCount = basePsCount;
+    } else {
+      // No user input (null) - respect customer preference
+      finalPsCount = customerPreferences?.pref_power_supply_required ? basePsCount : 0;
+    }
+    calculations.psCount = finalPsCount;
 
     return calculations;
+  }
+
+  /**
+   * Calculate Push Thru derived values (Product Type 5)
+   * Handles LED count from field5 and PS count calculation
+   * Field5: LEDs XY (2D dimensions or float)
+   * Field7: PS # (power supply count override)
+   */
+  private static calculatePushThruValues(
+    row: GridRowCore,
+    customerPreferences?: CustomerManufacturingPreferences
+  ): RowCalculatedValues {
+    const calculations: RowCalculatedValues = {};
+
+    // Extract field5 (LED dimensions/count)
+    const field5Value = row.data.field5;
+    let ledCount = 0;
+
+    if (field5Value) {
+      // Parse field5 - can be float or dimensions (X×Y)
+      if (typeof field5Value === 'string') {
+        const trimmed = field5Value.trim();
+        if (trimmed.includes('x')) {
+          // Dimensions format: X×Y
+          const parts = trimmed.split('x').map(p => parseFloat(p.trim()));
+          if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+            // Calculate LED count from dimensions
+            // Formula: (X+2) × (Y+2) × (5 LEDs / 100 sq.in.)
+            const adjustedX = parts[0] + 2;
+            const adjustedY = parts[1] + 2;
+            const squareInches = adjustedX * adjustedY;
+            ledCount = Math.ceil((squareInches / 100) * 5);
+          }
+        } else {
+          // Float format: direct LED count
+          const parsed = parseFloat(trimmed);
+          if (!isNaN(parsed)) {
+            ledCount = Math.ceil(parsed);
+          }
+        }
+      } else if (typeof field5Value === 'number') {
+        ledCount = Math.ceil(field5Value);
+      }
+    }
+
+    // Store LED count
+    calculations.ledCount = ledCount;
+    calculations.savedLedCount = ledCount;
+    calculations.defaultLedCount = ledCount;
+
+    // Calculate wattage and PS count (if any LEDs)
+    if (ledCount > 0) {
+      const totalWattage = this.calculateTotalWattage(ledCount);
+      calculations.totalWattage = totalWattage;
+
+      const basePsCount = this.calculatePsCount(ledCount, totalWattage);
+      calculations.savedPsCount = basePsCount;
+      calculations.defaultPsCount = customerPreferences?.pref_power_supply_required ? basePsCount : 0;
+
+      // Calculate final PS count with customer preference and user overrides
+      // Hierarchy: base calculation → customer preference → user override (field7)
+      let finalPsCount = 0;
+
+      // Parse field7 override (string → number/'yes'/'no'/null)
+      const field7Raw = row.data.field7?.toString().trim() || '';
+      let psCountOverride: number | 'yes' | 'no' | null = null;
+
+      const numeric = parseFloat(field7Raw);
+      if (!isNaN(numeric) && field7Raw !== '') {
+        psCountOverride = numeric;
+      } else if (field7Raw.toLowerCase() === 'yes') {
+        psCountOverride = 'yes';
+      } else if (field7Raw.toLowerCase() === 'no') {
+        psCountOverride = 'no';
+      }
+
+      // Apply override logic
+      if (psCountOverride === 'no' || psCountOverride === 0) {
+        // User explicitly disabled power supplies
+        finalPsCount = 0;
+      } else if (typeof psCountOverride === 'number' && psCountOverride > 0) {
+        // User specified exact count
+        finalPsCount = psCountOverride;
+      } else if (psCountOverride === 'yes') {
+        // User explicitly wants calculated PSs - OVERRIDE customer preference
+        finalPsCount = basePsCount;
+      } else {
+        // No user input (null) - respect customer preference
+        finalPsCount = customerPreferences?.pref_power_supply_required ? basePsCount : 0;
+      }
+      calculations.psCount = finalPsCount;
+    } else {
+      // No LEDs - zero out wattage and PS count
+      calculations.totalWattage = 0;
+      calculations.psCount = 0;
+      calculations.savedPsCount = 0;
+      calculations.defaultPsCount = 0;
+    }
+
+    return calculations;
+  }
+
+  /**
+   * Calculate section-level UL flag for consistent power supply optimization
+   *
+   * Sections are defined by Subtotal rows (Product Type 21)
+   * If ANY row in a section has UL (via field override OR customer pref),
+   * ALL rows in that section get sectionHasUL=true for consistent PS selection
+   */
+  private static calculateSectionLevelUL(
+    rows: GridRowCore[],
+    calculatedValues: CalculatedValuesMap,
+    customerPreferences?: CustomerManufacturingPreferences
+  ): void {
+    let sectionHasUL = false;
+    let currentSectionRowIds: string[] = [];
+
+    for (const row of rows) {
+      // Determine if THIS row will have a UL component
+      const rowHasUL = this.determineRowUL(row, calculatedValues, customerPreferences);
+
+      // Add row to current section
+      currentSectionRowIds.push(row.id);
+      if (rowHasUL) {
+        sectionHasUL = true;
+      }
+
+      // Check if this is a Subtotal row (Product Type 21) - marks end of section
+      if (row.productTypeId === 21) {
+        // Apply section's UL status to all rows in this section
+        for (const rowId of currentSectionRowIds) {
+          const calc = calculatedValues.get(rowId);
+          if (calc) {
+            calc.sectionHasUL = sectionHasUL;
+          }
+        }
+
+        // Reset for next section
+        sectionHasUL = false;
+        currentSectionRowIds = [];
+      }
+    }
+
+    // Handle last section (if no final Subtotal)
+    for (const rowId of currentSectionRowIds) {
+      const calc = calculatedValues.get(rowId);
+      if (calc) {
+        calc.sectionHasUL = sectionHasUL;
+      }
+    }
+  }
+
+  /**
+   * Determine if a single row will have a UL component for section-level PS optimization
+   * Matches the shouldShowUL logic from product calculators:
+   * - Explicit override bypasses LED requirement
+   * - Customer preference only applies if ledCount > 0
+   * Each product type uses a different field for UL override
+   */
+  private static determineRowUL(
+    row: GridRowCore,
+    calculatedValues: CalculatedValuesMap,
+    customerPreferences?: CustomerManufacturingPreferences
+  ): boolean {
+    // Select the correct UL field based on product type
+    let ulField: unknown = null;
+
+    switch (row.productTypeId) {
+      case 1:  // Channel Letters - uses field4
+        ulField = row.data.field4;
+        break;
+      case 5:  // Push Thru - uses field6
+        ulField = row.data.field6;
+        break;
+      case 6:  // Blade Sign - uses field4
+        ulField = row.data.field4;
+        break;
+      case 7:  // LED Neon - no UL support
+        return false;
+      case 26: // LED - uses field7
+        ulField = row.data.field7;
+        break;
+      case 18: // LED (sub-item) - uses field7
+        ulField = row.data.field7;
+        break;
+      default:
+        // Other product types don't have UL
+        return false;
+    }
+
+    // Check if there's an explicit override
+    const ulExplicitlySet = this.hasExplicitULOverride(ulField);
+    const hasUL = ulExplicitlySet
+      ? this.parseULField(ulField)
+      : (customerPreferences?.pref_ul_required === true);
+
+    // Get calculated LED count for this row
+    const rowCalcs = calculatedValues.get(row.id);
+    const ledCount = rowCalcs?.ledCount ?? 0;
+
+    // Apply shouldShowUL logic: explicit override bypasses LED requirement
+    return ulExplicitlySet ? hasUL : (hasUL && ledCount > 0);
+  }
+
+  /**
+   * Check if UL field has an explicit override
+   */
+  private static hasExplicitULOverride(ulField: unknown): boolean {
+    if (!ulField) return false;
+    if (ulField === 'yes' || ulField === 'no') return true;
+    if (typeof ulField === 'object') return true; // $amount or float
+    return false;
+  }
+
+  /**
+   * Parse UL field to determine hasUL value
+   */
+  private static parseULField(ulField: unknown): boolean {
+    if (ulField === 'yes') return true;
+    if (ulField === 'no') return false;
+    if (typeof ulField === 'object') return true; // $amount or float means UL
+    return false; // No explicit override
   }
 
   private static getDefaultPreferences(): CustomerManufacturingPreferences {

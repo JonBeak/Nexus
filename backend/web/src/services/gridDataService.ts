@@ -26,7 +26,7 @@ export class GridDataService {
   // PHASE 4: GRID DATA PERSISTENCE
   // =============================================
 
-  async saveGridData(estimateId: number, gridRows: any[], userId: number): Promise<void> {
+  async saveGridData(estimateId: number, gridRows: any[], userId: number, total?: number): Promise<void> {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
@@ -36,7 +36,7 @@ export class GridDataService {
         'SELECT is_draft FROM job_estimates WHERE id = ? AND is_draft = TRUE',
         [estimateId]
       );
-      
+
       if (draftCheck.length === 0) {
         throw new Error('Cannot save grid data - estimate is already finalized');
       }
@@ -215,11 +215,19 @@ export class GridDataService {
 
       // No parent relationships to process in simplified structure
 
-      // Update estimate timestamp
-      await connection.execute(
-        'UPDATE job_estimates SET updated_by = ?, updated_at = NOW() WHERE id = ?',
-        [userId, estimateId]
-      );
+      // Update estimate timestamp and total_amount
+      if (total !== undefined) {
+        console.log(`💰 Updating total_amount to ${total} for estimate ${estimateId}`);
+        await connection.execute(
+          'UPDATE job_estimates SET updated_by = ?, updated_at = NOW(), total_amount = ? WHERE id = ?',
+          [userId, total, estimateId]
+        );
+      } else {
+        await connection.execute(
+          'UPDATE job_estimates SET updated_by = ?, updated_at = NOW() WHERE id = ?',
+          [userId, estimateId]
+        );
+      }
 
       // Get job_id for history logging
       const [jobRows] = await connection.execute<RowDataPacket[]>(

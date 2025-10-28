@@ -40,7 +40,7 @@ export const useCustomerListFiltering = (): UseCustomerListFilteringReturn => {
 
   // Get count of active customers for display
   const getActiveCustomerCount = (customers: Customer[]): number => {
-    return customers.filter(c => c.active !== false && c.active !== 0).length;
+    return customers.filter(c => c.active).length;
   };
 
   return {

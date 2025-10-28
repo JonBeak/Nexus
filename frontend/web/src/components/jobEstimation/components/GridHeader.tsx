@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertTriangle, Lock, Save, Trash2, RotateCcw, Eraser, Plus } from 'lucide-react';
 import { GridEngine } from '../core/GridEngine';
+import { getStatusColorClasses } from '../utils/statusUtils';
 
 interface GridHeaderProps {
   gridEngine: GridEngine;
@@ -86,9 +87,7 @@ export const GridHeader: React.FC<GridHeaderProps> = ({
             
             {versioningMode && estimate?.display_status && (
               <span className={`px-2 py-1 rounded text-xs font-medium ${
-                estimate.is_draft 
-                  ? 'bg-yellow-100 text-yellow-800' 
-                  : 'bg-green-100 text-green-800'
+                getStatusColorClasses(estimate.display_status)
               }`}>
                 {estimate.display_status}
               </span>

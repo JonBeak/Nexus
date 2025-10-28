@@ -97,16 +97,16 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
       {/* Jobs and Low Stock Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
-          <JobMaterialRequirements 
-            user={user} 
+          <JobMaterialRequirements
+            user={user || undefined}
             showNotification={showNotification}
             onAddToCart={(items) => showNotification(`Added ${items.length} items to cart`)}
           />
         </div>
-        
+
         <div className="bg-white rounded-lg shadow p-6">
-          <LowStockAlerts 
-            user={user} 
+          <LowStockAlerts
+            user={user || undefined}
             showNotification={showNotification}
             onAddToCart={(item) => showNotification(`Added ${item.name} to cart`)}
           />
@@ -267,7 +267,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
             )}
             {activeTab === 'vinyl-inventory' && (
               <InventoryTab
-                user={user}
+                user={user as any}
               />
             )}
             {activeTab === 'inventory' && (

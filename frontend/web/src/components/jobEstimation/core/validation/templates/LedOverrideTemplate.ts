@@ -116,6 +116,16 @@ export class LedOverrideTemplate implements ValidationTemplate {
       });
 
       if (numericResult.isValid && numericResult.value !== undefined) {
+        // Reject "0" when there's no channel data (same as "no")
+        if (numericResult.value === 0 && !info.hasChannelData) {
+          return {
+            isValid: false,
+            error: 'LEDs are already disabled by default. Enter a number if needed.',
+            expectedFormat: this.generateExpectedFormat(params)
+          };
+        }
+
+        // Allow explicit numeric values - enables standalone LED components
         return { isValid: true, parsedValue: numericResult.value };
       }
 

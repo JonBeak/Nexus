@@ -176,15 +176,24 @@ export class JobService {
     try {
       const today = new Date();
       const year = today.getFullYear();
-      
-      // Get count of jobs created this year
+
+      // Get the highest job number for this year
       const [rows] = await pool.execute<RowDataPacket[]>(
-        'SELECT COUNT(*) as count FROM jobs WHERE YEAR(created_at) = ?',
-        [year]
+        `SELECT job_number FROM jobs
+         WHERE job_number LIKE ?
+         ORDER BY job_number DESC
+         LIMIT 1`,
+        [`${year}%`]
       );
-      
-      const counter = (rows[0].count + 1).toString().padStart(3, '0');
-      return `${year}${counter}`;
+
+      let counter = 1;
+      if (rows.length > 0) {
+        // Extract the numeric part from the job number (e.g., "2025008" -> 8)
+        const lastNumber = parseInt(rows[0].job_number.substring(4));
+        counter = lastNumber + 1;
+      }
+
+      return `${year}${counter.toString().padStart(3, '0')}`;
     } catch (error) {
       console.error('Error generating job number:', error);
       throw new Error('Failed to generate job number');

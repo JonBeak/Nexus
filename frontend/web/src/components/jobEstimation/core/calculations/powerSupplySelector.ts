@@ -92,8 +92,8 @@ export async function selectPowerSupplies(
     const powerSupply = await PricingDataResource.getPowerSupplyByType(psTypeOverride);
 
     if (powerSupply) {
-      // Check for user override on PS count
-      if (psCountOverride && !isNaN(Number(psCountOverride))) {
+      // Check for user override on PS count (explicitly check for null/undefined to allow 0)
+      if (psCountOverride !== null && psCountOverride !== undefined && !isNaN(Number(psCountOverride))) {
         totalCount = Number(psCountOverride);
       } else {
         // Calculate PS count based on watts
@@ -111,20 +111,25 @@ export async function selectPowerSupplies(
         }
       }
 
-      const unitPrice = psPriceOverride !== null && psPriceOverride !== undefined ? psPriceOverride : powerSupply.price;
-      const psPrice = totalCount * unitPrice;
-      components.push({
-        name: `Power Supplies`,
-        price: psPrice,
-        type: 'power_supplies',
-        calculationDisplay: `${totalCount} @ $${formatPrice(Number(unitPrice))}, ${powerSupply.transformer_type}`
-      });
+      // Only add component if totalCount > 0
+      if (totalCount > 0) {
+        const unitPrice = psPriceOverride !== null && psPriceOverride !== undefined ? psPriceOverride : powerSupply.price;
+        const psPrice = totalCount * unitPrice;
+        components.push({
+          name: `Power Supplies`,
+          price: psPrice,
+          type: 'power_supplies',
+          calculationDisplay: `${totalCount} @ $${formatPrice(Number(unitPrice))}, ${powerSupply.transformer_type}`
+        });
 
-      console.log('User-specified Power Supply:', {
-        type: powerSupply.transformer_type,
-        count: totalCount,
-        totalPrice: psPrice
-      });
+        console.log('User-specified Power Supply:', {
+          type: powerSupply.transformer_type,
+          count: totalCount,
+          totalPrice: psPrice
+        });
+      } else {
+        console.log('Power Supply count is 0 (user override), skipping PS component');
+      }
 
       return { components, totalCount };
     } else {
@@ -167,23 +172,29 @@ export async function selectPowerSupplies(
       };
     }
 
-    // Check for user override on PS count - use default UL PS (Speedbox 60W)
-    if (psCountOverride && !isNaN(Number(psCountOverride))) {
+    // Check for user override on PS count - use default UL PS (Speedbox 60W) (explicitly check for null/undefined to allow 0)
+    if (psCountOverride !== null && psCountOverride !== undefined && !isNaN(Number(psCountOverride))) {
       totalCount = Number(psCountOverride);
-      const unitPrice = psPriceOverride !== null && psPriceOverride !== undefined ? psPriceOverride : ps2.price;
-      const psPrice = totalCount * unitPrice;
-      components.push({
-        name: `Power Supplies`,
-        price: psPrice,
-        type: 'power_supplies',
-        calculationDisplay: `${totalCount} @ $${formatPrice(Number(unitPrice))}, ${ps2.transformer_type}`
-      });
 
-      console.log('User-specified UL Power Supply count:', {
-        type: ps2.transformer_type,
-        count: totalCount,
-        totalPrice: psPrice
-      });
+      // Only add component if totalCount > 0
+      if (totalCount > 0) {
+        const unitPrice = psPriceOverride !== null && psPriceOverride !== undefined ? psPriceOverride : ps2.price;
+        const psPrice = totalCount * unitPrice;
+        components.push({
+          name: `Power Supplies`,
+          price: psPrice,
+          type: 'power_supplies',
+          calculationDisplay: `${totalCount} @ $${formatPrice(Number(unitPrice))}, ${ps2.transformer_type}`
+        });
+
+        console.log('User-specified UL Power Supply count:', {
+          type: ps2.transformer_type,
+          count: totalCount,
+          totalPrice: psPrice
+        });
+      } else {
+        console.log('UL Power Supply count is 0 (user override), skipping PS component');
+      }
 
       return { components, totalCount };
     }
@@ -261,8 +272,8 @@ export async function selectPowerSupplies(
   }
 
   if (powerSupply) {
-    // Check for user override on PS count
-    if (psCountOverride && !isNaN(Number(psCountOverride))) {
+    // Check for user override on PS count (explicitly check for null/undefined to allow 0)
+    if (psCountOverride !== null && psCountOverride !== undefined && !isNaN(Number(psCountOverride))) {
       totalCount = Number(psCountOverride);
     } else {
       // Calculate PS count based on watts
@@ -280,20 +291,25 @@ export async function selectPowerSupplies(
       }
     }
 
-    const unitPrice = psPriceOverride !== null && psPriceOverride !== undefined ? psPriceOverride : powerSupply.price;
-    const psPrice = totalCount * unitPrice;
-    components.push({
-      name: `Power Supplies`,
-      price: psPrice,
-      type: 'power_supplies',
-      calculationDisplay: `${totalCount} @ $${formatPrice(Number(unitPrice))}, ${powerSupply.transformer_type}`
-    });
+    // Only add component if totalCount > 0
+    if (totalCount > 0) {
+      const unitPrice = psPriceOverride !== null && psPriceOverride !== undefined ? psPriceOverride : powerSupply.price;
+      const psPrice = totalCount * unitPrice;
+      components.push({
+        name: `Power Supplies`,
+        price: psPrice,
+        type: 'power_supplies',
+        calculationDisplay: `${totalCount} @ $${formatPrice(Number(unitPrice))}, ${powerSupply.transformer_type}`
+      });
 
-    console.log('Standard Power Supply:', {
-      type: powerSupply.transformer_type,
-      count: totalCount,
-      totalPrice: psPrice
-    });
+      console.log('Standard Power Supply:', {
+        type: powerSupply.transformer_type,
+        count: totalCount,
+        totalPrice: psPrice
+      });
+    } else {
+      console.log('Standard Power Supply count is 0 (user override), skipping PS component');
+    }
 
     return { components, totalCount };
   } else {

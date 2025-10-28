@@ -261,54 +261,61 @@ export const calculateBladeSign = async (input: ValidatedPricingInput): Promise<
       totalPrice += ledsPrice;
     }
 
-    // ========== Power Supplies (if LEDs exist) ==========
-    if (totalWattage > 0) {
-      // Determine UL requirement for power supply selection
-      let hasUL = false;
-      if (ulOverride) {
-        if (ulOverride === 'yes') {
-          hasUL = true;
-        } else if (typeof ulOverride === 'object') {
-          hasUL = true;
-        }
-      } else {
-        hasUL = input.customerPreferences?.pref_ul_required === true;
+    // ========== Power Supplies - Use powerSupplySelector for smart selection ==========
+    const calculatedPsCount = input.calculatedValues.psCount || 0;
+
+    // Normalize psCountOverride from field5
+    let normalizedPsCountOverride: number | null = null;
+    if (psCountOverride === 'no') {
+      normalizedPsCountOverride = 0;
+    } else if (typeof psCountOverride === 'number') {
+      normalizedPsCountOverride = psCountOverride;
+    }
+
+    // Determine what to pass to powerSupplySelector
+    let psOverrideForSelector: number | null = null;
+    let shouldCalculatePS = false;
+
+    if (psCountOverride === 'yes') {
+      // User explicitly wants PSs - enable UL optimization
+      shouldCalculatePS = true;
+      psOverrideForSelector = null;
+    } else if (normalizedPsCountOverride !== null) {
+      // User entered a specific number (including 0)
+      shouldCalculatePS = true;
+      psOverrideForSelector = normalizedPsCountOverride;
+    } else {
+      // No user override - use ValidationContextBuilder's decision
+      shouldCalculatePS = calculatedPsCount > 0;
+      psOverrideForSelector = calculatedPsCount;
+    }
+
+    if (shouldCalculatePS) {
+      // Use section-level UL for PS optimization (consistent PS types within section)
+      const sectionHasUL = input.calculatedValues?.sectionHasUL ?? false;
+
+      // Use totalWattage if available, otherwise use a minimal value for standalone PS
+      const wattageForCalculation = totalWattage > 0 ? totalWattage : 1;
+
+      const psResult = await selectPowerSupplies({
+        totalWattage: wattageForCalculation,
+        hasUL: sectionHasUL,  // Use section-level UL for PS selection
+        psTypeOverride: null, // Blade Sign doesn't have PS type override field
+        psCountOverride: psOverrideForSelector,
+        customerPreferences: input.customerPreferences
+      });
+
+      if (psResult.error) {
+        return {
+          status: 'error',
+          display: 'Power supply selection failed',
+          error: psResult.error
+        };
       }
 
-      // Handle PS count override (can be number, 'yes', 'no', or null)
-      // Treat 0 the same as 'no' (no power supplies)
-      if (psCountOverride === 'no' || psCountOverride === 0) {
-        // User explicitly said "no" or 0 - skip PS calculation entirely
-        psCount = 0;
-        // Don't add power supply components
-      } else {
-        // 'yes' means auto-calculate (pass null), number means use that number
-        let psCountForSelector: number | null = null;
-        if (typeof psCountOverride === 'number' && psCountOverride > 0) {
-          psCountForSelector = psCountOverride;
-        }
-        // For 'yes' or undefined, psCountForSelector stays null (auto-calculate)
-
-        const psResult = await selectPowerSupplies({
-          totalWattage,
-          hasUL,
-          psTypeOverride: null, // Blade Sign doesn't have PS type override field
-          psCountOverride: psCountForSelector,
-          customerPreferences: input.customerPreferences
-        });
-
-        if (psResult.error) {
-          return {
-            status: 'error',
-            display: 'Power supply selection failed',
-            error: psResult.error
-          };
-        }
-
-        components.push(...psResult.components);
-        totalPrice += psResult.components.reduce((sum, c) => sum + c.price, 0);
-        psCount = psResult.totalCount;
-      }
+      components.push(...psResult.components);
+      totalPrice += psResult.components.reduce((sum, c) => sum + c.price, 0);
+      psCount = psResult.totalCount;
     }
 
     // ========== UL Certification (if applicable) ==========
@@ -336,6 +343,7 @@ export const calculateBladeSign = async (input: ValidatedPricingInput): Promise<
       hasUL = input.customerPreferences?.pref_ul_required === true;
     }
 
+    // Show UL if explicitly set, OR if customer requires it and we have LEDs
     const shouldShowUL = ulExplicitlySet ? hasUL : (hasUL && ledCount > 0);
 
     if (shouldShowUL) {

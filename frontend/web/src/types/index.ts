@@ -121,5 +121,15 @@ export interface ProvinceState {
   country_group: string;
 }
 
+export interface User {
+  user_id: number;
+  username: string;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  role: 'owner' | 'manager' | 'designer' | 'production_staff';
+  is_active?: boolean;
+}
+
 // Add a runtime export to test
 export const TYPE_VERSION = '1.0.0';

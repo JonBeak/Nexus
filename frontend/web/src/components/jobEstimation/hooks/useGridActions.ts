@@ -20,6 +20,7 @@ interface UseGridActionsParams {
   versioningMode: boolean;
   estimateId: number | undefined;
   showNotification?: (message: string, type?: 'success' | 'error') => void;
+  estimatePreviewData?: { total: number } | null;
 
   // Modal state setters
   setShowClearConfirmation: (show: boolean) => void;
@@ -62,6 +63,7 @@ export const useGridActions = ({
   versioningMode,
   estimateId,
   showNotification,
+  estimatePreviewData,
   setShowClearConfirmation,
   setClearModalType,
   setShowRowConfirmation,
@@ -356,15 +358,18 @@ export const useGridActions = ({
         field10: row.data?.field10 || ''
       }));
 
-      // Save directly as JSON array
-      await jobVersioningApi.saveGridData(estimateId, simplifiedRows);
+      // Get total (use 0 if blocked/unavailable)
+      const total = estimatePreviewData?.total || 0;
+
+      // Save grid data with total
+      await jobVersioningApi.saveGridData(estimateId, simplifiedRows, total);
       gridEngine.markAsSaved();
       showNotification?.('Grid saved successfully', 'success');
     } catch (error) {
       console.error('Save error:', error);
       showNotification?.('Failed to save grid', 'error');
     }
-  }, [estimateId, gridEngine, showNotification]);
+  }, [estimateId, gridEngine, showNotification, estimatePreviewData]);
 
   return {
     handleFieldCommit,

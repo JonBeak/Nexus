@@ -7,17 +7,23 @@ import { CustomerPanel } from './CustomerPanel';
 import { JobPanel } from './JobPanel';
 import { VersionManager } from './VersionManager';
 import { BreadcrumbNavigation } from './BreadcrumbNavigation';
-import { jobVersioningApi, customerApi, provincesApi } from '../../services/api';
+import { CustomerPreferencesPanel } from './CustomerPreferencesPanel';
+import CustomerDetailsModal from '../customers/CustomerDetailsModal';
+import { jobVersioningApi, customerApi, provincesApi, quickbooksApi } from '../../services/api';
 import { EstimateVersion } from './types';
 import { getEstimateStatusText } from './utils/statusUtils';
 import type { GridRowWithCalculations } from './core/types/LayerTypes';
 import { ValidationResultsManager } from './core/validation/ValidationResultsManager';
 import { createCalculationOperations, EstimatePreviewData } from './core/layers/CalculationLayer';
 import { PricingCalculationContext } from './core/types/GridTypes';
+import { PreferencesCache, CustomerManufacturingPreferences } from './core/validation/context/useCustomerPreferences';
+import { validateCustomerPreferences } from './utils/customerPreferencesValidator';
+import { CustomerPreferencesData, CustomerPreferencesValidationResult } from './types/customerPreferences';
+import { Customer, User } from '../../types';
 import './JobEstimation.css';
 
 interface JobEstimationDashboardProps {
-  user: any;
+  user: User;
 }
 
 type TabType = 'versioned-workflow';
@@ -32,12 +38,21 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
   const [selectedEstimateId, setSelectedEstimateId] = useState<number | null>(null);
   const [currentEstimate, setCurrentEstimate] = useState<EstimateVersion | null>(null);
   const [isInBuilderMode, setIsInBuilderMode] = useState(false);
-  const [customerName, setCustomerName] = useState<string | null>(null);
   const [jobName, setJobName] = useState<string | null>(null);
 
-  // NEW: Complete customer context
-  const [cashCustomer, setCashCustomer] = useState<boolean>(false);
+  // Customer context (consolidated into customerPreferencesData below)
   const [taxRate, setTaxRate] = useState<number>(0.13);
+  const [fullCustomer, setFullCustomer] = useState<Customer | null>(null);
+
+  // Customer preferences - received from GridJobBuilder (single source of truth)
+  const [customerPreferences, setCustomerPreferences] = useState<CustomerManufacturingPreferences | null>(null);
+
+  // Customer preferences panel state
+  const [customerPreferencesData, setCustomerPreferencesData] = useState<CustomerPreferencesData | null>(null);
+  const [preferencesValidationResult, setPreferencesValidationResult] = useState<CustomerPreferencesValidationResult | null>(null);
+
+  // Customer edit modal state
+  const [showEditCustomerModal, setShowEditCustomerModal] = useState(false);
 
   // Validation state
   const [hasValidationErrors, setHasValidationErrors] = useState(false);
@@ -52,6 +67,12 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
 
   // Cross-component hover state for row highlighting
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
+  // QuickBooks integration state
+  const [qbConnected, setQbConnected] = useState(false);
+  const [qbRealmId, setQbRealmId] = useState<string | null>(null);
+  const [qbCheckingStatus, setQbCheckingStatus] = useState(true);
+  const [qbCreatingEstimate, setQbCreatingEstimate] = useState(false);
+
 
   // Dynamic viewport control - enable zoom out only in builder mode
   useEffect(() => {
@@ -80,17 +101,39 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
     };
   }, []);
 
-  // Reusable function to reload complete customer data (name, cash flag, tax rate)
-  // Used by: handleCustomerSelected, breadcrumb navigation, handleVersionSelected, handleNavigateToEstimate
+  // Check QuickBooks connection status on mount
+  useEffect(() => {
+    checkQBConnectionStatus();
+  }, []);
+
+  const checkQBConnectionStatus = async () => {
+    try {
+      setQbCheckingStatus(true);
+      const status = await quickbooksApi.getStatus();
+      setQbConnected(status.connected);
+      setQbRealmId(status.realmId || null);
+    } catch (error) {
+      console.error('Error checking QB status:', error);
+      setQbConnected(false);
+    } finally {
+      setQbCheckingStatus(false);
+    }
+  };
+
+  // Reusable function to reload complete customer data (name, cash flag, tax rate, discount, turnaround)
+  // Used by: breadcrumb navigation, handleVersionSelected
   const reloadCustomerData = useCallback(async (customerId: number) => {
     try {
       const customer = await customerApi.getCustomer(customerId);
-      setCustomerName(customer.company_name || null);
-      setCashCustomer(customer.cash_yes_or_no === 1);
+      setFullCustomer(customer);
 
       // Get tax rate from billing address (or primary as fallback)
       const billingAddress = customer.addresses?.find((a: any) => a.is_billing);
       const addressToUse = billingAddress || customer.addresses?.find((a: any) => a.is_primary);
+
+      // Extract postal code from primary address
+      const primaryAddress = customer.addresses?.find((a: any) => a.is_primary);
+      const postalCode = primaryAddress?.postal_zip;
 
       if (!addressToUse) {
         setTaxRate(1.0); // 100% = ERROR: no billing or primary address
@@ -102,6 +145,18 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
       } else {
         setTaxRate(1.0); // 100% = ERROR: no province
       }
+
+      // Build customer preferences data for panel
+      // Note: preferences will be populated by GridJobBuilder via handlePreferencesLoaded callback
+      setCustomerPreferencesData({
+        customerId: customer.customer_id,
+        customerName: customer.company_name || '',
+        cashCustomer: customer.cash_yes_or_no === 1,
+        discount: customer.discount,
+        defaultTurnaround: customer.default_turnaround,
+        postalCode: postalCode,
+        preferences: null // Will be set by GridJobBuilder callback to avoid stale data
+      });
     } catch (error) {
       console.error('Error fetching customer data:', error);
       setTaxRate(1.0); // 100% = ERROR
@@ -120,15 +175,8 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
       setIsInBuilderMode(false);
     }
 
-    // Get complete customer data for display and pricing
-    if (customerId) {
-      await reloadCustomerData(customerId);
-    } else {
-      // Clear customer data when deselected
-      setCustomerName(null);
-      setCashCustomer(false);
-      setTaxRate(1.0); // 100% = ERROR: no customer
-    }
+    // Note: Customer data loading removed - only loads when estimate is opened for editing
+    // This keeps 3-panel navigation lightweight (just filtering, no data loading)
   };
 
   const handleJobSelected = async (jobId: number) => {
@@ -174,12 +222,15 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
       const estimate = versions.data?.find((v: EstimateVersion) => v.id === estimateId);
 
       if (estimate) {
-        // If we're in "All Customers" mode (selectedCustomerId is null) but the estimate has a customer,
-        // we need to load that customer's data
         const estimateCustomerId = estimate.customer_id ?? selectedCustomerId ?? null;
-        if (estimateCustomerId && !selectedCustomerId) {
-          setSelectedCustomerId(estimateCustomerId);
+
+        // ALWAYS load customer context when opening estimate for editing
+        // This ensures consistent behavior regardless of navigation path
+        if (estimateCustomerId) {
+          // IMPORTANT: Load customer data BEFORE setting selectedCustomerId
+          // This avoids race condition where preferences hook triggers before customerPreferencesData is initialized
           await reloadCustomerData(estimateCustomerId);
+          setSelectedCustomerId(estimateCustomerId);
         }
 
         setSelectedEstimateId(estimateId);
@@ -218,40 +269,6 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
     setCurrentEstimate(null);
   };
 
-  const handleNavigateToEstimate = async (jobId: number, estimateId: number) => {
-    try {
-      // Set the job as selected
-      setSelectedJobId(jobId);
-
-      // Get job name for display
-      const jobsResponse = await jobVersioningApi.getAllJobsWithActivity();
-      const job = jobsResponse.data?.find((j: any) => j.job_id === jobId);
-      if (job) {
-        setJobName(job.job_name);
-      }
-
-      // Get customer info and tax rate using reusable function
-      if (job?.customer_id) {
-        setSelectedCustomerId(job.customer_id);
-        await reloadCustomerData(job.customer_id);
-      }
-
-      // Load the specific estimate version
-      const versionsResponse = await jobVersioningApi.getEstimateVersions(jobId);
-      const estimate = versionsResponse.data?.find((v: any) => v.id === estimateId);
-
-      if (estimate) {
-        setSelectedEstimateId(estimateId);
-        setCurrentEstimate({
-          ...estimate,
-          customer_id: estimate.customer_id ?? job?.customer_id ?? selectedCustomerId ?? null
-        });
-        setIsInBuilderMode(true);
-      }
-    } catch (error) {
-      console.error('Error navigating to estimate:', error);
-    }
-  };
 
   /**
    * Temporary notification handler - logs to console
@@ -261,7 +278,41 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
   const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
     console.log(`[${type}] ${message}`);
   };
-  
+
+  // Handle opening customer edit modal
+  const handleEditCustomer = () => {
+    setShowEditCustomerModal(true);
+  };
+
+  // Handle closing customer edit modal and refresh data
+  const handleCloseEditCustomerModal = async () => {
+    setShowEditCustomerModal(false);
+
+    // Refresh customer data and preferences
+    if (selectedCustomerId) {
+      // Clear preferences cache to force fresh fetch
+      PreferencesCache.clearCustomer(selectedCustomerId);
+
+      // Reload customer data
+      await reloadCustomerData(selectedCustomerId);
+
+      // Note: Preferences will be refetched automatically by GridJobBuilder's hook
+      // due to the cache clear above. This will trigger re-validation via the callback.
+    }
+  };
+
+  // Handle preferences loaded from GridJobBuilder (single source of truth)
+  const handlePreferencesLoaded = useCallback((preferences: CustomerManufacturingPreferences | null) => {
+    setCustomerPreferences(preferences);
+
+    // Always update customerPreferencesData with new preferences using functional setState
+    // This ensures preferences get set even if customerPreferencesData was temporarily null
+    setCustomerPreferencesData(prev => prev ? {
+      ...prev,
+      preferences: preferences
+    } : null);
+  }, []); // Empty deps - stable callback reference, no recreations
+
   // Handle validation results and trigger price calculation
   const handleValidationChange = useCallback((hasErrors: boolean, errorCount: number, context?: PricingCalculationContext) => {
     setHasValidationErrors(hasErrors);
@@ -289,6 +340,20 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
     calculatePricing();
   }, [pricingContext]);
 
+  // Run preferences validation when estimate preview data updates
+  useEffect(() => {
+    if (estimatePreviewData && customerPreferences) {
+      const validationResult = validateCustomerPreferences(
+        estimatePreviewData,
+        customerPreferences,
+        customerPreferencesData?.discount
+      );
+      setPreferencesValidationResult(validationResult);
+    } else {
+      setPreferencesValidationResult(null);
+    }
+  }, [estimatePreviewData, customerPreferences, customerPreferencesData?.discount]);
+
   if (!user || (user.role !== 'manager' && user.role !== 'owner')) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -306,13 +371,166 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
     );
   }
 
+
+  // QuickBooks handlers
+  const handleCreateQuickBooksEstimate = async () => {
+    if (!currentEstimate || !estimatePreviewData) {
+      alert('No estimate data available.');
+      return;
+    }
+
+    if (!currentEstimate.is_draft) {
+      alert('Only draft estimates can be sent to QuickBooks.');
+      return;
+    }
+
+    if (!qbConnected) {
+      alert('Not connected to QuickBooks. Please connect first.');
+      return;
+    }
+
+    // Confirm finalization
+    const confirmed = window.confirm(
+      '⚠️ This will FINALIZE the estimate and make it IMMUTABLE.\n\n' +
+      'The estimate will be locked from further edits and sent to QuickBooks.\n\n' +
+      'Continue?'
+    );
+    if (!confirmed) return;
+
+    try {
+      setQbCreatingEstimate(true);
+
+      const result = await quickbooksApi.createEstimate({
+        estimateId: currentEstimate.id,
+        estimatePreviewData: estimatePreviewData,
+      });
+
+      if (result.success && result.qbEstimateUrl) {
+        // Update local state to reflect finalization
+        setCurrentEstimate({
+          ...currentEstimate,
+          is_draft: false,
+          status: 'sent',
+          qb_estimate_id: result.qbEstimateId,
+          qb_estimate_url: result.qbEstimateUrl,
+        });
+
+        alert(
+          `✅ Success!\n\n` +
+          `Estimate finalized and sent to QuickBooks.\n` +
+          `QB Document #: ${result.qbDocNumber}\n\n` +
+          `Opening in QuickBooks...`
+        );
+
+        // Open QB estimate in new tab
+        window.open(result.qbEstimateUrl, '_blank');
+      } else {
+        alert(`❌ Failed to create estimate:\n\n${result.error || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      console.error('Error creating QB estimate:', error);
+      const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
+      alert(`❌ Error creating estimate in QuickBooks:\n\n${errorMsg}`);
+    } finally {
+      setQbCreatingEstimate(false);
+    }
+  };
+
+  const handleOpenQuickBooksEstimate = () => {
+    if (currentEstimate?.qb_estimate_url) {
+      window.open(currentEstimate.qb_estimate_url, '_blank');
+    } else if (currentEstimate?.qb_estimate_id && qbRealmId) {
+      // Build URL from ID if URL not stored (backward compatibility)
+      const url = `https://qbo.intuit.com/app/estimate?txnId=${currentEstimate.qb_estimate_id}`;
+      window.open(url, '_blank');
+    }
+  };
+
+  const handleConnectToQuickBooks = async () => {
+    try {
+      // Check if credentials are configured first
+      const configStatus = await quickbooksApi.getConfigStatus();
+
+      if (!configStatus.configured) {
+        alert('QuickBooks credentials not configured. Please contact administrator.');
+        return;
+      }
+
+      // Open OAuth window
+      await quickbooksApi.startAuth();
+
+      // Poll for connection status (OAuth happens in popup)
+      const pollInterval = setInterval(async () => {
+        try {
+          const status = await quickbooksApi.getStatus();
+          if (status.connected) {
+            setQbConnected(true);
+            setQbRealmId(status.realmId || null);
+            clearInterval(pollInterval);
+            // Success message already shown in OAuth callback page
+          }
+        } catch (error) {
+          console.error('Error polling QB status:', error);
+        }
+      }, 2000); // Check every 2 seconds
+
+      // Stop polling after 2 minutes
+      setTimeout(() => clearInterval(pollInterval), 120000);
+
+    } catch (error) {
+      console.error('Error connecting to QuickBooks:', error);
+      alert('Failed to connect to QuickBooks. Please try again.');
+    }
+  };
+
+  const handleDisconnectFromQuickBooks = async () => {
+    if (!confirm('Disconnect from QuickBooks? You will need to reconnect to create estimates.')) {
+      return;
+    }
+
+    try {
+      const result = await quickbooksApi.disconnect();
+      if (result.success) {
+        setQbConnected(false);
+        setQbRealmId(null);
+        alert('✅ Disconnected from QuickBooks');
+      }
+    } catch (error) {
+      console.error('Error disconnecting from QuickBooks:', error);
+      alert('Failed to disconnect. Please try again.');
+    }
+  };
+
+  const handleApproveEstimate = async () => {
+    if (!currentEstimate) return;
+
+    if (!window.confirm('Mark this estimate as approved? This action can be reversed.')) {
+      return;
+    }
+
+    try {
+      await jobVersioningApi.approveEstimate(currentEstimate.id);
+
+      // Update current estimate with approved flag
+      setCurrentEstimate({
+        ...currentEstimate,
+        is_approved: true
+      });
+
+      showNotification('Estimate marked as approved', 'success');
+    } catch (error) {
+      console.error('Failed to approve estimate:', error);
+      showNotification('Failed to approve estimate', 'error');
+    }
+  };
+
   const render3PanelWorkflow = () => {
     // Show builder mode if estimate is selected
     if (isInBuilderMode && currentEstimate) {
       return (
         <div>
           <BreadcrumbNavigation
-            customerName={customerName || undefined}
+            customerName={customerPreferencesData?.customerName || undefined}
             jobName={jobName || undefined}
             version={`v${currentEstimate.version_number}`}
             status={getEstimateStatusText(currentEstimate)}
@@ -343,7 +561,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
                 setIsInBuilderMode(false);
                 setSelectedEstimateId(null);
                 setCurrentEstimate(null);
-                // Keep: selectedCustomerId, customerName, selectedJobId, jobName (preserve customer + job)
+                // Keep: selectedCustomerId, selectedJobId, jobName, customerPreferencesData (preserve customer + job context)
               };
               
               if (navigationGuard) {
@@ -358,7 +576,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
                 setIsInBuilderMode(false);
                 setSelectedEstimateId(null);
                 setCurrentEstimate(null);
-                // Keep: selectedCustomerId, customerName, selectedJobId, jobName (preserve all)
+                // Keep: selectedCustomerId, selectedJobId, jobName, customerPreferencesData (preserve all context)
               };
               
               if (navigationGuard) {
@@ -388,19 +606,25 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
                   }}
                   showNotification={showNotification}
                   customerId={selectedCustomerId}
-                  customerName={customerName}
-                  cashCustomer={cashCustomer}
+                  customerName={customerPreferencesData?.customerName || null}
+                  cashCustomer={customerPreferencesData?.cashCustomer || false}
                   taxRate={taxRate}
                   versioningMode={true}
                   estimateId={selectedEstimateId}
-                  onNavigateToEstimate={handleNavigateToEstimate}
                   onValidationChange={handleValidationChange}
                   onRequestNavigation={setNavigationGuard}
+                  onPreferencesLoaded={handlePreferencesLoaded}
                   hoveredRowId={hoveredRowId}
                   onRowHover={setHoveredRowId}
+                  estimatePreviewData={estimatePreviewData}
                 />
               </div>
               <div className="estimate-builder-preview-wrapper">
+                <CustomerPreferencesPanel
+                  customerData={customerPreferencesData}
+                  validationResult={preferencesValidationResult}
+                  onEditCustomer={handleEditCustomer}
+                />
                 <EstimateTable
                   estimate={currentEstimate}
                   showNotification={showNotification}
@@ -409,6 +633,20 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
                   estimatePreviewData={estimatePreviewData}
                   hoveredRowId={hoveredRowId}
                   onRowHover={setHoveredRowId}
+                  customerName={customerPreferencesData?.customerName || null}
+                  jobName={jobName}
+                  version={`v${currentEstimate.version_number}`}
+                  qbEstimateId={currentEstimate.qb_estimate_id}
+                  qbEstimateUrl={currentEstimate.qb_estimate_id ? `https://qbo.intuit.com/app/estimate?txnId=${currentEstimate.qb_estimate_id}` : null}
+                  qbCreatingEstimate={qbCreatingEstimate}
+                  qbConnected={qbConnected}
+                  qbCheckingStatus={qbCheckingStatus}
+                  isApproved={currentEstimate.is_approved === true || currentEstimate.is_approved === 1}
+                  onCreateQBEstimate={handleCreateQuickBooksEstimate}
+                  onOpenQBEstimate={handleOpenQuickBooksEstimate}
+                  onConnectQB={handleConnectToQuickBooks}
+                  onDisconnectQB={handleDisconnectFromQuickBooks}
+                  onApproveEstimate={handleApproveEstimate}
                 />
               </div>
             </div>
@@ -474,7 +712,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
             </button>
             <h1 className="text-2xl font-bold text-gray-900">Job Estimation</h1>
           </div>
-          
+
         </div>
 
         {/* Content Area */}
@@ -482,6 +720,14 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
           {render3PanelWorkflow()}
         </div>
       </div>
+
+      {/* Customer Edit Modal */}
+      {showEditCustomerModal && fullCustomer && (
+        <CustomerDetailsModal
+          customer={fullCustomer}
+          onClose={handleCloseEditCustomerModal}
+        />
+      )}
     </div>
   );
 };

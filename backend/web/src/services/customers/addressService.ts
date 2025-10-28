@@ -1,4 +1,5 @@
 import { query } from '../../config/database';
+import { convertBooleanFieldsArray, toMySQLBoolean } from '../../utils/databaseUtils';
 
 export interface AddressData {
   is_primary?: boolean;
@@ -50,7 +51,18 @@ export class AddressService {
     `;
     
     const addresses = await query(addressQuery, [customerId]);
-    return addresses || [];
+
+    // Convert MySQL boolean fields (TINYINT) to TypeScript booleans
+    const booleanFields = [
+      'is_primary',
+      'is_billing',
+      'is_shipping',
+      'is_jobsite',
+      'is_mailing',
+      'is_active'
+    ];
+
+    return convertBooleanFieldsArray(addresses as any[] || [], booleanFields);
   }
 
   static async addAddress(customerId: number, addressData: AddressData, createdBy: string) {
@@ -106,8 +118,8 @@ export class AddressService {
     `;
 
     await query(insertQuery, [
-      customerId, nextSequence, is_primary ? 1 : 0, is_billing ? 1 : 0,
-      is_shipping ? 1 : 0, is_jobsite ? 1 : 0, is_mailing ? 1 : 0,
+      customerId, nextSequence, toMySQLBoolean(is_primary), toMySQLBoolean(is_billing),
+      toMySQLBoolean(is_shipping), toMySQLBoolean(is_jobsite), toMySQLBoolean(is_mailing),
       address_line1, address_line2 || null, city, province_state_long || null,
       province_state_short, postal_zip || null, finalCountry,
       tax_override_percent || null,
@@ -175,8 +187,8 @@ export class AddressService {
     `;
 
     await query(updateQuery, [
-      is_primary ? 1 : 0, is_billing ? 1 : 0, is_shipping ? 1 : 0,
-      is_jobsite ? 1 : 0, is_mailing ? 1 : 0, address_line1 || null,
+      toMySQLBoolean(is_primary), toMySQLBoolean(is_billing), toMySQLBoolean(is_shipping),
+      toMySQLBoolean(is_jobsite), toMySQLBoolean(is_mailing), address_line1 || null,
       address_line2 || null, city || null, province_state_long || null,
       province_state_short || null, postal_zip || null, finalCountry,
       tax_override_percent || null,

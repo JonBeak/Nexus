@@ -86,7 +86,7 @@ function AddressManager({
 
       <div className="space-y-4">
         {addresses.map((address, index) => {
-          const isDeactivated = address.is_active === false || address.is_active === 0;
+          const isDeactivated = !address.is_active;
           return (
           <div key={`${address.address_id}-${index}`} className={`border rounded-lg p-4 ${isDeactivated ? 'border-gray-300 bg-gray-100 opacity-60' : 'border-gray-200 bg-gray-50'}`}>
             <div className="flex items-center justify-between mb-3">

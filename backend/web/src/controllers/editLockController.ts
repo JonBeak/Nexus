@@ -162,11 +162,12 @@ export const saveGridData = async (req: Request, res: Response) => {
   try {
     const user = (req as AuthRequest).user;
     const { estimateId } = req.params;
-    const { gridRows } = req.body;
-    
+    const { gridRows, total } = req.body;
+
     console.log('🔍 DEBUG - saveGridData called for estimate:', estimateId);
-    console.log('🔍 DEBUG - gridRows received:', JSON.stringify(gridRows, null, 2));
-    
+    console.log('🔍 DEBUG - gridRows received:', gridRows?.length || 0, 'rows');
+    console.log('🔍 DEBUG - total received:', total);
+
     const estimateIdNum = parseInt(estimateId);
     if (isNaN(estimateIdNum)) {
       return res.status(400).json({
@@ -192,7 +193,7 @@ export const saveGridData = async (req: Request, res: Response) => {
       });
     }
 
-    await versioningService.saveGridData(estimateIdNum, gridRows, user?.user_id || (user as any)?.userId);
+    await versioningService.saveGridData(estimateIdNum, gridRows, user?.user_id || (user as any)?.userId, total);
 
     res.json({
       success: true,

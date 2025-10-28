@@ -153,8 +153,8 @@ export class EstimateVersioningService {
   // PHASE 4: GRID DATA PERSISTENCE - Delegated to GridDataService
   // =============================================
 
-  async saveGridData(estimateId: number, gridRows: any[], userId: number): Promise<void> {
-    return this.gridDataService.saveGridData(estimateId, gridRows, userId);
+  async saveGridData(estimateId: number, gridRows: any[], userId: number, total?: number): Promise<void> {
+    return this.gridDataService.saveGridData(estimateId, gridRows, userId, total);
   }
 
   async loadGridData(estimateId: number): Promise<any[]> {

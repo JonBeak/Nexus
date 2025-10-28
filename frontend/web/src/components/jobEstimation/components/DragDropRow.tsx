@@ -132,7 +132,7 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
       </td>
 
       {/* Product Type Selector */}
-      <td className={`py-0 ${row.nestingLevel === 'sub' ? 'pl-5' : ''}`}>
+      <td className={`py-0 ${row.nestingLevel === 'sub' ? 'pl-5 pr-0' : 'px-0'}`}>
         <ProductTypeSelector
           row={row}
           rowIndex={rowIndex}
@@ -145,7 +145,7 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
       </td>
       
       {/* QTY Column */}
-      <td className={`px-0.5 py-0 w-4 border-l border-gray-100 ${cellBackgroundClass}`}>
+      <td className={`px-0 py-0 w-4 border-l border-gray-100 ${cellBackgroundClass}`}>
         <FieldCell
           fieldName="quantity"
           fieldValue={row.data?.quantity || ''}
@@ -167,7 +167,7 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
         const { fieldName, fieldValue } = getFieldData(colIndex);
 
         return (
-          <td key={colIndex} className={`px-0.5 py-0 w-6 border-l border-gray-100 ${cellBackgroundClass}`}>
+          <td key={colIndex} className={`px-0 py-0 w-6 border-l border-gray-100 ${cellBackgroundClass}`}>
             <FieldCell
               fieldName={fieldName}
               fieldValue={fieldValue}

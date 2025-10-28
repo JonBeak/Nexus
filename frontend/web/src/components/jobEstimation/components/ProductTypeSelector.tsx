@@ -34,6 +34,106 @@ export const ProductTypeSelector: React.FC<ProductTypeSelectorProps> = ({
     }
   };
 
+  // Navigate to adjacent cell (spreadsheet-like navigation)
+  const navigateToCell = (direction: 'up' | 'down' | 'left' | 'right') => {
+    // Find current cell's td element
+    const currentInput = document.activeElement as HTMLElement;
+    const currentTd = currentInput?.closest('td');
+    if (!currentTd) return;
+
+    const currentTr = currentTd.closest('tr');
+    if (!currentTr) return;
+
+    // Helper to check if a cell has an editable input
+    const hasEditableInput = (td: HTMLElement): boolean => {
+      const input = td.querySelector('input:not([readonly]), select:not([disabled])') as HTMLElement;
+      return !!input;
+    };
+
+    // Helper to get next td in a direction
+    const getNextTd = (currentTd: HTMLElement, currentTr: HTMLElement, direction: 'up' | 'down' | 'left' | 'right'): HTMLElement | null => {
+      if (direction === 'left') {
+        return currentTd.previousElementSibling as HTMLElement;
+      } else if (direction === 'right') {
+        return currentTd.nextElementSibling as HTMLElement;
+      } else if (direction === 'up') {
+        const prevTr = currentTr.previousElementSibling as HTMLElement;
+        if (prevTr) {
+          const cellIndex = Array.from(currentTr.children).indexOf(currentTd);
+          return prevTr.children[cellIndex] as HTMLElement;
+        }
+      } else if (direction === 'down') {
+        const nextTr = currentTr.nextElementSibling as HTMLElement;
+        if (nextTr) {
+          const cellIndex = Array.from(currentTr.children).indexOf(currentTd);
+          return nextTr.children[cellIndex] as HTMLElement;
+        }
+      }
+      return null;
+    };
+
+    // Find next valid cell, skipping inactive ones
+    let targetTd: HTMLElement | null = null;
+    let searchTd = currentTd;
+    let searchTr = currentTr;
+    let maxIterations = 100; // Safety limit to prevent infinite loops
+    let iterations = 0;
+
+    while (iterations < maxIterations) {
+      iterations++;
+
+      const nextTd = getNextTd(searchTd, searchTr, direction);
+      if (!nextTd) {
+        // Reached end of grid in this direction
+        break;
+      }
+
+      // Update search position
+      searchTd = nextTd;
+      if (direction === 'up' || direction === 'down') {
+        searchTr = nextTd.closest('tr') as HTMLElement;
+        if (!searchTr) break;
+      }
+
+      // Check if this cell has an editable input
+      if (hasEditableInput(nextTd)) {
+        targetTd = nextTd;
+        break;
+      }
+    }
+
+    // Focus the input/select in the target cell
+    if (targetTd) {
+      const targetInput = targetTd.querySelector('input:not([readonly]), select:not([disabled])') as HTMLElement;
+      if (targetInput) {
+        targetInput.focus();
+        // Select all text if it's an input
+        if (targetInput instanceof HTMLInputElement) {
+          targetInput.select();
+        }
+      }
+    }
+  };
+
+  // Handle keyboard navigation with Ctrl+Arrow keys
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLSelectElement>) => {
+    if (event.ctrlKey) {
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        navigateToCell('up');
+      } else if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        navigateToCell('down');
+      } else if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        navigateToCell('left');
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        navigateToCell('right');
+      }
+    }
+  };
+
   if (isReadOnly || row.rowType === 'continuation') {
     // Read-only display - no validation errors shown (matches FieldCell pattern)
     const currentProduct = productTypes.find(pt => pt.id === row.productTypeId);
@@ -74,6 +174,7 @@ export const ProductTypeSelector: React.FC<ProductTypeSelectorProps> = ({
     <select
       value={row.productTypeId || ""}
       onChange={handleProductTypeChange}
+      onKeyDown={handleKeyDown}
       className={selectClassName}
       aria-label="Select product type"
       title={hasError ? errorMessage : "Select product type"}

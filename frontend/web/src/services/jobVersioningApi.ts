@@ -54,8 +54,11 @@ export const jobVersioningApi = {
   },
 
   // Phase 4: Grid Data Persistence
-  saveGridData: async (estimateId: number, gridRows: any[]) => {
-    const response = await api.post(`/job-estimation/estimates/${estimateId}/grid-data`, { gridRows });
+  saveGridData: async (estimateId: number, gridRows: any[], total?: number) => {
+    const response = await api.post(`/job-estimation/estimates/${estimateId}/grid-data`, {
+      gridRows,
+      total
+    });
     return response.data;
   },
 

@@ -5,11 +5,11 @@ import { FieldValidationConfig } from '../ValidationEngine';
  *
  * Field mappings:
  * - field1: Type (substrate type dropdown)
- * - field2: XY (dimensions in X x Y format)
- * - field3: Pins (number of pins) - works with field4
+ * - field2: XY (dimensions in X x Y format, OR sheet count where 1 = 96x48)
+ * - field3: Pins (number of pins) - works with field4, supports formulas
  * - field4: Pin Type (dropdown - includes "Stand Offs" option)
- * - field5: D-tape (double-sided tape cost - manual input, can be negative)
- * - field6: Assem (assembly cost - manual input, can be negative)
+ * - field5: D-tape (double-sided tape cost - manual input, can be negative, supports formulas)
+ * - field6: Assem (assembly cost - manual input, can be negative, supports formulas)
  * - field10: ~ Cut ~ (cutting cost override - can be negative)
  */
 export const substrateCutValidation: Record<string, FieldValidationConfig> = {
@@ -26,11 +26,13 @@ export const substrateCutValidation: Record<string, FieldValidationConfig> = {
     params: {
       delimiter: 'x',
       allow_negative: false,
-      min_value: 0
+      min_value: 0,
+      sheet_width: 96,   // 4x8 sheet width (96")
+      sheet_height: 48   // 4x8 sheet height (48")
     }
   },
   field3: {
-    function: 'float',
+    function: 'floatorformula',
     error_level: 'error',
     complimentary_fields: [4], // field3 and field4 require each other
     params: {
@@ -45,17 +47,17 @@ export const substrateCutValidation: Record<string, FieldValidationConfig> = {
     params: {}
   },
   field5: {
-    function: 'float',
+    function: 'floatorformula',
     error_level: 'error',
     params: {
-      allow_negative: true  // D-tape cost - manual input
+      allow_negative: true  // D-tape cost - manual input, supports formulas
     }
   },
   field6: {
-    function: 'float',
+    function: 'floatorformula',
     error_level: 'error',
     params: {
-      allow_negative: true  // Assembly cost - manual input
+      allow_negative: true  // Assembly cost - manual input, supports formulas
     }
   },
   field10: {

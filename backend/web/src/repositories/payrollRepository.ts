@@ -26,6 +26,7 @@ import {
   PayrollRecordWithEntries,
   PayrollDataAccess
 } from '../types/payrollTypes';
+import { convertBooleanFields, convertBooleanFieldsArray, toMySQLBoolean } from '../utils/databaseUtils';
 
 export class PayrollRepository implements PayrollDataAccess {
   
@@ -78,7 +79,7 @@ export class PayrollRepository implements PayrollDataAccess {
   async getTimeEntries(startDate: string, endDate: string): Promise<TimeEntry[]> {
     try {
       const [rows] = await pool.execute<RowDataPacket[]>(
-        `SELECT 
+        `SELECT
           te.*,
           DATE_FORMAT(te.clock_in, '%Y-%m-%d') as entry_date,
           TIME(te.clock_in) as actual_clock_in,
@@ -91,8 +92,16 @@ export class PayrollRepository implements PayrollDataAccess {
         ORDER BY te.clock_in`,
         [startDate, endDate]
       );
-      
-      return rows as TimeEntry[];
+
+      // Convert MySQL boolean fields (TINYINT) to TypeScript booleans
+      const booleanFields: (keyof TimeEntry)[] = [
+        'is_deleted',
+        'payroll_adjusted',
+        'is_overtime',
+        'is_holiday'
+      ];
+
+      return convertBooleanFieldsArray(rows as TimeEntry[], booleanFields);
     } catch (error) {
       console.error('Repository error fetching time entries:', error);
       throw new Error('Failed to fetch time entries');
@@ -109,9 +118,9 @@ export class PayrollRepository implements PayrollDataAccess {
         is_overtime,
         is_holiday
       } = updates;
-      
+
       await pool.execute(
-        `UPDATE time_entries SET 
+        `UPDATE time_entries SET
          payroll_clock_in = ?,
          payroll_clock_out = ?,
          payroll_break_minutes = ?,
@@ -124,8 +133,8 @@ export class PayrollRepository implements PayrollDataAccess {
           payroll_clock_out,
           payroll_break_minutes || 0,
           payroll_total_hours,
-          is_overtime ? 1 : 0,
-          is_holiday ? 1 : 0,
+          toMySQLBoolean(is_overtime),
+          toMySQLBoolean(is_holiday),
           entryId
         ]
       );
@@ -385,18 +394,18 @@ export class PayrollRepository implements PayrollDataAccess {
       if (includeInactive) {
         whereClause = ''; // Show all records
       }
-      
+
       const [records] = await pool.execute<RowDataPacket[]>(
-        `SELECT * FROM payroll_records 
+        `SELECT * FROM payroll_records
          ${whereClause}
          ORDER BY payment_date DESC`
       );
-      
+
       // Get entries for each record
       const recordsWithEntries = await Promise.all(
         (records as any[]).map(async (record) => {
           const [entries] = await pool.execute<RowDataPacket[]>(
-            `SELECT 
+            `SELECT
               pre.*,
               u.first_name,
               u.last_name
@@ -406,14 +415,17 @@ export class PayrollRepository implements PayrollDataAccess {
              ORDER BY u.last_name, u.first_name`,
             [record.record_id]
           );
-          
+
+          // Convert is_active boolean field
+          const convertedRecord = convertBooleanFields(record, ['is_active']);
+
           return {
-            ...record,
+            ...convertedRecord,
             entries
           };
         })
       );
-      
+
       return recordsWithEntries as PayrollRecordWithEntries[];
     } catch (error) {
       console.error('Repository error fetching payment history:', error);
@@ -424,13 +436,18 @@ export class PayrollRepository implements PayrollDataAccess {
   async getPaymentRecord(recordId: number, activeOnly: boolean = true): Promise<any> {
     try {
       const activeFilter = activeOnly ? 'AND is_active = TRUE' : '';
-      
+
       const [rows] = await pool.execute<RowDataPacket[]>(
         `SELECT * FROM payroll_records WHERE record_id = ? ${activeFilter}`,
         [recordId]
       );
-      
-      return rows.length > 0 ? rows[0] : null;
+
+      if (rows.length === 0) {
+        return null;
+      }
+
+      // Convert is_active boolean field
+      return convertBooleanFields(rows[0], ['is_active']);
     } catch (error) {
       console.error('Repository error fetching payment record:', error);
       throw new Error('Failed to fetch payment record');

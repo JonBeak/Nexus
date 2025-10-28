@@ -129,21 +129,25 @@ export class CustomerController {
 
       const newCustomer = await CustomerService.createCustomer(req.body);
 
+      if (!newCustomer) {
+        return res.status(500).json({ error: 'Failed to create customer' });
+      }
+
       if (Array.isArray(addresses) && addresses.length > 0) {
         const createdBy = user?.username || 'system';
         const normalizedAddresses = addresses
           .filter((address: any) => address?.province_state_short && address.province_state_short.trim())
           .map((address: any) => {
-            const getTrimmedString = (value: unknown): string | null => {
-              if (typeof value !== 'string') return null;
+            const getTrimmedString = (value: unknown): string | undefined => {
+              if (typeof value !== 'string') return undefined;
               const trimmed = value.trim();
-              return trimmed.length > 0 ? trimmed : null;
+              return trimmed.length > 0 ? trimmed : undefined;
             };
 
-            const toNumberOrNull = (value: unknown): number | null => {
-              if (value === null || value === undefined) return null;
+            const toNumberOrNull = (value: unknown): number | undefined => {
+              if (value === null || value === undefined) return undefined;
               const parsed = Number(value);
-              return Number.isFinite(parsed) ? parsed : null;
+              return Number.isFinite(parsed) ? parsed : undefined;
             };
 
             return {

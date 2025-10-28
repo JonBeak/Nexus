@@ -48,7 +48,7 @@ export const channelLettersValidation: Record<string, FieldValidationConfig> = {
     }
   },
   field5: {
-    function: 'float',
+    function: 'floatorformula',
     error_level: 'error',
     complimentary_fields: [6], // If field6 (pins type) filled, field5 (pins #) required
     params: {

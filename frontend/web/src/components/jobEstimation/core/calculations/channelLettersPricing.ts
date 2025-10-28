@@ -75,8 +75,17 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
     const pinsType = input.parsedValues.field6;
     const extraWireFeet = (input.parsedValues.field7 as number) || 0;
     const ledType = input.parsedValues.field8;
-    const psCountOverride = input.parsedValues.field9; // Transformer count override
+    const psCountOverrideRaw = input.parsedValues.field9; // Transformer count override
     const psTypeOverride = input.parsedValues.field10; // Transformer type override
+
+    // Normalize PS count override: "no" -> 0, "yes" -> null (use calculated), numeric -> numeric
+    let psCountOverride: number | null = null;
+    if (psCountOverrideRaw === 'no') {
+      psCountOverride = 0;
+    } else if (typeof psCountOverrideRaw === 'number') {
+      psCountOverride = psCountOverrideRaw;
+    }
+    // If "yes" or undefined, leave as null to use default calculation
 
     console.log('Field8/10 Debug:', {
       field8_ledType: ledType,
@@ -171,6 +180,45 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
     // Check if we have channel letter data
     const hasChannelLetters = type && letterData;
 
+    // Determine item name for QuickBooks based on channel letter type and LED presence
+    let itemDisplayName = "Channel Letters"; // Default fallback
+    const hasLEDs = ledCount > 0 || ledType; // Check if LEDs are present
+
+    if (type) {
+      const typeStr = String(type);
+
+      if (!hasLEDs) {
+        // No LEDs - use size-specific naming for exact matches
+        switch (typeStr) {
+          case '3" Front lit':
+            itemDisplayName = '3" Channel Letters';
+            break;
+          case '4" Front lit':
+            itemDisplayName = '4" Channel Letters';
+            break;
+          case '5" Front lit':
+            itemDisplayName = '5" Channel Letters';
+            break;
+          case '3" Halo Lit':
+            itemDisplayName = '3" Reverse Channel Letter';
+            break;
+          case '4" Halo Lit':
+            itemDisplayName = '4" Reverse Channel Letter';
+            break;
+          case '5" Halo Lit':
+            itemDisplayName = '5" Reverse Channel Letter';
+            break;
+          default:
+            // Other types - use the type name directly
+            itemDisplayName = typeStr;
+            break;
+        }
+      } else {
+        // Has LEDs - use the type name directly
+        itemDisplayName = typeStr;
+      }
+    }
+
     // UNIFORM COMPONENT CALCULATION - no branching logic
 
     // Get pin type data first if needed (for channel letter display)
@@ -191,37 +239,13 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
     if (hasChannelLetters) {
       const letterPricing = await PricingDataResource.getChannelLetterType(type as string);
       if (letterPricing) {
-        // Apply LED multiplier for float inputs ONLY if no explicit numeric override in field3
-        // Check if the input was a float by checking the parsed value type
-        const isFloatInput = typeof letterData === 'number';
-        const hasNumericOverride = typeof ledOverride === 'number';
-
-        if (isFloatInput && letterPricing.led_multiplier && !hasNumericOverride) {
-          // For float inputs, apply the LED multiplier
-          // The validation layer calculated ledCount = totalInches for floats
-          // We need to apply the multiplier: ledCount = totalInches * multiplier
-          const originalLedCount = ledCount;
-          ledCount = Math.round(totalInches * letterPricing.led_multiplier);
-
-          console.log('Applied LED Multiplier (channel letters section):', {
-            isFloatInput,
-            letterData,
-            totalInches,
-            multiplier: letterPricing.led_multiplier,
-            originalLedCount,
-            adjustedLedCount: ledCount
-          });
-        } else if (isFloatInput && hasNumericOverride) {
-          console.log('Skipping LED Multiplier (channel letters section) - field3 has numeric override:', ledOverride);
-        }
-
-        // Will calculate wattage and PS count after we have LED data
-        // (moved to after LED lookup to use actual wattage)
+        // LED multiplier will be applied in the LED section below
+        // where all LED-related logic is centralized
 
         const letterPrice = totalInches * letterPricing.base_rate_per_inch;
 
-        // Build display string for channel letters component
-        let channelLetterDisplay = `${type}, ${totalInches}" @ $${formatPrice(Number(letterPricing.base_rate_per_inch))}/inch`;
+        // Build display string for channel letters component (without type name)
+        let channelLetterDisplay = `${totalInches}" @ $${formatPrice(Number(letterPricing.base_rate_per_inch))}/inch`;
         if (letterCountLabel) {
           channelLetterDisplay += ` - ${letterCountLabel}`;
         }
@@ -230,7 +254,7 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
         }
 
         components.push({
-          name: 'Channel Letters',
+          name: itemDisplayName,
           price: letterPrice,
           type: 'channel_letters',
           calculationDisplay: channelLetterDisplay
@@ -263,50 +287,47 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
     });
 
     if (ledCount > 0) {
-      // LED multiplier logic for channel letters with float input (SKIP if field3 has numeric override)
+      // Apply LED multiplier for Channel Letters (SKIP if field3 has numeric override)
+      // Two formulas based on input type:
+      // 1. Float input (Field 2 = "32"): LED count based on inches → ledCount = totalInches * led_multiplier
+      // 2. Pairs/formula input: LED count calculated separately → ledCount = ledCount * (led_multiplier / 0.7)
       if (hasChannelLetters) {
         const letterPricing = await PricingDataResource.getChannelLetterType(type as string);
-        if (letterPricing) {
+        if (letterPricing && letterPricing.led_multiplier) {
           const isFloatInput = typeof letterData === 'number';
           const hasNumericOverride = typeof ledOverride === 'number';
 
-          if (isFloatInput && letterPricing.led_multiplier && !hasNumericOverride) {
+          if (!hasNumericOverride) {
             const originalLedCount = ledCount;
-            ledCount = Math.round(totalInches * letterPricing.led_multiplier);
 
-            console.log('Applied LED Multiplier (LED section):', {
-              isFloatInput,
-              letterData,
-              totalInches,
-              multiplier: letterPricing.led_multiplier,
-              originalLedCount,
-              adjustedLedCount: ledCount
-            });
-          } else if (isFloatInput && hasNumericOverride) {
-            console.log('Skipping LED Multiplier (LED section) - field3 has numeric override:', ledOverride);
-          }
-          // Try to get LED pricing in order of priority:
-          // 1. User-specified LED type (field8)
-          // 2. Letter type's default LED (if not "Default" and channel letters exist)
-          // 3. System default LED (where is_default = 1)
-          let ledPricing = null;
-          let effectiveLedType = ledType;
+            if (isFloatInput) {
+              // Float input: LED count based on inches
+              ledCount = Math.ceil(totalInches * letterPricing.led_multiplier);
 
-          if (ledType) {
-            // Try user-specified LED type
-            ledPricing = await PricingDataResource.getLed(ledType as string);
-            if (!ledPricing) {
-              console.warn(`LED type '${ledType}' not found, trying defaults`);
+              console.log('Applied LED Multiplier (Float Input):', {
+                inputType: 'float',
+                letterData,
+                totalInches,
+                multiplier: letterPricing.led_multiplier,
+                originalLedCount,
+                adjustedLedCount: ledCount,
+                formula: 'totalInches * led_multiplier'
+              });
+            } else {
+              // Pairs/formula input: LED count calculated separately from inches
+              ledCount = Math.ceil(ledCount * (letterPricing.led_multiplier / 0.7));
+
+              console.log('Applied LED Multiplier (Pairs/Formula Input):', {
+                inputType: 'pairs/formula',
+                letterData: typeof letterData === 'object' ? 'pairs' : letterData,
+                multiplier: letterPricing.led_multiplier,
+                originalLedCount,
+                adjustedLedCount: ledCount,
+                formula: 'ledCount * (led_multiplier / 0.7)'
+              });
             }
-          }
-
-          // Try letter type's default LED (but skip if it's "Default")
-          if (!ledPricing && letterPricing && letterPricing.led_default && letterPricing.led_default !== 'Default') {
-            effectiveLedType = letterPricing.led_default;
-            ledPricing = await PricingDataResource.getLed(effectiveLedType);
-            if (!ledPricing) {
-              console.warn(`Letter default LED '${effectiveLedType}' not found, trying system default`);
-            }
+          } else {
+            console.log('Skipping LED Multiplier - field3 has numeric override:', ledOverride);
           }
         }
       }
@@ -388,17 +409,43 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
       }
     }
 
-    // 4. Power Supplies (if LEDs exist OR explicit override)
-    // Allow Power Supplies to be added independently via Field 9/10 without requiring LEDs
-    const hasExplicitPsOverride = (psCountOverride !== null && psCountOverride !== undefined) ||
-                                   (psTypeOverride && psTypeOverride !== '');
+    // 4. Power Supplies - Use powerSupplySelector for smart selection
+    // ValidationContextBuilder already decided if we need PSs (respecting customer pref)
+    // We call powerSupplySelector to determine TYPE/COUNT (with UL optimization if applicable)
 
-    if (totalWattage > 0 || hasExplicitPsOverride) {
+    const calculatedPsCount = input.calculatedValues.psCount || 0;
+
+    // Determine what to pass to powerSupplySelector
+    let psOverrideForSelector: number | null = null;
+    let shouldCalculatePS = false;
+
+    if (psCountOverrideRaw === 'yes') {
+      // User explicitly wants PSs - override customer pref and enable UL optimization
+      shouldCalculatePS = true;
+      psOverrideForSelector = null; // null = let selector calculate/optimize
+    } else if (psCountOverride !== null) {
+      // User entered a specific number (including 0)
+      shouldCalculatePS = true;
+      psOverrideForSelector = psCountOverride;
+    } else if (psTypeOverride && psTypeOverride !== '') {
+      // User specified PS type - use ValidationContextBuilder's count
+      shouldCalculatePS = true;
+      psOverrideForSelector = calculatedPsCount;
+    } else {
+      // No user override - use ValidationContextBuilder's decision
+      shouldCalculatePS = calculatedPsCount > 0;
+      psOverrideForSelector = calculatedPsCount;
+    }
+
+    if (shouldCalculatePS) {
+      // Use section-level UL for PS optimization (consistent PS types within section)
+      const sectionHasUL = input.calculatedValues?.sectionHasUL ?? false;
+
       const psResult = await selectPowerSupplies({
         totalWattage,
-        hasUL,
+        hasUL: sectionHasUL,  // Use section-level UL for PS selection
         psTypeOverride: psTypeOverride as string | null,
-        psCountOverride: psCountOverride as number | null,
+        psCountOverride: psOverrideForSelector,
         customerPreferences: input.customerPreferences
       });
 
@@ -569,12 +616,12 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
     // Calculate unit price per set (before quantity multiplication)
     const unitPrice = totalPrice; // The total calculated price IS the unit price for one set
 
-    // Build the pricing calculation data following the interface
+    // Build the pricing calculation data following the interface (using itemDisplayName calculated earlier)
     const pricingData: PricingCalculationData = {
       productTypeId: input.productTypeId,
       rowId: input.rowId,
-      itemName: "Channel Letters",
-      description: hasChannelLetters ? `${type} (${totalInches}")` : "Components Only",
+      itemName: itemDisplayName,
+      description: hasChannelLetters ? `(${totalInches}")` : "Components Only",
       unitPrice: unitPrice,
       quantity: quantity,
       components: components,

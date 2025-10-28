@@ -85,11 +85,11 @@ function AppContent() {
       } />
       
       <Route path="/time-management" element={
-        user && (user.role === 'manager' || user.role === 'owner') ? <TimeManagement user={user} /> : <Navigate to="/dashboard" />
+        user && (user.role === 'manager' || user.role === 'owner') ? <TimeManagement user={user as any} /> : <Navigate to="/dashboard" />
       } />
-      
+
       <Route path="/vinyl-inventory" element={
-        user ? <VinylInventory user={user} /> : <Navigate to="/login" />
+        user ? <VinylInventory user={user as any} /> : <Navigate to="/login" />
       } />
       
       <Route path="/wages" element={

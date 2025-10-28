@@ -25,7 +25,7 @@ export class EstimateStatusService {
     try {
       // Get estimate info for history logging
       const [estimateRows] = await pool.execute<RowDataPacket[]>(
-        'SELECT id, job_id, status FROM job_estimates WHERE id = ? AND is_draft = 0',
+        'SELECT id, job_id FROM job_estimates WHERE id = ? AND is_draft = 0',
         [estimateId]
       );
 
@@ -74,7 +74,7 @@ export class EstimateStatusService {
     try {
       // Get estimate info for history logging
       const [estimateRows] = await pool.execute<RowDataPacket[]>(
-        'SELECT id, job_id, status FROM job_estimates WHERE id = ? AND is_draft = 0 AND is_sent = 1',
+        'SELECT id, job_id FROM job_estimates WHERE id = ? AND is_draft = 0 AND is_sent = 1',
         [estimateId]
       );
 
@@ -96,15 +96,22 @@ export class EstimateStatusService {
         throw new Error('Estimate not found, is draft, or not sent yet');
       }
 
+      // Update job status to 'approved' when estimate is approved
+      await pool.execute(
+        `UPDATE jobs j
+         JOIN job_estimates e ON j.job_id = e.job_id
+         SET j.status = 'approved'
+         WHERE e.id = ?`,
+        [estimateId]
+      );
+
       // Log to history
       await estimateHistoryService.logAction({
         estimateId: estimateId,
         jobId: estimate.job_id,
         actionType: 'approved',
         performedByUserId: userId,
-        oldStatus: estimate.status,
-        newStatus: 'approved',
-        notes: 'Estimate approved by customer'
+        notes: 'Estimate approved by customer - job status updated to approved'
       });
 
     } catch (error) {
@@ -117,7 +124,7 @@ export class EstimateStatusService {
     try {
       // Get estimate info for history logging
       const [estimateRows] = await pool.execute<RowDataPacket[]>(
-        'SELECT id, job_id, status FROM job_estimates WHERE id = ? AND is_draft = 0',
+        'SELECT id, job_id FROM job_estimates WHERE id = ? AND is_draft = 0',
         [estimateId]
       );
 
@@ -145,8 +152,6 @@ export class EstimateStatusService {
         jobId: estimate.job_id,
         actionType: 'not_approved',
         performedByUserId: userId,
-        oldStatus: estimate.status,
-        newStatus: 'sent',
         notes: 'Estimate marked as not approved'
       });
 
@@ -160,7 +165,7 @@ export class EstimateStatusService {
     try {
       // Get estimate info for history logging
       const [estimateRows] = await pool.execute<RowDataPacket[]>(
-        'SELECT id, job_id, status FROM job_estimates WHERE id = ? AND is_draft = 0',
+        'SELECT id, job_id FROM job_estimates WHERE id = ? AND is_draft = 0',
         [estimateId]
       );
 
@@ -188,8 +193,6 @@ export class EstimateStatusService {
         jobId: estimate.job_id,
         actionType: 'retracted',
         performedByUserId: userId,
-        oldStatus: estimate.status,
-        newStatus: 'retracted',
         notes: 'Estimate retracted'
       });
 
@@ -227,8 +230,7 @@ export class EstimateStatusService {
 
       const [result] = await pool.execute<ResultSetHeader>(
         `UPDATE job_estimates
-         SET status = 'ordered',
-             is_draft = 0,
+         SET is_draft = 0,
              finalized_at = COALESCE(finalized_at, NOW()),
              finalized_by_user_id = COALESCE(finalized_by_user_id, ?),
              updated_by = ?
@@ -255,8 +257,6 @@ export class EstimateStatusService {
         jobId: jobId,
         actionType: 'converted_to_order',
         performedByUserId: userId,
-        oldStatus: 'approved',
-        newStatus: 'ordered',
         metadata: {
           order_id: estimateId,
           job_status_updated: 'production'

@@ -238,24 +238,6 @@ async function calculateSubstrateBreakdown(
 }
 
 /**
- * Calculate LED count for field5
- * Formula: (X+2) × (Y+2) × (5 LEDs / 100 sq.in.), round up
- */
-function calculateLedCount(dimensions: number[] | undefined): number {
-  if (!dimensions || dimensions.length !== 2) {
-    return 0;
-  }
-
-  const [x, y] = dimensions;
-  const adjustedX = x + 2;
-  const adjustedY = y + 2;
-  const squareInches = adjustedX * adjustedY;
-  const ledCount = (squareInches / 100) * 5;
-
-  return Math.ceil(ledCount);
-}
-
-/**
  * Calculate pricing for Push Thru products
  * Implements the ProductCalculator interface for product type ID 5
  *
@@ -417,13 +399,11 @@ export const calculatePushThru = async (
       }
     }
 
-    // ========== FIELD 5: LEDs ==========
-    const ledDimensions = input.parsedValues.field5 as number[] | undefined;
-    let ledCount = 0;
+    // ========== FIELD 5: LEDs (trust validation layer's count) ==========
+    // The validation layer has already calculated ledCount from field5
+    const ledCount = input.calculatedValues.ledCount || 0;
 
-    if (ledDimensions) {
-      ledCount = calculateLedCount(ledDimensions);
-
+    if (ledCount > 0) {
       // Fetch LED pricing - use customer preference or default LED
       let ledPricing = null;
       let ledType = 'Unknown';
@@ -460,8 +440,10 @@ export const calculatePushThru = async (
     let hasUL = false;
     let ulSetCount: number | null = null;
     let ulCustomPrice: number | null = null;
+    let ulExplicitlySet = false;
 
     if (ulOverride !== undefined && ulOverride !== null && ulOverride !== '') {
+      ulExplicitlySet = true;
       if (typeof ulOverride === 'string') {
         const lower = ulOverride.toLowerCase();
         if (lower === 'yes') {
@@ -493,11 +475,38 @@ export const calculatePushThru = async (
       hasUL = input.customerPreferences?.pref_ul_required === true;
     }
 
-    // ========== FIELD 7: Power Supplies ==========
-    const psOverride = input.parsedValues.field7;
+    // ========== FIELD 7: Power Supplies - Use powerSupplySelector for smart selection ==========
+    const calculatedPsCount = input.calculatedValues.psCount || 0;
 
-    if (ledCount > 0) {
-      // Calculate wattage - use customer preference or default LED
+    // Extract and normalize psCountOverride from field7
+    const psCountOverrideRaw = input.parsedValues.field7;
+    let psCountOverride: number | null = null;
+    if (psCountOverrideRaw === 'no') {
+      psCountOverride = 0;
+    } else if (typeof psCountOverrideRaw === 'number') {
+      psCountOverride = psCountOverrideRaw;
+    }
+
+    // Determine what to pass to powerSupplySelector
+    let psOverrideForSelector: number | null = null;
+    let shouldCalculatePS = false;
+
+    if (psCountOverrideRaw === 'yes') {
+      // User explicitly wants PSs - enable UL optimization
+      shouldCalculatePS = true;
+      psOverrideForSelector = null;
+    } else if (psCountOverride !== null) {
+      // User entered a specific number (including 0)
+      shouldCalculatePS = true;
+      psOverrideForSelector = psCountOverride;
+    } else {
+      // No user override - use ValidationContextBuilder's decision
+      shouldCalculatePS = calculatedPsCount > 0;
+      psOverrideForSelector = calculatedPsCount;
+    }
+
+    if (shouldCalculatePS) {
+      // Calculate wattage for PS selection
       let ledPricing = null;
 
       if (input.customerPreferences?.pref_led_type) {
@@ -517,50 +526,32 @@ export const calculatePushThru = async (
       const wattsPerLed = typeof ledPricing.watts === 'string' ? parseFloat(ledPricing.watts) : ledPricing.watts;
       const totalWattage = ledCount * wattsPerLed;
 
-      let psCount: number | null = null;
-      let psType: string | null = null;
+      // Use section-level UL for PS optimization (consistent PS types within section)
+      const sectionHasUL = input.calculatedValues?.sectionHasUL ?? false;
 
-      // Parse psOverride
-      if (psOverride !== undefined && psOverride !== null && psOverride !== '') {
-        if (typeof psOverride === 'string') {
-          const lower = psOverride.toLowerCase();
-          if (lower === 'yes') {
-            // Use default calculation
-            psCount = null;
-          } else if (lower === 'no') {
-            // No power supplies
-            psCount = 0;
-          }
-        } else if (typeof psOverride === 'number') {
-          // Custom count
-          psCount = psOverride;
-        }
-      }
+      const psSelectionInput: PowerSupplySelectionInput = {
+        totalWattage,
+        hasUL: sectionHasUL,  // Use section-level UL for PS selection
+        psCountOverride: psOverrideForSelector,
+        psTypeOverride: null, // Push Thru doesn't have PS type override field
+        customerPreferences: input.customerPreferences
+      };
 
-      // Only calculate if not explicitly "no"
-      if (psCount !== 0) {
-        const psSelectionInput: PowerSupplySelectionInput = {
-          totalWattage,
-          hasUL,
-          psCountOverride: psCount,
-          psTypeOverride: psType,
-          customerPreferences: input.customerPreferences
-        };
+      const psResult = await selectPowerSupplies(psSelectionInput);
 
-        const psResult = await selectPowerSupplies(psSelectionInput);
-
-        if (psResult.components && psResult.components.length > 0) {
-          components.push(...psResult.components);
-        }
+      if (psResult.components && psResult.components.length > 0) {
+        components.push(...psResult.components);
       }
     }
 
     // ========== UL Component (if applicable) ==========
-    if (hasUL && ledCount > 0) {
+    // Show UL if explicitly set, OR if customer requires it and we have LEDs
+    const shouldShowUL = ulExplicitlySet ? hasUL : (hasUL && ledCount > 0);
+    if (shouldShowUL) {
       if (ulCustomPrice !== null) {
         // Custom UL price override
         components.push({
-          name: 'UL Listing',
+          name: 'UL',
           price: ulCustomPrice,
           type: 'ul',
           calculationDisplay: `Custom: $${formatPrice(ulCustomPrice)}`
@@ -584,7 +575,7 @@ export const calculatePushThru = async (
 
         const setCountDisplay = ulSetCount === null ? `${effectiveSetCount} (minimum)` : `${effectiveSetCount}`;
         components.push({
-          name: 'UL Listing',
+          name: 'UL',
           price: ulCost,
           type: 'ul',
           calculationDisplay: `$${formatPrice(baseFee)} base + ${setCountDisplay} sets @ $${formatPrice(perSetFee)}/set = $${formatPrice(ulCost)}`

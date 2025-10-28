@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Package, MapPin, Calendar, User, CheckCircle } from 'lucide-react';
-import { VinylItem } from '../inventory/InventoryTab';
+import { VinylItem } from '../inventory/types';
 
 interface VinylSpecificSelectorProps {
   isOpen: boolean;

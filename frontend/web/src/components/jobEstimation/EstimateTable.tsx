@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { Copy, FileText, AlertTriangle } from 'lucide-react';
+import { Copy, FileText, AlertTriangle, Check, CheckCircle } from 'lucide-react';
 import { EstimatePreviewData } from './core/layers/CalculationLayer';
+import { generateEstimateSVG } from './utils/svgEstimateExporter';
 
 interface EstimateTableProps {
   estimate: any; // Legacy estimate data (unused in new system)
@@ -10,6 +11,21 @@ interface EstimateTableProps {
   estimatePreviewData?: EstimatePreviewData | null; // NEW: Complete estimate preview data
   hoveredRowId?: string | null; // Cross-component hover state
   onRowHover?: (rowId: string | null) => void; // Hover handler
+  customerName?: string | null;
+  jobName?: string | null;
+  version?: string | null;
+  // QuickBooks integration props
+  qbEstimateId?: string | null;
+  qbEstimateUrl?: string | null;
+  qbCreatingEstimate?: boolean;
+  qbConnected?: boolean;
+  qbCheckingStatus?: boolean;
+  isApproved?: boolean;
+  onCreateQBEstimate?: () => void;
+  onOpenQBEstimate?: () => void;
+  onConnectQB?: () => void;
+  onDisconnectQB?: () => void;
+  onApproveEstimate?: () => void;
 }
 
 // Split number into whole and decimal parts for alignment
@@ -78,59 +94,93 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
   validationErrorCount = 0,
   estimatePreviewData = null,
   hoveredRowId = null,
-  onRowHover = () => {}
+  onRowHover = () => {},
+  customerName = null,
+  jobName = null,
+  version = null,
+  qbEstimateId = null,
+  qbEstimateUrl = null,
+  qbCreatingEstimate = false,
+  qbConnected = false,
+  qbCheckingStatus = false,
+  isApproved = false,
+  onCreateQBEstimate,
+  onOpenQBEstimate,
+  onConnectQB,
+  onDisconnectQB,
+  onApproveEstimate
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
+  const [copySuccess, setCopySuccess] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  const handleCopyToClipboard = () => {
+  const handleCopyToClipboard = async () => {
     if (!estimatePreviewData || estimatePreviewData.items.length === 0) {
+      console.error('No estimate data available');
       showNotification('No estimate data to copy', 'error');
       return;
     }
 
-    // Build text representation
-    let text = `ESTIMATE PREVIEW\n`;
-    text += `================\n\n`;
+    try {
+      console.log('Starting SVG generation...');
 
-    if (estimatePreviewData.customerName) {
-      text += `Customer: ${estimatePreviewData.customerName}\n`;
-    }
-    if (estimatePreviewData.estimateId) {
-      text += `Estimate ID: ${estimatePreviewData.estimateId}\n`;
-    }
-    text += `\n`;
+      // Generate SVG
+      const currentDate = new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
 
-    // Line items
-    text += `ITEM\t\t\tQTY\tUNIT PRICE\tEXT. PRICE\n`;
-    text += `----\t\t\t---\t----------\t----------\n`;
+      const svg = generateEstimateSVG(estimatePreviewData, {
+        customerName: customerName || estimatePreviewData.customerName || undefined,
+        jobName: jobName || undefined,
+        version: version || undefined,
+        date: currentDate
+      });
 
-    estimatePreviewData.items.forEach(item => {
-      const isEmptyRow = item.productTypeId === 27;
-      const isSubtotal = item.productTypeId === 21;
+      console.log('SVG generated, length:', svg.length);
+      console.log('First 200 chars:', svg.substring(0, 200));
 
-      if (isEmptyRow || isSubtotal) {
-        // Empty Row or Subtotal: show calculation display but no qty/prices
-        const displayText = item.calculationDisplay || '';
-        text += `${displayText}\t\t\t\t\n`;
+      // Try modern Clipboard API first
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(svg);
+        console.log('✅ SVG copied to clipboard successfully (Clipboard API)');
       } else {
-        const qty = item.quantity.toString();
-        const unitPrice = formatNumber(item.unitPrice);
-        const extPrice = formatCurrency(item.extendedPrice);
-        text += `${item.itemName}\t\t${qty}\t${unitPrice}\t${extPrice}\n`;
+        // Fallback for non-HTTPS/localhost environments
+        console.log('⚠️ Clipboard API not available, using fallback method');
+
+        const textArea = document.createElement('textarea');
+        textArea.value = svg;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        try {
+          const successful = document.execCommand('copy');
+          if (!successful) {
+            throw new Error('Fallback copy method failed');
+          }
+          console.log('✅ SVG copied to clipboard successfully (fallback method)');
+        } finally {
+          document.body.removeChild(textArea);
+        }
       }
-    });
 
-    text += `\n`;
-    text += `Subtotal: ${formatCurrency(estimatePreviewData.subtotal)}\n`;
-    text += `Tax (${formatPercent(estimatePreviewData.taxRate)}): ${formatCurrency(estimatePreviewData.taxAmount)}\n`;
-    text += `Total: ${formatCurrency(estimatePreviewData.total)}\n`;
+      // Show success feedback
+      setCopySuccess(true);
+      showNotification('Estimate SVG copied to clipboard - paste into Illustrator', 'success');
 
-    navigator.clipboard.writeText(text).then(() => {
-      showNotification('Estimate copied to clipboard', 'success');
-    }).catch(() => {
-      showNotification('Failed to copy to clipboard', 'error');
-    });
+      // Reset after 2 seconds
+      setTimeout(() => {
+        setCopySuccess(false);
+      }, 2000);
+    } catch (error) {
+      console.error('❌ Copy failed:', error);
+      showNotification(`Failed to copy: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+    }
   };
 
   return (
@@ -143,14 +193,94 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Copy SVG Button */}
           <button
             onClick={handleCopyToClipboard}
             disabled={!estimatePreviewData || estimatePreviewData.items.length === 0}
-            className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            className={`flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap transition-colors ${
+              copySuccess
+                ? 'bg-green-50 text-green-700'
+                : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
           >
-            <Copy className="w-3.5 h-3.5" />
-            Copy
+            {copySuccess ? (
+              <>
+                <Check className="w-3.5 h-3.5" />
+                Copied!
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" />
+                Copy SVG
+              </>
+            )}
           </button>
+
+          {/* QuickBooks Buttons */}
+          {qbCheckingStatus ? (
+            // Checking QB status
+            <span className="text-xs text-gray-500">Checking QB...</span>
+          ) : qbEstimateId && qbEstimateUrl ? (
+            // Already sent to QB - show "Open in QuickBooks" and optionally "Approve"
+            <>
+              <button
+                onClick={onOpenQBEstimate}
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                title="Open this estimate in QuickBooks"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                Open in QB
+              </button>
+              {!isApproved && onApproveEstimate && (
+                <button
+                  onClick={onApproveEstimate}
+                  className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+                  title="Mark this estimate as approved"
+                >
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  Approve
+                </button>
+              )}
+            </>
+          ) : !qbConnected ? (
+            // Not connected - show "Connect to QuickBooks"
+            <button
+              onClick={onConnectQB}
+              className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+              title="Connect to QuickBooks to create estimates"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              Connect to QB
+            </button>
+          ) : (
+            // Connected - show disconnect + create buttons
+            <>
+              <button
+                onClick={onDisconnectQB}
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
+                title="Disconnect from QuickBooks"
+              >
+                ✕ Disconnect
+              </button>
+              {estimate?.is_draft && (
+                <button
+                  onClick={onCreateQBEstimate}
+                  disabled={qbCreatingEstimate || !estimatePreviewData || estimatePreviewData.items.length === 0}
+                  className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Create estimate in QuickBooks (will finalize this draft)"
+                >
+                  {qbCreatingEstimate ? (
+                    <>⏳ Creating...</>
+                  ) : (
+                    <>
+                      <FileText className="w-3.5 h-3.5" />
+                      Create QB Estimate
+                    </>
+                  )}
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
 

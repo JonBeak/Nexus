@@ -57,6 +57,109 @@ export const FieldCell: React.FC<FieldCellProps> = ({
     }
   };
 
+  // Navigate to adjacent cell (spreadsheet-like navigation)
+  const navigateToCell = (direction: 'up' | 'down' | 'left' | 'right') => {
+    // Commit current value first
+    handleCommit();
+
+    // Find current cell's td element
+    const currentInput = document.activeElement as HTMLElement;
+    const currentTd = currentInput?.closest('td');
+    if (!currentTd) return;
+
+    const currentTr = currentTd.closest('tr');
+    if (!currentTr) return;
+
+    // Helper to check if a cell has an editable input
+    const hasEditableInput = (td: HTMLElement): boolean => {
+      const input = td.querySelector('input:not([readonly]), select:not([disabled])') as HTMLElement;
+      return !!input;
+    };
+
+    // Helper to get next td in a direction
+    const getNextTd = (currentTd: HTMLElement, currentTr: HTMLElement, direction: 'up' | 'down' | 'left' | 'right'): HTMLElement | null => {
+      if (direction === 'left') {
+        return currentTd.previousElementSibling as HTMLElement;
+      } else if (direction === 'right') {
+        return currentTd.nextElementSibling as HTMLElement;
+      } else if (direction === 'up') {
+        const prevTr = currentTr.previousElementSibling as HTMLElement;
+        if (prevTr) {
+          const cellIndex = Array.from(currentTr.children).indexOf(currentTd);
+          return prevTr.children[cellIndex] as HTMLElement;
+        }
+      } else if (direction === 'down') {
+        const nextTr = currentTr.nextElementSibling as HTMLElement;
+        if (nextTr) {
+          const cellIndex = Array.from(currentTr.children).indexOf(currentTd);
+          return nextTr.children[cellIndex] as HTMLElement;
+        }
+      }
+      return null;
+    };
+
+    // Find next valid cell, skipping inactive ones
+    let targetTd: HTMLElement | null = null;
+    let searchTd = currentTd;
+    let searchTr = currentTr;
+    let maxIterations = 100; // Safety limit to prevent infinite loops
+    let iterations = 0;
+
+    while (iterations < maxIterations) {
+      iterations++;
+
+      const nextTd = getNextTd(searchTd, searchTr, direction);
+      if (!nextTd) {
+        // Reached end of grid in this direction
+        break;
+      }
+
+      // Update search position
+      searchTd = nextTd;
+      if (direction === 'up' || direction === 'down') {
+        searchTr = nextTd.closest('tr') as HTMLElement;
+        if (!searchTr) break;
+      }
+
+      // Check if this cell has an editable input
+      if (hasEditableInput(nextTd)) {
+        targetTd = nextTd;
+        break;
+      }
+    }
+
+    // Focus the input/select in the target cell
+    if (targetTd) {
+      const targetInput = targetTd.querySelector('input:not([readonly]), select:not([disabled])') as HTMLElement;
+      if (targetInput) {
+        targetInput.focus();
+        // Select all text if it's an input
+        if (targetInput instanceof HTMLInputElement) {
+          targetInput.select();
+        }
+      }
+    }
+  };
+
+  // Handle keyboard navigation with Ctrl+Arrow keys
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.ctrlKey) {
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        navigateToCell('up');
+      } else if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        navigateToCell('down');
+      } else if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        navigateToCell('left');
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        navigateToCell('right');
+      }
+    }
+  };
+
   // If field is disabled, show prompt as read-only label (for special items like Divider)
   if (!fieldEnabled) {
     // Show prompt text if available (for informational display)
@@ -237,6 +340,12 @@ export const FieldCell: React.FC<FieldCellProps> = ({
             setIsDropdownOpen(true);
           }}
           onKeyDown={(event) => {
+            // Handle Ctrl+Arrow navigation first
+            if (event.ctrlKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+              handleKeyDown(event);
+              return;
+            }
+
             // Handle keyboard interactions
             if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
               if (!isDropdownOpen) {
@@ -279,6 +388,7 @@ export const FieldCell: React.FC<FieldCellProps> = ({
           value={localValue}
           onChange={(event) => setLocalValue(event.target.value)}
           onBlur={handleCommit}
+          onKeyDown={handleKeyDown}
           className={fieldClasses}
           placeholder={displayPlaceholder}
           title={fieldTooltip || displayPlaceholder}
@@ -297,6 +407,7 @@ export const FieldCell: React.FC<FieldCellProps> = ({
           className={fieldClasses}
           allowExpansion={allowExpansion}
           title={fieldTooltip || displayPlaceholder}
+          onKeyDown={handleKeyDown}
         />
       );
   }

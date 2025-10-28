@@ -40,13 +40,22 @@ export const calculateLed = async (input: ValidatedPricingInput): Promise<RowCal
     const ledCount = (input.parsedValues.field1 as number) || 0;
     const ledType = input.parsedValues.field2;
     const ledPriceOverride = (input.parsedValues.field3 as number) || null;
-    const psCountOverride = input.parsedValues.field4; // Can be number | 'yes' | 'no' | null
+    const psCountOverrideRaw = input.parsedValues.field4; // Can be number | 'yes' | 'no' | null
     const psTypeOverride = input.parsedValues.field5;
     const psPriceOverride = (input.parsedValues.field6 as number) || null;
     const ulOverride = input.parsedValues.field7;
     const wireLenPerWire = (input.parsedValues.field8 as number) || 0;
     const wireCount = (input.parsedValues.field9 as number) || 0;
     const wireFlatLength = (input.parsedValues.field10 as number) || 0;
+
+    // Normalize PS count override: "no" -> 0, "yes" -> null (use calculated), numeric -> numeric
+    let psCountOverride: number | null = null;
+    if (psCountOverrideRaw === 'no') {
+      psCountOverride = 0;
+    } else if (typeof psCountOverrideRaw === 'number') {
+      psCountOverride = psCountOverrideRaw;
+    }
+    // If "yes" or undefined, leave as null to use default calculation
 
     console.log('LED Pricing Input:', {
       ledCount,
@@ -181,17 +190,40 @@ export const calculateLed = async (input: ValidatedPricingInput): Promise<RowCal
       });
     }
 
-    // 2. Power Supplies (if LEDs exist OR explicit PS override provided)
-    // Check if we should calculate power supplies
-    const hasExplicitPsOverride = (psCountOverride !== null && psCountOverride !== undefined && psCountOverride !== '') ||
-                                   (psTypeOverride && psTypeOverride !== '');
+    // 2. Power Supplies - Use powerSupplySelector for smart selection
+    const calculatedPsCount = input.calculatedValues.psCount || 0;
 
-    if (totalWattage > 0 || hasExplicitPsOverride) {
+    // Determine what to pass to powerSupplySelector
+    let psOverrideForSelector: number | null = null;
+    let shouldCalculatePS = false;
+
+    if (psCountOverrideRaw === 'yes') {
+      // User explicitly wants PSs - enable UL optimization
+      shouldCalculatePS = true;
+      psOverrideForSelector = null;
+    } else if (psCountOverride !== null) {
+      // User entered a specific number (including 0)
+      shouldCalculatePS = true;
+      psOverrideForSelector = psCountOverride;
+    } else if (psTypeOverride && psTypeOverride !== '') {
+      // User specified PS type - use ValidationContextBuilder's count
+      shouldCalculatePS = true;
+      psOverrideForSelector = calculatedPsCount;
+    } else {
+      // No user override - use ValidationContextBuilder's decision
+      shouldCalculatePS = calculatedPsCount > 0;
+      psOverrideForSelector = calculatedPsCount;
+    }
+
+    if (shouldCalculatePS) {
+      // Use section-level UL for PS optimization (consistent PS types within section)
+      const sectionHasUL = input.calculatedValues?.sectionHasUL ?? false;
+
       const psResult = await selectPowerSupplies({
         totalWattage,
-        hasUL,
+        hasUL: sectionHasUL,  // Use section-level UL for PS selection
         psTypeOverride: psTypeOverride as string | null,
-        psCountOverride: typeof psCountOverride === 'number' ? psCountOverride : null,
+        psCountOverride: psOverrideForSelector,
         customerPreferences: input.customerPreferences,
         psPriceOverride: psPriceOverride
       });

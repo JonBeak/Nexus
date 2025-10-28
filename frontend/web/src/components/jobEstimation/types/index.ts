@@ -2,6 +2,8 @@
 
 import { ValidationResultsManager } from '../core/validation/ValidationResultsManager';
 import { PricingCalculationContext } from '../core/types/GridTypes';
+import { CustomerManufacturingPreferences } from '../core/validation/context/useCustomerPreferences';
+import { User } from '../../../types';
 
 export interface FieldOption {
   value: string;
@@ -61,10 +63,10 @@ export interface EstimateRow {
 }
 
 export interface GridJobBuilderProps {
-  user: any;
-  estimate: any;
+  user: User;
+  estimate: EstimateVersion;
   isCreatingNew: boolean;
-  onEstimateChange: (estimate: any) => void;
+  onEstimateChange: (estimate: EstimateVersion) => void;
   showNotification: (message: string, type?: 'success' | 'error') => void;
   customerId?: number | null;
   // NEW: Customer context for pricing calculations
@@ -79,9 +81,13 @@ export interface GridJobBuilderProps {
   onValidationChange?: (hasErrors: boolean, errorCount: number, context?: PricingCalculationContext) => void;
   // Navigation guard callback
   onRequestNavigation?: (navigationGuard: ((navigationFn?: () => void) => void) | null) => void;
+  // Customer preferences callback - GridJobBuilder is single source of truth for preferences
+  onPreferencesLoaded?: (preferences: CustomerManufacturingPreferences | null) => void;
   // Cross-component hover state
   hoveredRowId?: string | null;
   onRowHover?: (rowId: string | null) => void;
+  // Calculated estimate totals for persistence
+  estimatePreviewData?: { total: number } | null;
 }
 
 export interface DragDropContextType {
@@ -158,28 +164,27 @@ export interface EstimateVersion {
   version_label: string; // "v1", "v2", etc.
   customer_id: number;
   customer_name: string;
-  status: 'draft' | 'sent' | 'approved' | 'ordered' | 'deactivated';
   is_draft: boolean;
-  display_status: string;
+  is_active: boolean; // Single source of truth for deactivation (false = deactivated, true = active)
   subtotal: number;
   tax_rate: number;
   tax_amount: number;
   total_amount: number;
   parent_estimate_id?: number;
   parent_version?: number;
-  
+
   // Edit lock system
   editing_user_id?: number;
   editing_started_at?: string;
   editing_expires_at?: string;
   editing_locked_by_override?: boolean;
-  
+
   // Enhanced status flags
   is_sent: boolean;
   is_approved: boolean;
   is_retracted: boolean;
   // sent_count, last_sent_at, approved_at, retracted_at now available via history API
-  
+
   // Audit fields
   finalized_at?: string;
   finalized_by?: string;

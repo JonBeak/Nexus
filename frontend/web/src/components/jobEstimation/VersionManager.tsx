@@ -36,11 +36,14 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
     setError(null);
     try {
       const response = await jobVersioningApi.getEstimateVersions(jobId);
-      const versionData = response.data || [];
-      setVersions(versionData);
-      
+      const allVersions = response.data || [];
+
+      // Filter out deactivated estimates
+      const activeVersions = allVersions.filter(v => v.status !== 'deactivated');
+      setVersions(activeVersions);
+
       // Check edit lock status for all drafts
-      for (const version of versionData) {
+      for (const version of activeVersions) {
         if (version.is_draft) {
           checkEditLockStatus(version.id);
         }
@@ -112,6 +115,20 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
     }
   };
 
+  const handleApproveEstimate = async (estimateId: number) => {
+    if (!window.confirm('Mark this estimate as approved? This action can be reversed.')) {
+      return;
+    }
+
+    try {
+      await jobVersioningApi.approveEstimate(estimateId);
+      fetchVersions(); // Refresh the list to show updated status
+    } catch (err) {
+      console.error('Error approving estimate:', err);
+      setError('Failed to approve estimate');
+    }
+  };
+
   const handleOverrideLock = async (estimateId: number) => {
     if (user.role !== 'manager' && user.role !== 'owner') return;
     
@@ -138,57 +155,72 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
 
   const getStatusBadges = (version: EstimateVersion) => {
     const badges = [];
-    const statusText = getEstimateStatusText(version);
-    
-    if (version.is_draft) {
+
+    // Check deactivated first (single source of truth via is_active)
+    // Handle both boolean false and number 0 (from database)
+    if (version.is_active === false || version.is_active === 0) {
       badges.push(
-        <span key="draft" className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-sm font-medium">
+        <span key="deactivated" className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-medium">
+          Deactivated
+        </span>
+      );
+      return badges; // Deactivated estimates show only this badge
+    }
+
+    // Draft status
+    if (version.is_draft === true || version.is_draft === 1) {
+      badges.push(
+        <span key="draft" className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-medium">
           Draft
         </span>
       );
-    } else {
-      // For non-draft versions, show individual status badges
-      if (version.is_sent) {
-        badges.push(
-          <span key="sent" className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm font-medium flex items-center">
-            <Send className="w-3 h-3 mr-1" />
-            Sent
-          </span>
-        );
-      }
-      if (version.is_approved) {
-        badges.push(
-          <span key="approved" className="bg-green-100 text-green-800 px-2 py-1 rounded text-sm font-medium flex items-center">
-            <CheckCircle className="w-3 h-3 mr-1" />
-            Approved
-          </span>
-        );
-      }
-      if (version.is_retracted) {
-        badges.push(
-          <span key="retracted" className="bg-red-100 text-red-800 px-2 py-1 rounded text-sm font-medium">
-            Retracted
-          </span>
-        );
-      }
-      if (version.status === 'ordered') {
-        badges.push(
-          <span key="ordered" className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-sm font-medium flex items-center">
-            <Package className="w-3 h-3 mr-1" />
-            Ordered
-          </span>
-        );
-      }
-      
-      // If no specific status badges were added, show the status text as a general badge
-      if (badges.length === 0 && statusText && statusText !== 'Unknown') {
-        const colorClasses = getStatusColorClasses(statusText);
-        badges.push(
-          <span key="status" className={`${colorClasses} px-2 py-1 rounded text-sm font-medium`}>
-            {statusText}
-          </span>
-        );
-      }
+      return badges; // Draft estimates show only this badge
+    }
+
+    // For finalized estimates, show all applicable status flags
+    // Sent badge is larger (text-sm) for visibility
+    if (version.is_sent === true || version.is_sent === 1) {
+      badges.push(
+        <span key="sent" className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm font-medium flex items-center">
+          <Send className="w-4 h-4 mr-1" />
+          Sent
+        </span>
+      );
+    }
+
+    if (version.is_approved === true || version.is_approved === 1) {
+      badges.push(
+        <span key="approved" className="bg-green-100 text-green-800 px-2 py-1 rounded text-sm font-medium flex items-center">
+          <CheckCircle className="w-4 h-4 mr-1" />
+          Approved
+        </span>
+      );
+    }
+
+    if (version.is_retracted === true || version.is_retracted === 1) {
+      badges.push(
+        <span key="retracted" className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-medium">
+          Retracted
+        </span>
+      );
+    }
+
+    if (version.status === 'ordered') {
+      badges.push(
+        <span key="ordered" className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs font-medium flex items-center">
+          <Package className="w-3 h-3 mr-1" />
+          Ordered
+        </span>
+      );
+    }
+
+    // If no badges were added, this violates database constraint - show error
+    if (badges.length === 0) {
+      badges.push(
+        <span key="error" className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-medium">
+          ERROR: No Status
+        </span>
+      );
     }
     
     return badges;
@@ -220,13 +252,17 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-CA', {
+    const date = new Date(dateString);
+    const dateStr = date.toLocaleDateString('en-CA', {
       year: 'numeric',
       month: 'short',
-      day: 'numeric',
+      day: 'numeric'
+    });
+    const timeStr = date.toLocaleTimeString('en-CA', {
       hour: '2-digit',
       minute: '2-digit'
     });
+    return { date: dateStr, time: timeStr };
   };
 
   if (loading) {
@@ -290,10 +326,10 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
               <thead className="bg-gray-50">
                 <tr>
                   <th className="text-left p-4 font-medium text-gray-700">Version</th>
-                  <th className="text-left p-4 font-medium text-gray-700">Status</th>
+                  <th className="text-left p-4 font-medium text-gray-700 w-40">Status</th>
                   <th className="text-right p-4 font-medium text-gray-700">Total</th>
                   <th className="text-left p-4 font-medium text-gray-700">Created By</th>
-                  <th className="text-left p-4 font-medium text-gray-700">Date</th>
+                  <th className="text-left p-4 font-medium text-gray-700 w-32">Date</th>
                   <th className="text-center p-4 font-medium text-gray-700">Actions</th>
                 </tr>
               </thead>
@@ -335,42 +371,60 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
                     </td>
 
                     <td className="p-4 text-sm text-gray-500">
-                      <div className="flex items-center">
-                        <Clock className="w-4 h-4 mr-1" />
-                        {formatDate(version.created_at)}
+                      <div className="flex items-start">
+                        <Clock className="w-4 h-4 mr-1 mt-0.5 flex-shrink-0" />
+                        <div className="flex flex-col">
+                          <span>{formatDate(version.created_at).date}</span>
+                          <span className="text-xs text-gray-400">{formatDate(version.created_at).time}</span>
+                        </div>
                       </div>
                     </td>
 
                     <td className="p-4">
-                      <div className="flex items-center justify-center space-x-2">
-                        {version.is_draft ? (
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        {/* First row: Edit/View and Copy buttons */}
+                        <div className="flex items-center space-x-2">
+                          {version.is_draft ? (
+                            <button
+                              onClick={() => handleVersionSelect(version)}
+                              className="flex items-center space-x-1 px-2 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                              title="Edit Draft"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                              <span>Edit</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleVersionSelect(version)}
+                              className="flex items-center space-x-1 px-2 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-700"
+                              title="View Final"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>View</span>
+                            </button>
+                          )}
+
                           <button
-                            onClick={() => handleVersionSelect(version)}
-                            className="flex items-center space-x-1 px-2 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-                            title="Edit Draft"
+                            onClick={() => setShowDuplicateModal(version.id)}
+                            className="flex items-center space-x-1 px-2 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700"
+                            title="Duplicate Version"
                           >
-                            <Edit3 className="w-3 h-3" />
-                            <span>Edit</span>
+                            <Copy className="w-3 h-3" />
+                            <span>Copy</span>
                           </button>
-                        ) : (
+                        </div>
+
+                        {/* Second row: Approve button (if applicable) */}
+                        {version.qb_estimate_id && !(version.is_approved === true || version.is_approved === 1) && (
                           <button
-                            onClick={() => handleVersionSelect(version)}
-                            className="flex items-center space-x-1 px-2 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-700"
-                            title="View Final"
+                            onClick={() => handleApproveEstimate(version.id)}
+                            className="flex items-center space-x-1 px-2 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 w-full justify-center"
+                            title="Mark as Approved"
                           >
-                            <Eye className="w-3 h-3" />
-                            <span>View</span>
+                            <CheckCircle className="w-3 h-3" />
+                            <span>Approve</span>
                           </button>
                         )}
-
-                        <button
-                          onClick={() => setShowDuplicateModal(version.id)}
-                          className="flex items-center space-x-1 px-2 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
-                          title="Duplicate Version"
-                        >
-                          <Copy className="w-3 h-3" />
-                          <span>Copy</span>
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -425,42 +479,60 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
 
                 {/* Date */}
                 <div className="mb-3">
-                  <div className="flex items-center text-sm text-gray-500">
-                    <Clock className="w-4 h-4 mr-1" />
-                    {formatDate(version.created_at)}
+                  <div className="flex items-start text-sm text-gray-500">
+                    <Clock className="w-4 h-4 mr-1 mt-0.5 flex-shrink-0" />
+                    <div className="flex flex-col">
+                      <span>{formatDate(version.created_at).date}</span>
+                      <span className="text-xs text-gray-400">{formatDate(version.created_at).time}</span>
+                    </div>
                   </div>
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex items-center space-x-2 pt-3 border-t border-gray-200">
-                  {version.is_draft ? (
+                <div className="flex flex-col gap-2 pt-3 border-t border-gray-200">
+                  {/* First row: Edit/View and Copy buttons */}
+                  <div className="flex items-center space-x-2">
+                    {version.is_draft ? (
+                      <button
+                        onClick={() => handleVersionSelect(version)}
+                        className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                        title="Edit Draft"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                        <span>Edit</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleVersionSelect(version)}
+                        className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 bg-gray-600 text-white text-sm rounded hover:bg-gray-700"
+                        title="View Final"
+                      >
+                        <Eye className="w-4 h-4" />
+                        <span>View</span>
+                      </button>
+                    )}
+
                     <button
-                      onClick={() => handleVersionSelect(version)}
-                      className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-                      title="Edit Draft"
+                      onClick={() => setShowDuplicateModal(version.id)}
+                      className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700"
+                      title="Duplicate Version"
                     >
-                      <Edit3 className="w-4 h-4" />
-                      <span>Edit</span>
+                      <Copy className="w-4 h-4" />
+                      <span>Copy</span>
                     </button>
-                  ) : (
+                  </div>
+
+                  {/* Second row: Approve button (if applicable) */}
+                  {version.qb_estimate_id && !(version.is_approved === true || version.is_approved === 1) && (
                     <button
-                      onClick={() => handleVersionSelect(version)}
-                      className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 bg-gray-600 text-white text-sm rounded hover:bg-gray-700"
-                      title="View Final"
+                      onClick={() => handleApproveEstimate(version.id)}
+                      className="w-full flex items-center justify-center space-x-1 px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                      title="Mark as Approved"
                     >
-                      <Eye className="w-4 h-4" />
-                      <span>View</span>
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Approve</span>
                     </button>
                   )}
-
-                  <button
-                    onClick={() => setShowDuplicateModal(version.id)}
-                    className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700"
-                    title="Duplicate Version"
-                  >
-                    <Copy className="w-4 h-4" />
-                    <span>Copy</span>
-                  </button>
                 </div>
               </div>
             ))}

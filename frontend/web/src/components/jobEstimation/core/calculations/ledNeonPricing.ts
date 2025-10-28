@@ -280,45 +280,51 @@ export const calculateLedNeon = async (input: ValidatedPricingInput): Promise<Ro
       standoffsDescription = `${fields.standoffsCount} Stand Offs @ $${formatPrice(pricePerStandoff)}/ea`;
     }
 
-    // ========== FIELD 7: Power Supplies ==========
+    // ========== FIELD 7: Power Supplies - Use powerSupplySelector for smart selection ==========
     const powerSupplyComponents: ComponentItem[] = [];
     let totalPsCost = 0;
 
-    // Calculate power supplies if LED Neon exists (has wattage)
-    if (totalWattage > 0) {
-      // Handle ps_override values: 'yes', 'no', 0, or number
-      let effectivePsOverride: number | null = null;
-      let skipPowerSupplies = false;
+    const calculatedPsCount = input.calculatedValues.psCount || 0;
 
-      if (fields.psCountOverride === 'no' || fields.psCountOverride === 0) {
-        // User explicitly disabled power supplies - skip calculation
-        skipPowerSupplies = true;
-      } else if (fields.psCountOverride === 'yes') {
-        // User wants power supplies - use auto-calculation (pass null to selectPowerSupplies)
-        effectivePsOverride = null;
-      } else if (typeof fields.psCountOverride === 'number' && fields.psCountOverride > 0) {
-        // User specified exact count
-        effectivePsOverride = fields.psCountOverride;
-      } else {
-        // Empty field - use default behavior (auto-calculate)
-        effectivePsOverride = null;
-      }
+    // Normalize psCountOverride from field7
+    let normalizedPsCountOverride: number | null = null;
+    if (fields.psCountOverride === 'no') {
+      normalizedPsCountOverride = 0;
+    } else if (typeof fields.psCountOverride === 'number') {
+      normalizedPsCountOverride = fields.psCountOverride;
+    }
 
-      // Only calculate if not explicitly disabled
-      if (!skipPowerSupplies) {
-        // Determine UL requirement from customer preferences (LED Neon has no UL override field)
-        const hasUL = input.customerPreferences?.pref_ul_required === true;
+    // Determine what to pass to powerSupplySelector
+    let psOverrideForSelector: number | null = null;
+    let shouldCalculatePS = false;
 
-        const psResult = await selectPowerSupplies({
-          totalWattage,
-          hasUL,
-          psCountOverride: effectivePsOverride,
-          customerPreferences: input.customerPreferences
-        });
+    if (fields.psCountOverride === 'yes') {
+      // User explicitly wants PSs - enable UL optimization
+      shouldCalculatePS = true;
+      psOverrideForSelector = null;
+    } else if (normalizedPsCountOverride !== null) {
+      // User entered a specific number (including 0)
+      shouldCalculatePS = true;
+      psOverrideForSelector = normalizedPsCountOverride;
+    } else {
+      // No user override - use ValidationContextBuilder's decision
+      shouldCalculatePS = calculatedPsCount > 0;
+      psOverrideForSelector = calculatedPsCount;
+    }
 
-        powerSupplyComponents.push(...psResult.components);
-        totalPsCost = psResult.components.reduce((sum, c) => sum + c.price, 0);
-      }
+    if (shouldCalculatePS) {
+      // Use section-level UL for PS optimization (consistent PS types within section)
+      const sectionHasUL = input.calculatedValues?.sectionHasUL ?? false;
+
+      const psResult = await selectPowerSupplies({
+        totalWattage,
+        hasUL: sectionHasUL,  // Use section-level UL for PS selection
+        psCountOverride: psOverrideForSelector,
+        customerPreferences: input.customerPreferences
+      });
+
+      powerSupplyComponents.push(...psResult.components);
+      totalPsCost = psResult.components.reduce((sum, c) => sum + c.price, 0);
     }
 
     // ========== BUILD COMPONENTS BASED ON SCENARIO ==========

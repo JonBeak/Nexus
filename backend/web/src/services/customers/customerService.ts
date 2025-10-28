@@ -1,5 +1,6 @@
 import { query } from '../../config/database';
 import { RowDataPacket } from 'mysql2';
+import { convertBooleanFieldsArray, convertBooleanFields } from '../../utils/databaseUtils';
 
 // Interface for customer data
 export interface Customer extends RowDataPacket {
@@ -142,8 +143,20 @@ export class CustomerService {
     
     const customers = await query(customersQuery, queryParams) as Customer[];
 
+    // Convert MySQL boolean fields (TINYINT) to TypeScript booleans
+    const booleanFields: (keyof Customer)[] = [
+      'active',
+      'cash_yes_or_no',
+      'leds_yes_or_no',
+      'powersupply_yes_or_no',
+      'ul_yes_or_no',
+      'drain_holes_yes_or_no',
+      'plug_n_play_yes_or_no'
+    ];
+    const convertedCustomers = convertBooleanFieldsArray(customers, booleanFields);
+
     return {
-      customers,
+      customers: convertedCustomers,
       pagination: {
         page,
         limit,
@@ -210,9 +223,32 @@ export class CustomerService {
     
     const addresses = await query(addressQuery, [customerId]);
 
+    // Convert customer boolean fields
+    const customerBooleanFields: (keyof Customer)[] = [
+      'active',
+      'cash_yes_or_no',
+      'leds_yes_or_no',
+      'powersupply_yes_or_no',
+      'ul_yes_or_no',
+      'drain_holes_yes_or_no',
+      'plug_n_play_yes_or_no'
+    ];
+    const convertedCustomer = convertBooleanFields(customers[0], customerBooleanFields);
+
+    // Convert address boolean fields
+    const addressBooleanFields = [
+      'is_primary',
+      'is_billing',
+      'is_shipping',
+      'is_jobsite',
+      'is_mailing',
+      'is_active'
+    ];
+    const convertedAddresses = convertBooleanFieldsArray(addresses as any[], addressBooleanFields);
+
     return {
-      ...customers[0],
-      addresses: addresses || []
+      ...convertedCustomer,
+      addresses: convertedAddresses || []
     };
   }
 

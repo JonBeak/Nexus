@@ -258,17 +258,19 @@ class FormulaParser {
   /**
    * Calculate LEDs for a given linear inches value
    * When we only have linear inches (not dimensions), we use the small letter formula
-   * or estimate dimensions as square for larger sizes
+   * or estimate dimensions based on 2:1 aspect ratio
    */
   private calculateLEDsForLinearInches(linearInches: number): number {
     if (linearInches < 11) {
       // Small letters: use the simple formula
       return Math.round(0.6121 * linearInches + 0.9333);
     } else {
-      // For larger sizes without dimensions, estimate as square
-      // This is conservative - actual LEDs may vary based on actual shape
-      const estimatedSide = Math.sqrt(linearInches * 20); // Reverse of area/20
-      return calculateLEDs(estimatedSide, estimatedSide, linearInches);
+      // For larger sizes without dimensions, assume 2:1 aspect ratio
+      // (e.g., 20" → 20x10, 24" → 24x12, 30" → 30x15)
+      const estimatedWidth = linearInches;
+      const estimatedHeight = linearInches * 0.50;
+
+      return calculateLEDs(estimatedWidth, estimatedHeight, linearInches);
     }
   }
 

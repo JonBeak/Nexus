@@ -1,5 +1,5 @@
 import { BulkEntry } from '../hooks/useBulkEntries';
-import { VinylItem } from '../components/inventory/InventoryTab';
+import { VinylItem } from '../components/inventory/types';
 
 export const buildColourMapping = (vinylItems: VinylItem[], combinations: any[], currentBrand?: string, currentSeries?: string) => {
   const numberToName: Record<string, string> = {};

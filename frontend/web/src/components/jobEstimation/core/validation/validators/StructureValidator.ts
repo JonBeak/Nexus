@@ -1,5 +1,5 @@
 // Structure-level validation
-// Validates business rules, sub-item placement, assembly logic, and row ordering
+// Validates business rules, sub-item placement, and row ordering
 
 import { GridRowCore, ProductTypeConfig } from '../../types/CoreTypes';
 
@@ -34,12 +34,6 @@ export class StructureValidator {
 
     // 3. Validate product type hierarchy rules
     results.push(...this.validateProductTypeHierarchy(coreData));
-
-    // 4. Validate assembly group rules
-    results.push(...this.validateAssemblyGroups(coreData));
-
-    // 5. Validate subtotal lines don't split assembly groups (checked after assembly validation)
-    results.push(...this.validateSubtotalPlacement(coreData));
 
     return results;
   }
@@ -149,130 +143,6 @@ export class StructureValidator {
     return results;
   }
 
-  /**
-   * Validate assembly group rules
-   * TODO: Future feature - assembly validation not yet implemented
-   * Currently returns no errors because identifyAssemblyGroups() returns empty array
-   */
-  private validateAssemblyGroups(coreData: GridRowCore[]): StructureValidationResult[] {
-    const results: StructureValidationResult[] = [];
-
-    // Find all assembly groups in the grid
-    const assemblyGroups = this.identifyAssemblyGroups();
-
-    for (const group of assemblyGroups) {
-      // Rule 1: Assembly members must be back-to-back
-      if (!this.areAssemblyMembersContiguous(coreData, group.memberRowIds)) {
-        for (const memberId of group.memberRowIds) {
-          results.push({
-            rowId: memberId,
-            error: 'Assembly group members must be placed back-to-back',
-            rule: 'assembly_not_contiguous',
-            severity: 'error'
-          });
-        }
-      }
-
-      // Rule 2: Only parent items can be selected for assembly groups
-      for (const memberId of group.memberRowIds) {
-        const member = coreData.find(r => r.id === memberId);
-        if (member && member.rowType !== 'main') {
-          results.push({
-            rowId: memberId,
-            error: 'Only main products can be assembly group members',
-            rule: 'assembly_non_main_member',
-            severity: 'error'
-          });
-        }
-      }
-
-      // Rule 3: Assembly row must be at the bottom of the group
-      if (group.assemblyRowId && !this.isAssemblyRowAtBottom(coreData, group)) {
-        results.push({
-          rowId: group.assemblyRowId,
-          error: 'Assembly row must be placed at the bottom of the assembly group',
-          rule: 'assembly_row_not_at_bottom',
-          severity: 'error'
-        });
-      }
-
-      // Rule 4: Maximum 9 assembly group members
-      if (group.memberRowIds.length > 9) {
-        for (const memberId of group.memberRowIds.slice(9)) {
-          results.push({
-            rowId: memberId,
-            error: 'Assembly groups cannot have more than 9 members',
-            rule: 'assembly_too_many_members',
-            severity: 'error'
-          });
-        }
-      }
-
-      // Rule 5: Each assembly member can only belong to one assembly
-      // This would be checked across all groups - implementation depends on how assembly membership is tracked
-    }
-
-    return results;
-  }
-
-  /**
-   * Validate that subtotal lines don't split assembly groups
-   * Checked after assembly validation
-   * TODO: Future feature - assembly validation not yet implemented
-   * Currently returns no errors because identifyAssemblyGroups() returns empty array
-   */
-  private validateSubtotalPlacement(coreData: GridRowCore[]): StructureValidationResult[] {
-    const results: StructureValidationResult[] = [];
-
-    // Find all assembly groups
-    const assemblyGroups = this.identifyAssemblyGroups();
-
-    for (const group of assemblyGroups) {
-      if (group.memberRowIds.length < 2) continue; // Single-member groups can't be split
-
-      // Get the range of indices for this assembly group
-      const memberIndices = group.memberRowIds
-        .map(id => coreData.findIndex(r => r.id === id))
-        .filter(index => index !== -1)
-        .sort((a, b) => a - b);
-
-      if (memberIndices.length < 2) continue;
-
-      const groupStartIndex = memberIndices[0];
-      const groupEndIndex = memberIndices[memberIndices.length - 1];
-
-      // Check for subtotal/divider rows within the assembly group range
-      for (let i = groupStartIndex + 1; i < groupEndIndex; i++) {
-        const row = coreData[i];
-
-        // Skip if this row is part of the assembly group
-        if (group.memberRowIds.includes(row.id)) continue;
-
-        // Check if this is a subtotal or divider row
-        if (this.isSubtotalOrDividerRow(row)) {
-          results.push({
-            rowId: row.id,
-            error: 'Subtotal and divider lines cannot split assembly groups',
-            rule: 'subtotal_splits_assembly',
-            severity: 'error'
-          });
-
-          // Also flag the assembly group members for clarity
-          for (const memberId of group.memberRowIds) {
-            results.push({
-              rowId: memberId,
-              error: 'Assembly group is split by a subtotal or divider line',
-              rule: 'assembly_split_by_subtotal',
-              severity: 'error'
-            });
-          }
-        }
-      }
-    }
-
-    return results;
-  }
-
   // Helper methods
 
   /**
@@ -336,67 +206,4 @@ export class StructureValidator {
     const productType = this.productTypes.find(pt => pt.id === row.productTypeId);
     return productType?.category === 'special';
   }
-
-  /**
-   * Identify assembly groups in the grid
-   * TODO: Future feature - assembly validation not yet implemented
-   * This is a placeholder - implementation depends on how assembly membership is tracked
-   */
-  private identifyAssemblyGroups(): AssemblyGroup[] {
-    // Placeholder implementation - you'll need to implement based on how assemblies are tracked
-    // This might involve checking row metadata, assembly IDs, or other markers
-
-    const groups: AssemblyGroup[] = [];
-
-    // Example: Look for rows with assembly markers or assembly-related data
-    // Implementation depends on your assembly system design
-
-    return groups;
-  }
-
-  /**
-   * Check if assembly members are contiguous (back-to-back)
-   * TODO: Future feature - used by assembly validation stubs
-   */
-  private areAssemblyMembersContiguous(coreData: GridRowCore[], memberRowIds: string[]): boolean {
-    if (memberRowIds.length <= 1) return true;
-
-    // Find indices of all member rows
-    const memberIndices = memberRowIds
-      .map(id => coreData.findIndex(r => r.id === id))
-      .filter(index => index !== -1)
-      .sort((a, b) => a - b);
-
-    // Check if indices are consecutive
-    for (let i = 1; i < memberIndices.length; i++) {
-      if (memberIndices[i] !== memberIndices[i - 1] + 1) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  /**
-   * Check if assembly row is at the bottom of its group
-   * TODO: Future feature - used by assembly validation stubs
-   */
-  private isAssemblyRowAtBottom(coreData: GridRowCore[], group: AssemblyGroup): boolean {
-    if (!group.assemblyRowId || group.memberRowIds.length === 0) return true;
-
-    const assemblyRowIndex = coreData.findIndex(r => r.id === group.assemblyRowId);
-    const maxMemberIndex = Math.max(
-      ...group.memberRowIds.map(id => coreData.findIndex(r => r.id === id))
-    );
-
-    return assemblyRowIndex > maxMemberIndex;
-  }
-}
-
-// Supporting interfaces
-
-interface AssemblyGroup {
-  memberRowIds: string[];
-  assemblyRowId?: string;
-  assemblyId?: string;
 }

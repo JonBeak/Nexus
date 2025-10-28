@@ -23,7 +23,8 @@ function SimpleLogin({ onLogin }: SimpleLoginProps) {
     setError('');
 
     try {
-      const response = await fetch('http://192.168.2.14:3001/api/auth/login', {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

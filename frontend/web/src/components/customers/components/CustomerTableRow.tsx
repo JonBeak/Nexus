@@ -12,7 +12,7 @@ export const CustomerTableRow: React.FC<CustomerTableRowProps> = React.memo(({
   onDetailsClick,
   onReactivateClick
 }) => {
-  const isDeactivated = customer.active === false || customer.active === 0 || customer.active === '0' || !customer.active;
+  const isDeactivated = !customer.active;
 
   return (
     <tr className={`${isDeactivated ? 'opacity-60 bg-gray-50' : 'hover:bg-gray-50'} transition-colors`}>

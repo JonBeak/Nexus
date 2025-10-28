@@ -8,7 +8,6 @@ import { ValidationResultsManager } from './ValidationResultsManager';
 import { StructureValidator } from './validators/StructureValidator';
 import { CellValidator } from './validators/CellValidator';
 import { RowValidator } from './validators/RowValidator';
-import { AssemblyAssigner } from './AssemblyAssigner';
 import { ValidationContext } from './templates/ValidationTemplate';
 import { CustomerManufacturingPreferences } from './context/useCustomerPreferences';
 import { ValidationContextBuilder } from './context/ValidationContextBuilder';
@@ -37,7 +36,6 @@ export class ValidationEngine {
   private structureValidator: StructureValidator;
   private cellValidator: CellValidator;
   private rowValidator: RowValidator;
-  private assemblyAssigner: AssemblyAssigner;
   private config: ValidationEngineConfig;
   private productValidations: Map<number, Record<string, FieldValidationConfig>>;
 
@@ -52,7 +50,6 @@ export class ValidationEngine {
 
     this.cellValidator = new CellValidator(this.templateRegistry, this.productValidations);
     this.rowValidator = new RowValidator(this.productValidations);
-    this.assemblyAssigner = new AssemblyAssigner();
   }
 
   /**
@@ -216,13 +213,10 @@ export class ValidationEngine {
       // 1. Cell-level validation (field format, business rules) with context
       await this.validateCells(rowsToValidate, validationContext);
 
-      // 2. Structure validation (business rules, assembly logic) - always validate full grid
+      // 2. Structure validation (business rules) - always validate full grid
       await this.validateStructure(coreData, validationContext);
 
-      // 3. Assembly assignment (after validation completes)
-      await this.assignAssemblyGroups(coreData);
-
-      // 4. Update global blocking status
+      // 3. Update global blocking status
       this.resultsManager.updateBlockingStatus();
 
       // Validation completed
@@ -278,43 +272,6 @@ export class ValidationEngine {
     for (const rowId of rowIds) {
       this.resultsManager.clearRowResults(rowId);
     }
-  }
-
-
-
-  /**
-   * Assign assembly groups to sub-items based on their parents
-   */
-  private async assignAssemblyGroups(coreData: GridRowCore[]): Promise<void> {
-    try {
-      // Get assembly assignments for all rows
-      const assignments = this.assemblyAssigner.assignAssemblyGroups(coreData);
-
-      // Validate assignment consistency
-      const assignmentErrors = this.assemblyAssigner.validateAssignments(assignments);
-
-      // Store assignment errors as errors (no warnings allowed)
-      for (const error of assignmentErrors) {
-        this.resultsManager.setCellError(error.rowId, 'assembly', {
-          message: error.message,
-          expectedFormat: 'Assembly group assignment',
-          value: error.errorType
-        });
-      }
-
-      // Assembly groups assigned successfully
-
-    } catch (error) {
-      console.error('Assembly assignment error:', error);
-      // Don't fail validation if assembly assignment fails
-    }
-  }
-
-  /**
-   * Get assembly assignments for UI integration
-   */
-  getAssemblyAssignments(coreData: GridRowCore[]) {
-    return this.assemblyAssigner.assignAssemblyGroups(coreData);
   }
 
   /**

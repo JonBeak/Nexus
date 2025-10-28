@@ -13,6 +13,8 @@ export interface FloatOrDimensionsParams {
   max_area?: number;           // Maximum area (X * Y) in square inches for dimensions
   allow_negative?: boolean;    // Allow negative numbers (default: false)
   delimiter?: string;          // Delimiter for dimensions (default: "x")
+  sheet_width?: number;        // If provided, single number inputs are treated as sheet count (e.g., 96 for 4x8 sheets)
+  sheet_height?: number;       // Height of standard sheet (e.g., 48 for 4x8 sheets)
 }
 
 export class FloatOrDimensionsTemplate implements ValidationTemplate {
@@ -139,6 +141,7 @@ export class FloatOrDimensionsTemplate implements ValidationTemplate {
 
   /**
    * Try to parse value as a simple float (total square footage)
+   * If sheet_width and sheet_height are provided, converts to dimensions
    */
   private tryParseAsFloat(value: string, params: FloatOrDimensionsParams): ValidationResult {
     // Use strict numeric validation for float parsing
@@ -153,6 +156,61 @@ export class FloatOrDimensionsTemplate implements ValidationTemplate {
       return { isValid: false };
     }
 
+    // If sheet conversion parameters are provided, convert number to dimensions
+    // Example: 1 → [1 * 96, 48] = [96, 48] for 4x8 sheets
+    if (params.sheet_width !== undefined && params.sheet_height !== undefined) {
+      const sheetCount = numericResult.value!;
+      const width = sheetCount * params.sheet_width;
+      const height = params.sheet_height;
+
+      console.log('Sheet count conversion:', {
+        input: value,
+        sheetCount,
+        sheet_width: params.sheet_width,
+        sheet_height: params.sheet_height,
+        resultWidth: width,
+        resultHeight: height
+      });
+
+      // Validate the resulting dimensions against max constraints
+      if (params.max_value !== undefined && width > params.max_value) {
+        return {
+          isValid: false,
+          error: `Resulting width (${width}") exceeds maximum of ${params.max_value}"`,
+          expectedFormat: this.generateExpectedFormat(params)
+        };
+      }
+
+      const maxHeight = params.max_value_y !== undefined ? params.max_value_y : params.max_value;
+      if (maxHeight !== undefined && height > maxHeight) {
+        return {
+          isValid: false,
+          error: `Resulting height (${height}") exceeds maximum of ${maxHeight}"`,
+          expectedFormat: this.generateExpectedFormat(params)
+        };
+      }
+
+      // Check max area if specified
+      if (params.max_area !== undefined) {
+        const area = width * height;
+        if (area > params.max_area) {
+          return {
+            isValid: false,
+            error: `Area (${width} × ${height} = ${area.toFixed(2)} sq in) exceeds maximum of ${params.max_area} sq in`,
+            expectedFormat: this.generateExpectedFormat(params)
+          };
+        }
+      }
+
+      // Return as dimensions [width, height]
+      return {
+        isValid: true,
+        parsedValue: [width, height] as [number, number],
+        expectedFormat: this.generateExpectedFormat(params)
+      };
+    }
+
+    // No sheet conversion - return as simple float
     return {
       isValid: true,
       parsedValue: numericResult.value,
@@ -167,7 +225,14 @@ export class FloatOrDimensionsTemplate implements ValidationTemplate {
     const delimiter = params.delimiter || 'x';
 
     let formatDesc = 'Either:\n';
-    formatDesc += '• Total square footage (e.g., "15.5", "32")\n';
+
+    // If sheet conversion is enabled, describe it
+    if (params.sheet_width !== undefined && params.sheet_height !== undefined) {
+      formatDesc += `• Sheet count (e.g., "1" = ${params.sheet_width}${delimiter}${params.sheet_height}, "0.5" = ${params.sheet_width/2}${delimiter}${params.sheet_height})\n`;
+    } else {
+      formatDesc += '• Total square footage (e.g., "15.5", "32")\n';
+    }
+
     formatDesc += `• Dimensions in W${delimiter}H format (e.g., "24${delimiter}36")`;
 
     // Add constraints
@@ -228,6 +293,16 @@ export class FloatOrDimensionsTemplate implements ValidationTemplate {
         required: false,
         description: 'Delimiter for dimensions (default: "x")',
         default: 'x'
+      },
+      sheet_width: {
+        type: 'number',
+        required: false,
+        description: 'Width of standard sheet for count conversion (e.g., 96 for 4x8 sheets)'
+      },
+      sheet_height: {
+        type: 'number',
+        required: false,
+        description: 'Height of standard sheet for count conversion (e.g., 48 for 4x8 sheets)'
       }
     };
   }

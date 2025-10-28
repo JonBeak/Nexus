@@ -29,6 +29,7 @@ interface ExpandableFieldInputProps {
   className?: string;
   allowExpansion: boolean;
   title?: string; // Tooltip text (native title attribute)
+  onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void; // For grid navigation
 }
 
 export const ExpandableFieldInput: React.FC<ExpandableFieldInputProps> = ({
@@ -39,7 +40,8 @@ export const ExpandableFieldInput: React.FC<ExpandableFieldInputProps> = ({
   isReadOnly = false,
   className = '',
   allowExpansion,
-  title
+  title,
+  onKeyDown
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [localValue, setLocalValue] = useState(value);
@@ -263,6 +265,7 @@ export const ExpandableFieldInput: React.FC<ExpandableFieldInputProps> = ({
         value={localValue}
         onChange={(e) => handleChange(e.target.value)}
         onBlur={() => onCommit(localValue)}
+        onKeyDown={onKeyDown}
         className={className}
         placeholder={placeholder}
         readOnly={isReadOnly}
@@ -286,6 +289,7 @@ export const ExpandableFieldInput: React.FC<ExpandableFieldInputProps> = ({
             onCommit(localValue);
           }
         }}
+        onKeyDown={onKeyDown}
         className={className}
         placeholder={placeholder}
         readOnly={isReadOnly}

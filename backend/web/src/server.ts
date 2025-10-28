@@ -21,17 +21,37 @@ import supplyChainRoutes from './routes/supplyChainSimple';
 import jobEstimationRoutes from './routes/jobEstimation';
 import pricingCalculationRoutes from './routes/pricingCalculation';
 import locksRoutes from './routes/locks';
+import quickbooksRoutes from './routes/quickbooks';
 // import categoriesRoutes from './routes/categories';
 // import productStandardsRoutes from './routes/productStandards';
+
+// QuickBooks utilities for startup
+import { cleanupExpiredOAuthStates } from './utils/quickbooks/dbManager';
 
 dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 
-// Middleware
+// Middleware - Allow multiple origins for development and production
+const allowedOrigins = [
+  'https://nexuswebapp.duckdns.org',  // Production
+  'http://192.168.2.14:5173',          // LAN development
+  'http://localhost:5173',             // Local development
+];
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, Postman, curl)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`⚠️  CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 
@@ -60,6 +80,7 @@ app.use('/api/supply-chain', supplyChainRoutes);
 app.use('/api/job-estimation', jobEstimationRoutes);
 app.use('/api/pricing', pricingCalculationRoutes);
 app.use('/api/locks', locksRoutes);
+app.use('/api/quickbooks', quickbooksRoutes);
 // app.use('/api/categories', categoriesRoutes);
 // app.use('/api/product-standards', productStandardsRoutes);
 
@@ -77,6 +98,9 @@ const startServer = async () => {
       console.error('Failed to connect to database. Exiting...');
       process.exit(1);
     }
+
+    // Clean up expired OAuth state tokens on startup
+    await cleanupExpiredOAuthStates();
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${PORT}`);

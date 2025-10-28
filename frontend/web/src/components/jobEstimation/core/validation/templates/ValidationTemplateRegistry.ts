@@ -4,6 +4,7 @@
 import { ValidationTemplate } from './ValidationTemplate';
 import { TextSplitTemplate } from './TextSplitTemplate';
 import { FloatTemplate } from './FloatTemplate';
+import { FloatOrFormulaTemplate } from './FloatOrFormulaTemplate';
 import { RequiredTemplate } from './RequiredTemplate';
 import { LedOverrideTemplate } from './LedOverrideTemplate';
 import { PsOverrideTemplate } from './PsOverrideTemplate';
@@ -30,6 +31,7 @@ export class ValidationTemplateRegistry {
     // Register basic validation templates
     const requiredTemplate = new RequiredTemplate();
     this.registerTemplate('float', new FloatTemplate());
+    this.registerTemplate('floatorformula', new FloatOrFormulaTemplate());
     this.registerTemplate('required', requiredTemplate);
     this.registerTemplate('non_empty', requiredTemplate);
     this.registerTemplate('optional_text', new OptionalTextTemplate());

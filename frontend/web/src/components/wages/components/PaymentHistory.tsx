@@ -89,10 +89,10 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({
                       {isExpanded && (
                         <div className="p-4 space-y-4">
                           {records.map(record => {
-                            const isInactive = !record.is_active || record.is_active === false || record.is_active === 0;
+                            const isInactive = !record.is_active;
                             return (
-                              <div 
-                                key={record.record_id} 
+                              <div
+                                key={record.record_id}
                                 className={`border rounded-lg p-4 ${isInactive ? 'bg-gray-100 border-gray-400 opacity-75' : 'bg-white'}`}
                               >
                                 <div className="flex justify-between items-start mb-3">
@@ -170,23 +170,23 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
                                   {record.entries.map(entry => {
-                                    const regularHours = parseFloat(entry.regular_hours) || 0;
-                                    const overtimeHours = parseFloat(entry.overtime_hours) || 0;
-                                    const holidayHours = parseFloat(entry.holiday_hours) || 0;
+                                    const regularHours = Number(entry.regular_hours) || 0;
+                                    const overtimeHours = Number(entry.overtime_hours) || 0;
+                                    const holidayHours = Number(entry.holiday_hours) || 0;
                                     const totalHours = regularHours + overtimeHours + holidayHours;
                                     
-                                    const cppDeduction = parseFloat(entry.cpp_deduction) || 0;
-                                    const eiDeduction = parseFloat(entry.ei_deduction) || 0;
-                                    const federalTax = parseFloat(entry.federal_tax) || 0;
-                                    const provincialTax = parseFloat(entry.provincial_tax) || 0;
+                                    const cppDeduction = Number(entry.cpp_deduction) || 0;
+                                    const eiDeduction = Number(entry.ei_deduction) || 0;
+                                    const federalTax = Number(entry.federal_tax) || 0;
+                                    const provincialTax = Number(entry.provincial_tax) || 0;
                                     const totalTax = federalTax + provincialTax;
                                     const totalDeductions = cppDeduction + eiDeduction + totalTax;
                                     
-                                    const grossPay = parseFloat(entry.gross_pay) || 0;
-                                    const vacationPay = parseFloat(entry.vacation_pay) || 0;
+                                    const grossPay = Number(entry.gross_pay) || 0;
+                                    const vacationPay = Number(entry.vacation_pay) || 0;
                                     const grossPlusVac = grossPay + vacationPay;
-                                    const netPay = parseFloat(entry.net_pay) || 0;
-                                    const hourlyRate = parseFloat(entry.hourly_rate) || 0;
+                                    const netPay = Number(entry.net_pay) || 0;
+                                    const hourlyRate = Number(entry.hourly_rate) || 0;
                                     
                                     return (
                                       <tr key={entry.user_id} className="hover:bg-gray-50">
@@ -240,49 +240,49 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({
                                     <td className="px-2 py-3 text-right text-sm text-gray-900">-</td>
                                     <td className="px-2 py-3 text-right text-sm text-gray-900">
                                       {record.entries.reduce((sum, e) => {
-                                        const regularHours = parseFloat(e.regular_hours) || 0;
-                                        const overtimeHours = parseFloat(e.overtime_hours) || 0;
-                                        const holidayHours = parseFloat(e.holiday_hours) || 0;
+                                        const regularHours = Number(e.regular_hours) || 0;
+                                        const overtimeHours = Number(e.overtime_hours) || 0;
+                                        const holidayHours = Number(e.holiday_hours) || 0;
                                         return sum + regularHours + overtimeHours + holidayHours;
                                       }, 0).toFixed(2)}
                                     </td>
                                     <td className="px-2 py-3 text-right text-sm text-gray-900">
-                                      {formatCurrency(record.entries.reduce((sum, e) => sum + (parseFloat(e.gross_pay) || 0), 0))}
+                                      {formatCurrency(record.entries.reduce((sum, e) => sum + (Number(e.gross_pay) || 0), 0))}
                                     </td>
                                     <td className="px-2 py-3 text-right text-sm text-gray-900">
-                                      {formatCurrency(record.entries.reduce((sum, e) => sum + (parseFloat(e.vacation_pay) || 0), 0))}
+                                      {formatCurrency(record.entries.reduce((sum, e) => sum + (Number(e.vacation_pay) || 0), 0))}
                                     </td>
                                     <td className="px-2 py-3 text-right text-sm text-gray-900 bg-blue-50">
                                       {formatCurrency(record.entries.reduce((sum, e) => {
-                                        const grossPay = parseFloat(e.gross_pay) || 0;
-                                        const vacationPay = parseFloat(e.vacation_pay) || 0;
+                                        const grossPay = Number(e.gross_pay) || 0;
+                                        const vacationPay = Number(e.vacation_pay) || 0;
                                         return sum + grossPay + vacationPay;
                                       }, 0))}
                                     </td>
                                     <td className="px-2 py-3 text-right text-sm text-red-600">
-                                      -{formatCurrency(record.entries.reduce((sum, e) => sum + (parseFloat(e.cpp_deduction) || 0), 0))}
+                                      -{formatCurrency(record.entries.reduce((sum, e) => sum + (Number(e.cpp_deduction) || 0), 0))}
                                     </td>
                                     <td className="px-2 py-3 text-right text-sm text-red-600">
-                                      -{formatCurrency(record.entries.reduce((sum, e) => sum + (parseFloat(e.ei_deduction) || 0), 0))}
+                                      -{formatCurrency(record.entries.reduce((sum, e) => sum + (Number(e.ei_deduction) || 0), 0))}
                                     </td>
                                     <td className="px-2 py-3 text-right text-sm text-red-600">
                                       -{formatCurrency(record.entries.reduce((sum, e) => {
-                                        const federalTax = parseFloat(e.federal_tax) || 0;
-                                        const provincialTax = parseFloat(e.provincial_tax) || 0;
+                                        const federalTax = Number(e.federal_tax) || 0;
+                                        const provincialTax = Number(e.provincial_tax) || 0;
                                         return sum + federalTax + provincialTax;
                                       }, 0))}
                                     </td>
                                     <td className="px-2 py-3 text-right text-sm text-red-600">
                                       -{formatCurrency(record.entries.reduce((sum, e) => {
-                                        const cppDeduction = parseFloat(e.cpp_deduction) || 0;
-                                        const eiDeduction = parseFloat(e.ei_deduction) || 0;
-                                        const federalTax = parseFloat(e.federal_tax) || 0;
-                                        const provincialTax = parseFloat(e.provincial_tax) || 0;
+                                        const cppDeduction = Number(e.cpp_deduction) || 0;
+                                        const eiDeduction = Number(e.ei_deduction) || 0;
+                                        const federalTax = Number(e.federal_tax) || 0;
+                                        const provincialTax = Number(e.provincial_tax) || 0;
                                         return sum + cppDeduction + eiDeduction + federalTax + provincialTax;
                                       }, 0))}
                                     </td>
                                     <td className="px-2 py-3 text-right text-sm text-green-700 bg-green-50">
-                                      {formatCurrency(record.entries.reduce((sum, e) => sum + (parseFloat(e.net_pay) || 0), 0))}
+                                      {formatCurrency(record.entries.reduce((sum, e) => sum + (Number(e.net_pay) || 0), 0))}
                                     </td>
                                   </tr>
                                 </tfoot>

@@ -201,9 +201,9 @@ export const processDiscountsFees = (
           itemName: itemName,
           description: '',
           calculationDisplay: calculationDisplay, // Notes + breakdown in Details column
-          unitPrice: totalDiscountFee,
+          unitPrice: Math.round(totalDiscountFee * 100) / 100,
           quantity: 1,
-          extendedPrice: totalDiscountFee
+          extendedPrice: Math.round(totalDiscountFee * 100) / 100
         };
 
         lineItemsToInsert.push({

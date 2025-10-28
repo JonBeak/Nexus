@@ -43,7 +43,7 @@ export class PsOverrideTemplate implements ValidationTemplate {
       const parsedValue = parseResult.parsedValue as PsOverrideParsedValue;
 
       // Calculate PS count based on parsed input and context
-      const calculatedPsCount = this.calculatePsCount(parsedValue, context, counts);
+      const calculatedPsCount = await this.calculatePsCount(parsedValue, context, counts);
 
       return {
         isValid: true,
@@ -71,7 +71,7 @@ export class PsOverrideTemplate implements ValidationTemplate {
   ): ValidationResult {
     const accepts = params.accepts || ['float', 'yes', 'no'];
 
-    // Check for "yes" - but reject if there are no LEDs
+    // Check for "yes" - calculate PS from actual LED count
     if (accepts.includes('yes') && value === 'yes') {
       if (counts.actualLedCount <= 0) {
         return {
@@ -87,13 +87,8 @@ export class PsOverrideTemplate implements ValidationTemplate {
           expectedFormat: this.generateExpectedFormat(params)
         };
       }
-      if (counts.savedPsCount <= 0) {
-        return {
-          isValid: false,
-          error: 'No saved power supply count available to restore.',
-          expectedFormat: this.generateExpectedFormat(params)
-        };
-      }
+      // Allow "yes" as long as there are actual LEDs (from field2 metrics OR field3 numeric override)
+      // PS count will be calculated from actualLedCount in calculatePsCount()
       return { isValid: true, parsedValue: 'yes' };
     }
 
@@ -117,6 +112,7 @@ export class PsOverrideTemplate implements ValidationTemplate {
     }
 
     // Check for numeric value using strict validation
+    // Numeric values are ALWAYS allowed - they enable standalone PS components
     if (accepts.includes('float')) {
       const numericResult = validateNumericInput(value, {
         allowNegative: false,
@@ -125,6 +121,26 @@ export class PsOverrideTemplate implements ValidationTemplate {
       });
 
       if (numericResult.isValid && numericResult.value !== undefined) {
+        // Reject "0" when there are no LEDs (same as "no")
+        if (numericResult.value === 0 && counts.actualLedCount <= 0) {
+          return {
+            isValid: false,
+            error: 'Provide an explicit number of power supplies when there are no LEDs.',
+            expectedFormat: this.generateExpectedFormat(params)
+          };
+        }
+
+        // Reject "0" when power supplies are already disabled by default (same as "no")
+        if (numericResult.value === 0 && counts.defaultPsCount === 0) {
+          return {
+            isValid: false,
+            error: 'Power supplies are already disabled by default. Enter a number if needed.',
+            expectedFormat: this.generateExpectedFormat(params)
+          };
+        }
+
+        // Allow explicit numeric values even when there are no LEDs
+        // This enables standalone PS components for Blade Signs
         return { isValid: true, parsedValue: numericResult.value };
       }
 
@@ -149,11 +165,11 @@ export class PsOverrideTemplate implements ValidationTemplate {
   /**
    * Calculate PS count based on input and context
    */
-  private calculatePsCount(
+  private async calculatePsCount(
     parsedValue: PsOverrideParsedValue,
     context: ValidationContext | undefined,
     counts: PowerSupplyCounts
-  ): number {
+  ): Promise<number> {
     if (!context) return 0;
 
     // Handle different input types
@@ -163,6 +179,11 @@ export class PsOverrideTemplate implements ValidationTemplate {
     }
 
     if (parsedValue === 'yes') {
+      // Calculate PS from actual LED count (works with field2 metrics OR field3 numeric override)
+      if (counts.actualLedCount > 0) {
+        return await this.calculatePsFromLeds(counts.actualLedCount, context);
+      }
+      // Fallback to saved if no actual LEDs (shouldn't happen due to validation)
       return counts.savedPsCount;
     }
 

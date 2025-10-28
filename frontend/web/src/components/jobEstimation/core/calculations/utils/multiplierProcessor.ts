@@ -114,7 +114,7 @@ export const processMultipliers = (
 
       // Apply multiplier to quantity and recalculate extended price
       const newQuantity = item.quantity * multiplier;
-      const newExtendedPrice = item.unitPrice * newQuantity;
+      const newExtendedPrice = Math.round((item.unitPrice * newQuantity) * 100) / 100;
 
       console.log(`[MultiplierProcessor] Applying multiplier to row ${item.rowId}:`, {
         originalQuantity: item.quantity,

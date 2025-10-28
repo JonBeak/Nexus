@@ -5,7 +5,7 @@
  * REFACTORED: Logic extracted into focused hooks and components for maintainability
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { GridJobBuilderProps } from './types/index';
 
 // Base Layer architecture
@@ -50,8 +50,10 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
   isReadOnly = false,
   onValidationChange,
   onRequestNavigation,
+  onPreferencesLoaded,
   hoveredRowId = null,
-  onRowHover = () => {}
+  onRowHover = () => {},
+  estimatePreviewData
 }) => {
   // === CORE HOOKS ===
   const { productTypes, loading: productTypesLoading, error: productTypesError } = useProductTypes();
@@ -65,6 +67,13 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
     effectiveCustomerId === null ? undefined : effectiveCustomerId
   );
 
+  // Pass preferences up to parent - GridJobBuilder is single source of truth
+  useEffect(() => {
+    if (onPreferencesLoaded) {
+      onPreferencesLoaded(customerPreferences);
+    }
+  }, [customerPreferences, onPreferencesLoaded]);
+
   // === MODAL STATE ===
   const [showClearConfirmation, setShowClearConfirmation] = useState(false);
   const [clearModalType, setClearModalType] = useState<'reset' | 'clearAll' | 'clearEmpty' | null>(null);
@@ -72,6 +81,15 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
   const [rowConfirmationType, setRowConfirmationType] = useState<'clear' | 'delete' | null>(null);
   const [pendingRowIndex, setPendingRowIndex] = useState<number | null>(null);
   const [validationVersion, setValidationVersion] = useState(0);
+
+  // === REF FOR LATEST ESTIMATE PREVIEW DATA ===
+  // Use ref so auto-save callback can access latest total without recreating GridEngine
+  const estimatePreviewDataRef = useRef(estimatePreviewData);
+
+  // Update ref whenever estimatePreviewData changes
+  useEffect(() => {
+    estimatePreviewDataRef.current = estimatePreviewData;
+  }, [estimatePreviewData]);
 
   // === GRID ENGINE ===
   const gridEngine = useMemo(() => {
@@ -114,8 +132,11 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
             });
 
 
-            // Save directly as JSON array
-            await jobVersioningApi.saveGridData(estimateId, simplifiedRows);
+            // Get latest total from ref (use 0 if blocked/unavailable)
+            const currentTotal = estimatePreviewDataRef.current?.total || 0;
+
+            // Save grid data with total
+            await jobVersioningApi.saveGridData(estimateId, simplifiedRows, currentTotal);
           } catch (error) {
             console.error('Auto-save failed:', error);
           }
@@ -253,6 +274,7 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
     versioningMode,
     estimateId,
     showNotification,
+    estimatePreviewData,
     setShowClearConfirmation,
     setClearModalType,
     setShowRowConfirmation,
