@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Search, Plus, Calendar, AlertCircle, CheckCircle2, Edit3, Check, X } from 'lucide-react';
 import { jobVersioningApi } from '../../services/api';
 import { JobSummary, JobValidationResponse } from './types';
+import { User } from '../../types';
 
 interface JobPanelProps {
   selectedCustomerId: number | null;
   selectedJobId: number | null;
   onJobSelected: (jobId: number) => void;
   onCreateNewJob: (jobName: string) => Promise<void>;
-  user: any;
+  user: User;
 }
 
 export const JobPanel: React.FC<JobPanelProps> = ({

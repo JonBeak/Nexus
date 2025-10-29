@@ -232,14 +232,14 @@ export interface VersionManagerProps {
   currentEstimateId?: number;
   onVersionSelected: (estimateId: number) => void;
   onCreateNewVersion: (parentId?: number) => void;
-  user: any;
+  user: User;
 }
 
 export interface EditLockManagerProps {
   estimateId: number;
   onLockAcquired: (lockStatus: EditLockStatus) => void;
   onLockConflict: (lockStatus: EditLockStatus) => void;
-  user: any;
+  user: User;
 }
 
 export interface BreadcrumbNavigationProps {

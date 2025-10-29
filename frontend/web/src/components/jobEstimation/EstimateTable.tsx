@@ -2,9 +2,10 @@ import React, { useState, useRef } from 'react';
 import { Copy, FileText, AlertTriangle, Check, CheckCircle } from 'lucide-react';
 import { EstimatePreviewData } from './core/layers/CalculationLayer';
 import { generateEstimateSVG } from './utils/svgEstimateExporter';
+import { EstimateVersion } from './types';
 
 interface EstimateTableProps {
-  estimate: any; // Legacy estimate data (unused in new system)
+  estimate: EstimateVersion | null; // Used to check is_draft for QB integration
   showNotification: (message: string, type?: 'success' | 'error') => void;
   hasValidationErrors?: boolean;
   validationErrorCount?: number;
