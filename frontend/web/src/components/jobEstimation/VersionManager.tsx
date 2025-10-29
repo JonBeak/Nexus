@@ -1,17 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  FileText, 
-  Plus, 
-  Eye, 
-  Edit3, 
-  Copy, 
-  Clock, 
-  User, 
-  Lock, 
+import {
+  FileText,
+  Plus,
+  Eye,
+  Edit3,
+  Copy,
+  Clock,
+  User,
+  Lock,
   AlertTriangle,
   CheckCircle,
-  Send,
-  Package
+  Send
 } from 'lucide-react';
 import { jobVersioningApi } from '../../services/api';
 import { VersionManagerProps, EstimateVersion, EditLockStatus } from './types';
@@ -40,8 +39,8 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
       const response = await jobVersioningApi.getEstimateVersions(jobId);
       const allVersions = response.data || [];
 
-      // Filter out deactivated estimates
-      const activeVersions = allVersions.filter(v => v.status !== 'deactivated');
+      // Filter out deactivated estimates (using is_active flag)
+      const activeVersions = allVersions.filter(v => v.is_active !== false && v.is_active !== 0);
       setVersions(activeVersions);
 
       // Check edit lock status for all drafts
@@ -228,14 +227,8 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
       );
     }
 
-    if (version.status === 'ordered') {
-      badges.push(
-        <span key="ordered" className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs font-medium flex items-center">
-          <Package className="w-3 h-3 mr-1" />
-          Ordered
-        </span>
-      );
-    }
+    // Note: "ordered" status removed - no longer exists in new boolean flag system
+    // Future: May need new is_ordered flag if order tracking is required
 
     // If no badges were added, this violates database constraint - show error
     if (badges.length === 0) {

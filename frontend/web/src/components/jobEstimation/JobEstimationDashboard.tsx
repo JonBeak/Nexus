@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { ArrowLeft, Plus, FileText } from 'lucide-react';
+import { ArrowLeft, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import GridJobBuilderRefactored from './GridJobBuilderRefactored';
 import { EstimateTable } from './EstimateTable';
@@ -12,8 +12,6 @@ import CustomerDetailsModal from '../customers/CustomerDetailsModal';
 import { jobVersioningApi, customerApi, provincesApi, quickbooksApi } from '../../services/api';
 import { EstimateVersion } from './types';
 import { getEstimateStatusText } from './utils/statusUtils';
-import type { GridRowWithCalculations } from './core/types/LayerTypes';
-import { ValidationResultsManager } from './core/validation/ValidationResultsManager';
 import { createCalculationOperations, EstimatePreviewData } from './core/layers/CalculationLayer';
 import { PricingCalculationContext } from './core/types/GridTypes';
 import { PreferencesCache, CustomerManufacturingPreferences } from './core/validation/context/useCustomerPreferences';
@@ -26,12 +24,9 @@ interface JobEstimationDashboardProps {
   user: User;
 }
 
-type TabType = 'versioned-workflow';
-
 export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ user }) => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<TabType>('versioned-workflow');
-  
+
   // 3-Panel state management
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
