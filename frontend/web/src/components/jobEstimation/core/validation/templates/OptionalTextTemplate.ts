@@ -6,7 +6,7 @@ import { ValidationResult, ValidationContext } from './ValidationTemplate';
 import { BaseValidationTemplate } from './BaseValidationTemplate';
 
 export class OptionalTextTemplate extends BaseValidationTemplate {
-  async validate(value: string, params: any = {}, context?: ValidationContext): Promise<ValidationResult> {
+  async validate(value: string, params: Record<string, unknown> = {}, context?: ValidationContext): Promise<ValidationResult> {
     return this.wrapValidation(params, async () => {
       // Handle empty values - empty is valid
       if (!value || (typeof value === 'string' && value.trim() === '')) {
@@ -19,7 +19,7 @@ export class OptionalTextTemplate extends BaseValidationTemplate {
     });
   }
 
-  protected generateExpectedFormat(_params?: any): string {
+  protected generateExpectedFormat(_params?: Record<string, unknown>): string {
     return 'any text';
   }
 
@@ -27,7 +27,7 @@ export class OptionalTextTemplate extends BaseValidationTemplate {
     return 'Accepts any text input (optional, can be empty)';
   }
 
-  getParameterSchema(): Record<string, any> {
+  getParameterSchema(): Record<string, unknown> {
     return {
       // Optional text template has no configurable parameters
     };

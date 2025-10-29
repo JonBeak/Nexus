@@ -7,7 +7,7 @@ import { validateNumericInput } from '../utils/numericValidation';
 import { BaseValidationTemplate } from './BaseValidationTemplate';
 
 export class MultiplierTemplate extends BaseValidationTemplate {
-  async validate(value: string, params: any = {}, context?: ValidationContext): Promise<ValidationResult> {
+  async validate(value: string, params: Record<string, unknown> = {}, context?: ValidationContext): Promise<ValidationResult> {
     return this.wrapValidation(params, async () => {
       // Handle empty values - at least one field must have a value
       // This is enforced at the structure level, so individual fields can be empty
@@ -46,7 +46,7 @@ export class MultiplierTemplate extends BaseValidationTemplate {
   /**
    * Generate helpful format description for users
    */
-  protected generateExpectedFormat(_params?: any): string {
+  protected generateExpectedFormat(_params?: Record<string, unknown>): string {
     return 'positive number (e.g., 2, 1.5, 3.25)';
   }
 
@@ -54,7 +54,7 @@ export class MultiplierTemplate extends BaseValidationTemplate {
     return 'Validates positive numeric multiplier values (no scientific notation, decimals allowed)';
   }
 
-  getParameterSchema(): Record<string, any> {
+  getParameterSchema(): Record<string, unknown> {
     return {
       // Multiplier template has no configurable parameters
       // It always validates positive numbers with decimals
