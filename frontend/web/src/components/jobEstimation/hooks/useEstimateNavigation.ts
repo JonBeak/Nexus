@@ -12,14 +12,16 @@ export const useEstimateNavigation = ({
   showNotification = () => {}
 }: UseEstimateNavigationParams = {}) => {
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  const [selectedCustomerName, setSelectedCustomerName] = useState<string | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const [selectedEstimateId, setSelectedEstimateId] = useState<number | null>(null);
   const [currentEstimate, setCurrentEstimate] = useState<EstimateVersion | null>(null);
   const [isInBuilderMode, setIsInBuilderMode] = useState(false);
   const [jobName, setJobName] = useState<string | null>(null);
 
-  const handleCustomerSelected = async (customerId: number | null) => {
+  const handleCustomerSelected = async (customerId: number | null, customerName?: string) => {
     setSelectedCustomerId(customerId);
+    setSelectedCustomerName(customerName || null);
 
     // Reset downstream selections if customer changes
     if (customerId !== selectedCustomerId) {
@@ -126,6 +128,7 @@ export const useEstimateNavigation = ({
   return {
     // State
     selectedCustomerId,
+    selectedCustomerName,
     selectedJobId,
     selectedEstimateId,
     currentEstimate,
@@ -133,6 +136,7 @@ export const useEstimateNavigation = ({
     jobName,
     // Setters
     setSelectedCustomerId,
+    setSelectedCustomerName,
     setSelectedJobId,
     setSelectedEstimateId,
     setCurrentEstimate,

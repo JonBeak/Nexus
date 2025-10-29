@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { authApi, jobsApi } from '../services/api';
 import { JobSuggestion } from '../components/inventory/types';
+import { TIMING, DEFAULTS } from '../constants/bulkEntryConstants';
 
 export interface BulkEntry {
   id: string;
@@ -12,13 +13,9 @@ export interface BulkEntry {
   width: string;
   length_yards: string;
   location?: string;
-  supplier_id?: string;
-  purchase_date?: string;
-  storage_date?: string;
-  usage_date?: string;
+  transaction_date?: string;  // Single date field instead of three redundant ones
   notes?: string;
   job_ids: number[];  // Job associations using direct IDs
-  source_vinyl_id?: string;
   specific_vinyl_id?: number;  // ID of specific vinyl piece selected
   // Submission state tracking
   submissionState?: 'idle' | 'submitting' | 'success' | 'error';
@@ -49,12 +46,9 @@ export const useBulkEntries = () => {
       width: '',
       length_yards: '',
       location: '',
-      supplier_id: '',
-      purchase_date: new Date().toISOString().split('T')[0],
-      storage_date: new Date().toISOString().split('T')[0],
-      usage_date: new Date().toISOString().split('T')[0],
+      transaction_date: new Date().toISOString().split('T')[0],
       notes: '',
-      job_ids: [0]
+      job_ids: [DEFAULTS.EMPTY_JOB_ID]
     };
   }
 
@@ -63,7 +57,7 @@ export const useBulkEntries = () => {
     setIsSaving(true);
     try {
       localStorage.setItem(getStorageKey(), JSON.stringify(entries));
-      setTimeout(() => setIsSaving(false), 500); // Show saved indicator briefly
+      setTimeout(() => setIsSaving(false), TIMING.SAVE_INDICATOR_DURATION); // Show saved indicator briefly
     } catch (error) {
       console.error('Failed to save bulk entries to localStorage:', error);
       setIsSaving(false);
@@ -99,12 +93,9 @@ export const useBulkEntries = () => {
                 width: entry.width || '',
                 length_yards: entry.length_yards || '',
                 location: entry.location || '',
-                supplier_id: entry.supplier_id || '',
-                purchase_date: entry.purchase_date || new Date().toISOString().split('T')[0],
-                storage_date: entry.storage_date || new Date().toISOString().split('T')[0],
-                usage_date: entry.usage_date || new Date().toISOString().split('T')[0],
+                transaction_date: entry.transaction_date || entry.purchase_date || entry.storage_date || entry.usage_date || new Date().toISOString().split('T')[0],
                 notes: entry.notes || '',
-                job_ids: entry.job_ids || [0],
+                job_ids: entry.job_ids || [DEFAULTS.EMPTY_JOB_ID],
                 specific_vinyl_id: entry.specific_vinyl_id,
                 submissionState: entry.submissionState || 'idle',
                 submissionError: entry.submissionError
@@ -118,8 +109,8 @@ export const useBulkEntries = () => {
           console.error('Failed to load bulk entries from localStorage:', error);
         }
         
-        // If no saved entries, create 10 default entries
-        const createDefaultEntries = (count = 10) => {
+        // If no saved entries, create default entries
+        const createDefaultEntries = (count = DEFAULTS.ENTRY_COUNT) => {
           return Array.from({ length: count }, (_, index) => createDefaultEntry(index));
         };
         setBulkEntries(createDefaultEntries());
@@ -139,7 +130,7 @@ export const useBulkEntries = () => {
   useEffect(() => {
     const loadJobs = async () => {
       try {
-        const jobs = await jobsApi.getRecentJobs(50) as JobSuggestion[];
+        const jobs = await jobsApi.getRecentJobs(DEFAULTS.RECENT_JOBS_LIMIT) as JobSuggestion[];
         setAvailableJobs(jobs || []);
       } catch (error) {
         console.error('Failed to load jobs:', error);
@@ -176,7 +167,7 @@ export const useBulkEntries = () => {
   };
 
   const clearAllBulkEntries = () => {
-    const createDefaultEntries = (count = 10) => {
+    const createDefaultEntries = (count = DEFAULTS.ENTRY_COUNT) => {
       return Array.from({ length: count }, (_, index) => createDefaultEntry(index, generateId()));
     };
     setBulkEntries(createDefaultEntries());
@@ -196,8 +187,8 @@ export const useBulkEntries = () => {
     const newJobIds = [...entry.job_ids];
     
     // Ensure array is long enough
-    while (newJobIds.length <= jobIndex) newJobIds.push(0);
-    
+    while (newJobIds.length <= jobIndex) newJobIds.push(DEFAULTS.EMPTY_JOB_ID);
+
     if (value.trim()) {
       // Convert to number for job_ids array (value is job_id from select)
       const jobId = parseInt(value);
@@ -206,12 +197,12 @@ export const useBulkEntries = () => {
       }
     } else {
       // Clear the field
-      newJobIds[jobIndex] = 0;
+      newJobIds[jobIndex] = DEFAULTS.EMPTY_JOB_ID;
     }
-    
+
     // Add empty job field if this is the last field and it's not empty
     if (jobIndex === newJobIds.length - 1 && value.trim()) {
-      newJobIds.push(0);
+      newJobIds.push(DEFAULTS.EMPTY_JOB_ID);
     }
     
     updateBulkEntry(entryId, { job_ids: newJobIds });
@@ -224,7 +215,7 @@ export const useBulkEntries = () => {
     const newJobIds = entry.job_ids.filter((_, index) => index !== jobIndex);
     
     // Ensure at least one empty field remains
-    const finalJobIds = newJobIds.length > 0 ? newJobIds : [0];
+    const finalJobIds = newJobIds.length > 0 ? newJobIds : [DEFAULTS.EMPTY_JOB_ID];
     
     updateBulkEntry(entryId, { job_ids: finalJobIds });
   };

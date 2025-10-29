@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Plus, X } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
 import { InventoryFilterType, InventoryUser } from '../types';
 
 interface InventoryFiltersProps {
@@ -8,8 +8,6 @@ interface InventoryFiltersProps {
   setSearchTerm: (term: string) => void;
   filterType: InventoryFilterType;
   setFilterType: (type: InventoryFilterType) => void;
-  clearAllFilters: () => void;
-  getActiveFilterCount: () => number;
   onShowAddModal: () => void;
 }
 
@@ -19,8 +17,6 @@ export const InventoryFilters: React.FC<InventoryFiltersProps> = ({
   setSearchTerm,
   filterType,
   setFilterType,
-  clearAllFilters,
-  getActiveFilterCount,
   onShowAddModal
 }) => {
   return (
@@ -52,7 +48,7 @@ export const InventoryFilters: React.FC<InventoryFiltersProps> = ({
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
           />
         </div>
-        
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Status</label>
           <select
@@ -67,27 +63,6 @@ export const InventoryFilters: React.FC<InventoryFiltersProps> = ({
             <option value="returned">Returned</option>
             <option value="damaged">Damaged</option>
           </select>
-        </div>
-
-        <div className="flex items-end">
-          <button
-            onClick={clearAllFilters}
-            disabled={getActiveFilterCount() === 0}
-            className={`px-4 py-2 text-sm rounded-md transition-colors flex items-center ${
-              getActiveFilterCount() > 0 
-                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' 
-                : 'bg-gray-50 text-gray-400 cursor-not-allowed'
-            }`}
-            title={`Clear ${getActiveFilterCount()} active filter(s)`}
-          >
-            <X className="w-4 h-4 mr-1" />
-            Clear Filters
-            {getActiveFilterCount() > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 bg-gray-600 text-white text-xs rounded-full">
-                {getActiveFilterCount()}
-              </span>
-            )}
-          </button>
         </div>
       </div>
     </div>

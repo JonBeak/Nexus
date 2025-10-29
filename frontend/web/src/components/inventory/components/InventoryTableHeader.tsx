@@ -13,6 +13,7 @@ interface InventoryTableHeaderProps {
   getSeriesOptions: string[];
   getColourNumberOptions: string[];
   getColourNameOptions: string[];
+  getDispositionOptions: string[];
 }
 
 export const InventoryTableHeader: React.FC<InventoryTableHeaderProps> = ({
@@ -24,12 +25,13 @@ export const InventoryTableHeader: React.FC<InventoryTableHeaderProps> = ({
   getBrandOptions,
   getSeriesOptions,
   getColourNumberOptions,
-  getColourNameOptions
+  getColourNameOptions,
+  getDispositionOptions
 }) => {
   return (
-    <thead className="bg-gray-50">
+    <thead className="bg-white">
       <tr>
-        <th 
+        <th
           className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
           style={{width: '166px'}}
           onClick={() => handleSort('brand')}
@@ -43,7 +45,7 @@ export const InventoryTableHeader: React.FC<InventoryTableHeaderProps> = ({
                 if (value === '---') {
                   handleColumnFilter('brand', '');
                 } else {
-                  handleColumnFilter('brand', value.split(' (')[0]);
+                  handleColumnFilter('brand', value);
                 }
               }}
               suggestions={getBrandOptions}
@@ -66,7 +68,7 @@ export const InventoryTableHeader: React.FC<InventoryTableHeaderProps> = ({
                 if (value === '---') {
                   handleColumnFilter('series', '');
                 } else {
-                  handleColumnFilter('series', value.split(' (')[0]);
+                  handleColumnFilter('series', value);
                 }
               }}
               suggestions={getSeriesOptions}
@@ -88,7 +90,7 @@ export const InventoryTableHeader: React.FC<InventoryTableHeaderProps> = ({
                 if (value === '---') {
                   handleColumnFilter('colour_number', '');
                 } else {
-                  handleColumnFilter('colour_number', value.split(' (')[0]);
+                  handleColumnFilter('colour_number', value);
                 }
               }}
               suggestions={getColourNumberOptions}
@@ -110,7 +112,7 @@ export const InventoryTableHeader: React.FC<InventoryTableHeaderProps> = ({
                 if (value === '---') {
                   handleColumnFilter('colour_name', '');
                 } else {
-                  handleColumnFilter('colour_name', value.split(' (')[0]);
+                  handleColumnFilter('colour_name', value);
                 }
               }}
               suggestions={getColourNameOptions}
@@ -133,11 +135,27 @@ export const InventoryTableHeader: React.FC<InventoryTableHeaderProps> = ({
         >
           Length (yds) <span className="w-4 h-4 inline ml-1">{getSortIcon('length_yards')}</span>
         </th>
-        <th 
+        <th
           className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-24"
           onClick={() => handleSort('disposition')}
         >
           Status <span className="w-4 h-4 inline ml-1">{getSortIcon('disposition')}</span>
+          <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+            <AutofillComboBox
+              label=""
+              value={columnFilters.disposition}
+              onChange={(value) => {
+                if (value === '---') {
+                  handleColumnFilter('disposition', '');
+                } else {
+                  handleColumnFilter('disposition', value);
+                }
+              }}
+              suggestions={getDispositionOptions}
+              placeholder="Filter status..."
+              className="w-full text-xs"
+            />
+          </div>
         </th>
         {(user.role === 'manager' || user.role === 'owner') && (
           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>

@@ -59,12 +59,14 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
   // Navigation hook
   const {
     selectedCustomerId,
+    selectedCustomerName,
     selectedJobId,
     selectedEstimateId,
     currentEstimate,
     isInBuilderMode,
     jobName,
     setSelectedCustomerId,
+    setSelectedCustomerName,
     setSelectedJobId,
     setSelectedEstimateId,
     setCurrentEstimate,
@@ -191,18 +193,15 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
             version={`v${currentEstimate.version_number}`}
             status={getEstimateStatusText(currentEstimate)}
             onNavigateToCustomerSelection={() => {
-              const navAction = async () => {
-                // Navigate back to customer selection, reset all downstream state
+              const navAction = () => {
+                // Navigate back to customer selection (All Customers), reset everything
                 setIsInBuilderMode(false);
                 setSelectedEstimateId(null);
                 setCurrentEstimate(null);
                 setSelectedJobId(null);
                 setJobName(null);
-
-                // Reload customer data to ensure fresh context
-                if (selectedCustomerId) {
-                  await reloadCustomerData(selectedCustomerId);
-                }
+                setSelectedCustomerId(null);
+                setSelectedCustomerName(null);
               };
 
               if (navigationGuard) {
@@ -321,6 +320,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
         />
         <JobPanel
           selectedCustomerId={selectedCustomerId}
+          selectedCustomerName={selectedCustomerName}
           selectedJobId={selectedJobId}
           onJobSelected={handleJobSelected}
           onCreateNewJob={handleCreateNewJob}

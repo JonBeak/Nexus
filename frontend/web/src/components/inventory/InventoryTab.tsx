@@ -1,8 +1,8 @@
 import React from 'react';
+import { X, Plus } from 'lucide-react';
 import { useInventoryData } from './hooks/useInventoryData';
 import { useInventoryFiltering } from './hooks/useInventoryFiltering';
 import { InventoryStatsCards } from './components/InventoryStatsCards';
-import { InventoryFilters } from './components/InventoryFilters';
 import { InventoryTableHeader } from './components/InventoryTableHeader';
 import { InventoryTableRow } from './components/InventoryTableRow';
 import { InventoryStats, InventoryUser, VinylItem } from './types';
@@ -50,6 +50,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
     getSeriesOptions,
     getColourNumberOptions,
     getColourNameOptions,
+    getDispositionOptions,
     handleSort,
     handleColumnFilter,
     clearAllFilters,
@@ -67,17 +68,35 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
       {/* Summary Cards */}
       <InventoryStatsCards stats={stats} />
 
-      {/* Filters */}
-      <InventoryFilters
-        user={user}
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        filterType={filterType}
-        setFilterType={setFilterType}
-        clearAllFilters={clearAllFilters}
-        getActiveFilterCount={getActiveFilterCount}
-        onShowAddModal={onShowAddModal}
-      />
+      {/* Action buttons */}
+      <div className="flex justify-between items-center">
+        {/* Clear Filters Button */}
+        {getActiveFilterCount() > 0 && (
+          <button
+            onClick={clearAllFilters}
+            className="px-4 py-2 text-sm rounded-md transition-colors flex items-center bg-gray-100 text-gray-700 hover:bg-gray-200"
+            title={`Clear ${getActiveFilterCount()} active filter(s)`}
+          >
+            <X className="w-4 h-4 mr-1" />
+            Clear Filters
+            <span className="ml-1 px-1.5 py-0.5 bg-gray-600 text-white text-xs rounded-full">
+              {getActiveFilterCount()}
+            </span>
+          </button>
+        )}
+        <div className={getActiveFilterCount() > 0 ? '' : 'ml-auto'}>
+          {/* Add Item Button */}
+          {(user.role === 'manager' || user.role === 'owner') && (
+            <button
+              onClick={onShowAddModal}
+              className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Add Item</span>
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Inventory Table */}
       <div className="bg-white shadow rounded-lg overflow-hidden">
@@ -114,6 +133,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                 getSeriesOptions={getSeriesOptions}
                 getColourNumberOptions={getColourNumberOptions}
                 getColourNameOptions={getColourNameOptions}
+                getDispositionOptions={getDispositionOptions}
               />
               <tbody className="bg-white divide-y divide-gray-200">
                 {sortedItems.map((item) => (

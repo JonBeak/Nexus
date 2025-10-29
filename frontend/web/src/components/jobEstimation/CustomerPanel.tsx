@@ -4,7 +4,7 @@ import { customerApi } from '../../services/api';
 
 interface CustomerPanelProps {
   selectedCustomerId: number | null;
-  onCustomerSelected: (customerId: number | null) => void;
+  onCustomerSelected: (customerId: number | null, customerName?: string) => void;
 }
 
 interface Customer {
@@ -52,7 +52,8 @@ export const CustomerPanel: React.FC<CustomerPanelProps> = ({
       // Allow deselecting the current customer
       onCustomerSelected(null);
     } else {
-      onCustomerSelected(customerId);
+      const customer = allCustomers.find(c => c.customer_id === customerId);
+      onCustomerSelected(customerId, customer?.company_name);
     }
   };
 
@@ -87,28 +88,28 @@ export const CustomerPanel: React.FC<CustomerPanelProps> = ({
         </div>
       ) : (
         <div className="flex-1 overflow-hidden">
-          <div className="max-h-[calc(100vh-280px)] overflow-y-auto border rounded-lg">
+          <div className="max-h-[calc(100vh-280px)] overflow-y-auto border">
             {/* All Customers Option */}
             <div
-              className={`p-3 cursor-pointer border-b hover:bg-gray-50 ${
-                selectedCustomerId === null ? 'bg-purple-50 border-purple-200' : ''
+              className={`p-3 cursor-pointer hover:bg-gray-50 transition-all ${
+                selectedCustomerId === null ? 'bg-purple-100 border-2 border-purple-500' : 'border-b'
               }`}
               onClick={() => onCustomerSelected(null)}
             >
-              <div className="font-medium text-gray-700">All Customers</div>
+              <div className={`font-medium text-gray-700 ${selectedCustomerId === null ? 'font-semibold' : ''}`}>All Customers</div>
               <div className="text-xs text-gray-500">Show jobs from all customers</div>
             </div>
-            
+
             {/* Individual Customers */}
             {filteredCustomers.map((customer) => (
               <div
                 key={customer.customer_id}
-                className={`p-3 cursor-pointer border-b last:border-b-0 hover:bg-gray-50 ${
-                  selectedCustomerId === customer.customer_id ? 'bg-purple-50 border-purple-200' : ''
+                className={`p-3 cursor-pointer hover:bg-gray-50 transition-all ${
+                  selectedCustomerId === customer.customer_id ? 'bg-purple-100 border-2 border-purple-500' : 'border-b last:border-b-0'
                 }`}
                 onClick={() => handleCustomerSelect(customer.customer_id)}
               >
-                <div className="font-medium text-sm">{customer.company_name}</div>
+                <div className={`text-sm ${selectedCustomerId === customer.customer_id ? 'font-semibold' : 'font-medium'}`}>{customer.company_name}</div>
                 <div className="text-xs text-gray-500">{customer.contact_name}</div>
               </div>
             ))}

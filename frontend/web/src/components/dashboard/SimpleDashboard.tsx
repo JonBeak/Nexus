@@ -121,9 +121,9 @@ function SimpleDashboard({ user, onLogout }: SimpleDashboardProps) {
                 <h3 className="text-2xl font-bold text-gray-800 mb-8">Quick Actions</h3>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* All roles except production_staff get these buttons */}
+                  {/* All roles except production_staff get these buttons - ordered alphabetically */}
                   <>
-                    <button 
+                    <button
                       onClick={() => navigate('/customers')}
                       className="group p-6 bg-primary-blue hover:bg-primary-blue-dark rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
                     >
@@ -132,81 +132,33 @@ function SimpleDashboard({ user, onLogout }: SimpleDashboardProps) {
                           <span className="text-primary-blue text-2xl">👥</span>
                         </div>
                         <div>
-                          <h4 className="font-bold text-white text-lg">View Customers</h4>
+                          <h4 className="font-bold text-white text-lg">Customers</h4>
                           <p className="text-blue-100">Manage all customers</p>
                         </div>
                       </div>
                     </button>
-                    
-                    <button 
-                      onClick={() => navigate('/time-management')}
-                      className="group p-6 bg-green-600 hover:bg-green-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                    >
-                      <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                          <span className="text-green-600 text-2xl">⏰</span>
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-white text-lg">Time Management</h4>
-                          <p className="text-green-100">Manage all time entries</p>
-                        </div>
-                      </div>
-                    </button>
-                    
-                    <button 
-                      onClick={() => navigate('/vinyl-inventory')}
-                      className="group p-6 bg-purple-600 hover:bg-purple-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                    >
-                      <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                          <span className="text-purple-600 text-2xl">📦</span>
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-white text-lg">Vinyl Inventory</h4>
-                          <p className="text-purple-100">Manage vinyl stock</p>
-                        </div>
-                      </div>
-                    </button>
-                    
-                    {/* Only Owner gets Wages button */}
-                    {user.role === 'owner' && (
-                      <button 
-                        onClick={() => navigate('/wages')}
-                        className="group p-6 bg-pink-600 hover:bg-pink-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                      >
-                        <div className="flex items-center space-x-4">
-                          <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                            <span className="text-pink-600 text-2xl">💰</span>
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-white text-lg">Wages</h4>
-                            <p className="text-pink-100">Manage payroll & wages</p>
-                          </div>
-                        </div>
-                      </button>
-                    )}
-                    
-                    {/* Manager and Owner get Account Management */}
+
+                    {/* Manager and Owner get Estimates */}
                     {(user.role === 'manager' || user.role === 'owner') && (
-                      <button 
-                        onClick={() => navigate('/account-management')}
-                        className="group p-6 bg-indigo-600 hover:bg-indigo-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
+                      <button
+                        onClick={() => navigate('/job-estimation')}
+                        className="group p-6 bg-emerald-600 hover:bg-emerald-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
                       >
                         <div className="flex items-center space-x-4">
                           <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                            <span className="text-indigo-600 text-2xl">🔐</span>
+                            <span className="text-emerald-600 text-2xl">📋</span>
                           </div>
                           <div>
-                            <h4 className="font-bold text-white text-lg">Account Management</h4>
-                            <p className="text-indigo-100">Manage user accounts & settings</p>
+                            <h4 className="font-bold text-white text-lg">Estimates</h4>
+                            <p className="text-emerald-100">Create quotes & job specs</p>
                           </div>
                         </div>
                       </button>
                     )}
-                    
+
                     {/* Manager and Owner get Supply Chain Management */}
                     {(user.role === 'manager' || user.role === 'owner') && (
-                      <button 
+                      <button
                         onClick={() => navigate('/supply-chain')}
                         className="group p-6 bg-orange-600 hover:bg-orange-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
                       >
@@ -221,20 +173,68 @@ function SimpleDashboard({ user, onLogout }: SimpleDashboardProps) {
                         </div>
                       </button>
                     )}
-                    
-                    {/* Manager and Owner get Job Estimation */}
+
+                    <button
+                      onClick={() => navigate('/time-management')}
+                      className="group p-6 bg-green-600 hover:bg-green-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
+                    >
+                      <div className="flex items-center space-x-4">
+                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
+                          <span className="text-green-600 text-2xl">⏰</span>
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-white text-lg">Time Tracking</h4>
+                          <p className="text-green-100">Manage all time entries</p>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Manager and Owner get User Accounts */}
                     {(user.role === 'manager' || user.role === 'owner') && (
-                      <button 
-                        onClick={() => navigate('/job-estimation')}
-                        className="group p-6 bg-emerald-600 hover:bg-emerald-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
+                      <button
+                        onClick={() => navigate('/account-management')}
+                        className="group p-6 bg-indigo-600 hover:bg-indigo-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
                       >
                         <div className="flex items-center space-x-4">
                           <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                            <span className="text-emerald-600 text-2xl">📋</span>
+                            <span className="text-indigo-600 text-2xl">🔐</span>
                           </div>
                           <div>
-                            <h4 className="font-bold text-white text-lg">Job Estimation</h4>
-                            <p className="text-emerald-100">Create quotes & job specs</p>
+                            <h4 className="font-bold text-white text-lg">User Accounts</h4>
+                            <p className="text-indigo-100">Manage user accounts & settings</p>
+                          </div>
+                        </div>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => navigate('/vinyl-inventory')}
+                      className="group p-6 bg-purple-600 hover:bg-purple-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
+                    >
+                      <div className="flex items-center space-x-4">
+                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
+                          <span className="text-purple-600 text-2xl">📦</span>
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-white text-lg">Vinyl Inventory</h4>
+                          <p className="text-purple-100">Manage vinyl stock</p>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Only Owner gets Wages button */}
+                    {user.role === 'owner' && (
+                      <button
+                        onClick={() => navigate('/wages')}
+                        className="group p-6 bg-pink-600 hover:bg-pink-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
+                      >
+                        <div className="flex items-center space-x-4">
+                          <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
+                            <span className="text-pink-600 text-2xl">💰</span>
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-white text-lg">Wages</h4>
+                            <p className="text-pink-100">Manage payroll & wages</p>
                           </div>
                         </div>
                       </button>

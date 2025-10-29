@@ -43,7 +43,7 @@ export const AutofillComboBox: React.FC<AutofillComboBoxProps> = ({
     const searchValue = (value || '').toLowerCase();
     return suggestions.filter(suggestion =>
       suggestion === '---' ||
-      (suggestion && suggestion.toLowerCase().includes(searchValue))
+      (suggestion && String(suggestion).toLowerCase().includes(searchValue))
     );
   }, [suggestions, value]);
 
@@ -54,26 +54,20 @@ export const AutofillComboBox: React.FC<AutofillComboBoxProps> = ({
   // Calculate dropdown position relative to viewport
   const updateDropdownPosition = useCallback(() => {
     if (!containerRef.current) return;
-    
-    const rect = containerRef.current.getBoundingClientRect();
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-    
-    const nextPosition = {
-      top: rect.bottom + scrollTop + 4,
-      left: rect.left + scrollLeft,
-      width: rect.width
-    };
 
-    setDropdownPosition(prev => {
-      if (prev && prev.top === nextPosition.top && prev.left === nextPosition.left && prev.width === nextPosition.width) {
-        return prev;
-      }
-      return nextPosition;
+    const rect = containerRef.current.getBoundingClientRect();
+
+    // For fixed positioning, use viewport-relative coordinates only
+    // getBoundingClientRect() already provides these, no need to add scroll offsets
+    // Always update immediately without comparison for instant repositioning
+    setDropdownPosition({
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width
     });
   }, []);
 
-  // Update position when dropdown opens or on scroll/resize
+  // Update position when dropdown opens and on scroll/resize
   useLayoutEffect(() => {
     if (!isOpen) {
       setDropdownPosition(null);

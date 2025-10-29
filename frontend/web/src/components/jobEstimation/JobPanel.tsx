@@ -6,6 +6,7 @@ import { User } from '../../types';
 
 interface JobPanelProps {
   selectedCustomerId: number | null;
+  selectedCustomerName: string | null;
   selectedJobId: number | null;
   onJobSelected: (jobId: number) => void;
   onCreateNewJob: (jobName: string) => Promise<void>;
@@ -14,6 +15,7 @@ interface JobPanelProps {
 
 export const JobPanel: React.FC<JobPanelProps> = ({
   selectedCustomerId,
+  selectedCustomerName,
   selectedJobId,
   onJobSelected,
   onCreateNewJob,
@@ -185,7 +187,7 @@ export const JobPanel: React.FC<JobPanelProps> = ({
     };
 
     return (
-      <span className={`px-3 py-2 rounded-full text-sm font-semibold border ${
+      <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${
         statusColors[job.job_status] || 'bg-gray-100 text-gray-800 border-gray-800'
       }`}>
         {job.job_status}
@@ -194,7 +196,10 @@ export const JobPanel: React.FC<JobPanelProps> = ({
   };
 
   const getHeaderText = () => {
-    if (selectedCustomerId) {
+    if (selectedCustomerId && selectedCustomerName) {
+      return `Jobs for: ${selectedCustomerName}`;
+    } else if (selectedCustomerId) {
+      // Fallback to finding from jobs if name not provided
       const customer = allJobs.find(job => job.customer_id === selectedCustomerId);
       if (customer) {
         return `Jobs for: ${customer.customer_name}`;
@@ -264,10 +269,10 @@ export const JobPanel: React.FC<JobPanelProps> = ({
             {filteredJobs.map((job) => (
               <div
                 key={job.job_id}
-                className={`group p-3 border rounded-lg cursor-pointer transition-colors ${
-                  selectedJobId === job.job_id 
-                    ? 'bg-purple-50 border-purple-300 shadow-sm' 
-                    : 'hover:bg-gray-50 hover:border-purple-200'
+                className={`group p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                  selectedJobId === job.job_id
+                    ? 'bg-purple-100 border-purple-500'
+                    : 'border-gray-200 hover:bg-gray-50 hover:border-purple-200'
                 }`}
                 onClick={() => onJobSelected(job.job_id)}
               >
@@ -312,7 +317,7 @@ export const JobPanel: React.FC<JobPanelProps> = ({
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 flex-1">
-                          <span className="truncate" title={job.job_name}>
+                          <span className={`truncate ${selectedJobId === job.job_id ? 'font-semibold' : ''}`} title={job.job_name}>
                             {job.job_name}
                           </span>
                           {(user.role === 'manager' || user.role === 'owner') && (

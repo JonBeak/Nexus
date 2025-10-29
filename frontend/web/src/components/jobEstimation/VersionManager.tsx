@@ -285,7 +285,7 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
               versions.map((version) => (
                 <tr
                   key={version.id}
-                  className={`hover:bg-gray-50 ${currentEstimateId === version.id ? 'bg-purple-50' : ''}`}
+                  className="hover:bg-gray-50"
                 >
                   <td className="p-4">
                     <div className="font-medium">v{version.version_number}</div>
@@ -322,9 +322,7 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
         {versions.map((version) => (
           <div
             key={version.id}
-            className={`border rounded-lg p-4 ${
-              currentEstimateId === version.id ? 'bg-purple-50 border-purple-300' : 'bg-white border-gray-200'
-            }`}
+            className="border rounded-lg p-4 bg-white border-gray-200"
           >
             <div className="flex items-start justify-between mb-3">
               <div className="flex-shrink-0">

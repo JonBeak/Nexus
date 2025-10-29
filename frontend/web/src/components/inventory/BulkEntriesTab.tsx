@@ -2,7 +2,7 @@ import React, { useMemo, useCallback } from 'react';
 import { VinylItem, VinylAutofillSuggestions } from './types';
 import { useBulkEntries } from '../../hooks/useBulkEntries';
 import { BulkEntriesTable } from './BulkEntriesTable';
-import { validateBulkEntries } from '../../utils/bulkEntryValidation';
+import { validateBulkEntries } from '../../services/bulkEntry/bulkEntryValidation';
 import { submitBulkEntries } from '../../services/bulkEntrySubmission';
 
 interface BulkEntriesTabProps {
@@ -31,7 +31,6 @@ export const BulkEntriesTab: React.FC<BulkEntriesTabProps> = ({
     removeBulkEntry,
     clearAllBulkEntries,
     removeBulkEntriesByIds,
-    clearSuccessfulEntries,
     updateMultipleSubmissionStates,
     handleJobChange,
     removeJobField
@@ -129,7 +128,7 @@ export const BulkEntriesTab: React.FC<BulkEntriesTabProps> = ({
           setTimeout(() => {
             if (result.successfulEntryIds.length > 0) {
               removeBulkEntriesByIds(result.successfulEntryIds);
-              
+
               if (result.failCount > 0) {
                 showNotification(
                   `${result.successCount} entries processed successfully. ${result.failCount} entries failed - please review and resubmit.`,
@@ -137,7 +136,7 @@ export const BulkEntriesTab: React.FC<BulkEntriesTabProps> = ({
                 );
               }
             }
-          }, 1500); // Show success states for 1.5 seconds
+          }, 6000); // Show success states for 6 seconds
           
           // Refresh parent component data
           onSuccess();
@@ -190,7 +189,6 @@ export const BulkEntriesTab: React.FC<BulkEntriesTabProps> = ({
         addNewBulkEntry={addNewBulkEntry}
         handleJobChange={handleJobChange}
         removeJobField={removeJobField}
-        clearSuccessfulEntries={clearSuccessfulEntries}
       />
 
     </div>

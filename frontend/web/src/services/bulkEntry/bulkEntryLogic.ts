@@ -1,5 +1,7 @@
 import { BulkEntry } from '../../hooks/useBulkEntries';
 import { VinylItem, VinylAutofillSuggestions } from '../../components/inventory/types';
+import { ENTRY_TYPE_STYLES, SUBMISSION_STATE_STYLES, FIELD_CONFIG } from '../../constants/bulkEntryConstants';
+import { getBulkSuggestions } from './bulkEntrySuggestions';
 
 // Constants
 export const USE_AUTOFILL_TYPES = new Set<BulkEntry['type']>(['use', 'waste', 'returned', 'damaged']);
@@ -44,8 +46,7 @@ export function processFieldChange(
 
     const prefix = getNotePlaceholder(value as BulkEntry['type']);
     const currentNotes = entry.notes || '';
-    const prefixes = ['Storage: ', 'Usage: ', 'Waste: ', 'Return: ', 'Damage: '];
-    const startsWithPrefix = prefixes.some(p => currentNotes.startsWith(p));
+    const startsWithPrefix = FIELD_CONFIG.TYPE_PREFIXES.some(p => currentNotes.startsWith(p));
 
     if (!currentNotes || startsWithPrefix) {
       updates.notes = prefix + (startsWithPrefix ? currentNotes.substring(currentNotes.indexOf(' ') + 1) : currentNotes);
@@ -130,22 +131,19 @@ export function processVinylProductChange(
  */
 export function getRowBackgroundColor(entry: BulkEntry, hasValidationError: boolean): string {
   // Submission state takes priority
-  if (entry.submissionState === 'submitting') return 'bg-blue-50 border-l-4 border-blue-400';
-  if (entry.submissionState === 'success') return 'bg-green-100 border-l-4 border-green-500';
-  if (entry.submissionState === 'error') return 'bg-red-100 border-l-4 border-red-500';
+  if (entry.submissionState === 'submitting') return SUBMISSION_STATE_STYLES.submitting;
+  if (entry.submissionState === 'success') return SUBMISSION_STATE_STYLES.success;
+  if (entry.submissionState === 'error') return SUBMISSION_STATE_STYLES.error;
 
   // Validation error
-  if (hasValidationError) return 'bg-red-50 border-l-4 border-red-400';
+  if (hasValidationError) return SUBMISSION_STATE_STYLES.validation_error;
 
   // Entry type colors
-  switch (entry.type) {
-    case 'store': return 'bg-green-50 border-l-4 border-green-300';
-    case 'use': return 'bg-red-50 border-l-4 border-red-300';
-    case 'waste': return 'bg-orange-50 border-l-4 border-orange-300';
-    case 'returned': return 'bg-blue-50 border-l-4 border-blue-300';
-    case 'damaged': return 'bg-purple-50 border-l-4 border-purple-300';
-    default: return '';
+  if (entry.type && entry.type in ENTRY_TYPE_STYLES) {
+    return ENTRY_TYPE_STYLES[entry.type as keyof typeof ENTRY_TYPE_STYLES];
   }
+
+  return '';
 }
 
 /**
@@ -175,5 +173,3 @@ export function shouldAutoAddEntry(
   return false;
 }
 
-// Re-export utility functions that will be moved to bulkEntrySuggestions.ts
-export { getBulkSuggestions } from '../../utils/bulkEntryValidation';

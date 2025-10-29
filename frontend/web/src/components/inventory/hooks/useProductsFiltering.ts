@@ -7,6 +7,7 @@ export interface ProductsColumnFilters {
   colour_number: string;
   colour_name: string;
   suppliers: string;
+  status: string;
 }
 
 interface UseProductsFilteringReturn {
@@ -26,6 +27,7 @@ interface UseProductsFilteringReturn {
   getColourNumberOptions: string[];
   getColourNameOptions: string[];
   getSupplierOptions: string[];
+  getStatusOptions: string[];
   filteredAndSortedProducts: VinylProduct[];
 }
 
@@ -39,7 +41,8 @@ export const useProductsFiltering = (products: VinylProduct[]): UseProductsFilte
     series: '',
     colour_number: '',
     colour_name: '',
-    suppliers: ''
+    suppliers: '',
+    status: ''
   });
   const [sortField, setSortField] = useState<ProductsSortField>('brand');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -66,7 +69,8 @@ export const useProductsFiltering = (products: VinylProduct[]): UseProductsFilte
       series: '',
       colour_number: '',
       colour_name: '',
-      suppliers: ''
+      suppliers: '',
+      status: ''
     });
     setFilterType('all');
     setSearchTerm('');
@@ -87,116 +91,123 @@ export const useProductsFiltering = (products: VinylProduct[]): UseProductsFilte
     return product.colour_name || product.colour?.split(' ').slice(1).join(' ') || '';
   }, []);
 
+  // Pre-calculate lowercase search strings for each product (cached once when data loads)
+  const productsWithSearchCache = useMemo(() => {
+    return products.map(product => ({
+      product,
+      searchFieldsLower: [
+        product.brand,
+        product.series,
+        product.colour,
+        product.colour_number,
+        product.colour_name,
+        product.suppliers
+      ].filter(Boolean).join(' ').toLowerCase()
+    }));
+  }, [products]);
+
   const getBrandOptions = useMemo(() => {
-    // Apply contextual filtering - show brands that match OTHER selected filters
+    // Apply contextual filtering - show brands that match OTHER selected filters (without counts for performance)
     const contextualProducts = products.filter(p => {
       return (!columnFilters.series || p.series === columnFilters.series) &&
              (!columnFilters.colour_number || getColourNumber(p) === columnFilters.colour_number) &&
              (!columnFilters.colour_name || getColourName(p) === columnFilters.colour_name);
     });
-    
+
     const brands = Array.from(new Set(contextualProducts.map(p => p.brand).filter(Boolean))).sort();
-    const brandOptions = brands.map(brand => {
-      const count = contextualProducts.filter(p => p.brand === brand).length;
-      return `${brand} (${count})`;
-    });
-    
-    return ['---', ...brandOptions];
+
+    return ['---', ...brands];
   }, [products, columnFilters.series, columnFilters.colour_number, columnFilters.colour_name, getColourNumber, getColourName]);
 
   const getSeriesOptions = useMemo(() => {
-    // Apply contextual filtering - show series that match OTHER selected filters
+    // Apply contextual filtering - show series that match OTHER selected filters (without counts for performance)
     const contextualProducts = products.filter(p => {
       return (!columnFilters.brand || p.brand === columnFilters.brand) &&
              (!columnFilters.colour_number || getColourNumber(p) === columnFilters.colour_number) &&
              (!columnFilters.colour_name || getColourName(p) === columnFilters.colour_name);
     });
-    
+
     const series = Array.from(new Set(contextualProducts.map(p => p.series).filter(Boolean))).sort();
-    const seriesOptions = series.map(s => {
-      const count = contextualProducts.filter(p => p.series === s).length;
-      return `${s} (${count})`;
-    });
-    
-    return ['---', ...seriesOptions];
+
+    return ['---', ...series];
   }, [products, columnFilters.brand, columnFilters.colour_number, columnFilters.colour_name, getColourNumber, getColourName]);
 
   const getColourNumberOptions = useMemo(() => {
-    // Apply contextual filtering - show color numbers that match OTHER selected filters
+    // Apply contextual filtering - show color numbers that match OTHER selected filters (without counts for performance)
     const contextualProducts = products.filter(p => {
       return (!columnFilters.brand || p.brand === columnFilters.brand) &&
              (!columnFilters.series || p.series === columnFilters.series) &&
              (!columnFilters.colour_name || getColourName(p) === columnFilters.colour_name);
     });
-    
+
     const colours = Array.from(new Set(contextualProducts.map(p => getColourNumber(p)).filter(Boolean))).sort();
-    const colourNumberOptions = colours.map(colour => {
-      const count = contextualProducts.filter(p => getColourNumber(p) === colour).length;
-      return `${colour} (${count})`;
-    });
-    
-    return ['---', ...colourNumberOptions];
+
+    return ['---', ...colours];
   }, [products, columnFilters.brand, columnFilters.series, columnFilters.colour_name, getColourNumber, getColourName]);
 
   const getColourNameOptions = useMemo(() => {
-    // Apply contextual filtering - show color names that match OTHER selected filters
+    // Apply contextual filtering - show color names that match OTHER selected filters (without counts for performance)
     const contextualProducts = products.filter(p => {
       return (!columnFilters.brand || p.brand === columnFilters.brand) &&
              (!columnFilters.series || p.series === columnFilters.series) &&
              (!columnFilters.colour_number || getColourNumber(p) === columnFilters.colour_number);
     });
-    
+
     const colours = Array.from(new Set(contextualProducts.map(p => getColourName(p)).filter(Boolean))).sort();
-    const colourNameOptions = colours.map(colour => {
-      const count = contextualProducts.filter(p => getColourName(p) === colour).length;
-      return `${colour} (${count})`;
-    });
-    
-    return ['---', ...colourNameOptions];
+
+    return ['---', ...colours];
   }, [products, columnFilters.brand, columnFilters.series, columnFilters.colour_number, getColourNumber, getColourName]);
 
   const getSupplierOptions = useMemo(() => {
     const suppliers = Array.from(new Set(products.map(p => p.suppliers).filter(Boolean))).sort();
-    const supplierOptions = suppliers.map(supplier => {
-      const count = products.filter(p => p.suppliers === supplier).length;
-      return `${supplier} (${count})`;
-    });
-    
-    return ['---', ...supplierOptions];
+
+    return ['---', ...suppliers];
   }, [products]);
+
+  const getStatusOptions = useMemo(() => {
+    const contextualProducts = products.filter(p => {
+      return (!columnFilters.brand || p.brand === columnFilters.brand) &&
+             (!columnFilters.series || p.series === columnFilters.series) &&
+             (!columnFilters.colour_number || getColourNumber(p) === columnFilters.colour_number) &&
+             (!columnFilters.colour_name || getColourName(p) === columnFilters.colour_name) &&
+             (!columnFilters.suppliers || p.suppliers === columnFilters.suppliers);
+    });
+
+    const statuses = Array.from(new Set(contextualProducts.map(p => p.is_active ? 'Active' : 'Inactive'))).sort();
+
+    return ['---', ...statuses];
+  }, [products, columnFilters, getColourNumber, getColourName]);
 
   // Filtered and sorted products
   const filteredAndSortedProducts = useMemo(() => {
-    const filtered = products.filter(product => {
-      // Global search
-      if (searchTerm) {
-        const searchFields = [
-          product.brand,
-          product.series,
-          product.colour,
-          product.colour_number,
-          product.colour_name,
-          product.suppliers
-        ].filter(Boolean).join(' ').toLowerCase();
-        
-        if (!searchFields.includes(searchTerm.toLowerCase())) {
+    // Pre-calculate lowercased search term once (not per product)
+    const searchTermLower = searchTerm.toLowerCase();
+
+    const filtered = productsWithSearchCache
+      .filter(({ product, searchFieldsLower }) => {
+        // Global search
+        if (searchTerm && !searchFieldsLower.includes(searchTermLower)) {
           return false;
         }
-      }
 
-      // Status filter
-      if (filterType === 'active' && !product.is_active) return false;
-      if (filterType === 'inactive' && product.is_active) return false;
+        // Status filter
+        if (filterType === 'active' && !product.is_active) return false;
+        if (filterType === 'inactive' && product.is_active) return false;
 
-      // Column filters
-      if (columnFilters.brand && product.brand !== columnFilters.brand) return false;
-      if (columnFilters.series && product.series !== columnFilters.series) return false;
-      if (columnFilters.colour_number && getColourNumber(product) !== columnFilters.colour_number) return false;
-      if (columnFilters.colour_name && getColourName(product) !== columnFilters.colour_name) return false;
-      if (columnFilters.suppliers && product.suppliers !== columnFilters.suppliers) return false;
+        // Column filters
+        if (columnFilters.brand && product.brand !== columnFilters.brand) return false;
+        if (columnFilters.series && product.series !== columnFilters.series) return false;
+        if (columnFilters.colour_number && getColourNumber(product) !== columnFilters.colour_number) return false;
+        if (columnFilters.colour_name && getColourName(product) !== columnFilters.colour_name) return false;
+        if (columnFilters.suppliers && product.suppliers !== columnFilters.suppliers) return false;
+        if (columnFilters.status) {
+          const productStatus = product.is_active ? 'Active' : 'Inactive';
+          if (productStatus !== columnFilters.status) return false;
+        }
 
-      return true;
-    });
+        return true;
+      })
+      .map(({ product }) => product);
 
     // Sort products
     filtered.sort((a, b) => {
@@ -240,7 +251,7 @@ export const useProductsFiltering = (products: VinylProduct[]): UseProductsFilte
     });
 
     return filtered;
-  }, [products, searchTerm, filterType, columnFilters, sortField, sortDirection, getColourNumber, getColourName]);
+  }, [productsWithSearchCache, searchTerm, filterType, columnFilters, sortField, sortDirection, getColourNumber, getColourName]);
 
   return {
     searchTerm,
@@ -259,6 +270,7 @@ export const useProductsFiltering = (products: VinylProduct[]): UseProductsFilte
     getColourNumberOptions,
     getColourNameOptions,
     getSupplierOptions,
+    getStatusOptions,
     filteredAndSortedProducts
   };
 };

@@ -90,10 +90,6 @@ export function validateBulkEntry(entry: BulkEntry, vinylItems: VinylItem[]): st
     }
   }
 
-  if (entry.type === 'store' && !entry.location) {
-    errors.push('Location is required for store entries');
-  }
-
   return errors;
 }
 

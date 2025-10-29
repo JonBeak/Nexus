@@ -1,5 +1,5 @@
 import { BulkEntry } from '../../hooks/useBulkEntries';
-import { VinylItem, VinylAutofillSuggestions } from '../../components/inventory/types';
+import { VinylItem, VinylAutofillSuggestions, VinylAutofillCombination } from '../../components/inventory/types';
 import { USE_AUTOFILL_TYPES, DEFAULT_WIDTH_OPTIONS } from './bulkEntryLogic';
 
 /**
@@ -7,7 +7,7 @@ import { USE_AUTOFILL_TYPES, DEFAULT_WIDTH_OPTIONS } from './bulkEntryLogic';
  */
 export function buildColourMapping(
   vinylItems: VinylItem[],
-  combinations: any[],
+  combinations: VinylAutofillCombination[],
   currentBrand?: string,
   currentSeries?: string
 ): {
@@ -31,10 +31,10 @@ export function buildColourMapping(
 
   // Process combinations from autofill suggestions
   const relevantCombinations = currentBrand && currentSeries
-    ? combinations.filter((combo: any) => combo.brand === currentBrand && combo.series === currentSeries)
+    ? combinations.filter((combo) => combo.brand === currentBrand && combo.series === currentSeries)
     : combinations;
 
-  relevantCombinations.forEach((combo: any) => {
+  relevantCombinations.forEach((combo) => {
     if (combo.colour_number && combo.colour_name) {
       numberToName[combo.colour_number] = combo.colour_name;
       nameToNumber[combo.colour_name] = combo.colour_number;
@@ -88,7 +88,7 @@ export function getBulkSuggestions(
   field: 'brand' | 'series' | 'colour' | 'colour_number' | 'colour_name' | 'width' | 'length_yards',
   currentData: BulkEntry,
   vinylItems: VinylItem[],
-  bulkAutofillSuggestions: any
+  bulkAutofillSuggestions: VinylAutofillSuggestions
 ): string[] {
   // For width field with non-autofill types, return defaults
   if (field === 'width' && !USE_AUTOFILL_TYPES.has(currentData.type)) {
@@ -100,12 +100,12 @@ export function getBulkSuggestions(
     const availableItems = getMatchingItems(vinylItems, currentData, field);
     const brands = [...new Set(availableItems.map(item => item.brand))].filter(Boolean);
 
-    const contextualBulkBrands = bulkAutofillSuggestions.combinations?.filter((combo: any) => {
+    const contextualBulkBrands = bulkAutofillSuggestions.combinations?.filter((combo) => {
       return (!currentData.series || combo.series === currentData.series) &&
-             (!currentData.width || combo.width?.toString() === currentData.width) &&
+             (!currentData.width || combo.default_width?.toString() === currentData.width) &&
              (!currentData.colour_number || combo.colour_number === currentData.colour_number) &&
              (!currentData.colour_name || combo.colour_name?.toLowerCase().includes(currentData.colour_name.toLowerCase()));
-    }).map((c: any) => c.brand).filter(Boolean) || [];
+    }).map((c) => c.brand).filter(Boolean) || [];
 
     return [...new Set([...brands, ...contextualBulkBrands])].sort();
   }
@@ -115,12 +115,12 @@ export function getBulkSuggestions(
     const availableItems = getMatchingItems(vinylItems, currentData, field);
     const series = [...new Set(availableItems.map(item => item.series))].filter(Boolean);
 
-    const contextualBulkSeries = bulkAutofillSuggestions.combinations?.filter((combo: any) => {
+    const contextualBulkSeries = bulkAutofillSuggestions.combinations?.filter((combo) => {
       return (!currentData.brand || combo.brand === currentData.brand) &&
-             (!currentData.width || combo.width?.toString() === currentData.width) &&
+             (!currentData.width || combo.default_width?.toString() === currentData.width) &&
              (!currentData.colour_number || combo.colour_number === currentData.colour_number) &&
              (!currentData.colour_name || combo.colour_name?.toLowerCase().includes(currentData.colour_name.toLowerCase()));
-    }).map((c: any) => c.series).filter(Boolean) || [];
+    }).map((c) => c.series).filter(Boolean) || [];
 
     return [...new Set([...series, ...contextualBulkSeries])].sort();
   }
@@ -130,12 +130,12 @@ export function getBulkSuggestions(
     const availableItems = getMatchingItems(vinylItems, currentData, field);
     const widths = [...new Set(availableItems.map(item => item.width))].filter(Boolean);
 
-    const contextualBulkWidths = bulkAutofillSuggestions.combinations?.filter((combo: any) => {
+    const contextualBulkWidths = bulkAutofillSuggestions.combinations?.filter((combo) => {
       return (!currentData.brand || combo.brand === currentData.brand) &&
              (!currentData.series || combo.series === currentData.series) &&
              (!currentData.colour_number || combo.colour_number === currentData.colour_number) &&
              (!currentData.colour_name || combo.colour_name?.toLowerCase().includes(currentData.colour_name.toLowerCase()));
-    }).map((c: any) => c.width?.toString()).filter(Boolean) || [];
+    }).map((c) => c.default_width?.toString()).filter(Boolean) || [];
 
     return [...new Set([...widths, ...contextualBulkWidths])].sort((a, b) => parseFloat(a) - parseFloat(b));
   }

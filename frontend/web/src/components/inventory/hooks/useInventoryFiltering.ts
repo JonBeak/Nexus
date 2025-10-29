@@ -6,6 +6,7 @@ export interface InventoryColumnFilters {
   series: string;
   colour_number: string;
   colour_name: string;
+  disposition: string;
 }
 
 export type InventorySortField = keyof Pick<
@@ -31,6 +32,7 @@ interface UseInventoryFilteringReturn {
   getSeriesOptions: string[];
   getColourNumberOptions: string[];
   getColourNameOptions: string[];
+  getDispositionOptions: string[];
   handleSort: (field: InventorySortField) => void;
   handleColumnFilter: (column: keyof InventoryColumnFilters, value: string) => void;
   clearAllFilters: () => void;
@@ -40,14 +42,15 @@ interface UseInventoryFilteringReturn {
 
 export const useInventoryFiltering = (vinylItems: VinylItem[]): UseInventoryFilteringReturn => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<InventoryFilterType>('in_stock');
+  const [filterType, setFilterType] = useState<InventoryFilterType>('all');
   const [sortField, setSortField] = useState<InventorySortField>('created_at');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [columnFilters, setColumnFilters] = useState<InventoryColumnFilters>({
     brand: '',
     series: '',
     colour_number: '',
-    colour_name: ''
+    colour_name: '',
+    disposition: ''
   });
 
   const handleSort = useCallback((field: InventorySortField) => {
@@ -71,7 +74,8 @@ export const useInventoryFiltering = (vinylItems: VinylItem[]): UseInventoryFilt
       brand: '',
       series: '',
       colour_number: '',
-      colour_name: ''
+      colour_name: '',
+      disposition: ''
     });
     setSearchTerm('');
   }, []);
@@ -93,33 +97,45 @@ export const useInventoryFiltering = (vinylItems: VinylItem[]): UseInventoryFilt
     return String(value).toLowerCase();
   };
 
-  // Filter items based on all criteria
-  const filteredItems = useMemo(() => {
-    return vinylItems.filter(item => {
-      const searchFields = [
+  // Pre-calculate lowercase search strings for each item (cached once when data loads)
+  const itemsWithSearchCache = useMemo(() => {
+    return vinylItems.map(item => ({
+      item,
+      searchFieldsLower: [
         item.brand,
         item.series,
         item.colour_number,
         item.colour_name
-      ].filter(Boolean).join(' ').toLowerCase();
-      
-      const matchesSearch = searchTerm === '' || searchFields.includes(searchTerm.toLowerCase());
-      const matchesStatus = filterType === 'all' || item.disposition === filterType;
-      
-      // Column-specific filters
-      const matchesBrand = !columnFilters.brand || 
-        (item.brand && item.brand.toLowerCase().includes(columnFilters.brand.toLowerCase()));
-      const matchesSeries = !columnFilters.series || 
-        (item.series && item.series.toLowerCase().includes(columnFilters.series.toLowerCase()));
-      const matchesColourNumber = !columnFilters.colour_number || 
-        (item.colour_number && item.colour_number.toLowerCase().includes(columnFilters.colour_number.toLowerCase()));
-      const matchesColourName = !columnFilters.colour_name || 
-        (item.colour_name && item.colour_name.toLowerCase().includes(columnFilters.colour_name.toLowerCase()));
-      
-      return matchesSearch && matchesStatus && matchesBrand && matchesSeries && 
-             matchesColourNumber && matchesColourName;
-    });
-  }, [vinylItems, searchTerm, filterType, columnFilters]);
+      ].filter(Boolean).join(' ').toLowerCase()
+    }));
+  }, [vinylItems]);
+
+  // Filter items based on all criteria
+  const filteredItems = useMemo(() => {
+    // Pre-calculate lowercased search term once (not per item)
+    const searchTermLower = searchTerm.toLowerCase();
+
+    return itemsWithSearchCache
+      .filter(({ item, searchFieldsLower }) => {
+        // Search filter (only if searchTerm is not empty)
+        if (searchTerm !== '' && !searchFieldsLower.includes(searchTermLower)) {
+          return false;
+        }
+
+        // Status filter
+        if (filterType !== 'all' && item.disposition !== filterType) return false;
+
+        // Column-specific filters (exact match, no toLowerCase needed for exact equality)
+        if (columnFilters.brand && item.brand !== columnFilters.brand) return false;
+        if (columnFilters.series && item.series !== columnFilters.series) return false;
+        if (columnFilters.colour_number && item.colour_number !== columnFilters.colour_number) return false;
+        if (columnFilters.colour_name && item.colour_name !== columnFilters.colour_name) return false;
+        if (columnFilters.disposition && item.disposition !== columnFilters.disposition) return false;
+
+        return true;
+      })
+      .map(({ item }) => item);
+  }, [itemsWithSearchCache, searchTerm, filterType, columnFilters]);
 
   // Sort the filtered items
   const sortedItems = useMemo(() => {
@@ -133,94 +149,76 @@ export const useInventoryFiltering = (vinylItems: VinylItem[]): UseInventoryFilt
     });
   }, [filteredItems, sortField, sortDirection]);
 
-  // Generate contextual dropdown options with counts
+  // Generate contextual dropdown options (without counts for performance)
   const getBrandOptions = useMemo(() => {
     const contextualItems = vinylItems.filter(item => {
       const matchesStatus = filterType === 'all' || item.disposition === filterType;
-      const matchesSeries = !columnFilters.series || (item.series && item.series.toLowerCase().includes(columnFilters.series.toLowerCase()));
-      const matchesColourNumber = !columnFilters.colour_number || (item.colour_number && item.colour_number.toLowerCase().includes(columnFilters.colour_number.toLowerCase()));
-      const matchesColourName = !columnFilters.colour_name || (item.colour_name && item.colour_name.toLowerCase().includes(columnFilters.colour_name.toLowerCase()));
+      const matchesSeries = !columnFilters.series || item.series === columnFilters.series;
+      const matchesColourNumber = !columnFilters.colour_number || item.colour_number === columnFilters.colour_number;
+      const matchesColourName = !columnFilters.colour_name || item.colour_name === columnFilters.colour_name;
       return matchesStatus && matchesSeries && matchesColourNumber && matchesColourName;
     });
-    
-    const brandCounts = contextualItems.reduce((acc, item) => {
-      if (item.brand) {
-        acc[item.brand] = (acc[item.brand] || 0) + 1;
-      }
-      return acc;
-    }, {} as Record<string, number>);
-    
-    const brands = Object.keys(brandCounts).sort();
-    const brandOptions = brands.map(brand => `${brand} (${brandCounts[brand]})`);
-    
-    return ['---', ...brandOptions];
+
+    const brands = Array.from(new Set(contextualItems.map(item => item.brand).filter(Boolean))).sort();
+
+    return ['---', ...brands];
   }, [vinylItems, columnFilters, filterType]);
 
   const getSeriesOptions = useMemo(() => {
     const contextualItems = vinylItems.filter(item => {
       const matchesStatus = filterType === 'all' || item.disposition === filterType;
-      const matchesBrand = !columnFilters.brand || (item.brand && item.brand.toLowerCase().includes(columnFilters.brand.toLowerCase()));
-      const matchesColourNumber = !columnFilters.colour_number || (item.colour_number && item.colour_number.toLowerCase().includes(columnFilters.colour_number.toLowerCase()));
-      const matchesColourName = !columnFilters.colour_name || (item.colour_name && item.colour_name.toLowerCase().includes(columnFilters.colour_name.toLowerCase()));
+      const matchesBrand = !columnFilters.brand || item.brand === columnFilters.brand;
+      const matchesColourNumber = !columnFilters.colour_number || item.colour_number === columnFilters.colour_number;
+      const matchesColourName = !columnFilters.colour_name || item.colour_name === columnFilters.colour_name;
       return matchesStatus && matchesBrand && matchesColourNumber && matchesColourName;
     });
-    
-    const seriesCounts = contextualItems.reduce((acc, item) => {
-      if (item.series) {
-        acc[item.series] = (acc[item.series] || 0) + 1;
-      }
-      return acc;
-    }, {} as Record<string, number>);
-    
-    const series = Object.keys(seriesCounts).sort();
-    const seriesOptions = series.map(series => `${series} (${seriesCounts[series]})`);
-    
-    return ['---', ...seriesOptions];
+
+    const series = Array.from(new Set(contextualItems.map(item => item.series).filter(Boolean))).sort();
+
+    return ['---', ...series];
   }, [vinylItems, columnFilters, filterType]);
 
   const getColourNumberOptions = useMemo(() => {
     const contextualItems = vinylItems.filter(item => {
       const matchesStatus = filterType === 'all' || item.disposition === filterType;
-      const matchesBrand = !columnFilters.brand || (item.brand && item.brand.toLowerCase().includes(columnFilters.brand.toLowerCase()));
-      const matchesSeries = !columnFilters.series || (item.series && item.series.toLowerCase().includes(columnFilters.series.toLowerCase()));
-      const matchesColourName = !columnFilters.colour_name || (item.colour_name && item.colour_name.toLowerCase().includes(columnFilters.colour_name.toLowerCase()));
+      const matchesBrand = !columnFilters.brand || item.brand === columnFilters.brand;
+      const matchesSeries = !columnFilters.series || item.series === columnFilters.series;
+      const matchesColourName = !columnFilters.colour_name || item.colour_name === columnFilters.colour_name;
       return matchesStatus && matchesBrand && matchesSeries && matchesColourName;
     });
-    
-    const colourNumberCounts = contextualItems.reduce((acc, item) => {
-      if (item.colour_number) {
-        acc[item.colour_number] = (acc[item.colour_number] || 0) + 1;
-      }
-      return acc;
-    }, {} as Record<string, number>);
-    
-    const colourNumbers = Object.keys(colourNumberCounts).sort();
-    const colourNumberOptions = colourNumbers.map(num => `${num} (${colourNumberCounts[num]})`);
-    
-    return ['---', ...colourNumberOptions];
+
+    const colourNumbers = Array.from(new Set(contextualItems.map(item => item.colour_number).filter(Boolean))).sort();
+
+    return ['---', ...colourNumbers];
   }, [vinylItems, columnFilters, filterType]);
 
   const getColourNameOptions = useMemo(() => {
     const contextualItems = vinylItems.filter(item => {
       const matchesStatus = filterType === 'all' || item.disposition === filterType;
-      const matchesBrand = !columnFilters.brand || (item.brand && item.brand.toLowerCase().includes(columnFilters.brand.toLowerCase()));
-      const matchesSeries = !columnFilters.series || (item.series && item.series.toLowerCase().includes(columnFilters.series.toLowerCase()));
-      const matchesColourNumber = !columnFilters.colour_number || (item.colour_number && item.colour_number.toLowerCase().includes(columnFilters.colour_number.toLowerCase()));
+      const matchesBrand = !columnFilters.brand || item.brand === columnFilters.brand;
+      const matchesSeries = !columnFilters.series || item.series === columnFilters.series;
+      const matchesColourNumber = !columnFilters.colour_number || item.colour_number === columnFilters.colour_number;
       return matchesStatus && matchesBrand && matchesSeries && matchesColourNumber;
     });
-    
-    const colourNameCounts = contextualItems.reduce((acc, item) => {
-      if (item.colour_name) {
-        acc[item.colour_name] = (acc[item.colour_name] || 0) + 1;
-      }
-      return acc;
-    }, {} as Record<string, number>);
-    
-    const colourNames = Object.keys(colourNameCounts).sort();
-    const colourNameOptions = colourNames.map(name => `${name} (${colourNameCounts[name]})`);
-    
-    return ['---', ...colourNameOptions];
+
+    const colourNames = Array.from(new Set(contextualItems.map(item => item.colour_name).filter(Boolean))).sort();
+
+    return ['---', ...colourNames];
   }, [vinylItems, columnFilters, filterType]);
+
+  const getDispositionOptions = useMemo(() => {
+    const contextualItems = vinylItems.filter(item => {
+      const matchesBrand = !columnFilters.brand || item.brand === columnFilters.brand;
+      const matchesSeries = !columnFilters.series || item.series === columnFilters.series;
+      const matchesColourNumber = !columnFilters.colour_number || item.colour_number === columnFilters.colour_number;
+      const matchesColourName = !columnFilters.colour_name || item.colour_name === columnFilters.colour_name;
+      return matchesBrand && matchesSeries && matchesColourNumber && matchesColourName;
+    });
+
+    const dispositions = Array.from(new Set(contextualItems.map(item => item.disposition).filter(Boolean))).sort();
+
+    return ['---', ...dispositions];
+  }, [vinylItems, columnFilters]);
 
   return {
     searchTerm,
@@ -239,6 +237,7 @@ export const useInventoryFiltering = (vinylItems: VinylItem[]): UseInventoryFilt
     getSeriesOptions,
     getColourNumberOptions,
     getColourNameOptions,
+    getDispositionOptions,
     handleSort,
     handleColumnFilter,
     clearAllFilters,

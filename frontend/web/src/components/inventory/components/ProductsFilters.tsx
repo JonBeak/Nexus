@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Plus, X } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
 import { InventoryUser, ProductFilterType } from '../types';
 
 interface ProductsFiltersProps {
@@ -9,8 +9,6 @@ interface ProductsFiltersProps {
   onSearchChange: (value: string) => void;
   onFilterTypeChange: (value: ProductFilterType) => void;
   onShowAddModal: () => void;
-  onClearFilters: () => void;
-  activeFilterCount: number;
 }
 
 export const ProductsFilters: React.FC<ProductsFiltersProps> = ({
@@ -19,9 +17,7 @@ export const ProductsFilters: React.FC<ProductsFiltersProps> = ({
   filterType,
   onSearchChange,
   onFilterTypeChange,
-  onShowAddModal,
-  onClearFilters,
-  activeFilterCount
+  onShowAddModal
 }) => {
   return (
     <div className="bg-white rounded-lg shadow p-6">
@@ -52,7 +48,7 @@ export const ProductsFilters: React.FC<ProductsFiltersProps> = ({
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
           />
         </div>
-        
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Status</label>
           <select
@@ -64,27 +60,6 @@ export const ProductsFilters: React.FC<ProductsFiltersProps> = ({
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
-        </div>
-
-        <div className="flex items-end">
-          <button
-            onClick={onClearFilters}
-            disabled={activeFilterCount === 0}
-            className={`px-4 py-2 text-sm rounded-md transition-colors flex items-center ${
-              activeFilterCount > 0 
-                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' 
-                : 'bg-gray-50 text-gray-400 cursor-not-allowed'
-            }`}
-            title={`Clear ${activeFilterCount} active filter(s)`}
-          >
-            <X className="w-4 h-4 mr-1" />
-            Clear Filters
-            {activeFilterCount > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 bg-gray-600 text-white text-xs rounded-full">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
         </div>
       </div>
     </div>

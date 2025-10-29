@@ -1,7 +1,7 @@
 import { BulkEntry } from '../hooks/useBulkEntries';
 import { JobSuggestion, VinylItem } from '../components/inventory/types';
 import { vinylApi } from './api';
-import { validateBulkEntries } from '../utils/bulkEntryValidation';
+import { validateBulkEntries } from './bulkEntry/bulkEntryValidation';
 
 interface SubmissionResult {
   success: boolean;
@@ -51,7 +51,7 @@ export const submitBulkEntries = async (
     // Process each entry
     for (const entry of validEntries) {
       try {
-        // Use job_ids directly - no fuzzy matching needed since we store exact IDs
+        // Use job_ids directly from the entry
         const processedEntry = {
           ...entry,
           job_ids: (entry.job_ids || []).filter((id): id is number => id !== null && id > 0)
@@ -128,6 +128,7 @@ export const submitBulkEntries = async (
           });
         } else {
           // Handle store/waste/returned/damaged entries - create new vinyl items
+          const transactionDate = entry.transaction_date || new Date().toISOString().split('T')[0];
           const createData = {
             brand: entry.brand,
             series: entry.series,
@@ -136,9 +137,8 @@ export const submitBulkEntries = async (
             width: entry.width,
             length_yards: entry.length_yards,
             location: entry.location || '',
-            supplier_id: entry.supplier_id ? parseInt(entry.supplier_id) : undefined,
-            purchase_date: entry.purchase_date || new Date().toISOString().split('T')[0],
-            storage_date: entry.storage_date || new Date().toISOString().split('T')[0],
+            purchase_date: transactionDate,
+            storage_date: transactionDate,
             notes: entry.notes || '',
             job_ids: processedEntry.job_ids
           };
