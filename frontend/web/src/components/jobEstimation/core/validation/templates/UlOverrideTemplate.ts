@@ -2,53 +2,39 @@
 // Accepts "yes", "no", float numbers, or "$float" format with redundancy checking
 // NOTE: 0 and $0 are automatically converted to "no"
 
-import { ValidationTemplate, ValidationResult, ValidationContext } from './ValidationTemplate';
+import { ValidationResult, ValidationContext } from './ValidationTemplate';
+import { BaseValidationTemplate } from './BaseValidationTemplate';
 
-export class UlOverrideTemplate implements ValidationTemplate {
+export class UlOverrideTemplate extends BaseValidationTemplate {
   async validate(value: string, _params: Record<string, unknown> = {}, context?: ValidationContext): Promise<ValidationResult> {
-    try {
+    return this.wrapValidation(_params, async () => {
       // Handle empty values - always valid
       if (!value || (typeof value === 'string' && value.trim() === '')) {
-        return {
-          isValid: true,
-          parsedValue: null,
-          expectedFormat: this.generateExpectedFormat()
-        };
+        return this.handleEmptyValue(null, _params);
       }
 
       const cleanValue = value.trim();
 
       // Parse and validate input
-      const parseResult = this.parseInput(cleanValue, context);
+      const parseResult = this.parseInput(cleanValue, context, _params);
       if (!parseResult.isValid) {
         return parseResult;
       }
 
       // Check for redundancy with customer preferences
-      const redundancyCheck = this.checkRedundancy(parseResult.parsedValue, context);
+      const redundancyCheck = this.checkRedundancy(parseResult.parsedValue, context, _params);
       if (!redundancyCheck.isValid) {
         return redundancyCheck;
       }
 
-      return {
-        isValid: true,
-        parsedValue: parseResult.parsedValue,
-        expectedFormat: this.generateExpectedFormat()
-      };
-
-    } catch (error) {
-      return {
-        isValid: false,
-        error: `Validation error: ${error instanceof Error ? error.message : String(error)}`,
-        expectedFormat: this.generateExpectedFormat()
-      };
-    }
+      return this.createSuccess(parseResult.parsedValue, parseResult.parsedValue, _params);
+    });
   }
 
   /**
    * Parse input value and validate format
    */
-  private parseInput(value: string, _context?: ValidationContext): ValidationResult {
+  private parseInput(value: string, _context: ValidationContext | undefined, params: Record<string, unknown>): ValidationResult {
     const lower = value.toLowerCase();
 
     // Check for "yes"
@@ -85,21 +71,13 @@ export class UlOverrideTemplate implements ValidationTemplate {
           amountStr = amountStr.substring(1);
         }
       } else {
-        return {
-          isValid: false,
-          error: 'Invalid currency format. Use $123.45, -$123.45, or $-123.45',
-          expectedFormat: this.generateExpectedFormat()
-        };
+        return this.createError('Invalid currency format. Use $123.45, -$123.45, or $-123.45', params);
       }
 
       // Validate the numeric part
       const numValue = this.validateNumericFormat(amountStr);
       if (numValue === null) {
-        return {
-          isValid: false,
-          error: 'Invalid number format in currency value',
-          expectedFormat: this.generateExpectedFormat()
-        };
+        return this.createError('Invalid number format in currency value', params);
       }
 
       const finalValue = isNegative ? -numValue : numValue;
@@ -136,11 +114,7 @@ export class UlOverrideTemplate implements ValidationTemplate {
     }
 
     // Invalid input
-    return {
-      isValid: false,
-      error: 'Invalid input. Expected: "yes", "no", number, or $amount',
-      expectedFormat: this.generateExpectedFormat()
-    };
+    return this.createError('Invalid input. Expected: "yes", "no", number, or $amount', params);
   }
 
   /**
@@ -177,7 +151,7 @@ export class UlOverrideTemplate implements ValidationTemplate {
   /**
    * Check for redundancy with customer preferences
    */
-  private checkRedundancy(parsedValue: any, context?: ValidationContext): ValidationResult {
+  private checkRedundancy(parsedValue: any, context: ValidationContext | undefined, params: Record<string, unknown>): ValidationResult {
     if (!context || !context.customerPreferences) {
       // Can't check redundancy without customer preferences
       return { isValid: true, parsedValue };
@@ -187,19 +161,11 @@ export class UlOverrideTemplate implements ValidationTemplate {
 
     // Check if yes/no matches customer preference (redundant)
     if (parsedValue === 'yes' && customerULPref === true) {
-      return {
-        isValid: false,
-        error: 'Redundant: "yes" matches customer UL preference',
-        expectedFormat: this.generateExpectedFormat()
-      };
+      return this.createError('Redundant: "yes" matches customer UL preference', params);
     }
 
     if (parsedValue === 'no' && customerULPref === false) {
-      return {
-        isValid: false,
-        error: 'Redundant: "no" matches customer UL preference',
-        expectedFormat: this.generateExpectedFormat()
-      };
+      return this.createError('Redundant: "no" matches customer UL preference', params);
     }
 
     // Numeric values are never redundant
@@ -209,7 +175,7 @@ export class UlOverrideTemplate implements ValidationTemplate {
   /**
    * Generate expected format description
    */
-  private generateExpectedFormat(): string {
+  protected generateExpectedFormat(_params?: Record<string, unknown>): string {
     return 'Accepts: "yes", "no", number (0 = no), or $amount';
   }
 

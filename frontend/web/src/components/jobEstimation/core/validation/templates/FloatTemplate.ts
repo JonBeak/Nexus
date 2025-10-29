@@ -1,19 +1,16 @@
 // Float validation template - handles numeric input with range and format controls
 // Supports parameters for min/max values, decimal places, negative numbers
 
-import { ValidationTemplate, ValidationResult, FloatParams } from './ValidationTemplate';
+import { ValidationResult, FloatParams, ValidationContext } from './ValidationTemplate';
 import { validateNumericInput } from '../utils/numericValidation';
+import { BaseValidationTemplate } from './BaseValidationTemplate';
 
-export class FloatTemplate implements ValidationTemplate {
-  async validate(value: string, params: FloatParams = {}): Promise<ValidationResult> {
-    try {
-      // Handle empty values
+export class FloatTemplate extends BaseValidationTemplate {
+  async validate(value: string, params: FloatParams = {}, context?: ValidationContext): Promise<ValidationResult> {
+    return this.wrapValidation(params, async () => {
+      // Handle empty values - FloatTemplate treats empty as error (required field)
       if (!value || (typeof value === 'string' && value.trim() === '')) {
-        return {
-          isValid: false,
-          error: 'Value is required',
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError('Value is required', params);
       }
 
       // Clean the input
@@ -31,26 +28,11 @@ export class FloatTemplate implements ValidationTemplate {
       });
 
       if (!numericResult.isValid) {
-        return {
-          isValid: false,
-          error: numericResult.error || 'Invalid number format',
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError(numericResult.error || 'Invalid number format', params);
       }
 
-      return {
-        isValid: true,
-        parsedValue: numericResult.value,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
-
-    } catch (error) {
-      return {
-        isValid: false,
-        error: `Validation error: ${error.message}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
-    }
+      return this.createSuccess(numericResult.value, numericResult.value, params);
+    });
   }
 
   /**
@@ -115,7 +97,7 @@ export class FloatTemplate implements ValidationTemplate {
   /**
    * Generate helpful format description for users
    */
-  private generateExpectedFormat(params: FloatParams = {}): string {
+  protected generateExpectedFormat(params: FloatParams = {}): string {
     const parts: string[] = [];
     const decimalPlaces = typeof params.decimal_places === 'string'
       ? parseInt(params.decimal_places, 10)

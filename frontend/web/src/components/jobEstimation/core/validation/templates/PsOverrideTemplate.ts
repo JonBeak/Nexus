@@ -1,10 +1,11 @@
 // Power Supply Override validation template - context-aware PS count validation
 // Accepts float, "yes", "no" and calculates PS count based on LED wattage
 
-import { ValidationTemplate, ValidationResult, PsOverrideParams, ValidationContext } from './ValidationTemplate';
+import { ValidationResult, PsOverrideParams, ValidationContext } from './ValidationTemplate';
 import { calculateChannelLetterMetrics, ChannelLetterMetrics } from '../utils/channelLetterParser';
 import { validateNumericInput } from '../utils/numericValidation';
 import { PricingDataResource, PowerSupply } from '../../../../../services/pricingDataResource';
+import { BaseValidationTemplate } from './BaseValidationTemplate';
 
 type PowerSupplyCounts = {
   savedLedCount: number;
@@ -16,20 +17,14 @@ type PowerSupplyCounts = {
 
 type PsOverrideParsedValue = number | 'yes' | 'no' | null;
 
-export class PsOverrideTemplate implements ValidationTemplate {
+export class PsOverrideTemplate extends BaseValidationTemplate {
   async validate(value: string, params: PsOverrideParams = {}, context?: ValidationContext): Promise<ValidationResult> {
-    try {
+    return this.wrapValidation(params, async () => {
       const counts = await this.resolveCounts(context);
 
       // Handle empty values
       if (!value || (typeof value === 'string' && value.trim() === '')) {
-        // Empty is valid - will use default behavior
-        return {
-          isValid: true,
-          parsedValue: null,
-          calculatedValue: counts.defaultPsCount,
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.handleEmptyValue(counts.defaultPsCount, params);
       }
 
       const cleanValue = value.trim().toLowerCase();
@@ -45,20 +40,8 @@ export class PsOverrideTemplate implements ValidationTemplate {
       // Calculate PS count based on parsed input and context
       const calculatedPsCount = await this.calculatePsCount(parsedValue, context, counts);
 
-      return {
-        isValid: true,
-        parsedValue,
-        calculatedValue: calculatedPsCount,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
-
-    } catch (error) {
-      return {
-        isValid: false,
-        error: `Validation error: ${error.message}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
-    }
+      return this.createSuccess(parsedValue, calculatedPsCount, params);
+    });
   }
 
   /**
@@ -74,18 +57,10 @@ export class PsOverrideTemplate implements ValidationTemplate {
     // Check for "yes" - calculate PS from actual LED count
     if (accepts.includes('yes') && value === 'yes') {
       if (counts.actualLedCount <= 0) {
-        return {
-          isValid: false,
-          error: 'Cannot use "yes" for power supplies when there are no LEDs',
-          expectedFormat: 'Use a specific number or "no" when no LEDs are present'
-        };
+        return this.createError('Cannot use "yes" for power supplies when there are no LEDs', params);
       }
       if (counts.defaultPsCount > 0) {
-        return {
-          isValid: false,
-          error: 'Power supplies are already included by default. Enter a number or "no" instead.',
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError('Power supplies are already included by default. Enter a number or "no" instead.', params);
       }
       // Allow "yes" as long as there are actual LEDs (from field2 metrics OR field3 numeric override)
       // PS count will be calculated from actualLedCount in calculatePsCount()
@@ -95,18 +70,10 @@ export class PsOverrideTemplate implements ValidationTemplate {
     // Check for "no" - note: this means "don't use PS" even if LEDs exist
     if (accepts.includes('no') && value === 'no') {
       if (counts.actualLedCount <= 0) {
-        return {
-          isValid: false,
-          error: 'Provide an explicit number of power supplies when there are no LEDs.',
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError('Provide an explicit number of power supplies when there are no LEDs.', params);
       }
       if (counts.defaultPsCount === 0) {
-        return {
-          isValid: false,
-          error: 'Power supplies are already disabled by default. Enter a number if needed.',
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError('Power supplies are already disabled by default. Enter a number if needed.', params);
       }
       return { isValid: true, parsedValue: 'no' };
     }
@@ -123,20 +90,12 @@ export class PsOverrideTemplate implements ValidationTemplate {
       if (numericResult.isValid && numericResult.value !== undefined) {
         // Reject "0" when there are no LEDs (same as "no")
         if (numericResult.value === 0 && counts.actualLedCount <= 0) {
-          return {
-            isValid: false,
-            error: 'Provide an explicit number of power supplies when there are no LEDs.',
-            expectedFormat: this.generateExpectedFormat(params)
-          };
+          return this.createError('Provide an explicit number of power supplies when there are no LEDs.', params);
         }
 
         // Reject "0" when power supplies are already disabled by default (same as "no")
         if (numericResult.value === 0 && counts.defaultPsCount === 0) {
-          return {
-            isValid: false,
-            error: 'Power supplies are already disabled by default. Enter a number if needed.',
-            expectedFormat: this.generateExpectedFormat(params)
-          };
+          return this.createError('Power supplies are already disabled by default. Enter a number if needed.', params);
         }
 
         // Allow explicit numeric values even when there are no LEDs
@@ -146,20 +105,12 @@ export class PsOverrideTemplate implements ValidationTemplate {
 
       // If validation failed, use the specific error
       if (numericResult.error) {
-        return {
-          isValid: false,
-          error: numericResult.error,
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError(numericResult.error, params);
       }
     }
 
     // Invalid input
-    return {
-      isValid: false,
-      error: `Invalid input. Expected: ${accepts.join(', ')}`,
-      expectedFormat: this.generateExpectedFormat(params)
-    };
+    return this.createError(`Invalid input. Expected: ${accepts.join(', ')}`, params);
   }
 
   /**
@@ -474,7 +425,7 @@ export class PsOverrideTemplate implements ValidationTemplate {
   /**
    * Generate expected format description
    */
-  private generateExpectedFormat(params: PsOverrideParams): string {
+  protected generateExpectedFormat(params: PsOverrideParams): string {
     const accepts = params.accepts || ['float', 'yes', 'no'];
     const formats: string[] = [];
 

@@ -1,30 +1,23 @@
 // LED Override validation template - context-aware LED count validation
 // Accepts float, "yes", "no" and calculates LED count based on business logic
 
-import { ValidationTemplate, ValidationResult, LedOverrideParams, ValidationContext } from './ValidationTemplate';
+import { ValidationResult, LedOverrideParams, ValidationContext } from './ValidationTemplate';
 import { calculateChannelLetterMetrics, ChannelLetterMetrics } from '../utils/channelLetterParser';
 import { validateNumericInput } from '../utils/numericValidation';
+import { BaseValidationTemplate } from './BaseValidationTemplate';
 
 type LedOverrideParsedValue = number | 'yes' | 'no' | null;
 
-export class LedOverrideTemplate implements ValidationTemplate {
+export class LedOverrideTemplate extends BaseValidationTemplate {
   async validate(value: string, params: LedOverrideParams = {}, context?: ValidationContext): Promise<ValidationResult> {
-    try {
-      // DEBUG: LedOverrideTemplate validation
-
+    return this.wrapValidation(params, async () => {
       const savedLedCount = this.getSavedLedCount(context);
       const defaultLedCount = this.getDefaultLedCount(context);
       const hasChannelData = savedLedCount > 0;
 
       // Handle empty values
       if (!value || (typeof value === 'string' && value.trim() === '')) {
-        // Empty is valid - will use default behavior
-        return {
-          isValid: true,
-          parsedValue: null,
-          calculatedValue: defaultLedCount,
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.handleEmptyValue(defaultLedCount, params);
       }
 
       const cleanValue = value.trim();
@@ -48,20 +41,8 @@ export class LedOverrideTemplate implements ValidationTemplate {
         hasChannelData
       });
 
-      return {
-        isValid: true,
-        parsedValue,
-        calculatedValue: calculatedLedCount,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
-
-    } catch (error) {
-      return {
-        isValid: false,
-        error: `Validation error: ${error.message}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
-    }
+      return this.createSuccess(parsedValue, calculatedLedCount, params);
+    });
   }
 
   /**
@@ -76,19 +57,11 @@ export class LedOverrideTemplate implements ValidationTemplate {
     // Check for "yes"
     if (accepts.includes('yes') && value === 'yes') {
       if (info.defaultLedCount > 0) {
-        return {
-          isValid: false,
-          error: 'LEDs are already included by default. Enter a number or "no" instead.',
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError('LEDs are already included by default. Enter a number or "no" instead.', params);
       }
 
       if (!info.hasChannelData) {
-        return {
-          isValid: false,
-          error: 'Channel letter data is required before enabling LEDs.',
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError('Channel letter data is required before enabling LEDs.', params);
       }
 
       return { isValid: true, parsedValue: 'yes' };
@@ -97,11 +70,7 @@ export class LedOverrideTemplate implements ValidationTemplate {
     // Check for "no"
     if (accepts.includes('no') && value === 'no') {
       if (info.defaultLedCount === 0) {
-        return {
-          isValid: false,
-          error: 'LEDs are already disabled by default. Enter a number if needed.',
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError('LEDs are already disabled by default. Enter a number if needed.', params);
       }
 
       return { isValid: true, parsedValue: 'no' };
@@ -118,11 +87,7 @@ export class LedOverrideTemplate implements ValidationTemplate {
       if (numericResult.isValid && numericResult.value !== undefined) {
         // Reject "0" when there's no channel data (same as "no")
         if (numericResult.value === 0 && !info.hasChannelData) {
-          return {
-            isValid: false,
-            error: 'LEDs are already disabled by default. Enter a number if needed.',
-            expectedFormat: this.generateExpectedFormat(params)
-          };
+          return this.createError('LEDs are already disabled by default. Enter a number if needed.', params);
         }
 
         // Allow explicit numeric values - enables standalone LED components
@@ -131,20 +96,12 @@ export class LedOverrideTemplate implements ValidationTemplate {
 
       // If validation failed but we have an error, use the specific error
       if (numericResult.error) {
-        return {
-          isValid: false,
-          error: numericResult.error,
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError(numericResult.error, params);
       }
     }
 
     // Invalid input
-    return {
-      isValid: false,
-      error: `Invalid input. Expected: ${accepts.join(', ')}`,
-      expectedFormat: this.generateExpectedFormat(params)
-    };
+    return this.createError(`Invalid input. Expected: ${accepts.join(', ')}`, params);
   }
 
   /**
@@ -216,7 +173,7 @@ export class LedOverrideTemplate implements ValidationTemplate {
   /**
    * Generate expected format description
    */
-  private generateExpectedFormat(params: LedOverrideParams): string {
+  protected generateExpectedFormat(params: LedOverrideParams): string {
     const accepts = params.accepts || ['float', 'yes', 'no'];
     const formats: string[] = [];
 
