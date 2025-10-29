@@ -23,14 +23,18 @@ interface RowPosition {
  * Algorithm:
  * 1. Build ordered array of all rows (from metadata)
  * 2. Find all Discount/Fee rows
- * 3. For each Discount/Fee row:
+ * 3. For each Discount/Fee row (in order):
  *    a. Calculate affected items for Field 2 & 3 (stops at Divider)
  *    b. Calculate affected items for Field 5 & 6 (stops at Subtotal)
  *    c. Calculate affected items for Field 8 & 9 (whole estimate)
  *    d. For each pair: apply % first, then add flat $
  *    e. Sum all three pairs
  *    f. Create line item with "Discount" or "Surcharge" name
- * 4. Insert line items at appropriate positions
+ *    g. Insert line item IMMEDIATELY (sequential processing)
+ * 4. Return modified items array
+ *
+ * IMPORTANT: Sequential processing ensures that discount/fee line items
+ * from earlier rows are included in calculations for later discount/fee rows.
  *
  * @param items - Array of estimate line items
  * @param context - Pricing calculation context
@@ -62,11 +66,11 @@ export const processDiscountsFees = (
       return items;
     }
 
-    console.log('[DiscountFeeProcessor] Found discount/fee rows:', discountFeeRows.length);
+    // Initialize working array - we'll insert discount/fee items as we process them
+    const modifiedItems = [...items];
 
-    // Process each Discount/Fee row and collect line items to insert
-    const lineItemsToInsert: Array<{ afterRowId: string; lineItem: EstimateLineItem }> = [];
-
+    // Process each Discount/Fee row sequentially and insert immediately
+    // This ensures that subsequent discount/fees can include previous discount/fees in their calculations
     for (const discountFeeRow of discountFeeRows) {
       const parsedValues = context.validationResultsManager.getAllParsedValues(discountFeeRow.rowId);
 
@@ -79,50 +83,34 @@ export const processDiscountsFees = (
       const field9Flat = (parsedValues.field9 as number) || 0;
       const notesText = (parsedValues.field10 as string) || '';
 
-      console.log(`[DiscountFeeProcessor] Processing Discount/Fee at index ${discountFeeRow.index}:`, {
-        field2Percent,
-        field3Flat,
-        field5Percent,
-        field6Flat,
-        field8Percent,
-        field9Flat,
-        notesText: notesText || '(none)'
-      });
-
       // Calculate discount/fee for each pair
       let totalDiscountFee = 0;
 
       // Pair 1: Fields 2 & 3 (stops at Divider)
       if (field2Percent !== 0 || field3Flat !== 0) {
         const affectedIndices = getAffectedIndicesStopAtDivider(discountFeeRow.index, rowPositions);
-        const subtotal = calculateSubtotal(affectedIndices, rowPositions, items);
+        const subtotal = calculateSubtotal(affectedIndices, rowPositions, modifiedItems);
         const percentAmount = subtotal * (field2Percent / 100);
         const pairTotal = percentAmount + field3Flat;
         totalDiscountFee += pairTotal;
-
-        console.log(`[DiscountFeeProcessor] Pair 1 (Divider): subtotal=${subtotal}, percent=${percentAmount}, flat=${field3Flat}, total=${pairTotal}`);
       }
 
       // Pair 2: Fields 5 & 6 (stops at Subtotal)
       if (field5Percent !== 0 || field6Flat !== 0) {
         const affectedIndices = getAffectedIndicesStopAtSubtotal(discountFeeRow.index, rowPositions);
-        const subtotal = calculateSubtotal(affectedIndices, rowPositions, items);
+        const subtotal = calculateSubtotal(affectedIndices, rowPositions, modifiedItems);
         const percentAmount = subtotal * (field5Percent / 100);
         const pairTotal = percentAmount + field6Flat;
         totalDiscountFee += pairTotal;
-
-        console.log(`[DiscountFeeProcessor] Pair 2 (Subtotal): subtotal=${subtotal}, percent=${percentAmount}, flat=${field6Flat}, total=${pairTotal}`);
       }
 
       // Pair 3: Fields 8 & 9 (whole estimate)
       if (field8Percent !== 0 || field9Flat !== 0) {
         const affectedIndices = getAffectedIndicesWholeEstimate(discountFeeRow.index);
-        const subtotal = calculateSubtotal(affectedIndices, rowPositions, items);
+        const subtotal = calculateSubtotal(affectedIndices, rowPositions, modifiedItems);
         const percentAmount = subtotal * (field8Percent / 100);
         const pairTotal = percentAmount + field9Flat;
         totalDiscountFee += pairTotal;
-
-        console.log(`[DiscountFeeProcessor] Pair 3 (Estimate): subtotal=${subtotal}, percent=${percentAmount}, flat=${field9Flat}, total=${pairTotal}`);
       }
 
       // Check if any fields have values (to determine if we should create a line item)
@@ -131,7 +119,7 @@ export const processDiscountsFees = (
         field5Percent !== 0 || field6Flat !== 0 ||
         field8Percent !== 0 || field9Flat !== 0;
 
-      // Only create line item if at least one field has input
+      // Only create and insert line item if at least one field has input
       if (hasAnyInput) {
         // Determine line item name based on final amount
         // Negative = "Discount", Zero or Positive = "Surcharge"
@@ -206,35 +194,11 @@ export const processDiscountsFees = (
           extendedPrice: Math.round(totalDiscountFee * 100) / 100
         };
 
-        lineItemsToInsert.push({
-          afterRowId: discountFeeRow.rowId,
-          lineItem
-        });
-
-        console.log(`[DiscountFeeProcessor] Created ${itemName} line item:`, {
-          amount: totalDiscountFee,
-          afterRowId: discountFeeRow.rowId
-        });
+        // Insert line item IMMEDIATELY after calculation
+        // This allows subsequent discount/fee rows to include this line item in their calculations
+        const insertIndex = findInsertPosition(modifiedItems, discountFeeRow.rowId, rowPositions);
+        modifiedItems.splice(insertIndex, 0, lineItem);
       }
-    }
-
-    // Insert line items at appropriate positions
-    // We insert after the discount/fee row position
-    const modifiedItems = [...items];
-
-    // Sort by row position (descending) so we can insert from bottom to top
-    // This prevents index shifting issues
-    lineItemsToInsert.sort((a, b) => {
-      const indexA = rowPositions.findIndex(pos => pos.rowId === a.afterRowId);
-      const indexB = rowPositions.findIndex(pos => pos.rowId === b.afterRowId);
-      return indexB - indexA;
-    });
-
-    for (const { afterRowId, lineItem } of lineItemsToInsert) {
-      // Find the last item with this rowId (or before it)
-      // We want to insert after all items from rows before the discount/fee row
-      const insertIndex = findInsertPosition(modifiedItems, afterRowId, rowPositions);
-      modifiedItems.splice(insertIndex, 0, lineItem);
     }
 
     return modifiedItems;

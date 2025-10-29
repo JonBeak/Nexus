@@ -275,7 +275,6 @@ export const useCustomerPreferencesWithCache = (customerId?: number): UseCustome
 
       PreferencesCache.set(id, prefs);
       setPreferences(prefs);
-      console.log('Fetched manufacturing preferences for customer', id, prefs);
     } catch (err) {
       console.warn('Error fetching customer preferences, using defaults:', err);
       const fallback = await getDefaultPreferences(id);
@@ -290,7 +289,6 @@ export const useCustomerPreferencesWithCache = (customerId?: number): UseCustome
   useEffect(() => {
     if (customerId) {
       fetchPreferences(customerId);
-      console.log('Fetching manufacturing preferences for customer', customerId);
     } else {
       setPreferences(null);
       setError(null);

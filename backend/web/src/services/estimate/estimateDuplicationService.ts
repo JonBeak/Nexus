@@ -71,7 +71,8 @@ export class EstimateDuplicationService {
     jobId: number,
     version: number,
     jobCode: string,
-    userId: number
+    userId: number,
+    notes?: string
   ): Promise<number> {
     try {
       // Create new estimate record
@@ -81,10 +82,10 @@ export class EstimateDuplicationService {
           subtotal, tax_rate, tax_amount, total_amount, notes,
           created_by, updated_by, is_draft
          )
-         SELECT ?, ?, customer_id, ?, ?, subtotal, tax_rate, tax_amount, total_amount, notes, ?, ?, TRUE
+         SELECT ?, ?, customer_id, ?, ?, subtotal, tax_rate, tax_amount, total_amount, ?, ?, ?, TRUE
          FROM job_estimates
          WHERE id = ?`,
-        [jobCode, jobId, version, sourceEstimateId, userId, userId, sourceEstimateId]
+        [jobCode, jobId, version, sourceEstimateId, notes || null, userId, userId, sourceEstimateId]
       ) as [ResultSetHeader];
 
       const newEstimateId = result.insertId;

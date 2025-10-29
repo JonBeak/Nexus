@@ -477,3 +477,49 @@ export const addTemplateSection = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+// =============================================
+// UPDATE ESTIMATE NOTES
+// =============================================
+
+export const updateEstimateNotes = async (req: Request, res: Response) => {
+  try {
+    const { estimateId } = req.params;
+    const { notes } = req.body;
+    const user = (req as AuthRequest).user;
+
+    const estimateIdNum = parseInt(estimateId);
+    if (isNaN(estimateIdNum)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid estimate ID'
+      });
+    }
+
+    if (!user?.user_id && !(user as any)?.userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User authentication required'
+      });
+    }
+
+    const userId = user?.user_id || (user as any)?.userId;
+
+    // Update notes in database
+    await pool.execute(
+      'UPDATE job_estimates SET notes = ?, updated_by = ?, updated_at = NOW() WHERE id = ?',
+      [notes || null, userId, estimateIdNum]
+    );
+
+    res.json({
+      success: true,
+      message: 'Notes updated successfully'
+    });
+  } catch (error) {
+    console.error('Controller error updating notes:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update notes'
+    });
+  }
+};

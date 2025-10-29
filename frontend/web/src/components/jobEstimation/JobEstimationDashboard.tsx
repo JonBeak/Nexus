@@ -62,6 +62,9 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
   const [pricingContext, setPricingContext] = useState<PricingCalculationContext | null>(null);
   const [estimatePreviewData, setEstimatePreviewData] = useState<EstimatePreviewData | null>(null);
 
+  // Grid data version tracking (for auto-save orchestration)
+  const [gridDataVersion, setGridDataVersion] = useState(0);
+
   // Navigation guard from GridJobBuilder
   const [navigationGuard, setNavigationGuard] = useState<((fn: () => void) => void) | null>(null);
 
@@ -276,7 +279,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
    * Expected integration: React Toast library or custom notification component
    */
   const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
-    console.log(`[${type}] ${message}`);
+    // TODO: Implement proper toast notification system
   };
 
   // Handle opening customer edit modal
@@ -313,6 +316,11 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
     } : null);
   }, []); // Empty deps - stable callback reference, no recreations
 
+  // Handle grid data changes from GridJobBuilder (for auto-save orchestration)
+  const handleGridDataChange = useCallback((version: number) => {
+    setGridDataVersion(version);
+  }, []);
+
   // Handle validation results and trigger price calculation
   const handleValidationChange = useCallback((hasErrors: boolean, errorCount: number, context?: PricingCalculationContext) => {
     setHasValidationErrors(hasErrors);
@@ -339,6 +347,62 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
 
     calculatePricing();
   }, [pricingContext]);
+
+  // Auto-save effect - triggers when BOTH grid data changes AND calculation completes
+  // This eliminates race condition: save only happens after calculation finishes
+  useEffect(() => {
+    // Skip if not in builder mode with a draft estimate
+    if (!isInBuilderMode || !selectedEstimateId || !currentEstimate?.is_draft) return;
+
+    // Skip if no data to save
+    if (!estimatePreviewData) return;
+
+    // Skip if no grid changes yet (initial load)
+    if (gridDataVersion === 0) return;
+
+    // Debounce: Wait a bit after calculation completes before saving
+    const saveTimer = setTimeout(async () => {
+      try {
+        // Get simplified rows from GridEngine
+        const gridEngine = (window as any).gridEngineTestAccess;
+        if (!gridEngine) {
+          console.warn('[Dashboard] GridEngine not available for auto-save');
+          return;
+        }
+
+        const coreRows = gridEngine.getRows();
+
+        // Convert to simplified structure
+        const simplifiedRows = coreRows.map((row: any) => ({
+          rowType: row.rowType || 'main',
+          productTypeId: row.productTypeId || null,
+          productTypeName: row.productTypeName || null,
+          qty: row.data?.quantity || '',
+          field1: row.data?.field1 || '',
+          field2: row.data?.field2 || '',
+          field3: row.data?.field3 || '',
+          field4: row.data?.field4 || '',
+          field5: row.data?.field5 || '',
+          field6: row.data?.field6 || '',
+          field7: row.data?.field7 || '',
+          field8: row.data?.field8 || '',
+          field9: row.data?.field9 || '',
+          field10: row.data?.field10 || ''
+        }));
+
+        // Save with calculated total (no race condition!)
+        await jobVersioningApi.saveGridData(
+          selectedEstimateId,
+          simplifiedRows,
+          estimatePreviewData.total
+        );
+      } catch (error) {
+        console.error('[Dashboard] Auto-save failed:', error);
+      }
+    }, 300); // Small debounce after calculation completes
+
+    return () => clearTimeout(saveTimer);
+  }, [estimatePreviewData, gridDataVersion, isInBuilderMode, selectedEstimateId, currentEstimate]);
 
   // Run preferences validation when estimate preview data updates
   useEffect(() => {
@@ -614,6 +678,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
                   onValidationChange={handleValidationChange}
                   onRequestNavigation={setNavigationGuard}
                   onPreferencesLoaded={handlePreferencesLoaded}
+                  onGridDataChange={handleGridDataChange}
                   hoveredRowId={hoveredRowId}
                   onRowHover={setHoveredRowId}
                   estimatePreviewData={estimatePreviewData}
@@ -691,7 +756,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen bg-gray-50 ${isInBuilderMode ? 'job-estimation-builder-mode' : ''}`}>
       <div className={`max-w-[1920px] mx-auto ${isInBuilderMode ? 'estimate-builder-mobile-unified' : 'p-6'}`}>
         {/* Header */}
         <div className="mb-4 flex items-center justify-between">

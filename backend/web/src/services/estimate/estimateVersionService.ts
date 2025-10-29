@@ -46,6 +46,7 @@ export class EstimateVersionService {
           e.sent_to_qb_at,
           e.created_at,
           e.updated_at,
+          e.notes,
           cu.username as created_by_name,
           CAST(e.is_sent AS UNSIGNED) as is_sent,
           CAST(e.is_approved AS UNSIGNED) as is_approved,
@@ -96,7 +97,8 @@ export class EstimateVersionService {
           data.job_id,
           nextVersion,
           jobCode,
-          userId
+          userId,
+          data.notes
         );
 
         // No template creation here - handled by parent service

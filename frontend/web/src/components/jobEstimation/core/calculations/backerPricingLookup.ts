@@ -165,7 +165,6 @@ async function loadAcmPricingConfig(
  * Called once when estimate loads or pricing data changes
  */
 export async function generateBackerLookupTables(): Promise<BackerLookupTables> {
-  console.log('[BackerLookup] Generating lookup tables...');
   const startTime = performance.now();
 
   // Load pricing configurations (3 database queries total)
@@ -215,14 +214,6 @@ export async function generateBackerLookupTables(): Promise<BackerLookupTables> 
   HINGED_RACEWAY_LOOKUP.CATEGORIES.forEach((category, index) => {
     hingedRaceway[category.toString()] = HINGED_RACEWAY_LOOKUP.PRICES[index];
   });
-
-  const elapsed = performance.now() - startTime;
-  console.log(
-    `[BackerLookup] Generated ${Object.keys(aluminum).length} aluminum + ` +
-    `${Object.keys(acmSmall).length} ACM small + ` +
-    `${Object.keys(acmLarge).length} ACM large + ` +
-    `${Object.keys(hingedRaceway).length} raceway entries in ${elapsed.toFixed(2)}ms`
-  );
 
   return { aluminum, acmSmall, acmLarge, hingedRaceway };
 }

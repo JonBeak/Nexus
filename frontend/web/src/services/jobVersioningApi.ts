@@ -47,6 +47,11 @@ export const jobVersioningApi = {
     return response.data;
   },
 
+  updateEstimateNotes: async (estimateId: number, notes: string) => {
+    const response = await api.patch(`/job-estimation/estimates/${estimateId}/notes`, { notes });
+    return response.data;
+  },
+
   // Draft/Final Workflow  
   saveDraft: async (estimateId: number) => {
     const response = await api.post(`/job-estimation/estimates/${estimateId}/save-draft`);

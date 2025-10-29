@@ -86,75 +86,46 @@ export async function selectPowerSupplies(
   let totalCount = 0;
 
   // =====================================================
-  // PATH 1: User-specified power supply type override
+  // STEP 1: Determine if optimization should be used
+  // Logic: if ((sectionHasUL AND !(PSTypeExplicit <>2or3)) OR finalPSType=2or3) AND (PS#=null)
   // =====================================================
-  if (psTypeOverride && psTypeOverride !== '') {
-    const powerSupply = await PricingDataResource.getPowerSupplyByType(psTypeOverride);
 
-    if (powerSupply) {
-      // Check for user override on PS count (explicitly check for null/undefined to allow 0)
-      if (psCountOverride !== null && psCountOverride !== undefined && !isNaN(Number(psCountOverride))) {
-        totalCount = Number(psCountOverride);
-      } else {
-        // Calculate PS count based on watts
-        if (!powerSupply.watts) {
-          return {
-            components: [],
-            totalCount: 0,
-            error: `Power supply ${powerSupply.transformer_type} missing wattage data`
-          };
-        }
-        totalCount = Math.ceil(totalWattage / powerSupply.watts);
-        // If explicit type override with zero wattage, default to 1 PS
-        if (totalCount === 0 && totalWattage === 0) {
-          totalCount = 1;
-        }
-      }
+  // Check if there's an explicit numeric count override
+  const hasExplicitCountOverride = (psCountOverride !== null && psCountOverride !== undefined && typeof psCountOverride === 'number');
 
-      // Only add component if totalCount > 0
-      if (totalCount > 0) {
-        const unitPrice = psPriceOverride !== null && psPriceOverride !== undefined ? psPriceOverride : powerSupply.price;
-        const psPrice = totalCount * unitPrice;
-        components.push({
-          name: `Power Supplies`,
-          price: psPrice,
-          type: 'power_supplies',
-          calculationDisplay: `${totalCount} @ $${formatPrice(Number(unitPrice))}, ${powerSupply.transformer_type}`
-        });
-
-        console.log('User-specified Power Supply:', {
-          type: powerSupply.transformer_type,
-          count: totalCount,
-          totalPrice: psPrice
-        });
-      } else {
-        console.log('Power Supply count is 0 (user override), skipping PS component');
-      }
-
-      return { components, totalCount };
-    } else {
-      console.warn(`Power supply type '${psTypeOverride}' not found, falling through to standard selection`);
-      // Fall through to standard selection paths
-    }
+  // Resolve explicit PS type if provided
+  let explicitPS = null;
+  if (psTypeOverride) {
+    explicitPS = await PricingDataResource.getPowerSupplyByType(psTypeOverride);
   }
 
-  // =====================================================
-  // PATH 2: UL-required optimization (PS#2 + PS#3 combo)
-  // Also use optimization if customer's preferred PS is Speedbox 60W (ID=2)
-  // =====================================================
+  // Check if explicit type is Speedbox (ID 2 or 3)
+  const explicitIsSpeedbox = explicitPS?.power_supply_id === 2 || explicitPS?.power_supply_id === 3;
 
-  // Check if customer's preferred power supply is Speedbox 60W
-  let useOptimization = hasUL;
-  if (!useOptimization && customerPreferences?.pref_power_supply_type) {
-    const preferredPS = await PricingDataResource.getPowerSupplyByType(customerPreferences.pref_power_supply_type);
-    if (preferredPS?.power_supply_id === 2) {
-      useOptimization = true;
-    }
+  // Resolve final PS type (explicit → customer pref, no system default)
+  let finalPSType = explicitPS;
+  if (!finalPSType && customerPreferences?.pref_power_supply_type) {
+    finalPSType = await PricingDataResource.getPowerSupplyByType(customerPreferences.pref_power_supply_type);
   }
 
-  if (useOptimization) {
+  // Check if final type is Speedbox
+  const finalIsSpeedbox = finalPSType?.power_supply_id === 2 || finalPSType?.power_supply_id === 3;
+
+  // Apply optimization logic:
+  // Use optimization when PS count is NOT explicitly set AND:
+  // - (UL enabled AND (no explicit PS type OR explicit type is Speedbox)) OR
+  // - Final PS type is Speedbox
+  const shouldUseOptimization = !hasExplicitCountOverride && (
+    (hasUL && (!psTypeOverride || explicitIsSpeedbox)) ||  // UL and compatible explicit type
+    finalIsSpeedbox  // OR final resolved type is Speedbox
+  );
+
+  // =====================================================
+  // PATH 1: UL Optimization (when enabled and no explicit count)
+  // =====================================================
+  if (shouldUseOptimization && !hasExplicitCountOverride) {
     const ps2 = await PricingDataResource.getPowerSupplyById(2); // Speedbox 60W (50W actual)
-    const ps3 = await PricingDataResource.getPowerSupplyById(3); // Speedbox 150W (120W actual)
+    const ps3 = await PricingDataResource.getPowerSupplyById(3); // Speedbox 150W (135W actual)
 
     if (!ps2 || !ps3) {
       return {
@@ -170,33 +141,6 @@ export async function selectPowerSupplies(
         totalCount: 0,
         error: 'UL power supplies missing wattage data'
       };
-    }
-
-    // Check for user override on PS count - use default UL PS (Speedbox 60W) (explicitly check for null/undefined to allow 0)
-    if (psCountOverride !== null && psCountOverride !== undefined && !isNaN(Number(psCountOverride))) {
-      totalCount = Number(psCountOverride);
-
-      // Only add component if totalCount > 0
-      if (totalCount > 0) {
-        const unitPrice = psPriceOverride !== null && psPriceOverride !== undefined ? psPriceOverride : ps2.price;
-        const psPrice = totalCount * unitPrice;
-        components.push({
-          name: `Power Supplies`,
-          price: psPrice,
-          type: 'power_supplies',
-          calculationDisplay: `${totalCount} @ $${formatPrice(Number(unitPrice))}, ${ps2.transformer_type}`
-        });
-
-        console.log('User-specified UL Power Supply count:', {
-          type: ps2.transformer_type,
-          count: totalCount,
-          totalPrice: psPrice
-        });
-      } else {
-        console.log('UL Power Supply count is 0 (user override), skipping PS component');
-      }
-
-      return { components, totalCount };
     }
 
     // UL power supply optimization algorithm
@@ -215,15 +159,6 @@ export async function selectPowerSupplies(
       // Remainder >= PS#2 watts, just use PS#3
       ps3Count = Math.ceil(totalWattage / ps3.watts);
     }
-
-    console.log('UL Power Supply Optimization:', {
-      totalWattage,
-      ps3Watts: ps3.watts,
-      ps2Watts: ps2.watts,
-      remainder,
-      ps2Count,
-      ps3Count
-    });
 
     // Build combined component with multi-line display
     const psLines: string[] = [];
@@ -256,7 +191,54 @@ export async function selectPowerSupplies(
   }
 
   // =====================================================
+  // PATH 2: User-specified power supply type override
+  // (with or without explicit count)
+  // =====================================================
+  if (psTypeOverride && psTypeOverride !== '') {
+    const powerSupply = await PricingDataResource.getPowerSupplyByType(psTypeOverride);
+
+    if (powerSupply) {
+      // Check for user override on PS count (explicitly check for null/undefined to allow 0)
+      if (hasExplicitCountOverride) {
+        totalCount = Number(psCountOverride);
+      } else {
+        // Calculate PS count based on watts
+        if (!powerSupply.watts) {
+          return {
+            components: [],
+            totalCount: 0,
+            error: `Power supply ${powerSupply.transformer_type} missing wattage data`
+          };
+        }
+        totalCount = Math.ceil(totalWattage / powerSupply.watts);
+        // If explicit type override with zero wattage, default to 1 PS
+        if (totalCount === 0 && totalWattage === 0) {
+          totalCount = 1;
+        }
+      }
+
+      // Only add component if totalCount > 0
+      if (totalCount > 0) {
+        const unitPrice = psPriceOverride !== null && psPriceOverride !== undefined ? psPriceOverride : powerSupply.price;
+        const psPrice = totalCount * unitPrice;
+        components.push({
+          name: `Power Supplies`,
+          price: psPrice,
+          type: 'power_supplies',
+          calculationDisplay: `${totalCount} @ $${formatPrice(Number(unitPrice))}, ${powerSupply.transformer_type}`
+        });
+      }
+
+      return { components, totalCount };
+    } else {
+      console.warn(`Power supply type '${psTypeOverride}' not found, falling through to standard selection`);
+      // Fall through to standard selection paths
+    }
+  }
+
+  // =====================================================
   // PATH 3: Standard power supply selection
+  // (No optimization, no type override - use customer pref or default)
   // =====================================================
   let powerSupply = null;
 
@@ -272,8 +254,8 @@ export async function selectPowerSupplies(
   }
 
   if (powerSupply) {
-    // Check for user override on PS count (explicitly check for null/undefined to allow 0)
-    if (psCountOverride !== null && psCountOverride !== undefined && !isNaN(Number(psCountOverride))) {
+    // Check for user override on PS count
+    if (hasExplicitCountOverride) {
       totalCount = Number(psCountOverride);
     } else {
       // Calculate PS count based on watts
@@ -301,14 +283,6 @@ export async function selectPowerSupplies(
         type: 'power_supplies',
         calculationDisplay: `${totalCount} @ $${formatPrice(Number(unitPrice))}, ${powerSupply.transformer_type}`
       });
-
-      console.log('Standard Power Supply:', {
-        type: powerSupply.transformer_type,
-        count: totalCount,
-        totalPrice: psPrice
-      });
-    } else {
-      console.log('Standard Power Supply count is 0 (user override), skipping PS component');
     }
 
     return { components, totalCount };

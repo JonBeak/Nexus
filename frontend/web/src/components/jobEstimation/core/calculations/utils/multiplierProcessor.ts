@@ -60,8 +60,6 @@ export const processMultipliers = (
       return items;
     }
 
-    console.log('[MultiplierProcessor] Found multiplier rows:', multiplierRows.length);
-
     // Build a map of cumulative multipliers for each row
     // rowId -> cumulative multiplier value
     const multiplierMap = new Map<string, number>();
@@ -77,12 +75,6 @@ export const processMultipliers = (
       const field1Value = parsedValues.field1 as number | undefined;
       const field2Value = parsedValues.field2 as number | undefined;
       const field3Value = parsedValues.field3 as number | undefined;
-
-      console.log(`[MultiplierProcessor] Processing Multiplier at index ${multiplierRow.index}:`, {
-        field1Value,
-        field2Value,
-        field3Value
-      });
 
       // Field 1: Affects rows above, stopping at first Divider
       if (field1Value && field1Value > 0) {
@@ -115,13 +107,6 @@ export const processMultipliers = (
       // Apply multiplier to quantity and recalculate extended price
       const newQuantity = item.quantity * multiplier;
       const newExtendedPrice = Math.round((item.unitPrice * newQuantity) * 100) / 100;
-
-      console.log(`[MultiplierProcessor] Applying multiplier to row ${item.rowId}:`, {
-        originalQuantity: item.quantity,
-        multiplier,
-        newQuantity,
-        newExtendedPrice
-      });
 
       return {
         ...item,

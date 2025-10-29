@@ -38,10 +38,6 @@ export const applySpecialItemsPostProcessing = (
   items: EstimateLineItem[],
   context: PricingCalculationContext
 ): EstimateLineItem[] => {
-  console.log('[SpecialItemsPostProcessor] Starting post-processing', {
-    initialItemCount: items.length
-  });
-
   // Create a working copy to avoid mutating the original array
   let processedItems = [...items];
 
@@ -62,10 +58,6 @@ export const applySpecialItemsPostProcessing = (
 
   // Step 6: Subtotal - Calculate and display section subtotals with tax breakdown
   processedItems = processSubtotals(processedItems, context);
-
-  console.log('[SpecialItemsPostProcessor] Post-processing complete', {
-    finalItemCount: processedItems.length
-  });
 
   return processedItems;
 };

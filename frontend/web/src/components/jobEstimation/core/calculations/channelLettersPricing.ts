@@ -87,29 +87,11 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
     }
     // If "yes" or undefined, leave as null to use default calculation
 
-    console.log('Field8/10 Debug:', {
-      field8_ledType: ledType,
-      field8_type: typeof ledType,
-      field8_truthyCheck: !!ledType,
-      field10_psType: psTypeOverride,
-      field10_type: typeof psTypeOverride,
-      field10_truthyCheck: !!psTypeOverride,
-      allParsedValues: input.parsedValues
-    });
-
     // Extract calculated values from validation layer
     // IMPORTANT: The validation layer has ALREADY applied field3 override logic!
     // We should just use what it calculated, not re-process field3
     let ledCount = input.calculatedValues.ledCount || 0;
     const totalInches = input.calculatedValues.totalInches || 0;
-
-    console.log('Pricing Calculator - LED Count:', {
-      ledCountFromValidation: input.calculatedValues.ledCount,
-      ledCountUsed: ledCount,
-      field3Override: ledOverride,
-      savedLedCount: input.calculatedValues.savedLedCount,
-      defaultLedCount: input.calculatedValues.defaultLedCount
-    });
     const channelLetterMetrics = input.calculatedValues
       .channelLetterMetrics as ChannelLetterMetrics | null | undefined;
     const letterCount = getLetterCount(letterData, channelLetterMetrics);
@@ -147,19 +129,6 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
       // (checked later when UL component is added, after LED count is finalized)
       hasUL = input.customerPreferences?.pref_ul_required === true;
     }
-
-    console.log('Channel Letters Pricing Input:', {
-      parsedField3: ledOverride,
-      parsedField4: ulOverride,
-      fromValidation: {
-        ledCount: input.calculatedValues.ledCount,
-        totalInches: input.calculatedValues.totalInches,
-        psCount: input.calculatedValues.psCount
-      },
-      initialLedCount: ledCount,
-      hasUL,
-      ulCustomPrice
-    });
 
     // Validate quantity
     if (quantity === null || quantity <= 0 || isNaN(quantity)) {
@@ -279,13 +248,6 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
     }
 
     // 3. LEDs (if needed) - GET FROM DATABASE
-    console.log('LED Component Check:', {
-      ledCount,
-      condition: ledCount > 0,
-      ledType,
-      hasChannelLetters
-    });
-
     if (ledCount > 0) {
       // Apply LED multiplier for Channel Letters (SKIP if field3 has numeric override)
       // Two formulas based on input type:
@@ -303,31 +265,10 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
             if (isFloatInput) {
               // Float input: LED count based on inches
               ledCount = Math.ceil(totalInches * letterPricing.led_multiplier);
-
-              console.log('Applied LED Multiplier (Float Input):', {
-                inputType: 'float',
-                letterData,
-                totalInches,
-                multiplier: letterPricing.led_multiplier,
-                originalLedCount,
-                adjustedLedCount: ledCount,
-                formula: 'totalInches * led_multiplier'
-              });
             } else {
               // Pairs/formula input: LED count calculated separately from inches
               ledCount = Math.ceil(ledCount * (letterPricing.led_multiplier / 0.7));
-
-              console.log('Applied LED Multiplier (Pairs/Formula Input):', {
-                inputType: 'pairs/formula',
-                letterData: typeof letterData === 'object' ? 'pairs' : letterData,
-                multiplier: letterPricing.led_multiplier,
-                originalLedCount,
-                adjustedLedCount: ledCount,
-                formula: 'ledCount * (led_multiplier / 0.7)'
-              });
             }
-          } else {
-            console.log('Skipping LED Multiplier - field3 has numeric override:', ledOverride);
           }
         }
       }
@@ -356,16 +297,8 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
         if (defaultLed) {
           ledPricing = defaultLed;
           effectiveLedType = defaultLed.product_code;
-          console.log('Using system default LED:', effectiveLedType);
         }
       }
-
-      console.log('LED Pricing Lookup:', {
-        userSpecified: ledType,
-        effectiveLedType,
-        ledPricing,
-        found: !!ledPricing
-      });
 
       if (ledPricing) {
         // Calculate actual wattage using LED data
@@ -379,13 +312,6 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
 
         totalWattage = ledCount * ledPricing.watts;
 
-        console.log('LED Wattage Calculation:', {
-          ledType: effectiveLedType,
-          wattagePerLed: ledPricing.watts,
-          ledCount,
-          totalWattage
-        });
-
         const ledsPrice = ledCount * ledPricing.price;
         components.push({
           name: `LEDs`,
@@ -394,12 +320,6 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
           calculationDisplay: `${ledCount} @ $${formatPrice(Number(ledPricing.price))}, ${effectiveLedType}`
         });
         totalPrice += ledsPrice;
-        console.log('LED Component Added:', {
-          description: `${ledCount} ${effectiveLedType} LEDs`,
-          price: ledsPrice,
-          wattagePerLed: ledPricing.watts,
-          totalWattage
-        });
       } else {
         return {
           status: 'error',
@@ -428,13 +348,15 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
       shouldCalculatePS = true;
       psOverrideForSelector = psCountOverride;
     } else if (psTypeOverride && psTypeOverride !== '') {
-      // User specified PS type - use ValidationContextBuilder's count
+      // User specified PS type - let selector recalculate based on actual PS capacity
       shouldCalculatePS = true;
-      psOverrideForSelector = calculatedPsCount;
+      psOverrideForSelector = null;
     } else {
-      // No user override - use ValidationContextBuilder's decision
+      // No user override - use ValidationContextBuilder's decision for whether to calculate
       shouldCalculatePS = calculatedPsCount > 0;
-      psOverrideForSelector = calculatedPsCount;
+      // Always pass null to let powerSupplySelector recalculate with actual wattage
+      // (ValidationContextBuilder's count was just a preliminary check)
+      psOverrideForSelector = null;
     }
 
     if (shouldCalculatePS) {
@@ -513,14 +435,6 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
             ulPrice = baseFee + setsAmount;
             ulCalculationDisplay = `Base ($${formatPrice(baseFee)}) + ${ulSetCount} Set${ulSetCount !== 1 ? 's' : ''} ($${formatPrice(setsAmount)})`;
           }
-
-          console.log('UL Set-based Pricing:', {
-            baseFee,
-            perSetFee,
-            setCount: ulSetCount,
-            ulExistsInPreviousRows: input.ulExistsInPreviousRows,
-            totalUlPrice: ulPrice
-          });
         } else {
           // Default: Calculate for 1 set
           const baseFee = Number(ulPricing.base_fee);
@@ -544,13 +458,6 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
             ulPrice = baseFee + perSetFee;
             ulCalculationDisplay = `Base ($${formatPrice(baseFee)}) + 1 Set ($${formatPrice(perSetFee)})`;
           }
-
-          console.log('UL Default Pricing (1 set):', {
-            baseFee,
-            perSetFee,
-            ulExistsInPreviousRows: input.ulExistsInPreviousRows,
-            totalUlPrice: ulPrice
-          });
         }
       }
 
@@ -627,19 +534,6 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
       components: components,
       hasCompleteSet: hasChannelLetters
     };
-
-    console.log('Channel Letters Final Output:', {
-      mode: hasChannelLetters ? 'WITH_LETTERS' : 'COMPONENTS_ONLY',
-      componentCount: components.length,
-      components: components.map(c => ({
-        type: c.type,
-        description: c.description,
-        price: c.price,
-        calculationDisplay: c.calculationDisplay
-      })),
-      totalPrice: unitPrice,
-      pricingData
-    });
 
     return {
       status: 'completed',

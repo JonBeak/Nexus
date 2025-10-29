@@ -81,8 +81,6 @@ export const processSubtotals = (
       return items;
     }
 
-    console.log('[SubtotalProcessor] Found subtotal rows:', subtotalRows.length);
-
     // Process each Subtotal row and collect line items to insert
     const lineItemsToInsert: Array<{ afterRowId: string; lineItem: EstimateLineItem }> = [];
 
@@ -91,10 +89,6 @@ export const processSubtotals = (
 
       // Get optional memo text from field1
       const memoText = (parsedValues.field1 as string) || '';
-
-      console.log(`[SubtotalProcessor] Processing Subtotal at index ${subtotalRow.index}:`, {
-        memoText: memoText || '(none)'
-      });
 
       // Calculate section subtotal
       const affectedIndices = getAffectedIndicesStopAtSubtotal(subtotalRow.index, rowPositions);
@@ -106,14 +100,6 @@ export const processSubtotals = (
 
       // Calculate section total
       const sectionTotal = sectionSubtotal + sectionTax;
-
-      console.log(`[SubtotalProcessor] Section calculation:`, {
-        affectedRows: affectedIndices.length,
-        subtotal: sectionSubtotal,
-        taxRate: taxRate,
-        tax: sectionTax,
-        total: sectionTotal
-      });
 
       // Format the calculationDisplay with aligned dollar amounts
       const taxPercentage = (taxRate * 100).toFixed(1);
@@ -149,11 +135,6 @@ export const processSubtotals = (
       lineItemsToInsert.push({
         afterRowId: subtotalRow.rowId,
         lineItem
-      });
-
-      console.log(`[SubtotalProcessor] Created subtotal line item:`, {
-        sectionTotal,
-        afterRowId: subtotalRow.rowId
       });
     }
 

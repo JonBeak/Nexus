@@ -100,68 +100,44 @@ export const GridHeader: React.FC<GridHeaderProps> = ({
             <>
               <button
                 onClick={onReset}
-                className="flex items-center space-x-2 px-3 py-2 text-orange-600 hover:text-orange-900 border border-orange-300 rounded hover:bg-orange-50"
+                className="flex items-center space-x-1.5 px-2 py-1.5 text-sm text-orange-600 hover:text-orange-900 border border-orange-300 rounded hover:bg-orange-50"
                 title="Reset all items to default state"
               >
-                <RotateCcw className="w-4 h-4" />
+                <RotateCcw className="w-3.5 h-3.5" />
                 <span>Reset</span>
               </button>
 
               <button
                 onClick={onClearAll}
-                className="flex items-center space-x-2 px-3 py-2 text-red-600 hover:text-red-900 border border-red-300 rounded hover:bg-red-50"
+                className="flex items-center space-x-1.5 px-2 py-1.5 text-sm text-red-600 hover:text-red-900 border border-red-300 rounded hover:bg-red-50"
                 title="Permanently delete all rows"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="w-3.5 h-3.5" />
                 <span>Clear All</span>
               </button>
 
               <button
                 onClick={onClearEmpty}
-                className="flex items-center space-x-2 px-3 py-2 text-blue-600 hover:text-blue-900 border border-blue-300 rounded hover:bg-blue-50"
+                className="flex items-center space-x-1.5 px-2 py-1.5 text-sm text-blue-600 hover:text-blue-900 border border-blue-300 rounded hover:bg-blue-50"
                 title="Remove empty rows with no input data"
               >
-                <Eraser className="w-4 h-4" />
+                <Eraser className="w-3.5 h-3.5" />
                 <span>Clear Empty</span>
               </button>
 
               <button
                 onClick={onAddSection}
-                className="flex items-center space-x-2 px-3 py-2 text-purple-600 hover:text-purple-900 border border-purple-300 rounded hover:bg-purple-50"
+                className="flex items-center space-x-1.5 px-2 py-1.5 text-sm text-purple-600 hover:text-purple-900 border border-purple-300 rounded hover:bg-purple-50"
                 title="Add template section to the end of the grid"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5" />
                 <span>Add Section</span>
               </button>
             </>
           )}
 
-          {!versioningMode && onManualSave && (
-            <button
-              onClick={onManualSave}
-              className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
-              disabled={gridState.editMode === 'readonly'}
-            >
-              <Save className="w-4 h-4" />
-              <span>Save</span>
-            </button>
-          )}
-
-          {versioningMode && onManualSave && (
-            <button
-              onClick={onManualSave}
-              className={`flex items-center space-x-2 px-3 py-2 rounded ${
-                gridState.hasUnsavedChanges && gridState.editMode !== 'readonly'
-                  ? 'bg-green-600 text-white hover:bg-green-700'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              }`}
-              disabled={gridState.editMode === 'readonly' || gridState.isAutoSaving || !gridState.hasUnsavedChanges}
-              title={gridState.hasUnsavedChanges ? 'Force save now' : 'No changes to save'}
-            >
-              <Save className="w-4 h-4" />
-              <span>Save</span>
-            </button>
-          )}
+          {/* Save button hidden - auto-save handles persistence */}
+          {/* Manual save functionality still available via onManualSave prop if needed */}
         </div>
       </div>
     </div>

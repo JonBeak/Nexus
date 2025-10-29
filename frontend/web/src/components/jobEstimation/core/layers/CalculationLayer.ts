@@ -64,25 +64,11 @@ export const createCalculationOperations = (): CalculationOperations => {
 
       // Build product lines without estimatePreviewDisplayNumbers
       for (const [rowId, metadata] of rowMetadata) {
-        console.log(`[CalculationLayer] Processing row ${rowId}:`, {
-          metadata,
-          contextCustomerId: context.customerId,
-          contextTaxRate: context.taxRate,
-          validationManager: !!context.validationResultsManager
-        });
-
         const calculation = await runRowPricingCalculationFromValidationOutput(
           rowId,
           context,
           ulExistsInJob
         );
-
-        console.log(`[CalculationLayer] Calculation result for row ${rowId}:`, {
-          status: calculation.status,
-          display: calculation.display,
-          data: calculation.data,
-          error: calculation.error
-        });
 
         if (calculation.status === 'completed' && calculation.data) {
           // All products must return components array
@@ -125,7 +111,6 @@ export const createCalculationOperations = (): CalculationOperations => {
         // Each section between subtotals tracks UL independently
         if (metadata.productTypeId === 21) {
           ulExistsInJob = false;
-          console.log(`[CalculationLayer] Reset UL tracker at Subtotal row ${rowId}`);
         }
       }
 

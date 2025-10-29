@@ -83,6 +83,8 @@ export interface GridJobBuilderProps {
   onRequestNavigation?: (navigationGuard: ((navigationFn?: () => void) => void) | null) => void;
   // Customer preferences callback - GridJobBuilder is single source of truth for preferences
   onPreferencesLoaded?: (preferences: CustomerManufacturingPreferences | null) => void;
+  // Grid data change callback - for auto-save orchestration
+  onGridDataChange?: (version: number) => void;
   // Cross-component hover state
   hoveredRowId?: string | null;
   onRowHover?: (rowId: string | null) => void;
@@ -172,6 +174,7 @@ export interface EstimateVersion {
   total_amount: number;
   parent_estimate_id?: number;
   parent_version?: number;
+  notes?: string;
 
   // Edit lock system
   editing_user_id?: number;

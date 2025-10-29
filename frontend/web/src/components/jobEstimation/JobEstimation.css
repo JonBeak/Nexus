@@ -1,10 +1,11 @@
 /* 3-Panel Layout Styles */
 .three-panel-container {
   display: grid;
-  grid-template-columns: 25% 30% 45%;
+  grid-template-columns: 24% 30% 44%;
   gap: 1rem;
-  height: 100%;
   width: 100%;
+  overflow: hidden;
+  height: calc(100vh - 120px); /* Full page height for consistent panel sizing */
 }
 
 /* Responsive Layout for Tablets */
@@ -20,12 +21,13 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    height: auto;
+    height: auto; /* Remove fixed height in vertical mode */
     padding: 0 1rem; /* Add horizontal padding when stacked */
   }
 
   .three-panel-container > div {
     min-height: 400px;
+    height: auto; /* Allow panels to size naturally in vertical mode */
   }
 
   /* Make CustomerPanel shorter when stacked vertically */
@@ -57,6 +59,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  height: 100%; /* Fill parent height consistently */
 }
 
 /* Ensure panels don't overflow */
@@ -97,8 +100,8 @@
   margin-bottom: 1rem;
 }
 
-/* Always reserve space for scrollbar to prevent layout shift */
-.job-estimation-root {
+/* Always reserve space for scrollbar to prevent layout shift - only in builder mode */
+body:has(.job-estimation-builder-mode) {
   overflow-y: scroll;
 }
 

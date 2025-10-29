@@ -5,7 +5,7 @@
  * REFACTORED: Logic extracted into focused hooks and components for maintainability
  */
 
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { GridJobBuilderProps } from './types/index';
 
 // Base Layer architecture
@@ -51,6 +51,7 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
   onValidationChange,
   onRequestNavigation,
   onPreferencesLoaded,
+  onGridDataChange,
   hoveredRowId = null,
   onRowHover = () => {},
   estimatePreviewData
@@ -82,14 +83,13 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
   const [pendingRowIndex, setPendingRowIndex] = useState<number | null>(null);
   const [validationVersion, setValidationVersion] = useState(0);
 
-  // === REF FOR LATEST ESTIMATE PREVIEW DATA ===
-  // Use ref so auto-save callback can access latest total without recreating GridEngine
-  const estimatePreviewDataRef = useRef(estimatePreviewData);
-
-  // Update ref whenever estimatePreviewData changes
-  useEffect(() => {
-    estimatePreviewDataRef.current = estimatePreviewData;
-  }, [estimatePreviewData]);
+  // === GRID DATA CHANGE CALLBACK ===
+  // Notify Dashboard when grid data changes (for auto-save orchestration)
+  const handleGridDataChange = useCallback((version: number) => {
+    // Dashboard will handle auto-save after calculation completes
+    // This eliminates race condition between auto-save and calculation
+    onGridDataChange?.(version);
+  }, [onGridDataChange]);
 
   // === GRID ENGINE ===
   const gridEngine = useMemo(() => {
@@ -103,45 +103,8 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
         finishes: ['Matte', 'Gloss', 'Satin', 'Textured'],
         sizes: ['Small', 'Medium', 'Large', 'Custom']
       }, // TODO: Load from API
-      autoSave: {
-        enabled: !isReadOnly && versioningMode,
-        debounceMs: 125,
-        onSave: async (coreRows) => {
-          if (!estimateId) return;
-
-          try {
-
-            // Convert to simplified structure - no IDs needed, but keep row types
-            const simplifiedRows = coreRows.map((row) => {
-              return {
-                rowType: row.rowType || 'main',
-                productTypeId: row.productTypeId || null,
-                productTypeName: row.productTypeName || null,
-                qty: row.data?.quantity || '',
-                field1: row.data?.field1 || '',
-                field2: row.data?.field2 || '',
-                field3: row.data?.field3 || '',
-                field4: row.data?.field4 || '',
-                field5: row.data?.field5 || '',
-                field6: row.data?.field6 || '',
-                field7: row.data?.field7 || '',
-                field8: row.data?.field8 || '',
-                field9: row.data?.field9 || '',
-                field10: row.data?.field10 || ''
-              };
-            });
-
-
-            // Get latest total from ref (use 0 if blocked/unavailable)
-            const currentTotal = estimatePreviewDataRef.current?.total || 0;
-
-            // Save grid data with total
-            await jobVersioningApi.saveGridData(estimateId, simplifiedRows, currentTotal);
-          } catch (error) {
-            console.error('Auto-save failed:', error);
-          }
-        }
-      },
+      // Auto-save removed from GridEngine - now handled by Dashboard after calculation completes
+      // This eliminates race condition between auto-save and calculation
       validation: {
         enabled: !isReadOnly // Enable validation only when editing
       },
@@ -162,7 +125,8 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
           setValidationVersion(prev => prev + 1);
           // Validation results from ValidationEngine
           onValidationChange?.(hasErrors, errorCount, resultsManager);
-        }
+        },
+        onGridDataChange: handleGridDataChange // NEW: Notify Dashboard when grid data changes
       },
       permissions: {
         canEdit: !isReadOnly,
@@ -222,9 +186,7 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
 
   // Customer prefs logging
   useEffect(() => {
-    if (customerPreferences) {
-      console.log('Loaded customer manufacturing preferences:', customerPreferences);
-    }
+    // Customer preferences loaded
   }, [customerPreferences]);
 
   // === EDIT LOCK ===

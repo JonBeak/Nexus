@@ -26,11 +26,6 @@ export class FloatOrFormulaTemplate implements ValidationTemplate {
         try {
           const result = parsePinFormula(cleanValue);
           numericValue = result.value;
-
-          console.log('Formula parsed:', {
-            input: cleanValue,
-            result: numericValue
-          });
         } catch (error) {
           return {
             isValid: false,

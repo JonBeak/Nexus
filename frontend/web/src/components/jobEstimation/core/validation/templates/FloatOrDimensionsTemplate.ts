@@ -163,15 +163,6 @@ export class FloatOrDimensionsTemplate implements ValidationTemplate {
       const width = sheetCount * params.sheet_width;
       const height = params.sheet_height;
 
-      console.log('Sheet count conversion:', {
-        input: value,
-        sheetCount,
-        sheet_width: params.sheet_width,
-        sheet_height: params.sheet_height,
-        resultWidth: width,
-        resultHeight: height
-      });
-
       // Validate the resulting dimensions against max constraints
       if (params.max_value !== undefined && width > params.max_value) {
         return {

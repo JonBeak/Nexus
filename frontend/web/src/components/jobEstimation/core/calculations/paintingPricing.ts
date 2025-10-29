@@ -120,12 +120,6 @@ export const calculatePainting = async (input: ValidatedPricingInput): Promise<R
       paintMultiplier += 0.5;
     }
 
-    console.log('Painting Calculator - Multiplier:', {
-      primer,
-      clear,
-      paintMultiplier
-    });
-
     // 1. PREP CHARGE (if prep hours specified) - NOT included in minimum
     let prepCost = 0;
     if (prepHours > 0) {
@@ -372,23 +366,6 @@ export const calculatePainting = async (input: ValidatedPricingInput): Promise<R
       }],
       hasCompleteSet: true
     };
-
-    console.log('Painting Final Output:', {
-      componentCount: components.length,
-      internalComponents: components.map(c => ({
-        type: c.type,
-        name: c.name,
-        price: c.price
-      })),
-      combinedDisplay,
-      prepCost,
-      originalPaintingTotal,
-      paintingTotal,
-      minimumApplied,
-      totalPrice: unitPrice,
-      paintMultiplier,
-      pricingData
-    });
 
     return {
       status: 'completed',

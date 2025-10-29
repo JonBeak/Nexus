@@ -57,19 +57,6 @@ export const calculateLed = async (input: ValidatedPricingInput): Promise<RowCal
     }
     // If "yes" or undefined, leave as null to use default calculation
 
-    console.log('LED Pricing Input:', {
-      ledCount,
-      ledType,
-      ledPriceOverride,
-      psCountOverride,
-      psTypeOverride,
-      psPriceOverride,
-      ulOverride,
-      wireLenPerWire,
-      wireCount,
-      wireFlatLength
-    });
-
     // Validate quantity
     if (quantity === null || quantity <= 0 || isNaN(quantity)) {
       return {
@@ -147,7 +134,6 @@ export const calculateLed = async (input: ValidatedPricingInput): Promise<RowCal
         if (defaultLed) {
           ledPricing = defaultLed;
           effectiveLedType = defaultLed.product_code;
-          console.log('Using system default LED:', effectiveLedType);
         }
       }
 
@@ -181,13 +167,6 @@ export const calculateLed = async (input: ValidatedPricingInput): Promise<RowCal
         calculationDisplay: `${ledCount} @ $${formatPrice(Number(ledUnitPrice))}, ${effectiveLedType}`
       });
       totalPrice += ledsPrice;
-
-      console.log('LED Component Added:', {
-        description: `${ledCount} ${effectiveLedType} LEDs`,
-        price: ledsPrice,
-        wattagePerLed: ledPricing.watts,
-        totalWattage
-      });
     }
 
     // 2. Power Supplies - Use powerSupplySelector for smart selection
@@ -239,11 +218,6 @@ export const calculateLed = async (input: ValidatedPricingInput): Promise<RowCal
       // Add all power supply components
       components.push(...psResult.components);
       totalPrice += psResult.components.reduce((sum, c) => sum + c.price, 0);
-
-      console.log('Power Supply Components Added:', {
-        count: psResult.totalCount,
-        components: psResult.components
-      });
     }
 
     // 3. UL Certification (if applicable)
@@ -370,14 +344,6 @@ export const calculateLed = async (input: ValidatedPricingInput): Promise<RowCal
         calculationDisplay: wireCalculationDisplay
       });
       totalPrice += wirePrice;
-
-      console.log('Extra Wire Component Added:', {
-        wireLenPerWire,
-        wireCount,
-        wireFlatLength,
-        totalWireLength,
-        wirePrice
-      });
     }
 
     if (components.length === 0) {
@@ -402,18 +368,6 @@ export const calculateLed = async (input: ValidatedPricingInput): Promise<RowCal
       components: components,
       hasCompleteSet: ledCount > 0
     };
-
-    console.log('LED Final Output:', {
-      componentCount: components.length,
-      components: components.map(c => ({
-        type: c.type,
-        name: c.name,
-        price: c.price,
-        calculationDisplay: c.calculationDisplay
-      })),
-      totalPrice: unitPrice,
-      pricingData
-    });
 
     return {
       status: 'completed',

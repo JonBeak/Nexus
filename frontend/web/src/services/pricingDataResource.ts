@@ -232,20 +232,17 @@ export class PricingDataResource {
 
     // Check if there's already a request in flight
     if (this.inFlightRequest) {
-      console.log('Reusing in-flight pricing data request...');
       return this.inFlightRequest;
     }
 
     // Create new request
     this.inFlightRequest = (async () => {
       try {
-        console.log('Fetching pricing data from API...');
         const response = await api.get('/pricing/all-pricing-data');
 
         if (response.data.success) {
           this.cachedData = response.data.data;
           this.cacheTimestamp = Date.now();
-          console.log('Pricing data cached successfully');
           return this.cachedData!;
         } else {
           throw new Error('API returned unsuccessful response');
@@ -393,7 +390,6 @@ export class PricingDataResource {
 
     // Cache the map for future calls
     this.vinylRatesMapCache = rateMap;
-    console.log('[PricingDataResource] Vinyl rates map cached:', rateMap);
     return rateMap;
   }
 
@@ -529,7 +525,6 @@ export class PricingDataResource {
 
     // Cache the map for future calls
     this.shippingRatesMapCache = rateMap;
-    console.log('[PricingDataResource] Shipping rates map cached:', rateMap);
     return rateMap;
   }
 
@@ -544,7 +539,6 @@ export class PricingDataResource {
     this.substrateCutPricingMapCache = null;
     this.substrateCutBasePricingMapCache = null;
     this.shippingRatesMapCache = null;
-    console.log('Pricing data cache cleared (including derived maps)');
   }
 
   /**

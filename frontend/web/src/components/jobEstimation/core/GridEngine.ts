@@ -39,6 +39,7 @@ export interface GridEngineConfig {
     onRowsChange?: (rows: GridRow[]) => void;
     onStateChange?: (state: GridState) => void;
     onValidationChange?: (hasErrors: boolean, errorCount: number, context?: PricingCalculationContext) => void;
+    onGridDataChange?: (version: number) => void; // NEW: Notify Dashboard when grid data changes
   };
   permissions?: {
     canEdit: boolean;
@@ -78,6 +79,9 @@ export class GridEngine {
   // Validation system
   private validationEngine?: ValidationEngine;
   private validationVersion = 0;
+
+  // Grid data version tracking (for auto-save orchestration)
+  private gridDataVersion = 0;
 
   // Pricing lookup tables (lazy-loaded for performance)
   private backerLookupTables?: BackerLookupTables;
@@ -121,7 +125,6 @@ export class GridEngine {
     try {
       this.backerLookupTables = await generateBackerLookupTables();
       this.backerLookupsInitialized = true;
-      console.log('[GridEngine] Backer pricing lookups initialized successfully');
     } catch (error) {
       console.error('[GridEngine] Failed to initialize backer pricing lookups:', error);
       // Don't throw - allow grid to work, but backer calculations will fail gracefully
@@ -154,10 +157,15 @@ export class GridEngine {
     // Update state
     this.state.hasUnsavedChanges = options?.markAsDirty !== false;
 
-    // Trigger auto-save on data changes
+    // Increment grid data version when user makes changes (not on reload from backend)
     if (this.state.hasUnsavedChanges) {
-      this.triggerAutoSave();
+      this.gridDataVersion++;
+      // Notify Dashboard that grid data changed (for auto-save orchestration)
+      this.config.callbacks?.onGridDataChange?.(this.gridDataVersion);
     }
+
+    // Auto-save disabled - now handled by Dashboard after calculation completes
+    // This eliminates race condition between auto-save and calculation
 
     // Notify subscribers
     this.notifyStateChange();
@@ -182,9 +190,18 @@ export class GridEngine {
     this.inputGridRows = result.calculatedRows;
     this.state.rows = this.inputGridRows;
 
-    // Mark as having unsaved changes and trigger auto-save
+    // Mark as having unsaved changes
     this.state.hasUnsavedChanges = true;
-    this.triggerAutoSave();
+
+    // Increment grid data version and notify Dashboard
+    this.gridDataVersion++;
+    this.config.callbacks?.onGridDataChange?.(this.gridDataVersion);
+
+    // Trigger validation after single row update (debounced)
+    // This triggers the calculation chain: validation → pricingContext → calculation
+    if (this.validationEngine) {
+      this.triggerValidationDebounced();
+    }
 
     // Notify subscribers
     this.notifyStateChange();
@@ -415,6 +432,14 @@ export class GridEngine {
    */
   hasValidationErrors(): boolean {
     return this.validationEngine?.hasBlockingErrors() || false;
+  }
+
+  /**
+   * Get current grid data version (increments on each user edit)
+   * Used by Dashboard for auto-save orchestration
+   */
+  getGridDataVersion(): number {
+    return this.gridDataVersion;
   }
 
 

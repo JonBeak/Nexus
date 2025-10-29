@@ -193,7 +193,7 @@ export class ValidationEngine {
       // TWO-PHASE VALIDATION:
 
       // PHASE 1: Calculate derived values from basic fields
-      const calculatedValues = ValidationContextBuilder.calculateDerivedValues(
+      const calculatedValues = await ValidationContextBuilder.calculateDerivedValues(
         rowsToValidate,
         effectiveCustomerPreferences
       );

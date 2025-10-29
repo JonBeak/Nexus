@@ -122,8 +122,6 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
     }
 
     try {
-      console.log('Starting SVG generation...');
-
       // Generate SVG
       const currentDate = new Date().toLocaleDateString('en-US', {
         year: 'numeric',
@@ -138,16 +136,11 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
         date: currentDate
       });
 
-      console.log('SVG generated, length:', svg.length);
-      console.log('First 200 chars:', svg.substring(0, 200));
-
       // Try modern Clipboard API first
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(svg);
-        console.log('✅ SVG copied to clipboard successfully (Clipboard API)');
       } else {
         // Fallback for non-HTTPS/localhost environments
-        console.log('⚠️ Clipboard API not available, using fallback method');
 
         const textArea = document.createElement('textarea');
         textArea.value = svg;
@@ -163,7 +156,6 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
           if (!successful) {
             throw new Error('Fallback copy method failed');
           }
-          console.log('✅ SVG copied to clipboard successfully (fallback method)');
         } finally {
           document.body.removeChild(textArea);
         }

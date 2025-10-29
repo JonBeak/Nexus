@@ -175,17 +175,17 @@ export const JobPanel: React.FC<JobPanelProps> = ({
 
   const getJobStatusBadge = (job: JobSummary) => {
     const statusColors = {
-      quote: 'bg-yellow-100 text-yellow-800',
-      approved: 'bg-green-100 text-green-800',
-      active: 'bg-blue-100 text-blue-800',
-      production: 'bg-purple-100 text-purple-800',
-      completed: 'bg-green-100 text-green-800',
-      cancelled: 'bg-red-100 text-red-800'
+      quote: 'bg-yellow-100 text-yellow-800 border-yellow-800',
+      approved: 'bg-green-100 text-green-800 border-green-800',
+      active: 'bg-blue-100 text-blue-800 border-blue-800',
+      production: 'bg-purple-100 text-purple-800 border-purple-800',
+      completed: 'bg-green-100 text-green-800 border-green-800',
+      cancelled: 'bg-red-100 text-red-800 border-red-800'
     };
 
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-        statusColors[job.job_status] || 'bg-gray-100 text-gray-800'
+      <span className={`px-3 py-2 rounded-full text-sm font-semibold border ${
+        statusColors[job.job_status] || 'bg-gray-100 text-gray-800 border-gray-800'
       }`}>
         {job.job_status}
       </span>
@@ -270,7 +270,7 @@ export const JobPanel: React.FC<JobPanelProps> = ({
                 }`}
                 onClick={() => onJobSelected(job.job_id)}
               >
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm flex items-center gap-2">
                       {editingJobId === job.job_id ? (
@@ -339,20 +339,8 @@ export const JobPanel: React.FC<JobPanelProps> = ({
                       )}
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
+                  <div className="flex items-center">
                     {getJobStatusBadge(job)}
-                    <div className="flex flex-col items-end text-xs">
-                      {job.draft_count > 0 && (
-                        <span className="bg-gray-100 px-2 py-0.5 rounded">
-                          {job.draft_count} draft{job.draft_count > 1 ? 's' : ''}
-                        </span>
-                      )}
-                      {job.finalized_count > 0 && (
-                        <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded mt-0.5">
-                          {job.finalized_count} final
-                        </span>
-                      )}
-                    </div>
                   </div>
                 </div>
               </div>

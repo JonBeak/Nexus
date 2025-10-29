@@ -75,8 +75,6 @@ export const useTemplateCache = (
         setStaticOptionsMap(newStaticOptions);
 
         // Validation configuration is now handled internally by ValidationEngine
-        console.log(`Templates loaded for ${Object.keys(allTemplates).length} products`);
-
         setTemplatesLoaded(true);
 
       } catch (error) {

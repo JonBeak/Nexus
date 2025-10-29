@@ -17,32 +17,32 @@ export const CustomerPanel: React.FC<CustomerPanelProps> = ({
   selectedCustomerId,
   onCustomerSelected
 }) => {
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const fetchCustomers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await customerApi.getCustomers({ 
-        limit: 1000, 
-        search: searchTerm,
-        include_inactive: false 
-      });
-      setCustomers(response.customers || []);
-    } catch (error) {
-      console.error('Error fetching customers:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [searchTerm]);
-
-  // Load customers on mount
+  // Load all customers once on mount (cached for frontend filtering)
   useEffect(() => {
-    fetchCustomers();
-  }, [fetchCustomers]);
+    const fetchAllCustomers = async () => {
+      setLoading(true);
+      try {
+        const response = await customerApi.getCustomers({
+          limit: 1000,
+          include_inactive: false
+        });
+        setAllCustomers(response.customers || []);
+      } catch (error) {
+        console.error('Error fetching customers:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const filteredCustomers = customers.filter(customer =>
+    fetchAllCustomers();
+  }, []); // Empty deps - load only once
+
+  // Frontend-only filtering (no API calls on search)
+  const filteredCustomers = allCustomers.filter(customer =>
     customer.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (customer.contact_name && customer.contact_name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
@@ -56,7 +56,7 @@ export const CustomerPanel: React.FC<CustomerPanelProps> = ({
     }
   };
 
-  const selectedCustomer = customers.find(c => c.customer_id === selectedCustomerId);
+  const selectedCustomer = allCustomers.find(c => c.customer_id === selectedCustomerId);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-full">
@@ -76,10 +76,7 @@ export const CustomerPanel: React.FC<CustomerPanelProps> = ({
           placeholder="Search customers..."
           className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
           value={searchTerm}
-          onChange={(e) => {
-            setSearchTerm(e.target.value);
-            setTimeout(fetchCustomers, 300);
-          }}
+          onChange={(e) => setSearchTerm(e.target.value)}
         />
       </div>
 

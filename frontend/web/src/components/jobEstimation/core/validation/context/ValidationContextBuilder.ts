@@ -4,6 +4,7 @@ import { GridRowCore } from '../../types/CoreTypes';
 import { ValidationContext } from '../templates/ValidationTemplate';
 import { CustomerManufacturingPreferences, ensureSystemDefaultPreferences, getSystemDefaultPreferencesSnapshot } from './useCustomerPreferences';
 import { calculateChannelLetterMetrics, ChannelLetterMetrics } from '../utils/channelLetterParser';
+import { PricingDataResource } from '../../../../../services/pricingDataResource';
 
 export interface RowCalculatedValues {
   ledCount?: number;
@@ -24,10 +25,10 @@ export interface RowCalculatedValues {
 export type CalculatedValuesMap = Map<string, RowCalculatedValues>;
 
 export class ValidationContextBuilder {
-  static calculateDerivedValues(
+  static async calculateDerivedValues(
     rows: GridRowCore[],
     customerPreferences?: CustomerManufacturingPreferences
-  ): CalculatedValuesMap {
+  ): Promise<CalculatedValuesMap> {
     const calculatedValues: CalculatedValuesMap = new Map();
 
     for (const row of rows) {
@@ -43,7 +44,8 @@ export class ValidationContextBuilder {
         const metrics = calculateChannelLetterMetrics(row.data.field2);
         const savedLedCount = Math.max(0, metrics?.ledCount || 0);
         const defaultLedCount = customerPreferences?.use_leds ? savedLedCount : 0;
-        const savedTotalWattage = this.calculateTotalWattage(savedLedCount);
+        const ledWattage = await this.resolveLedWattage(row, customerPreferences);
+        const savedTotalWattage = this.calculateTotalWattage(savedLedCount, ledWattage);
         const savedPsCount = savedLedCount > 0 ? this.calculatePsCount(savedLedCount, savedTotalWattage) : 0;
         const defaultPsCount = defaultLedCount > 0 && customerPreferences?.pref_power_supply_required ? savedPsCount : 0;
 
@@ -65,7 +67,7 @@ export class ValidationContextBuilder {
         calculations.ledCount = finalLedCount;
         calculations.totalInches = metrics?.totalWidth || 0;
         calculations.totalPerimeter = metrics?.totalPerimeter || 0;
-        const finalTotalWattage = this.calculateTotalWattage(finalLedCount);
+        const finalTotalWattage = this.calculateTotalWattage(finalLedCount, ledWattage);
         calculations.totalWattage = finalTotalWattage;
 
         // Calculate final PS count with customer preference and user overrides
@@ -108,31 +110,31 @@ export class ValidationContextBuilder {
 
       // Blade Sign (Product Type 6) - Calculate derived values
       if (row.productTypeId === 6) {
-        const bladeSignCalcs = this.calculateBladeSignValues(row, customerPreferences);
+        const bladeSignCalcs = await this.calculateBladeSignValues(row, customerPreferences);
         Object.assign(calculations, bladeSignCalcs);
       }
 
       // LED Neon (Product Type 7) - Calculate wattage from linear length
       if (row.productTypeId === 7) {
-        const ledNeonCalcs = this.calculateLedNeonValues(row);
+        const ledNeonCalcs = await this.calculateLedNeonValues(row);
         Object.assign(calculations, ledNeonCalcs);
       }
 
       // LED (Product Type 26) - Calculate derived values from LED count
       if (row.productTypeId === 26) {
-        const ledCalcs = this.calculateLedValues(row, customerPreferences);
+        const ledCalcs = await this.calculateLedValues(row, customerPreferences);
         Object.assign(calculations, ledCalcs);
       }
 
       // ↳ LED (Product Type 18 - sub-item) - uses same calculation as main LED
       if (row.productTypeId === 18) {
-        const ledCalcs = this.calculateLedValues(row, customerPreferences);
+        const ledCalcs = await this.calculateLedValues(row, customerPreferences);
         Object.assign(calculations, ledCalcs);
       }
 
       // Push Thru (Product Type 5) - Calculate LED count from field5
       if (row.productTypeId === 5) {
-        const pushThruCalcs = this.calculatePushThruValues(row, customerPreferences);
+        const pushThruCalcs = await this.calculatePushThruValues(row, customerPreferences);
         Object.assign(calculations, pushThruCalcs);
       }
 
@@ -188,54 +190,116 @@ export class ValidationContextBuilder {
 
     const hasChannelData = savedLedCount > 0;
 
-    console.log('calculateLedCount DEBUG:', {
-      rowId: row.id,
-      rawField3,
-      normalizedField3,
-      numericOverride,
-      savedLedCount,
-      defaultLedCount,
-      hasChannelData
-    });
-
     if (!hasChannelData) {
       if (numericOverride !== null) {
-        console.log('→ Returning numericOverride (no channel data):', numericOverride);
         return numericOverride;
       }
       if (normalizedField3 === 'no') {
-        console.log('→ Returning 0 (no)');
         return 0;
       }
       if (normalizedField3 === 'yes') {
-        console.log('→ Returning savedLedCount (yes, no channel data):', savedLedCount);
         return savedLedCount;
       }
-      console.log('→ Returning 0 (default, no channel data)');
       return 0;
     }
 
     if (numericOverride !== null) {
-      console.log('→ Returning numericOverride (with channel data):', numericOverride);
       return numericOverride;
     }
 
     if (normalizedField3 === 'no') {
-      console.log('→ Returning 0 (no)');
       return 0;
     }
 
     if (normalizedField3 === 'yes') {
-      console.log('→ Returning savedLedCount (yes):', savedLedCount);
       return savedLedCount;
     }
 
-    console.log('→ Returning defaultLedCount:', defaultLedCount);
     return defaultLedCount;
   }
 
-  private static calculateTotalWattage(ledCount: number): number {
-    return ledCount * 1.2;
+  /**
+   * Resolve LED wattage from database based on row data and customer preferences
+   * Follows same logic as channelLettersPricing.ts for consistency
+   * Priority: field8 (LED Type override) → customer preference → system default
+   */
+  private static async resolveLedWattage(
+    row: GridRowCore,
+    customerPreferences?: CustomerManufacturingPreferences
+  ): Promise<number> {
+    let ledPricing = null;
+    let effectiveLedType: string | null = null;
+
+    // Check for field8 LED type override (varies by product type)
+    // Channel Letters (1): field8
+    // Blade Sign (6): field7 (but not LED type - this is PS override)
+    // LED Neon (7): uses fixed wattage per foot
+    // LED (26/18): field2
+    // Push Thru (5): field6
+    let ledTypeField: unknown = null;
+
+    switch (row.productTypeId) {
+      case 1: // Channel Letters
+        ledTypeField = row.data.field8;
+        break;
+      case 26: // LED
+      case 18: // LED (sub-item)
+        ledTypeField = row.data.field2;
+        break;
+      case 5: // Push Thru
+        ledTypeField = row.data.field6;
+        break;
+      case 6: // Blade Sign - uses same LED type as Channel Letters
+        ledTypeField = row.data.field7;
+        break;
+      default:
+        ledTypeField = null;
+    }
+
+    if (ledTypeField && typeof ledTypeField === 'string') {
+      // Parse the product_code from format: "product_code [colour]"
+      const productCodeMatch = ledTypeField.match(/^([^[]+)(?:\s*\[.*\])?$/);
+      const productCode = productCodeMatch ? productCodeMatch[1].trim() : ledTypeField;
+
+      effectiveLedType = productCode;
+      ledPricing = await PricingDataResource.getLed(productCode);
+
+      if (!ledPricing) {
+        console.warn(`LED type '${productCode}' not found in database (from '${ledTypeField}')`);
+      }
+    }
+
+    if (!ledPricing) {
+      // Fall back to customer preference LED
+      const customerPrefLedCode = customerPreferences?.pref_led_product_code;
+      if (customerPrefLedCode) {
+        ledPricing = await PricingDataResource.getLed(customerPrefLedCode);
+        if (ledPricing) {
+          effectiveLedType = customerPrefLedCode;
+        }
+      }
+    }
+
+    if (!ledPricing) {
+      // Fall back to system default LED
+      const defaultLed = await PricingDataResource.getDefaultLed();
+      if (defaultLed) {
+        ledPricing = defaultLed;
+        effectiveLedType = defaultLed.product_code;
+      }
+    }
+
+    if (ledPricing && ledPricing.watts) {
+      return ledPricing.watts;
+    }
+
+    // Fallback to hardcoded 1.2W if nothing found (should never happen)
+    console.warn('No LED wattage found, falling back to 1.2W default');
+    return 1.2;
+  }
+
+  private static calculateTotalWattage(ledCount: number, ledWattage: number): number {
+    return ledCount * ledWattage;
   }
 
   private static calculatePsCount(ledCount: number, totalWattage: number): number {
@@ -262,10 +326,10 @@ export class ValidationContextBuilder {
    * Handles dimensions parsing, sqft calculation with circle logic, and LED count
    * LED calculations work independently of dimensions to support LED-only rows
    */
-  private static calculateBladeSignValues(
+  private static async calculateBladeSignValues(
     row: GridRowCore,
     customerPreferences?: CustomerManufacturingPreferences
-  ): RowCalculatedValues {
+  ): Promise<RowCalculatedValues> {
     const calculations: RowCalculatedValues = {};
 
     // Parse dimensions from field2 (can be [width, height] or single float)
@@ -360,7 +424,8 @@ export class ValidationContextBuilder {
 
     // Calculate wattage and PS count (if any LEDs)
     if (finalLedCount > 0) {
-      const totalWattage = this.calculateTotalWattage(finalLedCount);
+      const ledWattage = await this.resolveLedWattage(row, customerPreferences);
+      const totalWattage = this.calculateTotalWattage(finalLedCount, ledWattage);
       calculations.totalWattage = totalWattage;
       const basePsCount = this.calculatePsCount(finalLedCount, totalWattage);
       calculations.savedPsCount = basePsCount;
@@ -413,7 +478,7 @@ export class ValidationContextBuilder {
    * Calculate LED Neon derived values
    * Handles wattage calculation from linear length for ps_override validation
    */
-  private static calculateLedNeonValues(row: GridRowCore): RowCalculatedValues {
+  private static async calculateLedNeonValues(row: GridRowCore): Promise<RowCalculatedValues> {
     const calculations: RowCalculatedValues = {};
 
     // Extract field3 (Length in inches)
@@ -485,10 +550,10 @@ export class ValidationContextBuilder {
    * Calculate LED (Product Type 26) derived values
    * Handles LED count from field1, with wattage and PS count calculations
    */
-  private static calculateLedValues(
+  private static async calculateLedValues(
     row: GridRowCore,
     customerPreferences?: CustomerManufacturingPreferences
-  ): RowCalculatedValues {
+  ): Promise<RowCalculatedValues> {
     const calculations: RowCalculatedValues = {};
 
     // Extract field1 (LED #)
@@ -507,8 +572,9 @@ export class ValidationContextBuilder {
     calculations.savedLedCount = ledCount;
     calculations.defaultLedCount = ledCount;
 
-    // Calculate wattage (assume 1.2W per LED)
-    const totalWattage = this.calculateTotalWattage(ledCount);
+    // Calculate wattage using actual LED wattage from database
+    const ledWattage = await this.resolveLedWattage(row, customerPreferences);
+    const totalWattage = this.calculateTotalWattage(ledCount, ledWattage);
     calculations.totalWattage = totalWattage;
 
     // Calculate PS count with customer preference and user overrides
@@ -557,10 +623,10 @@ export class ValidationContextBuilder {
    * Field5: LEDs XY (2D dimensions or float)
    * Field7: PS # (power supply count override)
    */
-  private static calculatePushThruValues(
+  private static async calculatePushThruValues(
     row: GridRowCore,
     customerPreferences?: CustomerManufacturingPreferences
-  ): RowCalculatedValues {
+  ): Promise<RowCalculatedValues> {
     const calculations: RowCalculatedValues = {};
 
     // Extract field5 (LED dimensions/count)
@@ -601,7 +667,8 @@ export class ValidationContextBuilder {
 
     // Calculate wattage and PS count (if any LEDs)
     if (ledCount > 0) {
-      const totalWattage = this.calculateTotalWattage(ledCount);
+      const ledWattage = await this.resolveLedWattage(row, customerPreferences);
+      const totalWattage = this.calculateTotalWattage(ledCount, ledWattage);
       calculations.totalWattage = totalWattage;
 
       const basePsCount = this.calculatePsCount(ledCount, totalWattage);
@@ -757,18 +824,36 @@ export class ValidationContextBuilder {
    * Check if UL field has an explicit override
    */
   private static hasExplicitULOverride(ulField: unknown): boolean {
-    if (!ulField) return false;
-    if (ulField === 'yes' || ulField === 'no') return true;
+    if (ulField === null || ulField === undefined || ulField === '') return false;
+
+    // Normalize to string and check
+    const normalized = String(ulField).toLowerCase().trim();
+    if (normalized === 'yes' || normalized === 'no') return true;
+
+    // Check for numeric values (0, 1, 2, etc.)
+    const numeric = parseFloat(normalized);
+    if (!isNaN(numeric)) return true;
+
     if (typeof ulField === 'object') return true; // $amount or float
     return false;
   }
 
   /**
    * Parse UL field to determine hasUL value
+   * Accepts: "yes", "no", 0, 1, 2+ (any positive number = yes, 0 = no)
    */
   private static parseULField(ulField: unknown): boolean {
-    if (ulField === 'yes') return true;
-    if (ulField === 'no') return false;
+    // Normalize to string and check
+    const normalized = String(ulField).toLowerCase().trim();
+    if (normalized === 'yes') return true;
+    if (normalized === 'no') return false;
+
+    // Check for numeric values
+    const numeric = parseFloat(normalized);
+    if (!isNaN(numeric)) {
+      return numeric > 0;  // Any positive number = yes, 0 = no
+    }
+
     if (typeof ulField === 'object') return true; // $amount or float means UL
     return false; // No explicit override
   }

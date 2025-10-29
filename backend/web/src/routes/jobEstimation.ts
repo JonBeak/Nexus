@@ -58,6 +58,9 @@ router.get('/estimates/:estimateId/can-edit', authenticateToken, estimateControl
 // Duplicate Estimate as New Version - Using EstimateController
 router.post('/estimates/:estimateId/duplicate', authenticateToken, estimateController.duplicateEstimateAsNewVersion);
 
+// Update Estimate Notes - Using EstimateController
+router.patch('/estimates/:estimateId/notes', authenticateToken, estimateController.updateEstimateNotes);
+
 // Clear Actions - Using EstimateController
 router.post('/estimates/:estimateId/reset', authenticateToken, estimateController.resetEstimateItems);
 router.post('/estimates/:estimateId/clear-all', authenticateToken, estimateController.clearAllEstimateItems);
