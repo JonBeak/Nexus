@@ -3,7 +3,8 @@
 // - A single float representing total square footage (e.g., "15.5")
 // - Two dimensions in WxH format (e.g., "24x36")
 
-import { ValidationTemplate, ValidationResult } from './ValidationTemplate';
+import { ValidationResult } from './ValidationTemplate';
+import { BaseValidationTemplate } from './BaseValidationTemplate';
 import { validateNumericInput } from '../utils/numericValidation';
 
 export interface FloatOrDimensionsParams {
@@ -17,16 +18,12 @@ export interface FloatOrDimensionsParams {
   sheet_height?: number;       // Height of standard sheet (e.g., 48 for 4x8 sheets)
 }
 
-export class FloatOrDimensionsTemplate implements ValidationTemplate {
+export class FloatOrDimensionsTemplate extends BaseValidationTemplate {
   async validate(value: string, params: FloatOrDimensionsParams = {}): Promise<ValidationResult> {
-    try {
+    return this.wrapValidation(params, async () => {
       // Handle empty values
       if (!value || (typeof value === 'string' && value.trim() === '')) {
-        return {
-          isValid: false,
-          error: 'Value is required',
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError('Value is required', params);
       }
 
       const cleanValue = value.trim();
@@ -47,19 +44,8 @@ export class FloatOrDimensionsTemplate implements ValidationTemplate {
       }
 
       // Neither format worked
-      return {
-        isValid: false,
-        error: 'Value must be either a number (total sqft) or dimensions (WxH)',
-        expectedFormat: this.generateExpectedFormat(params)
-      };
-
-    } catch (error) {
-      return {
-        isValid: false,
-        error: `Validation error: ${error.message}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
-    }
+      return this.createError('Value must be either a number (total sqft) or dimensions (WxH)', params);
+    });
   }
 
   /**
@@ -73,11 +59,7 @@ export class FloatOrDimensionsTemplate implements ValidationTemplate {
     const cleanParts = parts.map(part => part.trim()).filter(part => part !== '');
 
     if (cleanParts.length !== 2) {
-      return {
-        isValid: false,
-        error: `Expected exactly 2 dimensions separated by "${delimiter}"`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Expected exactly 2 dimensions separated by "${delimiter}"`, params);
     }
 
     const [widthStr, heightStr] = cleanParts;
@@ -92,11 +74,7 @@ export class FloatOrDimensionsTemplate implements ValidationTemplate {
     });
 
     if (!widthResult.isValid) {
-      return {
-        isValid: false,
-        error: `Width "${widthStr}": ${widthResult.error}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Width "${widthStr}": ${widthResult.error}`, params);
     }
 
     parsedDimensions.push(widthResult.value!);
@@ -110,11 +88,7 @@ export class FloatOrDimensionsTemplate implements ValidationTemplate {
     });
 
     if (!heightResult.isValid) {
-      return {
-        isValid: false,
-        error: `Height "${heightStr}": ${heightResult.error}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Height "${heightStr}": ${heightResult.error}`, params);
     }
 
     parsedDimensions.push(heightResult.value!);
@@ -123,20 +97,12 @@ export class FloatOrDimensionsTemplate implements ValidationTemplate {
     if (params.max_area !== undefined) {
       const area = parsedDimensions[0] * parsedDimensions[1];
       if (area > params.max_area) {
-        return {
-          isValid: false,
-          error: `Area (${parsedDimensions[0]} × ${parsedDimensions[1]} = ${area.toFixed(2)} sq in) exceeds maximum of ${params.max_area} sq in`,
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError(`Area (${parsedDimensions[0]} × ${parsedDimensions[1]} = ${area.toFixed(2)} sq in) exceeds maximum of ${params.max_area} sq in`, params);
       }
     }
 
     // Return as tuple [width, height]
-    return {
-      isValid: true,
-      parsedValue: parsedDimensions as [number, number],
-      expectedFormat: this.generateExpectedFormat(params)
-    };
+    return this.createSuccess(parsedDimensions as [number, number], parsedDimensions as [number, number], params);
   }
 
   /**
@@ -165,54 +131,34 @@ export class FloatOrDimensionsTemplate implements ValidationTemplate {
 
       // Validate the resulting dimensions against max constraints
       if (params.max_value !== undefined && width > params.max_value) {
-        return {
-          isValid: false,
-          error: `Resulting width (${width}") exceeds maximum of ${params.max_value}"`,
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError(`Resulting width (${width}") exceeds maximum of ${params.max_value}"`, params);
       }
 
       const maxHeight = params.max_value_y !== undefined ? params.max_value_y : params.max_value;
       if (maxHeight !== undefined && height > maxHeight) {
-        return {
-          isValid: false,
-          error: `Resulting height (${height}") exceeds maximum of ${maxHeight}"`,
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError(`Resulting height (${height}") exceeds maximum of ${maxHeight}"`, params);
       }
 
       // Check max area if specified
       if (params.max_area !== undefined) {
         const area = width * height;
         if (area > params.max_area) {
-          return {
-            isValid: false,
-            error: `Area (${width} × ${height} = ${area.toFixed(2)} sq in) exceeds maximum of ${params.max_area} sq in`,
-            expectedFormat: this.generateExpectedFormat(params)
-          };
+          return this.createError(`Area (${width} × ${height} = ${area.toFixed(2)} sq in) exceeds maximum of ${params.max_area} sq in`, params);
         }
       }
 
       // Return as dimensions [width, height]
-      return {
-        isValid: true,
-        parsedValue: [width, height] as [number, number],
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createSuccess([width, height] as [number, number], [width, height] as [number, number], params);
     }
 
     // No sheet conversion - return as simple float
-    return {
-      isValid: true,
-      parsedValue: numericResult.value,
-      expectedFormat: this.generateExpectedFormat(params)
-    };
+    return this.createSuccess(numericResult.value, numericResult.value, params);
   }
 
   /**
    * Generate helpful format description for users
    */
-  private generateExpectedFormat(params: FloatOrDimensionsParams): string {
+  protected generateExpectedFormat(params: FloatOrDimensionsParams): string {
     const delimiter = params.delimiter || 'x';
 
     let formatDesc = 'Either:\n';

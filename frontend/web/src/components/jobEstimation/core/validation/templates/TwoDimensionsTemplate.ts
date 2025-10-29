@@ -2,7 +2,8 @@
 // Used for fields that require explicit width and height dimensions
 // Does NOT accept single float values
 
-import { ValidationTemplate, ValidationResult } from './ValidationTemplate';
+import { ValidationResult } from './ValidationTemplate';
+import { BaseValidationTemplate } from './BaseValidationTemplate';
 import { validateNumericInput } from '../utils/numericValidation';
 
 export interface TwoDimensionsParams {
@@ -14,16 +15,12 @@ export interface TwoDimensionsParams {
   delimiter?: string;          // Delimiter for dimensions (default: "x")
 }
 
-export class TwoDimensionsTemplate implements ValidationTemplate {
+export class TwoDimensionsTemplate extends BaseValidationTemplate {
   async validate(value: string, params: TwoDimensionsParams = {}): Promise<ValidationResult> {
-    try {
+    return this.wrapValidation(params, async () => {
       // Handle empty values
       if (!value || (typeof value === 'string' && value.trim() === '')) {
-        return {
-          isValid: false,
-          error: 'Value is required',
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError('Value is required', params);
       }
 
       const cleanValue = value.trim();
@@ -31,14 +28,7 @@ export class TwoDimensionsTemplate implements ValidationTemplate {
 
       // Parse as dimensions (X x Y) - ONLY format accepted
       return this.parseAsDimensions(cleanValue, delimiter, params);
-
-    } catch (error) {
-      return {
-        isValid: false,
-        error: `Validation error: ${error.message}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
-    }
+    });
   }
 
   /**
@@ -48,11 +38,7 @@ export class TwoDimensionsTemplate implements ValidationTemplate {
   private parseAsDimensions(value: string, delimiter: string, params: TwoDimensionsParams): ValidationResult {
     // Must contain delimiter
     if (!value.includes(delimiter)) {
-      return {
-        isValid: false,
-        error: `Value must contain "${delimiter}" separator for dimensions (e.g., "48${delimiter}24")`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Value must contain "${delimiter}" separator for dimensions (e.g., "48${delimiter}24")`, params);
     }
 
     const parts = value.split(delimiter);
@@ -60,11 +46,7 @@ export class TwoDimensionsTemplate implements ValidationTemplate {
 
     // Must have exactly 2 parts (X and Y)
     if (cleanParts.length !== 2) {
-      return {
-        isValid: false,
-        error: `Expected exactly 2 dimensions separated by "${delimiter}"`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Expected exactly 2 dimensions separated by "${delimiter}"`, params);
     }
 
     const [xStr, yStr] = cleanParts;
@@ -79,11 +61,7 @@ export class TwoDimensionsTemplate implements ValidationTemplate {
     });
 
     if (!xResult.isValid) {
-      return {
-        isValid: false,
-        error: `X dimension "${xStr}": ${xResult.error}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`X dimension "${xStr}": ${xResult.error}`, params);
     }
 
     parsedDimensions.push(xResult.value!);
@@ -97,11 +75,7 @@ export class TwoDimensionsTemplate implements ValidationTemplate {
     });
 
     if (!yResult.isValid) {
-      return {
-        isValid: false,
-        error: `Y dimension "${yStr}": ${yResult.error}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Y dimension "${yStr}": ${yResult.error}`, params);
     }
 
     parsedDimensions.push(yResult.value!);
@@ -110,26 +84,18 @@ export class TwoDimensionsTemplate implements ValidationTemplate {
     if (params.max_area !== undefined) {
       const area = parsedDimensions[0] * parsedDimensions[1];
       if (area > params.max_area) {
-        return {
-          isValid: false,
-          error: `Area (${parsedDimensions[0]} × ${parsedDimensions[1]} = ${area.toFixed(2)} sq in) exceeds maximum of ${params.max_area} sq in`,
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError(`Area (${parsedDimensions[0]} × ${parsedDimensions[1]} = ${area.toFixed(2)} sq in) exceeds maximum of ${params.max_area} sq in`, params);
       }
     }
 
     // Return as tuple [x, y]
-    return {
-      isValid: true,
-      parsedValue: parsedDimensions as [number, number],
-      expectedFormat: this.generateExpectedFormat(params)
-    };
+    return this.createSuccess(parsedDimensions as [number, number], parsedDimensions as [number, number], params);
   }
 
   /**
    * Generate helpful format description for users
    */
-  private generateExpectedFormat(params: TwoDimensionsParams): string {
+  protected generateExpectedFormat(params: TwoDimensionsParams): string {
     const delimiter = params.delimiter || 'x';
 
     let formatDesc = `Dimensions in X${delimiter}Y format (e.g., "48${delimiter}24")`;

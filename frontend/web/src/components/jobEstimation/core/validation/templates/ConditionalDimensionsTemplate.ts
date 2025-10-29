@@ -1,7 +1,8 @@
 // Conditional Dimensions validation template - validates 2D or 3D based on another field's value
 // Used for Push Thru field3: validates XxYxZ if field1="Aluminum", XxY if field1="ACM"
 
-import { ValidationTemplate, ValidationResult, ValidationContext } from './ValidationTemplate';
+import { ValidationResult, ValidationContext } from './ValidationTemplate';
+import { BaseValidationTemplate } from './BaseValidationTemplate';
 import { validateNumericInput } from '../utils/numericValidation';
 
 export interface ConditionalDimensionsParams {
@@ -17,40 +18,28 @@ export interface ConditionalDimensionsParams {
   allow_negative?: boolean;    // Allow negative numbers (default: false)
 }
 
-export class ConditionalDimensionsTemplate implements ValidationTemplate {
+export class ConditionalDimensionsTemplate extends BaseValidationTemplate {
   async validate(
     value: string,
     params: ConditionalDimensionsParams,
     context?: ValidationContext
   ): Promise<ValidationResult> {
-    try {
+    return this.wrapValidation(params, async () => {
       // Handle empty values
       if (!value || (typeof value === 'string' && value.trim() === '')) {
-        return {
-          isValid: false,
-          error: 'Value is required',
-          expectedFormat: this.generateExpectedFormat(params, context)
-        };
+        return this.createError('Value is required', params);
       }
 
       // Check if we have context with the condition field
       if (!context || !context.rowData) {
-        return {
-          isValid: false,
-          error: 'Validation context required',
-          expectedFormat: this.generateExpectedFormat(params, context)
-        };
+        return this.createError('Validation context required', params);
       }
 
       const conditionFieldValue = context.rowData[params.condition_field];
 
       // If condition field is not set, we can't validate
       if (!conditionFieldValue || conditionFieldValue.trim() === '') {
-        return {
-          isValid: false,
-          error: `Please select ${params.condition_field} first`,
-          expectedFormat: this.generateExpectedFormat(params, context)
-        };
+        return this.createError(`Please select ${params.condition_field} first`, params);
       }
 
       const cleanValue = value.trim();
@@ -65,20 +54,9 @@ export class ConditionalDimensionsTemplate implements ValidationTemplate {
         // Validate as 2D (X x Y)
         return this.validateTwoDimensions(cleanValue, delimiter, params);
       } else {
-        return {
-          isValid: false,
-          error: `Invalid ${params.condition_field} value: "${cleanCondition}"`,
-          expectedFormat: this.generateExpectedFormat(params, context)
-        };
+        return this.createError(`Invalid ${params.condition_field} value: "${cleanCondition}"`, params);
       }
-
-    } catch (error) {
-      return {
-        isValid: false,
-        error: `Validation error: ${error instanceof Error ? error.message : String(error)}`,
-        expectedFormat: this.generateExpectedFormat(params, context)
-      };
-    }
+    });
   }
 
   /**
@@ -93,11 +71,7 @@ export class ConditionalDimensionsTemplate implements ValidationTemplate {
     const cleanParts = parts.map(part => part.trim()).filter(part => part !== '');
 
     if (cleanParts.length !== 3) {
-      return {
-        isValid: false,
-        error: `Expected 3 dimensions for Aluminum (X${delimiter}Y${delimiter}Z, e.g., "48${delimiter}24${delimiter}6")`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Expected 3 dimensions for Aluminum (X${delimiter}Y${delimiter}Z, e.g., "48${delimiter}24${delimiter}6")`, params);
     }
 
     const [xStr, yStr, zStr] = cleanParts;
@@ -111,11 +85,7 @@ export class ConditionalDimensionsTemplate implements ValidationTemplate {
     });
 
     if (!xResult.isValid) {
-      return {
-        isValid: false,
-        error: `X dimension "${xStr}": ${xResult.error}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`X dimension "${xStr}": ${xResult.error}`, params);
     }
 
     parsedDimensions.push(xResult.value!);
@@ -128,11 +98,7 @@ export class ConditionalDimensionsTemplate implements ValidationTemplate {
     });
 
     if (!yResult.isValid) {
-      return {
-        isValid: false,
-        error: `Y dimension "${yStr}": ${yResult.error}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Y dimension "${yStr}": ${yResult.error}`, params);
     }
 
     parsedDimensions.push(yResult.value!);
@@ -145,11 +111,7 @@ export class ConditionalDimensionsTemplate implements ValidationTemplate {
     });
 
     if (!zResult.isValid) {
-      return {
-        isValid: false,
-        error: `Z dimension "${zStr}": ${zResult.error}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Z dimension "${zStr}": ${zResult.error}`, params);
     }
 
     parsedDimensions.push(zResult.value!);
@@ -168,27 +130,15 @@ export class ConditionalDimensionsTemplate implements ValidationTemplate {
     const normalizedY = Math.min(adjustedX, adjustedY);
 
     if (normalizedX > params.max_value_alum_x) {
-      return {
-        isValid: false,
-        error: `Adjusted X dimension (${normalizedX.toFixed(1)}") exceeds maximum ${params.max_value_alum_x}"`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Adjusted X dimension (${normalizedX.toFixed(1)}") exceeds maximum ${params.max_value_alum_x}"`, params);
     }
 
     if (normalizedY > params.max_value_alum_y) {
-      return {
-        isValid: false,
-        error: `Adjusted Y dimension (${normalizedY.toFixed(1)}") exceeds maximum ${params.max_value_alum_y}"`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Adjusted Y dimension (${normalizedY.toFixed(1)}") exceeds maximum ${params.max_value_alum_y}"`, params);
     }
 
     // Return as tuple [X, Y, Z]
-    return {
-      isValid: true,
-      parsedValue: parsedDimensions as [number, number, number],
-      expectedFormat: this.generateExpectedFormat(params)
-    };
+    return this.createSuccess(parsedDimensions as [number, number, number], parsedDimensions as [number, number, number], params);
   }
 
   /**
@@ -203,11 +153,7 @@ export class ConditionalDimensionsTemplate implements ValidationTemplate {
     const cleanParts = parts.map(part => part.trim()).filter(part => part !== '');
 
     if (cleanParts.length !== 2) {
-      return {
-        isValid: false,
-        error: `Expected 2 dimensions for ACM (X${delimiter}Y, e.g., "48${delimiter}24")`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Expected 2 dimensions for ACM (X${delimiter}Y, e.g., "48${delimiter}24")`, params);
     }
 
     const [xStr, yStr] = cleanParts;
@@ -222,11 +168,7 @@ export class ConditionalDimensionsTemplate implements ValidationTemplate {
     });
 
     if (!xResult.isValid) {
-      return {
-        isValid: false,
-        error: `X dimension "${xStr}": ${xResult.error}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`X dimension "${xStr}": ${xResult.error}`, params);
     }
 
     parsedDimensions.push(xResult.value!);
@@ -240,27 +182,19 @@ export class ConditionalDimensionsTemplate implements ValidationTemplate {
     });
 
     if (!yResult.isValid) {
-      return {
-        isValid: false,
-        error: `Y dimension "${yStr}": ${yResult.error}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Y dimension "${yStr}": ${yResult.error}`, params);
     }
 
     parsedDimensions.push(yResult.value!);
 
     // Return as tuple [X, Y]
-    return {
-      isValid: true,
-      parsedValue: parsedDimensions as [number, number],
-      expectedFormat: this.generateExpectedFormat(params)
-    };
+    return this.createSuccess(parsedDimensions as [number, number], parsedDimensions as [number, number], params);
   }
 
   /**
    * Generate helpful format description for users
    */
-  private generateExpectedFormat(params: ConditionalDimensionsParams, context?: ValidationContext): string {
+  protected generateExpectedFormat(params: ConditionalDimensionsParams, context?: ValidationContext): string {
     const delimiter = params.delimiter || 'x';
 
     // If we have context, show specific format based on condition field

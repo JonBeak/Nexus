@@ -2,36 +2,25 @@
 // Accepts any text input (including empty)
 // Returns the trimmed text as parsedValue
 
-import { ValidationTemplate, ValidationResult } from './ValidationTemplate';
+import { ValidationResult, ValidationContext } from './ValidationTemplate';
+import { BaseValidationTemplate } from './BaseValidationTemplate';
 
-export class OptionalTextTemplate implements ValidationTemplate {
-  async validate(value: string, params: any = {}): Promise<ValidationResult> {
-    try {
+export class OptionalTextTemplate extends BaseValidationTemplate {
+  async validate(value: string, params: any = {}, context?: ValidationContext): Promise<ValidationResult> {
+    return this.wrapValidation(params, async () => {
       // Handle empty values - empty is valid
       if (!value || (typeof value === 'string' && value.trim() === '')) {
-        return {
-          isValid: true,
-          parsedValue: '', // Return empty string so it gets stored
-          expectedFormat: 'any text'
-        };
+        return this.createSuccess('', '', params); // Return empty string so it gets stored
       }
 
       // Return trimmed text as parsedValue
       const trimmedValue = value.trim();
+      return this.createSuccess(trimmedValue, trimmedValue, params);
+    });
+  }
 
-      return {
-        isValid: true,
-        parsedValue: trimmedValue,
-        expectedFormat: 'any text'
-      };
-
-    } catch (error) {
-      return {
-        isValid: false,
-        error: `Validation error: ${error.message}`,
-        expectedFormat: 'any text'
-      };
-    }
+  protected generateExpectedFormat(_params?: any): string {
+    return 'any text';
   }
 
   getDescription(): string {

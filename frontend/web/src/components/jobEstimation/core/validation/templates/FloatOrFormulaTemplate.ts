@@ -2,19 +2,16 @@
 // Accepts either a simple number OR an arithmetic formula
 // Supports formulas like: "50 + 25x9" → 275
 
-import { ValidationTemplate, ValidationResult, FloatParams } from './ValidationTemplate';
+import { ValidationResult, FloatParams, ValidationContext } from './ValidationTemplate';
 import { parsePinFormula, looksLikeFormula } from '../utils/pinFormulaParser';
+import { BaseValidationTemplate } from './BaseValidationTemplate';
 
-export class FloatOrFormulaTemplate implements ValidationTemplate {
-  async validate(value: string, params: FloatParams = {}): Promise<ValidationResult> {
-    try {
+export class FloatOrFormulaTemplate extends BaseValidationTemplate {
+  async validate(value: string, params: FloatParams = {}, context?: ValidationContext): Promise<ValidationResult> {
+    return this.wrapValidation(params, async () => {
       // Handle empty values
       if (!value || (typeof value === 'string' && value.trim() === '')) {
-        return {
-          isValid: false,
-          error: 'Value is required',
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError('Value is required', params);
       }
 
       const cleanValue = value.trim();
@@ -27,49 +24,29 @@ export class FloatOrFormulaTemplate implements ValidationTemplate {
           const result = parsePinFormula(cleanValue);
           numericValue = result.value;
         } catch (error) {
-          return {
-            isValid: false,
-            error: error instanceof Error ? error.message : 'Invalid formula',
-            expectedFormat: this.generateExpectedFormat(params)
-          };
+          return this.createError(error instanceof Error ? error.message : 'Invalid formula', params);
         }
       } else {
         // Parse as simple number
         numericValue = parseFloat(cleanValue);
 
         if (isNaN(numericValue)) {
-          return {
-            isValid: false,
-            error: 'Must be a number or formula (e.g., "50 + 25x9")',
-            expectedFormat: this.generateExpectedFormat(params)
-          };
+          return this.createError('Must be a number or formula (e.g., "50 + 25x9")', params);
         }
       }
 
       // Validate negative constraint
       if (params.allow_negative === false && numericValue < 0) {
-        return {
-          isValid: false,
-          error: `Result ${numericValue} is negative (only positive values allowed)`,
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError(`Result ${numericValue} is negative (only positive values allowed)`, params);
       }
 
       // Validate range constraints
       if (params.min !== undefined && numericValue < params.min) {
-        return {
-          isValid: false,
-          error: `Result ${numericValue} is below minimum ${params.min}`,
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError(`Result ${numericValue} is below minimum ${params.min}`, params);
       }
 
       if (params.max !== undefined && numericValue > params.max) {
-        return {
-          isValid: false,
-          error: `Result ${numericValue} is above maximum ${params.max}`,
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError(`Result ${numericValue} is above maximum ${params.max}`, params);
       }
 
       // Validate decimal places
@@ -92,25 +69,14 @@ export class FloatOrFormulaTemplate implements ValidationTemplate {
         }
       }
 
-      return {
-        isValid: true,
-        parsedValue: numericValue,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
-
-    } catch (error) {
-      return {
-        isValid: false,
-        error: `Validation error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
-    }
+      return this.createSuccess(numericValue, numericValue, params);
+    });
   }
 
   /**
    * Generate helpful format description for users
    */
-  private generateExpectedFormat(params: FloatParams = {}): string {
+  protected generateExpectedFormat(params: FloatParams = {}): string {
     const parts: string[] = [];
     const decimalPlaces = typeof params.decimal_places === 'string'
       ? parseInt(params.decimal_places, 10)

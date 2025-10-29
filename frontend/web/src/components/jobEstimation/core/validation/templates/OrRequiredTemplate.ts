@@ -3,8 +3,9 @@
 // Used for bidirectional OR dependencies (e.g., "if UnitPrice exists, ProductName OR Description required")
 // Optionally validates the value format (e.g., float)
 
-import { ValidationTemplate, ValidationResult, ValidationContext, FloatParams } from './ValidationTemplate';
+import { ValidationResult, ValidationContext, FloatParams } from './ValidationTemplate';
 import { validateNumericInput } from '../utils/numericValidation';
+import { BaseValidationTemplate } from './BaseValidationTemplate';
 
 export interface OrRequiredParams {
   required_fields: number[]; // Field numbers (1-10) where at least one must be filled
@@ -13,20 +14,16 @@ export interface OrRequiredParams {
   float_params?: FloatParams; // Optional: float validation parameters (when validate_as = 'float')
 }
 
-export class OrRequiredTemplate implements ValidationTemplate {
+export class OrRequiredTemplate extends BaseValidationTemplate {
   async validate(
     value: string,
     params: OrRequiredParams,
     context?: ValidationContext
   ): Promise<ValidationResult> {
-    try {
+    return this.wrapValidation(params, async () => {
       // If current field is empty, validation passes (optional field)
       if (!value || value.trim() === '') {
-        return {
-          isValid: true,
-          parsedValue: value,
-          expectedFormat: 'Optional field'
-        };
+        return this.createSuccess(value, value, params);
       }
 
       const cleanValue = value.trim();
@@ -45,29 +42,17 @@ export class OrRequiredTemplate implements ValidationTemplate {
         });
 
         if (!numericResult.isValid) {
-          return {
-            isValid: false,
-            error: numericResult.error || 'Invalid number format',
-            expectedFormat: this.generateFloatFormat(floatParams)
-          };
+          return this.createError(numericResult.error || 'Invalid number format', params);
         }
       }
 
       // STEP 2: Check OR dependency - at least one required field must be filled
       if (!context || !context.rowData) {
-        return {
-          isValid: false,
-          error: 'Validation context required for OR dependency check',
-          expectedFormat: 'Context with row data'
-        };
+        return this.createError('Validation context required for OR dependency check', params);
       }
 
       if (!params.required_fields || params.required_fields.length === 0) {
-        return {
-          isValid: false,
-          error: 'OrRequired template requires required_fields parameter',
-          expectedFormat: 'Array of field numbers'
-        };
+        return this.createError('OrRequired template requires required_fields parameter', params);
       }
 
       // Check if at least one of the required fields is filled
@@ -82,27 +67,25 @@ export class OrRequiredTemplate implements ValidationTemplate {
           ? params.field_labels.join(' OR ')
           : params.required_fields.map(num => `field${num}`).join(' OR ');
 
-        return {
-          isValid: false,
-          error: `At least one of these fields is required: ${fieldLabels}`,
-          expectedFormat: `Fill at least one: ${fieldLabels}`
-        };
+        return this.createError(`At least one of these fields is required: ${fieldLabels}`, params);
       }
 
       // Both format validation and OR dependency passed
-      return {
-        isValid: true,
-        parsedValue: params.validate_as === 'float' ? parseFloat(cleanValue) : cleanValue,
-        expectedFormat: 'Valid value with required fields filled'
-      };
+      const parsedValue = params.validate_as === 'float' ? parseFloat(cleanValue) : cleanValue;
+      return this.createSuccess(parsedValue, parsedValue, params);
+    });
+  }
 
-    } catch (error) {
-      return {
-        isValid: false,
-        error: `OR validation error: ${error.message}`,
-        expectedFormat: 'At least one required field must be filled'
-      };
+  /**
+   * Generate format description
+   */
+  protected generateExpectedFormat(params: OrRequiredParams | FloatParams = {}): string {
+    // Check if this is float validation
+    const orParams = params as OrRequiredParams;
+    if (orParams.validate_as === 'float' && orParams.float_params) {
+      return this.generateFloatFormat(orParams.float_params);
     }
+    return 'At least one required field must be filled';
   }
 
   /**

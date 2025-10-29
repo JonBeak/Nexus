@@ -1,8 +1,9 @@
 // PS Price Override validation template - validates PS price override based on PS count
 // Should show error if PS price is entered but there are no power supplies
 
-import { ValidationTemplate, ValidationResult, ValidationContext } from './ValidationTemplate';
+import { ValidationResult, ValidationContext } from './ValidationTemplate';
 import { validateNumericInput } from '../utils/numericValidation';
+import { BaseValidationTemplate } from './BaseValidationTemplate';
 
 export type PsPriceOverrideParams = {
   ps_count_field: string; // Which field contains PS count (e.g., 'field9' for Channel Letters, 'field4' for LED)
@@ -11,20 +12,16 @@ export type PsPriceOverrideParams = {
   decimal_places?: number;
 };
 
-export class PsPriceOverrideTemplate implements ValidationTemplate {
+export class PsPriceOverrideTemplate extends BaseValidationTemplate {
   async validate(
     value: string,
     params: PsPriceOverrideParams,
     context?: ValidationContext
   ): Promise<ValidationResult> {
-    try {
+    return this.wrapValidation(params, async () => {
       // Handle empty values - always valid (no override is fine)
       if (!value || (typeof value === 'string' && value.trim() === '')) {
-        return {
-          isValid: true,
-          parsedValue: null,
-          expectedFormat: 'PS price override (optional when power supplies are present)'
-        };
+        return this.createSuccess(null, null, params);
       }
 
       const cleanValue = value.trim();
@@ -38,12 +35,7 @@ export class PsPriceOverrideTemplate implements ValidationTemplate {
       const psCount = this.calculatePsCount(context, params.ps_count_field);
 
       if (psCount === 0) {
-        return {
-          isValid: false,
-          error: 'Cannot enter PS price when there are no power supplies',
-          expectedFormat: 'PS price can only be entered when power supplies are present',
-          calculatedValue: { psCount }
-        };
+        return this.createError('Cannot enter PS price when there are no power supplies', params);
       }
 
       // Validate as numeric input
@@ -54,28 +46,16 @@ export class PsPriceOverrideTemplate implements ValidationTemplate {
       });
 
       if (!numericResult.isValid) {
-        return {
-          isValid: false,
-          error: numericResult.error || 'Invalid numeric value',
-          expectedFormat: 'Enter a positive number (e.g., 12.50)'
-        };
+        return this.createError(numericResult.error || 'Invalid numeric value', params);
       }
 
       // If there are PSs and value is valid, accept it
-      return {
-        isValid: true,
-        parsedValue: numericResult.value,
-        calculatedValue: { psCount },
-        expectedFormat: 'Price per power supply (power supplies are present)'
-      };
+      return this.createSuccess(numericResult.value, { psCount }, params);
+    });
+  }
 
-    } catch (error) {
-      return {
-        isValid: false,
-        error: `Validation error: ${error.message}`,
-        expectedFormat: 'PS price override (optional when power supplies are present)'
-      };
-    }
+  protected generateExpectedFormat(_params: PsPriceOverrideParams): string {
+    return 'PS price override (optional when power supplies are present)';
   }
 
   /**

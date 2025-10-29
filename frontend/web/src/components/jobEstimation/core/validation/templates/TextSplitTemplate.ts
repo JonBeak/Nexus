@@ -1,22 +1,19 @@
 // TextSplit validation template - handles 1D and 2D text splitting with comprehensive controls
 // Supports formats like "12+5+3", "12x8,15x10", "width:12|height:8,depth:5"
 
-import { ValidationTemplate, ValidationResult, TextSplitParams } from './ValidationTemplate';
+import { ValidationResult, TextSplitParams, ValidationContext } from './ValidationTemplate';
 import { validateNumericInput, validateIntegerInput } from '../utils/numericValidation';
+import { BaseValidationTemplate } from './BaseValidationTemplate';
 
-export class TextSplitTemplate implements ValidationTemplate {
-  async validate(value: string, params: TextSplitParams): Promise<ValidationResult> {
-    try {
+export class TextSplitTemplate extends BaseValidationTemplate {
+  async validate(value: string, params: TextSplitParams, context?: ValidationContext): Promise<ValidationResult> {
+    return this.wrapValidation(params, async () => {
       // Handle empty values
       if (!value || (typeof value === 'string' && value.trim() === '')) {
         if (params.allow_empty) {
           return { isValid: true, parsedValue: [] };
         }
-        return {
-          isValid: false,
-          error: 'Value is required',
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError('Value is required', params);
       }
 
       // Apply whitespace trimming
@@ -28,13 +25,7 @@ export class TextSplitTemplate implements ValidationTemplate {
       } else {
         return await this.validate1D(processedValue, params);
       }
-    } catch (error) {
-      return {
-        isValid: false,
-        error: `Validation error: ${error.message}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
-    }
+    });
   }
 
   /**
@@ -65,11 +56,7 @@ export class TextSplitTemplate implements ValidationTemplate {
       return parseResult;
     }
 
-    return {
-      isValid: true,
-      parsedValue: parseResult.parsedValue,
-      expectedFormat: this.generateExpectedFormat(params)
-    };
+    return this.createSuccess(parseResult.parsedValue, parseResult.parsedValue, params);
   }
 
   /**
@@ -129,11 +116,7 @@ export class TextSplitTemplate implements ValidationTemplate {
       parsedGroups.push(groupParseResult.parsedValue);
     }
 
-    return {
-      isValid: true,
-      parsedValue: parsedGroups,
-      expectedFormat: this.generateExpectedFormat(params)
-    };
+    return this.createSuccess(parsedGroups, parsedGroups, params);
   }
 
   /**
@@ -141,27 +124,15 @@ export class TextSplitTemplate implements ValidationTemplate {
    */
   private validateCount(actualCount: number, params: TextSplitParams, dimensionName: string): ValidationResult {
     if (params.required_count !== undefined && actualCount !== params.required_count) {
-      return {
-        isValid: false,
-        error: `Expected exactly ${params.required_count} items in ${dimensionName}, got ${actualCount}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Expected exactly ${params.required_count} items in ${dimensionName}, got ${actualCount}`, params);
     }
 
     if (params.min_count !== undefined && actualCount < params.min_count) {
-      return {
-        isValid: false,
-        error: `Expected at least ${params.min_count} items in ${dimensionName}, got ${actualCount}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Expected at least ${params.min_count} items in ${dimensionName}, got ${actualCount}`, params);
     }
 
     if (params.max_count !== undefined && actualCount > params.max_count) {
-      return {
-        isValid: false,
-        error: `Expected at most ${params.max_count} items in ${dimensionName}, got ${actualCount}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Expected at most ${params.max_count} items in ${dimensionName}, got ${actualCount}`, params);
     }
 
     return { isValid: true };
@@ -172,27 +143,15 @@ export class TextSplitTemplate implements ValidationTemplate {
    */
   private validateCount2(actualCount: number, params: TextSplitParams, groupName: string): ValidationResult {
     if (params.required_count2 !== undefined && actualCount !== params.required_count2) {
-      return {
-        isValid: false,
-        error: `Expected exactly ${params.required_count2} items in ${groupName}, got ${actualCount}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Expected exactly ${params.required_count2} items in ${groupName}, got ${actualCount}`, params);
     }
 
     if (params.min_count2 !== undefined && actualCount < params.min_count2) {
-      return {
-        isValid: false,
-        error: `Expected at least ${params.min_count2} items in ${groupName}, got ${actualCount}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Expected at least ${params.min_count2} items in ${groupName}, got ${actualCount}`, params);
     }
 
     if (params.max_count2 !== undefined && actualCount > params.max_count2) {
-      return {
-        isValid: false,
-        error: `Expected at most ${params.max_count2} items in ${groupName}, got ${actualCount}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Expected at most ${params.max_count2} items in ${groupName}, got ${actualCount}`, params);
     }
 
     return { isValid: true };
@@ -219,11 +178,7 @@ export class TextSplitTemplate implements ValidationTemplate {
               allowEmpty: false
             });
             if (!floatResult.isValid) {
-              return {
-                isValid: false,
-                error: `"${part}": ${floatResult.error}`,
-                expectedFormat: this.generateExpectedFormat(params)
-              };
+              return this.createError(`"${part}": ${floatResult.error}`, params);
             }
             parsedValue = floatResult.value!;
             break;
@@ -236,11 +191,7 @@ export class TextSplitTemplate implements ValidationTemplate {
               allowEmpty: false
             });
             if (!intResult.isValid) {
-              return {
-                isValid: false,
-                error: `"${part}": ${intResult.error}`,
-                expectedFormat: this.generateExpectedFormat(params)
-              };
+              return this.createError(`"${part}": ${intResult.error}`, params);
             }
             parsedValue = intResult.value!;
             break;
@@ -250,11 +201,7 @@ export class TextSplitTemplate implements ValidationTemplate {
             break;
 
           default:
-            return {
-              isValid: false,
-              error: `Unknown parse_as type: ${params.parse_as}`,
-              expectedFormat: this.generateExpectedFormat(params)
-            };
+            return this.createError(`Unknown parse_as type: ${params.parse_as}`, params);
         }
 
         // Validate numeric constraints
@@ -267,11 +214,7 @@ export class TextSplitTemplate implements ValidationTemplate {
 
         parsedValues.push(parsedValue);
       } catch (error) {
-        return {
-          isValid: false,
-          error: `Failed to parse "${part}": ${error.message}`,
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError(`Failed to parse "${part}": ${error.message}`, params);
       }
     }
 
@@ -286,19 +229,11 @@ export class TextSplitTemplate implements ValidationTemplate {
    */
   private validateNumericConstraints(value: number, params: TextSplitParams, originalText: string): ValidationResult {
     if (params.min !== undefined && value < params.min) {
-      return {
-        isValid: false,
-        error: `"${originalText}" (${value}) is below minimum ${params.min}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`"${originalText}" (${value}) is below minimum ${params.min}`, params);
     }
 
     if (params.max !== undefined && value > params.max) {
-      return {
-        isValid: false,
-        error: `"${originalText}" (${value}) is above maximum ${params.max}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`"${originalText}" (${value}) is above maximum ${params.max}`, params);
     }
 
     return { isValid: true };
@@ -307,7 +242,7 @@ export class TextSplitTemplate implements ValidationTemplate {
   /**
    * Generate helpful format description for users
    */
-  private generateExpectedFormat(params: TextSplitParams): string {
+  protected generateExpectedFormat(params: TextSplitParams): string {
     const parts: string[] = [];
 
     // Basic format

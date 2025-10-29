@@ -4,7 +4,8 @@
 //   - Groups format (e.g., "10,. . . . . 6,")
 //   - Formula (e.g., "48x48*12 + 30*12 + 15")
 
-import { ValidationTemplate, ValidationResult } from './ValidationTemplate';
+import { ValidationResult } from './ValidationTemplate';
+import { BaseValidationTemplate } from './BaseValidationTemplate';
 import { validateNumericInput } from '../utils/numericValidation';
 import { parseChannelLetterFormula, looksLikeFormula } from '../utils/channelLetterFormulaParser';
 
@@ -16,16 +17,12 @@ export interface FloatOrGroupsParams {
   number_separator?: string;   // Separator between numbers (default: ",")
 }
 
-export class FloatOrGroupsTemplate implements ValidationTemplate {
+export class FloatOrGroupsTemplate extends BaseValidationTemplate {
   async validate(value: string, params: FloatOrGroupsParams = {}): Promise<ValidationResult> {
-    try {
+    return this.wrapValidation(params, async () => {
       // Handle empty values
       if (!value || (typeof value === 'string' && value.trim() === '')) {
-        return {
-          isValid: false,
-          error: 'Value is required',
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError('Value is required', params);
       }
 
       const cleanValue = value.trim();
@@ -51,19 +48,8 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
       }
 
       // None of the formats worked
-      return {
-        isValid: false,
-        error: 'Value must be a number, groups format, or calculation formula',
-        expectedFormat: this.generateExpectedFormat(params)
-      };
-
-    } catch (error) {
-      return {
-        isValid: false,
-        error: `Validation error: ${error.message}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
-    }
+      return this.createError('Value must be a number, groups format, or calculation formula', params);
+    });
   }
 
   /**
@@ -82,11 +68,7 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
       return { isValid: false };
     }
 
-    return {
-      isValid: true,
-      parsedValue: numericResult.value,
-      expectedFormat: this.generateExpectedFormat(params)
-    };
+    return this.createSuccess(numericResult.value, numericResult.value, params);
   }
 
   /**
@@ -105,11 +87,7 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
       // Require spaces between dots (reject legacy "....." styles)
       const matchedSeparator = match[0];
       if (!matchedSeparator.includes(' ')) {
-        return {
-          isValid: false,
-          error: 'Groups separator must include spaces between dots',
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError('Groups separator must include spaces between dots', params);
       }
       groups = value.split(separatorRegex);
     } else if (value.includes(groupSeparator)) {
@@ -119,11 +97,7 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
     }
 
     if (!groups || groups.length !== 2) {
-      return {
-        isValid: false,
-        error: `Expected exactly 2 groups separated by "${groupSeparator.trim()}"`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Expected exactly 2 groups separated by "${groupSeparator.trim()}"`, params);
     }
     const [group1Raw, group2Raw] = groups;
 
@@ -143,18 +117,10 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
     const group2Numbers = group2Result.parsedValue as number[];
 
     if (group1Numbers.length !== group2Numbers.length) {
-      return {
-        isValid: false,
-        error: `Both groups must have the same number of values. Group 1 has ${group1Numbers.length}, Group 2 has ${group2Numbers.length}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Both groups must have the same number of values. Group 1 has ${group1Numbers.length}, Group 2 has ${group2Numbers.length}`, params);
     }
 
-    return {
-      isValid: true,
-      parsedValue: { group1: group1Numbers, group2: group2Numbers },
-      expectedFormat: this.generateExpectedFormat(params)
-    };
+    return this.createSuccess({ group1: group1Numbers, group2: group2Numbers }, { group1: group1Numbers, group2: group2Numbers }, params);
   }
 
   /**
@@ -174,18 +140,10 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
 
       // The formula parser returns a FormulaParseResult with entries and totals
       // We return this as the parsedValue for the validation layer to use
-      return {
-        isValid: true,
-        parsedValue: result,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createSuccess(result, result, params);
     } catch (error) {
       // Formula parsing failed - return validation error
-      return {
-        isValid: false,
-        error: `Formula error: ${error.message}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Formula error: ${error.message}`, params);
     }
   }
 
@@ -195,11 +153,7 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
   private parseNumberGroup(groupText: string, numberSeparator: string, params: FloatOrGroupsParams, groupNum: number): ValidationResult & { parsedValue?: number[] } {
     // Group should end with comma
     if (!groupText.endsWith(numberSeparator)) {
-      return {
-        isValid: false,
-        error: `Group ${groupNum} must end with "${numberSeparator}"`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Group ${groupNum} must end with "${numberSeparator}"`, params);
     }
 
     // Remove trailing comma and split
@@ -212,11 +166,7 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
       const numberStr = numberStrings[i].trim();
 
       if (numberStr === '') {
-        return {
-          isValid: false,
-          error: `Empty number at position ${i + 1} in group ${groupNum}`,
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError(`Empty number at position ${i + 1} in group ${groupNum}`, params);
       }
 
       // Use strict numeric validation for group numbers
@@ -228,11 +178,7 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
       });
 
       if (!numericResult.isValid) {
-        return {
-          isValid: false,
-          error: `"${numberStr}" in group ${groupNum}: ${numericResult.error}`,
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError(`"${numberStr}" in group ${groupNum}: ${numericResult.error}`, params);
       }
 
       parsedNumbers.push(numericResult.value!);
@@ -246,19 +192,11 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
    */
   private validateRange(value: number, params: FloatOrGroupsParams, originalText: string): ValidationResult {
     if (params.min_value !== undefined && value < params.min_value) {
-      return {
-        isValid: false,
-        error: `"${originalText}" (${value}) is below minimum ${params.min_value}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`"${originalText}" (${value}) is below minimum ${params.min_value}`, params);
     }
 
     if (params.max_value !== undefined && value > params.max_value) {
-      return {
-        isValid: false,
-        error: `"${originalText}" (${value}) is above maximum ${params.max_value}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`"${originalText}" (${value}) is above maximum ${params.max_value}`, params);
     }
 
     return { isValid: true };
@@ -281,7 +219,7 @@ export class FloatOrGroupsTemplate implements ValidationTemplate {
   /**
    * Generate helpful format description for users
    */
-  private generateExpectedFormat(params: FloatOrGroupsParams): string {
+  protected generateExpectedFormat(params: FloatOrGroupsParams): string {
     const groupSeparator = params.group_separator || '. . . . . ';
     const numberSeparator = params.number_separator || ',';
 

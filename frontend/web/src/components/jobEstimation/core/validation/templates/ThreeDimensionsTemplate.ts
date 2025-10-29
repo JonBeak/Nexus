@@ -1,7 +1,8 @@
 // Three Dimensions validation template - handles X x Y x Z format for 3D dimensions
 // Used for backer products that require three dimensional specifications
 
-import { ValidationTemplate, ValidationResult } from './ValidationTemplate';
+import { ValidationResult } from './ValidationTemplate';
+import { BaseValidationTemplate } from './BaseValidationTemplate';
 import { validateNumericInput } from '../utils/numericValidation';
 
 export interface ThreeDimensionsParams {
@@ -13,16 +14,12 @@ export interface ThreeDimensionsParams {
   delimiter?: string;          // Delimiter for dimensions (default: "x")
 }
 
-export class ThreeDimensionsTemplate implements ValidationTemplate {
+export class ThreeDimensionsTemplate extends BaseValidationTemplate {
   async validate(value: string, params: ThreeDimensionsParams = {}): Promise<ValidationResult> {
-    try {
+    return this.wrapValidation(params, async () => {
       // Handle empty values
       if (!value || (typeof value === 'string' && value.trim() === '')) {
-        return {
-          isValid: false,
-          error: 'Value is required',
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError('Value is required', params);
       }
 
       const cleanValue = value.trim();
@@ -32,14 +29,7 @@ export class ThreeDimensionsTemplate implements ValidationTemplate {
       const dimensionsResult = this.parseAsThreeDimensions(cleanValue, delimiter, params);
 
       return dimensionsResult;
-
-    } catch (error) {
-      return {
-        isValid: false,
-        error: `Validation error: ${error.message}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
-    }
+    });
   }
 
   /**
@@ -54,11 +44,7 @@ export class ThreeDimensionsTemplate implements ValidationTemplate {
     const cleanParts = parts.map(part => part.trim()).filter(part => part !== '');
 
     if (cleanParts.length !== 3) {
-      return {
-        isValid: false,
-        error: `Expected exactly 3 dimensions separated by "${delimiter}" (e.g., "48${delimiter}24${delimiter}6")`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Expected exactly 3 dimensions separated by "${delimiter}" (e.g., "48${delimiter}24${delimiter}6")`, params);
     }
 
     const [xStr, yStr, zStr] = cleanParts;
@@ -73,11 +59,7 @@ export class ThreeDimensionsTemplate implements ValidationTemplate {
     });
 
     if (!xResult.isValid) {
-      return {
-        isValid: false,
-        error: `X dimension "${xStr}": ${xResult.error}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`X dimension "${xStr}": ${xResult.error}`, params);
     }
 
     parsedDimensions.push(xResult.value!);
@@ -91,11 +73,7 @@ export class ThreeDimensionsTemplate implements ValidationTemplate {
     });
 
     if (!yResult.isValid) {
-      return {
-        isValid: false,
-        error: `Y dimension "${yStr}": ${yResult.error}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Y dimension "${yStr}": ${yResult.error}`, params);
     }
 
     parsedDimensions.push(yResult.value!);
@@ -109,11 +87,7 @@ export class ThreeDimensionsTemplate implements ValidationTemplate {
     });
 
     if (!zResult.isValid) {
-      return {
-        isValid: false,
-        error: `Z dimension "${zStr}": ${zResult.error}`,
-        expectedFormat: this.generateExpectedFormat(params)
-      };
+      return this.createError(`Z dimension "${zStr}": ${zResult.error}`, params);
     }
 
     parsedDimensions.push(zResult.value!);
@@ -133,34 +107,22 @@ export class ThreeDimensionsTemplate implements ValidationTemplate {
       const normalizedY = Math.min(adjustedX, adjustedY);
 
       if (params.max_value_x !== undefined && normalizedX > params.max_value_x) {
-        return {
-          isValid: false,
-          error: `Adjusted X dimension (${normalizedX.toFixed(1)}") exceeds maximum ${params.max_value_x}"`,
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError(`Adjusted X dimension (${normalizedX.toFixed(1)}") exceeds maximum ${params.max_value_x}"`, params);
       }
 
       if (params.max_value_y !== undefined && normalizedY > params.max_value_y) {
-        return {
-          isValid: false,
-          error: `Adjusted Y dimension (${normalizedY.toFixed(1)}") exceeds maximum ${params.max_value_y}"`,
-          expectedFormat: this.generateExpectedFormat(params)
-        };
+        return this.createError(`Adjusted Y dimension (${normalizedY.toFixed(1)}") exceeds maximum ${params.max_value_y}"`, params);
       }
     }
 
     // Return as tuple [X, Y, Z]
-    return {
-      isValid: true,
-      parsedValue: parsedDimensions as [number, number, number],
-      expectedFormat: this.generateExpectedFormat(params)
-    };
+    return this.createSuccess(parsedDimensions as [number, number, number], parsedDimensions as [number, number, number], params);
   }
 
   /**
    * Generate helpful format description for users
    */
-  private generateExpectedFormat(params: ThreeDimensionsParams): string {
+  protected generateExpectedFormat(params: ThreeDimensionsParams): string {
     const delimiter = params.delimiter || 'x';
 
     let formatDesc = `Three dimensions in X${delimiter}Y${delimiter}Z format (e.g., "48${delimiter}24${delimiter}6")`;

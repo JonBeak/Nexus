@@ -1,28 +1,25 @@
 // LED Type validation template - validates LED type selection based on LED count
 // Should show error if LED type is selected but there are no LEDs
 
-import { ValidationTemplate, ValidationResult, ValidationContext } from './ValidationTemplate';
+import { ValidationResult, ValidationContext } from './ValidationTemplate';
 import { calculateChannelLetterMetrics, ChannelLetterMetrics } from '../utils/channelLetterParser';
 import { validateNumericInput } from '../utils/numericValidation';
+import { BaseValidationTemplate } from './BaseValidationTemplate';
 
 export type LedTypeParams = {
   led_count_field: string; // Which field contains LED count (e.g., 'field3' for Channel Letters, 'field1' for LED)
 };
 
-export class LedTypeTemplate implements ValidationTemplate {
+export class LedTypeTemplate extends BaseValidationTemplate {
   async validate(
     value: string,
     params: LedTypeParams = {},
     context?: ValidationContext
   ): Promise<ValidationResult> {
-    try {
+    return this.wrapValidation(params, async () => {
       // Handle empty values - always valid (no selection is fine)
       if (!value || (typeof value === 'string' && value.trim() === '')) {
-        return {
-          isValid: true,
-          parsedValue: null,
-          expectedFormat: 'LED type selection (optional when LEDs are present)'
-        };
+        return this.createSuccess(null, null, params);
       }
 
       const cleanValue = value.trim();
@@ -34,29 +31,16 @@ export class LedTypeTemplate implements ValidationTemplate {
       const ledCount = this.calculateLedCount(context, params.led_count_field);
 
       if (ledCount === 0) {
-        return {
-          isValid: false,
-          error: 'Cannot select LED type when there are no LEDs',
-          expectedFormat: 'LED type can only be selected when LEDs are present (field3 > 0)',
-          calculatedValue: { ledCount }
-        };
+        return this.createError('Cannot select LED type when there are no LEDs', params);
       }
 
       // If there are LEDs, any selection is valid
-      return {
-        isValid: true,
-        parsedValue: cleanValue,
-        calculatedValue: { ledCount },
-        expectedFormat: 'Any LED type (LEDs are present)'
-      };
+      return this.createSuccess(cleanValue, { ledCount }, params);
+    });
+  }
 
-    } catch (error) {
-      return {
-        isValid: false,
-        error: `Validation error: ${error.message}`,
-        expectedFormat: 'LED type selection (optional when LEDs are present)'
-      };
-    }
+  protected generateExpectedFormat(_params: LedTypeParams): string {
+    return 'LED type selection (optional when LEDs are present)';
   }
 
   /**

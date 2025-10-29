@@ -1,28 +1,25 @@
 // PS Type validation template - validates PS type selection based on PS count
 // Should show error if PS type is selected but there are no power supplies
 
-import { ValidationTemplate, ValidationResult, ValidationContext } from './ValidationTemplate';
+import { ValidationResult, ValidationContext } from './ValidationTemplate';
 import { calculateChannelLetterMetrics, ChannelLetterMetrics } from '../utils/channelLetterParser';
 import { validateNumericInput } from '../utils/numericValidation';
+import { BaseValidationTemplate } from './BaseValidationTemplate';
 
 export type PsTypeParams = {
   ps_count_field: string; // Which field contains PS count (e.g., 'field9' for Channel Letters, 'field4' for LED)
 };
 
-export class PsTypeTemplate implements ValidationTemplate {
+export class PsTypeTemplate extends BaseValidationTemplate {
   async validate(
     value: string,
     params: PsTypeParams = {},
     context?: ValidationContext
   ): Promise<ValidationResult> {
-    try {
+    return this.wrapValidation(params, async () => {
       // Handle empty values - always valid (no selection is fine)
       if (!value || (typeof value === 'string' && value.trim() === '')) {
-        return {
-          isValid: true,
-          parsedValue: null,
-          expectedFormat: 'PS type selection (optional when power supplies are present)'
-        };
+        return this.createSuccess(null, null, params);
       }
 
       const cleanValue = value.trim();
@@ -34,29 +31,16 @@ export class PsTypeTemplate implements ValidationTemplate {
       const psCount = this.calculatePsCount(context, params.ps_count_field);
 
       if (psCount === 0) {
-        return {
-          isValid: false,
-          error: 'Cannot select PS type when there are no power supplies',
-          expectedFormat: 'PS type can only be selected when power supplies are present (field9 > 0)',
-          calculatedValue: { psCount }
-        };
+        return this.createError('Cannot select PS type when there are no power supplies', params);
       }
 
       // If there are PSs, any selection is valid
-      return {
-        isValid: true,
-        parsedValue: cleanValue,
-        calculatedValue: { psCount },
-        expectedFormat: 'Any PS type (power supplies are present)'
-      };
+      return this.createSuccess(cleanValue, { psCount }, params);
+    });
+  }
 
-    } catch (error) {
-      return {
-        isValid: false,
-        error: `Validation error: ${error.message}`,
-        expectedFormat: 'PS type selection (optional when power supplies are present)'
-      };
-    }
+  protected generateExpectedFormat(_params: PsTypeParams): string {
+    return 'PS type selection (optional when power supplies are present)';
   }
 
   /**
