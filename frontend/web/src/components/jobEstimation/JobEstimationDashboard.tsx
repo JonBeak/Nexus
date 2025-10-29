@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowLeft, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import GridJobBuilderRefactored from './GridJobBuilderRefactored';
@@ -9,16 +9,16 @@ import { VersionManager } from './VersionManager';
 import { BreadcrumbNavigation } from './BreadcrumbNavigation';
 import { CustomerPreferencesPanel } from './CustomerPreferencesPanel';
 import CustomerDetailsModal from '../customers/CustomerDetailsModal';
-import { jobVersioningApi, customerApi, provincesApi, quickbooksApi } from '../../services/api';
-import { EstimateVersion } from './types';
+import { jobVersioningApi } from '../../services/api';
 import { getEstimateStatusText } from './utils/statusUtils';
-import { createCalculationOperations, EstimatePreviewData } from './core/layers/CalculationLayer';
-import { PricingCalculationContext } from './core/types/GridTypes';
-import { PreferencesCache, CustomerManufacturingPreferences } from './core/validation/context/useCustomerPreferences';
-import { validateCustomerPreferences } from './utils/customerPreferencesValidator';
-import { CustomerPreferencesData, CustomerPreferencesValidationResult } from './types/customerPreferences';
-import { Customer, User } from '../../types';
+import { User } from '../../types';
 import './JobEstimation.css';
+
+// Custom hooks
+import { useEstimateNavigation } from './hooks/useEstimateNavigation';
+import { useCustomerContext } from './hooks/useCustomerContext';
+import { useValidationOrchestration } from './hooks/useValidationOrchestration';
+import { useQuickBooksIntegration } from './hooks/useQuickBooksIntegration';
 
 interface JobEstimationDashboardProps {
   user: User;
@@ -27,50 +27,114 @@ interface JobEstimationDashboardProps {
 export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ user }) => {
   const navigate = useNavigate();
 
-  // 3-Panel state management
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
-  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
-  const [selectedEstimateId, setSelectedEstimateId] = useState<number | null>(null);
-  const [currentEstimate, setCurrentEstimate] = useState<EstimateVersion | null>(null);
-  const [isInBuilderMode, setIsInBuilderMode] = useState(false);
-  const [jobName, setJobName] = useState<string | null>(null);
-
-  // Customer context (consolidated into customerPreferencesData below)
-  const [taxRate, setTaxRate] = useState<number>(0.13);
-  const [fullCustomer, setFullCustomer] = useState<Customer | null>(null);
-
-  // Customer preferences - received from GridJobBuilder (single source of truth)
-  const [customerPreferences, setCustomerPreferences] = useState<CustomerManufacturingPreferences | null>(null);
-
-  // Customer preferences panel state
-  const [customerPreferencesData, setCustomerPreferencesData] = useState<CustomerPreferencesData | null>(null);
-  const [preferencesValidationResult, setPreferencesValidationResult] = useState<CustomerPreferencesValidationResult | null>(null);
-
-  // Customer edit modal state
-  const [showEditCustomerModal, setShowEditCustomerModal] = useState(false);
-
-  // Validation state
-  const [hasValidationErrors, setHasValidationErrors] = useState(false);
-  const [validationErrorCount, setValidationErrorCount] = useState(0);
-
-  // Validation results and price calculation state
-  const [pricingContext, setPricingContext] = useState<PricingCalculationContext | null>(null);
-  const [estimatePreviewData, setEstimatePreviewData] = useState<EstimatePreviewData | null>(null);
-
-  // Grid data version tracking (for auto-save orchestration)
-  const [gridDataVersion, setGridDataVersion] = useState(0);
-
   // Navigation guard from GridJobBuilder
   const [navigationGuard, setNavigationGuard] = useState<((fn: () => void) => void) | null>(null);
 
   // Cross-component hover state for row highlighting
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
-  // QuickBooks integration state
-  const [qbConnected, setQbConnected] = useState(false);
-  const [qbRealmId, setQbRealmId] = useState<string | null>(null);
-  const [qbCheckingStatus, setQbCheckingStatus] = useState(true);
-  const [qbCreatingEstimate, setQbCreatingEstimate] = useState(false);
 
+  /**
+   * Temporary notification handler - logs to console
+   * NOTE: Replace with proper toast notification system when implementing UI notifications
+   * Expected integration: React Toast library or custom notification component
+   */
+  const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
+    // TODO: Implement proper toast notification system
+  };
+
+  // Customer context hook
+  const {
+    taxRate,
+    fullCustomer,
+    customerPreferencesData,
+    preferencesValidationResult,
+    showEditCustomerModal,
+    setCustomerPreferencesData,
+    setPreferencesValidationResult,
+    reloadCustomerData,
+    handleEditCustomer,
+    handleCloseEditCustomerModal
+  } = useCustomerContext();
+
+  // Navigation hook
+  const {
+    selectedCustomerId,
+    selectedJobId,
+    selectedEstimateId,
+    currentEstimate,
+    isInBuilderMode,
+    jobName,
+    setSelectedCustomerId,
+    setSelectedJobId,
+    setSelectedEstimateId,
+    setCurrentEstimate,
+    setIsInBuilderMode,
+    setJobName,
+    handleCustomerSelected,
+    handleJobSelected,
+    handleCreateNewJob,
+    handleVersionSelected: baseHandleVersionSelected,
+    handleCreateNewVersion,
+    handleBackToVersions
+  } = useEstimateNavigation({
+    onCustomerDataReload: reloadCustomerData,
+    showNotification
+  });
+
+  // Validation orchestration hook
+  const {
+    hasValidationErrors,
+    validationErrorCount,
+    estimatePreviewData,
+    handlePreferencesLoaded,
+    handleGridDataChange,
+    handleValidationChange
+  } = useValidationOrchestration({
+    isInBuilderMode,
+    selectedEstimateId,
+    isDraft: currentEstimate?.is_draft ?? false,
+    customerPreferencesData,
+    setCustomerPreferencesData,
+    setPreferencesValidationResult
+  });
+
+  // QuickBooks integration hook
+  const {
+    qbConnected,
+    qbCheckingStatus,
+    qbCreatingEstimate,
+    handleCreateQuickBooksEstimate,
+    handleOpenQuickBooksEstimate,
+    handleConnectToQuickBooks,
+    handleDisconnectFromQuickBooks
+  } = useQuickBooksIntegration({
+    currentEstimate,
+    estimatePreviewData,
+    onEstimateUpdate: setCurrentEstimate
+  });
+
+  const handleApproveEstimate = async () => {
+    if (!currentEstimate) return;
+
+    if (!window.confirm('Mark this estimate as approved? This action can be reversed.')) {
+      return;
+    }
+
+    try {
+      await jobVersioningApi.approveEstimate(currentEstimate.id);
+
+      // Update current estimate with approved flag
+      setCurrentEstimate({
+        ...currentEstimate,
+        is_approved: true
+      });
+
+      showNotification('Estimate marked as approved', 'success');
+    } catch (error) {
+      console.error('Failed to approve estimate:', error);
+      showNotification('Failed to approve estimate', 'error');
+    }
+  };
 
   // Dynamic viewport control - enable zoom out only in builder mode
   useEffect(() => {
@@ -99,320 +163,6 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
     };
   }, []);
 
-  // Check QuickBooks connection status on mount
-  useEffect(() => {
-    checkQBConnectionStatus();
-  }, []);
-
-  const checkQBConnectionStatus = async () => {
-    try {
-      setQbCheckingStatus(true);
-      const status = await quickbooksApi.getStatus();
-      setQbConnected(status.connected);
-      setQbRealmId(status.realmId || null);
-    } catch (error) {
-      console.error('Error checking QB status:', error);
-      setQbConnected(false);
-    } finally {
-      setQbCheckingStatus(false);
-    }
-  };
-
-  // Reusable function to reload complete customer data (name, cash flag, tax rate, discount, turnaround)
-  // Used by: breadcrumb navigation, handleVersionSelected
-  const reloadCustomerData = useCallback(async (customerId: number) => {
-    try {
-      const customer = await customerApi.getCustomer(customerId);
-      setFullCustomer(customer);
-
-      // Get tax rate from billing address (or primary as fallback)
-      const billingAddress = customer.addresses?.find((a: any) => a.is_billing);
-      const addressToUse = billingAddress || customer.addresses?.find((a: any) => a.is_primary);
-
-      // Extract postal code from primary address
-      const primaryAddress = customer.addresses?.find((a: any) => a.is_primary);
-      const postalCode = primaryAddress?.postal_zip;
-
-      if (!addressToUse) {
-        setTaxRate(1.0); // 100% = ERROR: no billing or primary address
-      } else if (addressToUse.tax_override_percent != null) {
-        setTaxRate(addressToUse.tax_override_percent);
-      } else if (addressToUse.province_state_short) {
-        const taxInfo = await provincesApi.getTaxInfo(addressToUse.province_state_short);
-        setTaxRate(taxInfo?.tax_percent ?? 1.0); // 100% = ERROR: lookup failed
-      } else {
-        setTaxRate(1.0); // 100% = ERROR: no province
-      }
-
-      // Build customer preferences data for panel
-      // Note: preferences will be populated by GridJobBuilder via handlePreferencesLoaded callback
-      setCustomerPreferencesData({
-        customerId: customer.customer_id,
-        customerName: customer.company_name || '',
-        cashCustomer: customer.cash_yes_or_no === 1,
-        discount: customer.discount,
-        defaultTurnaround: customer.default_turnaround,
-        postalCode: postalCode,
-        preferences: null // Will be set by GridJobBuilder callback to avoid stale data
-      });
-    } catch (error) {
-      console.error('Error fetching customer data:', error);
-      setTaxRate(1.0); // 100% = ERROR
-    }
-  }, []); // Empty deps - only uses stable state setters and external APIs
-
-  // 3-Panel handlers
-  const handleCustomerSelected = async (customerId: number | null) => {
-    setSelectedCustomerId(customerId);
-
-    // Reset downstream selections if customer changes
-    if (customerId !== selectedCustomerId) {
-      setSelectedJobId(null);
-      setSelectedEstimateId(null);
-      setCurrentEstimate(null);
-      setIsInBuilderMode(false);
-    }
-
-    // Note: Customer data loading removed - only loads when estimate is opened for editing
-    // This keeps 3-panel navigation lightweight (just filtering, no data loading)
-  };
-
-  const handleJobSelected = async (jobId: number) => {
-    setSelectedJobId(jobId);
-    
-    // Reset downstream selections
-    setSelectedEstimateId(null);
-    setCurrentEstimate(null);
-    setIsInBuilderMode(false);
-    
-    // Get job name for display
-    try {
-      const response = await jobVersioningApi.getJobDetails(jobId);
-      setJobName(response.data?.job_name || null);
-    } catch (error) {
-      console.error('Error fetching job name:', error);
-    }
-  };
-
-  const handleCreateNewJob = async (jobName: string) => {
-    if (!selectedCustomerId) return;
-    
-    try {
-      const response = await jobVersioningApi.createJob({
-        customer_id: selectedCustomerId,
-        job_name: jobName
-      });
-      
-      // Select the newly created job
-      await handleJobSelected(response.data.job_id);
-      showNotification('Job created successfully');
-    } catch (error) {
-      console.error('Error creating job:', error);
-      showNotification('Failed to create job', 'error');
-      throw error;
-    }
-  };
-
-  const handleVersionSelected = async (estimateId: number) => {
-    try {
-      // Load the estimate version details
-      const versions = await jobVersioningApi.getEstimateVersions(selectedJobId!);
-      const estimate = versions.data?.find((v: EstimateVersion) => v.id === estimateId);
-
-      if (estimate) {
-        const estimateCustomerId = estimate.customer_id ?? selectedCustomerId ?? null;
-
-        // ALWAYS load customer context when opening estimate for editing
-        // This ensures consistent behavior regardless of navigation path
-        if (estimateCustomerId) {
-          // IMPORTANT: Load customer data BEFORE setting selectedCustomerId
-          // This avoids race condition where preferences hook triggers before customerPreferencesData is initialized
-          await reloadCustomerData(estimateCustomerId);
-          setSelectedCustomerId(estimateCustomerId);
-        }
-
-        setSelectedEstimateId(estimateId);
-        setCurrentEstimate({
-          ...estimate,
-          customer_id: estimateCustomerId
-        });
-        setIsInBuilderMode(true);
-      }
-    } catch (error) {
-      console.error('Error loading estimate version:', error);
-      showNotification('Failed to load estimate version', 'error');
-    }
-  };
-
-  const handleCreateNewVersion = async (parentId?: number) => {
-    if (!selectedJobId) return;
-    
-    try {
-      const response = await jobVersioningApi.createEstimateVersion(
-        selectedJobId,
-        parentId ? { parent_estimate_id: parentId } : {}
-      );
-      
-      // Automatically select the new version
-      await handleVersionSelected(response.data.estimate_id);
-      showNotification('New version created successfully');
-    } catch (error) {
-      console.error('Error creating new version:', error);
-      showNotification('Failed to create new version', 'error');
-    }
-  };
-
-  const handleBackToVersions = () => {
-    setIsInBuilderMode(false);
-    setCurrentEstimate(null);
-  };
-
-
-  /**
-   * Temporary notification handler - logs to console
-   * NOTE: Replace with proper toast notification system when implementing UI notifications
-   * Expected integration: React Toast library or custom notification component
-   */
-  const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
-    // TODO: Implement proper toast notification system
-  };
-
-  // Handle opening customer edit modal
-  const handleEditCustomer = () => {
-    setShowEditCustomerModal(true);
-  };
-
-  // Handle closing customer edit modal and refresh data
-  const handleCloseEditCustomerModal = async () => {
-    setShowEditCustomerModal(false);
-
-    // Refresh customer data and preferences
-    if (selectedCustomerId) {
-      // Clear preferences cache to force fresh fetch
-      PreferencesCache.clearCustomer(selectedCustomerId);
-
-      // Reload customer data
-      await reloadCustomerData(selectedCustomerId);
-
-      // Note: Preferences will be refetched automatically by GridJobBuilder's hook
-      // due to the cache clear above. This will trigger re-validation via the callback.
-    }
-  };
-
-  // Handle preferences loaded from GridJobBuilder (single source of truth)
-  const handlePreferencesLoaded = useCallback((preferences: CustomerManufacturingPreferences | null) => {
-    setCustomerPreferences(preferences);
-
-    // Always update customerPreferencesData with new preferences using functional setState
-    // This ensures preferences get set even if customerPreferencesData was temporarily null
-    setCustomerPreferencesData(prev => prev ? {
-      ...prev,
-      preferences: preferences
-    } : null);
-  }, []); // Empty deps - stable callback reference, no recreations
-
-  // Handle grid data changes from GridJobBuilder (for auto-save orchestration)
-  const handleGridDataChange = useCallback((version: number) => {
-    setGridDataVersion(version);
-  }, []);
-
-  // Handle validation results and trigger price calculation
-  const handleValidationChange = useCallback((hasErrors: boolean, errorCount: number, context?: PricingCalculationContext) => {
-    setHasValidationErrors(hasErrors);
-    setValidationErrorCount(errorCount);
-    setPricingContext(context || null);
-  }, []);
-
-  // Price calculation effect - triggers when validation completes
-  useEffect(() => {
-    const calculatePricing = async () => {
-      if (pricingContext) {
-        try {
-          const calculationOps = createCalculationOperations();
-          const calculated = await calculationOps.calculatePricing(pricingContext);
-          setEstimatePreviewData(calculated);
-        } catch (error) {
-          console.error('Error calculating pricing:', error);
-          setEstimatePreviewData(null);
-        }
-      } else {
-        setEstimatePreviewData(null);
-      }
-    };
-
-    calculatePricing();
-  }, [pricingContext]);
-
-  // Auto-save effect - triggers when BOTH grid data changes AND calculation completes
-  // This eliminates race condition: save only happens after calculation finishes
-  useEffect(() => {
-    // Skip if not in builder mode with a draft estimate
-    if (!isInBuilderMode || !selectedEstimateId || !currentEstimate?.is_draft) return;
-
-    // Skip if no data to save
-    if (!estimatePreviewData) return;
-
-    // Skip if no grid changes yet (initial load)
-    if (gridDataVersion === 0) return;
-
-    // Debounce: Wait a bit after calculation completes before saving
-    const saveTimer = setTimeout(async () => {
-      try {
-        // Get simplified rows from GridEngine
-        const gridEngine = (window as any).gridEngineTestAccess;
-        if (!gridEngine) {
-          console.warn('[Dashboard] GridEngine not available for auto-save');
-          return;
-        }
-
-        const coreRows = gridEngine.getRows();
-
-        // Convert to simplified structure
-        const simplifiedRows = coreRows.map((row: any) => ({
-          rowType: row.rowType || 'main',
-          productTypeId: row.productTypeId || null,
-          productTypeName: row.productTypeName || null,
-          qty: row.data?.quantity || '',
-          field1: row.data?.field1 || '',
-          field2: row.data?.field2 || '',
-          field3: row.data?.field3 || '',
-          field4: row.data?.field4 || '',
-          field5: row.data?.field5 || '',
-          field6: row.data?.field6 || '',
-          field7: row.data?.field7 || '',
-          field8: row.data?.field8 || '',
-          field9: row.data?.field9 || '',
-          field10: row.data?.field10 || ''
-        }));
-
-        // Save with calculated total (no race condition!)
-        await jobVersioningApi.saveGridData(
-          selectedEstimateId,
-          simplifiedRows,
-          estimatePreviewData.total
-        );
-      } catch (error) {
-        console.error('[Dashboard] Auto-save failed:', error);
-      }
-    }, 300); // Small debounce after calculation completes
-
-    return () => clearTimeout(saveTimer);
-  }, [estimatePreviewData, gridDataVersion, isInBuilderMode, selectedEstimateId, currentEstimate]);
-
-  // Run preferences validation when estimate preview data updates
-  useEffect(() => {
-    if (estimatePreviewData && customerPreferences) {
-      const validationResult = validateCustomerPreferences(
-        estimatePreviewData,
-        customerPreferences,
-        customerPreferencesData?.discount
-      );
-      setPreferencesValidationResult(validationResult);
-    } else {
-      setPreferencesValidationResult(null);
-    }
-  }, [estimatePreviewData, customerPreferences, customerPreferencesData?.discount]);
-
   if (!user || (user.role !== 'manager' && user.role !== 'owner')) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -429,159 +179,6 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
       </div>
     );
   }
-
-
-  // QuickBooks handlers
-  const handleCreateQuickBooksEstimate = async () => {
-    if (!currentEstimate || !estimatePreviewData) {
-      alert('No estimate data available.');
-      return;
-    }
-
-    if (!currentEstimate.is_draft) {
-      alert('Only draft estimates can be sent to QuickBooks.');
-      return;
-    }
-
-    if (!qbConnected) {
-      alert('Not connected to QuickBooks. Please connect first.');
-      return;
-    }
-
-    // Confirm finalization
-    const confirmed = window.confirm(
-      '⚠️ This will FINALIZE the estimate and make it IMMUTABLE.\n\n' +
-      'The estimate will be locked from further edits and sent to QuickBooks.\n\n' +
-      'Continue?'
-    );
-    if (!confirmed) return;
-
-    try {
-      setQbCreatingEstimate(true);
-
-      const result = await quickbooksApi.createEstimate({
-        estimateId: currentEstimate.id,
-        estimatePreviewData: estimatePreviewData,
-      });
-
-      if (result.success && result.qbEstimateUrl) {
-        // Update local state to reflect finalization
-        setCurrentEstimate({
-          ...currentEstimate,
-          is_draft: false,
-          status: 'sent',
-          qb_estimate_id: result.qbEstimateId,
-          qb_estimate_url: result.qbEstimateUrl,
-        });
-
-        alert(
-          `✅ Success!\n\n` +
-          `Estimate finalized and sent to QuickBooks.\n` +
-          `QB Document #: ${result.qbDocNumber}\n\n` +
-          `Opening in QuickBooks...`
-        );
-
-        // Open QB estimate in new tab
-        window.open(result.qbEstimateUrl, '_blank');
-      } else {
-        alert(`❌ Failed to create estimate:\n\n${result.error || 'Unknown error'}`);
-      }
-    } catch (error: any) {
-      console.error('Error creating QB estimate:', error);
-      const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
-      alert(`❌ Error creating estimate in QuickBooks:\n\n${errorMsg}`);
-    } finally {
-      setQbCreatingEstimate(false);
-    }
-  };
-
-  const handleOpenQuickBooksEstimate = () => {
-    if (currentEstimate?.qb_estimate_url) {
-      window.open(currentEstimate.qb_estimate_url, '_blank');
-    } else if (currentEstimate?.qb_estimate_id && qbRealmId) {
-      // Build URL from ID if URL not stored (backward compatibility)
-      const url = `https://qbo.intuit.com/app/estimate?txnId=${currentEstimate.qb_estimate_id}`;
-      window.open(url, '_blank');
-    }
-  };
-
-  const handleConnectToQuickBooks = async () => {
-    try {
-      // Check if credentials are configured first
-      const configStatus = await quickbooksApi.getConfigStatus();
-
-      if (!configStatus.configured) {
-        alert('QuickBooks credentials not configured. Please contact administrator.');
-        return;
-      }
-
-      // Open OAuth window
-      await quickbooksApi.startAuth();
-
-      // Poll for connection status (OAuth happens in popup)
-      const pollInterval = setInterval(async () => {
-        try {
-          const status = await quickbooksApi.getStatus();
-          if (status.connected) {
-            setQbConnected(true);
-            setQbRealmId(status.realmId || null);
-            clearInterval(pollInterval);
-            // Success message already shown in OAuth callback page
-          }
-        } catch (error) {
-          console.error('Error polling QB status:', error);
-        }
-      }, 2000); // Check every 2 seconds
-
-      // Stop polling after 2 minutes
-      setTimeout(() => clearInterval(pollInterval), 120000);
-
-    } catch (error) {
-      console.error('Error connecting to QuickBooks:', error);
-      alert('Failed to connect to QuickBooks. Please try again.');
-    }
-  };
-
-  const handleDisconnectFromQuickBooks = async () => {
-    if (!confirm('Disconnect from QuickBooks? You will need to reconnect to create estimates.')) {
-      return;
-    }
-
-    try {
-      const result = await quickbooksApi.disconnect();
-      if (result.success) {
-        setQbConnected(false);
-        setQbRealmId(null);
-        alert('✅ Disconnected from QuickBooks');
-      }
-    } catch (error) {
-      console.error('Error disconnecting from QuickBooks:', error);
-      alert('Failed to disconnect. Please try again.');
-    }
-  };
-
-  const handleApproveEstimate = async () => {
-    if (!currentEstimate) return;
-
-    if (!window.confirm('Mark this estimate as approved? This action can be reversed.')) {
-      return;
-    }
-
-    try {
-      await jobVersioningApi.approveEstimate(currentEstimate.id);
-
-      // Update current estimate with approved flag
-      setCurrentEstimate({
-        ...currentEstimate,
-        is_approved: true
-      });
-
-      showNotification('Estimate marked as approved', 'success');
-    } catch (error) {
-      console.error('Failed to approve estimate:', error);
-      showNotification('Failed to approve estimate', 'error');
-    }
-  };
 
   const render3PanelWorkflow = () => {
     // Show builder mode if estimate is selected
@@ -622,7 +219,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
                 setCurrentEstimate(null);
                 // Keep: selectedCustomerId, selectedJobId, jobName, customerPreferencesData (preserve customer + job context)
               };
-              
+
               if (navigationGuard) {
                 navigationGuard(navAction);
               } else {
@@ -637,7 +234,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
                 setCurrentEstimate(null);
                 // Keep: selectedCustomerId, selectedJobId, jobName, customerPreferencesData (preserve all context)
               };
-              
+
               if (navigationGuard) {
                 navigationGuard(navAction);
               } else {
@@ -714,7 +311,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
         </div>
       );
     }
-    
+
     // Show 3-panel layout
     return (
       <div className="three-panel-container">
@@ -733,7 +330,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
           <VersionManager
             jobId={selectedJobId}
             currentEstimateId={selectedEstimateId}
-            onVersionSelected={handleVersionSelected}
+            onVersionSelected={baseHandleVersionSelected}
             onCreateNewVersion={handleCreateNewVersion}
             user={user}
           />
@@ -772,7 +369,6 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
             </button>
             <h1 className="text-2xl font-bold text-gray-900">Job Estimation</h1>
           </div>
-
         </div>
 
         {/* Content Area */}
@@ -785,7 +381,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
       {showEditCustomerModal && fullCustomer && (
         <CustomerDetailsModal
           customer={fullCustomer}
-          onClose={handleCloseEditCustomerModal}
+          onClose={() => handleCloseEditCustomerModal(selectedCustomerId)}
         />
       )}
     </div>
