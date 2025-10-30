@@ -67,7 +67,6 @@ export interface GridJobBuilderProps {
   estimate: EstimateVersion;
   isCreatingNew: boolean;
   onEstimateChange: (estimate: EstimateVersion) => void;
-  showNotification: (message: string, type?: 'success' | 'error') => void;
   customerId?: number | null;
   // NEW: Customer context for pricing calculations
   customerName?: string | null;

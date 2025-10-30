@@ -13,7 +13,6 @@ interface UseGridDataLoaderParams {
   templatesLoaded: boolean;
   estimateId: number | undefined;
   gridEngine: GridEngine;
-  showNotification?: (message: string, type?: 'success' | 'error') => void;
 }
 
 /**
@@ -28,7 +27,6 @@ export const useGridDataLoader = ({
   templatesLoaded,
   estimateId,
   gridEngine,
-  showNotification
 }: UseGridDataLoaderParams): void => {
   // Load initial data - wait for templates to be loaded first
   useEffect(() => {
@@ -87,9 +85,6 @@ export const useGridDataLoader = ({
         console.error('Failed to load estimate data:', error);
         // Don't create fallback data - show error to user instead
         // This prevents auto-save from potentially overwriting real data
-        if (showNotification) {
-          showNotification('Failed to load estimate data. Please refresh the page.', 'error');
-        }
         // Leave grid empty rather than risk overwriting data
       }
     };

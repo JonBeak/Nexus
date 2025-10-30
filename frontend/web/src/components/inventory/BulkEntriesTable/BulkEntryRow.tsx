@@ -108,6 +108,7 @@ export const BulkEntryRow: React.FC<BulkEntryRowProps> = ({
           name={`${entry.id}-width`}
           onTab={() => onTabPress('width')}
           onSuggestionsNeeded={onSuggestionsNeeded}
+          disabled={USE_AUTOFILL_TYPES.has(entry.type)}
         />
       </td>
 
@@ -124,6 +125,7 @@ export const BulkEntryRow: React.FC<BulkEntryRowProps> = ({
             name={`${entry.id}-length_yards`}
             onTab={() => onTabPress('length_yards')}
             onSuggestionsNeeded={onSuggestionsNeeded}
+            disabled={true}
           />
         ) : (
           <input

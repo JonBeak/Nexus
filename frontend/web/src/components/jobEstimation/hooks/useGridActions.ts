@@ -19,7 +19,6 @@ interface UseGridActionsParams {
   fieldPromptsMap: Record<number, Record<string, string | boolean>>;
   versioningMode: boolean;
   estimateId: number | undefined;
-  showNotification?: (message: string, type?: 'success' | 'error') => void;
   estimatePreviewData?: { total: number } | null;
 
   // Modal state setters
@@ -62,7 +61,6 @@ export const useGridActions = ({
   fieldPromptsMap,
   versioningMode,
   estimateId,
-  showNotification,
   estimatePreviewData,
   setShowClearConfirmation,
   setClearModalType,
@@ -109,7 +107,7 @@ export const useGridActions = ({
 
     gridEngine.updateSingleRow(row.id, clearedFieldData);
     gridEngine.updateRowProductType(row.id, productTypeId, productTypeName);
-  }, [displayRows, gridEngine, productTypes, fieldPromptsMap, showNotification]);
+  }, [displayRows, gridEngine, productTypes, fieldPromptsMap]);
 
   const handleInsertRow = useCallback((afterIndex: number) => {
     gridEngine.insertRow(afterIndex, 'main');
@@ -280,13 +278,11 @@ export const useGridActions = ({
       try {
         await jobVersioningApi.resetEstimateItems(estimateId);
         await gridEngine.reloadFromBackend(estimateId, jobVersioningApi);
-        showNotification?.('Grid reset to default template', 'success');
       } catch (error) {
         console.error('Reset failed:', error);
-        showNotification?.('Failed to reset grid. Please try again.', 'error');
       }
     }
-  }, [versioningMode, estimateId, gridEngine, showNotification, setShowClearConfirmation, setClearModalType]);
+  }, [versioningMode, estimateId, gridEngine, setShowClearConfirmation, setClearModalType]);
 
   const handleClearAll = useCallback(async () => {
     setShowClearConfirmation(false);
@@ -296,13 +292,11 @@ export const useGridActions = ({
       try {
         await jobVersioningApi.clearAllEstimateItems(estimateId);
         await gridEngine.reloadFromBackend(estimateId, jobVersioningApi);
-        showNotification?.('All items cleared', 'success');
       } catch (error) {
         console.error('Clear all failed:', error);
-        showNotification?.('Failed to clear all items. Please try again.', 'error');
       }
     }
-  }, [versioningMode, estimateId, gridEngine, showNotification, setShowClearConfirmation, setClearModalType]);
+  }, [versioningMode, estimateId, gridEngine, setShowClearConfirmation, setClearModalType]);
 
   const handleClearEmpty = useCallback(async () => {
     setShowClearConfirmation(false);
@@ -312,26 +306,22 @@ export const useGridActions = ({
       try {
         await jobVersioningApi.clearEmptyItems(estimateId);
         await gridEngine.reloadFromBackend(estimateId, jobVersioningApi);
-        showNotification?.('Empty rows cleared', 'success');
       } catch (error) {
         console.error('Clear empty failed:', error);
-        showNotification?.('Failed to clear empty rows. Please try again.', 'error');
       }
     }
-  }, [versioningMode, estimateId, gridEngine, showNotification, setShowClearConfirmation, setClearModalType]);
+  }, [versioningMode, estimateId, gridEngine, setShowClearConfirmation, setClearModalType]);
 
   const handleAddSection = useCallback(async () => {
     if (versioningMode && estimateId) {
       try {
         await jobVersioningApi.addTemplateSection(estimateId);
         await gridEngine.reloadFromBackend(estimateId, jobVersioningApi);
-        showNotification?.('Template section added', 'success');
       } catch (error) {
         console.error('Add section failed:', error);
-        showNotification?.('Failed to add template section. Please try again.', 'error');
       }
     }
-  }, [versioningMode, estimateId, gridEngine, showNotification]);
+  }, [versioningMode, estimateId, gridEngine]);
 
   // Manual save
   const handleManualSave = useCallback(async () => {
@@ -364,12 +354,10 @@ export const useGridActions = ({
       // Save grid data with total
       await jobVersioningApi.saveGridData(estimateId, simplifiedRows, total);
       gridEngine.markAsSaved();
-      showNotification?.('Grid saved successfully', 'success');
     } catch (error) {
       console.error('Save error:', error);
-      showNotification?.('Failed to save grid', 'error');
     }
-  }, [estimateId, gridEngine, showNotification, estimatePreviewData]);
+  }, [estimateId, gridEngine, estimatePreviewData]);
 
   return {
     handleFieldCommit,

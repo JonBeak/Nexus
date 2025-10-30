@@ -44,6 +44,12 @@ export function processFieldChange(
       updates.location = '';
     }
 
+    // Clear width and length when changing to a usage mode (since they're now disabled and must come from specific vinyl)
+    if (USE_AUTOFILL_TYPES.has(value as BulkEntry['type'])) {
+      updates.width = '';
+      updates.length_yards = '';
+    }
+
     const prefix = getNotePlaceholder(value as BulkEntry['type']);
     const currentNotes = entry.notes || '';
     const startsWithPrefix = FIELD_CONFIG.TYPE_PREFIXES.some(p => currentNotes.startsWith(p));
@@ -104,14 +110,30 @@ export function processVinylProductChange(
   };
 
   const isClearingSelection = !value.brand && !value.series && !value.colour_number && !value.colour_name;
-  if (isClearingSelection) {
+
+  // Check if vinyl specifications have changed (brand, series, or colour)
+  const specsChanged =
+    entry.brand !== value.brand ||
+    entry.series !== value.series ||
+    entry.colour_number !== value.colour_number ||
+    entry.colour_name !== value.colour_name;
+
+  // Clear specific vinyl selection if clearing or if specifications changed
+  if (isClearingSelection || specsChanged) {
     baseUpdates.specific_vinyl_id = undefined;
+
+    // In usage modes, also clear width and length when specific vinyl is deselected
+    if (['use', 'waste', 'returned', 'damaged'].includes(entry.type)) {
+      baseUpdates.width = '';
+      baseUpdates.length_yards = '';
+    }
   }
 
   const updatedEntry = { ...entry, ...baseUpdates };
 
-  // Auto-fill width if only one option
-  if (!isClearingSelection && !updatedEntry.width?.trim()) {
+  // Auto-fill width if only one option (but not in usage modes where it must come from specific vinyl)
+  const isUsageMode = ['use', 'waste', 'returned', 'damaged'].includes(entry.type);
+  if (!isClearingSelection && !isUsageMode && !updatedEntry.width?.trim()) {
     const widthSuggestions = getBulkSuggestions('', 'width', updatedEntry, vinylItems, bulkAutofillSuggestions);
     if (widthSuggestions.length === 1) {
       baseUpdates.width = widthSuggestions[0];

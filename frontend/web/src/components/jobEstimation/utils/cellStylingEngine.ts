@@ -88,10 +88,9 @@ export class CellStylingEngine {
       name: 'assembly_item_accent',
       description: 'Subtle accent for assembly-related fields',
       condition: (row, field, value) => {
-        if (!value || row.data?.assemblyGroup === undefined) return false;
-        // Add subtle accent to fields in assembly groups
-        // TODO: Re-implement assembly styling with unified product system
-        return false; // Disable assembly styling temporarily
+        // Assembly styling disabled - feature not being implemented
+        // Future: Re-implement if assembly system is added to product roadmap
+        return false;
       },
       backgroundClass: 'bg-slate-50',
       textClass: 'text-slate-700',

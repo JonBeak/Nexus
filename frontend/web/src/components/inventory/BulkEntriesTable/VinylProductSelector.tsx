@@ -34,6 +34,33 @@ export const VinylProductSelector: React.FC<VinylProductSelectorProps> = ({
   onSuggestionsNeeded
 }) => {
   const [specificSelectorOpen, setSpecificSelectorOpen] = React.useState(false);
+  const prevSpecsRef = React.useRef({ brand: '', series: '', colour_number: '', colour_name: '' });
+
+  // Auto-open specific selector when vinyl specifications are complete
+  React.useEffect(() => {
+    const shouldAutoOpen = ['use', 'waste', 'returned', 'damaged'].includes(entry.type) &&
+      entry.brand && entry.series && (entry.colour_number || entry.colour_name);
+
+    // Check if specifications have changed
+    const specsChanged =
+      prevSpecsRef.current.brand !== entry.brand ||
+      prevSpecsRef.current.series !== entry.series ||
+      prevSpecsRef.current.colour_number !== entry.colour_number ||
+      prevSpecsRef.current.colour_name !== entry.colour_name;
+
+    // Update ref
+    prevSpecsRef.current = {
+      brand: entry.brand || '',
+      series: entry.series || '',
+      colour_number: entry.colour_number || '',
+      colour_name: entry.colour_name || ''
+    };
+
+    // Auto-open modal if conditions met and specs just changed
+    if (shouldAutoOpen && specsChanged && !specificSelectorOpen) {
+      setSpecificSelectorOpen(true);
+    }
+  }, [entry.type, entry.brand, entry.series, entry.colour_number, entry.colour_name, specificSelectorOpen]);
 
   const handleOpenSpecificSelector = () => {
     if (entry.brand && entry.series && (entry.colour_number || entry.colour_name)) {

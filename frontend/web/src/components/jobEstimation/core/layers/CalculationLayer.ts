@@ -114,8 +114,28 @@ export const createCalculationOperations = (): CalculationOperations => {
         }
       }
 
-      // TODO: Calculate estimatePreviewDisplayNumbers here later
-      // assignEstimateDisplayNumbers(items);
+      // Assign preview display numbers to components
+      // Components from the same row get letter suffixes: 1, 1a, 1b, 1c, 1d
+      const itemsByRow: Map<string, EstimateLineItem[]> = new Map();
+      items.forEach(item => {
+        const rowItems = itemsByRow.get(item.inputGridDisplayNumber) || [];
+        rowItems.push(item);
+        itemsByRow.set(item.inputGridDisplayNumber, rowItems);
+      });
+
+      // Assign numbers: first component gets row number, rest get letters
+      itemsByRow.forEach((rowItems, rowNumber) => {
+        rowItems.forEach((item, index) => {
+          if (index === 0) {
+            // First component: use row number directly
+            item.estimatePreviewDisplayNumber = rowNumber;
+          } else {
+            // Subsequent components: add letter suffix (a, b, c, ...)
+            const letter = String.fromCharCode(96 + index); // 97='a', 98='b', etc.
+            item.estimatePreviewDisplayNumber = `${rowNumber}${letter}`;
+          }
+        });
+      });
 
       // Apply Special Items Post-Processing ONLY if there are no blocking validation errors
       // If validation errors exist, skip post-processing to avoid incorrect calculations

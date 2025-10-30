@@ -40,7 +40,6 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
   user,
   estimate,
   isCreatingNew,
-  showNotification,
   customerId,
   customerName,
   cashCustomer,
@@ -96,13 +95,9 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
     const config: GridEngineConfig = {
       productTypes: [], // Will be populated when useProductTypes loads
       staticDataCache: {
-        // Basic static data for Base Layer testing
-        // Future: Load from API via dynamic template service
-        materials: ['ACM', 'Aluminum', 'PVC', 'Vinyl'],
-        colors: ['White', 'Black', 'Red', 'Blue', 'Green'],
-        finishes: ['Matte', 'Gloss', 'Satin', 'Textured'],
-        sizes: ['Small', 'Medium', 'Large', 'Custom']
-      }, // TODO: Load from API
+        // Reserved for dynamic dropdown options loaded from API
+        // Product-specific options are defined in database input_template field
+      },
       // Auto-save removed from GridEngine - now handled by Dashboard after calculation completes
       // This eliminates race condition between auto-save and calculation
       validation: {
@@ -216,13 +211,12 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
   }, [editLock.hasLock, isReadOnly, versioningMode, estimateId, gridEngine]);
 
   // === EXTRACTED HOOKS ===
-  const { templatesLoaded, fieldPromptsMap, staticOptionsMap } = useTemplateCache(showNotification);
+  const { templatesLoaded, fieldPromptsMap, staticOptionsMap } = useTemplateCache();
 
   useGridDataLoader({
     templatesLoaded,
     estimateId,
     gridEngine,
-    showNotification
   });
 
   const gridState = gridEngine.getState();
@@ -235,7 +229,6 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
     fieldPromptsMap,
     versioningMode,
     estimateId,
-    showNotification,
     estimatePreviewData,
     setShowClearConfirmation,
     setClearModalType,
@@ -251,7 +244,6 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
     estimateId,
     isReadOnly,
     gridEngine,
-    showNotification
   });
 
   useNavigationGuard({

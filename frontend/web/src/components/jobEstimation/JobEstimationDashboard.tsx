@@ -33,15 +33,6 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
   // Cross-component hover state for row highlighting
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
 
-  /**
-   * Temporary notification handler - logs to console
-   * NOTE: Replace with proper toast notification system when implementing UI notifications
-   * Expected integration: React Toast library or custom notification component
-   */
-  const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
-    // TODO: Implement proper toast notification system
-  };
-
   // Customer context hook
   const {
     taxRate,
@@ -79,8 +70,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
     handleCreateNewVersion,
     handleBackToVersions
   } = useEstimateNavigation({
-    onCustomerDataReload: reloadCustomerData,
-    showNotification
+    onCustomerDataReload: reloadCustomerData
   });
 
   // Validation orchestration hook
@@ -131,10 +121,8 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
         is_approved: true
       });
 
-      showNotification('Estimate marked as approved', 'success');
     } catch (error) {
       console.error('Failed to approve estimate:', error);
-      showNotification('Failed to approve estimate', 'error');
     }
   };
 
@@ -259,7 +247,6 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
                       navAction();
                     }
                   }}
-                  showNotification={showNotification}
                   customerId={selectedCustomerId}
                   customerName={customerPreferencesData?.customerName || null}
                   cashCustomer={customerPreferencesData?.cashCustomer || false}
@@ -283,7 +270,6 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
                 />
                 <EstimateTable
                   estimate={currentEstimate}
-                  showNotification={showNotification}
                   hasValidationErrors={hasValidationErrors}
                   validationErrorCount={validationErrorCount}
                   estimatePreviewData={estimatePreviewData}

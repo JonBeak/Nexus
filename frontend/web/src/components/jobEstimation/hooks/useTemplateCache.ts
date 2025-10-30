@@ -19,11 +19,9 @@ interface UseTemplateCacheReturn {
  * Loads and caches all product type templates on mount.
  * Templates must load before grid data to ensure proper validation.
  *
- * @param showNotification - Optional notification function for errors
  * @returns Template cache, loading state, and processed field prompts/options
  */
 export const useTemplateCache = (
-  showNotification?: (message: string, type?: 'success' | 'error') => void
 ): UseTemplateCacheReturn => {
   // Template cache state - loads ALL templates once and caches for component lifecycle
   const [templateCache, setTemplateCache] = useState<Record<number, SimpleProductTemplate>>({});
@@ -79,14 +77,11 @@ export const useTemplateCache = (
 
       } catch (error) {
         console.error('Failed to load templates:', error);
-        if (showNotification) {
-          showNotification('Failed to load product type templates. Some features may not work correctly.', 'error');
-        }
       }
     };
 
     loadAllTemplates();
-  }, []); // Only run once on mount - showNotification is stable
+  }, []); // Only run once on mount
 
   return {
     templateCache,

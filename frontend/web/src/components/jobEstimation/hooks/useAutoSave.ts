@@ -14,7 +14,6 @@ interface UseAutoSaveParams {
   estimateId: number | undefined;
   isReadOnly: boolean;
   gridEngine: GridEngine;
-  showNotification?: (message: string, type?: 'success' | 'error') => void;
 }
 
 /**
@@ -29,7 +28,6 @@ export const useAutoSave = ({
   estimateId,
   isReadOnly,
   gridEngine,
-  showNotification
 }: UseAutoSaveParams): void => {
   // Auto-save trigger - missing piece from original working version
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -50,7 +48,6 @@ export const useAutoSave = ({
           gridEngine.markAsSaved();
         } catch (error) {
           console.error('Auto-save failed:', error);
-          showNotification?.('Auto-save failed - your changes may not be saved!', 'error');
         }
       }, 500);
     }
@@ -61,5 +58,5 @@ export const useAutoSave = ({
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [hasUnsavedChanges, versioningMode, estimateId, isReadOnly, gridEngine, showNotification]);
+  }, [hasUnsavedChanges, versioningMode, estimateId, isReadOnly, gridEngine]);
 };

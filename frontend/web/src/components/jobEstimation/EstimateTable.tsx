@@ -6,7 +6,6 @@ import { EstimateVersion } from './types';
 
 interface EstimateTableProps {
   estimate: EstimateVersion | null; // Used to check is_draft for QB integration
-  showNotification: (message: string, type?: 'success' | 'error') => void;
   hasValidationErrors?: boolean;
   validationErrorCount?: number;
   estimatePreviewData?: EstimatePreviewData | null; // NEW: Complete estimate preview data
@@ -90,7 +89,6 @@ const getQuantityBackground = (quantity: number): string => {
 
 export const EstimateTable: React.FC<EstimateTableProps> = ({
   estimate,
-  showNotification,
   hasValidationErrors = false,
   validationErrorCount = 0,
   estimatePreviewData = null,
@@ -118,7 +116,6 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
   const handleCopyToClipboard = async () => {
     if (!estimatePreviewData || estimatePreviewData.items.length === 0) {
       console.error('No estimate data available');
-      showNotification('No estimate data to copy', 'error');
       return;
     }
 
@@ -164,7 +161,6 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
 
       // Show success feedback
       setCopySuccess(true);
-      showNotification('Estimate SVG copied to clipboard - paste into Illustrator', 'success');
 
       // Reset after 2 seconds
       setTimeout(() => {
@@ -172,7 +168,6 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
       }, 2000);
     } catch (error) {
       console.error('❌ Copy failed:', error);
-      showNotification(`Failed to copy: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
     }
   };
 

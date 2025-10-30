@@ -42,7 +42,6 @@ export interface BatchStateConfig {
   onValidationChange?: (hasErrors: boolean) => void;
   onEstimateChange?: (estimate: any) => void;
   debouncedAutoSave?: () => void;
-  showNotification?: (message: string, type?: 'success' | 'error') => void;
   
   // Validation function
   runValidation?: (rowId?: string, fieldName?: string) => Promise<Record<string, Record<string, string[]>>>;
@@ -114,8 +113,6 @@ export const createBatchStateManager = (config: BatchStateConfig) => {
               break;
               
             case 'notification':
-              if (config.showNotification && updates.metadata?.notificationMessage) {
-                config.showNotification(
                   updates.metadata.notificationMessage,
                   updates.metadata.notificationType
                 );

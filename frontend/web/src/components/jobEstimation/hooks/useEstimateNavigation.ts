@@ -4,12 +4,10 @@ import { EstimateVersion } from '../types';
 
 interface UseEstimateNavigationParams {
   onCustomerDataReload?: (customerId: number) => Promise<void>;
-  showNotification?: (message: string, type?: 'success' | 'error') => void;
 }
 
 export const useEstimateNavigation = ({
-  onCustomerDataReload,
-  showNotification = () => {}
+  onCustomerDataReload
 }: UseEstimateNavigationParams = {}) => {
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
   const [selectedCustomerName, setSelectedCustomerName] = useState<string | null>(null);
@@ -63,10 +61,8 @@ export const useEstimateNavigation = ({
 
       // Select the newly created job
       await handleJobSelected(response.data.job_id);
-      showNotification('Job created successfully');
     } catch (error) {
       console.error('Error creating job:', error);
-      showNotification('Failed to create job', 'error');
       throw error;
     }
   };
@@ -98,7 +94,6 @@ export const useEstimateNavigation = ({
       }
     } catch (error) {
       console.error('Error loading estimate version:', error);
-      showNotification('Failed to load estimate version', 'error');
     }
   };
 
@@ -113,10 +108,8 @@ export const useEstimateNavigation = ({
 
       // Automatically select the new version
       await handleVersionSelected(response.data.estimate_id);
-      showNotification('New version created successfully');
     } catch (error) {
       console.error('Error creating new version:', error);
-      showNotification('Failed to create new version', 'error');
     }
   };
 
