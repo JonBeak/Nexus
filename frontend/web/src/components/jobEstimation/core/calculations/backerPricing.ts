@@ -6,11 +6,7 @@
 import { RowCalculationResult } from '../types/LayerTypes';
 import { ValidatedPricingInput, PricingCalculationData } from './types/CalculatorTypes';
 import { BackerLookupTables, lookupAluminumPrice, lookupAcmPrice, lookupHingedRacewayPrice } from './backerPricingLookup';
-
-// Helper function to format price (integer if whole number, 2 decimals if not)
-const formatPrice = (price: number): string => {
-  return price % 1 === 0 ? price.toString() : price.toFixed(2);
-};
+import { formatPrice } from './utils/priceFormatter';
 
 // Hardcoded constants for aluminum backers
 const BACKER_CONSTANTS = {

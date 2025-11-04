@@ -7,11 +7,7 @@ import { ValidatedPricingInput, PricingCalculationData } from './types/Calculato
 import { BackerLookupTables, lookupAluminumPrice, lookupAcmPrice } from './backerPricingLookup';
 import { PricingDataResource } from '../../../../services/pricingDataResource';
 import { selectPowerSupplies, PowerSupplySelectionInput } from './powerSupplySelector';
-
-// Helper function to format price (integer if whole number, 2 decimals if not)
-const formatPrice = (price: number): string => {
-  return price % 1 === 0 ? price.toString() : price.toFixed(2);
-};
+import { formatPrice } from './utils/priceFormatter';
 
 // Constants for dimension categorization (from Backer)
 const BACKER_CONSTANTS = {

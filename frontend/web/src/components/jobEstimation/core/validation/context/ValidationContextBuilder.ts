@@ -42,7 +42,21 @@ export class ValidationContextBuilder {
 
       if (row.productTypeId === 1) {
         const metrics = calculateChannelLetterMetrics(row.data.field2);
-        const savedLedCount = Math.max(0, metrics?.ledCount || 0);
+        let savedLedCount = Math.max(0, metrics?.ledCount || 0);
+
+        // Check channel letter type's led_multiplier
+        // If led_multiplier = 0 (non-lit channel type like Trim Cap), force LED count to 0
+        // UNLESS field3 has an explicit numeric LED override
+        if (savedLedCount > 0 && row.data.field1) {
+          const channelType = await PricingDataResource.getChannelLetterType(row.data.field1 as string);
+          const hasField3Override = typeof row.data.field3 === 'number';
+
+          if (channelType && channelType.led_multiplier <= 0 && !hasField3Override) {
+            // Non-lit channel type with no explicit override - force LED count to 0
+            savedLedCount = 0;
+          }
+        }
+
         const defaultLedCount = customerPreferences?.use_leds ? savedLedCount : 0;
         const ledWattage = await this.resolveLedWattage(row, customerPreferences);
         const savedTotalWattage = this.calculateTotalWattage(savedLedCount, ledWattage);
@@ -221,7 +235,7 @@ export class ValidationContextBuilder {
   /**
    * Resolve LED wattage from database based on row data and customer preferences
    * Follows same logic as channelLettersPricing.ts for consistency
-   * Priority: field8 (LED Type override) → customer preference → system default
+   * Priority: field8 (LED Type override) → channel type LED default → customer preference → system default
    */
   private static async resolveLedWattage(
     row: GridRowCore,
@@ -257,15 +271,34 @@ export class ValidationContextBuilder {
     }
 
     if (ledTypeField && typeof ledTypeField === 'string') {
-      // Parse the product_code from format: "product_code [colour]"
-      const productCodeMatch = ledTypeField.match(/^([^[]+)(?:\s*\[.*\])?$/);
-      const productCode = productCodeMatch ? productCodeMatch[1].trim() : ledTypeField;
+      const trimmedValue = ledTypeField.trim();
 
-      effectiveLedType = productCode;
-      ledPricing = await PricingDataResource.getLed(productCode);
+      // Special case: '0' means "use default progression" (channel type default → customer pref → system default)
+      // Skip explicit lookup and let progression handle it
+      if (trimmedValue !== '0' && trimmedValue !== '') {
+        // Parse the product_code from format: "product_code [colour]"
+        const productCodeMatch = trimmedValue.match(/^([^[]+)(?:\s*\[.*\])?$/);
+        const productCode = productCodeMatch ? productCodeMatch[1].trim() : trimmedValue;
 
-      if (!ledPricing) {
-        console.warn(`LED type '${productCode}' not found in database (from '${ledTypeField}')`);
+        effectiveLedType = productCode;
+        ledPricing = await PricingDataResource.getLed(productCode);
+
+        if (!ledPricing) {
+          console.warn(`LED type '${productCode}' not found in database (from '${ledTypeField}')`);
+        }
+      }
+    }
+
+    if (!ledPricing) {
+      // Fall back to channel type LED default (Channel Letters only)
+      if (row.productTypeId === 1 && row.data.field1) {
+        const channelType = await PricingDataResource.getChannelLetterType(row.data.field1 as string);
+        if (channelType && channelType.led_default && channelType.led_default > 0) {
+          ledPricing = await PricingDataResource.getLedById(channelType.led_default);
+          if (ledPricing) {
+            effectiveLedType = ledPricing.product_code;
+          }
+        }
       }
     }
 

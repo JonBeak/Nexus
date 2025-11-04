@@ -41,7 +41,7 @@ export const useCustomerContext = () => {
       // Note: preferences will be populated by GridJobBuilder via handlePreferencesLoaded callback
       setCustomerPreferencesData({
         customerId: customer.customer_id,
-        customerName: customer.company_name || '',
+        customerName: customer.quickbooks_name || null, // Use QB name only for QuickBooks integration
         cashCustomer: customer.cash_yes_or_no === 1,
         discount: customer.discount,
         defaultTurnaround: customer.default_turnaround,

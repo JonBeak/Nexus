@@ -11,6 +11,8 @@ import { AccountManagement } from './components/accounts/AccountManagement';
 import VinylInventory from './components/inventory/VinylInventory';
 import { SupplyChainDashboard } from './components/supplyChain/SupplyChainDashboard';
 import { JobEstimationDashboard } from './components/jobEstimation/JobEstimationDashboard';
+import OrdersPage from './components/orders/OrdersPage';
+import OrderDetailsPage from './components/orders/details/OrderDetailsPage';
 import { authApi } from './services/api';
 import type { AccountUser } from './types/user';
 import { SessionProvider } from './contexts/SessionContext';
@@ -107,8 +109,15 @@ function AppContent() {
       <Route path="/job-estimation" element={
         user && (user.role === 'manager' || user.role === 'owner') ? <JobEstimationDashboard user={user} /> : <Navigate to="/dashboard" />
       } />
-      
-      
+
+      <Route path="/orders" element={
+        user && (user.role === 'manager' || user.role === 'owner') ? <OrdersPage /> : <Navigate to="/dashboard" />
+      } />
+
+      <Route path="/orders/:orderNumber" element={
+        user && (user.role === 'manager' || user.role === 'owner') ? <OrderDetailsPage /> : <Navigate to="/dashboard" />
+      } />
+
       <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} />} />
     </Routes>
   );

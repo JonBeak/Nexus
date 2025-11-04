@@ -62,16 +62,14 @@ export const ProductsTab: React.FC<ProductsTabProps> = ({
           </button>
         )}
         <div className={getActiveFilterCount() > 0 ? '' : 'ml-auto'}>
-          {/* Add Product Button */}
-          {(user.role === 'manager' || user.role === 'owner') && (
-            <button
-              onClick={onShowAddModal}
-              className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add Product</span>
-            </button>
-          )}
+          {/* Add Product Button - Backend RBAC controls actual permissions */}
+          <button
+            onClick={onShowAddModal}
+            className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Product</span>
+          </button>
         </div>
       </div>
 

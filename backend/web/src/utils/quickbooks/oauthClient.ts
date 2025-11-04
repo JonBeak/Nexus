@@ -1,19 +1,22 @@
 /**
  * QuickBooks OAuth2 Client
  * Handles authorization URL generation, token exchange, and token refresh
+ * Updated to use encrypted credential storage
  */
 
 import axios from 'axios';
 import { storeTokens, getRefreshTokenDetails } from './dbManager';
+import { credentialService } from '../../services/credentialService';
 
 // =============================================
 // CONFIGURATION
 // =============================================
 
-const QB_CLIENT_ID = process.env.QB_CLIENT_ID;
-const QB_CLIENT_SECRET = process.env.QB_CLIENT_SECRET;
-const QB_REDIRECT_URI = process.env.QB_REDIRECT_URI;
-const QB_ENVIRONMENT = process.env.QB_ENVIRONMENT || 'sandbox';
+// Credentials are loaded from encrypted storage only
+let QB_CLIENT_ID: string | undefined;
+let QB_CLIENT_SECRET: string | undefined;
+let QB_REDIRECT_URI: string | undefined = process.env.QB_REDIRECT_URI;
+let QB_ENVIRONMENT: string = process.env.QB_ENVIRONMENT || 'sandbox';
 
 // OAuth endpoints (same for sandbox and production)
 const QB_AUTH_URL = 'https://appcenter.intuit.com/connect/oauth2';
@@ -40,6 +43,33 @@ export class OAuthError extends Error {
 }
 
 // =============================================
+// CREDENTIAL LOADING
+// =============================================
+
+/**
+ * Load QuickBooks credentials from encrypted storage
+ */
+async function loadCredentials(): Promise<void> {
+  try {
+    const credentials = await credentialService.getQuickBooksCredentials();
+
+    if (credentials) {
+      QB_CLIENT_ID = credentials.client_id;
+      QB_CLIENT_SECRET = credentials.client_secret;
+      QB_REDIRECT_URI = credentials.redirect_uri || QB_REDIRECT_URI;
+      QB_ENVIRONMENT = credentials.environment || QB_ENVIRONMENT;
+      console.log('✅ Loaded QuickBooks credentials from encrypted storage');
+    } else {
+      console.warn('⚠️ No QuickBooks credentials found in encrypted storage');
+      console.warn('   Use update-qb-credentials.js to configure credentials');
+    }
+  } catch (error) {
+    console.error('❌ Failed to load credentials from encrypted storage:', error);
+    throw new Error('Failed to load QuickBooks credentials');
+  }
+}
+
+// =============================================
 // OAUTH FLOW FUNCTIONS
 // =============================================
 
@@ -47,7 +77,10 @@ export class OAuthError extends Error {
  * Generate QuickBooks authorization URL
  * @returns Authorization URL and state parameter
  */
-export function getAuthorizationUrl(): { authUrl: string; state: string } {
+export async function getAuthorizationUrl(): Promise<{ authUrl: string; state: string }> {
+  // Load credentials from encrypted storage
+  await loadCredentials();
+
   if (!QB_CLIENT_ID) {
     throw new OAuthError('QB_CLIENT_ID not configured');
   }
@@ -85,6 +118,9 @@ export async function exchangeCodeForTokens(
   token_type: string;
   id_token?: string;
 }> {
+  // Load credentials from encrypted storage
+  await loadCredentials();
+
   if (!QB_CLIENT_ID || !QB_CLIENT_SECRET) {
     throw new OAuthError('QB_CLIENT_ID or QB_CLIENT_SECRET not configured');
   }
@@ -141,6 +177,9 @@ export async function refreshAccessToken(realmId: string): Promise<{
   x_refresh_token_expires_in: number;
   token_type: string;
 }> {
+  // Load credentials from encrypted storage
+  await loadCredentials();
+
   if (!QB_CLIENT_ID || !QB_CLIENT_SECRET) {
     throw new OAuthError('QB_CLIENT_ID or QB_CLIENT_SECRET not configured');
   }
@@ -205,6 +244,9 @@ export async function refreshAccessToken(realmId: string): Promise<{
  * Revoke QuickBooks access (disconnect)
  */
 export async function revokeToken(token: string): Promise<void> {
+  // Load credentials from encrypted storage
+  await loadCredentials();
+
   if (!QB_CLIENT_ID || !QB_CLIENT_SECRET) {
     throw new OAuthError('QB_CLIENT_ID or QB_CLIENT_SECRET not configured');
   }
@@ -249,7 +291,10 @@ function generateRandomState(): string {
 /**
  * Validate QuickBooks configuration
  */
-export function validateConfig(): { valid: boolean; errors: string[] } {
+export async function validateConfig(): Promise<{ valid: boolean; errors: string[] }> {
+  // Load credentials from encrypted storage
+  await loadCredentials();
+
   const errors: string[] = [];
 
   if (!QB_CLIENT_ID) errors.push('QB_CLIENT_ID not set');

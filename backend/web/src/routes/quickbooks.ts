@@ -31,8 +31,8 @@ const router = Router();
  * GET /api/quickbooks/config-status
  * Check if QuickBooks credentials are configured
  */
-router.get('/config-status', authenticateToken, (req: Request, res: Response) => {
-  const validation = validateConfig();
+router.get('/config-status', authenticateToken, async (req: Request, res: Response) => {
+  const validation = await validateConfig();
 
   res.json({
     configured: validation.valid,
@@ -73,7 +73,7 @@ const authenticateTokenFromQuery = async (req: Request, res: Response, next: Fun
  */
 router.get('/start-auth', authenticateTokenFromQuery, async (req: Request, res: Response) => {
   try {
-    const { authUrl, state } = getAuthorizationUrl();
+    const { authUrl, state } = await getAuthorizationUrl();
 
     // Store state token for CSRF validation (expires in 10 minutes)
     await storeOAuthState(state, 600);
@@ -174,7 +174,7 @@ router.get('/callback', async (req: Request, res: Response) => {
 
     console.log(`✅ QuickBooks connected successfully for Realm ID: ${realmId}`);
 
-    // Success page
+    // Success page - show success for 2 seconds then auto-close
     res.send(`
       <html>
         <head>
@@ -182,50 +182,63 @@ router.get('/callback', async (req: Request, res: Response) => {
           <style>
             body {
               font-family: Arial, sans-serif;
-              max-width: 600px;
-              margin: 50px auto;
+              max-width: 500px;
+              margin: 80px auto;
               text-align: center;
-              padding: 20px;
+              padding: 40px;
+              background: #f5f5f5;
             }
             .success {
               color: #2e7d32;
-              font-size: 48px;
+              font-size: 64px;
               margin-bottom: 20px;
+              animation: fadeIn 0.3s ease-in;
+            }
+            h1 {
+              color: #333;
+              font-size: 24px;
+              margin: 10px 0;
             }
             .message {
-              font-size: 18px;
-              color: #333;
+              font-size: 16px;
+              color: #666;
               margin: 20px 0;
             }
-            .info {
-              background: #e3f2fd;
-              padding: 15px;
-              border-radius: 8px;
-              margin: 20px 0;
-              color: #0277bd;
-            }
-            .btn {
-              display: inline-block;
-              background: #2196f3;
-              color: white;
-              padding: 12px 24px;
-              text-decoration: none;
-              border-radius: 4px;
-              margin-top: 20px;
+            @keyframes fadeIn {
+              from { opacity: 0; transform: scale(0.8); }
+              to { opacity: 1; transform: scale(1); }
             }
           </style>
         </head>
         <body>
           <div class="success">✅</div>
           <h1>QuickBooks Connected!</h1>
-          <div class="message">
-            Your QuickBooks account has been successfully connected to Nexus.
-          </div>
-          <div class="info">
-            <strong>Company ID:</strong> ${realmId}
-          </div>
-          <p style="color: #666;">You can now close this window and return to Nexus.</p>
-          <a href="${process.env.CORS_ORIGIN}/job-estimation" class="btn">Return to Job Estimation</a>
+          <p class="message">This window will close in <span id="countdown">2</span> seconds...</p>
+          <script>
+            let count = 2;
+            const countdownEl = document.getElementById('countdown');
+
+            // Update countdown every second
+            const interval = setInterval(() => {
+              count--;
+              if (countdownEl) {
+                countdownEl.textContent = count;
+              }
+              if (count <= 0) {
+                clearInterval(interval);
+              }
+            }, 1000);
+
+            // Close after 2 seconds
+            setTimeout(() => {
+              try {
+                window.close();
+              } catch (e) {
+                // If can't close, show manual close message
+                document.body.innerHTML = '<div style="font-family: Arial; text-align: center; padding: 80px 20px;"><div style="font-size: 64px; color: #2e7d32; margin-bottom: 20px;">✅</div><h1 style="font-size: 24px; color: #333;">QuickBooks Connected!</h1><p style="color: #666; margin-top: 20px;">Please close this window.</p></div>';
+              }
+            }, 2000);
+          </script>
         </body>
       </html>
     `);
@@ -245,6 +258,303 @@ router.get('/callback', async (req: Request, res: Response) => {
         </body>
       </html>
     `);
+  }
+});
+
+/**
+ * GET /api/quickbooks/test-logging
+ * Test endpoint to verify logging is working
+ */
+router.get('/test-logging', authenticateToken, async (req: Request, res: Response) => {
+  console.log('\n🧪 QUICKBOOKS LOGGING TEST');
+  console.log('==========================');
+  console.log('✅ Logging is working!');
+  console.log('Timestamp:', new Date().toISOString());
+  console.log('==========================\n');
+
+  res.json({
+    success: true,
+    message: 'Logging test successful - check PM2 logs',
+    timestamp: new Date().toISOString()
+  });
+});
+
+/**
+ * GET /api/quickbooks/estimate-test/:id
+ * TEST ENDPOINT - Fetch an estimate from QuickBooks WITHOUT AUTH (for debugging only)
+ */
+router.get('/estimate-test/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Estimate ID is required'
+      });
+    }
+
+    const realmId = await getDefaultRealmId();
+    if (!realmId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Not connected to QuickBooks'
+      });
+    }
+
+    console.log('\n🔍 [TEST ENDPOINT] FETCHING QUICKBOOKS ESTIMATE');
+    console.log('================================');
+    console.log(`Estimate ID: ${id}`);
+    console.log(`Realm ID: ${realmId}`);
+
+    // Import QB API functions
+    const { makeQBApiCall } = await import('../utils/quickbooks/apiClient');
+
+    // Fetch the estimate from QuickBooks
+    const response = await makeQBApiCall('GET', `estimate/${id}`, realmId, {});
+    const estimate = response.Estimate;
+
+    if (!estimate) {
+      return res.status(404).json({
+        success: false,
+        error: 'Estimate not found'
+      });
+    }
+
+    console.log('\n📋 QUICKBOOKS ESTIMATE STRUCTURE');
+    console.log('==================================');
+    console.log(`Doc Number: ${estimate.DocNumber}`);
+    console.log(`Total Amount: ${estimate.TotalAmt}`);
+    console.log(`Line Items: ${estimate.Line ? estimate.Line.length : 0}`);
+
+    if (estimate.Line && estimate.Line.length > 0) {
+      console.log('\n📝 LINE ITEMS DETAIL:');
+      console.log('---------------------');
+
+      estimate.Line.forEach((line: any, idx: number) => {
+        console.log(`\n[Line ${idx + 1}]`);
+        console.log(`  DetailType: ${line.DetailType}`);
+
+        if (line.Description) {
+          console.log(`  Description: "${line.Description}"`);
+        }
+
+        if (line.Amount !== undefined) {
+          console.log(`  Amount: $${line.Amount}`);
+        }
+
+        // Log specific details based on DetailType
+        if (line.DetailType === 'SalesItemLineDetail' && line.SalesItemLineDetail) {
+          const detail = line.SalesItemLineDetail;
+          console.log(`  Item: ${detail.ItemRef?.name} (ID: ${detail.ItemRef?.value})`);
+          console.log(`  Qty: ${detail.Qty}`);
+          console.log(`  UnitPrice: ${detail.UnitPrice}`);
+          if (detail.TaxCodeRef) {
+            console.log(`  TaxCode: ${detail.TaxCodeRef.value}`);
+          }
+        } else if (line.DetailType === 'SubTotalLineDetail') {
+          console.log(`  ** SUBTOTAL LINE **`);
+          if (line.SubTotalLineDetail) {
+            console.log(`  SubTotalLineDetail:`, JSON.stringify(line.SubTotalLineDetail));
+          }
+        } else if (line.DetailType === 'DescriptionOnly') {
+          console.log(`  ** DESCRIPTION ONLY LINE **`);
+          if (line.DescriptionLineDetail) {
+            console.log(`  DescriptionLineDetail:`, JSON.stringify(line.DescriptionLineDetail));
+          }
+        } else if (line.DetailType === 'DiscountLineDetail') {
+          console.log(`  ** DISCOUNT LINE **`);
+          if (line.DiscountLineDetail) {
+            console.log(`  DiscountLineDetail:`, JSON.stringify(line.DiscountLineDetail));
+          }
+        }
+
+        // Log all fields for special analysis
+        console.log(`  All fields: ${Object.keys(line).join(', ')}`);
+      });
+
+      console.log('\n\n🔬 RAW LINE ITEMS JSON:');
+      console.log('------------------------');
+      console.log(JSON.stringify(estimate.Line, null, 2));
+    }
+
+    // Return the full estimate structure
+    res.json({
+      success: true,
+      warning: 'TEST ENDPOINT - REMOVE IN PRODUCTION',
+      estimate: {
+        id: estimate.Id,
+        docNumber: estimate.DocNumber,
+        totalAmount: estimate.TotalAmt,
+        lineCount: estimate.Line ? estimate.Line.length : 0,
+        lines: estimate.Line || []
+      },
+      raw: estimate // Include raw response for analysis
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching QB estimate:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch estimate'
+    });
+  }
+});
+
+/**
+ * GET /api/quickbooks/estimate/:id
+ * Fetch an estimate from QuickBooks to analyze its structure
+ */
+router.get('/estimate/:id', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Estimate ID is required'
+      });
+    }
+
+    const realmId = await getDefaultRealmId();
+    if (!realmId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Not connected to QuickBooks'
+      });
+    }
+
+    console.log('\n🔍 FETCHING QUICKBOOKS ESTIMATE');
+    console.log('================================');
+    console.log(`Estimate ID: ${id}`);
+    console.log(`Realm ID: ${realmId}`);
+
+    // Import QB API functions
+    const { makeQBApiCall } = await import('../utils/quickbooks/apiClient');
+
+    // Fetch the estimate from QuickBooks
+    const response = await makeQBApiCall('GET', `estimate/${id}`, realmId, {});
+    const estimate = response.Estimate;
+
+    if (!estimate) {
+      return res.status(404).json({
+        success: false,
+        error: 'Estimate not found'
+      });
+    }
+
+    console.log('\n📋 QUICKBOOKS ESTIMATE STRUCTURE');
+    console.log('==================================');
+    console.log(`Doc Number: ${estimate.DocNumber}`);
+    console.log(`Total Amount: ${estimate.TotalAmt}`);
+    console.log(`Line Items: ${estimate.Line ? estimate.Line.length : 0}`);
+
+    if (estimate.Line && estimate.Line.length > 0) {
+      console.log('\n📝 LINE ITEMS DETAIL:');
+      console.log('---------------------');
+
+      estimate.Line.forEach((line: any, idx: number) => {
+        console.log(`\n[Line ${idx + 1}]`);
+        console.log(`  DetailType: ${line.DetailType}`);
+
+        if (line.Description) {
+          console.log(`  Description: "${line.Description}"`);
+        }
+
+        if (line.Amount !== undefined) {
+          console.log(`  Amount: $${line.Amount}`);
+        }
+
+        // Log specific details based on DetailType
+        if (line.DetailType === 'SalesItemLineDetail' && line.SalesItemLineDetail) {
+          const detail = line.SalesItemLineDetail;
+          console.log(`  Item: ${detail.ItemRef?.name} (ID: ${detail.ItemRef?.value})`);
+          console.log(`  Qty: ${detail.Qty}`);
+          console.log(`  UnitPrice: ${detail.UnitPrice}`);
+          if (detail.TaxCodeRef) {
+            console.log(`  TaxCode: ${detail.TaxCodeRef.value}`);
+          }
+        } else if (line.DetailType === 'SubTotalLineDetail') {
+          console.log(`  ** SUBTOTAL LINE **`);
+          if (line.SubTotalLineDetail) {
+            console.log(`  SubTotalLineDetail:`, JSON.stringify(line.SubTotalLineDetail));
+          }
+        } else if (line.DetailType === 'DescriptionOnly') {
+          console.log(`  ** DESCRIPTION ONLY LINE **`);
+          if (line.DescriptionLineDetail) {
+            console.log(`  DescriptionLineDetail:`, JSON.stringify(line.DescriptionLineDetail));
+          }
+        } else if (line.DetailType === 'DiscountLineDetail') {
+          console.log(`  ** DISCOUNT LINE **`);
+          if (line.DiscountLineDetail) {
+            console.log(`  DiscountLineDetail:`, JSON.stringify(line.DiscountLineDetail));
+          }
+        }
+
+        // Log all fields for special analysis
+        console.log(`  All fields: ${Object.keys(line).join(', ')}`);
+      });
+
+      console.log('\n\n🔬 RAW LINE ITEMS JSON:');
+      console.log('------------------------');
+      console.log(JSON.stringify(estimate.Line, null, 2));
+    }
+
+    // Return the full estimate structure
+    res.json({
+      success: true,
+      estimate: {
+        id: estimate.Id,
+        docNumber: estimate.DocNumber,
+        totalAmount: estimate.TotalAmt,
+        lineCount: estimate.Line ? estimate.Line.length : 0,
+        lines: estimate.Line || []
+      },
+      raw: estimate // Include raw response for analysis
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching QB estimate:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch estimate'
+    });
+  }
+});
+
+/**
+ * GET /api/quickbooks/items
+ * Fetch all QuickBooks items from qb_item_mappings table
+ * Used for dropdown population in Custom product forms
+ */
+router.get('/items', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { pool } = await import('../config/database');
+
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id, item_name, description, qb_item_id, qb_item_type
+       FROM qb_item_mappings
+       ORDER BY item_name ASC`
+    );
+
+    console.log(`✅ Fetched ${rows.length} QuickBooks items for dropdown`);
+
+    res.json({
+      success: true,
+      items: rows.map((row: any) => ({
+        id: row.id,
+        name: row.item_name,
+        description: row.description,
+        qbItemId: row.qb_item_id,
+        qbItemType: row.qb_item_type
+      }))
+    });
+  } catch (error) {
+    console.error('❌ Error fetching QB items:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch QuickBooks items'
+    });
   }
 });
 
@@ -334,14 +644,24 @@ router.post('/disconnect', authenticateToken, async (req: Request, res: Response
  */
 router.post('/create-estimate', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const { estimateId, estimatePreviewData } = req.body;
+    const { estimateId, estimatePreviewData, debugMode = false } = req.body;
     const user = (req as AuthRequest).user;
+
+    // TEMPORARY: Log what we're receiving
+    console.log('\n📥 CREATE-ESTIMATE REQUEST:');
+    console.log(`  estimateId: ${estimateId}`);
+    console.log(`  debugMode: ${debugMode} (type: ${typeof debugMode})`);
+    console.log(`  items count: ${estimatePreviewData?.items?.length || 0}`);
 
     if (!estimateId || !estimatePreviewData) {
       return res.status(400).json({
         success: false,
         error: 'Missing estimateId or estimatePreviewData',
       });
+    }
+
+    if (debugMode) {
+      console.log('\n🔬 DEBUG MODE ENABLED - Will fetch estimate back for comparison\n');
     }
 
     const realmId = await getDefaultRealmId();
@@ -403,6 +723,14 @@ router.post('/create-estimate', authenticateToken, async (req: Request, res: Res
         success: false,
         error: 'Estimate already sent to QuickBooks.',
         qbEstimateUrl: getEstimatePdfUrl(qb_estimate_id, realmId),
+      });
+    }
+
+    // Validate: QuickBooks name is configured
+    if (!estimatePreviewData.customerName || !estimatePreviewData.customerName.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Customer QuickBooks name is not configured. Please set the QuickBooks name in customer settings to match the exact DisplayName in QuickBooks.',
       });
     }
 
@@ -479,12 +807,121 @@ router.post('/create-estimate', authenticateToken, async (req: Request, res: Res
     }
 
     // 3. BUILD LINE ITEMS (with item ID caching) - ALL MUST SUCCEED
-    const lines = [];
+    const lines: any[] = [];
     const missingItems: string[] = [];
+    let lineNum = 0;
+    let grandTotal = 0; // Track total of all regular items for automatic final subtotal
 
     for (const item of estimatePreviewData.items) {
-      // Skip subtotal items (productTypeId 21)
+      lineNum++;
+
+      // Handle special item types
+
+      // DIVIDER (Product Type 25) - Skip entirely, don't send to QuickBooks
+      if (item.productTypeId === 25) {
+        console.log(`   ↳ Skipping Divider item at line ${lineNum}`);
+        continue;
+      }
+
+      // SUBTOTAL (Product Type 21) - DescriptionOnly row with formatted text
+      // Frontend provides calculationDisplay with format:
+      //   {Optional Note}
+      //   --------------------------------------
+      //   Subtotal = $XXX.XX
+      //   Tax (5%) = $XX.XX
+      //   Section Total = $XXX.XX
+      //   --------------------------------------
+      // NOTE: Must replace "Subtotal:" with "Subtotal =" to avoid QB's magic pattern
       if (item.productTypeId === 21) {
+        const displayText = item.calculationDisplay || item.itemName || '';
+
+        console.log(`   ↳ Processing Subtotal at line ${lineNum}${displayText ? ` with display: "${displayText.substring(0, 50)}..."` : ''}`);
+
+        if (displayText) {
+          // Replace colons with equals for consistency and to avoid QB's magic patterns
+          // "Subtotal: $X.XX" would trigger QB's auto-calculated subtotal
+          const processedText = displayText
+            .replace(/Subtotal:/g, 'Subtotal =')
+            .replace(/Tax\s*\(/g, 'Tax (')  // Ensure space after "Tax": "Tax(" -> "Tax ("
+            .replace(/Tax\s*\([^)]+\):/g, (match: string) => match.replace(':', ' ='))  // "Tax(5%):" -> "Tax (5%) ="
+            .replace(/Section Total:/g, 'Section Total =')
+            .replace(/Total:/g, 'Total =');
+
+          // Add separator lines before and after
+          const safeDescription = '--------------------------------------\n' + processedText + '\n--------------------------------------';
+
+          lines.push({
+            DetailType: 'DescriptionOnly',
+            Description: safeDescription,
+            DescriptionLineDetail: {
+              TaxCodeRef: { value: 'NON' }
+            },
+            LineNum: lineNum
+          });
+          console.log(`   ↳ Added subtotal section (DescriptionOnly, no tax code)`);
+        } else {
+          // No display text - create formatted separator block
+          // Avoid "Subtotal" + dollar amount pattern (triggers QB magic subtotal)
+          const emptySubtotal = '--------------------------------------\nSection Total = $0.00\n--------------------------------------';
+          lines.push({
+            DetailType: 'DescriptionOnly',
+            Description: emptySubtotal,
+            DescriptionLineDetail: {
+              TaxCodeRef: { value: 'NON' }
+            },
+            LineNum: lineNum
+          });
+          console.log(`   ↳ Added empty subtotal section`);
+        }
+        continue;
+      }
+
+      // EMPTY ROW (Product Type 27) - DescriptionOnly for spacing/comments
+      if (item.productTypeId === 27) {
+        const description = item.calculationDisplay || item.itemName || ' ';
+        console.log(`   ↳ Adding Empty Row at line ${lineNum}${description.trim() ? ` with comment: "${description}"` : ''}`);
+
+        lines.push({
+          DetailType: 'DescriptionOnly',
+          Description: description,  // Use comment if available, otherwise single space
+          DescriptionLineDetail: {
+            TaxCodeRef: { value: 'NON' }
+          },
+          LineNum: lineNum
+        });
+        continue;
+      }
+
+      // CUSTOM (Product Type 9) with only description - Use DescriptionOnly
+      if (item.productTypeId === 9) {
+        // Check if this is description-only (no price or quantity)
+        const hasPrice = item.unitPrice && item.unitPrice > 0;
+        const hasQuantity = item.quantity && item.quantity > 0;
+
+        if (!hasPrice && !hasQuantity && item.calculationDisplay) {
+          // Description-only custom item
+          console.log(`   ↳ Adding Custom (description-only) at line ${lineNum}: "${item.calculationDisplay}"`);
+          lines.push({
+            DetailType: 'DescriptionOnly',
+            Description: item.calculationDisplay || item.itemName || '',
+            DescriptionLineDetail: {
+              TaxCodeRef: { value: 'NON' }
+            },
+            LineNum: lineNum
+          });
+          continue;
+        }
+        // If it has price/quantity, fall through to regular item handling
+        console.log(`   ↳ Custom item at line ${lineNum} has price/quantity, treating as regular item`);
+      }
+
+      // DISCOUNT/FEE (Product Type 22) - These are REGULAR QuickBooks items/products
+      // They should be looked up and sent as SalesItemLineDetail, not skipped
+      // (No special handling needed - they fall through to regular item logic below)
+
+      // MULTIPLIER (Product Type 23) - Already applied to items, skip the multiplier line itself
+      if (item.productTypeId === 23) {
+        console.log(`   ↳ Skipping Multiplier at line ${lineNum} (already applied to items)`);
         continue;
       }
 
@@ -526,6 +963,7 @@ router.post('/create-estimate', authenticateToken, async (req: Request, res: Res
         },
         Amount: item.extendedPrice,
         Description: qbDescription || '',
+        LineNum: lineNum
       });
     }
 
@@ -553,6 +991,49 @@ router.post('/create-estimate', authenticateToken, async (req: Request, res: Res
     };
 
     console.log(`📤 Creating estimate in QB with ${lines.length} line items...`);
+
+    // DETAILED LOGGING OF API PAYLOAD
+    console.log('\n🔍 DETAILED QB API PAYLOAD:');
+    console.log('================================');
+    console.log(`Customer: ${qbCustomerId}`);
+    console.log(`Date: ${qbPayload.TxnDate}`);
+    console.log(`Total Line Items: ${lines.length}`);
+    console.log('\nLine Items Detail:');
+    console.log('------------------');
+
+    lines.forEach((line, index) => {
+      console.log(`\n[Line ${index + 1}]`);
+      console.log(`  DetailType: ${line.DetailType}`);
+
+      if (line.DetailType === 'SalesItemLineDetail') {
+        console.log(`  Item: ${line.SalesItemLineDetail?.ItemRef?.name} (ID: ${line.SalesItemLineDetail?.ItemRef?.value})`);
+        console.log(`  Quantity: ${line.SalesItemLineDetail?.Qty}`);
+        console.log(`  Unit Price: ${line.SalesItemLineDetail?.UnitPrice}`);
+        console.log(`  Amount: ${line.Amount}`);
+        if (line.Description) {
+          console.log(`  Description: "${line.Description}"`);
+        }
+      } else if (line.DetailType === 'SubTotalLineDetail') {
+        console.log(`  Type: SUBTOTAL`);
+        console.log(`  Amount: ${line.Amount}`);
+        if (line.Description) {
+          console.log(`  Description: "${line.Description}"`);
+        }
+      } else if (line.DetailType === 'DescriptionOnly') {
+        console.log(`  Type: DESCRIPTION ONLY`);
+        console.log(`  Description: "${line.Description}"`);
+      }
+
+      if (line.LineNum) {
+        console.log(`  LineNum: ${line.LineNum}`);
+      }
+    });
+
+    console.log('\n================================');
+    console.log('FULL JSON PAYLOAD:');
+    console.log(JSON.stringify(qbPayload, null, 2));
+    console.log('================================\n');
+
     const result = await createEstimate(qbPayload, realmId);
 
     const qbEstimateUrl = getEstimatePdfUrl(result.estimateId, realmId);
@@ -584,6 +1065,102 @@ router.post('/create-estimate', authenticateToken, async (req: Request, res: Res
     );
 
     console.log(`✅ Estimate ${estimateId} finalized and linked to QB estimate ${result.estimateId}`);
+
+    // DEBUG MODE: Fetch estimate back from QuickBooks for comparison
+    if (debugMode) {
+      console.log('\n🔬 DEBUG MODE: Fetching estimate back from QuickBooks...');
+      try {
+        const { makeQBApiCall } = await import('../utils/quickbooks/apiClient');
+        const fetchedEstimate = await makeQBApiCall('GET', `estimate/${result.estimateId}`, realmId, {});
+
+        console.log('\n═══════════════════════════════════════════════════════════');
+        console.log('📤 WHAT WE SENT TO QUICKBOOKS:');
+        console.log('═══════════════════════════════════════════════════════════');
+        console.log(`Total Line Items Sent: ${lines.length}\n`);
+
+        lines.forEach((line, index) => {
+          console.log(`\n[Sent Line ${index + 1}]`);
+          console.log(`  DetailType: ${line.DetailType}`);
+          console.log(`  LineNum: ${line.LineNum || 'N/A'}`);
+
+          if (line.DetailType === 'SalesItemLineDetail') {
+            console.log(`  Product/Service: "${line.SalesItemLineDetail?.ItemRef?.name}" (ID: ${line.SalesItemLineDetail?.ItemRef?.value})`);
+            console.log(`  Quantity: ${line.SalesItemLineDetail?.Qty}`);
+            console.log(`  Unit Price: $${line.SalesItemLineDetail?.UnitPrice}`);
+            console.log(`  Extended Amount: $${line.Amount}`);
+            console.log(`  Tax Code: ${line.SalesItemLineDetail?.TaxCodeRef?.value || 'N/A'}`);
+            if (line.Description) {
+              console.log(`  Description: "${line.Description.substring(0, 100)}${line.Description.length > 100 ? '...' : ''}"`);
+            }
+          } else if (line.DetailType === 'SubTotalLineDetail') {
+            console.log(`  Subtotal Amount: $${line.Amount}`);
+          } else if (line.DetailType === 'DescriptionOnly') {
+            console.log(`  Text: "${line.Description || '(empty)'}"`);
+          } else if (line.DetailType === 'DiscountLineDetail') {
+            console.log(`  Discount Amount: $${line.Amount}`);
+          }
+        });
+
+        console.log('\n═══════════════════════════════════════════════════════════');
+        console.log('📥 WHAT QUICKBOOKS RETURNED:');
+        console.log('═══════════════════════════════════════════════════════════');
+        const returnedLines = fetchedEstimate.Estimate?.Line || [];
+        console.log(`Total Line Items Returned: ${returnedLines.length}\n`);
+
+        returnedLines.forEach((line: any, index: number) => {
+          console.log(`\n[Returned Line ${index + 1}]`);
+          console.log(`  DetailType: ${line.DetailType}`);
+          console.log(`  LineNum: ${line.LineNum || 'N/A'}`);
+          console.log(`  QB Line ID: ${line.Id || 'N/A'}`);
+
+          if (line.DetailType === 'SalesItemLineDetail') {
+            console.log(`  Product/Service: "${line.SalesItemLineDetail?.ItemRef?.name}" (ID: ${line.SalesItemLineDetail?.ItemRef?.value})`);
+            console.log(`  Quantity: ${line.SalesItemLineDetail?.Qty}`);
+            console.log(`  Unit Price: $${line.SalesItemLineDetail?.UnitPrice}`);
+            console.log(`  Extended Amount: $${line.Amount}`);
+            console.log(`  Tax Code: ${line.SalesItemLineDetail?.TaxCodeRef?.value || 'N/A'}`);
+            if (line.Description) {
+              console.log(`  Description: "${line.Description.substring(0, 100)}${line.Description.length > 100 ? '...' : ''}"`);
+            }
+          } else if (line.DetailType === 'SubTotalLineDetail') {
+            console.log(`  Subtotal Amount: $${line.Amount}`);
+          } else if (line.DetailType === 'DescriptionOnly') {
+            console.log(`  Text: "${line.Description || '(empty)'}"`);
+          } else if (line.DetailType === 'DiscountLineDetail') {
+            console.log(`  Discount Amount: $${line.Amount}`);
+            if (line.DiscountLineDetail) {
+              console.log(`  Discount Details:`, JSON.stringify(line.DiscountLineDetail, null, 2));
+            }
+          }
+        });
+
+        console.log('═══════════════════════════════════════════════════════════');
+        console.log(`📊 COMPARISON: Sent ${lines.length} lines, QB returned ${returnedLines.length} lines`);
+        if (lines.length !== returnedLines.length) {
+          console.log(`⚠️  WARNING: Line count mismatch! ${lines.length - returnedLines.length} line(s) were removed or modified by QuickBooks`);
+        }
+        console.log('═══════════════════════════════════════════════════════════\n');
+
+        // Return debug data in response
+        return res.json({
+          success: true,
+          qbEstimateId: result.estimateId,
+          qbDocNumber: result.docNumber,
+          qbEstimateUrl,
+          linesCreated: lines.length,
+          debug: {
+            linesSent: lines.length,
+            linesReturned: returnedLines.length,
+            sentLines: lines,
+            returnedLines: returnedLines,
+            fullEstimate: fetchedEstimate.Estimate
+          }
+        });
+      } catch (fetchError) {
+        console.error('⚠️  DEBUG MODE: Failed to fetch estimate back:', fetchError);
+        // Continue with normal response even if fetch fails
+      }
+    }
 
     res.json({
       success: true,

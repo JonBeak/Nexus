@@ -7,7 +7,9 @@
     "dev": "nodemon --exec tsx src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "migrate:credentials": "tsx src/scripts/migrateCredentials.ts",
+    "update:qb-credentials": "node update-qb-credentials.js"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +17,7 @@
   "type": "commonjs",
   "dependencies": {
     "@types/bcrypt": "^6.0.0",
+    "@types/pdfkit": "^0.17.3",
     "axios": "^1.13.0",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
@@ -22,7 +25,8 @@
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
-    "mysql2": "^3.14.3"
+    "mysql2": "^3.14.3",
+    "pdfkit": "^0.17.2"
   },
   "devDependencies": {
     "@types/axios": "^0.9.36",

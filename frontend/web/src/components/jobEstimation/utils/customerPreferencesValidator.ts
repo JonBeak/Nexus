@@ -8,6 +8,7 @@ import {
   SubtotalSection,
   ValidationError
 } from '../types/customerPreferences';
+import { formatNumber } from '../core/calculations/utils/priceFormatter';
 
 /**
  * Validates estimate items against customer preferences
@@ -263,7 +264,7 @@ function validateDiscount(
       hasError: true,
       severity: 'red',
       subtotalSections: redErrorSections,
-      message: `Discount (${customerDiscount}%) missing in high-value section(s): ${redErrorSections.map(i => i + 1).join(', ')}`
+      message: `Discount (${formatNumber(customerDiscount)}%) missing in high-value section(s): ${redErrorSections.map(i => i + 1).join(', ')}`
     };
   }
 
@@ -272,7 +273,7 @@ function validateDiscount(
       hasError: true,
       severity: 'yellow',
       subtotalSections: yellowWarningSections,
-      message: `Discount (${customerDiscount}%) missing in section(s): ${yellowWarningSections.map(i => i + 1).join(', ')}`
+      message: `Discount (${formatNumber(customerDiscount)}%) missing in section(s): ${yellowWarningSections.map(i => i + 1).join(', ')}`
     };
   }
 

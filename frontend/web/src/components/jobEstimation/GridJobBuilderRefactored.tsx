@@ -51,6 +51,7 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
   onRequestNavigation,
   onPreferencesLoaded,
   onGridDataChange,
+  onGridEngineReady,
   hoveredRowId = null,
   onRowHover = () => {},
   estimatePreviewData
@@ -156,18 +157,14 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
     }
   }, [productTypes, gridEngine]);
 
-  // Dev exposure effect
+  // Pass GridEngine instance to parent for auto-save orchestration
   useEffect(() => {
-    if (import.meta.env.DEV && gridEngine) {
-      (window as any).gridEngineTestAccess = gridEngine;
-    }
+    onGridEngineReady?.(gridEngine);
 
     return () => {
-      if (import.meta.env.DEV) {
-        delete (window as any).gridEngineTestAccess;
-      }
+      onGridEngineReady?.(null);
     };
-  }, [gridEngine]);
+  }, [gridEngine, onGridEngineReady]);
 
   // Customer ID warning effect
   useEffect(() => {

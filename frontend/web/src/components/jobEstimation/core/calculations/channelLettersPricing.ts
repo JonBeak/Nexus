@@ -7,11 +7,7 @@ import { ValidatedPricingInput, ComponentItem, PricingCalculationData } from './
 import { PricingDataResource } from '../../../../services/pricingDataResource';
 import { ChannelLetterMetrics } from '../validation/utils/channelLetterParser';
 import { selectPowerSupplies } from './powerSupplySelector';
-
-// Helper function to format price (integer if whole number, 2 decimals if not)
-const formatPrice = (price: number): string => {
-  return price % 1 === 0 ? price.toString() : price.toFixed(2);
-};
+import { formatPrice } from './utils/priceFormatter';
 
 const getLetterCount = (
   letterData: unknown,
@@ -51,8 +47,14 @@ const getLetterCount = (
  * - Extra Wire (if specified)
  */
 export const calculateChannelLetters = async (input: ValidatedPricingInput): Promise<RowCalculationResult> => {
+  console.log('[CL] Starting calculateChannelLetters', {
+    type: input.parsedValues.field1,
+    hasValidationErrors: input.hasValidationErrors
+  });
+
   // Skip calculation if validation errors exist
   if (input.hasValidationErrors) {
+    console.log('[CL] Skipping due to validation errors');
     return {
       status: 'pending',
       display: 'Fix validation errors first',
@@ -206,7 +208,14 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
 
     // 1. Channel Letters (if data exists)
     if (hasChannelLetters) {
+      console.log('[CL] Has channel letters, fetching pricing for type:', type);
       const letterPricing = await PricingDataResource.getChannelLetterType(type as string);
+      console.log('[CL] Letter pricing result:', letterPricing ? {
+        type_name: letterPricing.type_name,
+        led_multiplier: letterPricing.led_multiplier,
+        base_rate: letterPricing.base_rate_per_inch
+      } : 'NULL');
+
       if (letterPricing) {
         // LED multiplier will be applied in the LED section below
         // where all LED-related logic is centralized
@@ -222,6 +231,12 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
           channelLetterDisplay += `\n${pinsType}: ${pinsCount} @ $${formatPrice(pinTypeData.base_cost)}/each`;
         }
 
+        console.log('[CL] Adding channel letters component:', {
+          name: itemDisplayName,
+          price: letterPrice,
+          display: channelLetterDisplay
+        });
+
         components.push({
           name: itemDisplayName,
           price: letterPrice,
@@ -229,6 +244,7 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
           calculationDisplay: channelLetterDisplay
         });
         totalPrice += letterPrice;
+        console.log('[CL] Total components so far:', components.length, 'Total price:', totalPrice);
       } else {
         console.error('Channel letter pricing not found for type:', type);
       }
@@ -248,6 +264,7 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
     }
 
     // 3. LEDs (if needed) - GET FROM DATABASE
+    console.log('[CL] Before LED section, ledCount:', ledCount);
     if (ledCount > 0) {
       // Apply LED multiplier for Channel Letters (SKIP if field3 has numeric override)
       // Two formulas based on input type:
@@ -255,39 +272,90 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
       // 2. Pairs/formula input: LED count calculated separately → ledCount = ledCount * (led_multiplier / 0.7)
       if (hasChannelLetters) {
         const letterPricing = await PricingDataResource.getChannelLetterType(type as string);
-        if (letterPricing && letterPricing.led_multiplier) {
-          const isFloatInput = typeof letterData === 'number';
+        if (letterPricing) {
           const hasNumericOverride = typeof ledOverride === 'number';
+          console.log('[CL] In LED multiplier block, led_multiplier:', letterPricing.led_multiplier, 'hasNumericOverride:', hasNumericOverride);
 
-          if (!hasNumericOverride) {
-            const originalLedCount = ledCount;
+          // Check if led_multiplier is explicitly > 0 (not just truthy)
+          // led_multiplier = 0 means "no LEDs for this channel type" (e.g., Trim Cap, non-lit channels)
+          if (letterPricing.led_multiplier > 0) {
+            const isFloatInput = typeof letterData === 'number';
 
-            if (isFloatInput) {
-              // Float input: LED count based on inches
-              ledCount = Math.ceil(totalInches * letterPricing.led_multiplier);
-            } else {
-              // Pairs/formula input: LED count calculated separately from inches
-              ledCount = Math.ceil(ledCount * (letterPricing.led_multiplier / 0.7));
+            if (!hasNumericOverride) {
+              const originalLedCount = ledCount;
+
+              if (isFloatInput) {
+                // Float input: LED count based on inches
+                ledCount = Math.ceil(totalInches * letterPricing.led_multiplier);
+              } else {
+                // Pairs/formula input: LED count calculated separately from inches
+                ledCount = Math.ceil(ledCount * (letterPricing.led_multiplier / 0.7));
+              }
+              console.log('[CL] LED multiplier applied, ledCount changed from', originalLedCount, 'to', ledCount);
             }
+          } else if (!hasNumericOverride) {
+            // led_multiplier = 0 and no explicit LED override → force LED count to 0
+            // This prevents attempting to price LEDs for non-lit channel types
+            console.log('[CL] led_multiplier = 0, forcing ledCount to 0');
+            ledCount = 0;
           }
         }
       }
 
+      console.log('[CL] After LED multiplier, ledCount:', ledCount);
+
+      // If ledCount was forced to 0 by led_multiplier, skip LED pricing entirely
+      if (ledCount === 0) {
+        console.log('[CL] ledCount is now 0, skipping LED pricing section');
+      }
+    }
+
+    // Only process LED pricing if ledCount is still > 0 after multiplier adjustments
+    if (ledCount > 0) {
       // Get LED pricing (for both channel letters and standalone)
       let ledPricing = null;
       let effectiveLedType = ledType;
 
       if (ledType) {
-        // Parse the product_code from format: "product_code [colour]"
-        // e.g., "Hanley 2080 7k [7000K]" -> "Hanley 2080 7k"
-        const productCodeMatch = ledType.match(/^([^[]+)(?:\s*\[.*\])?$/);
-        const productCode = productCodeMatch ? productCodeMatch[1].trim() : ledType;
+        const trimmedValue = (ledType as string).trim();
+        console.log('[CL] ledType field value:', trimmedValue);
 
-        effectiveLedType = productCode;
-        ledPricing = await PricingDataResource.getLed(productCode as string);
+        // Special case: '0' means "use default progression" (channel type default → customer pref → system default)
+        // Skip explicit lookup and let progression handle it
+        if (trimmedValue !== '0' && trimmedValue !== '') {
+          // Parse the product_code from format: "product_code [colour]"
+          // e.g., "Hanley 2080 7k [7000K]" -> "Hanley 2080 7k"
+          const productCodeMatch = trimmedValue.match(/^([^[]+)(?:\s*\[.*\])?$/);
+          const productCode = productCodeMatch ? productCodeMatch[1].trim() : trimmedValue;
 
-        if (!ledPricing) {
-          console.warn(`LED type '${productCode}' not found in database (from '${ledType}')`);
+          effectiveLedType = productCode;
+          ledPricing = await PricingDataResource.getLed(productCode);
+
+          if (!ledPricing) {
+            console.warn(`LED type '${productCode}' not found in database (from '${ledType}')`);
+          }
+        }
+      }
+
+      if (!ledPricing && hasChannelLetters) {
+        // Fall back to channel type LED default
+        const letterPricing = await PricingDataResource.getChannelLetterType(type as string);
+        if (letterPricing && letterPricing.led_default && letterPricing.led_default > 0) {
+          ledPricing = await PricingDataResource.getLedById(letterPricing.led_default);
+          if (ledPricing) {
+            effectiveLedType = ledPricing.product_code;
+          }
+        }
+      }
+
+      if (!ledPricing) {
+        // Fall back to customer preference LED
+        const customerPrefLedCode = input.customerPreferences?.pref_led_product_code;
+        if (customerPrefLedCode) {
+          ledPricing = await PricingDataResource.getLed(customerPrefLedCode);
+          if (ledPricing) {
+            effectiveLedType = ledPricing.product_code;
+          }
         }
       }
 
@@ -321,19 +389,24 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
         });
         totalPrice += ledsPrice;
       } else {
+        console.log('[CL] ERROR: No LED pricing found after all progression steps');
         return {
           status: 'error',
           display: 'No LED pricing data found',
           error: 'Unable to find LED pricing data in system'
         };
       }
+    } else {
+      console.log('[CL] Skipping LED section, ledCount = 0');
     }
 
     // 4. Power Supplies - Use powerSupplySelector for smart selection
     // ValidationContextBuilder already decided if we need PSs (respecting customer pref)
     // We call powerSupplySelector to determine TYPE/COUNT (with UL optimization if applicable)
 
+    console.log('[CL] Starting PS section, totalWattage:', totalWattage);
     const calculatedPsCount = input.calculatedValues.psCount || 0;
+    console.log('[CL] calculatedPsCount from validation:', calculatedPsCount);
 
     // Determine what to pass to powerSupplySelector
     let psOverrideForSelector: number | null = null;
@@ -359,6 +432,8 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
       psOverrideForSelector = null;
     }
 
+    console.log('[CL] shouldCalculatePS:', shouldCalculatePS);
+
     if (shouldCalculatePS) {
       // Use section-level UL for PS optimization (consistent PS types within section)
       const sectionHasUL = input.calculatedValues?.sectionHasUL ?? false;
@@ -383,6 +458,9 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
       components.push(...psResult.components);
       totalPrice += psResult.components.reduce((sum, c) => sum + c.price, 0);
       psCount = psResult.totalCount;
+      console.log('[CL] Added PS components, total components now:', components.length);
+    } else {
+      console.log('[CL] Skipping PS section');
     }
 
     // 5. UL Certification (if applicable)
@@ -390,6 +468,7 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
     // - Explicitly set via override (yes/custom), OR
     // - Not explicitly set AND LEDs exist AND customer preference is true
     const shouldShowUL = ulExplicitlySet ? hasUL : (hasUL && ledCount > 0);
+    console.log('[CL] UL check: ulExplicitlySet:', ulExplicitlySet, 'hasUL:', hasUL, 'ledCount:', ledCount, 'shouldShowUL:', shouldShowUL);
 
     if (shouldShowUL) {
       let ulPrice = 0;
@@ -469,10 +548,14 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
           calculationDisplay: ulCalculationDisplay
         });
         totalPrice += ulPrice;
+        console.log('[CL] Added UL component, total components now:', components.length);
       }
+    } else {
+      console.log('[CL] Skipping UL section');
     }
 
     // 6. Extra Wire - GET FROM DATABASE
+    console.log('[CL] Extra wire check, extraWireFeet:', extraWireFeet);
     if (extraWireFeet > 0) {
       const wiringPricing = await PricingDataResource.getWiringPricing();
       if (wiringPricing) {
@@ -492,7 +575,10 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
           calculationDisplay: wireCalculationDisplay
         });
         totalPrice += wirePrice;
+        console.log('[CL] Added extra wire component, total components now:', components.length);
       }
+    } else {
+      console.log('[CL] Skipping extra wire section');
     }
 
     // POST-PROCESSING: Merge pins into channel letters if both exist
@@ -509,7 +595,10 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
       }
     }
 
+    console.log('[CL] Before final checks, components.length:', components.length);
+
     if (components.length === 0) {
+      console.log('[CL] ERROR: No components configured, returning pending');
       return {
         status: 'pending',
         display: 'No components configured',
@@ -535,6 +624,13 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
       hasCompleteSet: hasChannelLetters
     };
 
+    console.log('[CL] Returning result:', {
+      status: 'completed',
+      componentCount: pricingData.components.length,
+      totalPrice: totalPrice,
+      itemName: itemDisplayName
+    });
+
     return {
       status: 'completed',
       display: '', // Not used - components have their own calculationDisplay
@@ -542,6 +638,7 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
     };
 
   } catch (error) {
+    console.error('[CL] Channel Letters calculation error:', error);
     return {
       status: 'error',
       display: 'Channel Letters calculation failed',

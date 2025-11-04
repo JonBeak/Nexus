@@ -5,13 +5,7 @@
 import { RowCalculationResult } from '../types/LayerTypes';
 import { ValidatedPricingInput, ComponentItem, PricingCalculationData } from './types/CalculatorTypes';
 import { PricingDataResource } from '../../../../services/pricingDataResource';
-
-// Helper function to format price (integer if whole number, 2 decimals if not)
-const formatPrice = (price: number | string): string => {
-  const numPrice = typeof price === 'string' ? parseFloat(price) : price;
-  if (isNaN(numPrice)) return '0';
-  return numPrice % 1 === 0 ? numPrice.toString() : numPrice.toFixed(2);
-};
+import { formatPrice } from './utils/priceFormatter';
 
 // Material Cut pricing rates interface (raw from database - may be strings)
 interface MaterialCutRatesRaw {

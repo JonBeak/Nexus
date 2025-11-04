@@ -12,6 +12,7 @@ import { ValidationContext } from './templates/ValidationTemplate';
 import { CustomerManufacturingPreferences } from './context/useCustomerPreferences';
 import { ValidationContextBuilder } from './context/ValidationContextBuilder';
 import { channelLettersValidation, vinylValidation, substrateCutValidation, backerValidation, pushThruValidation, bladeSignValidation, ledNeonValidation, paintingValidation, customValidation, wiringValidation, materialCutValidation, ulValidation, shippingValidation, ledValidation, emptyRowValidation, dividerValidation, subtotalValidation, multiplierValidation, discountFeeValidation } from './productValidationConfigs';
+import { PricingDataResource } from '../../../../services/pricingDataResource';
 
 export interface ValidationEngineConfig {
   customerPreferences?: CustomerManufacturingPreferences; // Customer manufacturing preferences
@@ -347,6 +348,26 @@ export class ValidationEngine {
           }
         }
 
+        // Check channel type pin requirements (Channel Letters only)
+        // Only validates field5 (Pins #) - field6 handled separately based on field5 value
+        if (row.productTypeId === 1 && row.data.field1 && row.data.field1.trim() !== '') {
+          validationPromises.push(
+            PricingDataResource.getChannelLetterType(row.data.field1).then(channelType => {
+              if (channelType && channelType.requires_pins) {
+                const field5Filled = row.data.field5 && row.data.field5.trim() !== '';
+
+                if (!field5Filled) {
+                  this.resultsManager.setCellError(row.id, 'field5', {
+                    message: `This channel type requires pins`,
+                    expectedFormat: 'Number of pins required',
+                    value: row.data.field5 || ''
+                  });
+                }
+              }
+            })
+          );
+        }
+
         // Check for missing product selection (structural validation)
         // Allow productTypeId: 0 ("Select Type") - it's a placeholder that doesn't affect calculations
         if (!row.productTypeId && row.productTypeId !== 0) {
@@ -411,6 +432,25 @@ export class ValidationEngine {
     }
 
     await Promise.all(validationPromises);
+
+    // Custom validation: field6 (Pin Type) required if field5 (Pin #) > 0
+    // Must run AFTER Promise.all() so parsed values are available
+    for (const row of rows) {
+      if (row.productTypeId === 1) { // Channel Letters only
+        const field5ParsedValue = this.resultsManager.getParsedValue(row.id, 'field5');
+        const field6Value = row.data.field6 || '';
+        const field6Filled = field6Value.trim() !== '';
+
+        // If field5 has a parsed numeric value > 0 and field6 is empty, show error
+        if (typeof field5ParsedValue === 'number' && field5ParsedValue > 0 && !field6Filled) {
+          this.resultsManager.setCellError(row.id, 'field6', {
+            message: 'Pin type required when pin count > 0',
+            expectedFormat: 'Select a pin type',
+            value: field6Value
+          });
+        }
+      }
+    }
   }
 
   /**

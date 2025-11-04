@@ -13,8 +13,9 @@ export interface ChannelLetterType {
   type_name: string;
   type_code: string;
   base_rate_per_inch: number;
-  led_default: string;
+  led_default: number;  // LED ID, 0 = use system default
   led_multiplier: number;
+  requires_pins: boolean;
   effective_date: string;
   is_active: boolean;
 }
@@ -259,11 +260,13 @@ export class PricingDataResource {
   }
 
   /**
-   * Get channel letter type by type name
+   * Get channel letter type by type name or type code
    */
-  static async getChannelLetterType(typeName: string): Promise<ChannelLetterType | null> {
+  static async getChannelLetterType(typeNameOrCode: string): Promise<ChannelLetterType | null> {
     const pricingData = await this.getAllPricingData();
-    return pricingData.channelLetterTypes.find(type => type.type_name === typeName) || null;
+    return pricingData.channelLetterTypes.find(
+      type => type.type_name === typeNameOrCode || type.type_code === typeNameOrCode
+    ) || null;
   }
 
   /**
@@ -280,6 +283,14 @@ export class PricingDataResource {
   static async getDefaultLed(): Promise<Led | null> {
     const pricingData = await this.getAllPricingData();
     return pricingData.leds.find(led => led.is_default && led.is_active) || null;
+  }
+
+  /**
+   * Get LED by ID (for channel type defaults)
+   */
+  static async getLedById(ledId: number): Promise<Led | null> {
+    const pricingData = await this.getAllPricingData();
+    return pricingData.leds.find(led => led.led_id === ledId && led.is_active) || null;
   }
 
   /**

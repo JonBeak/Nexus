@@ -5,6 +5,7 @@ import { createCalculationOperations, EstimatePreviewData } from '../core/layers
 import { validateCustomerPreferences } from '../utils/customerPreferencesValidator';
 import { CustomerPreferencesData, CustomerPreferencesValidationResult } from '../types/customerPreferences';
 import { jobVersioningApi } from '../../../services/api';
+import { GridEngine } from '../core/GridEngine';
 
 interface UseValidationOrchestrationParams {
   isInBuilderMode: boolean;
@@ -13,6 +14,7 @@ interface UseValidationOrchestrationParams {
   customerPreferencesData: CustomerPreferencesData | null;
   setCustomerPreferencesData: (data: CustomerPreferencesData | null) => void;
   setPreferencesValidationResult: (result: CustomerPreferencesValidationResult | null) => void;
+  gridEngineRef: GridEngine | null;
 }
 
 export const useValidationOrchestration = ({
@@ -21,7 +23,8 @@ export const useValidationOrchestration = ({
   isDraft,
   customerPreferencesData,
   setCustomerPreferencesData,
-  setPreferencesValidationResult
+  setPreferencesValidationResult,
+  gridEngineRef
 }: UseValidationOrchestrationParams) => {
   // Validation state
   const [hasValidationErrors, setHasValidationErrors] = useState(false);
@@ -95,15 +98,19 @@ export const useValidationOrchestration = ({
 
     // Debounce: Wait a bit after calculation completes before saving
     const saveTimer = setTimeout(async () => {
+      // Re-check conditions when timer executes (might have changed)
+      if (!isInBuilderMode || !selectedEstimateId || !isDraft) {
+        return; // Silently skip if conditions no longer met
+      }
+
       try {
         // Get simplified rows from GridEngine
-        const gridEngine = (window as any).gridEngineTestAccess;
-        if (!gridEngine) {
-          console.warn('[Dashboard] GridEngine not available for auto-save');
+        if (!gridEngineRef) {
+          // GridEngine not ready yet - skip this auto-save cycle
           return;
         }
 
-        const coreRows = gridEngine.getRows();
+        const coreRows = gridEngineRef.getRows();
 
         // Convert to simplified structure
         const simplifiedRows = coreRows.map((row: any) => ({
@@ -130,12 +137,12 @@ export const useValidationOrchestration = ({
           estimatePreviewData.total
         );
       } catch (error) {
-        console.error('[Dashboard] Auto-save failed:', error);
+        console.error('[JobEstimation] Auto-save failed:', error);
       }
     }, 300); // Small debounce after calculation completes
 
     return () => clearTimeout(saveTimer);
-  }, [estimatePreviewData, gridDataVersion, isInBuilderMode, selectedEstimateId, isDraft]);
+  }, [estimatePreviewData, gridDataVersion, isInBuilderMode, selectedEstimateId, isDraft, gridEngineRef]);
 
   // Run preferences validation when estimate preview data updates
   useEffect(() => {

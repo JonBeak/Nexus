@@ -5,9 +5,9 @@ import {
   Eye,
   Edit3,
   Copy,
-  Clock,
   AlertTriangle,
-  CheckCircle
+  CheckCircle,
+  ArrowRight
 } from 'lucide-react';
 import { jobVersioningApi } from '../../services/api';
 import { VersionManagerProps, EstimateVersion } from './types';
@@ -177,6 +177,11 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
     );
   };
 
+  const handleGoToOrder = (estimateId: number) => {
+    // TODO: Implement navigation to order page
+    console.log('Navigate to order for estimate:', estimateId);
+  };
+
   const renderActionButtons = (version: EstimateVersion) => (
     <div className="flex flex-col items-center justify-center gap-2 w-full">
       <div className="flex items-center gap-1 w-full">
@@ -218,6 +223,16 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
           <span>Approve</span>
         </button>
       )}
+      {(version.is_approved === true || version.is_approved === 1) && (
+        <button
+          onClick={() => handleGoToOrder(version.id)}
+          className="flex items-center justify-center space-x-1 px-2 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 w-full"
+          title="Go to Order"
+        >
+          <ArrowRight className="w-3 h-3" />
+          <span>Go to Order</span>
+        </button>
+      )}
     </div>
   );
 
@@ -244,25 +259,24 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
         <table className="w-full table-fixed">
           <thead className="bg-gray-50">
             <tr>
-              <th className="text-left p-4 font-medium text-gray-700 w-16">Version</th>
+              <th className="text-left p-4 font-medium text-gray-700 w-24">Version</th>
               <th className="text-left p-4 font-medium text-gray-700 w-64">Description</th>
-              <th className="text-left p-4 font-medium text-gray-700 w-20">Status</th>
+              <th className="text-left p-4 font-medium text-gray-700 w-28">Status</th>
               <th className="text-right p-4 font-medium text-gray-700 w-24">Total</th>
-              <th className="text-left p-4 font-medium text-gray-700 w-32">Last Edited</th>
               <th className="text-center p-4 font-medium text-gray-700 w-32">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading ? (
               <tr>
-                <td colSpan={6} className="p-8 text-center">
+                <td colSpan={5} className="p-8 text-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
                   <p className="mt-4 text-gray-500">Loading versions...</p>
                 </td>
               </tr>
             ) : error ? (
               <tr>
-                <td colSpan={6} className="p-8 text-center">
+                <td colSpan={5} className="p-8 text-center">
                   <AlertTriangle className="w-12 h-12 mx-auto text-red-500 mb-4" />
                   <p className="text-red-600">{error}</p>
                   <button
@@ -275,7 +289,7 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
               </tr>
             ) : versions.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-12 text-center">
+                <td colSpan={5} className="p-12 text-center">
                   <FileText className="w-12 h-12 mx-auto text-gray-300 mb-4" />
                   <p className="text-gray-500">No estimate versions yet</p>
                   <p className="text-sm text-gray-400">Click "New Version" to create the first estimate</p>
@@ -289,25 +303,20 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
                 >
                   <td className="p-4">
                     <div className="font-medium">v{version.version_number}</div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {formatDate(version.updated_at).date}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {formatDate(version.updated_at).time}
+                    </div>
                     {getLockIndicator(version)}
                   </td>
                   <td className="p-4">{renderNotesCell(version)}</td>
                   <td className="p-4">
-                    <div className="flex flex-wrap gap-1">
-                      <VersionStatusBadges version={version} />
-                    </div>
+                    <VersionStatusBadges version={version} />
                   </td>
                   <td className="p-4 text-right font-medium">
                     {formatCurrency(parseFloat(version.total_amount) || 0)}
-                  </td>
-                  <td className="p-4 text-sm text-gray-500">
-                    <div className="flex items-start">
-                      <Clock className="w-4 h-4 mr-1 mt-0.5 flex-shrink-0" />
-                      <div className="flex flex-col">
-                        <span>{formatDate(version.updated_at).date}</span>
-                        <span className="text-xs text-gray-400">{formatDate(version.updated_at).time}</span>
-                      </div>
-                    </div>
                   </td>
                   <td className="py-4 px-2">{renderActionButtons(version)}</td>
                 </tr>
@@ -327,6 +336,8 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
             <div className="flex items-start justify-between mb-3">
               <div className="flex-shrink-0">
                 <div className="font-semibold text-lg">v{version.version_number}</div>
+                <div className="text-xs text-gray-500 mt-1">{formatDate(version.updated_at).date}</div>
+                <div className="text-xs text-gray-400">{formatDate(version.updated_at).time}</div>
                 {getLockIndicator(version)}
               </div>
               <div className="flex flex-wrap gap-1 justify-end">
@@ -334,20 +345,10 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
               </div>
             </div>
             <div className="mb-2">{renderNotesCell(version)}</div>
-            <div className="mb-2">
+            <div className="mb-3">
               <div className="text-sm text-gray-500">Total</div>
               <div className="font-semibold text-lg">
                 {formatCurrency(parseFloat(version.total_amount) || 0)}
-              </div>
-            </div>
-            <div className="mb-3">
-              <div className="flex items-start text-sm text-gray-500">
-                <Clock className="w-4 h-4 mr-1 mt-0.5 flex-shrink-0" />
-                <div className="flex flex-col">
-                  <span className="text-gray-500 text-xs">Last edited:</span>
-                  <span>{formatDate(version.updated_at).date}</span>
-                  <span className="text-xs text-gray-400">{formatDate(version.updated_at).time}</span>
-                </div>
               </div>
             </div>
             <div className="flex flex-col gap-2 pt-3 border-t border-gray-200">

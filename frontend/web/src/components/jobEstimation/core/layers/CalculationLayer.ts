@@ -38,7 +38,7 @@ export interface EstimatePreviewData {
 
   // Customer/Estimate metadata
   customerId?: number;
-  customerName?: string;
+  customerName?: string | null; // QuickBooks DisplayName - null if not configured
   estimateId?: number;
   cashCustomer?: boolean;
 }
@@ -75,7 +75,7 @@ export const createCalculationOperations = (): CalculationOperations => {
           if (calculation.data.components?.length > 0) {
             const overallQuantity = calculation.data.quantity || 1;
             for (const component of calculation.data.components) {
-              const componentUnitPrice = component.price || 0;
+              const componentUnitPrice = Math.round((component.price || 0) * 100) / 100;
               const componentExtendedPrice = Math.round((componentUnitPrice * overallQuantity) * 100) / 100;
               items.push({
                 rowId,

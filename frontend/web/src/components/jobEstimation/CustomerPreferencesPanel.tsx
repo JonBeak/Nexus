@@ -1,6 +1,7 @@
 import React from 'react';
 import { FileText, AlertTriangle, Edit2 } from 'lucide-react';
 import { CustomerPreferencesData, CustomerPreferencesValidationResult } from './types/customerPreferences';
+import { formatNumber } from './core/calculations/utils/priceFormatter';
 
 interface CustomerPreferencesPanelProps {
   customerData: CustomerPreferencesData | null;
@@ -90,9 +91,7 @@ export const CustomerPreferencesPanel: React.FC<CustomerPreferencesPanelProps> =
     if (!discount || discount <= 0) {
       return 'None';
     }
-    // Round to 2 decimal places and remove trailing zeros
-    const rounded = Math.round(discount * 100) / 100;
-    return `${rounded}%`;
+    return `${formatNumber(discount)}%`;
   };
 
   // Helper function to format Shipping preference display
@@ -101,10 +100,10 @@ export const CustomerPreferencesPanel: React.FC<CustomerPreferencesPanelProps> =
       return 'No';
     }
     if (preferences.pref_shipping_flat) {
-      return `Yes (Flat: $${preferences.pref_shipping_flat})`;
+      return `Yes (Flat: $${formatNumber(preferences.pref_shipping_flat)})`;
     }
     if (preferences.pref_shipping_multiplier) {
-      return `Yes (${preferences.pref_shipping_multiplier}x)`;
+      return `Yes (${formatNumber(preferences.pref_shipping_multiplier)}x)`;
     }
     return 'Yes';
   };

@@ -275,6 +275,14 @@ export const ExampleComponent = ({ }: Props) => {
       <QuickConnect>mysql -u root -p sign_manufacturing</QuickConnect>
     </DatabaseAccess>
 
+    <UtilityScripts>
+      <CredentialManagement>
+        <UpdateQuickBooks>node /home/jon/Nexus/backend/web/update-qb-credentials.js</UpdateQuickBooks>
+        <Description>Interactive CLI tool to update encrypted QuickBooks credentials</Description>
+        <Note>QuickBooks credentials are stored encrypted in database using AES-256-GCM</Note>
+      </CredentialManagement>
+    </UtilityScripts>
+
     <DemoUsers>
       <User role="manager">
         <Username>admin</Username>

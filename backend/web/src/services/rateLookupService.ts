@@ -20,7 +20,7 @@ interface PricingTableConfig {
 const PRICING_TABLES: Record<string, PricingTableConfig> = {
   channelLetterTypes: {
     table: 'channel_letter_types',
-    columns: ['id', 'type_name', 'type_code', 'base_rate_per_inch', 'led_default', 'led_multiplier', 'effective_date', 'is_active'],
+    columns: ['id', 'type_name', 'type_code', 'base_rate_per_inch', 'led_default', 'led_multiplier', 'requires_pins', 'effective_date', 'is_active'],
     orderBy: 'type_name'
   },
   leds: {

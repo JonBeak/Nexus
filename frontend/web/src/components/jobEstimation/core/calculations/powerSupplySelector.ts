@@ -4,6 +4,7 @@
 
 import { ComponentItem } from './types/CalculatorTypes';
 import { PricingDataResource } from '../../../../services/pricingDataResource';
+import { formatPrice } from './utils/priceFormatter';
 
 // =====================================================
 // TYPE DEFINITIONS
@@ -31,17 +32,6 @@ export interface PowerSupplyResult {
   totalCount: number;
   error?: string;
 }
-
-// =====================================================
-// HELPER FUNCTIONS
-// =====================================================
-
-/**
- * Format price (integer if whole number, 2 decimals if not)
- */
-const formatPrice = (price: number): string => {
-  return price % 1 === 0 ? price.toString() : price.toFixed(2);
-};
 
 // =====================================================
 // MAIN SELECTION FUNCTION

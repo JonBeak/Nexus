@@ -1,10 +1,12 @@
 /**
  * QuickBooks Database Manager
  * Handles storage and retrieval of QB OAuth tokens and entity ID mappings
+ * Updated to use encrypted token storage
  */
 
 import { pool } from '../../config/database';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { encryptionService } from '../../services/encryptionService';
 
 // =============================================
 // TYPES
@@ -45,6 +47,7 @@ export interface QBItemMapping {
 
 /**
  * Store or update OAuth tokens for a realm
+ * Now encrypts tokens before storage
  */
 export async function storeTokens(
   realmId: string,
@@ -63,37 +66,64 @@ export async function storeTokens(
   const accessTokenExpiresAt = new Date(now.getTime() + accessExpiresIn * 1000);
   const refreshTokenExpiresAt = new Date(now.getTime() + refreshExpiresIn * 1000);
 
+  // Encrypt the tokens
+  const encryptedAccessToken = encryptionService.encrypt(tokenData.access_token);
+  const encryptedRefreshToken = encryptionService.encrypt(tokenData.refresh_token);
+  const encryptedIdToken = tokenData.id_token ? encryptionService.encrypt(tokenData.id_token) : null;
+
   await pool.execute(
     `INSERT INTO qb_oauth_tokens
-      (realm_id, access_token, refresh_token, access_token_expires_at, refresh_token_expires_at, id_token)
-     VALUES (?, ?, ?, ?, ?, ?)
+      (realm_id,
+       access_token, refresh_token,
+       access_token_encrypted, access_token_iv, access_token_tag,
+       refresh_token_encrypted, refresh_token_iv, refresh_token_tag,
+       access_token_expires_at, refresh_token_expires_at,
+       id_token, encryption_version)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
      ON DUPLICATE KEY UPDATE
-      access_token = VALUES(access_token),
-      refresh_token = VALUES(refresh_token),
+      access_token = '',
+      refresh_token = '',
+      access_token_encrypted = VALUES(access_token_encrypted),
+      access_token_iv = VALUES(access_token_iv),
+      access_token_tag = VALUES(access_token_tag),
+      refresh_token_encrypted = VALUES(refresh_token_encrypted),
+      refresh_token_iv = VALUES(refresh_token_iv),
+      refresh_token_tag = VALUES(refresh_token_tag),
       access_token_expires_at = VALUES(access_token_expires_at),
       refresh_token_expires_at = VALUES(refresh_token_expires_at),
       id_token = VALUES(id_token),
+      encryption_version = 1,
       updated_at = CURRENT_TIMESTAMP`,
     [
       realmId,
-      tokenData.access_token,
-      tokenData.refresh_token,
+      '', // Empty string for access_token (using encrypted version)
+      '', // Empty string for refresh_token (using encrypted version)
+      encryptedAccessToken.encrypted,
+      encryptedAccessToken.iv,
+      encryptedAccessToken.authTag,
+      encryptedRefreshToken.encrypted,
+      encryptedRefreshToken.iv,
+      encryptedRefreshToken.authTag,
       accessTokenExpiresAt,
       refreshTokenExpiresAt,
-      tokenData.id_token || null,
+      encryptedIdToken ? encryptedIdToken.encrypted : null,
     ]
   );
 
-  console.log(`✅ Tokens stored/updated for Realm ID: ${realmId}`);
+  console.log(`✅ Tokens stored/updated (encrypted) for Realm ID: ${realmId}`);
 }
 
 /**
  * Get active (non-expired) access token for a realm
+ * Decrypts tokens if they are encrypted
  */
 export async function getActiveTokens(realmId: string): Promise<QBTokenData | null> {
   const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT realm_id, access_token, refresh_token,
-            access_token_expires_at, refresh_token_expires_at, id_token
+    `SELECT realm_id,
+            access_token, access_token_encrypted, access_token_iv, access_token_tag,
+            refresh_token, refresh_token_encrypted, refresh_token_iv, refresh_token_tag,
+            access_token_expires_at, refresh_token_expires_at, id_token,
+            encryption_version
      FROM qb_oauth_tokens
      WHERE realm_id = ? AND access_token_expires_at > NOW()`,
     [realmId]
@@ -103,15 +133,48 @@ export async function getActiveTokens(realmId: string): Promise<QBTokenData | nu
     return null;
   }
 
-  return rows[0] as QBTokenData;
+  const row = rows[0];
+  let accessToken: string;
+  let refreshToken: string;
+
+  // Check if tokens are encrypted
+  if (row.encryption_version === 1) {
+    // Decrypt tokens
+    accessToken = encryptionService.decrypt(
+      row.access_token_encrypted,
+      row.access_token_iv,
+      row.access_token_tag
+    );
+    refreshToken = encryptionService.decrypt(
+      row.refresh_token_encrypted,
+      row.refresh_token_iv,
+      row.refresh_token_tag
+    );
+  } else {
+    // Use plaintext tokens (during migration)
+    accessToken = row.access_token;
+    refreshToken = row.refresh_token;
+  }
+
+  return {
+    realm_id: row.realm_id,
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    access_token_expires_at: row.access_token_expires_at,
+    refresh_token_expires_at: row.refresh_token_expires_at,
+    id_token: row.id_token,
+  };
 }
 
 /**
  * Get refresh token details (even if access token is expired)
+ * Decrypts refresh token if encrypted
  */
 export async function getRefreshTokenDetails(realmId: string): Promise<QBTokenData | null> {
   const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT realm_id, refresh_token, refresh_token_expires_at
+    `SELECT realm_id,
+            refresh_token, refresh_token_encrypted, refresh_token_iv, refresh_token_tag,
+            refresh_token_expires_at, encryption_version
      FROM qb_oauth_tokens
      WHERE realm_id = ? AND refresh_token_expires_at > NOW()`,
     [realmId]
@@ -121,7 +184,29 @@ export async function getRefreshTokenDetails(realmId: string): Promise<QBTokenDa
     return null;
   }
 
-  return rows[0] as QBTokenData;
+  const row = rows[0];
+  let refreshToken: string;
+
+  // Check if token is encrypted
+  if (row.encryption_version === 1) {
+    // Decrypt token
+    refreshToken = encryptionService.decrypt(
+      row.refresh_token_encrypted,
+      row.refresh_token_iv,
+      row.refresh_token_tag
+    );
+  } else {
+    // Use plaintext token (during migration)
+    refreshToken = row.refresh_token;
+  }
+
+  return {
+    realm_id: row.realm_id,
+    access_token: '', // Not needed for refresh
+    refresh_token: refreshToken,
+    refresh_token_expires_at: row.refresh_token_expires_at,
+    access_token_expires_at: new Date(), // Placeholder
+  };
 }
 
 /**

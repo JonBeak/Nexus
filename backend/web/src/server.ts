@@ -22,6 +22,9 @@ import jobEstimationRoutes from './routes/jobEstimation';
 import pricingCalculationRoutes from './routes/pricingCalculation';
 import locksRoutes from './routes/locks';
 import quickbooksRoutes from './routes/quickbooks';
+import quickbooksTestRoutes from './routes/quickbooksTest';
+import credentialsRoutes from './routes/credentials';
+import ordersRoutes from './routes/orders';
 // import categoriesRoutes from './routes/categories';
 // import productStandardsRoutes from './routes/productStandards';
 
@@ -81,6 +84,9 @@ app.use('/api/job-estimation', jobEstimationRoutes);
 app.use('/api/pricing', pricingCalculationRoutes);
 app.use('/api/locks', locksRoutes);
 app.use('/api/quickbooks', quickbooksRoutes);
+app.use('/api/quickbooks-test', quickbooksTestRoutes);
+app.use('/api/credentials', credentialsRoutes);
+app.use('/api/orders', ordersRoutes);
 // app.use('/api/categories', categoriesRoutes);
 // app.use('/api/product-standards', productStandardsRoutes);
 

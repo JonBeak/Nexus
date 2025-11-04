@@ -19,6 +19,7 @@ import { useEstimateNavigation } from './hooks/useEstimateNavigation';
 import { useCustomerContext } from './hooks/useCustomerContext';
 import { useValidationOrchestration } from './hooks/useValidationOrchestration';
 import { useQuickBooksIntegration } from './hooks/useQuickBooksIntegration';
+import { GridEngine } from './core/GridEngine';
 
 interface JobEstimationDashboardProps {
   user: User;
@@ -32,6 +33,9 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
 
   // Cross-component hover state for row highlighting
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
+
+  // GridEngine reference for auto-save orchestration
+  const [gridEngineRef, setGridEngineRef] = useState<GridEngine | null>(null);
 
   // Customer context hook
   const {
@@ -87,7 +91,8 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
     isDraft: currentEstimate?.is_draft ?? false,
     customerPreferencesData,
     setCustomerPreferencesData,
-    setPreferencesValidationResult
+    setPreferencesValidationResult,
+    gridEngineRef
   });
 
   // QuickBooks integration hook
@@ -257,6 +262,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
                   onRequestNavigation={setNavigationGuard}
                   onPreferencesLoaded={handlePreferencesLoaded}
                   onGridDataChange={handleGridDataChange}
+                  onGridEngineReady={setGridEngineRef}
                   hoveredRowId={hoveredRowId}
                   onRowHover={setHoveredRowId}
                   estimatePreviewData={estimatePreviewData}

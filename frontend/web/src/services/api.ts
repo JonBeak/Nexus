@@ -693,6 +693,137 @@ export const provincesApi = {
 };
 
 // =============================================
+// ORDERS API
+// =============================================
+
+export const ordersApi = {
+  /**
+   * Get all orders with optional filters
+   */
+  async getOrders(filters?: {
+    status?: string;
+    customer_id?: number;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<any[]> {
+    const params: any = {};
+
+    if (filters?.status && filters.status !== 'all') {
+      params.status = filters.status;
+    }
+    if (filters?.customer_id) {
+      params.customer_id = filters.customer_id;
+    }
+    if (filters?.search) {
+      params.search = filters.search;
+    }
+    if (filters?.limit) {
+      params.limit = filters.limit;
+    }
+    if (filters?.offset) {
+      params.offset = filters.offset;
+    }
+
+    const response = await api.get('/orders', { params });
+    return response.data.data;
+  },
+
+  /**
+   * Get single order by order number
+   */
+  async getOrderById(orderNumber: number): Promise<any> {
+    const response = await api.get(`/orders/${orderNumber}`);
+    return response.data.data;
+  },
+
+  /**
+   * Update order status
+   */
+  async updateOrderStatus(orderNumber: number, status: string, notes?: string): Promise<void> {
+    await api.put(`/orders/${orderNumber}/status`, { status, notes });
+  },
+
+  /**
+   * Convert estimate to order
+   */
+  async convertEstimateToOrder(data: {
+    estimateId: number;
+    orderName: string;
+    customerPo?: string;
+    dueDate?: string;
+    pointPersonEmail?: string;
+    productionNotes?: string;
+  }): Promise<{ order_id: number; order_number: number }> {
+    const response = await api.post('/orders/convert-estimate', data);
+    return response.data.data;
+  },
+
+  /**
+   * Delete order
+   */
+  async deleteOrder(orderNumber: number): Promise<void> {
+    await api.delete(`/orders/${orderNumber}`);
+  },
+
+  /**
+   * Get order progress
+   */
+  async getOrderProgress(orderNumber: number): Promise<any> {
+    const response = await api.get(`/orders/${orderNumber}/progress`);
+    return response.data.data;
+  },
+
+  /**
+   * Get order tasks
+   */
+  async getOrderTasks(orderNumber: number): Promise<any[]> {
+    const response = await api.get(`/orders/${orderNumber}/tasks`);
+    return response.data.data;
+  },
+
+  /**
+   * Get tasks grouped by part
+   */
+  async getTasksByPart(orderNumber: number): Promise<any[]> {
+    const response = await api.get(`/orders/${orderNumber}/tasks/by-part`);
+    return response.data.data;
+  },
+
+  /**
+   * Update task completion
+   */
+  async updateTaskCompletion(orderNumber: number, taskId: number, completed: boolean): Promise<void> {
+    await api.put(`/orders/${orderNumber}/tasks/${taskId}`, { completed });
+  },
+
+  /**
+   * Get status history (timeline events)
+   */
+  async getStatusHistory(orderNumber: number): Promise<any[]> {
+    const response = await api.get(`/orders/${orderNumber}/status-history`);
+    return response.data.data;
+  },
+
+  /**
+   * Get tasks grouped by production role
+   */
+  async getTasksByRole(includeCompleted: boolean = false, hoursBack: number = 24): Promise<any> {
+    const response = await api.get('/orders/tasks/by-role', {
+      params: { includeCompleted, hoursBack }
+    });
+    return response.data.data;
+  },
+
+  /**
+   * Batch update tasks (start/complete)
+   */
+  async batchUpdateTasks(updates: Array<{ task_id: number; started?: boolean; completed?: boolean }>): Promise<void> {
+    await api.put('/orders/tasks/batch-update', { updates });
+  }
+};
+
+// =============================================
 // QUICKBOOKS INTEGRATION API
 // =============================================
 
@@ -749,6 +880,7 @@ export const quickbooksApi = {
   async createEstimate(estimateData: {
     estimateId: number;
     estimatePreviewData: any;
+    debugMode?: boolean; // Optional: enables sent vs received comparison logging
   }): Promise<{
     success: boolean;
     qbEstimateId?: string;
@@ -756,6 +888,13 @@ export const quickbooksApi = {
     qbEstimateUrl?: string;
     error?: string;
     missingItems?: string[];
+    debug?: {
+      linesSent: number;
+      linesReturned: number;
+      sentLines: any[];
+      returnedLines: any[];
+      fullEstimate: any;
+    };
   }> {
     const response = await api.post('/quickbooks/create-estimate', estimateData);
     return response.data;

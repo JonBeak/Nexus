@@ -84,6 +84,8 @@ export interface GridJobBuilderProps {
   onPreferencesLoaded?: (preferences: CustomerManufacturingPreferences | null) => void;
   // Grid data change callback - for auto-save orchestration
   onGridDataChange?: (version: number) => void;
+  // GridEngine ready callback - passes GridEngine instance to parent for auto-save
+  onGridEngineReady?: (engine: import('../core/GridEngine').GridEngine | null) => void;
   // Cross-component hover state
   hoveredRowId?: string | null;
   onRowHover?: (rowId: string | null) => void;

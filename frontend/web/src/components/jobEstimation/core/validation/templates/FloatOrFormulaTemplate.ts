@@ -17,11 +17,15 @@ export class FloatOrFormulaTemplate extends BaseValidationTemplate {
       const cleanValue = value.trim();
       let numericValue: number;
 
+      // Extract letter count from context for # placeholder support
+      // Available in channelLetterMetrics.pieceCount (from calculated values)
+      const letterCount = context?.calculatedValues?.channelLetterMetrics?.pieceCount;
+
       // Check if it looks like a formula
       if (looksLikeFormula(cleanValue)) {
-        // Parse as formula
+        // Parse as formula (with optional letter count for # placeholder)
         try {
-          const result = parsePinFormula(cleanValue);
+          const result = parsePinFormula(cleanValue, letterCount);
           numericValue = result.value;
         } catch (error) {
           return this.createError(error instanceof Error ? error.message : 'Invalid formula', params);
@@ -31,7 +35,7 @@ export class FloatOrFormulaTemplate extends BaseValidationTemplate {
         numericValue = parseFloat(cleanValue);
 
         if (isNaN(numericValue)) {
-          return this.createError('Must be a number or formula (e.g., "50 + 25x9")', params);
+          return this.createError('Must be a number or formula (e.g., "50 + 25x9" or "# x 5")', params);
         }
       }
 
@@ -83,7 +87,7 @@ export class FloatOrFormulaTemplate extends BaseValidationTemplate {
       : params.decimal_places;
 
     // Base description
-    parts.push('number or formula (e.g., "50 + 25x9")');
+    parts.push('number or formula (e.g., "50 + 25x9" or "# x 5")');
 
     if (decimalPlaces === 0) {
       parts.push('whole numbers only');
@@ -109,7 +113,7 @@ export class FloatOrFormulaTemplate extends BaseValidationTemplate {
   }
 
   getDescription(): string {
-    return 'Validates numeric input or arithmetic formula (e.g., "50 + 25x9"). Supports +, -, x, *, / operators with proper order of operations.';
+    return 'Validates numeric input or arithmetic formula (e.g., "50 + 25x9" or "# x 5" where # = letter count). Supports +, -, x, *, / operators with proper order of operations.';
   }
 
   getParameterSchema(): Record<string, any> {

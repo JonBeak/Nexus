@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { fieldPromptsApi, SimpleProductTemplate } from '../../../services/fieldPromptsApi';
+import { QuickBooksDataResource } from '../../../services/quickbooksDataResource';
 
 interface UseTemplateCacheReturn {
   templateCache: Record<number, SimpleProductTemplate>;

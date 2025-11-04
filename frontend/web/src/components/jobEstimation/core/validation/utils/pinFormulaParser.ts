@@ -8,6 +8,7 @@
  * - Multiplication: 25x9 or 25*9 → 225
  * - Division: 100/4 → 25
  * - Combined: 50 + 25x9 → 275 (multiplication/division before addition/subtraction)
+ * - Letter count placeholder: # → replaced with actual letter count
  *
  * Examples:
  * - "50" → 50
@@ -15,6 +16,8 @@
  * - "25x9" → 225
  * - "50 + 25x9" → 275
  * - "100 - 20 + 5x3" → 95
+ * - "# x 5" (with 8 letters) → 40
+ * - "# x 3 + 10" (with 12 letters) → 46
  */
 
 export interface FormulaParseResult {
@@ -210,16 +213,43 @@ class FormulaParser {
 /**
  * Parse a pin formula and return the calculated result
  *
- * @param formula - Input formula string (e.g., "50 + 25x9")
+ * @param formula - Input formula string (e.g., "50 + 25x9" or "# x 5")
+ * @param letterCount - Optional letter count to substitute for # placeholder
  * @returns Parsed result with calculated value
- * @throws Error if formula is invalid
+ * @throws Error if formula is invalid or # is used without letterCount
  */
-export function parsePinFormula(formula: string): FormulaParseResult {
+export function parsePinFormula(formula: string, letterCount?: number): FormulaParseResult {
   if (!formula || formula.trim() === '') {
     throw new Error('Formula cannot be empty');
   }
 
   const originalFormula = formula.trim();
+
+  // Check if formula contains # placeholder
+  if (originalFormula.includes('#')) {
+    if (letterCount === undefined || letterCount === null || isNaN(letterCount)) {
+      throw new Error('Formula contains # but no letter count available');
+    }
+    // Replace all # with the letter count value
+    const substitutedFormula = originalFormula.replace(/#/g, letterCount.toString());
+
+    try {
+      // Tokenize the substituted formula
+      const tokenizer = new FormulaTokenizer(substitutedFormula);
+      const tokens = tokenizer.tokenize();
+
+      // Parse and evaluate
+      const parser = new FormulaParser(tokens);
+      const value = parser.parse();
+
+      return {
+        value,
+        originalFormula  // Keep original formula with # for display
+      };
+    } catch (error) {
+      throw new Error(`Invalid formula: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 
   // Check if it's just a simple number (optimization)
   const simpleNumber = parseFloat(originalFormula);
@@ -249,7 +279,7 @@ export function parsePinFormula(formula: string): FormulaParseResult {
 }
 
 /**
- * Check if a string looks like a formula (contains operators)
+ * Check if a string looks like a formula (contains operators or # placeholder)
  * This is a quick heuristic check before attempting to parse
  */
 export function looksLikeFormula(input: string): boolean {
@@ -259,6 +289,6 @@ export function looksLikeFormula(input: string): boolean {
 
   const normalized = input.trim();
 
-  // Check for arithmetic operators
-  return /[+\-*x/]/.test(normalized);
+  // Check for arithmetic operators or # placeholder
+  return /[+\-*x/#]/.test(normalized);
 }

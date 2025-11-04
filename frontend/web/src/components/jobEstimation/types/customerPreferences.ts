@@ -5,7 +5,7 @@ import { CustomerManufacturingPreferences } from '../core/validation/context/use
 export interface CustomerPreferencesData {
   // Customer basic info
   customerId: number;
-  customerName: string;
+  customerName: string | null; // QuickBooks DisplayName - null if not configured
   cashCustomer: boolean;
   discount?: number;
   defaultTurnaround?: number;

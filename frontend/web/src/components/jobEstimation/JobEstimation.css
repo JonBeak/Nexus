@@ -35,6 +35,12 @@
     min-height: 300px;
     max-height: 350px;
   }
+
+  /* Make JobPanel shorter when stacked vertically */
+  .three-panel-container > div:nth-child(2) {
+    min-height: 300px;
+    max-height: 350px;
+  }
 }
 
 /* Mobile Layout */
@@ -49,6 +55,12 @@
 
   /* CustomerPanel shorter on mobile */
   .three-panel-container > div:first-child {
+    min-height: 250px;
+    max-height: 300px;
+  }
+
+  /* JobPanel shorter on mobile */
+  .three-panel-container > div:nth-child(2) {
     min-height: 250px;
     max-height: 300px;
   }

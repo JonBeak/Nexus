@@ -5,11 +5,7 @@
 import { RowCalculationResult } from '../types/LayerTypes';
 import { ValidatedPricingInput, ComponentItem, PricingCalculationData } from './types/CalculatorTypes';
 import { PricingDataResource } from '../../../../services/pricingDataResource';
-
-// Helper function to format price (integer if whole number, 2 decimals if not)
-const formatPrice = (price: number): string => {
-  return price % 1 === 0 ? price.toString() : price.toFixed(2);
-};
+import { formatPrice } from './utils/priceFormatter';
 
 // Helper function to format counts (remove decimals if whole number)
 const formatCount = (count: number): string => {

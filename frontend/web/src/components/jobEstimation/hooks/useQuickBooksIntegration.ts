@@ -44,6 +44,17 @@ export const useQuickBooksIntegration = ({
       return;
     }
 
+    // Validate QuickBooks name is configured
+    if (!estimatePreviewData.customerName || !estimatePreviewData.customerName.trim()) {
+      alert(
+        '❌ QuickBooks Name Not Configured\n\n' +
+        'This customer does not have a QuickBooks name set.\n\n' +
+        'Please edit the customer and set their QuickBooks name to match ' +
+        'their exact DisplayName in QuickBooks before creating estimates.'
+      );
+      return;
+    }
+
     if (!currentEstimate.is_draft) {
       alert('Only draft estimates can be sent to QuickBooks.');
       return;
@@ -68,7 +79,16 @@ export const useQuickBooksIntegration = ({
       const result = await quickbooksApi.createEstimate({
         estimateId: currentEstimate.id,
         estimatePreviewData: estimatePreviewData,
+        debugMode: true, // TEMPORARY: Enable debug mode to compare sent vs received
       });
+
+      // TEMPORARY: Log debug info if available
+      if (result.debug) {
+        console.log('🔬 DEBUG MODE RESULTS:');
+        console.log(`Lines Sent: ${result.debug.linesSent}`);
+        console.log(`Lines Returned: ${result.debug.linesReturned}`);
+        console.log('Full debug data:', result.debug);
+      }
 
       if (result.success && result.qbEstimateUrl) {
         // Update local state to reflect finalization

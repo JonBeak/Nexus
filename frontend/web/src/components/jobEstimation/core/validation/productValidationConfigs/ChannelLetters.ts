@@ -8,9 +8,9 @@ import { FieldValidationConfig } from '../ValidationEngine';
  * - field2: Inches/LED
  * - field3: LEDs #
  * - field4: UL
- * - field5: pins
- * - field6: xtra wire
- * - field7: (unused)
+ * - field5: Pins # (required if channel type requires_pins)
+ * - field6: Pins Type (required if channel type requires_pins)
+ * - field7: Extra wire
  * - field8: LED Type
  * - field9: PS #
  * - field10: PS Type
@@ -60,7 +60,7 @@ export const channelLettersValidation: Record<string, FieldValidationConfig> = {
   field6: {
     function: 'non_empty',
     error_level: 'error',
-    complimentary_fields: [5], // If field5 (pins #) filled, field6 (pins type) required
+    // Validation handled by custom logic: required if field5 > 0
     params: {}
   },
   field7: {

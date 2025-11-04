@@ -246,15 +246,18 @@ export async function getItemIdByName(itemName: string, realmId: string): Promis
 // =============================================
 
 export interface QBEstimateLine {
-  Description: string;
+  Description?: string;  // Optional, used for all line types
   DetailType: string;
-  SalesItemLineDetail: {
+  SalesItemLineDetail?: {  // Required for SalesItemLineDetail type
     ItemRef: { value: string; name: string };
     Qty: number;
     UnitPrice: number;
     TaxCodeRef: { value: string };
   };
-  Amount: number;
+  SubTotalLineDetail?: {};  // Required for SubTotalLineDetail type
+  DescriptionLineDetail?: {};  // Required for DescriptionOnly type
+  Amount?: number;  // Optional for DescriptionOnly lines
+  LineNum?: number;  // Optional line number for ordering
 }
 
 export interface QBEstimatePayload {
@@ -272,6 +275,18 @@ export async function createEstimate(
 ): Promise<{ estimateId: string; docNumber: string }> {
   console.log('📝 Creating estimate in QuickBooks...');
 
+  // Log the actual API call being made
+  console.log('\n🌐 QUICKBOOKS API CALL:');
+  console.log('=======================');
+  console.log(`Endpoint: POST /v3/company/${realmId}/estimate`);
+  console.log(`Environment: ${process.env.QB_ENVIRONMENT || 'sandbox'}`);
+  console.log(`Line Items Count: ${estimatePayload.Line.length}`);
+  console.log('\nLine Items Summary:');
+  estimatePayload.Line.forEach((line, idx) => {
+    console.log(`  ${idx + 1}. ${line.DetailType}${line.Description ? `: "${line.Description.substring(0, 50)}${line.Description.length > 50 ? '...' : ''}"` : ''}`);
+  });
+  console.log('=======================\n');
+
   const response = await makeQBApiCall('POST', 'estimate', realmId, {
     data: estimatePayload,
     headers: {
@@ -284,7 +299,22 @@ export async function createEstimate(
     throw new APIError('Estimate creation returned no ID');
   }
 
+  // Log what QuickBooks returned
+  console.log('\n📥 QUICKBOOKS RESPONSE:');
+  console.log('=======================');
   console.log(`✅ Estimate created: ID=${estimate.Id}, Doc#=${estimate.DocNumber}`);
+  console.log(`Line Items Returned: ${estimate.Line ? estimate.Line.length : 0}`);
+
+  if (estimate.Line) {
+    console.log('\nReturned Line Items:');
+    estimate.Line.forEach((line: any, idx: number) => {
+      console.log(`  ${idx + 1}. ${line.DetailType}${line.Description ? `: "${line.Description.substring(0, 50)}${line.Description.length > 50 ? '...' : ''}"` : ''}`);
+      if (line.Amount !== undefined) {
+        console.log(`     Amount: $${line.Amount}`);
+      }
+    });
+  }
+  console.log('=======================\n');
 
   return {
     estimateId: estimate.Id,

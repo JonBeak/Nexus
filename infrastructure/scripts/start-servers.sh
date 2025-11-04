@@ -15,9 +15,13 @@ echo "   ✓ Production build complete"
 
 echo ""
 
-# Backend - Use PM2 (production-ready)
-echo "🔧 Starting/Restarting backend with PM2..."
+# Backend - Build TypeScript and use PM2 (production-ready)
+echo "🔧 Building backend..."
 cd "$REPO_DIR/backend/web"
+npm run build
+echo "   ✓ Backend build complete"
+
+echo "🔧 Starting/Restarting backend with PM2..."
 pm2 restart signhouse-backend 2>/dev/null || pm2 start npm --name "signhouse-backend" -- start
 echo "   ✓ Backend running on port 3001 (PM2)"
 
