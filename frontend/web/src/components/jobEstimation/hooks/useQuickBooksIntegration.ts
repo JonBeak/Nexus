@@ -19,6 +19,11 @@ export const useQuickBooksIntegration = ({
   const [qbCheckingStatus, setQbCheckingStatus] = useState(true);
   const [qbCreatingEstimate, setQbCreatingEstimate] = useState(false);
 
+  // Modal states
+  const [showConfirmFinalizeModal, setShowConfirmFinalizeModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successData, setSuccessData] = useState<{ qbDocNumber: string; qbEstimateUrl: string } | null>(null);
+
   // Check QuickBooks connection status on mount
   useEffect(() => {
     checkQBConnectionStatus();
@@ -65,13 +70,14 @@ export const useQuickBooksIntegration = ({
       return;
     }
 
-    // Confirm finalization
-    const confirmed = window.confirm(
-      '⚠️ This will FINALIZE the estimate and make it IMMUTABLE.\n\n' +
-      'The estimate will be locked from further edits and sent to QuickBooks.\n\n' +
-      'Continue?'
-    );
-    if (!confirmed) return;
+    // Show confirmation modal instead of window.confirm
+    setShowConfirmFinalizeModal(true);
+  };
+
+  const handleConfirmFinalize = async () => {
+    if (!currentEstimate || !estimatePreviewData) return;
+
+    setShowConfirmFinalizeModal(false);
 
     try {
       setQbCreatingEstimate(true);
@@ -100,15 +106,12 @@ export const useQuickBooksIntegration = ({
           qb_estimate_url: result.qbEstimateUrl,
         });
 
-        alert(
-          `✅ Success!\n\n` +
-          `Estimate finalized and sent to QuickBooks.\n` +
-          `QB Document #: ${result.qbDocNumber}\n\n` +
-          `Opening in QuickBooks...`
-        );
-
-        // Open QB estimate in new tab
-        window.open(result.qbEstimateUrl, '_blank');
+        // Show success modal with options
+        setSuccessData({
+          qbDocNumber: result.qbDocNumber,
+          qbEstimateUrl: result.qbEstimateUrl
+        });
+        setShowSuccessModal(true);
       } else {
         alert(`❌ Failed to create estimate:\n\n${result.error || 'Unknown error'}`);
       }
@@ -118,6 +121,12 @@ export const useQuickBooksIntegration = ({
       alert(`❌ Error creating estimate in QuickBooks:\n\n${errorMsg}`);
     } finally {
       setQbCreatingEstimate(false);
+    }
+  };
+
+  const handleOpenFromSuccessModal = () => {
+    if (successData?.qbEstimateUrl) {
+      window.open(successData.qbEstimateUrl, '_blank');
     }
   };
 
@@ -194,6 +203,14 @@ export const useQuickBooksIntegration = ({
     handleCreateQuickBooksEstimate,
     handleOpenQuickBooksEstimate,
     handleConnectToQuickBooks,
-    handleDisconnectFromQuickBooks
+    handleDisconnectFromQuickBooks,
+    // Modal states and handlers
+    showConfirmFinalizeModal,
+    setShowConfirmFinalizeModal,
+    showSuccessModal,
+    setShowSuccessModal,
+    successData,
+    handleConfirmFinalize,
+    handleOpenFromSuccessModal
   };
 };

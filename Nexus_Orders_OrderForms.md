@@ -125,7 +125,7 @@ Four types of order forms generated as PDFs, all created simultaneously when ord
 4. **Archive Strategy:**
    - Old versions stored in order_form_versions table
    - Accessible for download/reference
-   - Path: `/mnt/signfiles/orders/{orderNumber}/archive/v{version}/`
+   - Path: `/mnt/channelletter/NexusTesting/Order-{orderNumber}/archive/v{version}/`
 
 ## Phase 1 Implementation Notes
 

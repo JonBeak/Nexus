@@ -166,6 +166,78 @@ export const customerApi = {
   },
 };
 
+// =============================================
+// CUSTOMER CONTACTS API (Phase 1.5.a.5)
+// =============================================
+export const customerContactsApi = {
+  /**
+   * Get unique contact emails for customer (for dropdown)
+   */
+  async getEmails(customerId: number): Promise<string[]> {
+    const response = await api.get(`/customers/${customerId}/contacts/emails`);
+    return response.data.emails;
+  },
+
+  /**
+   * Get all contacts for customer (with full details)
+   */
+  async getContacts(customerId: number): Promise<any[]> {
+    const response = await api.get(`/customers/${customerId}/contacts`);
+    return response.data.contacts;
+  },
+
+  /**
+   * Get primary contacts for customer (for auto-fill in order creation)
+   */
+  async getPrimaryContacts(customerId: number): Promise<any[]> {
+    const response = await api.get(`/customers/${customerId}/contacts/primary`);
+    return response.data.contacts;
+  },
+
+  /**
+   * Get single contact by ID
+   */
+  async getContact(customerId: number, contactId: number): Promise<any> {
+    const response = await api.get(`/customers/${customerId}/contacts/${contactId}`);
+    return response.data.contact;
+  },
+
+  /**
+   * Create new customer contact
+   */
+  async createContact(customerId: number, contactData: {
+    contact_name: string;
+    contact_email: string;
+    contact_phone?: string;
+    contact_role?: string;
+    notes?: string;
+  }): Promise<{ contact_id: number }> {
+    const response = await api.post(`/customers/${customerId}/contacts`, contactData);
+    return response.data;
+  },
+
+  /**
+   * Update customer contact
+   */
+  async updateContact(customerId: number, contactId: number, contactData: {
+    contact_name?: string;
+    contact_email?: string;
+    contact_phone?: string;
+    contact_role?: string;
+    is_active?: boolean;
+    notes?: string;
+  }): Promise<void> {
+    await api.put(`/customers/${customerId}/contacts/${contactId}`, contactData);
+  },
+
+  /**
+   * Delete customer contact (soft delete)
+   */
+  async deleteContact(customerId: number, contactId: number): Promise<void> {
+    await api.delete(`/customers/${customerId}/contacts/${contactId}`);
+  }
+};
+
 export const vinylApi = {
   // Get all vinyl inventory items
   getVinylItems: async (params: {
@@ -690,6 +762,12 @@ export const provincesApi = {
     const response = await api.get(`/customers/tax-info/${provinceCode}`);
     return response.data;
   },
+
+  // Get all tax rules
+  getTaxRules: async () => {
+    const response = await api.get('/customers/tax-rules');
+    return response.data;
+  },
 };
 
 // =============================================
@@ -738,6 +816,21 @@ export const ordersApi = {
   },
 
   /**
+   * Update order details
+   */
+  async updateOrder(orderNumber: number, updates: {
+    customer_po?: string;
+    customer_job_number?: string;
+    due_date?: string;
+    hard_due_date_time?: string;
+    production_notes?: string;
+    manufacturing_note?: string;
+    internal_note?: string;
+  }): Promise<void> {
+    await api.put(`/orders/${orderNumber}`, updates);
+  },
+
+  /**
    * Update order status
    */
   async updateOrderStatus(orderNumber: number, status: string, notes?: string): Promise<void> {
@@ -751,9 +844,12 @@ export const ordersApi = {
     estimateId: number;
     orderName: string;
     customerPo?: string;
+    customerJobNumber?: string;        // Phase 1.5.a.5
     dueDate?: string;
-    pointPersonEmail?: string;
+    hardDueDateTime?: string;          // Phase 1.5.a.5
+    pointPersons?: any[];              // Array of point persons from order_point_persons table
     productionNotes?: string;
+    estimatePreviewData?: any;
   }): Promise<{ order_id: number; order_number: number }> {
     const response = await api.post('/orders/convert-estimate', data);
     return response.data.data;
@@ -820,6 +916,141 @@ export const ordersApi = {
    */
   async batchUpdateTasks(updates: Array<{ task_id: number; started?: boolean; completed?: boolean }>): Promise<void> {
     await api.put('/orders/tasks/batch-update', { updates });
+  },
+
+  /**
+   * Get order by estimate ID
+   */
+  async getOrderByEstimate(estimateId: number): Promise<{ order_id: number; order_number: number } | null> {
+    const response = await api.get(`/orders/by-estimate/${estimateId}`);
+    return response.data.order;
+  },
+
+  /**
+   * Calculate due date based on business days (Phase 1.5.a.5)
+   */
+  async calculateDueDate(startDate: string, turnaroundDays: number): Promise<{ dueDate: string; businessDaysCalculated: number }> {
+    const response = await api.post('/orders/calculate-due-date', {
+      startDate,
+      turnaroundDays
+    });
+    return response.data;
+  },
+
+  /**
+   * Calculate business days between two dates (Phase 1.5.a.5)
+   */
+  async calculateBusinessDays(startDate: string, endDate: string): Promise<{ businessDays: number }> {
+    const response = await api.post('/orders/calculate-business-days', {
+      startDate,
+      endDate
+    });
+    return response.data;
+  },
+
+  /**
+   * Update order parts in bulk (Phase 1.5.c)
+   * @param orderNumber - Order number to update
+   * @param parts - Array of part updates
+   */
+  async updateOrderParts(
+    orderNumber: number,
+    parts: Array<{
+      part_id: number;
+      product_type?: string;
+      specifications?: any;
+      invoice_description?: string;
+      quantity?: number;
+      unit_price?: number;
+      extended_price?: number;
+      production_notes?: string;
+    }>
+  ): Promise<void> {
+    await api.put(`/orders/${orderNumber}/parts`, { parts });
+  },
+
+  /**
+   * Update specs display name and regenerate specifications
+   * @param orderNumber - Order number
+   * @param partId - Part ID to update
+   * @param specsDisplayName - New specs display name
+   */
+  async updateSpecsDisplayName(
+    orderNumber: number,
+    partId: number,
+    specsDisplayName: string
+  ): Promise<{ success: boolean; data?: any; message?: string }> {
+    const response = await api.put(
+      `/orders/${orderNumber}/parts/${partId}/specs-display-name`,
+      { specs_display_name: specsDisplayName }
+    );
+    return response.data;
+  },
+
+  /**
+   * Get available task templates (Phase 1.5.c)
+   * Returns list of all distinct tasks in the system grouped by role
+   */
+  async getTaskTemplates(): Promise<Array<{
+    task_name: string;
+    assigned_role: string | null;
+  }>> {
+    const response = await api.get('/orders/task-templates');
+    return response.data.data;
+  },
+
+  /**
+   * Add task to a specific order part (Phase 1.5.c)
+   * @param orderNumber - Order number
+   * @param partId - Part ID to add task to
+   * @param taskData - Task information
+   */
+  async addTaskToPart(
+    orderNumber: number,
+    partId: number,
+    taskData: {
+      task_name: string;
+      assigned_role?: string;
+    }
+  ): Promise<{ task_id: number }> {
+    const response = await api.post(
+      `/orders/${orderNumber}/parts/${partId}/tasks`,
+      taskData
+    );
+    return response.data;
+  },
+
+  /**
+   * Remove task from order (Phase 1.5.c)
+   * @param taskId - Task ID to remove
+   */
+  async removeTask(taskId: number): Promise<void> {
+    await api.delete(`/orders/tasks/${taskId}`);
+  },
+
+  /**
+   * Get order with full part details (Phase 1.5.c)
+   * Enhanced version that ensures parts are included
+   * @param orderNumber - Order number
+   */
+  async getOrderWithParts(orderNumber: number): Promise<{
+    order: any;
+    parts: any[];
+  }> {
+    const response = await api.get(`/orders/${orderNumber}`);
+    return {
+      order: response.data.data,
+      parts: response.data.data.parts || []
+    };
+  },
+
+  /**
+   * Toggle is_parent status for an order part
+   * @param orderNumber - Order number
+   * @param partId - Part ID to toggle
+   */
+  async toggleIsParent(orderNumber: number, partId: number): Promise<void> {
+    await api.patch(`/orders/${orderNumber}/parts/${partId}/toggle-parent`);
   }
 };
 
@@ -898,9 +1129,76 @@ export const quickbooksApi = {
   }> {
     const response = await api.post('/quickbooks/create-estimate', estimateData);
     return response.data;
+  },
+
+  // Get all QuickBooks items for dropdowns
+  async getItems(): Promise<{
+    success: boolean;
+    items: Array<{
+      id: number;
+      name: string;
+      description: string | null;
+      qbItemId: string;
+      qbItemType: string | null;
+    }>;
+  }> {
+    const response = await api.get('/quickbooks/items');
+    return response.data;
   }
 };
 
+
+// =============================================
+// LEDS & POWER SUPPLIES API
+// =============================================
+
+export const ledsApi = {
+  /**
+   * Get all active LED types for specification dropdowns
+   */
+  async getActiveLEDs(): Promise<Array<{
+    led_id: number;
+    product_code: string;
+    colour: string;
+    watts: number;
+    volts: number;
+    brand: string;
+    model: string;
+    is_default: boolean;
+  }>> {
+    const response = await api.get('/leds');
+    return response.data.leds;
+  }
+};
+
+export const powerSuppliesApi = {
+  /**
+   * Get all active power supply types for specification dropdowns
+   */
+  async getActivePowerSupplies(): Promise<Array<{
+    power_supply_id: number;
+    transformer_type: string;
+    watts: number;
+    rated_watts: number;
+    volts: number;
+    ul_listed: boolean;
+    is_default_non_ul: boolean;
+    is_default_ul: boolean;
+  }>> {
+    const response = await api.get('/power-supplies');
+    return response.data.powerSupplies;
+  }
+};
+
+export const materialsApi = {
+  /**
+   * Get all active substrate materials for specification dropdowns
+   */
+  async getActiveSubstrates(): Promise<string[]> {
+    const response = await api.get('/materials/substrates');
+    return response.data.substrates;
+  }
+};
 
 // Export as both default and named export for compatibility
 export { api as apiClient };

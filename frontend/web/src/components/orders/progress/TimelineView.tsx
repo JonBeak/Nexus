@@ -32,7 +32,7 @@ export const TimelineView: React.FC<Props> = ({ orderNumber, refreshTrigger = 0 
   const displayedEvents = expanded ? events : events.slice(0, 5);
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div className="bg-white rounded-lg shadow p-4">
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Status History</h2>
 
       {loading ? (

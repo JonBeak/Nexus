@@ -38,6 +38,63 @@ router.get(
   orderConversionController.validateEstimateForConversion
 );
 
+/**
+ * Validate order name uniqueness for customer (Phase 1.5.a)
+ * GET /api/orders/validate-name?orderName=xxx&customerId=123
+ */
+router.get(
+  '/validate-name',
+  authenticateToken,
+  requirePermission('orders.create'),
+  orderController.validateOrderName
+);
+
+/**
+ * Get order by estimate ID (Phase 1.5.a)
+ * GET /api/orders/by-estimate/:estimateId
+ */
+router.get(
+  '/by-estimate/:estimateId',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderController.getOrderByEstimate
+);
+
+/**
+ * Calculate due date based on business days (Phase 1.5.a.5)
+ * POST /api/orders/calculate-due-date
+ * Body: { startDate: string (YYYY-MM-DD), turnaroundDays: number }
+ */
+router.post(
+  '/calculate-due-date',
+  authenticateToken,
+  requirePermission('orders.create'),
+  orderController.calculateDueDate
+);
+
+/**
+ * Calculate business days between two dates (Phase 1.5.a.5)
+ * POST /api/orders/calculate-business-days
+ * Body: { startDate: string (YYYY-MM-DD), endDate: string (YYYY-MM-DD) }
+ */
+router.post(
+  '/calculate-business-days',
+  authenticateToken,
+  requirePermission('orders.create'),
+  orderController.calculateBusinessDays
+);
+
+/**
+ * Get available task templates (Phase 1.5.c)
+ * GET /api/orders/task-templates
+ */
+router.get(
+  '/task-templates',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderController.getTaskTemplates
+);
+
 // =============================================
 // ORDER CRUD
 // =============================================
@@ -85,6 +142,112 @@ router.delete(
   authenticateToken,
   requirePermission('orders.delete'),
   orderController.deleteOrder
+);
+
+/**
+ * Update order parts in bulk (Phase 1.5.c)
+ * PUT /api/orders/:orderNumber/parts
+ * Body: { parts: Array<{ part_id, product_type?, specifications?, invoice_description?, quantity?, unit_price?, extended_price? }> }
+ */
+router.put(
+  '/:orderNumber/parts',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.updateOrderParts
+);
+
+/**
+ * Update specs display name and regenerate specifications (Manager+ only)
+ * PUT /api/orders/:orderNumber/parts/:partId/specs-display-name
+ * Body: { specs_display_name: string }
+ */
+router.put(
+  '/:orderNumber/parts/:partId/specs-display-name',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.updateSpecsDisplayName
+);
+
+/**
+ * Toggle is_parent status for order part
+ * PATCH /api/orders/:orderNumber/parts/:partId/toggle-parent
+ */
+router.patch(
+  '/:orderNumber/parts/:partId/toggle-parent',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.toggleIsParent
+);
+
+/**
+ * Add task to order part (Phase 1.5.c)
+ * POST /api/orders/:orderNumber/parts/:partId/tasks
+ * Body: { task_name: string, assigned_role?: string }
+ */
+router.post(
+  '/:orderNumber/parts/:partId/tasks',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.addTaskToOrderPart
+);
+
+/**
+ * Remove task from order (Phase 1.5.c)
+ * DELETE /api/orders/tasks/:taskId
+ */
+router.delete(
+  '/tasks/:taskId',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.removeTask
+);
+
+// =============================================
+// ORDER FINALIZATION & SNAPSHOTS (Phase 1.5.c.3)
+// =============================================
+
+/**
+ * Finalize order - create snapshots for all parts
+ * POST /api/orders/:orderNumber/finalize
+ */
+router.post(
+  '/:orderNumber/finalize',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.finalizeOrder
+);
+
+/**
+ * Get latest snapshot for a part
+ * GET /api/orders/parts/:partId/snapshot/latest
+ */
+router.get(
+  '/parts/:partId/snapshot/latest',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderController.getPartLatestSnapshot
+);
+
+/**
+ * Get all snapshots for a part (version history)
+ * GET /api/orders/parts/:partId/snapshots
+ */
+router.get(
+  '/parts/:partId/snapshots',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderController.getPartSnapshotHistory
+);
+
+/**
+ * Compare part with latest snapshot
+ * GET /api/orders/parts/:partId/compare
+ */
+router.get(
+  '/parts/:partId/compare',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderController.comparePartWithSnapshot
 );
 
 // =============================================

@@ -21,7 +21,7 @@ ORDER (Master Object)
 │   ├── Specifications
 │   ├── Sub-Items (vinyl, painting, etc.)
 │   ├── Materials Breakdown
-│   └── Tasks (generated from template)
+│   └── Tasks (manually added by user)
 │
 ├── Progress Tracking
 │   ├── Overall Progress
@@ -273,7 +273,7 @@ interface PartTask {
 
 ```typescript
 enum KanbanStage {
-  INITIATED = 'initiated',                               // Order created, being built
+  JOB_DETAILS_SETUP = 'job_details_setup',               // Order created, job details being set up
   PENDING_CONFIRMATION = 'pending_confirmation',         // Details sent to customer
   PENDING_PRODUCTION_FILES_CREATION = 'pending_production_files_creation', // Ready for design/production files
   PENDING_PRODUCTION_FILES_APPROVAL = 'pending_production_files_approval', // Production files sent to manager
@@ -539,7 +539,7 @@ ORDER
 └── Part 1: "Channel Letters 'OPEN' w/ LEDs, PS, UL"
     ├── estimateLineItems: [item_1, item_2, item_3]
     ├── specifications: { extracted from calculationData }
-    └── tasks: [auto-generated from template]
+    └── tasks: [manually added by user from templates]
 ```
 
 ### 2. Task Completion → Progress Update

@@ -174,7 +174,7 @@ export const calculateWiring = async (input: ValidatedPricingInput): Promise<Row
           : `${formatPrice(totalWireLength)}ft @ $${formatPrice(effectiveWireCostPerFt)}/ft`;
 
         components.push({
-          name: 'Wiring',
+          name: 'Extra Wire',
           price: wiringTotalCost,
           type: 'wiring',
           calculationDisplay

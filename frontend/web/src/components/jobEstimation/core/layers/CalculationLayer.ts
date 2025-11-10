@@ -9,6 +9,7 @@ export interface EstimateLineItem {
   rowId: string;
   inputGridDisplayNumber: string;      // From row metadata
   estimatePreviewDisplayNumber?: string; // Calculate later (separate task)
+  isParent?: boolean;                  // TRUE for first component in each group (e.g., "1", "2"), FALSE for sub-parts (e.g., "1a", "1b")
 
   // Product info
   productTypeId: number;
@@ -27,6 +28,9 @@ export interface EstimateLineItem {
 
   // Assembly (unused for now)
   assemblyGroupId?: string;
+
+  // Special rendering flags
+  isDescriptionOnly?: boolean;         // True for description-only items (display like Empty Row)
 }
 
 export interface EstimatePreviewData {
@@ -47,6 +51,88 @@ export interface CalculationOperations {
   calculatePricing: (
     context: PricingCalculationContext
   ) => Promise<EstimatePreviewData>;
+}
+
+/**
+ * Assigns estimate preview display numbers to items with sequential base numbering.
+ * Handles Sub-Item rows by continuing their parent's letter sequence.
+ * Renumbers base numbers sequentially (1, 2, 3...) regardless of input grid gaps.
+ *
+ * Example:
+ *   Input Grid Row 1 (main): Channel Letters → generates Letter(1), LEDs(1a), PS(1b)
+ *   Input Grid Row 2 (subItem, parent=Row1): Vinyl → generates Vinyl(1c)
+ *   Input Grid Row 5 (main): ACM Panel → generates ACM(2)  [Note: "2" not "5"]
+ *
+ * @param items - Array of estimate line items (without numbers assigned)
+ * @param rowMetadata - Metadata map for looking up rowType and parentId
+ * @returns Items with estimatePreviewDisplayNumber and isParent set
+ */
+function assignEstimatePreviewNumbers(
+  items: EstimateLineItem[],
+  rowMetadata: Map<string, any>
+): EstimateLineItem[] {
+  // Step 1: Helper to find logical parent's display number
+  const findLogicalParentDisplayNumber = (rowId: string, visitedIds = new Set<string>()): string => {
+    // Prevent infinite loops
+    if (visitedIds.has(rowId)) {
+      console.warn('[assignEstimatePreviewNumbers] Circular parent reference detected', rowId);
+      return '1';
+    }
+    visitedIds.add(rowId);
+
+    const metadata = rowMetadata.get(rowId);
+    if (!metadata) {
+      return '1'; // Fallback if metadata missing
+    }
+
+    // If this row has a parent (Sub-Item row), traverse up
+    if (metadata.parentId) {
+      return findLogicalParentDisplayNumber(metadata.parentId, visitedIds);
+    }
+
+    // This is a root row - use its display number
+    return metadata.displayNumber || '1';
+  };
+
+  // Step 2: Group items by their logical parent display number
+  const itemsByLogicalParent: Map<string, EstimateLineItem[]> = new Map();
+
+  items.forEach(item => {
+    const logicalParentNumber = findLogicalParentDisplayNumber(item.rowId);
+    const group = itemsByLogicalParent.get(logicalParentNumber) || [];
+    group.push(item);
+    itemsByLogicalParent.set(logicalParentNumber, group);
+  });
+
+  // Step 3: Sort parent display numbers to maintain order
+  const sortedParentNumbers = Array.from(itemsByLogicalParent.keys()).sort((a, b) => {
+    // Handle display numbers like "1", "1.a", "2", "10"
+    // Extract numeric part for comparison
+    const numA = parseFloat(a);
+    const numB = parseFloat(b);
+    return numA - numB;
+  });
+
+  // Step 4: Assign sequential base numbers to each group (1, 2, 3, 4...)
+  sortedParentNumbers.forEach((oldParentNumber, groupIndex) => {
+    const newBaseNumber = String(groupIndex + 1); // Sequential: 1, 2, 3, 4...
+    const groupItems = itemsByLogicalParent.get(oldParentNumber)!;
+
+    groupItems.forEach((item, itemIndex) => {
+      if (itemIndex === 0) {
+        // First component: use sequential base number (e.g., "1", "2", "3")
+        item.estimatePreviewDisplayNumber = newBaseNumber;
+        item.isParent = true;
+      } else {
+        // Subsequent components: add letter suffix (a, b, c, ...)
+        const letter = String.fromCharCode(96 + itemIndex); // 97='a', 98='b', 99='c'
+        item.estimatePreviewDisplayNumber = `${newBaseNumber}${letter}`;
+        item.isParent = false;
+      }
+    });
+  });
+
+  return items;
 }
 
 export const createCalculationOperations = (): CalculationOperations => {
@@ -75,6 +161,7 @@ export const createCalculationOperations = (): CalculationOperations => {
           if (calculation.data.components?.length > 0) {
             const overallQuantity = calculation.data.quantity || 1;
             for (const component of calculation.data.components) {
+              const isDescriptionOnly = component.type === 'description';
               const componentUnitPrice = Math.round((component.price || 0) * 100) / 100;
               const componentExtendedPrice = Math.round((componentUnitPrice * overallQuantity) * 100) / 100;
               items.push({
@@ -89,6 +176,7 @@ export const createCalculationOperations = (): CalculationOperations => {
                 unitPrice: componentUnitPrice,
                 quantity: overallQuantity,
                 extendedPrice: componentExtendedPrice,
+                isDescriptionOnly: isDescriptionOnly,  // Flag description-only items
                 // assemblyGroupId: undefined // Unused for now
               });
             }
@@ -114,28 +202,10 @@ export const createCalculationOperations = (): CalculationOperations => {
         }
       }
 
-      // Assign preview display numbers to components
-      // Components from the same row get letter suffixes: 1, 1a, 1b, 1c, 1d
-      const itemsByRow: Map<string, EstimateLineItem[]> = new Map();
-      items.forEach(item => {
-        const rowItems = itemsByRow.get(item.inputGridDisplayNumber) || [];
-        rowItems.push(item);
-        itemsByRow.set(item.inputGridDisplayNumber, rowItems);
-      });
-
-      // Assign numbers: first component gets row number, rest get letters
-      itemsByRow.forEach((rowItems, rowNumber) => {
-        rowItems.forEach((item, index) => {
-          if (index === 0) {
-            // First component: use row number directly
-            item.estimatePreviewDisplayNumber = rowNumber;
-          } else {
-            // Subsequent components: add letter suffix (a, b, c, ...)
-            const letter = String.fromCharCode(96 + index); // 97='a', 98='b', etc.
-            item.estimatePreviewDisplayNumber = `${rowNumber}${letter}`;
-          }
-        });
-      });
+      // Assign preview display numbers using helper function
+      // Handles Sub-Item rows by continuing their parent's letter sequence
+      // Renumbers base numbers sequentially (1, 2, 3...) regardless of input grid gaps
+      assignEstimatePreviewNumbers(items, rowMetadata);
 
       // Apply Special Items Post-Processing ONLY if there are no blocking validation errors
       // If validation errors exist, skip post-processing to avoid incorrect calculations

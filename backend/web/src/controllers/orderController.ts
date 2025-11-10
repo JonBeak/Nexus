@@ -8,6 +8,9 @@ import { AuthRequest } from '../types';
 import { orderService } from '../services/orderService';
 import { orderRepository } from '../repositories/orderRepository';
 import { OrderFilters, UpdateOrderData } from '../types/orders';
+import { BusinessDaysCalculator } from '../utils/businessDaysCalculator';  // Phase 1.5.a.5
+import { TimeAnalyticsRepository } from '../repositories/timeManagement/TimeAnalyticsRepository';  // Phase 1.5.a.5
+import { mapSpecsDisplayNameToTypes } from '../utils/specsTypeMapper';  // Specs mapping utility
 
 /**
  * Helper: Convert orderNumber to orderId
@@ -530,6 +533,576 @@ export const batchUpdateTasks = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'Failed to batch update tasks'
+    });
+  }
+};
+
+/**
+ * Validate order name uniqueness for a customer (Phase 1.5.a)
+ * GET /api/orders/validate-name?orderName=xxx&customerId=123
+ */
+export const validateOrderName = async (req: Request, res: Response) => {
+  try {
+    const { orderName, customerId } = req.query;
+
+    if (!orderName || !customerId) {
+      return res.status(400).json({
+        success: false,
+        message: 'orderName and customerId are required'
+      });
+    }
+
+    const isUnique = await orderRepository.isOrderNameUniqueForCustomer(
+      String(orderName),
+      Number(customerId)
+    );
+
+    res.json({
+      success: true,
+      unique: isUnique
+    });
+  } catch (error) {
+    console.error('Error validating order name:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to validate order name'
+    });
+  }
+};
+
+/**
+ * Get order for estimate (Phase 1.5.a)
+ * GET /api/orders/by-estimate/:estimateId
+ */
+export const getOrderByEstimate = async (req: Request, res: Response) => {
+  try {
+    const { estimateId } = req.params;
+
+    const order = await orderRepository.getOrderByEstimateId(Number(estimateId));
+
+    res.json({
+      success: true,
+      order: order || null
+    });
+  } catch (error) {
+    console.error('Error getting order by estimate:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get order'
+    });
+  }
+};
+
+/**
+ * Calculate due date based on business days (Phase 1.5.a.5)
+ * POST /api/orders/calculate-due-date
+ * Body: { startDate: string (YYYY-MM-DD), turnaroundDays: number }
+ * Permission: orders.create
+ */
+export const calculateDueDate = async (req: Request, res: Response) => {
+  try {
+    const { startDate, turnaroundDays } = req.body;
+
+    // Validation
+    if (!startDate || !turnaroundDays) {
+      return res.status(400).json({
+        success: false,
+        message: 'startDate and turnaroundDays are required'
+      });
+    }
+
+    const start = new Date(startDate);
+    const days = parseInt(turnaroundDays);
+
+    if (isNaN(start.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid startDate format. Use YYYY-MM-DD'
+      });
+    }
+
+    if (isNaN(days) || days <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'turnaroundDays must be a positive number'
+      });
+    }
+
+    // Calculate due date
+    const dueDate = await BusinessDaysCalculator.calculateDueDate(start, days);
+
+    res.json({
+      success: true,
+      dueDate: dueDate.toISOString().split('T')[0], // YYYY-MM-DD format
+      businessDaysCalculated: days
+    });
+  } catch (error) {
+    console.error('Error calculating due date:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to calculate due date'
+    });
+  }
+};
+
+/**
+ * Calculate business days between two dates (Phase 1.5.a.5)
+ * POST /api/orders/calculate-business-days
+ * Body: { startDate: string (YYYY-MM-DD), endDate: string (YYYY-MM-DD) }
+ * Permission: orders.create
+ */
+export const calculateBusinessDays = async (req: Request, res: Response) => {
+  try {
+    const { startDate, endDate } = req.body;
+
+    // Validation
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'startDate and endDate are required'
+      });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format. Use YYYY-MM-DD'
+      });
+    }
+
+    // If end is before start, return 0
+    if (end < start) {
+      return res.json({
+        success: true,
+        businessDays: 0
+      });
+    }
+
+    // Calculate business days between dates
+    const businessDays = await BusinessDaysCalculator.calculateBusinessDaysBetween(start, end);
+
+    res.json({
+      success: true,
+      businessDays
+    });
+  } catch (error) {
+    console.error('Error calculating business days:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to calculate business days'
+    });
+  }
+};
+
+/**
+ * Update order parts in bulk (Phase 1.5.c)
+ * PUT /api/orders/:orderNumber/parts
+ * Permission: orders.update (Manager+ only)
+ */
+export const updateOrderParts = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const orderId = await getOrderIdFromNumber(orderNumber);
+
+    if (!orderId) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    const { parts } = req.body;
+
+    if (!Array.isArray(parts) || parts.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Parts array is required'
+      });
+    }
+
+    // Update each part
+    for (const part of parts) {
+      if (!part.part_id) {
+        continue;
+      }
+
+      await orderRepository.updateOrderPart(part.part_id, {
+        product_type: part.product_type,
+        qb_item_name: part.qb_item_name,
+        specifications: part.specifications,
+        invoice_description: part.invoice_description,
+        quantity: part.quantity,
+        unit_price: part.unit_price,
+        extended_price: part.extended_price,
+        production_notes: part.production_notes
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Order parts updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating order parts:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update order parts'
+    });
+  }
+};
+
+/**
+ * Add task to order part (Phase 1.5.c)
+ * POST /api/orders/:orderNumber/parts/:partId/tasks
+ * Permission: orders.update (Manager+ only)
+ */
+export const addTaskToOrderPart = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber, partId } = req.params;
+    const orderId = await getOrderIdFromNumber(orderNumber);
+
+    if (!orderId) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    const { task_name, assigned_role } = req.body;
+
+    if (!task_name) {
+      return res.status(400).json({
+        success: false,
+        message: 'task_name is required'
+      });
+    }
+
+    const taskId = await orderRepository.createOrderTask({
+      order_id: orderId,
+      part_id: parseInt(partId),
+      task_name,
+      assigned_role: assigned_role || null
+    });
+
+    res.json({
+      success: true,
+      task_id: taskId,
+      message: 'Task added successfully'
+    });
+  } catch (error) {
+    console.error('Error adding task:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to add task'
+    });
+  }
+};
+
+/**
+ * Remove task from order (Phase 1.5.c)
+ * DELETE /api/orders/tasks/:taskId
+ * Permission: orders.update (Manager+ only)
+ */
+export const removeTask = async (req: Request, res: Response) => {
+  try {
+    const { taskId } = req.params;
+
+    await orderRepository.deleteTask(parseInt(taskId));
+
+    res.json({
+      success: true,
+      message: 'Task removed successfully'
+    });
+  } catch (error) {
+    console.error('Error removing task:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to remove task'
+    });
+  }
+};
+
+/**
+ * Get available task templates (Phase 1.5.c)
+ * GET /api/orders/task-templates
+ * Permission: orders.view (All roles)
+ */
+export const getTaskTemplates = async (req: Request, res: Response) => {
+  try {
+    const tasks = await orderRepository.getAvailableTasks();
+
+    res.json({
+      success: true,
+      data: tasks
+    });
+  } catch (error) {
+    console.error('Error fetching task templates:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch task templates'
+    });
+  }
+};
+
+/**
+ * Finalize order - create snapshots for all parts (Phase 1.5.c.3)
+ * POST /api/orders/:orderNumber/finalize
+ * Permission: orders.update (Manager+ only)
+ */
+export const finalizeOrder = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const userId = (req as any).user?.user_id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Create snapshots and finalize
+    await orderService.finalizeOrder(orderId, userId);
+
+    res.json({
+      success: true,
+      message: 'Order finalized successfully'
+    });
+  } catch (error) {
+    console.error('Error finalizing order:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to finalize order'
+    });
+  }
+};
+
+/**
+ * Get latest snapshot for a part (Phase 1.5.c.3)
+ * GET /api/orders/parts/:partId/snapshot/latest
+ * Permission: orders.view
+ */
+export const getPartLatestSnapshot = async (req: Request, res: Response) => {
+  try {
+    const { partId } = req.params;
+
+    const snapshot = await orderService.getLatestSnapshot(parseInt(partId));
+
+    res.json({
+      success: true,
+      data: snapshot
+    });
+  } catch (error) {
+    console.error('Error fetching latest snapshot:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch snapshot'
+    });
+  }
+};
+
+/**
+ * Get snapshot history for a part (Phase 1.5.c.3)
+ * GET /api/orders/parts/:partId/snapshots
+ * Permission: orders.view
+ */
+export const getPartSnapshotHistory = async (req: Request, res: Response) => {
+  try {
+    const { partId } = req.params;
+
+    const snapshots = await orderService.getSnapshotHistory(parseInt(partId));
+
+    res.json({
+      success: true,
+      data: snapshots
+    });
+  } catch (error) {
+    console.error('Error fetching snapshot history:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch snapshot history'
+    });
+  }
+};
+
+/**
+ * Compare part with latest snapshot (Phase 1.5.c.3)
+ * GET /api/orders/parts/:partId/compare
+ * Permission: orders.view
+ */
+export const comparePartWithSnapshot = async (req: Request, res: Response) => {
+  try {
+    const { partId } = req.params;
+
+    const comparison = await orderService.compareWithLatestSnapshot(parseInt(partId));
+
+    res.json({
+      success: true,
+      data: comparison
+    });
+  } catch (error) {
+    console.error('Error comparing with snapshot:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to compare with snapshot'
+    });
+  }
+};
+
+/**
+ * Update specs_display_name and regenerate specifications
+ * PUT /api/orders/:orderNumber/parts/:partId/specs-display-name
+ * Permission: orders.update (Manager+ only)
+ *
+ * This endpoint:
+ * 1. Updates the specs_display_name field
+ * 2. Calls the mapper to get spec types
+ * 3. Regenerates the SPECIFICATIONS column (clears existing templates)
+ */
+export const updateSpecsDisplayName = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber, partId } = req.params;
+    const { specs_display_name } = req.body;
+
+    // Validate inputs
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    const partIdNum = parseInt(partId);
+    if (isNaN(partIdNum)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid part ID'
+      });
+    }
+
+    console.log('[updateSpecsDisplayName] Updating part', partIdNum, 'with specs_display_name:', specs_display_name);
+
+    // Get the part to check if it's parent or regular row
+    const part = await orderRepository.getOrderPartById(partIdNum);
+    if (!part) {
+      return res.status(404).json({
+        success: false,
+        message: 'Part not found'
+      });
+    }
+
+    // Determine if this is a parent or regular row
+    const displayNumber = part.display_number || '';
+    const isSubItem = /[a-zA-Z]/.test(displayNumber);
+    const isParentOrRegular = part.is_parent || !isSubItem;
+    console.log('[updateSpecsDisplayName] Display number:', displayNumber, 'isParent:', part.is_parent, 'isParentOrRegular:', isParentOrRegular);
+
+    // Call mapper to get spec types
+    const specTypes = mapSpecsDisplayNameToTypes(specs_display_name, isParentOrRegular);
+    console.log('[updateSpecsDisplayName] Mapped to spec types:', specTypes);
+
+    // Build new specifications object
+    // Clear all existing template fields and create new ones based on mapper
+    const newSpecifications: any = {};
+
+    // Populate template fields based on mapped spec types
+    specTypes.forEach((specType, index) => {
+      const rowNum = index + 1;
+      newSpecifications[`_template_${rowNum}`] = specType.name;
+      // spec1, spec2, spec3 values are empty for now (manual entry)
+    });
+
+    console.log('[updateSpecsDisplayName] New specifications:', newSpecifications);
+
+    // Update the order part
+    await orderRepository.updateOrderPart(partIdNum, {
+      specs_display_name,
+      specifications: newSpecifications
+    });
+
+    // Fetch updated part to return
+    const updatedPart = await orderRepository.getOrderPartById(partIdNum);
+
+    res.json({
+      success: true,
+      data: updatedPart
+    });
+  } catch (error) {
+    console.error('Error updating specs display name:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update specs display name'
+    });
+  }
+};
+
+/**
+ * Toggle is_parent status for an order part
+ * PATCH /api/orders/:orderNumber/parts/:partId/toggle-parent
+ */
+export const toggleIsParent = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber, partId } = req.params;
+
+    // Validate inputs
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    const partIdNum = parseInt(partId);
+    if (isNaN(partIdNum)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid part ID'
+      });
+    }
+
+    // Get the current part
+    const part = await orderRepository.getOrderPartById(partIdNum);
+    if (!part) {
+      return res.status(404).json({
+        success: false,
+        message: 'Part not found'
+      });
+    }
+
+    // Toggle is_parent
+    const newIsParent = !part.is_parent;
+    console.log(`[toggleIsParent] Toggling part ${partIdNum} from is_parent=${part.is_parent} to ${newIsParent}`);
+
+    // Update the order part
+    await orderRepository.updateOrderPart(partIdNum, {
+      is_parent: newIsParent
+    });
+
+    // Fetch updated part to return
+    const updatedPart = await orderRepository.getOrderPartById(partIdNum);
+
+    res.json({
+      success: true,
+      data: updatedPart
+    });
+  } catch (error) {
+    console.error('Error toggling is_parent:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to toggle is_parent'
     });
   }
 };

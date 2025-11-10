@@ -9,7 +9,7 @@ interface Props {
 }
 
 const STATUS_OPTIONS: OrderStatus[] = [
-  'initiated',
+  'job_details_setup',
   'pending_confirmation',
   'pending_production_files_creation',
   'pending_production_files_approval',

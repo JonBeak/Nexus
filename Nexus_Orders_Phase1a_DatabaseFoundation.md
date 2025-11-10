@@ -31,6 +31,15 @@ Core table for order records. Sequential numbering starting at 200000.
 - `form_version` (INT, default 1)
 - `shipping_required` (BOOLEAN)
 
+**Phase 1.5.b Additions:**
+- `customer_job_number` (VARCHAR 100) - Customer's internal job reference
+- `hard_due_date_time` (DATETIME) - Hard deadline with time component
+- `manufacturing_note` (TEXT) - Manufacturing-specific notes
+- `internal_note` (TEXT) - Internal notes not visible on forms
+- `finalized_at` (TIMESTAMP NULL) - When order was finalized
+- `finalized_by` (FK to users) - Who finalized the order
+- `modified_after_finalization` (BOOLEAN) - Flag if modified post-finalization
+
 **Foreign Keys:**
 - `estimate_id` → `job_estimates(id)` ON DELETE SET NULL
 - `customer_id` → `customers(customer_id)` ON DELETE RESTRICT
@@ -51,6 +60,8 @@ Parts/components of each order. Maps to estimate items.
 - `part_id` (PK, AUTO_INCREMENT)
 - `order_id` (FK to orders)
 - `part_number` (sequencing: 1, 2, 3...)
+- `display_number` (VARCHAR 10) - Display number like "1", "1a", "1b" for hierarchy
+- `is_parent` (BOOLEAN, default FALSE) - Whether this is a parent row with children
 - `product_type` (VARCHAR 100) - Human-readable: "Channel Letter - 3\" Front Lit"
 - `product_type_id` (VARCHAR 100) - Machine-readable: "channel_letters_3_front_lit"
 - `channel_letter_type_id` (FK to channel_letter_types, nullable)
@@ -140,6 +151,33 @@ Audit trail for status changes.
 
 ---
 
+### 6. customer_contacts (Phase 1.5)
+Customer contact management for point person emails.
+
+**Key Fields:**
+- `contact_id` (PK, AUTO_INCREMENT)
+- `customer_id` (FK to customers)
+- `contact_name` (VARCHAR 255)
+- `contact_email` (VARCHAR 255)
+- `contact_phone` (VARCHAR 50, nullable)
+- `contact_role` (VARCHAR 100, nullable)
+- `is_active` (BOOLEAN, default TRUE)
+- `notes` (TEXT, nullable)
+- `created_at`, `updated_at` (TIMESTAMP)
+- `created_by`, `updated_by` (FK to users)
+
+**Foreign Keys:**
+- `customer_id` → `customers(customer_id)` ON DELETE CASCADE
+- `created_by` → `users(user_id)` ON DELETE SET NULL
+- `updated_by` → `users(user_id)` ON DELETE SET NULL
+
+**Indexes:**
+- `idx_customer` on `customer_id`
+- `idx_email` on `contact_email`
+- `idx_active` on `is_active`
+
+---
+
 ## Existing Table Modifications
 
 ### users Table
@@ -189,12 +227,19 @@ CREATE TABLE orders (
   point_person_email VARCHAR(255),
   order_date DATE NOT NULL,
   due_date DATE,
+  customer_job_number VARCHAR(100) COMMENT 'Customer''s internal job reference',
+  hard_due_date_time DATETIME COMMENT 'Hard deadline with time component',
   production_notes TEXT,
+  manufacturing_note TEXT COMMENT 'Manufacturing-specific notes',
+  internal_note TEXT COMMENT 'Internal notes not visible on forms',
+  finalized_at TIMESTAMP NULL COMMENT 'When order was finalized',
+  finalized_by INT UNSIGNED COMMENT 'Who finalized the order',
+  modified_after_finalization BOOLEAN DEFAULT false COMMENT 'Flag if modified post-finalization',
   sign_image_path VARCHAR(500),
   form_version TINYINT UNSIGNED DEFAULT 1,
   shipping_required BOOLEAN DEFAULT false,
   status ENUM(
-    'initiated',
+    'job_details_setup',
     'pending_confirmation',
     'pending_production_files_creation',
     'pending_production_files_approval',
@@ -208,7 +253,7 @@ CREATE TABLE orders (
     'awaiting_payment',
     'completed',
     'cancelled'
-  ) DEFAULT 'initiated',
+  ) DEFAULT 'job_details_setup',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   created_by INT UNSIGNED,
@@ -229,6 +274,8 @@ CREATE TABLE order_parts (
   part_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   order_id INT UNSIGNED NOT NULL,
   part_number TINYINT UNSIGNED NOT NULL,
+  display_number VARCHAR(10) COMMENT 'Display number like "1", "1a", "1b"',
+  is_parent BOOLEAN DEFAULT false COMMENT 'Parent row indicator',
 
   -- Dual-field approach for product types
   product_type VARCHAR(100) NOT NULL COMMENT 'Human-readable: "Channel Letter - 3\" Front Lit"',
@@ -306,7 +353,32 @@ CREATE TABLE order_status_history (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================
--- 6. MODIFY USERS TABLE
+-- 6. CREATE CUSTOMER_CONTACTS TABLE (Phase 1.5)
+-- =============================================
+
+CREATE TABLE customer_contacts (
+  contact_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  customer_id INT UNSIGNED NOT NULL,
+  contact_name VARCHAR(255) NOT NULL,
+  contact_email VARCHAR(255) NOT NULL,
+  contact_phone VARCHAR(50),
+  contact_role VARCHAR(100),
+  is_active BOOLEAN DEFAULT true,
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_by INT UNSIGNED,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  updated_by INT UNSIGNED,
+  FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES users(user_id) ON DELETE SET NULL,
+  FOREIGN KEY (updated_by) REFERENCES users(user_id) ON DELETE SET NULL,
+  INDEX idx_customer (customer_id),
+  INDEX idx_email (contact_email),
+  INDEX idx_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================
+-- 7. MODIFY USERS TABLE
 -- =============================================
 
 ALTER TABLE users
@@ -373,6 +445,7 @@ If migration fails or needs to be reversed:
 START TRANSACTION;
 
 -- Drop tables in reverse order (due to foreign keys)
+DROP TABLE IF EXISTS customer_contacts;
 DROP TABLE IF EXISTS order_status_history;
 DROP TABLE IF EXISTS order_form_versions;
 DROP TABLE IF EXISTS order_tasks;
@@ -437,7 +510,7 @@ After completing Phase 1.a:
 
 ---
 
-**Sub-Phase Status:** Ready for Implementation
-**Estimated Time:** 2-3 days
-**Blockers:** None
-**Dependencies:** None (first step)
+**Sub-Phase Status:** ✅ COMPLETE (2025-11-03, enhanced in Phase 1.5.b 2025-11-06)
+**Actual Time:** 2-3 days
+**Phase 1.5.b Additions:** customer_contacts table, additional fields in orders and order_parts
+**Last Updated:** 2025-11-06

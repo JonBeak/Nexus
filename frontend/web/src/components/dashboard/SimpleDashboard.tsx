@@ -21,207 +21,28 @@ function SimpleDashboard({ user, onLogout }: SimpleDashboardProps) {
 
     try {
       // ==================================================
-      // QUICKBOOKS ROW TYPE COMPREHENSIVE TEST
+      // TEST QUICKBOOKS SPECIAL PATTERNS
       // ==================================================
-      console.log('🧪 Starting QuickBooks Row Type Test...');
-
-      const testItems = [
-        // COMPREHENSIVE EDGE CASE TESTING 🧪
-
-        // TEST 1: Subtotal BEFORE any items (what happens with $0?)
-        {
-          type: 'custom_description',
-          description: 'Subtotal: $999.99'
-        },
-
-        // Section 1: Channel Letters (should total $150)
-        {
-          type: 'regular',
-          itemName: '3" Channel Letters',
-          quantity: 1,
-          unitPrice: 100,
-          extendedPrice: 100
-        },
-        {
-          type: 'regular',
-          itemName: 'LEDs',
-          quantity: 1,
-          unitPrice: 50,
-          extendedPrice: 50
-        },
-
-        // TEST 2: Separate label line + subtotal (user's idea)
-        {
-          type: 'custom_description',
-          description: '=== Channel Letters Section ==='
-        },
-        {
-          type: 'custom_description',
-          description: 'Subtotal: $0.00'
-        },
-
-        // Empty divider
-        {
-          type: 'empty_row',
-          description: ''
-        },
-
-        // TEST 3: Back-to-back subtotals (no items between)
-        {
-          type: 'custom_description',
-          description: 'Subtotal: $111.11'
-        },
-        {
-          type: 'custom_description',
-          description: 'Subtotal: $222.22'
-        },
-
-        // Single item
-        {
-          type: 'regular',
-          itemName: 'Vinyl',
-          quantity: 1,
-          unitPrice: 75,
-          extendedPrice: 75
-        },
-
-        // TEST 4: Negative amount (does QB accept it?)
-        {
-          type: 'custom_description',
-          description: 'Subtotal: $-50.00'
-        },
-
-        // Another item
-        {
-          type: 'regular',
-          itemName: 'Substrate Cut',
-          quantity: 1,
-          unitPrice: 25,
-          extendedPrice: 25
-        },
-
-        // TEST 5: Very large amount
-        {
-          type: 'custom_description',
-          description: 'Subtotal: $999999.99'
-        },
-
-        // TEST 6: Three decimal places
-        {
-          type: 'custom_description',
-          description: 'Subtotal: $100.123'
-        },
-
-        // TEST 7: No decimal places
-        {
-          type: 'custom_description',
-          description: 'Subtotal: $100'
-        },
-
-        // TEST 8: Text in the middle of amount?
-        {
-          type: 'custom_description',
-          description: 'Subtotal: $100.00 USD'
-        },
-
-        // TEST 9: Multiple subtotal patterns in one description
-        {
-          type: 'custom_description',
-          description: 'Subtotal: $50.00 | Subtotal: $75.00'
-        },
-
-        // Final item
-        {
-          type: 'regular',
-          itemName: 'Shipping',
-          quantity: 1,
-          unitPrice: 20,
-          extendedPrice: 20
-        },
-
-        // TEST 10: Subtotal with emoji/special chars
-        {
-          type: 'custom_description',
-          description: '💰 Subtotal: $20.00 💰'
-        }
-      ];
-
-      console.log('📋 Test Structure:');
-      testItems.forEach((item: any, idx) => {
-        console.log(`${idx + 1}. Type: ${item.type}${item.itemName ? ` - ${item.itemName}` : ''}${item.description ? ` - "${item.description}"` : ''}`);
-      });
-
-      console.log('\n📤 Sending to QuickBooks Test Endpoint...');
+      console.log('🧪 Testing QuickBooks Special Patterns...');
 
       const response = await apiClient.post('/quickbooks-test/row-types', {
-        testItems,
         customerName: 'Sign House Inc.',
+        useHardcodedTest: true,
         debugMode: true
       });
 
-      if (!response.data.success) {
-        setTestResult(`❌ Failed: ${response.data.error}`);
-        return;
+      if (response.data.success) {
+        const { qbEstimateId, qbDocNumber, linesCreated } = response.data;
+        setTestResult(`✅ SUCCESS!
+
+QB Estimate ID: ${qbEstimateId}
+QB Doc Number: ${qbDocNumber}
+Lines Created: ${linesCreated}
+
+Check backend logs for detailed comparison!`);
+      } else {
+        setTestResult(`❌ FAILED: ${response.data.error || 'Unknown error'}`);
       }
-
-      console.log('✅ Estimate created:', response.data.qbEstimateId);
-      console.log('📄 Doc Number:', response.data.qbDocNumber);
-
-      if (response.data.debug) {
-        console.log('\n═══════════════════════════════════════════');
-        console.log('📊 COMPARISON RESULTS');
-        console.log('═══════════════════════════════════════════');
-        console.log(`Lines Sent: ${response.data.debug.linesSent}`);
-        console.log(`Lines Returned: ${response.data.debug.linesReturned}`);
-
-        if (response.data.debug.linesSent !== response.data.debug.linesReturned) {
-          console.log(`⚠️  ${response.data.debug.linesSent - response.data.debug.linesReturned} line(s) removed by QB!`);
-        }
-
-        console.log('\n📤 SENT LINES:');
-        response.data.debug.sentLines.forEach((line: any, idx: number) => {
-          console.log(`\n[${idx + 1}] ${line.DetailType}`);
-          console.log(`  Description: ${line.Description !== undefined ? `"${line.Description}"` : '(not included)'}`);
-          console.log(`  Amount: ${line.Amount !== undefined ? line.Amount : 'N/A'}`);
-          if (line.DetailType === 'DescriptionOnly') {
-            console.log(`  DescriptionLineDetail: ${JSON.stringify(line.DescriptionLineDetail)}`);
-          }
-        });
-
-        console.log('\n📥 RETURNED LINES:');
-        response.data.debug.returnedLines.forEach((line: any, idx: number) => {
-          console.log(`\n[${idx + 1}] ${line.DetailType} (QB ID: ${line.Id})`);
-          console.log(`  Description: ${line.Description !== undefined ? `"${line.Description}"` : '(empty)'}`);
-          console.log(`  Amount: ${line.Amount !== undefined ? line.Amount : 'N/A'}`);
-          if (line.DetailType === 'DescriptionOnly') {
-            const hasTaxCode = !!line.DescriptionLineDetail?.TaxCodeRef;
-            console.log(`  DescriptionLineDetail: ${JSON.stringify(line.DescriptionLineDetail)}`);
-            console.log(`  🔍 ${hasTaxCode ? 'HAS' : 'NO'} TaxCodeRef`);
-          }
-        });
-
-        console.log('\n🔬 ANALYSIS:');
-        const returnedDescOnly = response.data.debug.returnedLines.filter((l: any) => l.DetailType === 'DescriptionOnly');
-        returnedDescOnly.forEach((line: any, idx: number) => {
-          const hasTaxCode = !!line.DescriptionLineDetail?.TaxCodeRef;
-          const hasDesc = !!line.Description;
-          console.log(`\nDescriptionOnly ${idx + 1}:`);
-          console.log(`  TaxCodeRef: ${hasTaxCode ? 'YES' : 'NO'}`);
-          console.log(`  Description: ${hasDesc ? 'YES' : 'NO'} - "${line.Description || ''}"`);
-        });
-
-        console.log('\n═══════════════════════════════════════════\n');
-      }
-
-      setTestResult(`✅ Test Complete!
-
-QB Estimate ID: ${response.data.qbEstimateId}
-Doc Number: ${response.data.qbDocNumber}
-
-Sent: ${response.data.debug?.linesSent || 0} lines
-Returned: ${response.data.debug?.linesReturned || 0} lines
-
-Check browser console for detailed comparison!`);
 
     } catch (error: any) {
       console.error('❌ Test failed:', error);
@@ -555,11 +376,11 @@ Check browser console for detailed comparison!`);
           disabled={testLoading}
           className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {testLoading ? '🔄 Testing...' : '🧪 Test Button'}
+          {testLoading ? '🔄 Testing QB Patterns...' : '🧪 Test QB Special Patterns'}
         </button>
 
         {testResult && (
-          <div className="absolute bottom-16 right-0 bg-white rounded-lg shadow-2xl p-6 border-2 border-gray-300 max-w-md">
+          <div className="absolute bottom-16 right-0 bg-white rounded-lg shadow-2xl p-6 border-2 border-gray-300 min-w-96 max-w-2xl">
             <button
               onClick={() => setTestResult(null)}
               className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"

@@ -166,10 +166,11 @@ export async function generateCustomerForm(
       // ============================================
       // POINT OF CONTACT (IF PROVIDED)
       // ============================================
-      if (orderData.point_person_email) {
+      if (orderData.point_persons && orderData.point_persons.length > 0) {
         doc.moveDown(1);
         doc.fontSize(10).font('Helvetica');
-        doc.text(`For questions regarding this order, please contact: ${orderData.point_person_email}`, 72, doc.y, {
+        const contacts = orderData.point_persons.map(p => p.contact_email).join(', ');
+        doc.text(`For questions regarding this order, please contact: ${contacts}`, 72, doc.y, {
           width: doc.page.width - 144,
           align: 'left'
         });

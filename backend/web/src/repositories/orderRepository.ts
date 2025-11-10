@@ -20,7 +20,9 @@ import {
   OrderFilters,
   EstimateForConversion,
   EstimateItem,
-  ProductTypeInfo
+  ProductTypeInfo,
+  OrderPointPerson,
+  CreateOrderPointPersonData
 } from '../types/orders';
 
 export class OrderRepository {
@@ -58,10 +60,12 @@ export class OrderRepository {
     const [result] = await conn.execute<ResultSetHeader>(
       `INSERT INTO orders (
         order_number, version_number, order_name, estimate_id,
-        customer_id, customer_po, point_person_email,
-        order_date, due_date, production_notes, sign_image_path,
+        customer_id, customer_po, customer_job_number,
+        order_date, due_date, hard_due_date_time, production_notes,
+        manufacturing_note, internal_note, invoice_email, terms,
+        deposit_required, invoice_notes, cash, discount, tax_name, sign_image_path,
         status, form_version, shipping_required, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.order_number,
         data.version_number || 1,
@@ -69,12 +73,22 @@ export class OrderRepository {
         data.estimate_id || null,
         data.customer_id,
         data.customer_po || null,
-        data.point_person_email || null,
+        data.customer_job_number || null,
         data.order_date,
         data.due_date || null,
+        data.hard_due_date_time || null,
         data.production_notes || null,
+        data.manufacturing_note || null,
+        data.internal_note || null,
+        data.invoice_email || null,
+        data.terms || null,
+        data.deposit_required || false,
+        data.invoice_notes || null,
+        data.cash || false,
+        data.discount || 0,
+        data.tax_name || null,
         data.sign_image_path || null,
-        data.status || 'initiated',
+        data.status || 'job_details_setup',
         data.form_version || 1,
         data.shipping_required || false,
         data.created_by
@@ -92,6 +106,7 @@ export class OrderRepository {
     let sql = `
       SELECT
         o.*,
+        TIME_FORMAT(o.hard_due_date_time, '%H:%i') as hard_due_date_time,
         c.company_name as customer_name,
         (SELECT COUNT(*) FROM order_tasks WHERE order_tasks.order_id = o.order_id) as total_tasks,
         (SELECT COUNT(*) FROM order_tasks WHERE order_tasks.order_id = o.order_id AND completed = 1) as completed_tasks
@@ -149,6 +164,7 @@ export class OrderRepository {
     const [rows] = await pool.execute<RowDataPacket[]>(
       `SELECT
         o.*,
+        TIME_FORMAT(o.hard_due_date_time, '%H:%i') as hard_due_date_time,
         c.company_name as customer_name
       FROM orders o
       LEFT JOIN customers c ON o.customer_id = c.customer_id
@@ -174,17 +190,54 @@ export class OrderRepository {
       updates.push('customer_po = ?');
       params.push(data.customer_po);
     }
-    if (data.point_person_email !== undefined) {
-      updates.push('point_person_email = ?');
-      params.push(data.point_person_email);
+    if (data.customer_job_number !== undefined) {
+      updates.push('customer_job_number = ?');
+      params.push(data.customer_job_number);
     }
     if (data.due_date !== undefined) {
       updates.push('due_date = ?');
       params.push(data.due_date);
     }
+    if (data.hard_due_date_time !== undefined) {
+      updates.push('hard_due_date_time = ?');
+      params.push(data.hard_due_date_time);
+    }
     if (data.production_notes !== undefined) {
       updates.push('production_notes = ?');
       params.push(data.production_notes);
+    }
+    if (data.manufacturing_note !== undefined) {
+      updates.push('manufacturing_note = ?');
+      params.push(data.manufacturing_note);
+    }
+    if (data.internal_note !== undefined) {
+      updates.push('internal_note = ?');
+      params.push(data.internal_note);
+    }
+    if (data.invoice_email !== undefined) {
+      updates.push('invoice_email = ?');
+      params.push(data.invoice_email);
+    }
+    if (data.terms !== undefined) {
+      updates.push('terms = ?');
+      params.push(data.terms);
+    }
+    if (data.deposit_required !== undefined) {
+      updates.push('deposit_required = ?');
+      params.push(data.deposit_required);
+    }
+    if (data.invoice_notes !== undefined) {
+      updates.push('invoice_notes = ?');
+      params.push(data.invoice_notes);
+    }
+    if (data.cash !== undefined) {
+      updates.push('cash = ?');
+      params.push(data.cash);
+    }
+    // Note: discount is per-customer, not per-order. It should not be updated here.
+    if (data.tax_name !== undefined) {
+      updates.push('tax_name = ?');
+      params.push(data.tax_name);
     }
     if (data.shipping_required !== undefined) {
       updates.push('shipping_required = ?');
@@ -248,20 +301,29 @@ export class OrderRepository {
 
     const [result] = await conn.execute<ResultSetHeader>(
       `INSERT INTO order_parts (
-        order_id, part_number, product_type, product_type_id,
+        order_id, part_number, display_number, is_parent,
+        product_type, qb_item_name, specs_display_name, product_type_id,
         channel_letter_type_id, base_product_type_id,
-        quantity, specifications, production_notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        quantity, specifications, production_notes,
+        invoice_description, unit_price, extended_price
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.order_id,
         data.part_number,
+        data.display_number || null,
+        data.is_parent || false,
         data.product_type,
+        data.qb_item_name || null,
+        data.specs_display_name || null,
         data.product_type_id,
         data.channel_letter_type_id || null,
         data.base_product_type_id || null,
         data.quantity,
         JSON.stringify(data.specifications || {}),
-        data.production_notes || null
+        data.production_notes || null,
+        data.invoice_description || null,
+        data.unit_price || null,
+        data.extended_price || null
       ]
     );
 
@@ -285,6 +347,120 @@ export class OrderRepository {
     })) as OrderPart[];
   }
 
+  /**
+   * Get a single order part by ID
+   */
+  async getOrderPartById(partId: number): Promise<OrderPart | null> {
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT * FROM order_parts WHERE part_id = ?`,
+      [partId]
+    );
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    const row = rows[0];
+    return {
+      ...row,
+      specifications: typeof row.specifications === 'string'
+        ? JSON.parse(row.specifications)
+        : row.specifications
+    } as OrderPart;
+  }
+
+  /**
+   * Update order part (Phase 1.5.c)
+   * Allows updating specifications and invoice fields
+   */
+  async updateOrderPart(partId: number, updates: {
+    product_type?: string;
+    qb_item_name?: string;
+    specs_display_name?: string;
+    specifications?: any;
+    invoice_description?: string;
+    quantity?: number;
+    unit_price?: number;
+    extended_price?: number;
+    production_notes?: string;
+    is_parent?: boolean;
+  }): Promise<void> {
+    const updateFields: string[] = [];
+    const params: any[] = [];
+
+    if (updates.product_type !== undefined) {
+      updateFields.push('product_type = ?');
+      params.push(updates.product_type);
+    }
+    if (updates.qb_item_name !== undefined) {
+      updateFields.push('qb_item_name = ?');
+      params.push(updates.qb_item_name);
+    }
+    if (updates.specs_display_name !== undefined) {
+      updateFields.push('specs_display_name = ?');
+      params.push(updates.specs_display_name);
+    }
+    if (updates.specifications !== undefined) {
+      updateFields.push('specifications = ?');
+      params.push(JSON.stringify(updates.specifications));
+    }
+    if (updates.invoice_description !== undefined) {
+      updateFields.push('invoice_description = ?');
+      params.push(updates.invoice_description);
+    }
+    if (updates.quantity !== undefined) {
+      updateFields.push('quantity = ?');
+      params.push(updates.quantity);
+    }
+    if (updates.unit_price !== undefined) {
+      updateFields.push('unit_price = ?');
+      params.push(updates.unit_price);
+    }
+    if (updates.extended_price !== undefined) {
+      updateFields.push('extended_price = ?');
+      params.push(updates.extended_price);
+    }
+    if (updates.production_notes !== undefined) {
+      updateFields.push('production_notes = ?');
+      params.push(updates.production_notes);
+    }
+    if (updates.is_parent !== undefined) {
+      updateFields.push('is_parent = ?');
+      params.push(updates.is_parent);
+    }
+
+    if (updateFields.length === 0) {
+      return;
+    }
+
+    params.push(partId);
+
+    await pool.execute(
+      `UPDATE order_parts SET ${updateFields.join(', ')} WHERE part_id = ?`,
+      params
+    );
+  }
+
+  /**
+   * Get available task templates (Phase 1.5.c)
+   * Returns normalized task list grouped by role
+   */
+  async getAvailableTasks(): Promise<{
+    task_name: string;
+    assigned_role: string | null;
+  }[]> {
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT DISTINCT task_name, assigned_role
+       FROM order_tasks
+       ORDER BY assigned_role, task_name`
+    );
+
+    return rows as {
+      task_name: string;
+      assigned_role: string | null;
+    }[];
+  }
+
   // =============================================
   // ORDER TASKS OPERATIONS
   // =============================================
@@ -297,9 +473,9 @@ export class OrderRepository {
 
     const [result] = await conn.execute<ResultSetHeader>(
       `INSERT INTO order_tasks (
-        order_id, part_id, task_name, task_order, completed, assigned_role
-      ) VALUES (?, ?, ?, ?, false, ?)`,
-      [data.order_id, data.part_id || null, data.task_name, data.task_order, data.assigned_role || null]
+        order_id, part_id, task_name, completed, assigned_role
+      ) VALUES (?, ?, ?, false, ?)`,
+      [data.order_id, data.part_id || null, data.task_name, data.assigned_role || null]
     );
 
     return result.insertId;
@@ -310,7 +486,7 @@ export class OrderRepository {
    */
   async getOrderTasks(orderId: number): Promise<OrderTask[]> {
     const [rows] = await pool.execute<RowDataPacket[]>(
-      `SELECT * FROM order_tasks WHERE order_id = ? ORDER BY task_order`,
+      `SELECT * FROM order_tasks WHERE order_id = ? ORDER BY task_id`,
       [orderId]
     );
 
@@ -336,6 +512,17 @@ export class OrderRepository {
   }
 
   /**
+   * Delete task (Phase 1.5.c)
+   * Allows removing tasks during job_details_setup phase
+   */
+  async deleteTask(taskId: number): Promise<void> {
+    await pool.execute(
+      'DELETE FROM order_tasks WHERE task_id = ?',
+      [taskId]
+    );
+  }
+
+  /**
    * Get tasks by role with order/customer info
    */
   async getTasksByRole(
@@ -353,7 +540,6 @@ export class OrderRepository {
       `SELECT
         ot.task_id,
         ot.task_name,
-        ot.task_order,
         ot.completed,
         ot.completed_at,
         ot.started_at,
@@ -368,7 +554,7 @@ export class OrderRepository {
        LEFT JOIN customers c ON o.customer_id = c.customer_id
        LEFT JOIN order_parts op ON ot.part_id = op.part_id
        WHERE ot.assigned_role = ? ${completedFilter}
-       ORDER BY o.order_number, op.part_number, ot.task_order`,
+       ORDER BY o.order_number, op.part_number, ot.task_id`,
       params
     );
 
@@ -499,6 +685,19 @@ export class OrderRepository {
   }
 
   /**
+   * Update estimate status and approval flag atomically
+   * Used when converting 'sent' estimates directly to 'ordered' status
+   */
+  async updateEstimateStatusAndApproval(estimateId: number, status: string, isApproved: boolean, connection?: PoolConnection): Promise<void> {
+    const conn = connection || pool;
+
+    await conn.execute(
+      'UPDATE job_estimates SET status = ?, is_approved = ? WHERE id = ?',
+      [status, isApproved ? 1 : 0, estimateId]
+    );
+  }
+
+  /**
    * Get product type info
    */
   async getProductTypeInfo(productTypeId: number, connection?: PoolConnection): Promise<ProductTypeInfo | null> {
@@ -520,6 +719,107 @@ export class OrderRepository {
       category: productType.category,
       is_channel_letter: productType.name.toLowerCase().includes('channel letter')
     };
+  }
+
+  // =============================================
+  // PHASE 1.5 METHODS
+  // =============================================
+
+  /**
+   * Check if an order already exists for an estimate
+   * Returns the order if it exists, null otherwise
+   */
+  async getOrderByEstimateId(estimateId: number): Promise<{ order_id: number; order_number: number } | null> {
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      'SELECT order_id, order_number FROM orders WHERE estimate_id = ? LIMIT 1',
+      [estimateId]
+    );
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    return {
+      order_id: rows[0].order_id,
+      order_number: rows[0].order_number
+    };
+  }
+
+  /**
+   * Check if an order name is unique for a customer (case-insensitive)
+   * Returns true if unique, false if duplicate exists
+   */
+  async isOrderNameUniqueForCustomer(orderName: string, customerId: number, excludeOrderId?: number): Promise<boolean> {
+    let sql = 'SELECT COUNT(*) as count FROM orders WHERE LOWER(order_name) = LOWER(?) AND customer_id = ?';
+    const params: any[] = [orderName, customerId];
+
+    // Exclude specific order_id (for update operations)
+    if (excludeOrderId) {
+      sql += ' AND order_id != ?';
+      params.push(excludeOrderId);
+    }
+
+    const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
+
+    return rows[0].count === 0;
+  }
+
+  // =============================================
+  // ORDER POINT PERSONS METHODS
+  // =============================================
+
+  /**
+   * Create order point person record
+   */
+  async createOrderPointPerson(
+    data: import('../types/orders').CreateOrderPointPersonData,
+    connection?: PoolConnection
+  ): Promise<number> {
+    const conn = connection || pool;
+
+    const [result] = await conn.execute<ResultSetHeader>(
+      `INSERT INTO order_point_persons (
+        order_id, contact_id, contact_email, contact_name,
+        contact_phone, contact_role, display_order
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        data.order_id,
+        data.contact_id || null,
+        data.contact_email,
+        data.contact_name || null,
+        data.contact_phone || null,
+        data.contact_role || null,
+        data.display_order
+      ]
+    );
+
+    return result.insertId;
+  }
+
+  /**
+   * Get all point persons for an order
+   */
+  async getOrderPointPersons(orderId: number): Promise<import('../types/orders').OrderPointPerson[]> {
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT * FROM order_point_persons
+       WHERE order_id = ?
+       ORDER BY display_order ASC`,
+      [orderId]
+    );
+
+    return rows as import('../types/orders').OrderPointPerson[];
+  }
+
+  /**
+   * Delete all point persons for an order (used during updates)
+   */
+  async deleteOrderPointPersons(orderId: number, connection?: PoolConnection): Promise<void> {
+    const conn = connection || pool;
+
+    await conn.execute(
+      'DELETE FROM order_point_persons WHERE order_id = ?',
+      [orderId]
+    );
   }
 }
 

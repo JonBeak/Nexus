@@ -1,0 +1,77 @@
+===============================================
+  NEXUS FOLDER OPENER - QUICK START GUIDE
+===============================================
+
+WHAT IT DOES:
+  Click "Open Folder" buttons in the web app
+  → Windows Explorer opens instantly!
+  → NO console window flash!
+  → 50KB file size (700x smaller than old version)
+
+===============================================
+
+INSTALLATION (3 Steps):
+
+1. BUILD THE APP
+   → Double-click: build.bat
+   → Wait 2 seconds
+   → Should say "BUILD SUCCESSFUL!"
+
+2. INSTALL THE PROTOCOL
+   → Right-click: install-csharp.bat
+   → Select "Run as administrator"
+   → Click "Yes" when Windows asks
+   → Should say "INSTALLATION COMPLETE!"
+
+3. TEST IT
+   → Open Command Prompt
+   → Type: start nexus://open?path=C:\Windows
+   → Press Enter
+   → Windows Explorer should open to C:\Windows
+
+   ✅ If it worked → You're done!
+   ❌ If nothing happened → Reread README-CSHARP.md
+
+===============================================
+
+FIRST TIME USE:
+
+When you click "Open Folder" in the web app:
+
+1. Windows shows a dialog:
+   "This site is trying to open..."
+
+2. Click "Open"
+
+3. Folder opens!
+
+NOTE: On Windows Home, this dialog appears
+      every time. That's normal and can't be
+      disabled without Windows Pro.
+
+      But there's NO console window anymore! ✅
+
+===============================================
+
+TROUBLESHOOTING:
+
+Problem: "csc.exe not found" when building
+Fix: Install .NET Framework 4.x
+     https://dotnet.microsoft.com/download/dotnet-framework
+
+Problem: "Access Denied" during install
+Fix: Right-click install-csharp.bat
+     → "Run as administrator"
+
+Problem: Folder doesn't open
+Fix: Check network connection and permissions
+
+===============================================
+
+SUPPORT:
+
+Questions? Contact your system administrator.
+
+Full documentation: README-CSHARP.md
+
+===============================================

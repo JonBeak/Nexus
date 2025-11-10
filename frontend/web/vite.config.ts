@@ -8,7 +8,14 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
-    host: '192.168.2.14'
+    host: '192.168.2.14',
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false
+      }
+    }
   },
   resolve: {
     alias: {

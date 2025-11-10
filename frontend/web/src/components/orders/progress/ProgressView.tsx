@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ordersApi } from '../../../services/api';
 import PartTasksSection from './PartTasksSection';
 import ProgressBar from './ProgressBar';
-import StatusDropdown from './StatusDropdown';
+import StatusButtonArray from './StatusButtonArray';
 import TimelineView from './TimelineView';
 import ProductionNotes from './ProductionNotes';
 
@@ -10,9 +10,10 @@ interface Props {
   orderNumber: number;
   currentStatus?: string;
   productionNotes?: string;
+  onOrderUpdated?: () => void;  // Callback to refetch order data from parent
 }
 
-export const ProgressView: React.FC<Props> = ({ orderNumber, currentStatus, productionNotes }) => {
+export const ProgressView: React.FC<Props> = ({ orderNumber, currentStatus, productionNotes, onOrderUpdated }) => {
   const [tasksByPart, setTasksByPart] = useState<any[]>([]);
   const [progress, setProgress] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -44,6 +45,10 @@ export const ProgressView: React.FC<Props> = ({ orderNumber, currentStatus, prod
 
   const handleStatusUpdated = () => {
     setRefreshTrigger(prev => prev + 1);
+    // Notify parent to refetch order data so currentStatus prop updates
+    if (onOrderUpdated) {
+      onOrderUpdated();
+    }
   };
 
   if (loading) {
@@ -55,34 +60,37 @@ export const ProgressView: React.FC<Props> = ({ orderNumber, currentStatus, prod
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-4">
       {/* Progress Summary */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Progress Overview</h2>
-          <StatusDropdown
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="mb-4">
+          <StatusButtonArray
             orderNumber={orderNumber}
             currentStatus={currentStatus as any}
             onStatusUpdated={handleStatusUpdated}
           />
         </div>
-        <ProgressBar
-          completed={progress?.completed_tasks || 0}
-          total={progress?.total_tasks || 0}
-          percent={progress?.progress_percent || 0}
-        />
+        <div className="space-y-2">
+          <h2 className="text-base font-semibold text-gray-900">Production Progress</h2>
+          <ProgressBar
+            completed={progress?.completed_tasks || 0}
+            total={progress?.total_tasks || 0}
+            percent={progress?.progress_percent || 0}
+          />
+        </div>
       </div>
 
       {/* Production Notes */}
       <ProductionNotes notes={productionNotes} />
 
-      {/* Task Lists by Part */}
-      <div className="space-y-4">
+      {/* Task Cards by Part - Horizontal Layout */}
+      <div className="flex gap-4 overflow-x-auto pb-4">
         {tasksByPart.map((part) => (
           <PartTasksSection
             key={part.part_id}
             part={part}
             orderNumber={orderNumber}
+            orderStatus={currentStatus || ''}
             onTaskUpdated={handleTaskUpdated}
           />
         ))}

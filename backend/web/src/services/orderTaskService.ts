@@ -137,7 +137,6 @@ export class OrderTaskService {
             order_id: orderId,
             part_id: part.part_id,
             task_name: taskName,
-            task_order: i + 1,
             assigned_role: assignedRole
           },
           connection
@@ -178,9 +177,8 @@ export class OrderTaskService {
    */
   getTemplateForProductType(productTypeId: string): TaskTemplate[] {
     const tasks = this.getTaskTemplate(productTypeId);
-    return tasks.map((task_name, index) => ({
-      task_name,
-      task_order: index + 1
+    return tasks.map((task_name) => ({
+      task_name
     }));
   }
 }

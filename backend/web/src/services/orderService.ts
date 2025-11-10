@@ -42,6 +42,7 @@ export class OrderService {
     // Get related data
     const parts = await orderRepository.getOrderParts(orderId);
     const tasks = await orderRepository.getOrderTasks(orderId);
+    const pointPersons = await orderRepository.getOrderPointPersons(orderId);
 
     // Calculate progress
     const completedTasksCount = tasks.filter(t => t.completed).length;
@@ -54,6 +55,7 @@ export class OrderService {
       ...order,
       parts,
       tasks,
+      point_persons: pointPersons,
       completed_tasks_count: completedTasksCount,
       total_tasks_count: totalTasksCount,
       progress_percent: progressPercent
@@ -86,10 +88,10 @@ export class OrderService {
     }
 
     // Business rule: Only allow deletion of certain statuses
-    const deletableStatuses = ['initiated', 'pending_confirmation'];
+    const deletableStatuses = ['job_details_setup', 'pending_confirmation'];
 
     if (!deletableStatuses.includes(order.status)) {
-      throw new Error(`Cannot delete order with status '${order.status}'. Only orders with status 'initiated' or 'pending_confirmation' can be deleted.`);
+      throw new Error(`Cannot delete order with status '${order.status}'. Only orders with status 'job_details_setup' or 'pending_confirmation' can be deleted.`);
     }
 
     await orderRepository.deleteOrder(orderId);
@@ -113,7 +115,7 @@ export class OrderService {
 
     // Validate status is valid
     const validStatuses = [
-      'initiated',
+      'job_details_setup',
       'pending_confirmation',
       'pending_production_files_creation',
       'pending_production_files_approval',
@@ -311,6 +313,252 @@ export class OrderService {
         await orderRepository.updateTaskCompleted(task_id, completed, userId);
       }
     }
+  }
+
+  // =====================================================
+  // SNAPSHOT & VERSIONING (Phase 1.5.c.3)
+  // =====================================================
+
+  /**
+   * Create snapshot for a single order part
+   * Phase 1.5.c.3
+   */
+  async createPartSnapshot(
+    partId: number,
+    userId: number,
+    snapshotType: 'finalization' | 'manual' = 'finalization',
+    notes?: string
+  ): Promise<number> {
+    const { pool } = await import('../config/database');
+
+    // Get current part data
+    const [parts] = await pool.execute<any[]>(
+      `SELECT specifications, invoice_description, quantity,
+              unit_price, extended_price, production_notes
+       FROM order_parts
+       WHERE part_id = ?`,
+      [partId]
+    );
+
+    if (parts.length === 0) {
+      throw new Error('Part not found');
+    }
+
+    const part = parts[0];
+
+    // Get next version number for this part
+    const [versions] = await pool.execute<any[]>(
+      `SELECT COALESCE(MAX(version_number), 0) + 1 as next_version
+       FROM order_part_snapshots
+       WHERE part_id = ?`,
+      [partId]
+    );
+
+    const versionNumber = versions[0].next_version;
+
+    // Create snapshot
+    const [result] = await pool.execute<any>(
+      `INSERT INTO order_part_snapshots (
+        part_id, version_number, specifications, invoice_description,
+        quantity, unit_price, extended_price, production_notes,
+        snapshot_type, notes, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        partId,
+        versionNumber,
+        typeof part.specifications === 'string' ? part.specifications : JSON.stringify(part.specifications),
+        part.invoice_description,
+        part.quantity,
+        part.unit_price,
+        part.extended_price,
+        part.production_notes,
+        snapshotType,
+        notes,
+        userId
+      ]
+    );
+
+    return result.insertId;
+  }
+
+  /**
+   * Finalize order - create snapshots for all parts and update order
+   * Phase 1.5.c.3
+   */
+  async finalizeOrder(orderId: number, userId: number): Promise<void> {
+    const { pool } = await import('../config/database');
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      // Get all parts for this order
+      const [parts] = await connection.execute<any[]>(
+        `SELECT part_id FROM order_parts WHERE order_id = ?`,
+        [orderId]
+      );
+
+      // Create snapshot for each part
+      for (const part of parts) {
+        await this.createPartSnapshot(part.part_id, userId, 'finalization', 'Order finalized');
+      }
+
+      // Update order with finalization info
+      await connection.execute(
+        `UPDATE orders
+         SET finalized_at = NOW(),
+             finalized_by = ?,
+             modified_after_finalization = false
+         WHERE order_id = ?`,
+        [userId, orderId]
+      );
+
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  /**
+   * Get latest snapshot for a part
+   * Phase 1.5.c.3
+   */
+  async getLatestSnapshot(partId: number): Promise<any | null> {
+    const { pool } = await import('../config/database');
+
+    const [snapshots] = await pool.execute<any[]>(
+      `SELECT snapshot_id, version_number, specifications, invoice_description,
+              quantity, unit_price, extended_price, production_notes,
+              snapshot_type, notes, created_at, created_by
+       FROM order_part_snapshots
+       WHERE part_id = ?
+       ORDER BY version_number DESC
+       LIMIT 1`,
+      [partId]
+    );
+
+    if (snapshots.length === 0) {
+      return null;
+    }
+
+    return snapshots[0];
+  }
+
+  /**
+   * Get all snapshots for a part (for version history viewer)
+   * Phase 1.5.c.3
+   */
+  async getSnapshotHistory(partId: number): Promise<any[]> {
+    const { pool } = await import('../config/database');
+
+    const [snapshots] = await pool.execute<any[]>(
+      `SELECT ops.snapshot_id, ops.version_number, ops.specifications,
+              ops.invoice_description, ops.quantity, ops.unit_price,
+              ops.extended_price, ops.production_notes, ops.snapshot_type,
+              ops.notes, ops.created_at, ops.created_by,
+              u.username as created_by_username
+       FROM order_part_snapshots ops
+       LEFT JOIN users u ON ops.created_by = u.user_id
+       WHERE ops.part_id = ?
+       ORDER BY ops.version_number DESC`,
+      [partId]
+    );
+
+    return snapshots;
+  }
+
+  /**
+   * Compare current part state with latest snapshot
+   * Phase 1.5.c.3
+   */
+  async compareWithLatestSnapshot(partId: number): Promise<{
+    hasSnapshot: boolean;
+    isModified: boolean;
+    latestSnapshot: any | null;
+    currentState: any;
+    modifications: any[];
+  }> {
+    const { pool } = await import('../config/database');
+
+    // Get latest snapshot
+    const latestSnapshot = await this.getLatestSnapshot(partId);
+
+    // Get current part state
+    const [parts] = await pool.execute<any[]>(
+      `SELECT specifications, invoice_description, quantity,
+              unit_price, extended_price, production_notes
+       FROM order_parts
+       WHERE part_id = ?`,
+      [partId]
+    );
+
+    if (parts.length === 0) {
+      throw new Error('Part not found');
+    }
+
+    const currentState = parts[0];
+
+    if (!latestSnapshot) {
+      return {
+        hasSnapshot: false,
+        isModified: false,
+        latestSnapshot: null,
+        currentState,
+        modifications: []
+      };
+    }
+
+    // Parse specifications
+    const snapshotSpecs = typeof latestSnapshot.specifications === 'string'
+      ? JSON.parse(latestSnapshot.specifications)
+      : latestSnapshot.specifications;
+    const currentSpecs = typeof currentState.specifications === 'string'
+      ? JSON.parse(currentState.specifications)
+      : currentState.specifications;
+
+    // Detect modifications
+    const modifications: any[] = [];
+
+    // Check specifications
+    if (JSON.stringify(snapshotSpecs) !== JSON.stringify(currentSpecs)) {
+      modifications.push({
+        type: 'specifications',
+        snapshotValue: snapshotSpecs,
+        currentValue: currentSpecs
+      });
+    }
+
+    // Check invoice fields
+    const invoiceFields = ['invoice_description', 'quantity', 'unit_price', 'extended_price'];
+    for (const field of invoiceFields) {
+      if (latestSnapshot[field] !== currentState[field]) {
+        modifications.push({
+          type: field,
+          snapshotValue: latestSnapshot[field],
+          currentValue: currentState[field]
+        });
+      }
+    }
+
+    // Check production notes
+    if (latestSnapshot.production_notes !== currentState.production_notes) {
+      modifications.push({
+        type: 'production_notes',
+        snapshotValue: latestSnapshot.production_notes,
+        currentValue: currentState.production_notes
+      });
+    }
+
+    return {
+      hasSnapshot: true,
+      isModified: modifications.length > 0,
+      latestSnapshot,
+      currentState,
+      modifications
+    };
   }
 }
 

@@ -130,7 +130,7 @@ export class ValidationContextBuilder {
 
       // LED Neon (Product Type 7) - Calculate wattage from linear length
       if (row.productTypeId === 7) {
-        const ledNeonCalcs = await this.calculateLedNeonValues(row);
+        const ledNeonCalcs = await this.calculateLedNeonValues(row, customerPreferences);
         Object.assign(calculations, ledNeonCalcs);
       }
 
@@ -511,7 +511,10 @@ export class ValidationContextBuilder {
    * Calculate LED Neon derived values
    * Handles wattage calculation from linear length for ps_override validation
    */
-  private static async calculateLedNeonValues(row: GridRowCore): Promise<RowCalculatedValues> {
+  private static async calculateLedNeonValues(
+    row: GridRowCore,
+    customerPreferences?: CustomerManufacturingPreferences
+  ): Promise<RowCalculatedValues> {
     const calculations: RowCalculatedValues = {};
 
     // Extract field3 (Length in inches)
@@ -828,6 +831,22 @@ export class ValidationContextBuilder {
         break;
       case 7:  // LED Neon - no UL support
         return false;
+      case 12: // UL (standalone) - check if any UL fields will add a UL component
+        // Product Type 12 uses field1 (Base+), field2 (+sets), or field3 ($)
+        // Logic matches ulPricing.ts calculator:
+        // - field1: any value (even 0) adds base_fee
+        // - field2: only values > 0 add sets
+        // - field3: any value (including negative) adds flat amount
+        const field1 = row.data.field1;
+        const field2 = row.data.field2;
+        const field3 = row.data.field3;
+
+        const hasField1 = field1 !== undefined && field1 !== null && field1 !== '';
+        const hasField2 = field2 !== undefined && field2 !== null && field2 !== '' &&
+                          !isNaN(parseFloat(String(field2))) && parseFloat(String(field2)) > 0;
+        const hasField3 = field3 !== undefined && field3 !== null && field3 !== '';
+
+        return hasField1 || hasField2 || hasField3;
       case 26: // LED - uses field7
         ulField = row.data.field7;
         break;

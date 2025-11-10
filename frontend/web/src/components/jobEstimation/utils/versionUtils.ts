@@ -17,7 +17,7 @@ export const formatDate = (dateString: string): { date: string; time: string } =
     day: 'numeric'
   });
   const timeStr = date.toLocaleTimeString('en-CA', {
-    hour: '2-digit',
+    hour: 'numeric',
     minute: '2-digit'
   });
   return { date: dateStr, time: timeStr };

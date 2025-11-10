@@ -138,7 +138,8 @@ function validateUL(
 
 /**
  * Validate wire length requirement per subtotal section
- * Rule: Custom length > 8ft + LEDs exist + NO Extra Wire product = RED
+ * Rule: Custom length > 8ft + LED products exist + (NO Extra Wire OR quantity mismatch) = RED
+ * Note: Matches any LED product (LEDs, LED Neon, etc.)
  */
 function validateWireLength(
   sections: SubtotalSection[],
@@ -153,10 +154,15 @@ function validateWireLength(
   }
 
   sections.forEach(section => {
-    const hasLEDs = section.items.some(item => item.itemName.includes('LEDs'));
-    const hasExtraWire = section.items.some(item => item.itemName.includes('Extra Wire'));
+    // Calculate total quantities (matches "LEDs", "LED Neon", etc.)
+    const ledItems = section.items.filter(item => item.itemName.includes('LED'));
+    const ledTotalQty = ledItems.reduce((sum, item) => sum + item.quantity, 0);
 
-    if (hasLEDs && !hasExtraWire) {
+    const wireItems = section.items.filter(item => item.itemName.includes('Extra Wire'));
+    const wireTotalQty = wireItems.reduce((sum, item) => sum + item.quantity, 0);
+
+    // Validation: LED products exist but Extra Wire missing OR quantities don't match
+    if (ledTotalQty > 0 && ledTotalQty !== wireTotalQty) {
       errorSections.push(section.sectionIndex);
     }
   });
@@ -166,14 +172,15 @@ function validateWireLength(
     severity: 'red',
     subtotalSections: errorSections,
     message: errorSections.length > 0
-      ? `Extra wire required (${wireLength}ft) but missing in section(s): ${errorSections.map(i => i + 1).join(', ')}`
+      ? `Extra wire required (${wireLength}ft) with 1:1 quantity matching for LED products in section(s): ${errorSections.map(i => i + 1).join(', ')}`
       : undefined
   };
 }
 
 /**
  * Validate Plug N Play requirement per subtotal section
- * Rule: (LEDs exist OR PS exist) + NO Plugs item = RED
+ * Rule: (LED products exist OR PS exist) + NO Plugs item = RED
+ * Note: Includes both LEDs and LED Neon products
  */
 function validatePlugNPlay(
   sections: SubtotalSection[],
@@ -187,7 +194,7 @@ function validatePlugNPlay(
   }
 
   sections.forEach(section => {
-    const hasLEDs = section.items.some(item => item.itemName.includes('LEDs'));
+    const hasLEDs = section.items.some(item => item.itemName.includes('LED'));
     const hasPS = section.items.some(item => item.itemName.includes('Power Supplies'));
     const hasPlugs = section.items.some(item => item.itemName.includes('Plugs'));
 

@@ -1,0 +1,36 @@
+{
+  "name": "nexus-folder-opener",
+  "version": "1.0.0",
+  "description": "Invisible helper app to open network folders from Nexus web app",
+  "main": "opener.js",
+  "scripts": {
+    "build": "pkg opener.js --targets node18-win-x64 --output nexus-folder-opener.exe --config package.json",
+    "test": "node opener.js \"nexus://open?path=C:\\\\Windows\"",
+    "install-protocol": "node install.js"
+  },
+  "pkg": {
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "dist",
+    "options": [
+      "--no-warnings"
+    ],
+    "compress": "GZip",
+    "scripts": {
+      "postbuild": "editbin /subsystem:windows nexus-folder-opener.exe || echo 'Note: editbin not available, creating VBScript launcher instead'"
+    }
+  },
+  "bin": "opener.js",
+  "keywords": [
+    "nexus",
+    "protocol-handler",
+    "folder-opener",
+    "windows"
+  ],
+  "author": "Sign House",
+  "license": "MIT",
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  }
+}

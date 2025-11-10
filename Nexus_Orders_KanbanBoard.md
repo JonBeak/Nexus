@@ -556,7 +556,7 @@ Awaiting Payment → Completed
 // Daily cron job: Check for overdue jobs
 function checkOverdueJobs() {
   const activeStages = [
-    'initiated',
+    'job_details_setup',
     'pending_confirmation',
     'pending_production_files_creation',
     'pending_production_files_approval',

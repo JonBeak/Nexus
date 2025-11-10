@@ -23,6 +23,7 @@ Phase 1 has been broken down into **8 manageable sub-phases** (1.a through 1.h),
 - `order_tasks` table for progress tracking
 - `order_form_versions` table for PDF versioning
 - `order_status_history` table for audit trail
+- `customer_contacts` table for contact management (added in Phase 1.5)
 - `users.production_roles` JSON column added
 
 **Validation:**
@@ -30,6 +31,7 @@ Phase 1 has been broken down into **8 manageable sub-phases** (1.a through 1.h),
 - Foreign key constraints working
 - Indexes created
 - Test data can be inserted
+- Status enum uses 'job_details_setup' as first status (not 'initiated')
 
 **Documentation:** `Nexus_Orders_Phase1a_DatabaseFoundation.md`
 
@@ -45,15 +47,16 @@ Phase 1 has been broken down into **8 manageable sub-phases** (1.a through 1.h),
 - RBAC permissions created and assigned
 - Sequential order numbering starts at 200000 ✓
 - Successfully tested with Estimate #134 → Order #200000
-- 20 parts copied, 97 tasks generated from templates
+- 20 parts copied successfully
 - Bug fixed: channel_letter_type_id set to NULL for Phase 1
+- **Update 2025-11-07:** Automatic task generation removed - tasks now manually added by users
 
 **What:** Implement estimate-to-order conversion and order CRUD operations.
 
 **Deliverables:**
 - Order conversion service (estimate → order)
 - Order CRUD endpoints (create, read, update, delete)
-- Order task generation from hard-coded templates
+- ~~Order task generation from hard-coded templates~~ (Removed: tasks manually added by users)
 - Order status management with history tracking
 - TypeScript interfaces for all order types
 
@@ -68,7 +71,7 @@ Phase 1 has been broken down into **8 manageable sub-phases** (1.a through 1.h),
 **Validation:**
 - Convert approved estimate to order successfully
 - Order number sequential (200000, 200001, ...)
-- Parts and tasks generated correctly
+- Parts copied correctly (tasks no longer auto-generated)
 - CRUD operations functional
 
 **Documentation:** `Nexus_Orders_Phase1b_BackendOrderConversion.md`
@@ -183,6 +186,11 @@ Phase 1 has been broken down into **8 manageable sub-phases** (1.a through 1.h),
 - ✅ Backend API returning data successfully
 - ✅ Page loads without errors
 
+**Modal Implementation:**
+- Only ApproveEstimateModal exists (no edit/delete/clone modals)
+- Post-creation edits use inline editing in OrderDetailsPage
+- Phase 1.5.a.5 enhancements added to ApproveEstimateModal (business days, contacts, hard due dates)
+
 **Documentation:** Already implemented, documentation not needed
 
 ---
@@ -231,49 +239,49 @@ Phase 1 has been broken down into **8 manageable sub-phases** (1.a through 1.h),
 ---
 
 ### Phase 1.g: Frontend - Orders Table
-**Duration:** 2-3 days
-**Status:** ✅ BACKEND READY, 🔲 Frontend To Be Created (2025-11-04)
+**Duration:** 2 days (Actual)
+**Status:** ✅ COMPLETE (2025-11-04)
 
-**Backend Preparation Complete:**
-- ✅ GET /api/orders endpoint working with filters
-- ✅ Progress aggregation (total_tasks, completed_tasks) functional
-- ✅ MySQL prepared statement limitation identified and resolved
-- ✅ Pagination with limit/offset working correctly
+**Implementation Complete:**
+- ✅ 6 modular components created (537 total lines)
+- ✅ Sortable table with 7 columns (visual sort indicators)
+- ✅ Status filter dropdown (14 statuses)
+- ✅ Search functionality (order number, name, customer)
+- ✅ Batch status updates (multi-select with confirmation)
+- ✅ Pagination (50 items per page)
+- ✅ Row click navigation to order details
 
-**What:** Create comprehensive table view with sorting, filtering, and export.
-
-**Deliverables:**
-- Sortable table (all columns)
-- Advanced filters (status, customer, date range)
-- Search functionality
-- CSV export
-- Batch status updates
-- Pagination
-
-**Key Files:**
-- `/frontend/web/src/components/orders/table/OrdersTable.tsx`
-- `/frontend/web/src/components/orders/table/TableFilters.tsx`
-- `/frontend/web/src/components/orders/table/ColumnConfig.tsx`
+**Implemented Files:**
+- `/frontend/web/src/components/orders/table/OrdersTable.tsx` (237 lines)
+- `/frontend/web/src/components/orders/table/TableHeader.tsx` (74 lines)
+- `/frontend/web/src/components/orders/table/TableRow.tsx` (92 lines)
+- `/frontend/web/src/components/orders/table/TableFilters.tsx` (68 lines)
+- `/frontend/web/src/components/orders/table/BatchActions.tsx` (66 lines)
+- `/frontend/web/src/components/orders/table/Pagination.tsx` (89 lines)
 
 **Validation:**
-- Table displays all orders
-- Sorting works on all columns
-- Filters combine correctly
-- CSV export includes all filtered rows
-- Batch operations work
+- ✅ Table displays all orders correctly
+- ✅ Sorting works on all columns (asc/desc toggle)
+- ✅ Filters combine correctly (status + search)
+- ✅ Batch operations work (multi-select + status update)
+- ✅ Pagination navigates correctly
+- ✅ Row click navigation working
 
-**Architecture Note:**
+**Scope Note:**
+- CSV export removed from scope - not needed for Phase 1
+
+**Backend Architecture Note:**
 - Backend uses literal values for LIMIT/OFFSET instead of prepared statement placeholders
 - MySQL prepared statements with LIMIT ? don't work with correlated subqueries
 - Implemented with integer validation to prevent SQL injection
 
-**Documentation:** `Nexus_Orders_Phase1g_FrontendOrdersTable.md` (TO BE CREATED)
+**Documentation:** `Nexus_Orders_Phase1g_FrontendOrdersTable.md` ✅
 
 ---
 
 ### Phase 1.h: Integration & Testing
-**Duration:** 2-3 days
-**Status:** 🔲 To Be Created
+**Duration:** 2-3 days (Actual: In Progress)
+**Status:** ⚙️ IN PROGRESS (Started 2025-11-04)
 
 **What:** End-to-end testing, RBAC setup, performance validation.
 
@@ -292,16 +300,32 @@ Phase 1 has been broken down into **8 manageable sub-phases** (1.a through 1.h),
 5. Search and filter operations
 6. Role-based access control
 
+**Progress:**
+- ✅ Infrastructure validation complete (SMB mount, database, test data)
+- ✅ Documentation updated (7 files corrected with proper PDF paths)
+- ✅ Critical bug fixed (MySQL prepared statement issue - required rebuild)
+- ⏳ Manual UI testing in progress
+- ⏳ Performance benchmarking pending
+- ⏳ Final sign-off pending
+
+**Critical Bug Fixed:**
+- **Issue:** GET /api/orders endpoint failing with ER_WRONG_ARGUMENTS
+- **Root Cause:** Code fix was present but backend needed rebuild/restart
+- **Resolution:** Backend rebuilt and services restarted successfully
+- **Status:** Verified fixed, backend responding normally
+
 **Validation:**
-- All test scenarios pass
-- No permission leaks
-- Performance targets met:
+- Infrastructure tests pass (3/3)
+- Manual UI scenarios (0/4 pending)
+- Performance targets (0/7 pending):
   - Order list loads < 500ms
   - Form generation < 3 seconds
   - Task updates < 200ms
-- Documentation accurate
+- Documentation accurate and updated
 
-**Documentation:** `Nexus_Orders_Phase1h_Integration Testing.md` (TO BE CREATED)
+**Documentation:**
+- `Nexus_Orders_Phase1h_IntegrationTesting.md` ✅ (test procedures)
+- `Nexus_Orders_Phase1h_TestResults.md` ✅ (test results and manual checklist)
 
 ---
 
@@ -315,8 +339,8 @@ Phase 1 has been broken down into **8 manageable sub-phases** (1.a through 1.h),
 4. ✅ **Phase 1.d** → Progress Tracking Backend (COMPLETE 2025-11-04)
 5. ✅ **Phase 1.e** → Frontend Dashboard (COMPLETE 2025-11-04 - was already implemented, backend bug fixed)
 6. ✅ **Phase 1.f** → Frontend Progress UI (COMPLETE 2025-11-04 - 9 components, task tracking interface)
-7. 🔜 **Phase 1.g** → Frontend Orders Table (NEXT - Backend ready, frontend pending)
-8. ⏸️ **Phase 1.h** → Integration & Testing (validation)
+7. ✅ **Phase 1.g** → Frontend Orders Table (COMPLETE 2025-11-04 - 6 components, sortable table)
+8. ⚙️ **Phase 1.h** → Integration & Testing (IN PROGRESS - started 2025-11-04, infrastructure complete, manual UI testing pending)
 
 **Rationale:**
 - Backend must be complete before frontend can be built
@@ -435,7 +459,7 @@ Phase 1 is considered **COMPLETE** when:
 6. ✅ Status can be updated with dropdown
 7. ✅ Status history records all changes
 8. ✅ Orders table displays and filters correctly
-9. ✅ CSV export works
+9. ❌ CSV export (REMOVED FROM SCOPE - not needed for Phase 1)
 10. ✅ RBAC permissions enforced (Manager+ can create/delete)
 11. ✅ No crashes or critical bugs
 12. ✅ Performance targets met (< 500ms page loads)
@@ -471,7 +495,7 @@ Use this checklist to track daily progress:
 ### Potential Blockers
 
 1. **SMB Mount Access**
-   - Risk: Cannot write to `/mnt/signfiles/orders/`
+   - Risk: Cannot write to `/mnt/channelletter/NexusTesting/Order-`
    - Mitigation: Test early, configure permissions before Phase 1.c
 
 2. **PDFKit Complexity**
@@ -501,6 +525,44 @@ Use this checklist to track daily progress:
 
 ## After Phase 1: What's Next?
 
+### Phase 1.5 (CURRENT) - Job Details Setup Interface (3-4 weeks)
+**Status:** 35% COMPLETE (Phases 1.5.a, 1.5.a.5, 1.5.b done; 1.5.c-f pending)
+**Purpose:** Bridge gap between estimate approval and order production
+
+**Key Features:**
+- ✅ Fix Estimate Preview numbering (1, 1a, 1b, 1c) - COMPLETE
+- ✅ Enhanced ApproveEstimateModal with business days, contacts, hard due dates - COMPLETE
+- ✅ Database schema updates (customer_job_number, hard_due_date_time, etc.) - COMPLETE
+- [ ] Dual-table interface (Job Specs | Invoice)
+- [ ] Manual task creation with hard-coded role assignment
+- [ ] Specs/Invoice irreversible separation after approval
+- [ ] Order finalization workflow
+
+**Sub-Phases:**
+- **1.5.a:** Numbering Fix & Order Creation (3-4 days) ✅ COMPLETE
+- **1.5.a.5:** ApproveEstimateModal Enhancements (2-3 days) ✅ COMPLETE
+  - Business days calculation with holiday awareness
+  - Customer contact management (customer_contacts table)
+  - Hard due date/time support
+  - Auto-calculated due dates from customer defaults
+  - Manual override detection with warnings
+- **1.5.b:** Database Schema Updates (1 day) ✅ COMPLETE (migrations applied)
+- **1.5.c:** Job Details Setup UI - Layout (4-5 days) ❌ NOT STARTED
+- **1.5.d:** Dynamic Specs & Tasks System (3-4 days) ❌ NOT STARTED
+- **1.5.e:** Separator Rows & Row Management (2 days) ❌ NOT STARTED
+- **1.5.f:** Order Finalization Workflow (2-3 days) ❌ NOT STARTED
+
+**Documentation:**
+- `Nexus_Orders_Phase1.5_OVERVIEW.md` - Complete architecture
+- `Nexus_Orders_Phase1.5a_NumberingFix.md` - Numbering & conversion
+- `Nexus_Orders_Phase1.5b_DatabaseSchema.md` - Migration script
+- `Nexus_Orders_Phase1.5c_DualTableUI.md` - UI components
+- `Nexus_Orders_Phase1.5d_SpecsAndTasks.md` - Specs & tasks
+- `Nexus_Orders_Phase1.5e_RowManagement.md` - Row operations
+- `Nexus_Orders_Phase1.5f_Finalization.md` - Validation & finalization
+
+---
+
 ### Phase 2 Preview (3-4 weeks)
 - Invoice system with QuickBooks integration
 - Payment tracking
@@ -528,7 +590,7 @@ Use this checklist to track daily progress:
 
 Before starting implementation, confirm:
 
-1. **SMB Mount Path:** Is `/mnt/signfiles/orders/` the correct path?
+1. **SMB Mount Path:** Is `/mnt/channelletter/NexusTesting/Order-` the correct path?
 2. **Order Numbering:** Is 200000 the correct starting number?
 3. **Status List:** Are all 14 statuses correct? Any additions?
 4. **Permission Roles:** Who can create orders? (Manager+ only?)
@@ -551,16 +613,19 @@ Before starting implementation, confirm:
 
 ---
 
-**Document Status:** Phase 1 In Progress - 75% Complete
-**Last Updated:** 2025-11-04 04:15 EST
-**Recent Updates:** URL structure changed from /:orderId to /:orderNumber for user-friendly URLs
-**Total Sub-Phases:** 8 (1.a through 1.h)
-**Implementation Status:** 6 of 8 complete (1.a ✅, 1.b ✅, 1.c ✅, 1.d ✅, 1.e ✅, 1.f ✅)
-**Current Phase:** 1.g (Frontend Orders Table) - Backend ready, frontend to be implemented
-**Backend Bonus:** Phase 1.g backend API ready (orders list endpoint working)
-**Documentation Files Created:** 5 of 8 (1.a, 1.b, 1.c, 1.d, 1.f complete; 1.e was pre-existing)
-**Remaining:** 2 sub-phases (1.g frontend, 1.h)
-**Recent Completion:** Phase 1.f - 9 new components for progress tracking UI (2025-11-04)
+**Document Status:** Phase 1: 85% Complete, Phase 1.5: 35% Complete (1.5.a-b done, 1.5.c-f pending)
+**Last Updated:** 2025-11-06
+**Recent Updates:**
+- Phase 1.5.a: Numbering fix and order creation COMPLETE
+- Phase 1.5.a.5: ApproveEstimateModal enhancements COMPLETE (business days, contacts, hard due dates)
+- Phase 1.5.b: Database schema updates APPLIED (customer_job_number, hard_due_date_time, etc.)
+- Only ApproveEstimateModal exists (no edit/delete/clone modals - using inline editing)
+- CSV export removed from Phase 1 scope
+**Total Sub-Phases:** 8 Phase 1 + 6 Phase 1.5 sub-phases
+**Implementation Status:** Phase 1: 7/8 complete (1.h testing ongoing), Phase 1.5: 3/6 complete
+**Current Phase:** Phase 1.h (Integration & Testing) + Phase 1.5.c (next to implement)
+**Documentation Files Created:** 8 Phase 1 docs + 7 Phase 1.5 docs (all documented)
+**Remaining:** Complete Phase 1.h testing, then proceed with Phase 1.5.c (Dual-Table UI)
 
 ---
 
@@ -573,6 +638,7 @@ Before starting implementation, confirm:
 - **Phase 1.d:** Backend Progress Tracking (Task endpoints, progress calculation, status history tracking)
 - **Phase 1.e:** Frontend Order Dashboard (Was pre-existing, backend bug fixed 2025-11-04 - 7 components working)
 - **Phase 1.f:** Frontend Progress Tracking UI (9 new components, task checkboxes, progress bars, status dropdown, timeline view)
+- **Phase 1.g:** Frontend Orders Table (6 new components, sortable table, filters, search, batch operations, pagination)
 
 ### ⚙️ Infrastructure Complete
 - **SMB Storage:** Mounted at `/mnt/channelletter` (write access verified) ✓
@@ -581,26 +647,35 @@ Before starting implementation, confirm:
 - **Storage Config:** `/backend/web/src/config/storage.ts` created ✓
 - **Test Button:** Dashboard test button for endpoint validation ✓
 
-### 🔜 Next Phase
-- **Phase 1.g:** Frontend - Orders Table View
-  - **Status:** 🔲 Ready to start
-  - **Prerequisites:** Backend complete ✓, Dashboard working ✓, Progress UI working ✓
-  - **Backend API:** Already complete and tested ✓
-  - **Files to Create:**
-    - OrdersTable.tsx (main table component)
-    - TableFilters.tsx (advanced filtering)
-    - ColumnConfig.tsx (sortable columns)
-    - CSV export functionality
+### ⚙️ Current Phase
+- **Phase 1.h:** Integration & Testing
+  - **Status:** ⚙️ In Progress (Started 2025-11-04)
+  - **Prerequisites:** All sub-phases 1.a through 1.g complete ✓
   - **Est. Duration:** 2-3 days
-  - **Features:** Sortable columns, advanced filters, pagination, CSV export, batch operations
+  - **Progress:** Infrastructure complete (40%), manual UI testing pending (60%)
+  - **Completed:**
+    - ✅ SMB mount validation
+    - ✅ Database connectivity tests
+    - ✅ Documentation path corrections (7 files)
+    - ✅ Critical bug fix (MySQL prepared statement)
+    - ✅ Backend rebuild and server restart
+    - ✅ Test data preparation (approved estimate created)
+    - ✅ Test results document created
+  - **Remaining:**
+    - ⏳ Manual UI E2E scenarios (4 scenarios)
+    - ⏳ Performance benchmarking (7 metrics)
+    - ⏳ Edge case testing
+    - ⏳ Final sign-off
 
 ### 📊 Overall Progress
-- **6/8 sub-phases complete (75%)**
+- **7/8 sub-phases complete (87.5%)**
 - **Backend:** Complete and tested ✓
 - **Frontend Dashboard:** Working with fixed backend API ✓
 - **Frontend Progress UI:** Complete with 9 new components ✓
+- **Frontend Table View:** Complete with 6 new components ✓
 - **Infrastructure:** SMB storage configured with static IP ✓
 - **Test order created:** #200003 from Estimate #134 ✓
 - **PDFs generated:** All 4 forms working ✓
 - **Task tracking:** All endpoints working with UI ✓
-- **Next:** Phase 1.g Frontend Orders Table (Sortable table view with CSV export)
+- **Phase 1.h started:** Infrastructure validated, critical bug fixed ✓
+- **Next:** Complete Phase 1.h manual UI testing (4 scenarios, ~2-3 hours)

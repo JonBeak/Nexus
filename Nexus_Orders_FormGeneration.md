@@ -935,7 +935,7 @@ export async function saveSignImage(
   imageBuffer: Buffer,
   filename: string
 ): Promise<string> {
-  const orderDir = `/mnt/signfiles/orders/${orderNumber}/sign_images`;
+  const orderDir = `/mnt/channelletter/NexusTesting/Order-${orderNumber}/sign_images`;
 
   // Ensure directory exists
   await fs.mkdir(orderDir, { recursive: true });

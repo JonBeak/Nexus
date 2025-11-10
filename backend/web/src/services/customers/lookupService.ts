@@ -74,4 +74,19 @@ export class LookupService {
     );
     return provincesStates;
   }
+
+  static async getAllTaxRules() {
+    const taxRules = await query(
+      `SELECT
+        tax_rule_id,
+        tax_name,
+        tax_percent,
+        is_active
+      FROM tax_rules
+      WHERE is_active = 1
+      ORDER BY tax_name`,
+      []
+    );
+    return taxRules;
+  }
 }

@@ -56,7 +56,8 @@ A comprehensive order management system that transforms approved estimates into 
 ### Backend
 - **Framework**: Express + TypeScript (existing pattern)
 - **Database**: MySQL 8.0
-  - Primary tables: `orders`, `order_parts`, `order_tasks`, `order_materials`, `order_invoices`
+  - Primary tables: `orders`, `order_parts`, `order_tasks`, `order_form_versions`, `order_status_history`, `customer_contacts`
+  - Future tables (Phase 2+): `order_materials`, `invoices`, `invoice_line_items`
   - JSON columns for flexible data storage where appropriate
 - **Real-time Updates**: Consider WebSocket for live progress updates (future enhancement)
 - **PDF Generation**: Existing library for order forms + packing lists
@@ -96,6 +97,7 @@ A comprehensive order management system that transforms approved estimates into 
 | **Gantt Chart** | Task durations + dependencies | Timeline visualization | READS tasks + dates |
 | **Jobs Table** | Filters + search | Tabular data view with all tasks | READS for display |
 | **Calendar View** | Due dates + milestones | Calendar events | READS dates |
+| **Network Folder Access** | Order folder path | Opens Windows Explorer to order folder | READS folder_path field (future) |
 
 ---
 
@@ -115,6 +117,7 @@ interface MasterOrderObject {
   // === STATUS & WORKFLOW ===
   kanbanStage: KanbanStage;          // Current stage in workflow
   overallStatus: 'active' | 'overdue' | 'completed' | 'cancelled';
+  // NOTE: First status is 'job_details_setup' (not 'initiated') - order starts in setup phase
   dueDate: Date;
   startDate?: Date;
   completedDate?: Date;
@@ -218,7 +221,7 @@ See `Nexus_Orders_JobStructure.md` for detailed breakdown of nested objects.
    - Ability to archive completed jobs to external SSD for scalability
 
 ### Modal/Drawer Views
-- **Order Details**: Full job information, edit capabilities
+- **Order Details**: Full job information, edit capabilities, **"📁 Open Folder" button** for network folder access
 - **Order Forms**: Generate/view PDF versions
 - **Invoice Editor**: Modify line items, pricing, add custom items
 - **Materials List**: View requirements, link to supply chain
@@ -239,7 +242,15 @@ See `Nexus_Orders_JobStructure.md` for detailed breakdown of nested objects.
   - NO NEW FIELDS needed in customers table
 - **Employee System:** Extends existing employees table with production_roles JSON column
 - **File Storage:** SMB mount to Windows PC for design files (configuration TBD)
-  - Path format: `/mnt/signfiles/orders/{orderNumber}/`
+  - Path format: `/mnt/channelletter/NexusTesting/Order-{orderNumber}/`
+  - **Network Folder Access:** Each order page includes "📁 Open Folder" button
+    - Uses custom protocol handler (nexus://) to open Windows Explorer
+    - Tool: C# application (~50KB) registered at Windows protocol level
+    - Location: `/tools/folder-opener/` - See README-CSHARP.md for installation
+    - Behavior: One-click folder opening with no console window
+    - Security: Validates UNC paths before opening
+    - Database: Folder path tracking and naming conventions TBD (future phase)
+    - Implementation: Button added to order details view, folder path stored in orders table
 
 ## Key Integration Points
 
@@ -269,20 +280,33 @@ See `Nexus_Orders_JobStructure.md` for detailed breakdown of nested objects.
 
 ## Development Phases (Updated)
 
-### Phase 1: Core Foundation (4-6 weeks) - PRIORITY
-- [ ] Database schema (orders, parts, tasks, invoices, timeline)
-- [ ] Order Landing/Conversion wizard (estimate → order)
-  - See Nexus_Orders_Landing_Conversion.md for detailed workflow (TBD)
-- [ ] Order Details CRUD + view
-- [ ] Progress Tracking (task management by role)
-- [ ] Dashboard (priorities & alerts)
+### Phase 1: Core Foundation (4-6 weeks) - 85% COMPLETE
+- [x] Database schema (orders, parts, tasks, form_versions, status_history, customer_contacts)
+- [x] Order Landing/Conversion wizard (estimate → order) + ApproveEstimateModal
+- [x] Order Details CRUD + view (OrderDetailsPage)
+- [x] Progress Tracking (task management by role)
+- [x] Dashboard (priorities & alerts) - SimpleDashboard + OrderDashboard
   - Overdue jobs count + list
   - Today's tasks by role
   - Jobs needing attention (no stats yet)
-- [ ] All Order Forms + Packing List (simplified design)
-- [ ] Basic Invoice (auto-create, manual QB entry using existing integration)
-- [ ] Production roles in employees table (JSON column)
-- [ ] Full timeline/audit trail tracking
+- [~] All Order Forms + Packing List (4 PDFs - NEEDS VERIFICATION)
+- [~] Basic Invoice (DEFERRED to Phase 2 - Using QuickBooks directly)
+- [x] Production roles in employees table (JSON column) - DEFERRED to Phase 3
+- [x] Full timeline/audit trail tracking (order_status_history)
+
+### Phase 1.5: Job Details Setup Interface (2-3 weeks) - 35% COMPLETE
+- [x] Phase 1.5.a: Numbering fix + order creation enhancements
+- [x] Phase 1.5.a.5: ApproveEstimateModal enhancements
+  - Business days calculation with holiday awareness
+  - Customer contact management (customer_contacts table)
+  - Hard due date/time support
+  - Auto-calculated due dates from customer defaults
+  - Manual override detection with warnings
+- [x] Phase 1.5.b: Database schema updates (customer_job_number, hard_due_date_time, point_person_email, finalized fields, display_number, is_parent)
+- [ ] Phase 1.5.c: Dual-Table UI (Job Specs | Invoice separation)
+- [ ] Phase 1.5.d: Dynamic Specs & Tasks creation
+- [ ] Phase 1.5.e: Row Management (add/edit/delete rows)
+- [ ] Phase 1.5.f: Finalization Workflow (lock specs/invoice after finalization)
 
 ### Phase 2: Essential Features (3-4 weeks)
 - [ ] Jobs Table (searchable/filterable list)
@@ -389,7 +413,12 @@ LIMIT ?  -- Fails with correlated subqueries
 
 ---
 
-**Document Status**: Phase 1 Implementation - Backend Complete
-**Last Updated**: 2025-11-04
+**Document Status**: Phase 1 85% Complete, Phase 1.5 35% Complete (1.5.a-b done, 1.5.c-f pending)
+**Last Updated**: 2025-11-06
 **Owner**: Jon (with Claude Code assistance)
-**Recent Updates**: MySQL prepared statement limitation documented, Phase 1.g backend API complete
+**Recent Updates**:
+- Phase 1.5.a & 1.5.a.5: ApproveEstimateModal fully functional with business days, contacts, hard due dates
+- Phase 1.5.b: Database schema updates applied (customer_job_number, hard_due_date_time, etc.)
+- Phase 1: Core order management operational (conversion, progress tracking, dashboard, table views)
+- Status enum uses 'job_details_setup' (not 'initiated') as first status
+- Only ApproveEstimateModal exists (no edit/delete/clone modals - using inline editing)

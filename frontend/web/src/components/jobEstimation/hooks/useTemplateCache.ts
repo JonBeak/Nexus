@@ -40,6 +40,17 @@ export const useTemplateCache = (
 
         setTemplateCache(allTemplates);
 
+        // Load QuickBooks items for Custom product dropdowns
+        let qbItemNames: string[] = [];
+        try {
+          const qbItems = await QuickBooksDataResource.getItems();
+          qbItemNames = qbItems.map(item => item.name);
+          console.log(`✅ Loaded ${qbItemNames.length} QuickBooks items for Custom product dropdowns`);
+        } catch (error) {
+          console.error('Failed to load QuickBooks items for dropdowns:', error);
+          // Continue without QB items - fields will be text inputs instead
+        }
+
         // Extract field prompts and static options for existing compatibility
         const newFieldPrompts: Record<number, Record<string, string | boolean>> = {};
         const newStaticOptions: Record<number, Record<string, string[]>> = {};
@@ -64,6 +75,13 @@ export const useTemplateCache = (
             if (!normalizedStaticOptions.field7) {
               normalizedStaticOptions.field7 = [];
             }
+          }
+
+          // Custom product (Product Type 9) - Add QuickBooks items as dropdowns for ProductName fields
+          if (id === 9 && qbItemNames.length > 0) {
+            normalizedStaticOptions.field1 = qbItemNames; // A.ProductName
+            normalizedStaticOptions.field4 = qbItemNames; // B.ProductName
+            normalizedStaticOptions.field7 = qbItemNames; // C.ProductName
           }
 
           newFieldPrompts[id] = normalizedPrompts;

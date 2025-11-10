@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Copy, FileText, AlertTriangle, Check, CheckCircle } from 'lucide-react';
+import { Copy, FileText, AlertTriangle, Check, CheckCircle, ExternalLink } from 'lucide-react';
 import { EstimatePreviewData } from './core/layers/CalculationLayer';
 import { generateEstimateSVG } from './utils/svgEstimateExporter';
 import { EstimateVersion } from './types';
@@ -131,6 +131,7 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
         customerName: customerName || estimatePreviewData.customerName || undefined,
         jobName: jobName || undefined,
         version: version || undefined,
+        description: estimate?.notes || undefined,
         date: currentDate
       });
 
@@ -216,14 +217,14 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
                 title="Open this estimate in QuickBooks"
               >
-                <FileText className="w-3.5 h-3.5" />
+                <ExternalLink className="w-3.5 h-3.5" />
                 Open in QB
               </button>
               {!isApproved && onApproveEstimate && (
                 <button
                   onClick={onApproveEstimate}
                   className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
-                  title="Mark this estimate as approved"
+                  title="Approve estimate and create order"
                 >
                   <CheckCircle className="w-3.5 h-3.5" />
                   Approve
@@ -231,17 +232,29 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
               )}
             </>
           ) : !qbConnected ? (
-            // Not connected - show "Connect to QuickBooks"
-            <button
-              onClick={onConnectQB}
-              className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
-              title="Connect to QuickBooks to create estimates"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              Connect to QB
-            </button>
+            // Not connected - show "Connect to QuickBooks" and "Approve"
+            <>
+              <button
+                onClick={onConnectQB}
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                title="Connect to QuickBooks to create estimates"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                Connect to QB
+              </button>
+              {!isApproved && onApproveEstimate && (
+                <button
+                  onClick={onApproveEstimate}
+                  className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+                  title="Approve estimate and create order (without QB estimate)"
+                >
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  Approve
+                </button>
+              )}
+            </>
           ) : (
-            // Connected - show disconnect + create buttons
+            // Connected - show disconnect + create + approve buttons
             <>
               <button
                 onClick={onDisconnectQB}
@@ -254,7 +267,7 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                 <button
                   onClick={onCreateQBEstimate}
                   disabled={qbCreatingEstimate || !estimatePreviewData || estimatePreviewData.items.length === 0}
-                  className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Create estimate in QuickBooks (will finalize this draft)"
                 >
                   {qbCreatingEstimate ? (
@@ -265,6 +278,16 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                       Create QB Estimate
                     </>
                   )}
+                </button>
+              )}
+              {!isApproved && onApproveEstimate && (
+                <button
+                  onClick={onApproveEstimate}
+                  className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+                  title="Approve estimate and create order (without QB estimate)"
+                >
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  Approve
                 </button>
               )}
             </>
@@ -334,8 +357,8 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {estimatePreviewData.items.map((item, index) => {
-                        // Check if this is an Empty Row (Product Type 27)
-                        const isEmptyRow = item.productTypeId === 27;
+                        // Check if this is an Empty Row (Product Type 27) or description-only Custom item
+                        const isEmptyRow = item.productTypeId === 27 || item.isDescriptionOnly;
                         // Check if this is a Subtotal (Product Type 21)
                         const isSubtotal = item.productTypeId === 21;
 
@@ -350,7 +373,7 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                             onMouseEnter={() => onRowHover(item.rowId)}
                             onMouseLeave={() => onRowHover(null)}
                           >
-                            <td className="px-2 py-1 text-gray-600 text-sm border-r border-gray-200">{item.inputGridDisplayNumber}</td>
+                            <td className="px-2 py-1 text-gray-600 text-sm border-r border-gray-200">{item.estimatePreviewDisplayNumber || item.inputGridDisplayNumber}</td>
                             <td className="px-2 py-1">
                               {isSubtotal ? (
                                 <div></div>

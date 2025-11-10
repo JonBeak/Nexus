@@ -853,9 +853,7 @@ router.post('/create-estimate', authenticateToken, async (req: Request, res: Res
           lines.push({
             DetailType: 'DescriptionOnly',
             Description: safeDescription,
-            DescriptionLineDetail: {
-              TaxCodeRef: { value: 'NON' }
-            },
+            DescriptionLineDetail: {},
             LineNum: lineNum
           });
           console.log(`   ↳ Added subtotal section (DescriptionOnly, no tax code)`);
@@ -866,9 +864,7 @@ router.post('/create-estimate', authenticateToken, async (req: Request, res: Res
           lines.push({
             DetailType: 'DescriptionOnly',
             Description: emptySubtotal,
-            DescriptionLineDetail: {
-              TaxCodeRef: { value: 'NON' }
-            },
+            DescriptionLineDetail: {},
             LineNum: lineNum
           });
           console.log(`   ↳ Added empty subtotal section`);
@@ -884,9 +880,7 @@ router.post('/create-estimate', authenticateToken, async (req: Request, res: Res
         lines.push({
           DetailType: 'DescriptionOnly',
           Description: description,  // Use comment if available, otherwise single space
-          DescriptionLineDetail: {
-            TaxCodeRef: { value: 'NON' }
-          },
+          DescriptionLineDetail: {},
           LineNum: lineNum
         });
         continue;
@@ -894,25 +888,23 @@ router.post('/create-estimate', authenticateToken, async (req: Request, res: Res
 
       // CUSTOM (Product Type 9) with only description - Use DescriptionOnly
       if (item.productTypeId === 9) {
-        // Check if this is description-only (no price or quantity)
+        // Check if this is description-only (price === 0 signals description-only)
         const hasPrice = item.unitPrice && item.unitPrice > 0;
-        const hasQuantity = item.quantity && item.quantity > 0;
 
-        if (!hasPrice && !hasQuantity && item.calculationDisplay) {
+        // Description-only: unitPrice is 0 AND has calculationDisplay text
+        if (!hasPrice && item.calculationDisplay && item.calculationDisplay.trim()) {
           // Description-only custom item
           console.log(`   ↳ Adding Custom (description-only) at line ${lineNum}: "${item.calculationDisplay}"`);
           lines.push({
             DetailType: 'DescriptionOnly',
-            Description: item.calculationDisplay || item.itemName || '',
-            DescriptionLineDetail: {
-              TaxCodeRef: { value: 'NON' }
-            },
+            Description: item.calculationDisplay,
+            DescriptionLineDetail: {},
             LineNum: lineNum
           });
           continue;
         }
-        // If it has price/quantity, fall through to regular item handling
-        console.log(`   ↳ Custom item at line ${lineNum} has price/quantity, treating as regular item`);
+        // If it has price, fall through to regular item handling
+        console.log(`   ↳ Custom item at line ${lineNum} has price, treating as regular item`);
       }
 
       // DISCOUNT/FEE (Product Type 22) - These are REGULAR QuickBooks items/products

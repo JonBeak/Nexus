@@ -9,7 +9,7 @@ export const ProductionNotes: React.FC<Props> = ({ notes }) => {
   if (!notes) return null;
 
   return (
-    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
       <div className="flex items-start space-x-3">
         <FileText className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
         <div>

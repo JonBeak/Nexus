@@ -6,10 +6,10 @@ import {
   Edit3,
   Copy,
   AlertTriangle,
-  CheckCircle,
   ArrowRight
 } from 'lucide-react';
-import { jobVersioningApi } from '../../services/api';
+import { useNavigate } from 'react-router-dom';
+import { jobVersioningApi, ordersApi } from '../../services/api';
 import { VersionManagerProps, EstimateVersion } from './types';
 import { formatCurrency, formatDate } from './utils/versionUtils';
 import { VersionStatusBadges } from './components/VersionStatusBadges';
@@ -23,12 +23,16 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
   onCreateNewVersion,
   user
 }) => {
+  const navigate = useNavigate();
   const [versions, setVersions] = useState<EstimateVersion[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDuplicateModal, setShowDuplicateModal] = useState<number | null>(null);
+  const [createdOrderNumber, setCreatedOrderNumber] = useState<number | null>(null);
   const [editingNotes, setEditingNotes] = useState<number | null>(null);
   const [notesValue, setNotesValue] = useState('');
+  // Map of estimateId -> orderNumber for showing "Go to Order" buttons
+  const [estimateOrders, setEstimateOrders] = useState<Map<number, number>>(new Map());
 
   // Version locking hook
   const { checkEditLockStatus, handleVersionSelect, getLockIndicator } = useVersionLocking({
@@ -53,6 +57,22 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
           checkEditLockStatus(version.id);
         }
       }
+
+      // Phase 1.5.a: Check if orders exist for approved estimates
+      const orderMap = new Map<number, number>();
+      for (const version of activeVersions) {
+        if (version.is_approved) {
+          try {
+            const order = await ordersApi.getOrderByEstimate(version.id);
+            if (order) {
+              orderMap.set(version.id, order.order_number);
+            }
+          } catch (err) {
+            console.error(`Error fetching order for estimate ${version.id}:`, err);
+          }
+        }
+      }
+      setEstimateOrders(orderMap);
     } catch (err) {
       console.error('Error fetching versions:', err);
       setError('Failed to load estimate versions');
@@ -93,20 +113,6 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
       } else {
         setError('Failed to duplicate estimate version');
       }
-    }
-  };
-
-  const handleApproveEstimate = async (estimateId: number) => {
-    if (!window.confirm('Mark this estimate as approved? This action can be reversed.')) {
-      return;
-    }
-
-    try {
-      await jobVersioningApi.approveEstimate(estimateId);
-      fetchVersions();
-    } catch (err) {
-      console.error('Error approving estimate:', err);
-      setError('Failed to approve estimate');
     }
   };
 
@@ -168,73 +174,67 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
 
     return (
       <div
-        className="text-sm text-gray-700 cursor-pointer hover:bg-gray-100 px-2 py-1 rounded"
+        className="text-base text-gray-700 font-medium cursor-pointer hover:bg-gray-100 px-2 py-1 rounded"
         onClick={() => handleEditNotes(version)}
         title="Click to edit description"
       >
-        {version.notes || <span className="text-gray-400 italic">Click to add description...</span>}
+        {version.notes || <span className="text-sm text-gray-400 italic font-normal">Click to add description...</span>}
       </div>
     );
   };
 
-  const handleGoToOrder = (estimateId: number) => {
-    // TODO: Implement navigation to order page
-    console.log('Navigate to order for estimate:', estimateId);
+  const handleGoToOrder = (orderNumber: number) => {
+    navigate(`/orders/${orderNumber}`);
   };
 
-  const renderActionButtons = (version: EstimateVersion) => (
-    <div className="flex flex-col items-center justify-center gap-2 w-full">
-      <div className="flex items-center gap-1 w-full">
-        {version.is_draft ? (
+  const renderActionButtons = (version: EstimateVersion) => {
+    const orderNumber = estimateOrders.get(version.id);
+
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 w-full">
+        <div className="flex items-center gap-1 w-full">
+          {version.is_draft ? (
+            <button
+              onClick={() => handleVersionSelect(version)}
+              className="flex items-center justify-center space-x-1 px-2 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 flex-1"
+              title="Edit Draft"
+            >
+              <Edit3 className="w-3 h-3" />
+              <span>Edit</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => handleVersionSelect(version)}
+              className="flex items-center justify-center space-x-1 px-2 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 flex-1"
+              title="View Final"
+            >
+              <Eye className="w-3 h-3" />
+              <span>View</span>
+            </button>
+          )}
           <button
-            onClick={() => handleVersionSelect(version)}
-            className="flex items-center justify-center space-x-1 px-2 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 flex-1"
-            title="Edit Draft"
+            onClick={() => setShowDuplicateModal(version.id)}
+            className="flex items-center justify-center space-x-1 px-2 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 flex-1"
+            title="Duplicate Version"
           >
-            <Edit3 className="w-3 h-3" />
-            <span>Edit</span>
+            <Copy className="w-3 h-3" />
+            <span>Copy</span>
           </button>
-        ) : (
+        </div>
+        {/* Show "Go to Order" button if order exists */}
+        {orderNumber && (
           <button
-            onClick={() => handleVersionSelect(version)}
-            className="flex items-center justify-center space-x-1 px-2 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 flex-1"
-            title="View Final"
+            onClick={() => handleGoToOrder(orderNumber)}
+            className="flex items-center justify-center space-x-1 px-2 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 w-full"
+            title={`Go to Order #${orderNumber}`}
           >
-            <Eye className="w-3 h-3" />
-            <span>View</span>
+            <ArrowRight className="w-3 h-3" />
+            <span>Go to Order #{orderNumber}</span>
           </button>
         )}
-        <button
-          onClick={() => setShowDuplicateModal(version.id)}
-          className="flex items-center justify-center space-x-1 px-2 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 flex-1"
-          title="Duplicate Version"
-        >
-          <Copy className="w-3 h-3" />
-          <span>Copy</span>
-        </button>
       </div>
-      {version.qb_estimate_id && !(version.is_approved === true || version.is_approved === 1) && (
-        <button
-          onClick={() => handleApproveEstimate(version.id)}
-          className="flex items-center justify-center space-x-1 px-2 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 w-full"
-          title="Mark as Approved"
-        >
-          <CheckCircle className="w-3 h-3" />
-          <span>Approve</span>
-        </button>
-      )}
-      {(version.is_approved === true || version.is_approved === 1) && (
-        <button
-          onClick={() => handleGoToOrder(version.id)}
-          className="flex items-center justify-center space-x-1 px-2 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 w-full"
-          title="Go to Order"
-        >
-          <ArrowRight className="w-3 h-3" />
-          <span>Go to Order</span>
-        </button>
-      )}
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="bg-white rounded shadow">

@@ -123,8 +123,9 @@ export async function generateMasterForm(
         doc.font('Helvetica');
       }
 
-      if (orderData.point_person_email) {
-        doc.text(`Point Person: ${orderData.point_person_email}`);
+      if (orderData.point_persons && orderData.point_persons.length > 0) {
+        const contacts = orderData.point_persons.map(p => p.contact_email).join(', ');
+        doc.text(`Point Person(s): ${contacts}`);
       }
 
       doc.moveDown();

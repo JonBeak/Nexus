@@ -371,7 +371,7 @@ export const calculateLedNeon = async (input: ValidatedPricingInput): Promise<Ro
     } else if (hasLedNeon) {
       // SCENARIO 3: LED Neon without base substrate
       components.push({
-        name: 'LEDs',
+        name: 'LED Neon',
         price: totalLedRelatedCost,
         type: 'led',
         calculationDisplay: buildLedDisplay().join('\n'),

@@ -90,6 +90,7 @@ export const useEstimateNavigation = ({
           ...estimate,
           customer_id: estimateCustomerId
         });
+        setJobName(estimate.job_name || null); // Set job name from estimate
         setIsInBuilderMode(true);
       }
     } catch (error) {

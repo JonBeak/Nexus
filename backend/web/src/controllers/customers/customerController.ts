@@ -50,7 +50,7 @@ export class CustomerController {
       }
 
       const customer = await CustomerService.getCustomerById(customerId);
-      
+
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }

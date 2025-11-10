@@ -42,6 +42,23 @@ Phase 1 focuses on core order management functionality with minimal complexity. 
    - Export to CSV
    - Batch status updates
 
+### Phase 1.5 Additions (COMPLETED)
+
+**Enhanced Order Creation:**
+- Business days calculation with holiday awareness
+- Customer contact management (customer_contacts table)
+- Hard due date/time support
+- Auto-calculated due dates from customer defaults
+- Manual override detection and warnings
+- Only ApproveEstimateModal exists (no edit/delete/clone modals - inline editing used)
+
+**Database Enhancements:**
+- customer_job_number field added to orders table
+- hard_due_date_time field added (DATETIME with time component)
+- point_person_email linked to customer_contacts
+- finalized_at, finalized_by, modified_after_finalization fields
+- display_number and is_parent fields in order_parts
+
 ### DEFERRED to Later Phases
 
 - **Phase 2:** Invoice system, payment tracking, automated QuickBooks sync, Gmail integration, email notifications
@@ -65,12 +82,19 @@ CREATE TABLE orders (
   point_person_email VARCHAR(255),
   order_date DATE NOT NULL,
   due_date DATE,
+  customer_job_number VARCHAR(100) COMMENT 'Customer''s internal job reference',
+  hard_due_date_time DATETIME COMMENT 'Hard deadline with time component',
   production_notes TEXT,
+  manufacturing_note TEXT COMMENT 'Manufacturing-specific notes',
+  internal_note TEXT COMMENT 'Internal notes not visible on forms',
+  finalized_at TIMESTAMP NULL COMMENT 'When order was finalized',
+  finalized_by INT UNSIGNED COMMENT 'Who finalized the order',
+  modified_after_finalization BOOLEAN DEFAULT false COMMENT 'Flag if modified post-finalization',
   sign_image_path VARCHAR(500),
   form_version TINYINT UNSIGNED DEFAULT 1,
   shipping_required BOOLEAN DEFAULT false,
   status ENUM(
-    'initiated',
+    'job_details_setup',
     'pending_confirmation',
     'pending_production_files_creation',
     'pending_production_files_approval',
@@ -84,7 +108,7 @@ CREATE TABLE orders (
     'awaiting_payment',
     'completed',
     'cancelled'
-  ) DEFAULT 'initiated',
+  ) DEFAULT 'job_details_setup',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   created_by INT UNSIGNED,
@@ -101,6 +125,8 @@ CREATE TABLE order_parts (
   part_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   order_id INT UNSIGNED NOT NULL,
   part_number TINYINT UNSIGNED NOT NULL,
+  display_number VARCHAR(10) COMMENT 'Display number like "1", "1a", "1b" for hierarchy',
+  is_parent BOOLEAN DEFAULT false COMMENT 'Whether this is a parent row with children',
 
   -- Dual-field approach for product types
   product_type VARCHAR(100) NOT NULL COMMENT 'Human-readable: "Channel Letter - 3\" Front Lit"',
@@ -165,6 +191,28 @@ CREATE TABLE order_status_history (
   FOREIGN KEY (changed_by) REFERENCES employees(employee_id),
   INDEX idx_order (order_id)
 );
+
+-- Customer contacts (added in Phase 1.5)
+CREATE TABLE customer_contacts (
+  contact_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  customer_id INT UNSIGNED NOT NULL,
+  contact_name VARCHAR(255) NOT NULL,
+  contact_email VARCHAR(255) NOT NULL,
+  contact_phone VARCHAR(50),
+  contact_role VARCHAR(100),
+  is_active BOOLEAN DEFAULT true,
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_by INT UNSIGNED,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  updated_by INT UNSIGNED,
+  FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES employees(employee_id),
+  FOREIGN KEY (updated_by) REFERENCES employees(employee_id),
+  INDEX idx_customer (customer_id),
+  INDEX idx_email (contact_email),
+  INDEX idx_active (is_active)
+);
 ```
 
 ### Existing Table Modifications
@@ -225,6 +273,14 @@ PUT    /api/orders/:orderId/status       // Update order status
 // Order Parts
 GET    /api/orders/:orderId/parts        // Get all parts
 PUT    /api/orders/:orderId/parts/:partId // Update part details
+
+// Phase 1.5 Additions
+GET    /api/orders/validate-name            // Validate order name uniqueness
+GET    /api/orders/by-estimate/:estimateId  // Get order by estimate ID
+POST   /api/orders/calculate-due-date       // Calculate due date from turnaround days
+POST   /api/orders/calculate-business-days  // Calculate business days between dates
+GET    /api/customers/:id/contacts/emails   // Get customer contact emails
+POST   /api/customers/:id/contacts          // Create new contact
 ```
 
 ### Estimate Conversion Logic
@@ -254,7 +310,7 @@ async function convertEstimateToOrder(estimateId: number, orderData: {
     point_person_email: orderData.pointPersonEmail,
     order_date: new Date(),
     due_date: orderData.dueDate,
-    status: 'initiated'
+    status: 'job_details_setup'
   });
 
   // 4. Copy estimate jobs to order_parts with dual product_type approach
@@ -274,8 +330,8 @@ async function convertEstimateToOrder(estimateId: number, orderData: {
     });
   }
 
-  // 5. Generate task list from templates
-  await generateTasksForOrder(order.order_id);
+  // 5. Generate task list from templates - REMOVED: Tasks now manually added by users
+  // await generateTasksForOrder(order.order_id);
 
   // 6. Generate PDF forms (all 4 types)
   await generateOrderForms(order.order_id);
@@ -289,8 +345,11 @@ async function convertEstimateToOrder(estimateId: number, orderData: {
 
 ### Task Generation (Hard-coded Phase 1)
 
+**⚠️ UPDATE 2025-11-07: This automatic task generation has been REMOVED.**
+**Tasks are now manually added by users via the Order Details UI during job_details_setup status.**
+
 ```typescript
-// Hard-coded templates - migrate to database in Phase 3
+// DEPRECATED - Hard-coded templates - migrate to database in Phase 3
 const taskTemplates = {
   'channel_letters_front_lit': [
     'Design approval',
@@ -438,7 +497,7 @@ async function generateMasterOrderForm(orderId: number) {
   }
 
   // Save to SMB mount
-  const path = `/mnt/signfiles/orders/${order.order_number}/master_form_v${order.form_version}.pdf`;
+  const path = `/mnt/channelletter/NexusTesting/Order-${order.order_number}/master_form_v${order.form_version}.pdf`;
   doc.pipe(fs.createWriteStream(path));
   doc.end();
 
@@ -477,7 +536,7 @@ const formConfigurations = {
 ### SMB Mount Structure
 
 ```
-/mnt/signfiles/orders/
+/mnt/channelletter/NexusTesting/Order-
 ├── 200000/
 │   ├── master_form_v1.pdf
 │   ├── shop_form_v1.pdf
@@ -668,7 +727,7 @@ const estimateToOrderMapping = {
   // New fields
   order_number: 'AUTO_INCREMENT',
   order_date: 'CURRENT_DATE',
-  status: 'initiated',
+  status: 'job_details_setup',
   form_version: 1
 };
 ```
@@ -704,7 +763,12 @@ const estimateToOrderMapping = {
 
 ---
 
-**Document Status:** Phase 1 Implementation Guide
-**Last Updated:** 2025-11-03
+**Document Status:** Phase 1: 85% Complete, Phase 1.5: 35% Complete (1.5.a-b done)
+**Last Updated:** 2025-11-06
 **Dependencies:** All Nexus_Orders_*.md files
-**Next Steps:** Begin backend implementation with database migrations
+**Recent Updates:**
+- Phase 1.5.a & 1.5.a.5: ApproveEstimateModal fully functional
+- Phase 1.5.b: Database schema updates applied
+- Only ApproveEstimateModal exists (no edit/delete modals - using inline editing)
+- Status enum uses 'job_details_setup' as initial status
+**Next Steps:** Complete Phase 1.h testing, then implement Phase 1.5.c (Dual-Table UI)

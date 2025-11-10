@@ -4,6 +4,7 @@ interface SVGExportOptions {
   customerName?: string;
   jobName?: string;
   version?: string;
+  description?: string;
   date?: string;
 }
 
@@ -215,6 +216,9 @@ export const generateEstimateSVG = (
   const lines: string[] = [];
   if (options.date) {
     lines.unshift(options.date);
+  }
+  if (options.description) {
+    lines.unshift(options.description);
   }
   if (options.jobName && options.version) {
     lines.unshift(`${options.jobName} - ${options.version}`);

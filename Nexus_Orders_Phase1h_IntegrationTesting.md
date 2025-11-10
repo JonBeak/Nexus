@@ -54,7 +54,7 @@ Ensure all docs accurate and complete
    - Verify redirected to Orders page
    - Verify new order appears in dashboard
    - Verify order number = 200000 (or next sequential)
-   - Verify status = 'initiated'
+   - Verify status = 'job_details_setup'
    - Verify 2 parts created
    - Verify tasks generated for each part
 
@@ -62,10 +62,10 @@ Ensure all docs accurate and complete
    - Navigate to order details
    - Click "Generate Forms"
    - Verify all 4 PDFs created:
-     - `/mnt/signfiles/orders/200000/master_form_v1.pdf`
-     - `/mnt/signfiles/orders/200000/shop_form_v1.pdf`
-     - `/mnt/signfiles/orders/200000/customer_form_v1.pdf`
-     - `/mnt/signfiles/orders/200000/packing_list_v1.pdf`
+     - `/mnt/channelletter/NexusTesting/Order-200000/master_form_v1.pdf`
+     - `/mnt/channelletter/NexusTesting/Order-200000/shop_form_v1.pdf`
+     - `/mnt/channelletter/NexusTesting/Order-200000/customer_form_v1.pdf`
+     - `/mnt/channelletter/NexusTesting/Order-200000/packing_list_v1.pdf`
    - Open each PDF, verify content correct
 
 5. **Track Progress**

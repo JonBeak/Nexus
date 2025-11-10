@@ -25,6 +25,10 @@ import quickbooksRoutes from './routes/quickbooks';
 import quickbooksTestRoutes from './routes/quickbooksTest';
 import credentialsRoutes from './routes/credentials';
 import ordersRoutes from './routes/orders';
+import toolsRoutes from './routes/toolsRoutes';
+import ledsRoutes from './routes/leds';
+import powerSuppliesRoutes from './routes/powerSupplies';
+import materialsRoutes from './routes/materials';
 // import categoriesRoutes from './routes/categories';
 // import productStandardsRoutes from './routes/productStandards';
 
@@ -87,6 +91,10 @@ app.use('/api/quickbooks', quickbooksRoutes);
 app.use('/api/quickbooks-test', quickbooksTestRoutes);
 app.use('/api/credentials', credentialsRoutes);
 app.use('/api/orders', ordersRoutes);
+app.use('/api/tools', toolsRoutes);
+app.use('/api/leds', ledsRoutes);
+app.use('/api/power-supplies', powerSuppliesRoutes);
+app.use('/api/materials', materialsRoutes);
 // app.use('/api/categories', categoriesRoutes);
 // app.use('/api/product-standards', productStandardsRoutes);
 

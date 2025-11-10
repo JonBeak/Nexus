@@ -44,7 +44,7 @@ export interface OrderDataForPDF {
   order_date: Date;
   due_date?: Date;
   customer_po?: string;
-  point_person_email?: string;
+  point_persons?: Array<{ contact_email: string; contact_name?: string }>;
   production_notes?: string;
   status: string;
   form_version: number;

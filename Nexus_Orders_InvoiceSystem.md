@@ -9,7 +9,7 @@ Define the invoice creation workflow, editing capabilities, QuickBooks integrati
 
 ## Overview
 
-Invoices are **created automatically** when an order is initiated and evolve with the order. They can be edited by managers, support custom line items, and integrate directly with QuickBooks.
+Invoices are **created automatically** when an order is created and evolve with the order. They can be edited by managers, support custom line items, and integrate directly with QuickBooks.
 
 ### Key Principles
 1. **Created at Order Initiation**: Invoice is generated in draft status when order is created (or 50% deposit invoice if required)

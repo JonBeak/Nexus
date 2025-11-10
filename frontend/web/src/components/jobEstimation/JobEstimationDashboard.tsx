@@ -9,6 +9,9 @@ import { VersionManager } from './VersionManager';
 import { BreadcrumbNavigation } from './BreadcrumbNavigation';
 import { CustomerPreferencesPanel } from './CustomerPreferencesPanel';
 import CustomerDetailsModal from '../customers/CustomerDetailsModal';
+import { ApproveEstimateModal } from '../orders/modals/ApproveEstimateModal';
+import { ConfirmFinalizeModal } from './modals/ConfirmFinalizeModal';
+import { QBEstimateSuccessModal } from './modals/QBEstimateSuccessModal';
 import { jobVersioningApi } from '../../services/api';
 import { getEstimateStatusText } from './utils/statusUtils';
 import { User } from '../../types';
@@ -36,6 +39,10 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
 
   // GridEngine reference for auto-save orchestration
   const [gridEngineRef, setGridEngineRef] = useState<GridEngine | null>(null);
+
+  // Approval modal state
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [createdOrderNumber, setCreatedOrderNumber] = useState<number | null>(null);
 
   // Customer context hook
   const {
@@ -103,32 +110,32 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
     handleCreateQuickBooksEstimate,
     handleOpenQuickBooksEstimate,
     handleConnectToQuickBooks,
-    handleDisconnectFromQuickBooks
+    handleDisconnectFromQuickBooks,
+    showConfirmFinalizeModal,
+    setShowConfirmFinalizeModal,
+    showSuccessModal,
+    setShowSuccessModal,
+    successData,
+    handleConfirmFinalize,
+    handleOpenFromSuccessModal
   } = useQuickBooksIntegration({
     currentEstimate,
     estimatePreviewData,
     onEstimateUpdate: setCurrentEstimate
   });
 
-  const handleApproveEstimate = async () => {
-    if (!currentEstimate) return;
+  const handleApproveEstimate = () => {
+    // Open the approval modal (which will handle order creation)
+    setShowApprovalModal(true);
+  };
 
-    if (!window.confirm('Mark this estimate as approved? This action can be reversed.')) {
-      return;
-    }
+  const handleApprovalSuccess = (orderNumber: number) => {
+    // Store the created order number and navigate to order page
+    setCreatedOrderNumber(orderNumber);
+    setShowApprovalModal(false);
 
-    try {
-      await jobVersioningApi.approveEstimate(currentEstimate.id);
-
-      // Update current estimate with approved flag
-      setCurrentEstimate({
-        ...currentEstimate,
-        is_approved: true
-      });
-
-    } catch (error) {
-      console.error('Failed to approve estimate:', error);
-    }
+    // Navigate to the newly created order
+    navigate(`/orders/${orderNumber}`);
   };
 
   // Dynamic viewport control - enable zoom out only in builder mode
@@ -374,6 +381,40 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
         <CustomerDetailsModal
           customer={fullCustomer}
           onClose={() => handleCloseEditCustomerModal(selectedCustomerId)}
+        />
+      )}
+
+      {/* Approve Estimate Modal */}
+      {showApprovalModal && currentEstimate && estimatePreviewData && (
+        <ApproveEstimateModal
+          isOpen={showApprovalModal}
+          onClose={() => setShowApprovalModal(false)}
+          onSuccess={handleApprovalSuccess}
+          estimateId={currentEstimate.id}
+          estimatePreviewData={estimatePreviewData}
+          defaultOrderName={jobName || `Order for ${customerPreferencesData?.customerName || 'Customer'}`}
+          customerId={selectedCustomerId || 0}
+          jobName={jobName || undefined}
+          estimateNotes={currentEstimate.notes || undefined}
+          qbEstimateId={currentEstimate.qb_estimate_id || undefined}
+        />
+      )}
+
+      {/* QuickBooks Confirm Finalize Modal */}
+      <ConfirmFinalizeModal
+        isOpen={showConfirmFinalizeModal}
+        onConfirm={handleConfirmFinalize}
+        onCancel={() => setShowConfirmFinalizeModal(false)}
+      />
+
+      {/* QuickBooks Success Modal */}
+      {successData && (
+        <QBEstimateSuccessModal
+          isOpen={showSuccessModal}
+          qbDocNumber={successData.qbDocNumber}
+          qbEstimateUrl={successData.qbEstimateUrl}
+          onOpenInQuickBooks={handleOpenFromSuccessModal}
+          onClose={() => setShowSuccessModal(false)}
         />
       )}
     </div>

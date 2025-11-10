@@ -8,7 +8,7 @@ interface Props {
 
 const STATUS_OPTIONS: Array<{ value: OrderStatus | 'all'; label: string }> = [
   { value: 'all', label: 'All Orders' },
-  { value: 'initiated', label: ORDER_STATUS_LABELS.initiated },
+  { value: 'job_details_setup', label: ORDER_STATUS_LABELS.job_details_setup },
   { value: 'pending_confirmation', label: ORDER_STATUS_LABELS.pending_confirmation },
   { value: 'pending_production_files_creation', label: ORDER_STATUS_LABELS.pending_production_files_creation },
   { value: 'pending_production_files_approval', label: ORDER_STATUS_LABELS.pending_production_files_approval },

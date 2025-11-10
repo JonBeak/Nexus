@@ -66,7 +66,7 @@ export interface Order {
 }
 
 export type OrderStatus =
-  | 'initiated'
+  | 'job_details_setup'
   | 'pending_confirmation'
   | 'pending_production_files_creation'
   | 'pending_production_files_approval'
@@ -361,14 +361,14 @@ class OrderConversionService {
         connection
       );
 
-      // 6. Generate tasks from templates
-      await orderTaskService.generateTasksForOrder(orderId, parts, connection);
+      // 6. Generate tasks from templates - REMOVED: Tasks are now manually added by user
+      // await orderTaskService.generateTasksForOrder(orderId, parts, connection);
 
       // 7. Update estimate status to 'ordered'
       await this.updateEstimateStatus(request.estimateId, 'ordered', connection);
 
       // 8. Create initial status history entry
-      await this.createStatusHistoryEntry(orderId, 'initiated', userId, 'Order created from estimate', connection);
+      await this.createStatusHistoryEntry(orderId, 'job_details_setup', userId, 'Order created from estimate', connection);
 
       await connection.commit();
 
@@ -423,7 +423,7 @@ class OrderConversionService {
         customer_id, customer_po, point_person_email,
         order_date, due_date, production_notes,
         status, form_version, shipping_required, created_by
-      ) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, 'initiated', 1, false, ?)`,
+      ) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, 'job_details_setup', 1, false, ?)`,
       [
         data.orderNumber,
         data.orderName,

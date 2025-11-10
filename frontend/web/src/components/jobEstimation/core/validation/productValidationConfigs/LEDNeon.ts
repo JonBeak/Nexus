@@ -15,7 +15,7 @@ import { FieldValidationConfig } from '../ValidationEngine';
  */
 export const ledNeonValidation: Record<string, FieldValidationConfig> = {
   field1: {
-    function: 'floatordimensions',
+    function: 'twodimensions',
     error_level: 'error',
     params: {
       delimiter: 'x',

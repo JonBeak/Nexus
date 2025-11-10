@@ -17,7 +17,7 @@ const router = Router();
  */
 router.post('/row-types', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const { testItems, customerName = 'Test Customer', debugMode = true } = req.body;
+    const { testItems, customerName = 'Test Customer', debugMode = true, useHardcodedTest = false } = req.body;
 
     const realmId = await getDefaultRealmId();
     if (!realmId) {
@@ -36,10 +36,10 @@ router.post('/row-types', authenticateToken, async (req: Request, res: Response)
       makeQBApiCall,
     } = await import('../utils/quickbooks/apiClient');
 
-    console.log('\n🧪 QUICKBOOKS ROW TYPE TEST');
+    console.log('\n🧪 QUICKBOOKS SPECIAL PATTERN TEST');
     console.log('============================');
     console.log(`Customer: ${customerName}`);
-    console.log(`Test Items: ${testItems.length}`);
+    console.log(`Hardcoded Test Mode: ${useHardcodedTest}`);
     console.log(`Debug Mode: ${debugMode}\n`);
 
     // Lookup customer
@@ -63,7 +63,94 @@ router.post('/row-types', authenticateToken, async (req: Request, res: Response)
     console.log('📝 Building Line Items:');
     console.log('------------------------');
 
-    for (const item of testItems) {
+    // HARDCODED SPECIAL PATTERN TEST MODE
+    if (useHardcodedTest) {
+      console.log('🎯 USING HARDCODED SPECIAL PATTERN TEST\n');
+
+      // Get a single regular item for baseline
+      const testItemId = await getItemIdByName('3" Channel Letters', realmId);
+      if (!testItemId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Test item "3" Channel Letters" not found in QuickBooks.',
+        });
+      }
+
+      // Line 1: Regular item for baseline
+      lineNum++;
+      lines.push({
+        DetailType: 'SalesItemLineDetail',
+        SalesItemLineDetail: {
+          ItemRef: { value: testItemId, name: '3" Channel Letters' },
+          Qty: 1,
+          UnitPrice: 100,
+          TaxCodeRef: { value: qbTaxCodeId },
+        },
+        Amount: 100,
+        LineNum: lineNum
+      });
+      console.log(`${lineNum}. Regular Item: 3" Channel Letters ($100)`);
+
+      // TEST SPECIAL PATTERNS
+      const testPatterns = [
+        'TEXT: This is a text line',
+        'NOTE: This is a note',
+        'HEADER: Section Header',
+        '---',
+        '===',
+        'TOTAL: $100.00',
+        'Tax: $5.00',
+        'SUBTOTAL: $100.00',
+        'Subtotal: $',
+        'Subtotal: $100',
+        'Discount: $10.00',
+        'Section: Channel Letters',
+        '>>> Custom Marker',
+        '*** IMPORTANT ***',
+        'LINE ITEM: Custom',
+        'DESCRIPTION: Test Description'
+      ];
+
+      for (const pattern of testPatterns) {
+        lineNum++;
+        lines.push({
+          DetailType: 'DescriptionOnly',
+          Description: pattern,
+          DescriptionLineDetail: {},
+          LineNum: lineNum
+        });
+        console.log(`${lineNum}. Pattern Test: "${pattern}"`);
+      }
+
+      // Add a final regular item
+      lineNum++;
+      lines.push({
+        DetailType: 'SalesItemLineDetail',
+        SalesItemLineDetail: {
+          ItemRef: { value: testItemId, name: '3" Channel Letters' },
+          Qty: 1,
+          UnitPrice: 50,
+          TaxCodeRef: { value: qbTaxCodeId },
+        },
+        Amount: 50,
+        LineNum: lineNum
+      });
+      console.log(`${lineNum}. Regular Item: 3" Channel Letters ($50)`);
+
+      console.log(`\n✅ Created ${lines.length} test lines with special patterns\n`);
+    }
+    // NORMAL TEST MODE (from request body)
+    else {
+      if (!testItems || testItems.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'No testItems provided. Either send testItems array or set useHardcodedTest=true'
+        });
+      }
+
+      console.log(`Processing ${testItems.length} test items from request\n`);
+
+      for (const item of testItems) {
       lineNum++;
 
       // REGULAR ITEM
@@ -156,7 +243,8 @@ router.post('/row-types', authenticateToken, async (req: Request, res: Response)
           LineNum: lineNum
         });
       }
-    }
+    } // end for loop
+  } // end else (normal test mode)
 
     console.log('\n📤 Sending to QuickBooks API...\n');
 

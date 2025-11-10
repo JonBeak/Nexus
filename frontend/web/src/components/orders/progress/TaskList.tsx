@@ -4,14 +4,15 @@ import TaskItem from './TaskItem';
 interface Props {
   tasks: any[];
   orderNumber: number;
+  canRemove?: boolean;
   onTaskUpdated: () => void;
 }
 
-export const TaskList: React.FC<Props> = ({ tasks, orderNumber, onTaskUpdated }) => {
+export const TaskList: React.FC<Props> = ({ tasks, orderNumber, canRemove = false, onTaskUpdated }) => {
   if (tasks.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
-        No tasks for this part
+        No tasks
       </div>
     );
   }
@@ -23,6 +24,7 @@ export const TaskList: React.FC<Props> = ({ tasks, orderNumber, onTaskUpdated })
           key={task.task_id}
           task={task}
           orderNumber={orderNumber}
+          canRemove={canRemove}
           onUpdated={onTaskUpdated}
         />
       ))}

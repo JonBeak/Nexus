@@ -694,6 +694,147 @@ addSectionSubtotal();  // Just subtotal, no label
 
 ---
 
+## 🎯 CRITICAL DISCOVERY: Customer Default Tax Code Behavior
+
+**Date:** 2025-11-05
+**Discovery:** QuickBooks customer-level default tax settings override API-level tax control for DescriptionOnly lines
+
+---
+
+### The Mystery Solved
+
+**Why did the test estimate show clean DescriptionOnly rows but production estimates showed tax fields?**
+
+**Answer:** Customer-level default tax code settings in QuickBooks
+
+### What We Found
+
+#### Test Customer: "Sign House Inc."
+- ✅ NO default tax code configured
+- ✅ DescriptionOnly lines appear clean (no tax dropdown)
+- ✅ Empty `DescriptionLineDetail: {}` works perfectly
+- ✅ No "Sales tax rate" fields displayed
+
+#### Production Customers: Real customers
+- ❌ HAVE default tax code configured (e.g., "GST 5%")
+- ❌ QuickBooks UI auto-fills tax field on ALL line types
+- ❌ Includes DescriptionOnly lines
+- ❌ Cannot be overridden via API
+
+### The Root Cause
+
+When a QuickBooks customer has a **default tax code** set in their customer record:
+
+1. **QuickBooks UI Behavior:**
+   - Auto-fills the default tax on every line item when viewing/editing the estimate
+   - Applies to ALL DetailTypes including DescriptionOnly
+   - Happens client-side in the QB UI, not server-side via API
+
+2. **What We Sent via API:**
+   ```typescript
+   {
+     DetailType: 'DescriptionOnly',
+     Description: 'Text row',
+     DescriptionLineDetail: {}  // Empty - no tax specified
+   }
+   ```
+
+3. **What QuickBooks Displays:**
+   - If customer has NO default tax → Clean row (no tax field)
+   - If customer HAS default tax → Shows "GST (5%)" or tax dropdown
+
+### Why We Can't Fix It
+
+**API Limitation:**
+- QuickBooks does NOT provide an API method to suppress tax fields on specific line types
+- Sending `TaxCodeRef: "NON"` doesn't work (QB removes it)
+- Omitting `TaxCodeRef` doesn't work (QB applies customer default)
+- No other API fields control this behavior
+
+**Business Constraint:**
+- Real customers NEED default tax codes for proper tax calculation on products
+- Removing default tax would break legitimate tax calculations
+- This is a trade-off: correct taxes vs. clean text rows
+
+### Test Results Comparison
+
+| Customer Type | Default Tax Code | DescriptionOnly Display |
+|--------------|------------------|-------------------------|
+| Sign House Inc. (test) | None | ✅ Clean (no tax field) |
+| Real Customers | GST 5% | ❌ Shows "GST (5%)" or dropdown |
+
+### Code Changes We Made (Still Valid)
+
+Even though we can't prevent tax fields on production customers, we changed:
+
+```typescript
+// BEFORE (unnecessary)
+DescriptionLineDetail: {
+  TaxCodeRef: { value: 'NON' }  // QB removes this anyway
+}
+
+// AFTER (cleaner)
+DescriptionLineDetail: {}  // Empty - QB will apply customer default if set
+```
+
+**Why this is still better:**
+- ✅ Cleaner code
+- ✅ Less data sent to QuickBooks
+- ✅ QuickBooks was removing `TaxCodeRef: "NON"` anyway
+- ✅ Same end result with less overhead
+- ✅ Matches the working test pattern
+
+### Production Implementation
+
+**Current Behavior:**
+- Text-only rows (Product Types 21, 27, 9) send `DescriptionLineDetail: {}`
+- QuickBooks applies customer default tax if configured
+- No way to override this via API
+
+**Files Updated:**
+- `/backend/web/src/routes/quickbooks.ts` (lines 856, 867, 883, 901)
+- Changed from `{ TaxCodeRef: { value: 'NON' } }` to `{}`
+
+**Locations:**
+1. Line 856: Subtotals with display text
+2. Line 867: Empty subtotals
+3. Line 883: Empty rows (spacing/comments)
+4. Line 901: Custom description-only items
+
+### Recommendations Going Forward
+
+1. **Accept QuickBooks Behavior:**
+   - Tax fields on DescriptionOnly rows are unavoidable with production customers
+   - This is by design in QuickBooks (customer default tax applies everywhere)
+
+2. **Keep Current Implementation:**
+   - Continue sending empty `DescriptionLineDetail: {}`
+   - This is the cleanest approach given QB's limitations
+
+3. **Test Customer Strategy:**
+   - Use customers WITHOUT default tax codes for UI testing
+   - "Sign House Inc." works well for this
+   - Real customer tests will show tax fields (expected)
+
+4. **Documentation:**
+   - Inform users that text rows may show tax fields in QB UI
+   - This does not affect calculations (text rows have no amount)
+   - This is standard QuickBooks behavior
+
+### Related QuickBooks Settings
+
+**Where customer default tax is set:**
+- QuickBooks Online → Customers → Edit Customer → Tax info section
+- "Default tax" dropdown
+- Options: "GST (5%)", "Non-taxable", etc.
+
+**Cannot be controlled via API:**
+- No API endpoint to override customer default tax per line
+- No line-level flag to suppress tax UI elements
+- This is a QuickBooks platform limitation
+
+---
+
 ## 📊 Investigation Status: **COMPLETE** ✅
 
 - ✅ DescriptionOnly lines: Fully understood
@@ -701,5 +842,6 @@ addSectionSubtotal();  // Just subtotal, no label
 - ✅ Text Pattern Subtotals: Discovered and documented
 - ✅ Edge Cases: Tested and documented
 - ✅ Production Pattern: Defined and ready to implement
+- ✅ Customer Default Tax Behavior: Documented (CRITICAL finding)
 
-**Last Updated:** 2025-11-04 (Investigation Completed - All Mysteries Solved!)
+**Last Updated:** 2025-11-05 (Investigation Completed - All Mysteries Solved!)

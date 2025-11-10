@@ -136,14 +136,33 @@ function processColumn(
   details: string | undefined,
   price: number | undefined
 ): ComponentItem | null {
-  // Column must have at least one of Name or Details, AND Price
   const hasName = name && name.trim() !== '';
   const hasDetails = details && details.trim() !== '';
-  const hasPrice = price !== undefined && price !== null;
+  const hasPrice = price !== undefined && price !== null && price > 0;
 
-  // Skip if no identifying information or no price
-  if (!hasPrice || (!hasName && !hasDetails)) {
+  // Skip if completely empty
+  if (!hasName && !hasDetails && !hasPrice) {
     return null;
+  }
+
+  // DESCRIPTION-ONLY: Just description, no name, no price
+  // Display like Empty Row (27) - shows text but no pricing
+  if (hasDetails && !hasName && !hasPrice) {
+    return {
+      name: '',
+      price: 0,
+      type: 'description',  // Special type for description-only
+      calculationDisplay: details!.trim()
+    };
+  }
+
+  // REGULAR ITEM: Must have price and at least name or details
+  if (!hasPrice) {
+    return null;  // Name/description without price is invalid
+  }
+
+  if (!hasName && !hasDetails) {
+    return null;  // Price without name/description is invalid
   }
 
   // Item name: use Name if exists, otherwise empty string

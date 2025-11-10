@@ -71,7 +71,7 @@ export interface Order {
 }
 
 export type OrderStatus =
-  | 'initiated'
+  | 'job_details_setup'
   | 'pending_confirmation'
   | 'pending_production_files_creation'
   | 'pending_production_files_approval'
@@ -99,7 +99,7 @@ export interface OrderListResponse {
 }
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  initiated: 'Initiated',
+  job_details_setup: 'Job Details Setup',
   pending_confirmation: 'Pending Confirmation',
   pending_production_files_creation: 'Pending Files Creation',
   pending_production_files_approval: 'Pending Files Approval',
@@ -116,7 +116,7 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 };
 
 export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
-  initiated: 'bg-gray-100 text-gray-800',
+  job_details_setup: 'bg-amber-100 text-amber-800',
   pending_confirmation: 'bg-yellow-100 text-yellow-800',
   pending_production_files_creation: 'bg-orange-100 text-orange-800',
   pending_production_files_approval: 'bg-orange-100 text-orange-800',
@@ -553,7 +553,7 @@ interface Props {
 
 const STATUS_OPTIONS: Array<{ value: OrderStatus | 'all'; label: string }> = [
   { value: 'all', label: 'All Orders' },
-  { value: 'initiated', label: ORDER_STATUS_LABELS.initiated },
+  { value: 'job_details_setup', label: ORDER_STATUS_LABELS.job_details_setup },
   { value: 'pending_confirmation', label: ORDER_STATUS_LABELS.pending_confirmation },
   { value: 'pending_production_files_creation', label: ORDER_STATUS_LABELS.pending_production_files_creation },
   { value: 'pending_production_files_approval', label: ORDER_STATUS_LABELS.pending_production_files_approval },

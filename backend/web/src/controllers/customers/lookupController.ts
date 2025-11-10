@@ -57,4 +57,14 @@ export class LookupController {
       res.status(500).json({ error: 'Failed to fetch provinces/states' });
     }
   }
+
+  static async getAllTaxRules(req: Request, res: Response) {
+    try {
+      const taxRules = await LookupService.getAllTaxRules();
+      res.json(taxRules);
+    } catch (error) {
+      console.error('Error fetching tax rules:', error);
+      res.status(500).json({ error: 'Failed to fetch tax rules' });
+    }
+  }
 }
