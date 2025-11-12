@@ -25,6 +25,133 @@ interface TaxRule {
   is_active: number;
 }
 
+// Field configuration object to centralize all field definitions
+const FIELD_CONFIGS = {
+  // Order Information Fields
+  customer_po: {
+    type: 'text' as const,
+    label: 'Customer PO',
+    section: 'order',
+    placeholder: 'Enter PO number'
+  },
+  customer_job_number: {
+    type: 'text' as const,
+    label: 'Customer Job #',
+    section: 'order',
+    placeholder: 'Enter job number'
+  },
+  shipping_required: {
+    type: 'select' as const,
+    label: 'Shipping Method',
+    section: 'order',
+    options: [
+      { value: 'true', label: 'Shipping' },
+      { value: 'false', label: 'Pick Up' }
+    ],
+    displayFormatter: (val: any) => val ? 'Shipping' : 'Pick Up',
+    valueTransform: (val: string) => val === 'true'
+  },
+  due_date: {
+    type: 'date' as const,
+    label: 'Due Date',
+    section: 'order',
+    displayFormatter: (val: any) => {
+      if (!val) return '-';
+      const [year, month, day] = val.split('T')[0].split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      return date.toLocaleDateString();
+    },
+    recalculateDays: true // Triggers turnaround/days until recalculation
+  },
+  hard_due_date_time: {
+    type: 'time' as const,
+    label: 'Hard Due Time',
+    section: 'order',
+    displayFormatter: (val: any) => {
+      if (!val) return '-';
+      const [hours, minutes] = val.split(':').map(Number);
+      const period = hours >= 12 ? 'PM' : 'AM';
+      const displayHours = hours % 12 || 12;
+      return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+    },
+    valueTransform: (val: string) => val ? `${val.trim()}:00` : null,
+    extractValue: (val: string) => val ? val.substring(0, 5) : '' // Extract HH:mm from HH:mm:ss
+  },
+
+  // Invoice Fields
+  invoice_email: {
+    type: 'email' as const,
+    label: 'Accounting Email',
+    section: 'invoice',
+    placeholder: 'accounting@company.com'
+  },
+  terms: {
+    type: 'text' as const,
+    label: 'Terms',
+    section: 'invoice',
+    placeholder: 'Net 30'
+  },
+  deposit_required: {
+    type: 'checkbox' as const,
+    label: 'Deposit Required',
+    section: 'invoice',
+    valueTransform: (val: string) => val === 'true'
+  },
+  cash: {
+    type: 'checkbox' as const,
+    label: 'Cash Customer',
+    section: 'invoice',
+    valueTransform: (val: string) => val === 'true'
+  },
+  discount: {
+    type: 'number' as const,
+    label: 'Discount',
+    section: 'invoice',
+    readOnly: true, // Display only field
+    displayFormatter: (val: any) => {
+      if (val && parseFloat(String(val)) > 0) {
+        return `${parseFloat(String(val))}%`;
+      }
+      return '-';
+    }
+  },
+  tax_name: {
+    type: 'select' as const,
+    label: 'Tax',
+    section: 'invoice',
+    customRender: true, // Uses custom dropdown with tax rules
+    valueTransform: (val: string) => val
+  },
+
+  // Textarea Fields (Notes)
+  manufacturing_note: {
+    type: 'textarea' as const,
+    label: 'Special Instructions',
+    section: 'order',
+    height: '60px',
+    placeholder: 'Enter special manufacturing instructions...'
+  },
+  internal_note: {
+    type: 'textarea' as const,
+    label: 'Internal Notes',
+    section: 'order',
+    height: '60px',
+    placeholder: 'Enter internal notes...'
+  },
+  invoice_notes: {
+    type: 'textarea' as const,
+    label: 'Invoice Notes',
+    section: 'invoice',
+    height: '60px',
+    placeholder: 'Enter invoice notes...'
+  }
+};
+
+// Helper function to get field config
+const getFieldConfig = (field: keyof typeof FIELD_CONFIGS) => {
+  return FIELD_CONFIGS[field];
+};
+
 // Reusable EditableField component to reduce repetition
 interface EditableFieldProps {
   field: string;
@@ -553,11 +680,12 @@ export const OrderDetailsPage: React.FC = () => {
   };
 
   const startEdit = (field: string, currentValue: string) => {
-    // For hard_due_date_time, extract just the time portion (HH:mm)
-    if (field === 'hard_due_date_time' && currentValue) {
-      // currentValue is TIME format like "16:00:00", extract "16:00"
-      const timePart = currentValue.substring(0, 5); // Get HH:mm from HH:mm:ss
-      setEditState({ editingField: field, editValue: timePart });
+    const fieldConfig = getFieldConfig(field as keyof typeof FIELD_CONFIGS);
+
+    // Use extractValue from config if available (e.g., for time fields)
+    if (fieldConfig && fieldConfig.extractValue) {
+      const extractedValue = fieldConfig.extractValue(currentValue);
+      setEditState({ editingField: field, editValue: extractedValue });
     } else {
       setEditState({ editingField: field, editValue: currentValue || '' });
     }
@@ -580,21 +708,16 @@ export const OrderDetailsPage: React.FC = () => {
       // Use override value if provided, otherwise use editValue from state
       const rawValue = overrideValue !== undefined ? overrideValue : editState.editValue;
 
-      // Convert string to boolean for boolean fields
+      // Get field configuration for value transformation
+      const fieldConfig = getFieldConfig(field as keyof typeof FIELD_CONFIGS);
+
+      // Apply value transformation from field config if available
       let valueToSave: any = rawValue;
-      if (field === 'shipping_required' || field === 'deposit_required' || field === 'cash') {
-        valueToSave = rawValue === 'true';
+      if (fieldConfig && fieldConfig.valueTransform) {
+        valueToSave = fieldConfig.valueTransform(rawValue);
       } else if (field === 'discount') {
+        // Special case for discount (not directly editable)
         valueToSave = parseFloat(rawValue) || 0;
-      } else if (field === 'hard_due_date_time') {
-        // For hard_due_date_time, just send the time value (database column is TIME type)
-        // rawValue is like "16:00" from the time input
-        // MySQL TIME format needs "HH:mm:ss"
-        if (rawValue && rawValue.trim()) {
-          valueToSave = `${rawValue.trim()}:00`; // Convert "16:00" to "16:00:00"
-        } else {
-          valueToSave = null; // If empty, clear the time
-        }
       }
 
       // Call API to update the order
@@ -607,8 +730,8 @@ export const OrderDetailsPage: React.FC = () => {
       setOrderData(prev => ({ ...prev, order: updatedOrder }));
       setEditState({ editingField: null, editValue: '' });
 
-      // Recalculate turnaround days and days until if due_date was changed
-      if (field === 'due_date' && rawValue) {
+      // Recalculate turnaround days and days until if specified in field config
+      if (fieldConfig && fieldConfig.recalculateDays && rawValue) {
         try {
           const turnaroundResult = await ordersApi.calculateBusinessDays(
             orderData.order.order_date.split('T')[0],
@@ -647,27 +770,6 @@ export const OrderDetailsPage: React.FC = () => {
     } else if (e.key === 'Escape') {
       cancelEdit();
     }
-  };
-
-  const formatTimeTo12Hour = (time: string | undefined): string => {
-    if (!time) return '-';
-
-    // time format is "HH:mm:ss" (24-hour TIME from database)
-    const [hours, minutes] = time.split(':').map(Number);
-    const period = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours % 12 || 12; // Convert 0 to 12 for midnight
-
-    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
-  };
-
-  const formatDateString = (dateString: string | undefined): string => {
-    if (!dateString) return '-';
-
-    // Parse YYYY-MM-DD directly without timezone conversion
-    const [year, month, day] = dateString.split('T')[0].split('-');
-    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-
-    return date.toLocaleDateString();
   };
 
   if (uiState.initialLoad) {
@@ -857,17 +959,17 @@ export const OrderDetailsPage: React.FC = () => {
                     <div className="flex-1">
                       <span className="text-gray-500 text-sm">Order Date:</span>
                       <p className="font-medium text-gray-900 text-base">
-                        {formatDateString(orderData.order.order_date)}
+                        {FIELD_CONFIGS.due_date.displayFormatter(orderData.order.order_date)}
                       </p>
                     </div>
 
                     {/* Customer PO - Editable */}
                     <div className="flex-1">
-                      <span className="text-gray-500 text-sm">Customer PO:</span>
+                      <span className="text-gray-500 text-sm">{FIELD_CONFIGS.customer_po.label}:</span>
                       <EditableField
                         field="customer_po"
                         value={orderData.order.customer_po}
-                        type="text"
+                        type={FIELD_CONFIGS.customer_po.type}
                         isEditing={editState.editingField === 'customer_po'}
                         isSaving={uiState.saving}
                         onEdit={startEdit}
@@ -897,15 +999,12 @@ export const OrderDetailsPage: React.FC = () => {
 
                     {/* Shipping Method - Dropdown (uses shipping_required boolean) */}
                     <div className="flex-1">
-                      <span className="text-gray-500 text-sm">Shipping Method:</span>
+                      <span className="text-gray-500 text-sm">{FIELD_CONFIGS.shipping_required.label}:</span>
                       <EditableField
                         field="shipping_required"
                         value={orderData.order.shipping_required}
-                        type="select"
-                        options={[
-                          { value: 'true', label: 'Shipping' },
-                          { value: 'false', label: 'Pick Up' }
-                        ]}
+                        type={FIELD_CONFIGS.shipping_required.type}
+                        options={FIELD_CONFIGS.shipping_required.options}
                         isEditing={editState.editingField === 'shipping_required'}
                         isSaving={uiState.saving}
                         onEdit={startEdit}
@@ -913,7 +1012,7 @@ export const OrderDetailsPage: React.FC = () => {
                         onCancel={cancelEdit}
                         editValue={editState.editValue}
                         onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
-                        displayFormatter={(val) => val ? 'Shipping' : 'Pick Up'}
+                        displayFormatter={FIELD_CONFIGS.shipping_required.displayFormatter}
                       />
                     </div>
                   </div>
@@ -922,11 +1021,11 @@ export const OrderDetailsPage: React.FC = () => {
                   <div className="flex gap-4 items-end">
                     {/* Due Date - Editable */}
                     <div className="flex-1">
-                      <span className="text-gray-500 text-sm">Due Date:</span>
+                      <span className="text-gray-500 text-sm">{FIELD_CONFIGS.due_date.label}:</span>
                       <EditableField
                         field="due_date"
                         value={orderData.order.due_date}
-                        type="date"
+                        type={FIELD_CONFIGS.due_date.type}
                         isEditing={editState.editingField === 'due_date'}
                         isSaving={uiState.saving}
                         onEdit={startEdit}
@@ -934,17 +1033,17 @@ export const OrderDetailsPage: React.FC = () => {
                         onCancel={cancelEdit}
                         editValue={editState.editValue}
                         onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
-                        displayFormatter={formatDateString}
+                        displayFormatter={FIELD_CONFIGS.due_date.displayFormatter}
                       />
                     </div>
 
                     {/* Hard Due Time - Editable */}
                     <div className="flex-1">
-                      <span className="text-gray-500 text-sm">Hard Due Time:</span>
+                      <span className="text-gray-500 text-sm">{FIELD_CONFIGS.hard_due_date_time.label}:</span>
                       <EditableField
                         field="hard_due_date_time"
                         value={orderData.order.hard_due_date_time}
-                        type="time"
+                        type={FIELD_CONFIGS.hard_due_date_time.type}
                         isEditing={editState.editingField === 'hard_due_date_time'}
                         isSaving={uiState.saving}
                         onEdit={startEdit}
@@ -952,7 +1051,7 @@ export const OrderDetailsPage: React.FC = () => {
                         onCancel={cancelEdit}
                         editValue={editState.editValue}
                         onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
-                        displayFormatter={formatTimeTo12Hour}
+                        displayFormatter={FIELD_CONFIGS.hard_due_date_time.displayFormatter}
                       />
                     </div>
 
