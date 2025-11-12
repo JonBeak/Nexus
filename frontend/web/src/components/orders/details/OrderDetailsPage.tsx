@@ -149,45 +149,76 @@ const EditableField: React.FC<EditableFieldProps> = ({
 export const OrderDetailsPage: React.FC = () => {
   const { orderNumber } = useParams<{ orderNumber: string }>();
   const navigate = useNavigate();
-  const [order, setOrder] = useState<Order | null>(null);
-  const [parts, setParts] = useState<OrderPart[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [initialLoad, setInitialLoad] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [taxRules, setTaxRules] = useState<TaxRule[]>([]);
-  const [customerDiscount, setCustomerDiscount] = useState<number>(0);
 
-  // Cache LED, Power Supply, and Materials data for specification templates
-  const [leds, setLeds] = useState<LEDType[]>([]);
-  const [powerSupplies, setPowerSupplies] = useState<PowerSupplyType[]>([]);
-  const [materials, setMaterials] = useState<string[]>([]);
-  const [specsDataLoaded, setSpecsDataLoaded] = useState(false);
+  // Group 1: Order Data (4 states → 1)
+  const [orderData, setOrderData] = useState<{
+    order: Order | null;
+    parts: OrderPart[];
+    taxRules: TaxRule[];
+    customerDiscount: number;
+  }>({
+    order: null,
+    parts: [],
+    taxRules: [],
+    customerDiscount: 0
+  });
 
-  // Tab state
-  const [activeTab, setActiveTab] = useState<'specs' | 'progress'>('specs');
+  // Group 2: UI State (9 states → 1)
+  const [uiState, setUiState] = useState<{
+    loading: boolean;
+    initialLoad: boolean;
+    error: string | null;
+    activeTab: 'specs' | 'progress';
+    saving: boolean;
+    generatingForms: boolean;
+    printingForm: boolean;
+    showFormsDropdown: boolean;
+    showPrintModal: boolean;
+  }>({
+    loading: true,
+    initialLoad: true,
+    error: null,
+    activeTab: 'specs',
+    saving: false,
+    generatingForms: false,
+    printingForm: false,
+    showFormsDropdown: false,
+    showPrintModal: false
+  });
 
-  // Editing states
-  const [editingField, setEditingField] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState<string>('');
-  const [saving, setSaving] = useState(false);
+  // Group 3: Edit State (2 states → 1)
+  const [editState, setEditState] = useState<{
+    editingField: string | null;
+    editValue: string;
+  }>({
+    editingField: null,
+    editValue: ''
+  });
 
-  // Form generation state
-  const [generatingForms, setGeneratingForms] = useState(false);
-  const [printingForm, setPrintingForm] = useState(false);
-  const [showFormsDropdown, setShowFormsDropdown] = useState(false);
+  // Group 4: Calculated Values & Specs Data (6 states → 1)
+  const [calculatedValues, setCalculatedValues] = useState<{
+    turnaroundDays: number | null;
+    daysUntilDue: number | null;
+    specsDataLoaded: boolean;
+    leds: LEDType[];
+    powerSupplies: PowerSupplyType[];
+    materials: string[];
+  }>({
+    turnaroundDays: null,
+    daysUntilDue: null,
+    specsDataLoaded: false,
+    leds: [],
+    powerSupplies: [],
+    materials: []
+  });
 
-  // Print modal state
-  const [showPrintModal, setShowPrintModal] = useState(false);
-  const [printQuantities, setPrintQuantities] = useState({
+  // Group 5: Print Configuration (1 state stays as is)
+  const [printConfig, setPrintConfig] = useState({
     master: 1,
     estimate: 1,
     shop: 2,
     packing: 2
   });
-
-  // Turnaround days calculation
-  const [turnaroundDays, setTurnaroundDays] = useState<number | null>(null);
-  const [daysUntilDue, setDaysUntilDue] = useState<number | null>(null);
 
   // Ref for scroll container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -212,7 +243,7 @@ export const OrderDetailsPage: React.FC = () => {
   const fetchTaxRules = async () => {
     try {
       const rules = await provincesApi.getTaxRules();
-      setTaxRules(rules);
+      setOrderData(prev => ({ ...prev, taxRules: rules }));
     } catch (err) {
       console.error('Error fetching tax rules:', err);
     }
@@ -223,10 +254,13 @@ export const OrderDetailsPage: React.FC = () => {
       // Check if templates are already populated (cached)
       if (areTemplatesPopulated()) {
         // Use cached data
-        setLeds(getCachedLEDs());
-        setPowerSupplies(getCachedPowerSupplies());
-        setMaterials(getCachedMaterials());
-        setSpecsDataLoaded(true);
+        setCalculatedValues(prev => ({
+          ...prev,
+          leds: getCachedLEDs(),
+          powerSupplies: getCachedPowerSupplies(),
+          materials: getCachedMaterials(),
+          specsDataLoaded: true
+        }));
         return;
       }
       // Fetch LEDs, Power Supplies, and Materials in parallel
@@ -236,16 +270,18 @@ export const OrderDetailsPage: React.FC = () => {
         materialsApi.getActiveSubstrates()
       ]);
 
-      setLeds(ledsData);
-      setPowerSupplies(powerSuppliesData);
-      setMaterials(materialsData);
+      setCalculatedValues(prev => ({
+        ...prev,
+        leds: ledsData,
+        powerSupplies: powerSuppliesData,
+        materials: materialsData,
+        specsDataLoaded: true
+      }));
 
       // Populate template options with fetched data (also caches it)
       populateLEDOptions(ledsData);
       populatePowerSupplyOptions(powerSuppliesData);
       populateMaterialOptions(materialsData);
-
-      setSpecsDataLoaded(true);
     } catch (err) {
       console.error('Error fetching specification data:', err);
       // Non-critical error - specs will just have empty dropdowns
@@ -254,11 +290,11 @@ export const OrderDetailsPage: React.FC = () => {
 
   useEffect(() => {
     // Calculate turnaround days when order loads
-    if (order && order.due_date) {
+    if (orderData.order && orderData.order.due_date) {
       calculateTurnaround();
       calculateDaysUntil();
     }
-  }, [order?.order_date, order?.due_date]);
+  }, [orderData.order?.order_date, orderData.order?.due_date]);
 
   // Scroll preservation: Restore scroll position synchronously before each paint during save operations
   useLayoutEffect(() => {
@@ -272,82 +308,80 @@ export const OrderDetailsPage: React.FC = () => {
         }
       });
     }
-  }, [order, editingField, turnaroundDays, daysUntilDue, saving]);
+  }, [orderData.order, editState.editingField, calculatedValues.turnaroundDays, calculatedValues.daysUntilDue, uiState.saving]);
 
   const fetchOrder = async (orderNum: number, isInitial: boolean = false) => {
     try {
       if (isInitial) {
-        setLoading(true);
+        setUiState(prev => ({ ...prev, loading: true }));
       }
-      setError(null);
-      const { order: orderData, parts: partsData } = await ordersApi.getOrderWithParts(orderNum);
-      setOrder(orderData);
-      setParts(partsData);
+      setUiState(prev => ({ ...prev, error: null }));
+      const { order: orderDetails, parts: partsData } = await ordersApi.getOrderWithParts(orderNum);
+      setOrderData(prev => ({ ...prev, order: orderDetails, parts: partsData }));
 
       // Fetch customer discount
-      if (orderData.customer_id) {
+      if (orderDetails.customer_id) {
         try {
-          const customerData = await customerApi.getCustomer(orderData.customer_id);
-          setCustomerDiscount(customerData.discount || 0);
+          const customerData = await customerApi.getCustomer(orderDetails.customer_id);
+          setOrderData(prev => ({ ...prev, customerDiscount: customerData.discount || 0 }));
         } catch (err) {
           console.error('Error fetching customer discount:', err);
-          setCustomerDiscount(0);
+          setOrderData(prev => ({ ...prev, customerDiscount: 0 }));
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch order');
+      setUiState(prev => ({ ...prev, error: err instanceof Error ? err.message : 'Failed to fetch order' }));
       console.error('Error fetching order:', err);
     } finally {
       if (isInitial) {
-        setLoading(false);
-        setInitialLoad(false);
+        setUiState(prev => ({ ...prev, loading: false, initialLoad: false }));
       }
     }
   };
 
   const calculateTurnaround = async () => {
-    if (!order || !order.due_date) return;
+    if (!orderData.order || !orderData.order.due_date) return;
 
     try {
       const result = await ordersApi.calculateBusinessDays(
-        order.order_date.split('T')[0], // Ensure YYYY-MM-DD format
-        order.due_date.split('T')[0]
+        orderData.order.order_date.split('T')[0], // Ensure YYYY-MM-DD format
+        orderData.order.due_date.split('T')[0]
       );
-      setTurnaroundDays(result.businessDays);
+      setCalculatedValues(prev => ({ ...prev, turnaroundDays: result.businessDays }));
     } catch (err) {
       console.error('Error calculating turnaround days:', err);
-      setTurnaroundDays(null);
+      setCalculatedValues(prev => ({ ...prev, turnaroundDays: null }));
     }
   };
 
   const calculateDaysUntil = async () => {
-    if (!order || !order.due_date) return;
+    if (!orderData.order || !orderData.order.due_date) return;
 
     try {
       const today = new Date().toISOString().split('T')[0];
       const result = await ordersApi.calculateBusinessDays(
         today,
-        order.due_date.split('T')[0]
+        orderData.order.due_date.split('T')[0]
       );
-      setDaysUntilDue(result.businessDays);
+      setCalculatedValues(prev => ({ ...prev, daysUntilDue: result.businessDays }));
     } catch (err) {
       console.error('Error calculating days until due:', err);
-      setDaysUntilDue(null);
+      setCalculatedValues(prev => ({ ...prev, daysUntilDue: null }));
     }
   };
 
   const handleGenerateForms = async () => {
-    if (!order) return;
+    if (!orderData.order) return;
 
     try {
-      setGeneratingForms(true);
-      await ordersApi.generateOrderForms(order.order_number, false);
+      setUiState(prev => ({ ...prev, generatingForms: true }));
+      await ordersApi.generateOrderForms(orderData.order.order_number, false);
       alert('Order forms generated successfully!');
     } catch (err) {
       console.error('Error generating forms:', err);
       alert('Failed to generate order forms. Please try again.');
     } finally {
-      setGeneratingForms(false);
+      setUiState(prev => ({ ...prev, generatingForms: false }));
     }
   };
 
@@ -399,25 +433,25 @@ export const OrderDetailsPage: React.FC = () => {
 
   const handleOpenPrintModal = () => {
     // Calculate shop count based on specs
-    const shopCount = calculateShopCount(parts);
+    const shopCount = calculateShopCount(orderData.parts);
 
     // Set default quantities
-    setPrintQuantities({
+    setPrintConfig({
       master: 1,
       estimate: 1,
       shop: shopCount,
       packing: 2
     });
 
-    setShowPrintModal(true);
+    setUiState(prev => ({ ...prev, showPrintModal: true }));
   };
 
   const handlePrintForms = async () => {
-    if (!order) return;
+    if (!orderData.order) return;
 
     try {
-      setPrintingForm(true);
-      const result = await printApi.printOrderFormsBatch(order.order_number, printQuantities);
+      setUiState(prev => ({ ...prev, printingForm: true }));
+      const result = await printApi.printOrderFormsBatch(orderData.order.order_number, printConfig);
 
       if (result.success) {
         const { summary } = result;
@@ -437,38 +471,38 @@ export const OrderDetailsPage: React.FC = () => {
         alert('Failed to print forms. Please check the printer and try again.');
       }
 
-      setShowPrintModal(false);
+      setUiState(prev => ({ ...prev, showPrintModal: false }));
     } catch (err: any) {
       console.error('Error printing forms:', err);
       alert(err.response?.data?.message || 'Failed to print forms. Please check that CUPS is installed and a printer is configured.');
     } finally {
-      setPrintingForm(false);
+      setUiState(prev => ({ ...prev, printingForm: false }));
     }
   };
 
   const handlePrintMasterForm = async () => {
-    if (!order) return;
+    if (!orderData.order) return;
 
     try {
-      setPrintingForm(true);
-      const result = await printApi.printOrderForm(order.order_number, 'master');
+      setUiState(prev => ({ ...prev, printingForm: true }));
+      const result = await printApi.printOrderForm(orderData.order.order_number, 'master');
       alert(`Print job submitted successfully! Job ID: ${result.jobId || 'unknown'}`);
     } catch (err: any) {
       console.error('Error printing master form:', err);
       alert(err.response?.data?.message || 'Failed to print master form. Please check that CUPS is installed and a printer is configured.');
     } finally {
-      setPrintingForm(false);
+      setUiState(prev => ({ ...prev, printingForm: false }));
     }
   };
 
   const buildFormUrls = () => {
-    if (!order || !order.folder_name) return null;
+    if (!orderData.order || !orderData.order.folder_name) return null;
 
     // Get base URL for PDFs (remove /api suffix since order-images is served from root)
     const apiUrl = (import.meta.env.VITE_API_URL || 'http://192.168.2.14:3001').replace(/\/api$/, '');
-    const folderName = order.folder_name; // e.g., "Job Name ----- Customer Name"
-    const orderNum = order.order_number;
-    const jobName = order.order_name;
+    const folderName = orderData.order.folder_name; // e.g., "Job Name ----- Customer Name"
+    const orderNum = orderData.order.order_number;
+    const jobName = orderData.order.order_name;
 
     // Add cache buster using current timestamp to ensure browser fetches latest PDF
     const cacheBuster = `?v=${Date.now()}`;
@@ -497,14 +531,14 @@ export const OrderDetailsPage: React.FC = () => {
     if (!urls) return;
 
     window.open(urls[formType], '_blank');
-    setShowFormsDropdown(false);
+    setUiState(prev => ({ ...prev, showFormsDropdown: false }));
   };
 
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (formsDropdownRef.current && !formsDropdownRef.current.contains(event.target as Node)) {
-        setShowFormsDropdown(false);
+        setUiState(prev => ({ ...prev, showFormsDropdown: false }));
       }
     };
 
@@ -519,35 +553,32 @@ export const OrderDetailsPage: React.FC = () => {
   };
 
   const startEdit = (field: string, currentValue: string) => {
-    setEditingField(field);
-
     // For hard_due_date_time, extract just the time portion (HH:mm)
     if (field === 'hard_due_date_time' && currentValue) {
       // currentValue is TIME format like "16:00:00", extract "16:00"
       const timePart = currentValue.substring(0, 5); // Get HH:mm from HH:mm:ss
-      setEditValue(timePart);
+      setEditState({ editingField: field, editValue: timePart });
     } else {
-      setEditValue(currentValue || '');
+      setEditState({ editingField: field, editValue: currentValue || '' });
     }
   };
 
   const cancelEdit = () => {
-    setEditingField(null);
-    setEditValue('');
+    setEditState({ editingField: null, editValue: '' });
   };
 
   const saveEdit = async (field: string, overrideValue?: string) => {
-    if (!order) return;
+    if (!orderData.order) return;
 
     // Mark that we're saving and capture scroll position ONCE
     isSavingRef.current = true;
     savedScrollPosition.current = scrollContainerRef.current?.scrollTop || 0;
 
     try {
-      setSaving(true);
+      setUiState(prev => ({ ...prev, saving: true }));
 
       // Use override value if provided, otherwise use editValue from state
-      const rawValue = overrideValue !== undefined ? overrideValue : editValue;
+      const rawValue = overrideValue !== undefined ? overrideValue : editState.editValue;
 
       // Convert string to boolean for boolean fields
       let valueToSave: any = rawValue;
@@ -567,40 +598,39 @@ export const OrderDetailsPage: React.FC = () => {
       }
 
       // Call API to update the order
-      await ordersApi.updateOrder(order.order_number, {
+      await ordersApi.updateOrder(orderData.order.order_number, {
         [field]: valueToSave
       });
 
       // Update local state
-      const updatedOrder = { ...order, [field]: valueToSave };
-      setOrder(updatedOrder);
-      setEditingField(null);
-      setEditValue('');
+      const updatedOrder = { ...orderData.order, [field]: valueToSave };
+      setOrderData(prev => ({ ...prev, order: updatedOrder }));
+      setEditState({ editingField: null, editValue: '' });
 
       // Recalculate turnaround days and days until if due_date was changed
-      if (field === 'due_date' && editValue) {
+      if (field === 'due_date' && rawValue) {
         try {
           const turnaroundResult = await ordersApi.calculateBusinessDays(
-            order.order_date.split('T')[0],
-            editValue
+            orderData.order.order_date.split('T')[0],
+            rawValue
           );
-          setTurnaroundDays(turnaroundResult.businessDays);
+          setCalculatedValues(prev => ({ ...prev, turnaroundDays: turnaroundResult.businessDays }));
 
           const today = new Date().toISOString().split('T')[0];
           const daysUntilResult = await ordersApi.calculateBusinessDays(
             today,
-            editValue
+            rawValue
           );
-          setDaysUntilDue(daysUntilResult.businessDays);
+          setCalculatedValues(prev => ({ ...prev, daysUntilDue: daysUntilResult.businessDays }));
         } catch (err) {
           console.error('Error recalculating days:', err);
         }
       }
     } catch (err) {
       console.error('Error updating order:', err);
-      alert('Failed to update order. Please try again.');
+      alert('Failed to update orderData.order. Please try again.');
     } finally {
-      setSaving(false);
+      setUiState(prev => ({ ...prev, saving: false }));
 
       // Clear scroll preservation AFTER all operations complete
       // Using setTimeout to ensure the final render has completed
@@ -640,19 +670,19 @@ export const OrderDetailsPage: React.FC = () => {
     return date.toLocaleDateString();
   };
 
-  if (initialLoad) {
+  if (uiState.initialLoad) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="text-gray-500">Loading order...</div>
+        <div className="text-gray-500">Loading orderData.order...</div>
       </div>
     );
   }
 
-  if (error || !order) {
+  if (uiState.error || !orderData.order) {
     return (
       <div className="p-6">
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{error || 'Order not found'}</p>
+          <p className="text-red-800">{uiState.error || 'Order not found'}</p>
           <button
             onClick={handleBack}
             className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
@@ -681,21 +711,21 @@ export const OrderDetailsPage: React.FC = () => {
             <div>
               <div className="flex items-center space-x-3">
                 <h1 className="text-2xl font-bold text-gray-900">
-                  {order.order_name}
+                  {orderData.order.order_name}
                 </h1>
-                <StatusBadge status={order.status} />
+                <StatusBadge status={orderData.order.status} />
               </div>
-              <p className="text-lg font-semibold text-gray-800 mt-1">{order.customer_name}</p>
-              <p className="text-sm text-gray-600">Order #{order.order_number}</p>
+              <p className="text-lg font-semibold text-gray-800 mt-1">{orderData.order.customer_name}</p>
+              <p className="text-sm text-gray-600">Order #{orderData.order.order_number}</p>
             </div>
           </div>
 
           {/* Center: Tab Navigation */}
           <div className="flex items-center space-x-8 flex-1 justify-center">
             <button
-              onClick={() => setActiveTab('specs')}
+              onClick={() => setUiState(prev => ({ ...prev, activeTab: 'specs' }))}
               className={`py-4 px-1 font-medium text-base transition-colors ${
-                activeTab === 'specs'
+                uiState.activeTab === 'specs'
                   ? 'border-b-4 border-indigo-600 text-indigo-600'
                   : 'border-b-2 border-gray-300 text-gray-500 hover:text-gray-700 hover:border-gray-400'
               }`}
@@ -703,9 +733,9 @@ export const OrderDetailsPage: React.FC = () => {
               Specs & Invoice
             </button>
             <button
-              onClick={() => setActiveTab('progress')}
+              onClick={() => setUiState(prev => ({ ...prev, activeTab: 'progress' }))}
               className={`py-4 px-1 font-medium text-base transition-colors ${
-                activeTab === 'progress'
+                uiState.activeTab === 'progress'
                   ? 'border-b-4 border-indigo-600 text-indigo-600'
                   : 'border-b-2 border-gray-300 text-gray-500 hover:text-gray-700 hover:border-gray-400'
               }`}
@@ -718,19 +748,19 @@ export const OrderDetailsPage: React.FC = () => {
           <div className="flex items-center space-x-3 flex-1 justify-end">
             <button
               onClick={handleGenerateForms}
-              disabled={generatingForms}
+              disabled={uiState.generatingForms}
               className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium"
             >
               <FileText className="w-4 h-4" />
-              <span>{generatingForms ? 'Generating...' : 'Generate Order Forms'}</span>
+              <span>{uiState.generatingForms ? 'Generating...' : 'Generate Order Forms'}</span>
             </button>
             <button
               onClick={handleOpenPrintModal}
-              disabled={printingForm}
+              disabled={uiState.printingForm}
               className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium"
             >
               <Printer className="w-4 h-4" />
-              <span>{printingForm ? 'Printing...' : 'Print Forms'}</span>
+              <span>{uiState.printingForm ? 'Printing...' : 'Print Forms'}</span>
             </button>
             {/* Split Button: View Forms with Dropdown */}
             <div ref={formsDropdownRef} className="relative">
@@ -746,7 +776,7 @@ export const OrderDetailsPage: React.FC = () => {
 
                 {/* Dropdown Toggle Button */}
                 <button
-                  onClick={() => setShowFormsDropdown(!showFormsDropdown)}
+                  onClick={() => setUiState(prev => ({ ...prev, showFormsDropdown: !prev.showFormsDropdown }))}
                   className="px-2 py-2 bg-white border-t border-r border-b border-gray-300 border-l border-gray-200 rounded-r-lg hover:bg-gray-50 text-gray-700"
                 >
                   <ChevronDown className="w-4 h-4" />
@@ -754,7 +784,7 @@ export const OrderDetailsPage: React.FC = () => {
               </div>
 
               {/* Dropdown Menu */}
-              {showFormsDropdown && (
+              {uiState.showFormsDropdown && (
                 <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
                   <div className="py-1">
                     <button
@@ -798,7 +828,7 @@ export const OrderDetailsPage: React.FC = () => {
       <div ref={scrollContainerRef} className="flex-1 overflow-auto">
         <div className="px-4 py-4 h-full">
           {/* TAB 1: Specs & Invoice - Full Width */}
-          {activeTab === 'specs' && (
+          {uiState.activeTab === 'specs' && (
             <div className="flex flex-col gap-4 h-full">
               {/* Top Row: Order Info (Left) and Invoice Info (Right) */}
               <div className="flex gap-4">
@@ -807,16 +837,16 @@ export const OrderDetailsPage: React.FC = () => {
                 {/* Left: Order Image - 32% of panel width */}
                 <div style={{ width: '32%' }}>
                   <OrderImage
-                    orderNumber={order.order_number}
-                    signImagePath={order.sign_image_path}
-                    cropTop={order.crop_top}
-                    cropRight={order.crop_right}
-                    cropBottom={order.crop_bottom}
-                    cropLeft={order.crop_left}
-                    folderName={order.folder_name}
-                    folderLocation={order.folder_location}
-                    isMigrated={order.is_migrated}
-                    onImageUpdated={() => fetchOrder(order.order_number)}
+                    orderNumber={orderData.order.order_number}
+                    signImagePath={orderData.order.sign_image_path}
+                    cropTop={orderData.order.crop_top}
+                    cropRight={orderData.order.crop_right}
+                    cropBottom={orderData.order.crop_bottom}
+                    cropLeft={orderData.order.crop_left}
+                    folderName={orderData.order.folder_name}
+                    folderLocation={orderData.order.folder_location}
+                    isMigrated={orderData.order.is_migrated}
+                    onImageUpdated={() => fetchOrder(orderData.order.order_number)}
                   />
                 </div>
 
@@ -827,7 +857,7 @@ export const OrderDetailsPage: React.FC = () => {
                     <div className="flex-1">
                       <span className="text-gray-500 text-sm">Order Date:</span>
                       <p className="font-medium text-gray-900 text-base">
-                        {formatDateString(order.order_date)}
+                        {formatDateString(orderData.order.order_date)}
                       </p>
                     </div>
 
@@ -836,15 +866,15 @@ export const OrderDetailsPage: React.FC = () => {
                       <span className="text-gray-500 text-sm">Customer PO:</span>
                       <EditableField
                         field="customer_po"
-                        value={order.customer_po}
+                        value={orderData.order.customer_po}
                         type="text"
-                        isEditing={editingField === 'customer_po'}
-                        isSaving={saving}
+                        isEditing={editState.editingField === 'customer_po'}
+                        isSaving={uiState.saving}
                         onEdit={startEdit}
                         onSave={saveEdit}
                         onCancel={cancelEdit}
-                        editValue={editValue}
-                        onEditValueChange={setEditValue}
+                        editValue={editState.editValue}
+                        onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
                       />
                     </div>
 
@@ -853,15 +883,15 @@ export const OrderDetailsPage: React.FC = () => {
                       <span className="text-gray-500 text-sm">Customer Job #:</span>
                       <EditableField
                         field="customer_job_number"
-                        value={order.customer_job_number}
+                        value={orderData.order.customer_job_number}
                         type="text"
-                        isEditing={editingField === 'customer_job_number'}
-                        isSaving={saving}
+                        isEditing={editState.editingField === 'customer_job_number'}
+                        isSaving={uiState.saving}
                         onEdit={startEdit}
                         onSave={saveEdit}
                         onCancel={cancelEdit}
-                        editValue={editValue}
-                        onEditValueChange={setEditValue}
+                        editValue={editState.editValue}
+                        onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
                       />
                     </div>
 
@@ -870,19 +900,19 @@ export const OrderDetailsPage: React.FC = () => {
                       <span className="text-gray-500 text-sm">Shipping Method:</span>
                       <EditableField
                         field="shipping_required"
-                        value={order.shipping_required}
+                        value={orderData.order.shipping_required}
                         type="select"
                         options={[
                           { value: 'true', label: 'Shipping' },
                           { value: 'false', label: 'Pick Up' }
                         ]}
-                        isEditing={editingField === 'shipping_required'}
-                        isSaving={saving}
+                        isEditing={editState.editingField === 'shipping_required'}
+                        isSaving={uiState.saving}
                         onEdit={startEdit}
                         onSave={saveEdit}
                         onCancel={cancelEdit}
-                        editValue={editValue}
-                        onEditValueChange={setEditValue}
+                        editValue={editState.editValue}
+                        onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
                         displayFormatter={(val) => val ? 'Shipping' : 'Pick Up'}
                       />
                     </div>
@@ -895,15 +925,15 @@ export const OrderDetailsPage: React.FC = () => {
                       <span className="text-gray-500 text-sm">Due Date:</span>
                       <EditableField
                         field="due_date"
-                        value={order.due_date}
+                        value={orderData.order.due_date}
                         type="date"
-                        isEditing={editingField === 'due_date'}
-                        isSaving={saving}
+                        isEditing={editState.editingField === 'due_date'}
+                        isSaving={uiState.saving}
                         onEdit={startEdit}
                         onSave={saveEdit}
                         onCancel={cancelEdit}
-                        editValue={editValue}
-                        onEditValueChange={setEditValue}
+                        editValue={editState.editValue}
+                        onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
                         displayFormatter={formatDateString}
                       />
                     </div>
@@ -913,15 +943,15 @@ export const OrderDetailsPage: React.FC = () => {
                       <span className="text-gray-500 text-sm">Hard Due Time:</span>
                       <EditableField
                         field="hard_due_date_time"
-                        value={order.hard_due_date_time}
+                        value={orderData.order.hard_due_date_time}
                         type="time"
-                        isEditing={editingField === 'hard_due_date_time'}
-                        isSaving={saving}
+                        isEditing={editState.editingField === 'hard_due_date_time'}
+                        isSaving={uiState.saving}
                         onEdit={startEdit}
                         onSave={saveEdit}
                         onCancel={cancelEdit}
-                        editValue={editValue}
-                        onEditValueChange={setEditValue}
+                        editValue={editState.editValue}
+                        onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
                         displayFormatter={formatTimeTo12Hour}
                       />
                     </div>
@@ -930,7 +960,7 @@ export const OrderDetailsPage: React.FC = () => {
                     <div className="flex-1">
                       <span className="text-gray-500 text-sm">Turnaround Time:</span>
                       <p className="font-medium text-gray-900 text-base h-6 flex items-center">
-                        {turnaroundDays !== null ? `${turnaroundDays} days` : 'Calculating...'}
+                        {calculatedValues.turnaroundDays !== null ? `${calculatedValues.turnaroundDays} days` : 'Calculating...'}
                       </p>
                     </div>
 
@@ -938,7 +968,7 @@ export const OrderDetailsPage: React.FC = () => {
                     <div className="flex-1">
                       <span className="text-gray-500 text-sm">Due in:</span>
                       <p className="font-medium text-gray-900 text-base h-6 flex items-center">
-                        {daysUntilDue !== null ? `${daysUntilDue} days` : 'Calculating...'}
+                        {calculatedValues.daysUntilDue !== null ? `${calculatedValues.daysUntilDue} days` : 'Calculating...'}
                       </p>
                     </div>
                   </div>
@@ -949,11 +979,11 @@ export const OrderDetailsPage: React.FC = () => {
                     <div className="flex-1">
                       <h3 className="text-sm font-semibold text-gray-700 mb-1">Special Instructions</h3>
                       <div className="relative" style={{ height: '60px' }}>
-                        {editingField === 'manufacturing_note' ? (
+                        {editState.editingField === 'manufacturing_note' ? (
                           <div className="h-full">
                             <textarea
                               value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
+                              onChange={(e) => setEditState(prev => ({ ...prev, editValue: e.target.value }))}
                               onKeyDown={(e) => {
                                 if (e.key === 'Escape') cancelEdit();
                               }}
@@ -964,10 +994,10 @@ export const OrderDetailsPage: React.FC = () => {
                             <div className="absolute top-1 right-6 flex flex-col space-y-1">
                               <button
                                 onClick={() => saveEdit('manufacturing_note')}
-                                disabled={saving}
+                                disabled={uiState.saving}
                                 className="px-2 py-0.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50"
                               >
-                                {saving ? 'Saving...' : 'Save'}
+                                {uiState.saving ? 'Saving...' : 'Save'}
                               </button>
                               <button
                                 onClick={cancelEdit}
@@ -980,10 +1010,10 @@ export const OrderDetailsPage: React.FC = () => {
                         ) : (
                           <div className="group h-full">
                             <p className="text-base text-gray-600 whitespace-pre-wrap h-full overflow-y-auto border border-gray-300 rounded px-2 py-1">
-                              {order.manufacturing_note || '-'}
+                              {orderData.order.manufacturing_note || '-'}
                             </p>
                             <button
-                              onClick={() => startEdit('manufacturing_note', order.manufacturing_note || '')}
+                              onClick={() => startEdit('manufacturing_note', orderData.order.manufacturing_note || '')}
                               className="absolute top-1 right-5 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 transition-opacity"
                             >
                               <Pencil className="w-3.5 h-3.5" />
@@ -997,11 +1027,11 @@ export const OrderDetailsPage: React.FC = () => {
                     <div className="flex-1">
                       <h3 className="text-sm font-semibold text-gray-700 mb-1">Internal Notes</h3>
                       <div className="relative" style={{ height: '60px' }}>
-                        {editingField === 'internal_note' ? (
+                        {editState.editingField === 'internal_note' ? (
                           <div className="h-full">
                             <textarea
                               value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
+                              onChange={(e) => setEditState(prev => ({ ...prev, editValue: e.target.value }))}
                               onKeyDown={(e) => {
                                 if (e.key === 'Escape') cancelEdit();
                               }}
@@ -1012,10 +1042,10 @@ export const OrderDetailsPage: React.FC = () => {
                             <div className="absolute top-1 right-6 flex flex-col space-y-1">
                               <button
                                 onClick={() => saveEdit('internal_note')}
-                                disabled={saving}
+                                disabled={uiState.saving}
                                 className="px-2 py-0.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50"
                               >
-                                {saving ? 'Saving...' : 'Save'}
+                                {uiState.saving ? 'Saving...' : 'Save'}
                               </button>
                               <button
                                 onClick={cancelEdit}
@@ -1028,10 +1058,10 @@ export const OrderDetailsPage: React.FC = () => {
                         ) : (
                           <div className="group h-full">
                             <p className="text-base text-gray-600 whitespace-pre-wrap h-full overflow-y-auto border border-gray-300 rounded px-2 py-1">
-                              {order.internal_note || '-'}
+                              {orderData.order.internal_note || '-'}
                             </p>
                             <button
-                              onClick={() => startEdit('internal_note', order.internal_note || '')}
+                              onClick={() => startEdit('internal_note', orderData.order.internal_note || '')}
                               className="absolute top-1 right-5 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 transition-opacity"
                             >
                               <Pencil className="w-3.5 h-3.5" />
@@ -1053,8 +1083,8 @@ export const OrderDetailsPage: React.FC = () => {
                       <div className="flex-[2]">
                         <span className="text-gray-500 text-sm">Point Person(s):</span>
                         <div className="space-y-1">
-                          {order.point_persons && order.point_persons.length > 0 ? (
-                            order.point_persons.map((person, index) => (
+                          {orderData.order.point_persons && orderData.order.point_persons.length > 0 ? (
+                            orderData.order.point_persons.map((person, index) => (
                               <p key={person.id} className="font-medium text-gray-900 text-base">
                                 {person.contact_email}
                                 {person.contact_name && ` (${person.contact_name})`}
@@ -1071,15 +1101,15 @@ export const OrderDetailsPage: React.FC = () => {
                         <span className="text-gray-500 text-sm">Accounting Email:</span>
                         <EditableField
                           field="invoice_email"
-                          value={order.invoice_email}
+                          value={orderData.order.invoice_email}
                           type="email"
-                          isEditing={editingField === 'invoice_email'}
-                          isSaving={saving}
+                          isEditing={editState.editingField === 'invoice_email'}
+                          isSaving={uiState.saving}
                           onEdit={startEdit}
                           onSave={saveEdit}
                           onCancel={cancelEdit}
-                          editValue={editValue}
-                          onEditValueChange={setEditValue}
+                          editValue={editState.editValue}
+                          onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
                         />
                       </div>
 
@@ -1088,15 +1118,15 @@ export const OrderDetailsPage: React.FC = () => {
                         <span className="text-gray-500 text-sm">Terms:</span>
                         <EditableField
                           field="terms"
-                          value={order.terms}
+                          value={orderData.order.terms}
                           type="text"
-                          isEditing={editingField === 'terms'}
-                          isSaving={saving}
+                          isEditing={editState.editingField === 'terms'}
+                          isSaving={uiState.saving}
                           onEdit={startEdit}
                           onSave={saveEdit}
                           onCancel={cancelEdit}
-                          editValue={editValue}
-                          onEditValueChange={setEditValue}
+                          editValue={editState.editValue}
+                          onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
                         />
                       </div>
                     </div>
@@ -1109,18 +1139,18 @@ export const OrderDetailsPage: React.FC = () => {
                         <span className="text-gray-500 text-sm">Deposit Required:</span>
                         <EditableField
                           field="deposit_required"
-                          value={order.deposit_required}
+                          value={orderData.order.deposit_required}
                           type="checkbox"
                           isEditing={false}
-                          isSaving={saving}
+                          isSaving={uiState.saving}
                           onEdit={(field, value) => {
-                            setEditingField(field);
+                            setEditState(prev => ({ ...prev, editingField: field }));
                             saveEdit(field, value);
                           }}
                           onSave={saveEdit}
                           onCancel={cancelEdit}
-                          editValue={editValue}
-                          onEditValueChange={setEditValue}
+                          editValue={editState.editValue}
+                          onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
                         />
                       </div>
 
@@ -1129,18 +1159,18 @@ export const OrderDetailsPage: React.FC = () => {
                         <span className="text-gray-500 text-sm">Cash Customer:</span>
                         <EditableField
                           field="cash"
-                          value={order.cash}
+                          value={orderData.order.cash}
                           type="checkbox"
                           isEditing={false}
-                          isSaving={saving}
+                          isSaving={uiState.saving}
                           onEdit={(field, value) => {
-                            setEditingField(field);
+                            setEditState(prev => ({ ...prev, editingField: field }));
                             saveEdit(field, value);
                           }}
                           onSave={saveEdit}
                           onCancel={cancelEdit}
-                          editValue={editValue}
-                          onEditValueChange={setEditValue}
+                          editValue={editState.editValue}
+                          onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
                         />
                       </div>
 
@@ -1149,8 +1179,8 @@ export const OrderDetailsPage: React.FC = () => {
                         <span className="text-gray-500 text-sm">Discount:</span>
                         <div className="flex items-center h-6">
                           <p className="font-medium text-gray-900 text-base">
-                            {customerDiscount && parseFloat(String(customerDiscount)) > 0
-                              ? `${parseFloat(String(customerDiscount))}%`
+                            {orderData.customerDiscount && parseFloat(String(orderData.customerDiscount)) > 0
+                              ? `${parseFloat(String(orderData.customerDiscount))}%`
                               : '-'}
                           </p>
                         </div>
@@ -1159,22 +1189,22 @@ export const OrderDetailsPage: React.FC = () => {
                       {/* Tax - Editable Dropdown (from billing address) */}
                       <div className="flex-1">
                         <span className="text-gray-500 text-sm">Tax:</span>
-                        {editingField === 'tax_name' ? (
+                        {editState.editingField === 'tax_name' ? (
                           <div className="flex items-center space-x-1 h-6">
                             <select
                               value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
+                              onChange={(e) => setEditState(prev => ({ ...prev, editValue: e.target.value }))}
                               onKeyDown={(e) => handleKeyDown(e, 'tax_name')}
                               className="font-medium text-gray-900 border border-indigo-300 rounded px-1 text-base w-full h-full"
                               autoFocus
                             >
-                              {taxRules.map((rule) => (
+                              {orderData.taxRules.map((rule) => (
                                 <option key={rule.tax_rule_id} value={rule.tax_name}>
                                   {rule.tax_name} ({(rule.tax_percent * 100).toFixed(1)}%)
                                 </option>
                               ))}
                             </select>
-                            <button onClick={() => saveEdit('tax_name')} disabled={saving} className="text-green-600 hover:text-green-700 flex-shrink-0">
+                            <button onClick={() => saveEdit('tax_name')} disabled={uiState.saving} className="text-green-600 hover:text-green-700 flex-shrink-0">
                               <Check className="w-4 h-4" />
                             </button>
                             <button onClick={cancelEdit} className="text-gray-500 hover:text-gray-700 flex-shrink-0">
@@ -1184,14 +1214,14 @@ export const OrderDetailsPage: React.FC = () => {
                         ) : (
                           <div className="flex items-center space-x-2 group h-6">
                             <p className="font-medium text-gray-900 text-base">
-                              {order.tax_name ? (
+                              {orderData.order.tax_name ? (
                                 <>
-                                  {order.tax_name} ({((taxRules.find(r => r.tax_name === order.tax_name)?.tax_percent || 0) * 100).toFixed(1)}%)
+                                  {orderData.order.tax_name} ({((orderData.taxRules.find(r => r.tax_name === orderData.order.tax_name)?.tax_percent || 0) * 100).toFixed(1)}%)
                                 </>
                               ) : '-'}
                             </p>
                             <button
-                              onClick={() => startEdit('tax_name', order.tax_name || '')}
+                              onClick={() => startEdit('tax_name', orderData.order.tax_name || '')}
                               className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600"
                             >
                               <Pencil className="w-3.5 h-3.5" />
@@ -1205,11 +1235,11 @@ export const OrderDetailsPage: React.FC = () => {
                     <div className="mt-2">
                       <h3 className="text-sm font-semibold text-gray-700 mb-1">Invoice Notes</h3>
                       <div className="relative" style={{ height: '60px' }}>
-                        {editingField === 'invoice_notes' ? (
+                        {editState.editingField === 'invoice_notes' ? (
                           <div className="h-full">
                             <textarea
                               value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
+                              onChange={(e) => setEditState(prev => ({ ...prev, editValue: e.target.value }))}
                               onKeyDown={(e) => {
                                 if (e.key === 'Escape') cancelEdit();
                               }}
@@ -1220,10 +1250,10 @@ export const OrderDetailsPage: React.FC = () => {
                             <div className="absolute top-1 right-6 flex flex-col space-y-1">
                               <button
                                 onClick={() => saveEdit('invoice_notes')}
-                                disabled={saving}
+                                disabled={uiState.saving}
                                 className="px-2 py-0.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50"
                               >
-                                {saving ? 'Saving...' : 'Save'}
+                                {uiState.saving ? 'Saving...' : 'Save'}
                               </button>
                               <button
                                 onClick={cancelEdit}
@@ -1236,10 +1266,10 @@ export const OrderDetailsPage: React.FC = () => {
                         ) : (
                           <div className="group h-full">
                             <p className="text-base text-gray-600 whitespace-pre-wrap h-full overflow-y-auto border border-gray-300 rounded px-2 py-1">
-                              {order.invoice_notes || '-'}
+                              {orderData.order.invoice_notes || '-'}
                             </p>
                             <button
-                              onClick={() => startEdit('invoice_notes', order.invoice_notes || '')}
+                              onClick={() => startEdit('invoice_notes', orderData.order.invoice_notes || '')}
                               className="absolute top-1 right-5 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 transition-opacity"
                             >
                               <Pencil className="w-3.5 h-3.5" />
@@ -1255,23 +1285,23 @@ export const OrderDetailsPage: React.FC = () => {
               {/* Bottom Row: Job Details & Invoice (Dual-Table) - Full Width */}
               <div className="flex-shrink-0" style={{ width: '1888px' }}>
                 <DualTableLayout
-                  orderNumber={order.order_number}
-                  initialParts={parts}
-                  taxName={order.tax_name}
+                  orderNumber={orderData.order.order_number}
+                  initialParts={orderData.parts}
+                  taxName={orderData.order.tax_name}
                 />
               </div>
             </div>
           )}
 
           {/* TAB 2: Job Progress - 2/3 Width Centered */}
-          {activeTab === 'progress' && (
+          {uiState.activeTab === 'progress' && (
             <div className="flex justify-center h-full">
               <div className="w-full max-w-[1280px]">
                 <ProgressView
-                  orderNumber={order.order_number}
-                  currentStatus={order.status}
-                  productionNotes={order.production_notes}
-                  onOrderUpdated={() => fetchOrder(order.order_number)}
+                  orderNumber={orderData.order.order_number}
+                  currentStatus={orderData.order.status}
+                  productionNotes={orderData.order.production_notes}
+                  onOrderUpdated={() => fetchOrder(orderData.order.order_number)}
                 />
               </div>
             </div>
@@ -1280,7 +1310,7 @@ export const OrderDetailsPage: React.FC = () => {
       </div>
 
       {/* Print Modal */}
-      {showPrintModal && (
+      {uiState.showPrintModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 w-[500px]">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Print Forms</h2>
@@ -1292,14 +1322,14 @@ export const OrderDetailsPage: React.FC = () => {
                 <span className="text-base font-medium text-gray-700">Master Form</span>
                 <div className="flex items-center space-x-3">
                   <button
-                    onClick={() => setPrintQuantities(prev => ({ ...prev, master: Math.max(0, prev.master - 1) }))}
+                    onClick={() => setPrintConfig(prev => ({ ...prev, master: Math.max(0, prev.master - 1) }))}
                     className="p-1 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700"
                   >
                     <Minus className="w-4 h-4" />
                   </button>
-                  <span className="w-12 text-center text-lg font-semibold text-gray-900">{printQuantities.master}</span>
+                  <span className="w-12 text-center text-lg font-semibold text-gray-900">{printConfig.master}</span>
                   <button
-                    onClick={() => setPrintQuantities(prev => ({ ...prev, master: prev.master + 1 }))}
+                    onClick={() => setPrintConfig(prev => ({ ...prev, master: prev.master + 1 }))}
                     className="p-1 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700"
                   >
                     <Plus className="w-4 h-4" />
@@ -1312,14 +1342,14 @@ export const OrderDetailsPage: React.FC = () => {
                 <span className="text-base font-medium text-gray-700">Estimate Form</span>
                 <div className="flex items-center space-x-3">
                   <button
-                    onClick={() => setPrintQuantities(prev => ({ ...prev, estimate: Math.max(0, prev.estimate - 1) }))}
+                    onClick={() => setPrintConfig(prev => ({ ...prev, estimate: Math.max(0, prev.estimate - 1) }))}
                     className="p-1 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700"
                   >
                     <Minus className="w-4 h-4" />
                   </button>
-                  <span className="w-12 text-center text-lg font-semibold text-gray-900">{printQuantities.estimate}</span>
+                  <span className="w-12 text-center text-lg font-semibold text-gray-900">{printConfig.estimate}</span>
                   <button
-                    onClick={() => setPrintQuantities(prev => ({ ...prev, estimate: prev.estimate + 1 }))}
+                    onClick={() => setPrintConfig(prev => ({ ...prev, estimate: prev.estimate + 1 }))}
                     className="p-1 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700"
                   >
                     <Plus className="w-4 h-4" />
@@ -1335,14 +1365,14 @@ export const OrderDetailsPage: React.FC = () => {
                 </div>
                 <div className="flex items-center space-x-3">
                   <button
-                    onClick={() => setPrintQuantities(prev => ({ ...prev, shop: Math.max(0, prev.shop - 1) }))}
+                    onClick={() => setPrintConfig(prev => ({ ...prev, shop: Math.max(0, prev.shop - 1) }))}
                     className="p-1 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700"
                   >
                     <Minus className="w-4 h-4" />
                   </button>
-                  <span className="w-12 text-center text-lg font-semibold text-gray-900">{printQuantities.shop}</span>
+                  <span className="w-12 text-center text-lg font-semibold text-gray-900">{printConfig.shop}</span>
                   <button
-                    onClick={() => setPrintQuantities(prev => ({ ...prev, shop: prev.shop + 1 }))}
+                    onClick={() => setPrintConfig(prev => ({ ...prev, shop: prev.shop + 1 }))}
                     className="p-1 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700"
                   >
                     <Plus className="w-4 h-4" />
@@ -1355,14 +1385,14 @@ export const OrderDetailsPage: React.FC = () => {
                 <span className="text-base font-medium text-gray-700">Packing List</span>
                 <div className="flex items-center space-x-3">
                   <button
-                    onClick={() => setPrintQuantities(prev => ({ ...prev, packing: Math.max(0, prev.packing - 1) }))}
+                    onClick={() => setPrintConfig(prev => ({ ...prev, packing: Math.max(0, prev.packing - 1) }))}
                     className="p-1 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700"
                   >
                     <Minus className="w-4 h-4" />
                   </button>
-                  <span className="w-12 text-center text-lg font-semibold text-gray-900">{printQuantities.packing}</span>
+                  <span className="w-12 text-center text-lg font-semibold text-gray-900">{printConfig.packing}</span>
                   <button
-                    onClick={() => setPrintQuantities(prev => ({ ...prev, packing: prev.packing + 1 }))}
+                    onClick={() => setPrintConfig(prev => ({ ...prev, packing: prev.packing + 1 }))}
                     className="p-1 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700"
                   >
                     <Plus className="w-4 h-4" />
@@ -1374,18 +1404,18 @@ export const OrderDetailsPage: React.FC = () => {
             {/* Action Buttons */}
             <div className="flex items-center justify-end space-x-3">
               <button
-                onClick={() => setShowPrintModal(false)}
+                onClick={() => setUiState(prev => ({ ...prev, showPrintModal: false }))}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handlePrintForms}
-                disabled={printingForm}
+                disabled={uiState.printingForm}
                 className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
               >
                 <Printer className="w-4 h-4" />
-                <span>{printingForm ? 'Printing...' : 'Print'}</span>
+                <span>{uiState.printingForm ? 'Printing...' : 'Print'}</span>
               </button>
             </div>
           </div>
