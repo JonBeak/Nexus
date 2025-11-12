@@ -8,7 +8,6 @@
 
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
-import sharp from 'sharp';
 import { STORAGE_CONFIG } from '../../../config/storage';
 import { getPackingItemsForProduct, PackingItem } from '../packingItemsMapper';
 import { combineSpecifications, flattenCombinedSpecs } from '../specificationCombiner';
@@ -30,125 +29,8 @@ import {
   shouldIncludePart,
   shouldStartNewColumn
 } from './pdfCommonGenerator';
+import { renderNotesAndImage } from '../utils/imageProcessing';
 
-/**
- * Render notes and image section (async to handle Sharp image processing)
- */
-async function renderNotesAndImage(
-  doc: any,
-  orderData: OrderDataForPDF,
-  maxPartY: number,
-  marginLeft: number,
-  contentWidth: number,
-  pageWidth: number,
-  marginRight: number,
-  pageHeight: number
-): Promise<void> {
-  const actualImageStartY = maxPartY + 8;
-  const actualImageHeight = pageHeight - actualImageStartY - 20;
-
-  // Draw separator line above notes/image section
-  doc.strokeColor(COLORS.DIVIDER_LIGHT)
-    .lineWidth(0.5)
-    .moveTo(marginLeft, actualImageStartY - 5)
-    .lineTo(pageWidth - marginRight, actualImageStartY - 5)
-    .stroke();
-
-  let notesY = actualImageStartY;
-
-  // Two-column layout for notes
-  const notesColumnWidth = contentWidth * 0.55;
-  const notesLeftX = marginLeft;
-
-  // Special Instructions (manufacturing_note) - match Master Form spec body font
-  if (orderData.manufacturing_note) {
-    doc.fontSize(FONT_SIZES.SPEC_BODY).font('Helvetica').fillColor(COLORS.BLACK);
-    doc.text(orderData.manufacturing_note, notesLeftX, notesY, {
-      width: notesColumnWidth,
-      lineBreak: true
-    });
-
-    // Calculate space used by notes
-    const notesHeight = doc.heightOfString(orderData.manufacturing_note, { width: notesColumnWidth }) + 10;
-    notesY += notesHeight;
-  }
-
-  // ============================================
-  // IMAGE SECTION
-  // ============================================
-  const fullImagePath = getImageFullPath(orderData);
-  if (fullImagePath && fs.existsSync(fullImagePath)) {
-    try {
-      debugLog(`[IMAGE] Attempting to load image: ${fullImagePath}`);
-
-      // Adjust image start position based on notes
-      const imageStartY = Math.max(actualImageStartY, notesY);
-      const imageHeight = pageHeight - imageStartY - 20;
-
-      debugLog(`[IMAGE] Image Y: ${imageStartY}, Height: ${imageHeight}`);
-
-      // Only draw if there's enough space
-      if (imageHeight > 80) {
-        const imageWidth = contentWidth * 0.95;
-        const imageX = marginLeft + (contentWidth - imageWidth) / 2;
-
-        // Check if image has crop coordinates
-        const hasCrop = orderData.crop_top || orderData.crop_right || orderData.crop_bottom || orderData.crop_left;
-
-        if (hasCrop) {
-          try {
-            debugLog(`[IMAGE] Applying crop: T${orderData.crop_top} R${orderData.crop_right} B${orderData.crop_bottom} L${orderData.crop_left}`);
-
-            // Get image metadata
-            const imageMetadata = await sharp(fullImagePath).metadata();
-            const cropWidth = (imageMetadata.width || 0) - (orderData.crop_left || 0) - (orderData.crop_right || 0);
-            const cropHeight = (imageMetadata.height || 0) - (orderData.crop_top || 0) - (orderData.crop_bottom || 0);
-
-            // Extract cropped region
-            const croppedBuffer = await sharp(fullImagePath)
-              .extract({
-                left: orderData.crop_left || 0,
-                top: orderData.crop_top || 0,
-                width: cropWidth,
-                height: cropHeight
-              })
-              .toBuffer();
-
-            // Embed cropped image
-            doc.image(croppedBuffer, imageX, imageStartY, {
-              fit: [imageWidth, imageHeight],
-              align: 'center',
-              valign: 'center'
-            });
-            debugLog(`[IMAGE] ✅ Successfully loaded cropped image (${cropWidth}x${cropHeight})`);
-          } catch (cropError) {
-            console.error('[IMAGE] ⚠️ Crop failed, using original:', cropError);
-            // Fall back to original image
-            doc.image(fullImagePath, imageX, imageStartY, {
-              fit: [imageWidth, imageHeight],
-              align: 'center'
-            });
-            debugLog(`[IMAGE] ✅ Successfully loaded image (crop failed, using original)`);
-          }
-        } else {
-          // No crop - use original image
-          doc.image(fullImagePath, imageX, imageStartY, {
-            fit: [imageWidth, imageHeight],
-            align: 'center'
-          });
-          debugLog(`[IMAGE] ✅ Successfully loaded image (no crop)`);
-        }
-      } else {
-        debugLog(`[IMAGE] ⚠️ Not enough space for image (only ${imageHeight}px available)`);
-      }
-    } catch (error) {
-      console.error('[IMAGE] ⚠️ Failed to load image:', error);
-      debugLog(`[IMAGE] ⚠️ Failed to load image: ${error}`);
-    }
-  } else {
-    debugLog(`[IMAGE] ⚠️ Image file not found: ${fullImagePath}`);
-  }
-}
 
 // =============================================
 // ADDITIONAL COLORS (for packing list specific styling)
