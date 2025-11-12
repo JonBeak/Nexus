@@ -43,11 +43,26 @@ export interface OrderDataForPDF {
   order_name: string;
   order_date: Date;
   due_date?: Date;
+  hard_due_date_time?: string;  // TIME format "HH:mm:ss" or "HH:mm" from database
   customer_po?: string;
+  customer_job_number?: string;
   point_persons?: Array<{ contact_email: string; contact_name?: string }>;
   production_notes?: string;
+  manufacturing_note?: string;
+  internal_note?: string;
   status: string;
   form_version: number;
+  sign_image_path?: string;  // Filename only (e.g., "design.jpg")
+  crop_top?: number;         // Auto-crop coordinates
+  crop_right?: number;
+  crop_bottom?: number;
+  crop_left?: number;
+  shipping_required: boolean;
+
+  // Folder info (for constructing full image path)
+  folder_name?: string;
+  folder_location?: 'active' | 'finished' | 'none';
+  is_migrated?: boolean;
 
   // Customer info
   customer_id: number;
@@ -57,6 +72,11 @@ export interface OrderDataForPDF {
   phone?: string;
   email?: string;
 
+  // Customer packing preferences
+  pattern_yes_or_no?: number;              // For packing list pattern logic
+  pattern_type?: string;                   // "Paper" or "Digital"
+  wiring_diagram_yes_or_no?: number;       // For packing list wiring diagram logic
+
   // Parts
   parts: OrderPartForPDF[];
 }
@@ -64,7 +84,11 @@ export interface OrderDataForPDF {
 export interface OrderPartForPDF {
   part_id: number;
   part_number: number;
+  display_number?: string;
+  is_parent?: boolean;
   product_type: string;
+  part_scope?: string;
+  specs_display_name?: string;
   product_type_id: string;
   quantity: number;
   specifications: any;
@@ -76,6 +100,54 @@ export interface OrderPartForPDF {
 // =============================================
 
 class PDFGenerationService {
+
+  /**
+   * Get the actual order folder path on SMB share
+   */
+  private getOrderFolderPath(orderData: OrderDataForPDF): string {
+    const SMB_ROOT = '/mnt/channelletter';
+    const ORDERS_FOLDER = 'Orders';
+    const FINISHED_FOLDER = '1Finished';
+
+    if (!orderData.folder_name || orderData.folder_location === 'none') {
+      throw new Error('Order does not have a folder');
+    }
+
+    let basePath: string;
+    if (orderData.is_migrated) {
+      // Legacy orders: use old paths (root or root/1Finished)
+      basePath = orderData.folder_location === 'active'
+        ? SMB_ROOT
+        : path.join(SMB_ROOT, FINISHED_FOLDER);
+    } else {
+      // New app-created orders: use Orders subfolder
+      basePath = orderData.folder_location === 'active'
+        ? path.join(SMB_ROOT, ORDERS_FOLDER)
+        : path.join(SMB_ROOT, ORDERS_FOLDER, FINISHED_FOLDER);
+    }
+
+    return path.join(basePath, orderData.folder_name);
+  }
+
+  /**
+   * Generate PDF filenames with order number and job name
+   */
+  private getPdfFilenames(orderData: OrderDataForPDF): {
+    master: string;
+    shop: string;
+    customer: string;
+    packing: string;
+  } {
+    const orderNum = orderData.order_number;
+    const jobName = orderData.order_name;
+
+    return {
+      master: `${orderNum} - ${jobName}.pdf`,
+      shop: `${orderNum} - ${jobName} - Shop.pdf`,
+      customer: `${orderNum} - ${jobName} - Specs.pdf`,
+      packing: `${orderNum} - ${jobName} - Packing List.pdf`
+    };
+  }
 
   /**
    * Generate all 4 forms for an order
@@ -90,27 +162,41 @@ class PDFGenerationService {
     let version = orderData.form_version;
     if (createNewVersion && version > 1) {
       // Archive current version before creating new one
-      await this.archiveCurrentVersion(orderData.order_number, version);
+      await this.archiveCurrentVersion(orderData, version);
       version = version + 1;
       await this.updateOrderVersion(orderId, version);
     }
 
     // 3. Ensure directory structure exists
-    const orderDir = getOrderStoragePath(orderData.order_number);
-    await ensureDirectory(orderDir);
+    // Master Form goes in order folder root
+    const orderFolderRoot = this.getOrderFolderPath(orderData);
+    await ensureDirectory(orderFolderRoot);
+
+    // Other forms go in "Specs" subfolder
+    const orderFormsSubfolder = path.join(orderFolderRoot, 'Specs');
+    await ensureDirectory(orderFormsSubfolder);
+
+    // Get dynamic filenames
+    const filenames = this.getPdfFilenames(orderData);
+
+    console.log(`[PDF Generation] Master & Shop Forms → ${orderFolderRoot}/`);
+    console.log(`[PDF Generation] Customer & Packing → ${orderFormsSubfolder}/`);
 
     // 4. Generate all 4 forms
-    const { generateMasterForm } = await import('./generators/masterFormGenerator');
-    const { generateShopForm } = await import('./generators/shopFormGenerator');
-    const { generateCustomerForm } = await import('./generators/customerFormGenerator');
+    const { generateOrderForm } = await import('./generators/orderFormGenerator');
     const { generatePackingList } = await import('./generators/packingListGenerator');
 
-    const [masterPath, shopPath, customerPath, packingPath] = await Promise.all([
-      generateMasterForm(orderData, orderDir),
-      generateShopForm(orderData, orderDir),
-      generateCustomerForm(orderData, orderDir),
-      generatePackingList(orderData, orderDir)
-    ]);
+    // Build full paths with dynamic filenames
+    const masterPath = path.join(orderFolderRoot, filenames.master);
+    const shopPath = path.join(orderFolderRoot, filenames.shop);           // Shop in root
+    const customerPath = path.join(orderFormsSubfolder, filenames.customer);
+    const packingPath = path.join(orderFormsSubfolder, filenames.packing);
+
+    // Generate forms sequentially to avoid SMB file locking issues
+    await generateOrderForm(orderData, masterPath, 'master');      // Master in root
+    await generateOrderForm(orderData, shopPath, 'shop');          // Shop in root
+    await generateOrderForm(orderData, customerPath, 'customer');  // Customer in subfolder
+    await generatePackingList(orderData, packingPath);             // Packing in subfolder
 
     // 5. Store paths in database
     await this.saveFormPaths(orderId, version, {
@@ -135,12 +221,37 @@ class PDFGenerationService {
     // Fetch order with customer info
     const [orderRows] = await pool.execute<RowDataPacket[]>(`
       SELECT
-        o.*,
+        o.order_id,
+        o.order_number,
+        o.order_name,
+        o.order_date,
+        o.due_date,
+        o.hard_due_date_time,
+        o.customer_po,
+        o.customer_job_number,
+        o.production_notes,
+        o.manufacturing_note,
+        o.internal_note,
+        o.status,
+        o.form_version,
+        o.sign_image_path,
+        o.crop_top,
+        o.crop_right,
+        o.crop_bottom,
+        o.crop_left,
+        o.shipping_required,
+        o.folder_name,
+        o.folder_location,
+        o.is_migrated,
+        o.customer_id,
         c.company_name,
         c.contact_first_name,
         c.contact_last_name,
         c.phone,
-        c.email
+        c.email,
+        c.pattern_yes_or_no,
+        c.pattern_type,
+        c.wiring_diagram_yes_or_no
       FROM orders o
       JOIN customers c ON o.customer_id = c.customer_id
       WHERE o.order_id = ?
@@ -154,7 +265,19 @@ class PDFGenerationService {
 
     // Fetch order parts
     const [parts] = await pool.execute<RowDataPacket[]>(`
-      SELECT *
+      SELECT
+        part_id,
+        order_id,
+        part_number,
+        display_number,
+        is_parent,
+        product_type,
+        part_scope,
+        specs_display_name,
+        product_type_id,
+        quantity,
+        specifications,
+        production_notes
       FROM order_parts
       WHERE order_id = ?
       ORDER BY part_number
@@ -169,33 +292,50 @@ class PDFGenerationService {
   /**
    * Archive current version before creating new one
    */
-  private async archiveCurrentVersion(orderNumber: number, version: number): Promise<void> {
-    const orderDir = getOrderStoragePath(orderNumber);
-    const archiveDir = path.join(orderDir, 'archive', `v${version}`);
+  private async archiveCurrentVersion(orderData: OrderDataForPDF, version: number): Promise<void> {
+    const orderFolderRoot = this.getOrderFolderPath(orderData);
+    const orderFormsSubfolder = path.join(orderFolderRoot, 'Specs');
+    const archiveDir = path.join(orderFolderRoot, 'archive', `v${version}`);
+
+    // Get dynamic filenames for this order
+    const filenames = this.getPdfFilenames(orderData);
 
     // Create archive directory
     await ensureDirectory(archiveDir);
 
-    // Files to archive
-    const filesToArchive = [
-      STORAGE_CONFIG.fileNames.masterForm,
-      STORAGE_CONFIG.fileNames.shopForm,
-      STORAGE_CONFIG.fileNames.customerForm,
-      STORAGE_CONFIG.fileNames.packingList
+    // Master and Shop forms are in order folder root
+    const rootForms = [
+      { filename: filenames.master, name: 'Master' },
+      { filename: filenames.shop, name: 'Shop' }
     ];
 
-    // Copy each file to archive
-    for (const fileName of filesToArchive) {
-      const sourcePath = path.join(orderDir, fileName);
-      const archivePath = path.join(archiveDir, fileName);
-
+    for (const form of rootForms) {
       try {
-        // Check if file exists before copying
+        const sourcePath = path.join(orderFolderRoot, form.filename);
+        const archivePath = path.join(archiveDir, form.filename);
         await fs.access(sourcePath);
         await fs.copyFile(sourcePath, archivePath);
+        console.log(`Archived: ${form.filename}`);
       } catch (error) {
-        // File doesn't exist, skip
-        console.log(`Skipping ${fileName} - file does not exist`);
+        console.log(`Skipping ${form.filename} - file does not exist`);
+      }
+    }
+
+    // Customer and Packing forms are in "Order Forms" subfolder
+    const subfolderForms = [
+      { filename: filenames.customer, name: 'Customer' },
+      { filename: filenames.packing, name: 'Packing' }
+    ];
+
+    for (const form of subfolderForms) {
+      try {
+        const sourcePath = path.join(orderFormsSubfolder, form.filename);
+        const archivePath = path.join(archiveDir, form.filename);
+        await fs.access(sourcePath);
+        await fs.copyFile(sourcePath, archivePath);
+        console.log(`Archived: ${form.filename}`);
+      } catch (error) {
+        console.log(`Skipping ${form.filename} - file does not exist`);
       }
     }
   }

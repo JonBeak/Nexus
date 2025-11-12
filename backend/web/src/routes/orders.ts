@@ -9,6 +9,7 @@ import { requirePermission } from '../middleware/rbac';
 import * as orderController from '../controllers/orderController';
 import * as orderConversionController from '../controllers/orderConversionController';
 import * as orderFormController from '../controllers/orderFormController';
+import * as orderImageController from '../controllers/orderImageController';
 
 const router = Router();
 
@@ -177,6 +178,18 @@ router.patch(
   authenticateToken,
   requirePermission('orders.update'),
   orderController.toggleIsParent
+);
+
+/**
+ * Update specs_qty for order part
+ * PATCH /api/orders/:orderNumber/parts/:partId/specs-qty
+ * Body: { specs_qty: number }
+ */
+router.patch(
+  '/:orderNumber/parts/:partId/specs-qty',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.updatePartSpecsQty
 );
 
 /**
@@ -398,6 +411,33 @@ router.get(
   authenticateToken,
   requirePermission('orders.forms'),
   orderFormController.downloadOrderForm
+);
+
+// =============================================
+// ORDER IMAGES (Phase 1.5.g)
+// =============================================
+
+/**
+ * Get available images in order folder
+ * GET /api/orders/:orderNumber/available-images
+ */
+router.get(
+  '/:orderNumber/available-images',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderImageController.getAvailableImages
+);
+
+/**
+ * Set job image for order (Manager+ only)
+ * PATCH /api/orders/:orderNumber/job-image
+ * Body: { filename: "design.jpg" }
+ */
+router.patch(
+  '/:orderNumber/job-image',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderImageController.setJobImage
 );
 
 export default router;

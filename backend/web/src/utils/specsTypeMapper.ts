@@ -46,9 +46,11 @@ export function mapSpecsDisplayNameToTypes(
     'Dual Lit - Double Layer': ['Return', 'Trim', 'Face', 'Drain Holes'],
 
     // Components
+    // Note: Vinyl gets Cut/Peel/Mask added below for parent items only
     'Vinyl': ['Vinyl'],
     'LEDs': ['LEDs', 'Wire Length'],
     'Power Supplies': ['Power Supply'],
+    'Extra Wire': ['Wire Length'],
     'UL': ['UL'],
 
     // Specialized Products
@@ -75,7 +77,7 @@ export function mapSpecsDisplayNameToTypes(
   };
 
   // Look up the spec types for this display name
-  const specTypeNames = specsMap[normalizedName];
+  let specTypeNames = specsMap[normalizedName];
 
   if (!specTypeNames) {
     console.warn(
@@ -84,6 +86,15 @@ export function mapSpecsDisplayNameToTypes(
       `Returning empty array.`
     );
     return [];
+  }
+
+  // Clone the array to avoid mutating the original mapping
+  specTypeNames = [...specTypeNames];
+
+  // Special handling for Vinyl: add Cut, Peel, Mask for parent items only
+  if (normalizedName === 'Vinyl' && isParentOrRegular) {
+    specTypeNames.push('Cut', 'Peel', 'Mask');
+    console.log('[Specs Type Mapper] Added Cut/Peel/Mask to parent Vinyl item');
   }
 
   // Convert spec type names into SpecType objects (with empty values)
@@ -114,7 +125,7 @@ export function mapSpecsDisplayNameToTypes(
  */
 export function getAllSpecsDisplayNames(): string[] {
   return [
-    // ===== MAPPED ITEMS (11) =====
+    // ===== MAPPED ITEMS (12) =====
     'Front Lit',
     'Halo Lit',
     'Front Lit Acrylic Face',
@@ -123,6 +134,7 @@ export function getAllSpecsDisplayNames(): string[] {
     'Vinyl',
     'LEDs',
     'Power Supplies',
+    'Extra Wire',
     'UL',
     'Substrate Cut',
     'Painting',
@@ -172,6 +184,7 @@ export function getMappedSpecsDisplayNames(): string[] {
     'Vinyl',
     'LEDs',
     'Power Supplies',
+    'Extra Wire',
     'UL',
     '3D print',
     'Blade Sign',

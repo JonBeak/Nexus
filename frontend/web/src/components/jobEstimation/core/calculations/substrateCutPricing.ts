@@ -16,13 +16,13 @@ import { formatPrice } from './utils/priceFormatter';
  * - field2: XY (dimensions in X x Y format)
  * - field3: Pins (number of pins) - works with field4
  * - field4: Pin Type (dropdown - includes "Stand Offs" option)
- * - field5: D-tape (manual cost input - can be negative)
+ * - field5: D-Tape (manual cost input - can be negative)
  * - field6: Assem (manual cost input - can be negative)
  * - field10: ~ Cut ~ (cutting cost override - can be negative)
  *
  * Component Logic:
  * - If field1&2 filled: Combine all into ONE "Substrate Cut" component
- * - If field1&2 empty: Split into separate components (Pins, D-tape, Assembly, Cutting)
+ * - If field1&2 empty: Split into separate components (Pins, D-Tape, Assembly, Cutting)
  */
 export const calculateSubstrateCut = async (input: ValidatedPricingInput): Promise<RowCalculationResult> => {
   // Skip calculation if validation errors exist
@@ -143,14 +143,14 @@ export const calculateSubstrateCut = async (input: ValidatedPricingInput): Promi
       }
     }
 
-    // ========== FIELD 5: D-tape (manual cost) ==========
+    // ========== FIELD 5: D-Tape (manual cost) ==========
     const dtapeCostRaw = input.parsedValues.field5;
     if (dtapeCostRaw != null) {
       const cost = typeof dtapeCostRaw === 'string' ? parseFloat(dtapeCostRaw) : dtapeCostRaw;
       if (!isNaN(cost) && cost !== 0) {
         dtapeComponent = {
           cost,
-          description: `D-tape: $${formatPrice(cost)}`,
+          description: `D-Tape: $${formatPrice(cost)}`,
           detailDisplay: `Manual cost: $${formatPrice(cost)}`
         };
       }

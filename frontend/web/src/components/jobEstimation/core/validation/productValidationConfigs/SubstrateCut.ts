@@ -8,7 +8,7 @@ import { FieldValidationConfig } from '../ValidationEngine';
  * - field2: XY (dimensions in X x Y format, OR sheet count where 1 = 96x48)
  * - field3: Pins (number of pins) - works with field4, supports formulas
  * - field4: Pin Type (dropdown - includes "Stand Offs" option)
- * - field5: D-tape (double-sided tape cost - manual input, can be negative, supports formulas)
+ * - field5: D-Tape (double-sided tape cost - manual input, can be negative, supports formulas)
  * - field6: Assem (assembly cost - manual input, can be negative, supports formulas)
  * - field10: ~ Cut ~ (cutting cost override - can be negative)
  */
@@ -50,7 +50,7 @@ export const substrateCutValidation: Record<string, FieldValidationConfig> = {
     function: 'floatorformula',
     error_level: 'error',
     params: {
-      allow_negative: true  // D-tape cost - manual input, supports formulas
+      allow_negative: true  // D-Tape cost - manual input, supports formulas
     }
   },
   field6: {

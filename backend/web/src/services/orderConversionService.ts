@@ -4,11 +4,13 @@
  *
  * Orchestrates the complete conversion process:
  * 1. Validate estimate (approved status)
- * 2. Generate order number
- * 3. Create order record
- * 4. Copy estimate items to order parts
- * 5. Update estimate status
- * 6. Create status history
+ * 2. Check folder name conflicts
+ * 3. Generate order number
+ * 4. Create order record
+ * 5. Copy estimate items to order parts
+ * 6. Update estimate status
+ * 7. Create status history
+ * 8. Create order folder on SMB share
  */
 
 import { pool } from '../config/database';
@@ -24,6 +26,7 @@ import {
 import { mapQBItemNameToSpecsDisplayName } from '../utils/qbItemNameMapper';
 import { mapSpecsDisplayNameToTypes } from '../utils/specsTypeMapper';
 import { autoFillSpecifications } from './specsAutoFillService';
+import { orderFolderService } from './orderFolderService';
 
 export class OrderConversionService {
 
@@ -34,10 +37,22 @@ export class OrderConversionService {
     request: ConvertEstimateRequest,
     userId: number
   ): Promise<ConvertEstimateResponse> {
+    console.time('[Order Conversion] Total time');
+
+    // Check SMB share health FIRST (7-second timeout) - fail fast if network is down
+    console.log('[Order Conversion] Checking SMB share accessibility...');
+    const smbHealthy = await orderFolderService.checkSMBHealth(7000);
+    if (!smbHealthy) {
+      throw new Error('Order folder network share is not accessible. Please check that the network connection is available and try again.');
+    }
+    console.log('[Order Conversion] ✓ SMB share is accessible, proceeding with order creation...');
+
     const connection = await pool.getConnection();
 
     try {
+      console.time('[Order Conversion] Begin transaction');
       await connection.beginTransaction();
+      console.timeEnd('[Order Conversion] Begin transaction');
 
       // 1. Fetch and validate estimate
       const estimate = await orderRepository.getEstimateForConversion(request.estimateId, connection);
@@ -54,15 +69,10 @@ export class OrderConversionService {
         throw new Error(`Cannot convert estimate with status '${estimate.status}'.`);
       }
 
-      // 3. Validate order name uniqueness for customer
-      const isUnique = await orderRepository.isOrderNameUniqueForCustomer(request.orderName, estimate.customer_id);
-      if (!isUnique) {
-        throw new Error(`Order name "${request.orderName}" already exists for this customer`);
-      }
-
-      // 4. Fetch customer data to auto-fill notes and invoice fields
+      // 3. Fetch customer data to auto-fill notes and invoice fields
       const [customerRows] = await connection.execute<any[]>(
         `SELECT
+          company_name,
           special_instructions,
           comments,
           payment_terms,
@@ -77,7 +87,17 @@ export class OrderConversionService {
       );
       const customer = customerRows[0];
 
-      // 4.5. Fetch billing address to auto-fill tax_name (fallback to primary if no billing)
+      // 4. Check for folder name conflicts (case-insensitive, all orders)
+      const folderName = orderFolderService.buildFolderName(request.orderName, customer.company_name);
+      const hasConflict = await orderFolderService.checkDatabaseConflict(folderName);
+      if (hasConflict) {
+        throw new Error(
+          `An order with this name already exists for ${customer.company_name}. ` +
+          `Please choose a different order name to avoid folder conflicts.`
+        );
+      }
+
+      // 5. Fetch billing address to auto-fill tax_name (fallback to primary if no billing)
       const [addressRows] = await connection.execute<any[]>(
         `SELECT
           ca.province_state_short,
@@ -96,10 +116,10 @@ export class OrderConversionService {
 
       const taxName = addressRows[0].tax_name;
 
-      // 5. Get next order number
+      // 6. Get next order number
       const orderNumber = await orderRepository.getNextOrderNumber(connection);
 
-      // 6. Create order record
+      // 7. Create order record
       const orderData = {
         order_number: orderNumber,
         version_number: 1,
@@ -111,7 +131,7 @@ export class OrderConversionService {
         // point_person_email removed - now using order_point_persons table instead
         order_date: new Date(),
         due_date: request.dueDate ? new Date(request.dueDate) : undefined,
-        hard_due_date_time: request.hardDueDateTime ? request.hardDueDateTime.replace('T', ' ') : undefined,  // Phase 1.5.a.5: Format for MySQL without timezone conversion
+        hard_due_date_time: request.hardDueDateTime || undefined,  // Phase 1.5.a.5: TIME format "HH:mm:ss"
         production_notes: request.productionNotes,
         manufacturing_note: customer?.special_instructions || null,  // Auto-fill from customer
         internal_note: customer?.comments || null,                   // Auto-fill from customer
@@ -146,7 +166,7 @@ export class OrderConversionService {
 
       const orderId = await orderRepository.createOrder(orderData, connection);
 
-      // 6.5. Create order point persons (if provided)
+      // 8. Create order point persons (if provided)
       if (request.pointPersons && request.pointPersons.length > 0) {
         for (let i = 0; i < request.pointPersons.length; i++) {
           const person = request.pointPersons[i];
@@ -166,25 +186,24 @@ export class OrderConversionService {
         console.log(`✅ Created ${request.pointPersons.length} point person(s) for order`);
       }
 
-      // 7. Create order parts from EstimatePreviewData
+      // 9. Create order parts from EstimatePreviewData
       if (!request.estimatePreviewData) {
         throw new Error('EstimatePreviewData is required for order creation');
       }
 
+      console.time('[Order Conversion] Create order parts');
       const parts = await this.createOrderPartsFromPreviewData(
         request.estimatePreviewData,
         orderId,
         connection,
         estimate.customer_id  // Pass customerId for customer preferences
       );
+      console.timeEnd('[Order Conversion] Create order parts');
 
-      // 7. Generate tasks from templates - REMOVED: Tasks are now manually added by user
-      // await orderTaskService.generateTasksForOrder(orderId, parts, connection);
-
-      // 8. Update estimate status to 'ordered' (and mark as approved if not already)
+      // 10. Update estimate status to 'ordered' (and mark as approved if not already)
       await orderRepository.updateEstimateStatusAndApproval(request.estimateId, 'ordered', true, connection);
 
-      // 9. Create initial status history entry
+      // 11. Create initial status history entry
       await orderRepository.createStatusHistory(
         {
           order_id: orderId,
@@ -195,7 +214,38 @@ export class OrderConversionService {
         connection
       );
 
+      // 12. Create order folder on SMB share
+      console.time('[Order Conversion] Create order folder');
+      try {
+        const folderCreated = orderFolderService.createOrderFolder(folderName);
+
+        await orderFolderService.updateFolderTracking(
+          orderId,
+          folderName,
+          folderCreated,
+          folderCreated ? 'active' : 'none',
+          connection
+        );
+
+        console.log(`✅ Order folder ${folderCreated ? 'created' : 'tracking added'}: ${folderName}`);
+      } catch (folderError) {
+        // Non-blocking: if folder creation fails, continue with order creation
+        console.error('⚠️  Folder creation failed (continuing with order):', folderError);
+
+        await orderFolderService.updateFolderTracking(
+          orderId,
+          folderName,
+          false,
+          'none',
+          connection
+        );
+      }
+      console.timeEnd('[Order Conversion] Create order folder');
+
+      console.time('[Order Conversion] Commit transaction');
       await connection.commit();
+      console.timeEnd('[Order Conversion] Commit transaction');
+      console.timeEnd('[Order Conversion] Total time');
 
       return {
         success: true,
@@ -221,6 +271,7 @@ export class OrderConversionService {
     customerId?: number
   ): Promise<OrderPart[]> {
     const parts: OrderPart[] = [];
+    console.time('[Order Parts] Loop through items');
 
     // Fetch customer preferences for auto-fill (if customerId provided)
     let customerPreferences: any = {};
@@ -247,6 +298,17 @@ export class OrderConversionService {
         { name: row.item_name, description: row.description }
       ])
     );
+
+    // Track previously processed items for cross-item logic (e.g., Extra Wire + LED consolidation)
+    const processedItems: Array<{
+      specsDisplayName: string;
+      calculationDisplay: string;
+      specifications: any;
+      partId?: number;  // Track part_id for database updates
+    }> = [];
+
+    // Track parts that were mutated and need database updates
+    const partsToUpdate: Map<number, any> = new Map();
 
     // Process each estimate line item
     for (let i = 0; i < previewData.items.length; i++) {
@@ -310,7 +372,8 @@ export class OrderConversionService {
           currentSpecifications: specificationsData,
           isParentOrRegular: isParentOrRegular,
           customerPreferences: customerPreferences,
-          connection: connection
+          connection: connection,
+          previousItems: processedItems
         });
 
         console.log('🚨 AUTO-FILL RETURNED:', autoFillResult);
@@ -328,6 +391,24 @@ export class OrderConversionService {
         console.error('[Order Conversion] Auto-fill error (continuing with empty specs):', error);
         // Non-blocking: continue with template-only specs if auto-fill fails
       }
+
+      // Check if auto-fill mutated any previous items (e.g., Extra Wire removing LED's Wire Length)
+      // This happens when Extra Wire with "pcs" consolidates wire length with LED
+      // Instead of updating immediately, collect mutations and apply at the end to avoid transaction locks
+      if (specsDisplayName === 'Extra Wire' && /\bpcs\b/i.test(item.calculationDisplay || '')) {
+        // Look for LED in processedItems that may have been mutated
+        for (const prevItem of processedItems) {
+          if (prevItem.specsDisplayName === 'LEDs' && prevItem.partId) {
+            // Queue this LED for database update
+            console.log(`[Order Conversion] Extra Wire mutated LED (partId: ${prevItem.partId}), queuing for update`);
+            partsToUpdate.set(prevItem.partId, prevItem.specifications);
+          }
+        }
+      }
+
+      // Add specs_qty to specifications (manufacturing quantity, separate from invoice quantity)
+      // Default to 0 for non-product rows (null quantity means it's a note/header row)
+      finalSpecifications.specs_qty = item.quantity || 0;
 
       // Create order part data with Phase 1.5 fields
       const partData: CreateOrderPartData = {
@@ -352,6 +433,16 @@ export class OrderConversionService {
       // Create the order part
       const partId = await orderRepository.createOrderPart(partData, connection);
 
+      // Add this item to processedItems for subsequent items to reference
+      // IMPORTANT: Must be AFTER creating the part so we have the partId
+      processedItems.push({
+        specsDisplayName: specsDisplayName || '',
+        calculationDisplay: item.calculationDisplay || '',
+        specifications: finalSpecifications,  // Use the auto-filled specifications
+        partId: partId  // Track for potential database updates
+      });
+      console.log(`[Order Conversion] Added item to processedItems: ${specsDisplayName} (partId: ${partId}, total: ${processedItems.length})`);
+
       // Add to parts array for task generation
       parts.push({
         part_id: partId,
@@ -373,6 +464,24 @@ export class OrderConversionService {
       });
     }
 
+    // Apply all collected mutations (e.g., LED parts updated by Extra Wire) after loop completes
+    // This avoids transaction lock conflicts by doing updates after main data creation
+    if (partsToUpdate.size > 0) {
+      console.log(`[Order Conversion] Applying ${partsToUpdate.size} queued part updates...`);
+      for (const [partId, specifications] of partsToUpdate) {
+        try {
+          await connection.execute(
+            'UPDATE order_parts SET specifications = ? WHERE part_id = ?',
+            [JSON.stringify(specifications), partId]
+          );
+          console.log(`[Order Conversion] ✓ Updated part ${partId} with mutated specifications`);
+        } catch (updateError) {
+          console.error(`[Order Conversion] ✗ Failed to update part ${partId}:`, updateError);
+        }
+      }
+    }
+
+    console.timeEnd('[Order Parts] Loop through items');
     return parts;
   }
 

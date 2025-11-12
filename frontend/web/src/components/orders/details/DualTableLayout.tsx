@@ -15,6 +15,7 @@ const SPECS_DISPLAY_NAMES = [
   'Vinyl',
   'LEDs',
   'Power Supplies',
+  'Extra Wire',
   'UL',
   'Substrate Cut',
   'Painting',
@@ -488,6 +489,107 @@ const ItemNameDropdown = React.memo<ItemNameDropdownProps>(({
 ItemNameDropdown.displayName = 'ItemNameDropdown';
 
 // =============================================
+// EDITABLE SPECS QTY COMPONENT
+// =============================================
+
+interface EditableSpecsQtyProps {
+  partId: number;
+  orderNumber: number;
+  currentValue: number;
+  invoiceQuantity: number;
+  onUpdate: () => void;
+}
+
+const EditableSpecsQty = React.memo<EditableSpecsQtyProps>(({
+  partId,
+  orderNumber,
+  currentValue,
+  invoiceQuantity,
+  onUpdate
+}) => {
+  const [localValue, setLocalValue] = useState(currentValue?.toString() ?? '0');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Update local value when prop changes (from server)
+  React.useEffect(() => {
+    setLocalValue(currentValue?.toString() ?? '0');
+  }, [currentValue]);
+
+  const handleBlur = async () => {
+    setIsEditing(false);
+
+    // Only save if value changed
+    const numericValue = parseFloat(localValue) || 0;
+    if (numericValue !== currentValue && !isSaving) {
+      setIsSaving(true);
+      try {
+        console.log('[EditableSpecsQty] Updating part', partId, 'with specs_qty:', numericValue);
+
+        const response = await ordersApi.updatePartSpecsQty(orderNumber, partId, numericValue);
+
+        if (response.success) {
+          console.log('[EditableSpecsQty] Successfully updated specs_qty');
+          onUpdate();
+        } else {
+          console.error('[EditableSpecsQty] Failed to update:', response.message);
+          alert(`Failed to update QTY: ${response.message || 'Unknown error'}`);
+          // Revert to previous value
+          setLocalValue(currentValue?.toString() ?? '0');
+        }
+      } catch (error) {
+        console.error('[EditableSpecsQty] Error updating specs_qty:', error);
+        alert('Failed to update QTY. Please try again.');
+        // Revert to previous value
+        setLocalValue(currentValue?.toString() ?? '0');
+      } finally {
+        setIsSaving(false);
+      }
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.currentTarget.blur();
+    } else if (e.key === 'Escape') {
+      setLocalValue(currentValue?.toString() ?? '0');
+      setIsEditing(false);
+      e.currentTarget.blur();
+    }
+  };
+
+  // Determine styling based on comparison with invoice quantity
+  const isDifferent = currentValue !== invoiceQuantity;
+  const textColor = isDifferent ? 'text-red-600 font-bold' : 'text-gray-900';
+
+  return (
+    <div className="flex items-center mt-1">
+      <span className="text-xs text-gray-600 mr-1 flex-shrink-0">QTY:</span>
+      <input
+        type="number"
+        value={localValue}
+        onChange={(e) => setLocalValue(e.target.value)}
+        onFocus={() => setIsEditing(true)}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        className={`w-20 px-2 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 ${textColor} ${
+          isEditing ? 'border-indigo-500' : 'border-gray-300'
+        }`}
+        disabled={isSaving}
+        min="0"
+        step="1"
+      />
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  return prevProps.currentValue === nextProps.currentValue &&
+         prevProps.invoiceQuantity === nextProps.invoiceQuantity &&
+         prevProps.partId === nextProps.partId;
+});
+
+EditableSpecsQty.displayName = 'EditableSpecsQty';
+
+// =============================================
 // MAIN COMPONENT
 // =============================================
 
@@ -583,12 +685,15 @@ export const DualTableLayout: React.FC<Props> = ({
         updatedPart.extended_price = qty * price;
       } else if (field === 'invoice_description') {
         updatedPart.invoice_description = value;
+      } else if (field === 'part_scope') {
+        updatedPart.part_scope = value;
       }
 
       // Save to API
       await ordersApi.updateOrderParts(orderNumber, [{
         part_id: updatedPart.part_id,
         qb_item_name: updatedPart.qb_item_name,
+        part_scope: updatedPart.part_scope,
         specifications: updatedPart.specifications,
         invoice_description: updatedPart.invoice_description,
         quantity: updatedPart.quantity,
@@ -648,6 +753,7 @@ export const DualTableLayout: React.FC<Props> = ({
       await ordersApi.updateOrderParts(orderNumber, [{
         part_id: updatedPart.part_id,
         qb_item_name: updatedPart.qb_item_name,
+        part_scope: updatedPart.part_scope,
         specifications: updatedPart.specifications,
         invoice_description: updatedPart.invoice_description,
         quantity: updatedPart.quantity,
@@ -691,6 +797,7 @@ export const DualTableLayout: React.FC<Props> = ({
       await ordersApi.updateOrderParts(orderNumber, [{
         part_id: updatedPart.part_id,
         qb_item_name: updatedPart.qb_item_name,
+        part_scope: updatedPart.part_scope,
         specifications: updatedPart.specifications,
         invoice_description: updatedPart.invoice_description,
         quantity: updatedPart.quantity,
@@ -711,17 +818,23 @@ export const DualTableLayout: React.FC<Props> = ({
   }, [orderNumber]);
 
   const addSpecRow = async (partId: number) => {
-    const currentCount = specRowCounts[partId] || 5;
+    // Get the actual part to calculate template count
+    const part = parts.find(p => p.part_id === partId);
+    if (!part) return;
+
+    // Calculate actual template count (same logic as rendering)
+    const templateCount = part.specifications
+      ? Object.keys(part.specifications).filter(key => key.startsWith('_template_')).length
+      : 0;
+
+    // Get current count from actual data (same fallback chain as rendering)
+    const currentCount = specRowCounts[partId] ?? (templateCount || 1);
     const newCount = Math.min(currentCount + 1, 20); // Max 20 rows
 
     setSpecRowCounts(prev => ({
       ...prev,
       [partId]: newCount
     }));
-
-    // Save row count to database
-    const part = parts.find(p => p.part_id === partId);
-    if (!part) return;
 
     try {
       setSaving(true);
@@ -736,6 +849,7 @@ export const DualTableLayout: React.FC<Props> = ({
       await ordersApi.updateOrderParts(orderNumber, [{
         part_id: updatedPart.part_id,
         qb_item_name: updatedPart.qb_item_name,
+        part_scope: updatedPart.part_scope,
         specifications: updatedPart.specifications,
         invoice_description: updatedPart.invoice_description,
         quantity: updatedPart.quantity,
@@ -756,17 +870,23 @@ export const DualTableLayout: React.FC<Props> = ({
   };
 
   const removeSpecRow = async (partId: number) => {
-    const currentCount = specRowCounts[partId] || 5;
+    // Get the actual part to calculate template count
+    const part = parts.find(p => p.part_id === partId);
+    if (!part) return;
+
+    // Calculate actual template count (same logic as rendering)
+    const templateCount = part.specifications
+      ? Object.keys(part.specifications).filter(key => key.startsWith('_template_')).length
+      : 0;
+
+    // Get current count from actual data (same fallback chain as rendering)
+    const currentCount = specRowCounts[partId] ?? (templateCount || 1);
     const newCount = Math.max(currentCount - 1, 1); // Min 1 row
 
     setSpecRowCounts(prev => ({
       ...prev,
       [partId]: newCount
     }));
-
-    // Clear data from removed rows
-    const part = parts.find(p => p.part_id === partId);
-    if (!part) return;
 
     try {
       setSaving(true);
@@ -793,6 +913,7 @@ export const DualTableLayout: React.FC<Props> = ({
       await ordersApi.updateOrderParts(orderNumber, [{
         part_id: updatedPart.part_id,
         qb_item_name: updatedPart.qb_item_name,
+        part_scope: updatedPart.part_scope,
         specifications: updatedPart.specifications,
         invoice_description: updatedPart.invoice_description,
         quantity: updatedPart.quantity,
@@ -816,9 +937,16 @@ export const DualTableLayout: React.FC<Props> = ({
     const part = parts.find(p => p.part_id === partId);
     if (!part) return;
 
+    const newIsParent = !part.is_parent;
+
+    // Validation: Cannot set as parent if no Item Name (specs_display_name) is selected
+    if (newIsParent && !part.specs_display_name) {
+      alert('Cannot promote to Base Item: Please select an Item Name first.');
+      return;
+    }
+
     try {
       setSaving(true);
-      const newIsParent = !part.is_parent;
 
       // Call API to toggle is_parent
       await ordersApi.toggleIsParent(orderNumber, partId);
@@ -910,6 +1038,7 @@ export const DualTableLayout: React.FC<Props> = ({
       await ordersApi.updateOrderParts(orderNumber, [{
         part_id: updatedPart.part_id,
         qb_item_name: updatedPart.qb_item_name,
+        part_scope: updatedPart.part_scope,
         specifications: updatedPart.specifications,
         invoice_description: updatedPart.invoice_description,
         quantity: updatedPart.quantity,
@@ -1086,6 +1215,7 @@ export const DualTableLayout: React.FC<Props> = ({
         await ordersApi.updateOrderParts(orderNumber, [{
           part_id: updatedPart.part_id,
           qb_item_name: updatedPart.qb_item_name,
+        part_scope: updatedPart.part_scope,
           specifications: updatedPart.specifications,
           invoice_description: updatedPart.invoice_description,
           quantity: updatedPart.quantity,
@@ -1178,8 +1308,8 @@ export const DualTableLayout: React.FC<Props> = ({
           gridTemplateColumns: '130px 120px 110px 110px 110px 70px 190px 410px 270px 55px 75px 85px'
         }}
       >
-        {/* Item Name - editable dropdown */}
-        <div className={`flex items-start ${isParent ? 'font-semibold text-gray-900 text-sm' : 'text-gray-700 text-sm'}`}>
+        {/* Item Name - editable dropdown + Part Scope + QTY field for main parts */}
+        <div className={`flex flex-col ${isParent ? 'font-semibold text-gray-900 text-sm' : 'text-gray-700 text-sm'}`}>
           <ItemNameDropdown
             partId={part.part_id}
             orderNumber={orderNumber}
@@ -1187,6 +1317,35 @@ export const DualTableLayout: React.FC<Props> = ({
             onUpdate={handleRefreshParts}
             isParentOrRegular={isParent}
           />
+          {!!isParent && (
+            <>
+              {/* Part Scope - inline editable text input (only for parent parts) */}
+              <input
+                type="text"
+                value={part.part_scope || ''}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  // Update local state immediately for responsiveness
+                  setParts(prevParts =>
+                    prevParts.map(p => p.part_id === part.part_id ? { ...p, part_scope: newValue } : p)
+                  );
+                }}
+                onBlur={(e) => {
+                  // Save to backend on blur
+                  handleFieldSave(part.part_id, 'part_scope', e.target.value);
+                }}
+                placeholder="Scope (e.g., Main Sign, Logo...)"
+                className="text-xs px-1 py-0.5 border-2 border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 mt-1"
+              />
+              <EditableSpecsQty
+                partId={part.part_id}
+                orderNumber={orderNumber}
+                currentValue={part.specifications?.specs_qty ?? 0}
+                invoiceQuantity={part.quantity ?? 0}
+                onUpdate={handleRefreshParts}
+              />
+            </>
+          )}
         </div>
 
         {/* Specifications - contains sub-rows */}

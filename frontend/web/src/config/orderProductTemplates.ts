@@ -31,7 +31,7 @@ import {
   NEON_BASE_COLOURS,
   NEON_LED_STROKE_WIDTHS,
   NEON_LED_COLOURS,
-  DTAPE_THICKNESSES,
+  D_TAPE_THICKNESSES,
   PIN_TYPES,
   SPACER_TYPES,
   EXTRUSION_COLOURS,
@@ -167,7 +167,7 @@ export const VINYL_TEMPLATE: SpecificationTemplate = {
  * Template: Digital Print
  * Spec 1: Colour (textbox)
  * Spec 2: Type (dropdown: Translucent, Opaque, Clear, Perforated)
- * Spec 3: Size (textbox) - Auto-filled with sqft or dimensions from estimate
+ * Spec 3: Application (combobox: Face, Return Wrap, Trim Wrap, etc.)
  */
 export const DIGITAL_PRINT_TEMPLATE: SpecificationTemplate = {
   templateName: 'Digital Print',
@@ -185,10 +185,11 @@ export const DIGITAL_PRINT_TEMPLATE: SpecificationTemplate = {
     placeholder: 'Type'
   },
   spec3: {
-    key: 'size',
-    label: 'Size',
-    type: 'textbox',
-    placeholder: 'Size (e.g., 24 x 36 or 12 sqft)'
+    key: 'application',
+    label: 'Application',
+    type: 'combobox',
+    options: VINYL_APPLICATIONS,
+    placeholder: 'Application'
   }
 };
 
@@ -562,13 +563,13 @@ export const ASSEMBLY_TEMPLATE: SpecificationTemplate = {
 };
 
 /**
- * Template: DTape
+ * Template: D-Tape
  * Spec 1: Include (boolean yes/no)
  * Spec 2: Thickness (combobox: 62 MIL (Thick), 45 MIL (Medium), 16 MIL (Thin))
  * Spec 3: -
  */
-export const DTAPE_TEMPLATE: SpecificationTemplate = {
-  templateName: 'DTape',
+export const D_TAPE_TEMPLATE: SpecificationTemplate = {
+  templateName: 'D-Tape',
   spec1: {
     key: 'include',
     label: 'Include',
@@ -579,7 +580,7 @@ export const DTAPE_TEMPLATE: SpecificationTemplate = {
     key: 'thickness',
     label: 'Thickness',
     type: 'combobox',
-    options: DTAPE_THICKNESSES,
+    options: D_TAPE_THICKNESSES,
     placeholder: 'Thickness'
   }
 };
@@ -720,7 +721,7 @@ const TEMPLATE_REGISTRY: Record<string, SpecificationTemplate> = {
   'Neon Base': NEON_BASE_TEMPLATE,
   'Neon LED': NEON_LED_TEMPLATE,
   'Assembly': ASSEMBLY_TEMPLATE,
-  'DTape': DTAPE_TEMPLATE,
+  'D-Tape': D_TAPE_TEMPLATE,
   'Pins': PINS_TEMPLATE,
   'Cut': CUT_TEMPLATE,
   'Peel': PEEL_TEMPLATE,

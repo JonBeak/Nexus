@@ -731,6 +731,7 @@ export const updateOrderParts = async (req: Request, res: Response) => {
 
       await orderRepository.updateOrderPart(part.part_id, {
         product_type: part.product_type,
+        part_scope: part.part_scope,
         qb_item_name: part.qb_item_name,
         specifications: part.specifications,
         invoice_description: part.invoice_description,
@@ -1026,11 +1027,20 @@ export const updateSpecsDisplayName = async (req: Request, res: Response) => {
 
     console.log('[updateSpecsDisplayName] New specifications:', newSpecifications);
 
-    // Update the order part
-    await orderRepository.updateOrderPart(partIdNum, {
+    // Prepare update data
+    const updateData: any = {
       specs_display_name,
       specifications: newSpecifications
-    });
+    };
+
+    // Auto-demote to sub-item if specs_display_name is being cleared
+    if (!specs_display_name && part.is_parent) {
+      console.log('[updateSpecsDisplayName] Auto-demoting part from is_parent=true to is_parent=false (specs_display_name cleared)');
+      updateData.is_parent = false;
+    }
+
+    // Update the order part
+    await orderRepository.updateOrderPart(partIdNum, updateData);
 
     // Fetch updated part to return
     const updatedPart = await orderRepository.getOrderPartById(partIdNum);
@@ -1086,6 +1096,14 @@ export const toggleIsParent = async (req: Request, res: Response) => {
     const newIsParent = !part.is_parent;
     console.log(`[toggleIsParent] Toggling part ${partIdNum} from is_parent=${part.is_parent} to ${newIsParent}`);
 
+    // Validation: Cannot set as parent if no specs_display_name
+    if (newIsParent && !part.specs_display_name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot promote to Base Item: Please select an Item Name first.'
+      });
+    }
+
     // Update the order part
     await orderRepository.updateOrderPart(partIdNum, {
       is_parent: newIsParent
@@ -1103,6 +1121,87 @@ export const toggleIsParent = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'Failed to toggle is_parent'
+    });
+  }
+};
+
+/**
+ * Update specs_qty for an order part
+ * PATCH /api/orders/:orderNumber/parts/:partId/specs-qty
+ * Permission: orders.update (Manager+ only)
+ */
+export const updatePartSpecsQty = async (req: Request, res: Response) => {
+  try {
+    const { partId } = req.params;
+    const { specs_qty } = req.body;
+
+    const partIdNum = parseInt(partId);
+
+    if (isNaN(partIdNum)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid part ID'
+      });
+    }
+
+    if (specs_qty === undefined || specs_qty === null) {
+      return res.status(400).json({
+        success: false,
+        message: 'specs_qty is required'
+      });
+    }
+
+    const qtyNum = Number(specs_qty);
+    if (isNaN(qtyNum) || qtyNum < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'specs_qty must be a non-negative number'
+      });
+    }
+
+    // Fetch existing part
+    const part = await orderRepository.getOrderPartById(partIdNum);
+
+    if (!part) {
+      return res.status(404).json({
+        success: false,
+        message: 'Part not found'
+      });
+    }
+
+    // Parse existing specifications
+    let specifications: any = {};
+    try {
+      specifications = typeof part.specifications === 'string'
+        ? JSON.parse(part.specifications)
+        : part.specifications || {};
+    } catch (error) {
+      console.error('Error parsing specifications:', error);
+      specifications = {};
+    }
+
+    // Update specs_qty in specifications
+    specifications.specs_qty = qtyNum;
+
+    // Update the order part with new specifications
+    await orderRepository.updateOrderPart(partIdNum, {
+      specifications
+    });
+
+    console.log(`[updatePartSpecsQty] Updated part ${partIdNum} specs_qty to ${qtyNum}`);
+
+    // Fetch updated part to return
+    const updatedPart = await orderRepository.getOrderPartById(partIdNum);
+
+    res.json({
+      success: true,
+      data: updatedPart
+    });
+  } catch (error) {
+    console.error('Error updating specs_qty:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update specs_qty'
     });
   }
 };

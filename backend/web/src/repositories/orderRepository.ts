@@ -113,6 +113,7 @@ export class OrderRepository {
       FROM orders o
       LEFT JOIN customers c ON o.customer_id = c.customer_id
       WHERE 1=1
+        AND (o.is_migrated = 0 OR o.is_migrated IS NULL)
     `;
 
     const params: any[] = [];
@@ -302,17 +303,18 @@ export class OrderRepository {
     const [result] = await conn.execute<ResultSetHeader>(
       `INSERT INTO order_parts (
         order_id, part_number, display_number, is_parent,
-        product_type, qb_item_name, specs_display_name, product_type_id,
+        product_type, part_scope, qb_item_name, specs_display_name, product_type_id,
         channel_letter_type_id, base_product_type_id,
         quantity, specifications, production_notes,
         invoice_description, unit_price, extended_price
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.order_id,
         data.part_number,
         data.display_number || null,
         data.is_parent || false,
         data.product_type,
+        data.part_scope || null,
         data.qb_item_name || null,
         data.specs_display_name || null,
         data.product_type_id,
@@ -375,6 +377,7 @@ export class OrderRepository {
    */
   async updateOrderPart(partId: number, updates: {
     product_type?: string;
+    part_scope?: string;
     qb_item_name?: string;
     specs_display_name?: string;
     specifications?: any;
@@ -391,6 +394,10 @@ export class OrderRepository {
     if (updates.product_type !== undefined) {
       updateFields.push('product_type = ?');
       params.push(updates.product_type);
+    }
+    if (updates.part_scope !== undefined) {
+      updateFields.push('part_scope = ?');
+      params.push(updates.part_scope);
     }
     if (updates.qb_item_name !== undefined) {
       updateFields.push('qb_item_name = ?');

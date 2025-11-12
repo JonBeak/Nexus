@@ -42,6 +42,7 @@ export const QB_ITEM_TEMPLATE_MAP: Record<string, string> = {
   'Wire Length': 'Wire Length',
   'Wiring': 'Wire Length',
   'Wire': 'Wire Length',
+  'Extra Wire': 'Wire Length',
 
   // UL templates
   'UL': 'UL',

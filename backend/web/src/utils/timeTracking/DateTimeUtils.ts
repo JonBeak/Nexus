@@ -17,27 +17,73 @@ export function convertLocalToUTC(localDatetimeString: string): string {
 }
 
 /**
+ * Determine if a given date is within Daylight Saving Time (EDT)
+ * DST in US: 2nd Sunday of March at 2:00 AM through 1st Sunday of November at 2:00 AM
+ * @param date - Date to check
+ * @returns true if date is in DST, false if in standard time
+ */
+function isEasternDaylightTime(date: Date): boolean {
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const dayOfMonth = date.getDate();
+  const dayOfWeek = date.getDay();
+
+  // DST is not active in January, February, November, December
+  if (month < 2 || month > 10) return false;
+
+  // DST is active all month in April-October
+  if (month > 2 && month < 10) return true;
+
+  // March: DST starts 2nd Sunday of March
+  if (month === 2) {
+    // Find the 2nd Sunday of March
+    let sundayCount = 0;
+    for (let day = 1; day <= 14; day++) {
+      const testDate = new Date(year, month, day);
+      if (testDate.getDay() === 0) {
+        sundayCount++;
+        if (sundayCount === 2) {
+          return dayOfMonth >= day;
+        }
+      }
+    }
+  }
+
+  // November: DST ends 1st Sunday of November
+  if (month === 10) {
+    // Find the 1st Sunday of November
+    for (let day = 1; day <= 7; day++) {
+      const testDate = new Date(year, month, day);
+      if (testDate.getDay() === 0) {
+        return dayOfMonth < day;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
  * Get current time in Eastern timezone for database storage
+ * Automatically handles EDT (UTC-4) and EST (UTC-5) based on current date
  * @returns Eastern time as formatted datetime string
  */
 export function getCurrentEasternTime(): string {
   const now = new Date();
-  
-  // 🚨 DEBUGGING: Log timezone calculation
-  console.log(`🌍 TIMEZONE DEBUG - UTC time: ${now.toISOString()}`);
-  console.log(`🌍 Current month: ${now.getMonth() + 1}, Date: ${now.getDate()}`);
-  
-  // Eastern Time is UTC-4 (during daylight saving time) or UTC-5 (standard time)
-  // For August, it's daylight saving time (EDT = UTC-4)
-  // 🚨 BUG: This is hardcoded for August! September may be different!
-  const easternOffset = -4 * 60; // -4 hours in minutes
-  console.log(`🌍 Using Eastern offset: ${easternOffset} minutes (${easternOffset/60} hours)`);
-  
+
+  // Determine if we're in daylight saving time
+  const isDST = isEasternDaylightTime(now);
+
+  // EDT = UTC-4, EST = UTC-5
+  const easternOffset = isDST ? -4 * 60 : -5 * 60; // in minutes
+
+  // Calculate Eastern time
   const easternTime = new Date(now.getTime() + (easternOffset * 60 * 1000));
   const formattedTime = easternTime.toISOString().slice(0, 19).replace('T', ' ');
-  
-  console.log(`🌍 Calculated Eastern time: ${formattedTime}`);
-  
+
+  // Log for debugging (can be removed in production)
+  console.log(`🌍 TIMEZONE - UTC: ${now.toISOString()}, Eastern: ${formattedTime} (${isDST ? 'EDT' : 'EST'})`);
+
   return formattedTime;
 }
 

@@ -29,6 +29,7 @@ import toolsRoutes from './routes/toolsRoutes';
 import ledsRoutes from './routes/leds';
 import powerSuppliesRoutes from './routes/powerSupplies';
 import materialsRoutes from './routes/materials';
+import printRoutes from './routes/print';
 // import categoriesRoutes from './routes/categories';
 // import productStandardsRoutes from './routes/productStandards';
 
@@ -95,8 +96,36 @@ app.use('/api/tools', toolsRoutes);
 app.use('/api/leds', ledsRoutes);
 app.use('/api/power-supplies', powerSuppliesRoutes);
 app.use('/api/materials', materialsRoutes);
+app.use('/api/print', printRoutes);
 // app.use('/api/categories', categoriesRoutes);
 // app.use('/api/product-standards', productStandardsRoutes);
+
+// =============================================
+// STATIC FILE SERVING (Phase 1.5.g)
+// =============================================
+
+/**
+ * Serve order images from SMB share
+ * URL: /order-images/{folder_path}/{filename}
+ * Examples:
+ *   - /order-images/Orders/JobA ----- CompanyX/design.jpg (new orders)
+ *   - /order-images/JobB ----- CompanyY/photo.png (legacy migrated orders)
+ *   - /order-images/1Finished/JobC ----- CompanyZ/final.jpg (legacy finished)
+ *   - /order-images/Orders/1Finished/JobD ----- CompanyW/done.jpg (new finished)
+ *
+ * CORS enabled for Canvas API access (auto-crop feature)
+ */
+app.use('/order-images', (req, res, next) => {
+  // Add CORS headers to allow Canvas API to read pixel data
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static('/mnt/channelletter', {
+  maxAge: '7d',         // 7-day browser caching for performance
+  immutable: true,      // Images don't change (same filename = same content)
+  fallthrough: false,   // Return 404 if file not found (don't continue to next middleware)
+  dotfiles: 'deny'      // Security: don't serve hidden files
+}));
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

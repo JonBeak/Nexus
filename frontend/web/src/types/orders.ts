@@ -27,6 +27,17 @@ export interface Order {
   discount?: number;             // Auto-filled from customer discount, editable per order
   tax_name?: string;             // Auto-filled from billing address province tax, editable per order
   sign_image_path?: string;
+  crop_top?: number;             // Pixels to crop from top edge (auto-crop feature)
+  crop_right?: number;           // Pixels to crop from right edge (auto-crop feature)
+  crop_bottom?: number;          // Pixels to crop from bottom edge (auto-crop feature)
+  crop_left?: number;            // Pixels to crop from left edge (auto-crop feature)
+
+  // Phase 1.5g - Folder & Image Management
+  folder_name?: string;          // Full folder name "{order_name} ----- {customer_company_name}"
+  folder_exists?: boolean;       // Whether folder exists on disk
+  folder_location?: 'active' | 'finished' | 'none';  // Folder location
+  is_migrated?: boolean;         // true for legacy orders, false for app-created
+
   form_version: number;
   shipping_required: boolean;
   status: OrderStatus;
@@ -118,6 +129,7 @@ export interface OrderPart {
   display_number?: string;
   is_parent: boolean;
   product_type: string;
+  part_scope?: string;  // Text identifier for the part (e.g., "Main Sign", "Logo", "Border")
   qb_item_name?: string;  // QuickBooks item name (for invoice/QB sync)
   specs_display_name?: string;  // Mapped display name for Specs section
   product_type_id: string;
@@ -181,6 +193,7 @@ export interface PointPersonInput {
 export interface PartUpdateData {
   part_id: number;
   product_type?: string;
+  part_scope?: string;  // Text identifier for the part
   qb_item_name?: string;  // QuickBooks item name (for invoice/QB sync)
   specifications?: Record<string, any>;
   invoice_description?: string;

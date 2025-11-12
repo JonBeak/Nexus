@@ -151,7 +151,7 @@ export const MOUNTING_TYPES = [
   'Pins + Spacers',
   'Pins + Inserts',
   'Pins + Spacers + Inserts',
-  'D-tape',
+  'D-Tape',
   'Nylon Pins',
   'Nylon Pins + Spacers',
   'SS Pins',
@@ -296,9 +296,9 @@ export const NEON_LED_COLOURS = [
 ] as const;
 
 /**
- * DTape thickness options
+ * D-Tape thickness options
  */
-export const DTAPE_THICKNESSES = [
+export const D_TAPE_THICKNESSES = [
   '62 MIL (Thick)',
   '45 MIL (Medium)',
   '16 MIL (Thin)'
@@ -314,7 +314,8 @@ export const PIN_TYPES = [
   '4" Nylon',
   '4" SS',
   '6" SS',
-  '8" SS'
+  '8" SS',
+  'Stand Offs'
 ] as const;
 
 /**

@@ -23,23 +23,39 @@ import path from 'path';
  */
 export const generateOrderForms = async (req: Request, res: Response) => {
   try {
-    const { orderId } = req.params;
+    const { orderNumber } = req.params;
     const { createNewVersion = false } = req.body;
     const authReq = req as AuthRequest;
     const userId = authReq.user?.user_id;
 
-    const orderIdNum = parseInt(orderId);
+    const orderNumberNum = parseInt(orderNumber);
 
-    if (isNaN(orderIdNum)) {
+    if (isNaN(orderNumberNum)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid order ID'
+        message: 'Invalid order number'
       });
     }
 
+    // Look up order_id from order_number
+    const { pool } = await import('../config/database');
+    const [rows] = await pool.execute<any[]>(
+      'SELECT order_id FROM orders WHERE order_number = ?',
+      [orderNumberNum]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    const orderId = rows[0].order_id;
+
     // Generate all forms
     const paths = await pdfGenerationService.generateAllForms({
-      orderId: orderIdNum,
+      orderId,
       createNewVersion,
       userId
     });
@@ -70,17 +86,33 @@ export const generateOrderForms = async (req: Request, res: Response) => {
  */
 export const downloadOrderForm = async (req: Request, res: Response) => {
   try {
-    const { orderId, formType } = req.params;
+    const { orderNumber, formType } = req.params;
     const { version } = req.query;
 
-    const orderIdNum = parseInt(orderId);
+    const orderNumberNum = parseInt(orderNumber);
 
-    if (isNaN(orderIdNum)) {
+    if (isNaN(orderNumberNum)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid order ID'
+        message: 'Invalid order number'
       });
     }
+
+    // Look up order_id from order_number
+    const { pool } = await import('../config/database');
+    const [rows] = await pool.execute<any[]>(
+      'SELECT order_id FROM orders WHERE order_number = ?',
+      [orderNumberNum]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    const orderId = rows[0].order_id;
 
     // Validate form type
     const validFormTypes = ['master', 'shop', 'customer', 'packing'];
@@ -93,7 +125,7 @@ export const downloadOrderForm = async (req: Request, res: Response) => {
 
     // Get form paths from database
     const versionNum = version ? parseInt(version as string) : undefined;
-    const paths = await pdfGenerationService.getFormPaths(orderIdNum, versionNum);
+    const paths = await pdfGenerationService.getFormPaths(orderId, versionNum);
 
     if (!paths) {
       return res.status(404).json({
@@ -159,20 +191,36 @@ export const downloadOrderForm = async (req: Request, res: Response) => {
  */
 export const getFormPaths = async (req: Request, res: Response) => {
   try {
-    const { orderId } = req.params;
+    const { orderNumber } = req.params;
     const { version } = req.query;
 
-    const orderIdNum = parseInt(orderId);
+    const orderNumberNum = parseInt(orderNumber);
 
-    if (isNaN(orderIdNum)) {
+    if (isNaN(orderNumberNum)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid order ID'
+        message: 'Invalid order number'
       });
     }
 
+    // Look up order_id from order_number
+    const { pool } = await import('../config/database');
+    const [rows] = await pool.execute<any[]>(
+      'SELECT order_id FROM orders WHERE order_number = ?',
+      [orderNumberNum]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    const orderId = rows[0].order_id;
+
     const versionNum = version ? parseInt(version as string) : undefined;
-    const paths = await pdfGenerationService.getFormPaths(orderIdNum, versionNum);
+    const paths = await pdfGenerationService.getFormPaths(orderId, versionNum);
 
     if (!paths) {
       return res.status(404).json({
@@ -218,17 +266,33 @@ export const getFormPaths = async (req: Request, res: Response) => {
  */
 export const checkFormsExist = async (req: Request, res: Response) => {
   try {
-    const { orderId } = req.params;
-    const orderIdNum = parseInt(orderId);
+    const { orderNumber } = req.params;
+    const orderNumberNum = parseInt(orderNumber);
 
-    if (isNaN(orderIdNum)) {
+    if (isNaN(orderNumberNum)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid order ID'
+        message: 'Invalid order number'
       });
     }
 
-    const exists = await pdfGenerationService.formsExist(orderIdNum);
+    // Look up order_id from order_number
+    const { pool } = await import('../config/database');
+    const [rows] = await pool.execute<any[]>(
+      'SELECT order_id FROM orders WHERE order_number = ?',
+      [orderNumberNum]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    const orderId = rows[0].order_id;
+
+    const exists = await pdfGenerationService.formsExist(orderId);
 
     res.json({
       success: true,

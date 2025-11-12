@@ -11,6 +11,7 @@
  */
 
 import { orderRepository } from '../repositories/orderRepository';
+import { orderFolderService } from './orderFolderService';
 import {
   Order,
   OrderWithDetails,
@@ -142,6 +143,32 @@ export class OrderService {
 
     // Update order status
     await orderRepository.updateOrderStatus(orderId, status);
+
+    // Phase 1.5.g: Automatically move folder to 1Finished when order is completed
+    if (status === 'completed' && order.folder_exists && order.folder_location === 'active' && order.folder_name) {
+      try {
+        const moveResult = await orderFolderService.moveToFinished(order.folder_name);
+
+        if (moveResult.success) {
+          // Update folder location in database
+          await orderFolderService.updateFolderTracking(
+            orderId,
+            order.folder_name,
+            true,
+            'finished'
+          );
+          console.log(`✅ Order folder moved to 1Finished: ${order.folder_name}`);
+        } else if (moveResult.conflict) {
+          // Folder name conflict in finished location - keep in active
+          console.warn(`⚠️  Cannot move folder - conflict exists in 1Finished: ${order.folder_name}`);
+        } else {
+          console.error(`❌ Failed to move folder: ${moveResult.error}`);
+        }
+      } catch (folderError) {
+        // Non-blocking: if folder movement fails, continue with status update
+        console.error('⚠️  Folder movement failed (continuing with status update):', folderError);
+      }
+    }
 
     // Create status history entry
     await orderRepository.createStatusHistory({

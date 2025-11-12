@@ -276,11 +276,11 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
       return;
     }
 
-    // Prepare hard due date time (combine date + time if user entered a time)
-    // Send as simple datetime string - backend will format for MySQL without timezone conversion
-    let hardDueDateTime = undefined;
-    if (dueDate && hardDueTime.trim()) {
-      hardDueDateTime = `${dueDate}T${hardDueTime}:00`;
+    // Prepare hard due time (just the time, since database column is TIME type)
+    // MySQL TIME format is "HH:mm:ss"
+    let hardDueTimeFormatted = undefined;
+    if (hardDueTime.trim()) {
+      hardDueTimeFormatted = `${hardDueTime.trim()}:00`; // Convert "16:00" to "16:00:00"
     }
 
     // Filter out empty point persons and prepare data
@@ -304,7 +304,7 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
         customerPo: customerPo.trim() || undefined,
         customerJobNumber: customerJobNumber.trim() || undefined,
         dueDate: dueDate || undefined,
-        hardDueDateTime: hardDueDateTime,
+        hardDueDateTime: hardDueTimeFormatted, // Now just TIME format "HH:mm:ss"
         pointPersons: pointPersonsData.length > 0 ? pointPersonsData : undefined,
         estimatePreviewData
       });

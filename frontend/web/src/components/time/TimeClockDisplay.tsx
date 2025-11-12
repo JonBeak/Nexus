@@ -1,6 +1,7 @@
 import React from 'react';
 import type { ClockStatus, TimeNotification } from '../../types/time';
 import ClockSlider from './ClockSlider';
+import { formatTime as sharedFormatTime, formatDate as sharedFormatDate } from './utils/timeCalculations';
 
 interface TimeClockDisplayProps {
   clockStatus: ClockStatus | null;
@@ -10,24 +11,13 @@ interface TimeClockDisplayProps {
   onShowNotifications: () => void;
 }
 
-function TimeClockDisplay({ 
-  clockStatus, 
-  notifications, 
-  onClockIn, 
-  onClockOut, 
-  onShowNotifications 
+function TimeClockDisplay({
+  clockStatus,
+  notifications,
+  onClockIn,
+  onClockOut,
+  onShowNotifications
 }: TimeClockDisplayProps) {
-  const formatTime = (dateString: string) => {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  };
 
   return (
     <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-8">
@@ -52,10 +42,10 @@ function TimeClockDisplay({
             <div className="mb-8">
               <p className="text-lg text-gray-600 mb-2">Clocked in since</p>
               <p className="text-2xl font-bold text-primary-blue">
-                {formatTime(clockStatus.currentEntry!.clock_in)}
+                {sharedFormatTime(clockStatus.currentEntry!.clock_in)}
               </p>
               <p className="text-gray-500 mt-1">
-                {formatDate(clockStatus.currentEntry!.clock_in)}
+                {sharedFormatDate(clockStatus.currentEntry!.clock_in)}
               </p>
             </div>
             <ClockSlider

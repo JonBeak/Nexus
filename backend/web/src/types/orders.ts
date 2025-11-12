@@ -30,6 +30,17 @@ export interface Order {
   discount?: number;            // Auto-filled from customer discount
   tax_name?: string;            // Auto-filled from billing address province tax, editable per order
   sign_image_path?: string;
+  crop_top?: number;            // Pixels to crop from top edge (auto-crop feature)
+  crop_right?: number;          // Pixels to crop from right edge (auto-crop feature)
+  crop_bottom?: number;         // Pixels to crop from bottom edge (auto-crop feature)
+  crop_left?: number;           // Pixels to crop from left edge (auto-crop feature)
+
+  // Phase 1.5.g: Folder tracking fields
+  folder_name?: string;
+  folder_exists?: boolean;
+  folder_location?: 'active' | 'finished' | 'none';
+  is_migrated?: boolean;        // True for orders created from existing SMB folders (legacy tracking)
+
   form_version: number;
   shipping_required: boolean;
   status: OrderStatus;
@@ -72,6 +83,7 @@ export interface OrderPart {
   display_number?: string;  // Phase 1.5: "1", "1a", "1b" numbering
   is_parent?: boolean;      // Phase 1.5: Mark first item in section
   product_type: string;  // Human-readable
+  part_scope?: string;  // Text identifier for the part (e.g., "Main Sign", "Logo", "Border")
   qb_item_name?: string;  // QuickBooks item name (for invoice/QB sync)
   specs_display_name?: string;  // Mapped display name for Specs section
   product_type_id: string;  // Machine-readable
@@ -92,6 +104,7 @@ export interface CreateOrderPartData {
   display_number?: string;  // Phase 1.5
   is_parent?: boolean;      // Phase 1.5
   product_type: string;
+  part_scope?: string;  // Text identifier for the part
   qb_item_name?: string;  // QuickBooks item name (for invoice/QB sync)
   specs_display_name?: string;  // Mapped display name for Specs section
   product_type_id: string;
@@ -327,6 +340,10 @@ export interface CreateOrderData {
   discount?: number;                  // Auto-filled from customer discount
   tax_name?: string;                  // Auto-filled from billing address province tax, editable per order
   sign_image_path?: string;
+  crop_top?: number;                  // Pixels to crop from top edge (auto-crop feature)
+  crop_right?: number;                // Pixels to crop from right edge (auto-crop feature)
+  crop_bottom?: number;               // Pixels to crop from bottom edge (auto-crop feature)
+  crop_left?: number;                 // Pixels to crop from left edge (auto-crop feature)
   form_version?: number;
   shipping_required?: boolean;
   status?: OrderStatus;
