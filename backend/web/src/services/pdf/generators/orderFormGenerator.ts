@@ -13,7 +13,6 @@
 
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
-import sharp from 'sharp';
 import { STORAGE_CONFIG } from '../../../config/storage';
 import type { OrderDataForPDF } from '../pdfGenerationService';
 import {
@@ -34,6 +33,7 @@ import {
   shouldIncludePart,
   shouldStartNewColumn
 } from './pdfCommonGenerator';
+import { renderNotesAndImage } from '../utils/imageProcessing';
 
 /**
  * Define spec ordering - templates will be rendered in this order
@@ -1123,145 +1123,6 @@ function renderPartColumns(
   return maxPartY;
 }
 
-/**
- * Render notes and image section
- */
-async function renderNotesAndImage(
-  doc: any,
-  orderData: OrderDataForPDF,
-  formType: FormType,
-  maxPartY: number,
-  marginLeft: number,
-  contentWidth: number,
-  pageWidth: number,
-  marginRight: number,
-  pageHeight: number
-): Promise<void> {
-  const fullImagePath = getImageFullPath(orderData);
-  if (!fullImagePath) return;
-
-  try {
-    debugLog(`[IMAGE] Attempting to load image: ${fullImagePath}`);
-
-    if (!fs.existsSync(fullImagePath)) {
-      debugLog(`[IMAGE] ⚠️ Image file not found: ${fullImagePath}`);
-      return;
-    }
-
-    // Calculate actual available space for image
-    const actualImageStartY = maxPartY + SPACING.IMAGE_AFTER_PARTS;
-    const actualImageHeight = pageHeight - actualImageStartY - SPACING.IMAGE_BOTTOM_MARGIN;
-
-    debugLog(`[IMAGE] Actual image Y: ${actualImageStartY}, Height: ${actualImageHeight}`);
-
-    // Only draw if there's enough space
-    if (actualImageHeight <= LAYOUT.MIN_IMAGE_HEIGHT) {
-      debugLog(`[IMAGE] ⚠️ Not enough space for image (only ${actualImageHeight}px available)`);
-      return;
-    }
-
-    // Draw separator line above notes/image section
-    doc.strokeColor(COLORS.DIVIDER_LIGHT)
-      .lineWidth(LINE_WIDTHS.DIVIDER_LIGHT)
-      .moveTo(marginLeft, actualImageStartY - SPACING.ITEM_GAP)
-      .lineTo(pageWidth - marginRight, actualImageStartY - SPACING.ITEM_GAP)
-      .stroke();
-
-    let notesY = actualImageStartY;
-
-    // Two-column layout for notes
-    const notesColumnWidth = contentWidth * LAYOUT.NOTES_LEFT_WIDTH_PERCENT;
-    const notesLeftX = marginLeft;
-    const notesRightX = marginLeft + contentWidth * LAYOUT.NOTES_RIGHT_START_PERCENT;
-
-    // Special Instructions (left side)
-    if (orderData.manufacturing_note) {
-      doc.fontSize(FONT_SIZES.SPEC_BODY).font('Helvetica');
-      doc.text(orderData.manufacturing_note, notesLeftX, notesY, {
-        width: notesColumnWidth,
-        lineBreak: true
-      });
-    }
-
-    // Internal Notes (right side) - HIDE for Customer and Shop forms
-    if (formType === 'master' && orderData.internal_note) {
-      doc.fontSize(FONT_SIZES.INTERNAL_NOTE_LABEL).font('Helvetica-Bold');
-      const labelWidth = doc.widthOfString('[Internal Note]  ');
-      doc.text('[Internal Note]  ', notesRightX, notesY);
-      doc.fontSize(FONT_SIZES.INTERNAL_NOTE).font('Helvetica');
-      doc.text(orderData.internal_note, notesRightX + labelWidth, notesY, {
-        width: notesColumnWidth - labelWidth,
-        lineBreak: true
-      });
-    }
-
-    // Calculate space used by notes
-    const notesHeight = Math.max(
-      orderData.manufacturing_note ? doc.heightOfString(orderData.manufacturing_note, { width: notesColumnWidth }) + 15 : 0,
-      (formType === 'master' && orderData.internal_note) ? doc.heightOfString(orderData.internal_note, { width: notesColumnWidth }) + 15 : 0
-    );
-
-    // Center the image below the notes
-    const imageWidth = contentWidth * LAYOUT.IMAGE_WIDTH_PERCENT;
-    const imageY = notesY + notesHeight + SPACING.ITEM_GAP;
-    const imageX = marginLeft + (contentWidth - imageWidth) / 2;
-    const adjustedImageHeight = actualImageHeight - notesHeight - SPACING.ITEM_GAP;
-
-    if (adjustedImageHeight <= LAYOUT.MIN_ADJUSTED_IMAGE_HEIGHT) {
-      debugLog(`[IMAGE] ⚠️ Not enough space for image after notes (only ${adjustedImageHeight}px available)`);
-      return;
-    }
-
-    // Check if image has crop coordinates
-    const hasCrop = orderData.crop_top || orderData.crop_right || orderData.crop_bottom || orderData.crop_left;
-
-    if (hasCrop) {
-      try {
-        debugLog(`[IMAGE] Applying crop: T${orderData.crop_top} R${orderData.crop_right} B${orderData.crop_bottom} L${orderData.crop_left}`);
-
-        // Get image metadata
-        const imageMetadata = await sharp(fullImagePath).metadata();
-        const cropWidth = (imageMetadata.width || 0) - (orderData.crop_left || 0) - (orderData.crop_right || 0);
-        const cropHeight = (imageMetadata.height || 0) - (orderData.crop_top || 0) - (orderData.crop_bottom || 0);
-
-        // Extract cropped region
-        const croppedBuffer = await sharp(fullImagePath)
-          .extract({
-            left: orderData.crop_left || 0,
-            top: orderData.crop_top || 0,
-            width: cropWidth,
-            height: cropHeight
-          })
-          .toBuffer();
-
-        // Embed cropped image
-        doc.image(croppedBuffer, imageX, imageY, {
-          fit: [imageWidth, adjustedImageHeight],
-          align: 'center',
-          valign: 'center'
-        });
-        debugLog(`[IMAGE] ✅ Successfully loaded cropped image (${cropWidth}x${cropHeight})`);
-      } catch (cropError) {
-        console.error('[IMAGE] ⚠️ Crop failed, using original:', cropError);
-        // Fall back to original image
-        doc.image(fullImagePath, imageX, imageY, {
-          fit: [imageWidth, adjustedImageHeight],
-          align: 'center'
-        });
-        debugLog(`[IMAGE] ✅ Successfully loaded image (crop failed, using original)`);
-      }
-    } else {
-      // No crop coordinates, use original image
-      doc.image(fullImagePath, imageX, imageY, {
-        fit: [imageWidth, adjustedImageHeight],
-        align: 'center'
-      });
-      debugLog(`[IMAGE] ✅ Successfully loaded image (no crop)`);
-    }
-  } catch (error) {
-    console.error('Error loading sign image:', error);
-  }
-}
 
 // ============================================
 // MAIN GENERATION FUNCTION
@@ -1322,7 +1183,9 @@ export async function generateOrderForm(
       const maxPartY = renderPartColumns(doc, partColumns, marginLeft, contentWidth, contentStartY, pageWidth, marginRight, formType);
 
       // Render notes and image section
-      await renderNotesAndImage(doc, orderData, formType, maxPartY, marginLeft, contentWidth, pageWidth, marginRight, pageHeight);
+      await renderNotesAndImage(doc, orderData, maxPartY, marginLeft, contentWidth, pageWidth, marginRight, pageHeight, {
+        includeInternalNote: formType === 'master'
+      });
 
       doc.end();
 
