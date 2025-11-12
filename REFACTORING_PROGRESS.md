@@ -377,6 +377,26 @@ frontend/web/src/components/orders/details/
 
 ---
 
+## Related Refactorings
+
+### ✅ DualTableLayout.tsx - COMPLETE (November 12, 2024)
+**Status**: Refactoring complete, awaiting manual browser testing
+**Original**: 1703 lines → **Final**: 117 lines (93% reduction)
+**Documentation**: See `DUALTABLELAYOUT_REFACTORING_COMPLETE.md`
+
+The DualTableLayout component (used by OrderDetailsPage) has been successfully refactored using a similar phased approach. This serves as a proven pattern for completing the OrderDetailsPage refactoring.
+
+**Key Learnings Applied from DualTableLayout**:
+- Phased extraction reduces risk
+- TypeScript compilation catches issues immediately
+- useRef pattern for preventing stale closures in async handlers
+- React.memo optimizations must be preserved
+- Build should succeed on first try with clean separation
+
+See `REFACTORING_INDEX.md` for complete refactoring tracking across the codebase.
+
+---
+
 *Last Updated: November 12, 2024*
 *Author: Claude Code Assistant*
-*File Version: 1.0*
+*File Version: 1.1 - Updated with DualTableLayout completion reference*
