@@ -37,6 +37,7 @@ import printRoutes from './routes/print';
 
 // QuickBooks utilities for startup
 import { cleanupExpiredOAuthStates } from './utils/quickbooks/dbManager';
+import { startQuickBooksCleanupJob } from './jobs/quickbooksCleanup';
 
 dotenv.config();
 
@@ -197,6 +198,9 @@ const startServer = async () => {
 
     // Clean up expired OAuth state tokens on startup
     await cleanupExpiredOAuthStates();
+
+    // Start QuickBooks cleanup job (runs daily at 2 AM)
+    startQuickBooksCleanupJob();
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log('\n' + '='.repeat(60));

@@ -126,6 +126,29 @@ export function formatBooleanValue(value: any): string {
 }
 
 /**
+ * Clean up spec values (remove parenthetical details)
+ * For LEDs and Power Supplies: "Interone 9K - 9000K (0.80W, 12V)" → "Interone 9K"
+ */
+export function cleanSpecValue(value: string): string {
+  if (!value || typeof value !== 'string') return value;
+
+  // Remove parenthetical specs (anything in parentheses)
+  if (value.includes('(')) {
+    let cleaned = value.split('(')[0].trim();
+
+    // Also remove trailing dash and details (like " - 9000K")
+    const dashMatch = cleaned.match(/^(.+?)\s*-\s*.+$/);
+    if (dashMatch) {
+      cleaned = dashMatch[1].trim();
+    }
+
+    return cleaned;
+  }
+
+  return value;
+}
+
+/**
  * Format due date with optional time
  */
 export function formatDueDateTime(dueDate: Date, hardDueTime?: string): string {

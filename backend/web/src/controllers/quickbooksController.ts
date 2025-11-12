@@ -75,21 +75,23 @@ export class QuickBooksController {
     // Handle authorization errors from QuickBooks
     if (error) {
       console.error('❌ OAuth callback error:', error);
-      return res.send(this.renderErrorPage(
+      res.send(this.renderErrorPage(
         'Authorization Failed',
         `Error: ${error}`,
         'You can close this window and try again.'
       ));
+      return;
     }
 
     // Validate required parameters
     if (!code || !realmId || !state) {
       console.error('❌ Missing code, realmId, or state in callback');
-      return res.send(this.renderErrorPage(
+      res.send(this.renderErrorPage(
         'Authorization Error',
         'Missing required authorization parameters.',
         'You can close this window and try again.'
       ));
+      return;
     }
 
     try {
@@ -111,7 +113,8 @@ export class QuickBooksController {
 
       // CSRF validation error
       if (errorMessage.includes('Invalid or expired state token')) {
-        return res.send(this.renderCsrfErrorPage());
+        res.send(this.renderCsrfErrorPage());
+        return;
       }
 
       // Generic error page
@@ -132,10 +135,11 @@ export class QuickBooksController {
       const realmId = await getDefaultRealmId();
 
       if (!realmId) {
-        return res.json({
+        res.json({
           success: false,
           message: 'Not connected to QuickBooks',
         });
+        return;
       }
 
       await quickbooksService.disconnect(realmId);
@@ -210,18 +214,20 @@ export class QuickBooksController {
 
       // Validate required fields
       if (!estimateId || !estimatePreviewData) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'Missing estimateId or estimatePreviewData',
         });
+        return;
       }
 
       // OWNER-ONLY: Debug mode access control
       if (debugMode && user?.role !== 'owner') {
-        return res.status(403).json({
+        res.status(403).json({
           success: false,
           error: 'Debug mode is only available to system owners',
         });
+        return;
       }
 
       if (debugMode) {
@@ -271,18 +277,20 @@ export class QuickBooksController {
       const { id } = req.params;
 
       if (!id) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'Estimate ID is required',
         });
+        return;
       }
 
       const realmId = await getDefaultRealmId();
       if (!realmId) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'Not connected to QuickBooks',
         });
+        return;
       }
 
       const estimate = await quickbooksService.fetchEstimateForAnalysis(id, realmId);

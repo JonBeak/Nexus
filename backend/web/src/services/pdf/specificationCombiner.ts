@@ -4,37 +4,7 @@
  * Used by both Order Forms and Packing Lists
  */
 
-/**
- * Helper: Format boolean values to Yes/No
- */
-function formatBooleanValue(value: any): string {
-  if (value === true || value === 'true') return 'Yes';
-  if (value === false || value === 'false') return 'No';
-  return String(value);
-}
-
-/**
- * Helper: Clean up spec values (remove parenthetical details)
- * For LEDs and Power Supplies: "Interone 9K - 9000K (0.80W, 12V)" → "Interone 9K"
- */
-function cleanSpecValue(value: string): string {
-  if (!value || typeof value !== 'string') return value;
-
-  // Remove parenthetical specs (anything in parentheses)
-  if (value.includes('(')) {
-    let cleaned = value.split('(')[0].trim();
-
-    // Also remove trailing dash and details (like " - 9000K")
-    const dashMatch = cleaned.match(/^(.+?)\s*-\s*.+$/);
-    if (dashMatch) {
-      cleaned = dashMatch[1].trim();
-    }
-
-    return cleaned;
-  }
-
-  return value;
-}
+import { formatBooleanValue, cleanSpecValue } from './generators/pdfCommonGenerator';
 
 /**
  * Combines specifications from multiple parts (parent + sub-items)
