@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 import { testConnection } from './config/database';
 import authRoutes from './routes/auth';
 import customersRoutes from './routes/customers';
@@ -132,9 +134,60 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+// =============================================
+// SERVER VERSION TRACKING
+// =============================================
+
+interface ServerVersionData {
+  count: number;
+  restarts: Array<{ version: number; timestamp: string }>;
+}
+
+const getServerVersion = () => {
+  const versionFile = path.join('/tmp', 'signhouse-backend-version.json');
+  let versionData: ServerVersionData = { count: 0, restarts: [] };
+
+  try {
+    if (fs.existsSync(versionFile)) {
+      const fileContents = fs.readFileSync(versionFile, 'utf-8');
+      versionData = JSON.parse(fileContents) as ServerVersionData;
+    }
+  } catch (error) {
+    console.warn('⚠️  Could not read version file, starting fresh');
+  }
+
+  // Increment version count
+  versionData.count += 1;
+  const currentTimestamp = new Date().toISOString();
+  versionData.restarts.push({
+    version: versionData.count,
+    timestamp: currentTimestamp,
+  });
+
+  // Keep only last 50 restarts to avoid file bloat
+  if (versionData.restarts.length > 50) {
+    versionData.restarts = versionData.restarts.slice(-50);
+  }
+
+  // Write updated version file
+  try {
+    fs.writeFileSync(versionFile, JSON.stringify(versionData, null, 2));
+  } catch (error) {
+    console.warn('⚠️  Could not write version file');
+  }
+
+  return {
+    version: versionData.count,
+    timestamp: currentTimestamp,
+  };
+};
+
 // Start server
 const startServer = async () => {
   try {
+    // Get and log server version
+    const serverVersion = getServerVersion();
+
     // Test database connection
     const dbConnected = await testConnection();
     if (!dbConnected) {
@@ -146,10 +199,15 @@ const startServer = async () => {
     await cleanupExpiredOAuthStates();
 
     app.listen(PORT, '0.0.0.0', () => {
+      console.log('\n' + '='.repeat(60));
+      console.log(`✅ SIGNHOUSE BACKEND v${serverVersion.version} STARTED`);
+      console.log(`⏰ Timestamp: ${serverVersion.timestamp}`);
+      console.log('='.repeat(60));
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📍 Environment: ${process.env.NODE_ENV}`);
       console.log(`🌐 CORS Origin: ${process.env.CORS_ORIGIN}`);
       console.log(`🌍 Network access: http://192.168.2.14:${PORT}`);
+      console.log('='.repeat(60) + '\n');
     });
   } catch (error) {
     console.error('Failed to start server:', error);

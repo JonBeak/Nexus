@@ -91,6 +91,17 @@ export async function makeQBApiCall(
 
   try {
     console.log(`📡 QB API: ${method} ${endpoint}`);
+
+    // Log detailed request information for debugging
+    if (method === 'POST' && data) {
+      console.log('\n🔍 REQUEST DETAILS:');
+      console.log('===================');
+      console.log(`URL: ${config.url}`);
+      console.log(`Headers:`, config.headers);
+      console.log(`Body:`, JSON.stringify(config.data, null, 2));
+      console.log('===================\n');
+    }
+
     const response = await axios(config);
     console.log(`✅ QB API Response: ${response.status}`);
     return response.data;

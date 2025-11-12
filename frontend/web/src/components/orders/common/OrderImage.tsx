@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Image as ImageIcon, AlertCircle } from 'lucide-react';
 import { ImagePickerModal } from '../modals/ImagePickerModal';
 
@@ -34,6 +34,27 @@ export const OrderImage: React.FC<OrderImageProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+  const [croppedImageUrl, setCroppedImageUrl] = useState<string | null>(null);
+
+  // Clean up blob URLs to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (croppedImageUrl && croppedImageUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(croppedImageUrl);
+      }
+    };
+  }, [croppedImageUrl]);
+
+  // Reset cropped URL when image path or crop values change
+  useEffect(() => {
+    setImageError(false);
+    setCroppedImageUrl((prevUrl) => {
+      if (prevUrl && prevUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(prevUrl);
+      }
+      return null;
+    });
+  }, [signImagePath, cropTop, cropRight, cropBottom, cropLeft]);
 
   const getImageUrl = (): string | null => {
     if (!signImagePath || !folderName) return null;
@@ -69,73 +90,105 @@ export const OrderImage: React.FC<OrderImageProps> = ({
   const hasImage = imageUrl && !imageError;
   const canSelectImage = !readOnly && folderLocation !== 'none' && folderName;
 
-  // Calculate crop using clip-path and scale
+  // Calculate crop using Canvas
   const hasCrop = !!(cropTop || cropRight || cropBottom || cropLeft);
 
-  const getCropStyles = (): { wrapper: React.CSSProperties; image: React.CSSProperties } => {
-    if (!hasCrop || imageDimensions.width === 0) {
-      return {
-        wrapper: {},
-        image: {}
-      };
+  const cropImageWithCanvas = (img: HTMLImageElement) => {
+    if (!hasCrop) {
+      // No crop needed, clear any cached cropped URL
+      setCroppedImageUrl(null);
+      return;
     }
 
     // Calculate cropped dimensions
-    const croppedWidth = imageDimensions.width - cropLeft - cropRight;
-    const croppedHeight = imageDimensions.height - cropTop - cropBottom;
+    const croppedWidth = img.naturalWidth - cropLeft - cropRight;
+    const croppedHeight = img.naturalHeight - cropTop - cropBottom;
 
-    // Use clip-path to hide cropped areas
-    const topPercent = (cropTop / imageDimensions.height) * 100;
-    const rightPercent = (cropRight / imageDimensions.width) * 100;
-    const bottomPercent = (cropBottom / imageDimensions.height) * 100;
-    const leftPercent = (cropLeft / imageDimensions.width) * 100;
+    if (croppedWidth <= 0 || croppedHeight <= 0) {
+      console.error('Invalid crop dimensions');
+      return;
+    }
 
-    console.log('[OrderImage] Crop:', {
-      original: { w: imageDimensions.width, h: imageDimensions.height },
+    // Create canvas with cropped dimensions
+    const canvas = document.createElement('canvas');
+    canvas.width = croppedWidth;
+    canvas.height = croppedHeight;
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) {
+      console.error('Could not get canvas context');
+      return;
+    }
+
+    console.log('[OrderImage] Canvas Crop:', {
+      original: { w: img.naturalWidth, h: img.naturalHeight },
       cropPx: { top: cropTop, right: cropRight, bottom: cropBottom, left: cropLeft },
-      cropped: { w: croppedWidth, h: croppedHeight },
-      cropPercent: { top: topPercent, right: rightPercent, bottom: bottomPercent, left: leftPercent }
+      cropped: { w: croppedWidth, h: croppedHeight }
     });
 
-    return {
-      wrapper: {
-        position: 'relative',
-        width: '100%',
-        height: '100%',
-        overflow: 'hidden',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      },
-      image: {
-        width: '100%',
-        height: '100%',
-        objectFit: 'contain',
-        clipPath: `inset(${topPercent}% ${rightPercent}% ${bottomPercent}% ${leftPercent}%)`,
-        transform: `scale(${imageDimensions.width / croppedWidth}, ${imageDimensions.height / croppedHeight})`
+    // Draw the cropped portion of the image
+    ctx.drawImage(
+      img,
+      cropLeft,  // sx: source x position
+      cropTop,   // sy: source y position
+      croppedWidth,  // sWidth: source width
+      croppedHeight, // sHeight: source height
+      0,  // dx: destination x
+      0,  // dy: destination y
+      croppedWidth,  // dWidth: destination width
+      croppedHeight  // dHeight: destination height
+    );
+
+    // Convert canvas to blob URL
+    canvas.toBlob((blob) => {
+      if (blob) {
+        // Clean up previous URL if it exists
+        setCroppedImageUrl((prevUrl) => {
+          if (prevUrl && prevUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(prevUrl);
+          }
+          return URL.createObjectURL(blob);
+        });
       }
-    };
+    });
   };
 
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
     setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
-  };
 
-  const styles = getCropStyles();
+    // Only crop if we're loading the original image, not the already-cropped blob
+    if (img.src === imageUrl && hasCrop) {
+      console.log('[OrderImage] Cropping image on load');
+      cropImageWithCanvas(img);
+    }
+  };
 
   const imageContent = (
     <>
       {hasImage ? (
-        <div style={hasCrop ? styles.wrapper : { width: '100%', height: '100%' }}>
-          <img
-            src={imageUrl}
-            alt="Job Image"
-            className={hasCrop ? '' : 'w-full h-full object-contain'}
-            style={hasCrop ? styles.image : undefined}
-            onLoad={handleImageLoad}
-            onError={() => setImageError(true)}
-          />
+        <div className="w-full h-full">
+          {/* Hidden image to load original for cropping */}
+          {hasCrop && !croppedImageUrl && (
+            <img
+              src={imageUrl}
+              alt=""
+              crossOrigin="anonymous"
+              style={{ display: 'none' }}
+              onLoad={handleImageLoad}
+              onError={() => setImageError(true)}
+            />
+          )}
+          {/* Display either cropped or original image */}
+          {(!hasCrop || croppedImageUrl) && (
+            <img
+              src={hasCrop && croppedImageUrl ? croppedImageUrl : imageUrl}
+              alt="Job Image"
+              className="w-full h-full object-contain"
+              crossOrigin="anonymous"
+              onError={() => setImageError(true)}
+            />
+          )}
         </div>
       ) : (
         <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
@@ -174,7 +227,7 @@ export const OrderImage: React.FC<OrderImageProps> = ({
       {canSelectImage ? (
         <button
           onClick={() => setIsModalOpen(true)}
-          className="relative bg-gray-100 rounded-lg overflow-hidden w-full h-full group cursor-pointer hover:ring-2 hover:ring-indigo-500 transition-all"
+          className="relative bg-gray-100 rounded-lg overflow-hidden w-full h-full group cursor-pointer hover:ring-2 hover:ring-indigo-500 transition-all border border-gray-300"
           style={{ minHeight: '140px' }}
           title={signImagePath ? 'Click to change image' : 'Click to select image'}
         >
@@ -190,7 +243,7 @@ export const OrderImage: React.FC<OrderImageProps> = ({
           </div>
         </button>
       ) : (
-        <div className="relative bg-gray-100 rounded-lg overflow-hidden w-full h-full" style={{ minHeight: '140px' }}>
+        <div className="relative bg-gray-100 rounded-lg overflow-hidden w-full h-full border border-gray-300" style={{ minHeight: '140px' }}>
           {imageContent}
         </div>
       )}

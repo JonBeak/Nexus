@@ -4,8 +4,8 @@
  *
  * Form Types:
  * - master: Complete internal form with all details
- * - customer: Customer-facing form (removes internal notes, simplifies LED/Power Supply)
- * - shop: Production floor form (removes customer details, 2-row header)
+ * - customer: Customer-facing form (also referred to as "Specs" - removes internal notes, simplifies LED/Power Supply)
+ * - shop: Production floor form (removes customer details, 2-row header; "Specs" refers to customer form)
  *
  * Layout: Landscape Letter (11" x 8.5")
  * Design: Minimal padding, compact info, large image area
@@ -13,93 +13,27 @@
 
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
-import path from 'path';
 import sharp from 'sharp';
 import { STORAGE_CONFIG } from '../../../config/storage';
 import type { OrderDataForPDF } from '../pdfGenerationService';
-
-export type FormType = 'master' | 'customer' | 'shop';
-
-// ============================================
-// CONSTANTS
-// ============================================
-
-const COLORS = {
-  BLACK: '#000000',
-  WHITE: '#ffffff',
-  DARK_GRAY: '#333333',
-  URGENT_RED: '#cc0000',
-  LABEL_BACKGROUND: '#c0c0c0',
-  DIVIDER_LIGHT: '#cccccc',
-  DIVIDER_DARK: '#999999',
-  QTY_STANDARD_BG: '#e8e8e8',      // Gray background for qty=1
-  QTY_STANDARD_TEXT: '#000000',    // Black text for qty=1
-  QTY_NONSTANDARD_BG: '#cc0000',   // Red background for qty≠1
-  QTY_NONSTANDARD_TEXT: '#ffffff', // White text for qty≠1
-};
-
-const FONT_SIZES = {
-  TITLE: 14,
-  HEADER_VALUE: 13,
-  SPEC_BODY: 12,
-  HEADER_LABEL: 10,
-  SCOPE: 11,
-  QTY_NONSTANDARD: 13,
-  INTERNAL_NOTE: 12,
-  QTY_STANDARD: 11,
-  INTERNAL_NOTE_LABEL: 9,
-};
-
-const SPACING = {
-  PAGE_MARGIN: 20,
-  SECTION_GAP: 12,
-  HEADER_ROW: 16,
-  HEADER_START_OFFSET: 4,
-  AFTER_TITLE: 16,
-  AFTER_SCOPE: 14,
-  AFTER_SEPARATOR: 8,
-  AFTER_PRODUCT_NAME: 18,
-  BEFORE_DIVIDER: 3,
-  ITEM_GAP: 5,
-  SPEC_ROW_GAP: 3,
-  LABEL_PADDING: 2,
-  QTY_BOX_PADDING: 3,
-  IMAGE_AFTER_PARTS: 8,
-  IMAGE_BOTTOM_MARGIN: 20,
-  HEADER_VALUE_RAISE: 2,
-  HEADER_LABEL_TO_VALUE: 6,
-};
-
-const LAYOUT = {
-  TITLE_WIDTH: 120,
-  TITLE_DIVIDER_OFFSET: 7.5,
-  TITLE_INFO_GAP: 25,
-  DIVIDER_HEIGHT: 40,
-  COL2_PERCENT: 0.35,
-  COL3_PERCENT: 0.68,
-  PARTS_HEIGHT_PERCENT: 0.35,
-  IMAGE_WIDTH_PERCENT: 0.95,
-  NOTES_LEFT_WIDTH_PERCENT: 0.48,
-  NOTES_RIGHT_START_PERCENT: 0.52,
-  PART_COLUMN_INNER_PADDING: 5,
-  PART_NAME_WIDTH_PERCENT: 0.6,
-  QTY_BOX_WIDTH_PERCENT: 0.3,
-  MAX_COLUMNS: 3,
-  MIN_IMAGE_HEIGHT: 100,
-  MIN_ADJUSTED_IMAGE_HEIGHT: 50,
-};
-
-const LINE_WIDTHS = {
-  DIVIDER_MAIN: 1.5,
-  DIVIDER_LIGHT: 0.5,
-  VERTICAL_DIVIDER: 1,
-};
-
-const SMB_PATHS = {
-  ROOT: '/mnt/channelletter',
-  ORDERS_FOLDER: 'Orders',
-  FINISHED_FOLDER: '1Finished',
-};
+import {
+  FormType,
+  COLORS,
+  FONT_SIZES,
+  SPACING,
+  LAYOUT,
+  LINE_WIDTHS,
+  SMB_PATHS,
+  debugLog,
+  formatBooleanValue,
+  formatDueDateTime,
+  renderHeaderLabel,
+  renderDueDate,
+  renderQuantityBox,
+  getImageFullPath,
+  shouldIncludePart,
+  shouldStartNewColumn
+} from './pdfCommonGenerator';
 
 /**
  * Define spec ordering - templates will be rendered in this order
@@ -149,22 +83,105 @@ const SPECS_EXEMPT_FROM_CRITICAL = [
 ] as const;
 
 // ============================================
-// HELPER FUNCTIONS - Utilities
+// HELPER FUNCTIONS - Spec-Specific Utilities
 // ============================================
 
-function debugLog(message: string) {
-  console.log(`======================== PDF DEBUG ========================`);
-  console.log(message);
-  console.log(`===========================================================`);
-}
-
 /**
- * Format boolean values to Yes/No
+ * Build sorted template rows from parts (extracted for reuse in 2-column layout)
  */
-function formatBooleanValue(value: any): string {
-  if (value === true || value === 'true') return 'Yes';
-  if (value === false || value === 'false') return 'No';
-  return String(value);
+function buildSortedTemplateRows(
+  parts: any[],
+  formType: FormType
+): Array<{ template: string; rowNum: string; specs: Record<string, any> }> {
+  // Determine if LEDs/PS/UL should be mandatory for this part
+  const specsDisplayName = parts.length > 0 ? parts[0].specs_display_name : null;
+  const isExemptFromCritical = specsDisplayName && SPECS_EXEMPT_FROM_CRITICAL.includes(specsDisplayName as any);
+
+  // Extract template rows with their spec values from ALL parts
+  const allTemplateRows: Array<{ template: string; rowNum: string; specs: Record<string, any> }> = [];
+
+  // Process each part (parent and sub-items)
+  parts.forEach((part) => {
+    if (!part.specifications) return;
+
+    try {
+      const specs = typeof part.specifications === 'string'
+        ? JSON.parse(part.specifications)
+        : part.specifications;
+
+      if (!specs || Object.keys(specs).length === 0) return;
+
+      // Find all template keys and collect their spec fields
+      Object.keys(specs).forEach(key => {
+        if (key.startsWith('_template_')) {
+          const rowNum = key.replace('_template_', '');
+          const templateName = specs[key];
+
+          if (!templateName) return;
+
+          // Collect all spec fields for this row (with named keys)
+          const rowSpecs: Record<string, any> = {};
+
+          Object.keys(specs).forEach(fieldKey => {
+            if (fieldKey.startsWith(`row${rowNum}_`) && !fieldKey.startsWith('_')) {
+              const fieldName = fieldKey.replace(`row${rowNum}_`, '');
+              const value = specs[fieldKey];
+
+              // Skip only empty/null/undefined values (but include boolean false)
+              if (value !== null && value !== undefined && value !== '') {
+                // First, format boolean values to Yes/No
+                let formattedValue = formatBooleanValue(value);
+
+                // Then clean up spec values (remove parenthetical details)
+                const cleanedValue = cleanSpecValue(String(formattedValue).trim());
+
+                if (cleanedValue) {
+                  rowSpecs[fieldName] = cleanedValue;
+                }
+              }
+            }
+          });
+
+          // Add as separate row (don't merge)
+          allTemplateRows.push({
+            template: templateName,
+            rowNum: rowNum,
+            specs: rowSpecs
+          });
+        }
+      });
+    } catch (e) {
+      console.error(`Error processing part specifications:`, e);
+    }
+  });
+
+  // Sort template rows by SPEC_ORDER, then by row number
+  const sortedTemplateRows: Array<{ template: string; rowNum: string; specs: Record<string, any> }> = [];
+
+  // First, add rows in SPEC_ORDER
+  for (const templateName of SPEC_ORDER) {
+    const matchingRows = allTemplateRows.filter(row => row.template === templateName);
+    matchingRows.forEach(row => sortedTemplateRows.push(row));
+
+    // Add critical specs even if not in data (unless this part is exempt)
+    const isCritical = CRITICAL_SPECS.includes(templateName as any);
+    if (matchingRows.length === 0 && isCritical && !isExemptFromCritical) {
+      sortedTemplateRows.push({
+        template: templateName,
+        rowNum: '0',
+        specs: {}
+      });
+    }
+  }
+
+  // Add any templates not in SPEC_ORDER at the end
+  allTemplateRows.forEach(row => {
+    if (!SPEC_ORDER.includes(row.template as any)) {
+      sortedTemplateRows.push(row);
+    }
+  });
+
+  return sortedTemplateRows;
 }
 
 /**
@@ -188,30 +205,6 @@ function cleanSpecValue(value: string): string {
   }
 
   return value;
-}
-
-/**
- * Format due date with optional time
- */
-function formatDueDateTime(dueDate: Date, hardDueTime?: string): string {
-  let dateStr = dueDate.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  });
-
-  // Add time if hard_due_date_time exists (TIME format "HH:mm" or "HH:mm:ss")
-  if (hardDueTime) {
-    const timeParts = hardDueTime.split(':');
-    const hours = parseInt(timeParts[0], 10);
-    const minutes = timeParts[1];
-    const period = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours % 12 || 12;
-    const timeStr = `${displayHours}:${minutes} ${period}`;
-    dateStr += ` ${timeStr}`;
-  }
-
-  return dateStr;
 }
 
 /**
@@ -247,11 +240,6 @@ function formatSpecValues(templateName: string, specs: Record<string, any>, form
       return drainInclude || '';
 
     case 'LEDs':
-      // Customer form: Yes/No only
-      if (formType === 'customer') {
-        return Object.keys(specs).length > 0 ? 'Yes' : 'No';
-      }
-      // Master/Shop: Format as {count} [{led_type}]
       // Template stores: count, led_type (full string), note
       const ledCount = specs.count || '';
       let ledType = specs.type || specs.led_type || '';
@@ -261,6 +249,20 @@ function formatSpecValues(templateName: string, specs: Record<string, any>, form
         ledType = ledType.split(' - ')[0].trim();
       }
 
+      // Customer form: Replace count with "Yes" if it's a number > 0, but preserve type
+      if (formType === 'customer') {
+        const countNum = Number(ledCount);
+        if (!isNaN(countNum) && countNum > 0) {
+          // Count is a valid number > 0, show "Yes [type]"
+          return ledType ? `Yes [${ledType}]` : 'Yes';
+        } else if (ledType) {
+          // No count, but has type
+          return ledType;
+        }
+        return 'No';
+      }
+
+      // Master/Shop: Format as {count} [{led_type}]
       if (ledCount && ledType) {
         return `${ledCount} [${ledType}]`;
       } else if (ledCount) {
@@ -284,11 +286,6 @@ function formatSpecValues(templateName: string, specs: Record<string, any>, form
       return wireLengthWithUnit || '';
 
     case 'Power Supply':
-      // Customer form: Yes/No only
-      if (formType === 'customer') {
-        return Object.keys(specs).length > 0 ? 'Yes' : 'No';
-      }
-      // Master/Shop: Format as {count} [{ps_type}]
       // Template stores: count, ps_type (full string), note
       const psCount = specs.count || '';
       let psType = specs.ps_type || specs.model || specs.power_supply || '';
@@ -298,6 +295,20 @@ function formatSpecValues(templateName: string, specs: Record<string, any>, form
         psType = psType.split(' (')[0].trim();
       }
 
+      // Customer form: Replace count with "Yes" if it's a number > 0, but preserve type
+      if (formType === 'customer') {
+        const countNum = Number(psCount);
+        if (!isNaN(countNum) && countNum > 0) {
+          // Count is a valid number > 0, show "Yes [type]"
+          return psType ? `Yes [${psType}]` : 'Yes';
+        } else if (psType) {
+          // No count, but has type
+          return psType;
+        }
+        return 'No';
+      }
+
+      // Master/Shop: Format as {count} [{ps_type}]
       if (psCount && psType) {
         return `${psCount} [${psType}]`;
       } else if (psCount) {
@@ -441,61 +452,6 @@ function formatSpecValues(templateName: string, specs: Record<string, any>, form
   }
 }
 
-/**
- * Check if part should be included in PDF
- */
-function shouldIncludePart(part: any, formType: FormType): boolean {
-  const hasDisplayName = part.specs_display_name && part.specs_display_name.trim();
-
-  // Check if part has any specification templates
-  let hasSpecTemplates = false;
-  if (part.specifications) {
-    try {
-      const specs = typeof part.specifications === 'string'
-        ? JSON.parse(part.specifications)
-        : part.specifications;
-
-      hasSpecTemplates = specs &&
-        Object.keys(specs).some(key => key.startsWith('_template_') && specs[key]);
-    } catch (e) {
-      hasSpecTemplates = false;
-    }
-  }
-
-  return hasDisplayName || hasSpecTemplates;
-}
-
-/**
- * Check if part should start a new column
- */
-function shouldStartNewColumn(part: any): boolean {
-  return Boolean(part.is_parent);
-}
-
-/**
- * Get image full path from order data
- */
-function getImageFullPath(orderData: OrderDataForPDF): string | null {
-  if (!orderData.sign_image_path || !orderData.folder_name || orderData.folder_location === 'none') {
-    return null;
-  }
-
-  let folderPath: string;
-  if (orderData.is_migrated) {
-    // Legacy orders: use old paths (root or root/1Finished)
-    folderPath = orderData.folder_location === 'active'
-      ? SMB_PATHS.ROOT
-      : path.join(SMB_PATHS.ROOT, SMB_PATHS.FINISHED_FOLDER);
-  } else {
-    // New app-created orders: use Orders subfolder
-    folderPath = orderData.folder_location === 'active'
-      ? path.join(SMB_PATHS.ROOT, SMB_PATHS.ORDERS_FOLDER)
-      : path.join(SMB_PATHS.ROOT, SMB_PATHS.ORDERS_FOLDER, SMB_PATHS.FINISHED_FOLDER);
-  }
-
-  return path.join(folderPath, orderData.folder_name, orderData.sign_image_path);
-}
-
 // ============================================
 // HELPER FUNCTIONS - Rendering
 // ============================================
@@ -509,109 +465,19 @@ function renderSpecifications(
   x: number,
   startY: number,
   width: number,
-  formType: FormType
+  formType: FormType,
+  specsToRender?: Array<{ template: string; rowNum: string; specs: Record<string, any> }>
 ): number {
   debugLog('[PDF RENDER] ========== START renderSpecifications ==========');
   debugLog(`[PDF RENDER] Processing ${parts.length} parts for ${formType} form`);
 
   let currentY = startY;
 
-  // Determine if LEDs/PS/UL should be mandatory for this part
-  // Get specs_display_name from the first part (parent or regular)
+  // Use provided specs or build from parts
+  const sortedTemplateRows = specsToRender || buildSortedTemplateRows(parts, formType);
+
   const specsDisplayName = parts.length > 0 ? parts[0].specs_display_name : null;
   const isExemptFromCritical = specsDisplayName && SPECS_EXEMPT_FROM_CRITICAL.includes(specsDisplayName as any);
-  debugLog(`[PDF RENDER] Specs Display Name: ${specsDisplayName}, Exempt from critical: ${isExemptFromCritical}`);
-
-  // Extract template rows with their spec values from ALL parts
-  // Use array instead of Map to preserve multiple rows with same template name
-  const allTemplateRows: Array<{ template: string; rowNum: string; specs: Record<string, any> }> = [];
-
-  // Process each part (parent and sub-items)
-  parts.forEach((part, partIndex) => {
-    if (!part.specifications) return;
-
-    try {
-      const specs = typeof part.specifications === 'string'
-        ? JSON.parse(part.specifications)
-        : part.specifications;
-
-      if (!specs || Object.keys(specs).length === 0) return;
-
-      debugLog(`[PDF RENDER] Part ${partIndex + 1} specs: ` + JSON.stringify(specs, null, 2));
-
-      // Find all template keys and collect their spec fields
-      Object.keys(specs).forEach(key => {
-        if (key.startsWith('_template_')) {
-          const rowNum = key.replace('_template_', '');
-          const templateName = specs[key];
-
-          if (!templateName) return;
-
-          // Collect all spec fields for this row (with named keys)
-          const rowSpecs: Record<string, any> = {};
-
-          Object.keys(specs).forEach(fieldKey => {
-            if (fieldKey.startsWith(`row${rowNum}_`) && !fieldKey.startsWith('_')) {
-              const fieldName = fieldKey.replace(`row${rowNum}_`, '');
-              const value = specs[fieldKey];
-
-              // Skip only empty/null/undefined values (but include boolean false)
-              if (value !== null && value !== undefined && value !== '') {
-                // First, format boolean values to Yes/No
-                let formattedValue = formatBooleanValue(value);
-
-                // Then clean up spec values (remove parenthetical details)
-                const cleanedValue = cleanSpecValue(String(formattedValue).trim());
-
-                if (cleanedValue) {
-                  rowSpecs[fieldName] = cleanedValue;
-                }
-              }
-            }
-          });
-
-          // Add as separate row (don't merge)
-          allTemplateRows.push({
-            template: templateName,
-            rowNum: rowNum,
-            specs: rowSpecs
-          });
-
-          debugLog(`[PDF RENDER] Added template row: ${templateName} (row ${rowNum}) with ${Object.keys(rowSpecs).length} fields`);
-        }
-      });
-    } catch (e) {
-      console.error(`Error processing part ${partIndex + 1} specifications:`, e);
-    }
-  });
-
-  debugLog('[PDF RENDER] All template rows collected: ' + JSON.stringify(allTemplateRows, null, 2));
-
-  // Sort template rows by SPEC_ORDER, then by row number
-  const sortedTemplateRows: Array<{ template: string; rowNum: string; specs: Record<string, any> }> = [];
-
-  // First, add rows in SPEC_ORDER
-  for (const templateName of SPEC_ORDER) {
-    const matchingRows = allTemplateRows.filter(row => row.template === templateName);
-    matchingRows.forEach(row => sortedTemplateRows.push(row));
-
-    // Add critical specs even if not in data (unless this part is exempt)
-    const isCritical = CRITICAL_SPECS.includes(templateName as any);
-    if (matchingRows.length === 0 && isCritical && !isExemptFromCritical) {
-      sortedTemplateRows.push({
-        template: templateName,
-        rowNum: '0',
-        specs: {}
-      });
-    }
-  }
-
-  // Add any templates not in SPEC_ORDER at the end
-  allTemplateRows.forEach(row => {
-    if (!SPEC_ORDER.includes(row.template as any)) {
-      sortedTemplateRows.push(row);
-    }
-  });
 
   // Render each template row
   doc.fontSize(FONT_SIZES.SPEC_BODY);
@@ -643,19 +509,19 @@ function renderSpecRow(
   currentY: number,
   width: number
 ): number {
-  const labelText = `${label}:`;
+  const labelText = label;
 
   // Label: 11pt (1pt smaller)
   doc.fontSize(11).font('Helvetica-Bold');
   const labelWidth = doc.widthOfString(labelText);
   const labelHeight = doc.currentLineHeight();
 
-  // Calculate gray background dimensions
+  // Calculate black background dimensions
   const grayBoxStartY = currentY - 2;
   const grayBoxHeight = labelHeight + 3;
   const grayBoxEndY = grayBoxStartY + grayBoxHeight; // = currentY + labelHeight + 1
 
-  // Draw gray background behind label
+  // Draw black background behind label
   doc.fillColor(COLORS.LABEL_BACKGROUND)
     .rect(
       x - SPACING.LABEL_PADDING,
@@ -665,8 +531,8 @@ function renderSpecRow(
     )
     .fill();
 
-  // Render label (11pt)
-  doc.fillColor(COLORS.BLACK)
+  // Render label (11pt) in white
+  doc.fillColor(COLORS.WHITE)
     .fontSize(11)
     .font('Helvetica-Bold')
     .text(`${labelText}  `, x, currentY, {
@@ -695,11 +561,12 @@ function renderSpecRow(
   // Use at least one line height for spacing (even if value is empty)
   const effectiveValueHeight = Math.max(valueHeight, valueLineHeight);
 
-  // Render value (even if empty)
-  doc.text(value, valueX, valueY, {
-    width: width - (valueX - x),
-    lineBreak: true
-  });
+  // Render value (even if empty) in black
+  doc.fillColor(COLORS.BLACK)
+    .text(value, valueX, valueY, {
+      width: width - (valueX - x),
+      lineBreak: true
+    });
 
   // Calculate actual bottom positions
   // Gray box (label background) ends at: currentY + labelHeight + 1
@@ -748,17 +615,23 @@ function renderCompactHeader(
   // Calculate total header content height
   const headerContentHeight = currentY - headerStartY;
 
-  // Title text height: two lines of 14pt text with 18pt spacing = ~32pt total
-  const titleHeight = 32;
+  // Title text height: two lines (18pt + 12pt with spacing)
+  const titleHeight = 42;
 
   // Calculate vertical center offset for title
   const titleVerticalOffset = (headerContentHeight - titleHeight) / 2;
 
   // Now render the left side title, vertically centered
   const titleY = headerStartY + titleVerticalOffset;
-  doc.fontSize(FONT_SIZES.TITLE).font('Helvetica-Bold');
-  doc.text('Sign House Inc.', marginLeft, titleY);
-  doc.text('Order Form', marginLeft, titleY + 18);
+  const titleX = marginLeft + LAYOUT.TITLE_LEFT_MARGIN;
+
+  // Order Form (big, 18pt)
+  doc.fontSize(18).font('Helvetica-Bold');
+  doc.text('Order Form', titleX, titleY);
+
+  // Sign House Inc. (smaller, 12pt)
+  doc.fontSize(12).font('Helvetica-Bold');
+  doc.text('Sign House Inc.', titleX, titleY + 22);
 
   // Draw vertical divider between title and info columns
   const dividerX = marginLeft + LAYOUT.TITLE_WIDTH + LAYOUT.TITLE_DIVIDER_OFFSET;
@@ -781,31 +654,6 @@ function renderCompactHeader(
 }
 
 /**
- * Render a header label with background
- */
-function renderHeaderLabel(doc: any, label: string, x: number, y: number): number {
-  doc.fontSize(FONT_SIZES.HEADER_LABEL).font('Helvetica-Bold');
-  const labelWidth = doc.widthOfString(label);
-  const labelHeight = doc.currentLineHeight();
-
-  // Draw gray background behind label
-  doc.fillColor(COLORS.LABEL_BACKGROUND)
-    .rect(
-      x - SPACING.LABEL_PADDING,
-      y - 2,
-      labelWidth + (SPACING.LABEL_PADDING * 2),
-      labelHeight + 3
-    )
-    .fill();
-
-  // Render label text
-  doc.fillColor(COLORS.BLACK)
-    .text(label, x, y);
-
-  return labelWidth;
-}
-
-/**
  * Render shop form header (2-row)
  */
 function renderShopHeader(
@@ -819,36 +667,36 @@ function renderShopHeader(
 ): number {
   let currentY = startY;
 
-  // Row 1: Order # | Job name | Order Date
-  const orderLabel = 'Order #:';
-  const orderLabelWidth = renderHeaderLabel(doc, orderLabel, col1X, currentY);
+  // Row 1: Order # | Date | Job
+  let label = 'Order #';
+  let labelWidth = renderHeaderLabel(doc, label, col1X, currentY);
   doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
-  doc.text(orderData.order_number, col1X + orderLabelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
-
-  const jobLabel = 'Job:';
-  const jobLabelWidth = renderHeaderLabel(doc, jobLabel, col2X, currentY);
-  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
-  doc.text(orderData.order_name, col2X + jobLabelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+  doc.text(orderData.order_number, col1X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
 
   const orderDateStr = new Date(orderData.order_date).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
   });
-  const orderDateLabel = 'Order Date:';
-  const orderDateLabelWidth = renderHeaderLabel(doc, orderDateLabel, col3X, currentY);
+  label = 'Date';
+  labelWidth = renderHeaderLabel(doc, label, col2X, currentY);
   doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
-  doc.text(orderDateStr, col3X + orderDateLabelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+  doc.text(orderDateStr, col2X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+
+  label = 'Job';
+  labelWidth = renderHeaderLabel(doc, label, col3X, currentY);
+  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
+  doc.text(orderData.order_name, col3X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
   currentY += SPACING.HEADER_ROW;
 
-  // Row 2: Due Date | Delivery
-  renderDueDate(doc, orderData, col1X, currentY);
+  // Row 2: (blank) | Due | Delivery
+  renderDueDate(doc, orderData, col2X, currentY);
 
   const shippingText = orderData.shipping_required ? 'Shipping' : 'Pick Up';
-  const deliveryLabel = 'Delivery:';
-  const deliveryLabelWidth = renderHeaderLabel(doc, deliveryLabel, col2X, currentY);
+  label = 'Delivery';
+  labelWidth = renderHeaderLabel(doc, label, col3X, currentY);
   doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
-  doc.text(shippingText, col2X + deliveryLabelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+  doc.text(shippingText, col3X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
   currentY += SPACING.HEADER_ROW;
 
   return currentY;
@@ -869,85 +717,158 @@ function renderMasterCustomerHeader(
 ): number {
   let currentY = startY;
 
-  // Row 1: Order # | Customer | Job Name
-  let label = 'Order #:';
+  // Row 1: Order # | Date | Customer
+  let label = 'Order #';
   let labelWidth = renderHeaderLabel(doc, label, col1X, currentY);
   doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
   doc.text(orderData.order_number, col1X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
-
-  label = 'Customer:';
-  labelWidth = renderHeaderLabel(doc, label, col2X, currentY);
-  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
-  doc.text(orderData.company_name, col2X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
-
-  label = 'Job:';
-  labelWidth = renderHeaderLabel(doc, label, col3X, currentY);
-  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
-  doc.text(orderData.order_name, col3X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
-  currentY += SPACING.HEADER_ROW;
-
-  // Row 2: Customer PO# | Customer Job # | Order Date
-  label = 'Customer PO#:';
-  labelWidth = renderHeaderLabel(doc, label, col1X, currentY);
-  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
-  doc.text(orderData.customer_po || '', col1X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
-
-  label = 'Customer Job #:';
-  labelWidth = renderHeaderLabel(doc, label, col2X, currentY);
-  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
-  doc.text(orderData.customer_job_number || '', col2X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
 
   const orderDateStr = new Date(orderData.order_date).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
   });
-  label = 'Order Date:';
+  label = 'Date';
+  labelWidth = renderHeaderLabel(doc, label, col2X, currentY);
+  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
+  doc.text(orderDateStr, col2X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+
+  label = 'Customer';
   labelWidth = renderHeaderLabel(doc, label, col3X, currentY);
   doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
-  doc.text(orderDateStr, col3X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+  doc.text(orderData.company_name, col3X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
   currentY += SPACING.HEADER_ROW;
 
-  // Row 3: Due Date (hidden for customer form) | Delivery
-  // Only show Due Date for Master form
-  if (formType === 'master') {
-    renderDueDate(doc, orderData, col1X, currentY);
+  // Row 2: Job # | PO# | Job Name
+  label = 'Job #';
+  labelWidth = renderHeaderLabel(doc, label, col1X, currentY);
+  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
+  doc.text(orderData.customer_job_number || '', col1X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+
+  label = 'PO#';
+  labelWidth = renderHeaderLabel(doc, label, col2X, currentY);
+  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
+  doc.text(orderData.customer_po || '', col2X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+
+  label = 'Job Name';
+  labelWidth = renderHeaderLabel(doc, label, col3X, currentY);
+  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
+  doc.text(orderData.order_name, col3X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+  currentY += SPACING.HEADER_ROW;
+
+  // Row 3: (blank) | Due | Delivery (no due date for customer/specs form)
+  if (formType !== 'customer') {
+    renderDueDate(doc, orderData, col2X, currentY);
   }
 
   const shippingText = orderData.shipping_required ? 'Shipping' : 'Pick Up';
-  label = 'Delivery:';
-  const deliveryCol = formType === 'customer' ? col1X : col2X;
-  labelWidth = renderHeaderLabel(doc, label, deliveryCol, currentY);
+  label = 'Delivery';
+  labelWidth = renderHeaderLabel(doc, label, col3X, currentY);
   doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
-  doc.text(shippingText, deliveryCol + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+  doc.text(shippingText, col3X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
   currentY += SPACING.HEADER_ROW;
 
   return currentY;
 }
 
 /**
- * Render due date with time (if applicable)
+ * Calculate optimal split index for 2-column spec layout
+ * Strategy:
+ * 1. If LEDs component exists:
+ *    - Must be within range: midpoint - 1 (up) to midpoint + 4 (down)
+ *    - If within range but creates same spec type split, try adjustments: down 1-3, then up 1
+ *    - If no valid adjustment, fall back to Strategy 2
+ * 2. If no LEDs or Strategy 1 fails, split at exact half with adjustments: down 1-3, then up 1
  */
-function renderDueDate(doc: any, orderData: OrderDataForPDF, x: number, y: number): void {
-  if (!orderData.due_date) return;
+function calculateOptimalSplitIndex(
+  sortedTemplateRows: Array<{ template: string; rowNum: string; specs: Record<string, any> }>
+): number {
+  const totalSpecs = sortedTemplateRows.length;
+  const midpoint = Math.floor(totalSpecs / 2);
 
-  const dueDate = new Date(orderData.due_date);
-  const dueDateStr = formatDueDateTime(dueDate, orderData.hard_due_date_time);
-  const dueLabel = 'Due:';
+  // Strategy 1: Look for LEDs component
+  const ledsIndex = sortedTemplateRows.findIndex(row => row.template === 'LEDs');
+  if (ledsIndex !== -1) {
+    // Check if LEDs is within acceptable distance from midpoint
+    const distanceFromMidpoint = ledsIndex - midpoint;
+    const isWithinRange = distanceFromMidpoint >= -1 && distanceFromMidpoint <= 4;
 
-  // Always use gray background label
-  const dueLabelWidth = renderHeaderLabel(doc, dueLabel, x, y);
+    if (isWithinRange) {
+      debugLog(`[SPLIT STRATEGY] Found LEDs at index ${ledsIndex} (${distanceFromMidpoint > 0 ? '+' : ''}${distanceFromMidpoint} from midpoint)`);
 
-  // If hard deadline, make date value RED and BOLD
-  if (orderData.hard_due_date_time) {
-    doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica-Bold').fillColor(COLORS.URGENT_RED);
-    doc.text(dueDateStr, x + dueLabelWidth + SPACING.HEADER_LABEL_TO_VALUE, y - SPACING.HEADER_VALUE_RAISE);
-    doc.fillColor(COLORS.BLACK);
-  } else {
-    // Normal due date - regular black text
-    doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
-    doc.text(dueDateStr, x + dueLabelWidth + SPACING.HEADER_LABEL_TO_VALUE, y - SPACING.HEADER_VALUE_RAISE);
+      // Check if this split point is valid (no same spec type on both sides)
+      if (!shouldAdjustSplit(sortedTemplateRows, ledsIndex)) {
+        debugLog(`[SPLIT STRATEGY] Using LEDs index ${ledsIndex} directly`);
+        return ledsIndex;
+      }
+
+      debugLog(`[SPLIT STRATEGY] LEDs index ${ledsIndex} causes same-spec split, trying adjustments`);
+
+      // Try adjustments: down 1, 2, 3, then up 1
+      const adjustments = [1, 2, 3, -1]; // positive = down, negative = up
+      for (const adjustment of adjustments) {
+        const candidateIndex = ledsIndex + adjustment;
+
+        // Ensure within bounds
+        if (candidateIndex > 0 && candidateIndex < totalSpecs) {
+          if (!shouldAdjustSplit(sortedTemplateRows, candidateIndex)) {
+            debugLog(`[SPLIT STRATEGY] Adjusted from LEDs to index ${candidateIndex} (offset +${adjustment})`);
+            return candidateIndex;
+          }
+        }
+      }
+
+      debugLog(`[SPLIT STRATEGY] No valid adjustment for LEDs found, falling back to Strategy 2`);
+    } else {
+      debugLog(`[SPLIT STRATEGY] LEDs at index ${ledsIndex} is too far from midpoint (${distanceFromMidpoint}), falling back to Strategy 2`);
+    }
   }
+
+  // Strategy 2: No LEDs or Strategy 1 failed - split at half, then adjust if needed
+  let splitIndex = midpoint;
+
+  // Check if split separates same spec type
+  if (shouldAdjustSplit(sortedTemplateRows, splitIndex)) {
+    debugLog(`[SPLIT STRATEGY] Split at ${splitIndex} separates same spec type, attempting adjustment`);
+
+    // Try adjustments in order: down 1, 2, 3, then up 1
+    const adjustments = [1, 2, 3, -1]; // positive = down, negative = up
+    for (const adjustment of adjustments) {
+      const candidateIndex = splitIndex + adjustment;
+
+      // Ensure within bounds
+      if (candidateIndex > 0 && candidateIndex < totalSpecs) {
+        if (!shouldAdjustSplit(sortedTemplateRows, candidateIndex)) {
+          debugLog(`[SPLIT STRATEGY] Adjusted to index ${candidateIndex} (offset +${adjustment})`);
+          return candidateIndex;
+        }
+      }
+    }
+
+    debugLog(`[SPLIT STRATEGY] No valid adjustment found, using original midpoint ${splitIndex}`);
+  } else {
+    debugLog(`[SPLIT STRATEGY] Split at midpoint ${splitIndex} is valid`);
+  }
+
+  return splitIndex;
+}
+
+/**
+ * Check if split would separate same spec type on both sides
+ * Returns true if the spec type at (index-1) == spec type at (index)
+ */
+function shouldAdjustSplit(
+  sortedTemplateRows: Array<{ template: string; rowNum: string; specs: Record<string, any> }>,
+  splitIndex: number
+): boolean {
+  if (splitIndex <= 0 || splitIndex >= sortedTemplateRows.length) {
+    return false;
+  }
+
+  const lastLeftTemplate = sortedTemplateRows[splitIndex - 1].template;
+  const firstRightTemplate = sortedTemplateRows[splitIndex].template;
+
+  return lastLeftTemplate === firstRightTemplate;
 }
 
 /**
@@ -993,6 +914,101 @@ function buildPartColumns(parts: any[], formType: FormType): Array<{ parent: any
 }
 
 /**
+ * Render a single part with specs split into 2 horizontal columns (for 9+ specs)
+ * Used when there's only 1 part and it has many specs
+ */
+function renderSpecsInTwoColumns(
+  doc: any,
+  column: { parent: any; subItems: any[] },
+  marginLeft: number,
+  contentWidth: number,
+  contentStartY: number,
+  pageWidth: number,
+  marginRight: number,
+  formType: FormType
+): number {
+  const parent = column.parent;
+  const allParts = [parent, ...column.subItems];
+
+  // Get specs_qty from specifications, fallback to invoice quantity
+  let specsQty = 0;
+  try {
+    const specs = typeof parent.specifications === 'string'
+      ? JSON.parse(parent.specifications)
+      : parent.specifications;
+    specsQty = specs?.specs_qty ?? parent.quantity ?? 0;
+  } catch {
+    specsQty = parent.quantity ?? 0;
+  }
+
+  let currentY = contentStartY;
+
+  // Display name (left aligned, no duplicate for right column)
+  const displayName = parent.specs_display_name || parent.product_type;
+  doc.fontSize(FONT_SIZES.TITLE).font('Helvetica-Bold');
+  const titleLineHeight = doc.currentLineHeight();
+
+  doc.text(displayName, marginLeft, currentY, {
+    width: contentWidth * LAYOUT.PART_NAME_WIDTH_PERCENT,
+    lineBreak: false,
+    ellipsis: true
+  });
+
+  currentY += titleLineHeight + 2; // Title height + small gap
+
+  // Add Scope text below Product Type (if it exists)
+  if (parent.part_scope) {
+    doc.fontSize(FONT_SIZES.SCOPE).font('Helvetica');
+    const scopeLineHeight = doc.currentLineHeight();
+    doc.text(`Scope: ${parent.part_scope}`, marginLeft, currentY, {
+      width: contentWidth,
+      lineBreak: false,
+      ellipsis: true
+    });
+    currentY += scopeLineHeight + 3; // Scope height + small gap
+  }
+
+  // Draw FULL-WIDTH horizontal separator line (not split)
+  doc.strokeColor(COLORS.DIVIDER_LIGHT)
+    .lineWidth(LINE_WIDTHS.DIVIDER_LIGHT)
+    .moveTo(marginLeft, currentY)
+    .lineTo(pageWidth - marginRight, currentY)
+    .stroke();
+  doc.strokeColor(COLORS.BLACK);
+
+  currentY += SPACING.AFTER_SEPARATOR;
+
+  // Build sorted template rows
+  const sortedTemplateRows = buildSortedTemplateRows(allParts, formType);
+
+  // Determine split point for 2-column layout
+  let splitIndex = calculateOptimalSplitIndex(sortedTemplateRows);
+
+  const leftSpecs = sortedTemplateRows.slice(0, splitIndex);
+  const rightSpecs = sortedTemplateRows.slice(splitIndex);
+
+  // Calculate column widths for 2-column layout
+  const leftColumnX = marginLeft + LAYOUT.PART_COLUMN_INNER_PADDING;
+  const rightColumnX = marginLeft + contentWidth / 2 + LAYOUT.PART_COLUMN_INNER_PADDING;
+  const columnWidth = contentWidth / 2 - (LAYOUT.PART_COLUMN_INNER_PADDING * 2);
+
+  // Render left column specs
+  let leftY = renderSpecifications(doc, allParts, leftColumnX, currentY, columnWidth, formType, leftSpecs);
+
+  // Render right column specs
+  let rightY = renderSpecifications(doc, allParts, rightColumnX, currentY, columnWidth, formType, rightSpecs);
+
+  // Determine where to place quantity box (under the taller column)
+  const maxSpecsY = Math.max(leftY, rightY);
+  let finalY = maxSpecsY + 5; // Add gap before quantity box
+
+  // Render quantity box under the right column (position it under right specs)
+  finalY = renderQuantityBox(doc, specsQty, rightColumnX, finalY, columnWidth);
+
+  return finalY;
+}
+
+/**
  * Render all part columns
  */
 function renderPartColumns(
@@ -1001,8 +1017,24 @@ function renderPartColumns(
   marginLeft: number,
   contentWidth: number,
   contentStartY: number,
+  pageWidth: number,
+  marginRight: number,
   formType: FormType
 ): number {
+  // Check if this is a single-part order with 9+ specs (use 2-column layout)
+  if (partColumns.length === 1) {
+    const singleColumn = partColumns[0];
+    const allParts = [singleColumn.parent, ...singleColumn.subItems];
+    const sortedSpecs = buildSortedTemplateRows(allParts, formType);
+
+    if (sortedSpecs.length >= 9) {
+      console.log(`[SINGLE PART 2-COLUMN] Order has ${sortedSpecs.length} specs - using 2-column layout`);
+      debugLog(`[SINGLE PART 2-COLUMN] Using 2-column layout for ${sortedSpecs.length} specs`);
+      return renderSpecsInTwoColumns(doc, singleColumn, marginLeft, contentWidth, contentStartY, pageWidth, marginRight, formType);
+    }
+  }
+
+  // Multi-part or single-part with <9 specs: use normal column layout
   const numColumns = Math.min(partColumns.length, LAYOUT.MAX_COLUMNS);
   const columnWidth = contentWidth / numColumns;
 
@@ -1057,7 +1089,7 @@ function renderPartColumns(
       partY += scopeLineHeight + 3; // Scope height + small gap
     }
 
-    // Draw horizontal separator line
+    // Draw horizontal separator line (split for multi-part, full-width for single with <9)
     doc.strokeColor(COLORS.DIVIDER_LIGHT)
       .lineWidth(LINE_WIDTHS.DIVIDER_LIGHT)
       .moveTo(partX, partY)
@@ -1077,36 +1109,8 @@ function renderPartColumns(
     // Add gap before quantity box
     partY += 5;
 
-    // Quantity box at bottom of specs - NEW STYLING: gray background for qty=1, red for others
-    const qtyValue = Number(specsQty);
-    const isStandard = qtyValue === 1 || qtyValue === 1.0;
-
-    // Style based on quantity
-    const bgColor = isStandard ? COLORS.QTY_STANDARD_BG : COLORS.QTY_NONSTANDARD_BG;
-    const textColor = isStandard ? COLORS.QTY_STANDARD_TEXT : COLORS.QTY_NONSTANDARD_TEXT;
-    const fontSize = isStandard ? FONT_SIZES.QTY_STANDARD : FONT_SIZES.QTY_NONSTANDARD;
-    const fontWeight = isStandard ? 'Helvetica' : 'Helvetica-Bold';
-
-    doc.fontSize(fontSize).font(fontWeight).fillColor(textColor);
-
-    const qtyUnit = qtyValue <= 1 ? 'set' : 'sets';
-    const qtyText = `Quantity: ${specsQty} ${qtyUnit}`;
-    const qtyTextWidth = doc.widthOfString(qtyText);
-
-    // Draw filled background rectangle
-    doc.fillColor(bgColor)
-      .rect(partX, partY - 1, qtyTextWidth + (SPACING.QTY_BOX_PADDING * 2), 14)
-      .fill();
-
-    // Draw text on top
-    doc.fillColor(textColor)
-      .text(qtyText, partX + SPACING.QTY_BOX_PADDING, partY + 1, { width: partColumnWidth });
-
-    // Reset colors
-    doc.fillColor(COLORS.BLACK).strokeColor(COLORS.BLACK);
-
-    // Add spacing after quantity box
-    partY += 18;
+    // Render quantity box (shared utility function)
+    partY = renderQuantityBox(doc, specsQty, partX, partY, partColumnWidth);
 
     // Track the maximum Y position
     if (partY > maxPartY) {
@@ -1315,7 +1319,7 @@ export async function generateOrderForm(
 
       // Build and render part columns
       const partColumns = buildPartColumns(orderData.parts, formType);
-      const maxPartY = renderPartColumns(doc, partColumns, marginLeft, contentWidth, contentStartY, formType);
+      const maxPartY = renderPartColumns(doc, partColumns, marginLeft, contentWidth, contentStartY, pageWidth, marginRight, formType);
 
       // Render notes and image section
       await renderNotesAndImage(doc, orderData, formType, maxPartY, marginLeft, contentWidth, pageWidth, marginRight, pageHeight);

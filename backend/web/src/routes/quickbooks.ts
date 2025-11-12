@@ -759,52 +759,62 @@ router.post('/create-estimate', authenticateToken, async (req: Request, res: Res
     }
 
     // 2. RESOLVE TAX CODE (with caching)
-    // Map tax_rate to tax_name via tax_rules table
-    const [taxRuleRows] = await pool.execute<RowDataPacket[]>(
-      `SELECT tax_name FROM tax_rules
-       WHERE ABS(tax_percent - ?) < 0.001 AND is_active = 1
-       ORDER BY tax_rule_id ASC LIMIT 1`,
-      [estimatePreviewData.taxRate]
+    // Get customer's billing address province to determine correct tax code
+    // First try: is_billing = 1 AND is_primary = 1
+    // Fallback: is_primary = 1 (if no billing address set)
+    const [customerAddressRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT province_state_short FROM customer_addresses
+       WHERE customer_id = ? AND (is_billing = 1 AND is_primary = 1 OR is_primary = 1)
+       ORDER BY is_billing DESC
+       LIMIT 1`,
+      [customer_id]
     );
 
-    const taxName = taxRuleRows[0]?.tax_name;
+    const customerProvince = customerAddressRows[0]?.province_state_short;
+    if (!customerProvince) {
+      return res.status(400).json({
+        success: false,
+        error: 'Customer does not have a primary address. Please set a primary address first.',
+      });
+    }
+
+    console.log(`Customer billing province: ${customerProvince}`);
+
+    // Look up tax_name from provinces_tax table using province_short
+    const [provincesTaxRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT pt.tax_name FROM provinces_tax pt
+       WHERE pt.province_short = ? AND pt.is_active = 1
+       LIMIT 1`,
+      [customerProvince]
+    );
+
+    const taxName = provincesTaxRows[0]?.tax_name;
     if (!taxName) {
       return res.status(400).json({
         success: false,
-        error: `No active tax rule found for rate ${(estimatePreviewData.taxRate * 100).toFixed(1)}%. Please check tax_rules table.`,
+        error: `No tax configuration found for province ${customerProvince}. Please check provinces_tax table.`,
       });
     }
 
-    console.log(`Tax rate ${estimatePreviewData.taxRate} mapped to: "${taxName}"`);
+    console.log(`Province ${customerProvince} mapped to tax: "${taxName}"`);
 
-    let qbTaxCodeId = await getQBTaxCodeId(taxName);
+    // Look up QB tax code ID from qb_tax_code_mappings
+    const [qbTaxMappingRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT qtc.qb_tax_code_id FROM qb_tax_code_mappings qtc
+       WHERE qtc.tax_name = ?
+       LIMIT 1`,
+      [taxName]
+    );
 
+    let qbTaxCodeId = qbTaxMappingRows[0]?.qb_tax_code_id;
     if (!qbTaxCodeId) {
-      console.log(`Looking up tax code in QB: "${taxName}"`);
-      qbTaxCodeId = await getTaxCodeIdByName(taxName, realmId);
-
-      if (!qbTaxCodeId) {
-        // Try fallback to "TAX"
-        console.log(`Tax code "${taxName}" not found, trying fallback "TAX"`);
-        qbTaxCodeId = await getTaxCodeIdByName('TAX', realmId);
-
-        if (!qbTaxCodeId) {
-          return res.status(400).json({
-            success: false,
-            error: `Tax code "${taxName}" not found in QuickBooks. Please create this tax code in QuickBooks first.`,
-          });
-        }
-      }
-
-      await storeTaxCodeMapping({
-        tax_name: taxName,
-        qb_tax_code_id: qbTaxCodeId,
-        tax_rate: estimatePreviewData.taxRate,
+      return res.status(400).json({
+        success: false,
+        error: `No QuickBooks tax code mapping found for "${taxName}". Please configure the mapping in qb_tax_code_mappings.`,
       });
-      console.log(`✅ Cached tax code mapping: "${taxName}" → ${qbTaxCodeId}`);
-    } else {
-      console.log(`✅ Using cached tax code ID: ${qbTaxCodeId}`);
     }
+
+    console.log(`✅ Using tax code: "${taxName}" → QB ID: ${qbTaxCodeId}`);
 
     // 3. BUILD LINE ITEMS (with item ID caching) - ALL MUST SUCCEED
     const lines: any[] = [];
@@ -951,6 +961,7 @@ router.post('/create-estimate', authenticateToken, async (req: Request, res: Res
           UnitPrice: item.unitPrice,
           TaxCodeRef: {
             value: qbTaxCodeId,
+            name: taxName,
           },
         },
         Amount: item.extendedPrice,
@@ -980,7 +991,14 @@ router.post('/create-estimate', authenticateToken, async (req: Request, res: Res
       CustomerRef: { value: qbCustomerId },
       TxnDate: new Date().toISOString().split('T')[0], // Today's date YYYY-MM-DD
       Line: lines,
+      // Don't specify TxnTaxDetail - let QB use customer's default tax configuration
     };
+
+    // Log the tax code being used
+    console.log(`\n💰 TAX CONFIGURATION:`);
+    console.log(`  Tax Name: "${taxName}"`);
+    console.log(`  QB Tax Code ID: ${qbTaxCodeId}`);
+    console.log(`  Tax Rate: ${(estimatePreviewData.taxRate * 100).toFixed(2)}%\n`);
 
     console.log(`📤 Creating estimate in QB with ${lines.length} line items...`);
 

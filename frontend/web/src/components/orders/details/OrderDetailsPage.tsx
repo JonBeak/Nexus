@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { flushSync } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Pencil, Check, X, Printer, ChevronDown, Plus, Minus } from 'lucide-react';
 import { Order, OrderPart } from '../../../types/orders';
@@ -25,6 +24,127 @@ interface TaxRule {
   tax_percent: number;
   is_active: number;
 }
+
+// Reusable EditableField component to reduce repetition
+interface EditableFieldProps {
+  field: string;
+  value: any;
+  label?: string;
+  type?: 'text' | 'date' | 'time' | 'email' | 'select' | 'checkbox';
+  options?: Array<{ value: string; label: string }>;
+  isEditing: boolean;
+  isSaving: boolean;
+  onEdit: (field: string, currentValue: string) => void;
+  onSave: (field: string) => void;
+  onCancel: () => void;
+  editValue?: string;
+  onEditValueChange?: (value: string) => void;
+  displayFormatter?: (value: any) => string;
+  className?: string;
+}
+
+const EditableField: React.FC<EditableFieldProps> = ({
+  field,
+  value,
+  type = 'text',
+  options = [],
+  isEditing,
+  isSaving,
+  onEdit,
+  onSave,
+  onCancel,
+  editValue = '',
+  onEditValueChange,
+  displayFormatter,
+  className = ''
+}) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      onSave(field);
+    } else if (e.key === 'Escape') {
+      onCancel();
+    }
+  };
+
+  const displayValue = displayFormatter ? displayFormatter(value) : (value || '-');
+
+  if (type === 'checkbox') {
+    return (
+      <div className="flex items-center space-x-2 group h-6">
+        <input
+          type="checkbox"
+          checked={value || false}
+          onChange={(e) => {
+            onEdit(field, String(e.target.checked));
+            onSave(field);
+          }}
+          className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+        />
+        <p className="font-medium text-gray-900 text-base">
+          {value ? 'Yes' : 'No'}
+        </p>
+      </div>
+    );
+  }
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center space-x-1 h-6">
+        {type === 'select' ? (
+          <select
+            value={editValue}
+            onChange={(e) => onEditValueChange?.(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="font-medium text-gray-900 border border-indigo-300 rounded px-1 text-base w-full h-full"
+            autoFocus
+          >
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type={type}
+            value={editValue}
+            onChange={(e) => onEditValueChange?.(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className={`font-medium text-gray-900 border border-indigo-300 rounded px-1 text-base w-full h-full ${className}`}
+            autoFocus
+          />
+        )}
+        <button
+          onClick={() => onSave(field)}
+          disabled={isSaving}
+          className="text-green-600 hover:text-green-700 flex-shrink-0"
+        >
+          <Check className="w-4 h-4" />
+        </button>
+        <button
+          onClick={onCancel}
+          className="text-gray-500 hover:text-gray-700 flex-shrink-0"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center space-x-2 group h-6">
+      <p className="font-medium text-gray-900 text-base">
+        {displayValue}
+      </p>
+      <button
+        onClick={() => onEdit(field, String(value || ''))}
+        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600"
+      >
+        <Pencil className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+};
 
 export const OrderDetailsPage: React.FC = () => {
   const { orderNumber } = useParams<{ orderNumber: string }>();
@@ -102,7 +222,6 @@ export const OrderDetailsPage: React.FC = () => {
     try {
       // Check if templates are already populated (cached)
       if (areTemplatesPopulated()) {
-        console.log('[OrderDetailsPage] Using cached template data - no API calls needed');
         // Use cached data
         setLeds(getCachedLEDs());
         setPowerSupplies(getCachedPowerSupplies());
@@ -110,8 +229,6 @@ export const OrderDetailsPage: React.FC = () => {
         setSpecsDataLoaded(true);
         return;
       }
-
-      console.log('[OrderDetailsPage] Fetching template data from API (first load)');
       // Fetch LEDs, Power Supplies, and Materials in parallel
       const [ledsData, powerSuppliesData, materialsData] = await Promise.all([
         ledsApi.getActiveLEDs(),
@@ -146,13 +263,11 @@ export const OrderDetailsPage: React.FC = () => {
   // Scroll preservation: Restore scroll position synchronously before each paint during save operations
   useLayoutEffect(() => {
     if (isSavingRef.current && savedScrollPosition.current !== null && scrollContainerRef.current) {
-      console.log('[Scroll Restore] useLayoutEffect - Restoring scroll to:', savedScrollPosition.current);
       scrollContainerRef.current.scrollTop = savedScrollPosition.current;
 
       // Also schedule restoration after paint to catch any late renders
       requestAnimationFrame(() => {
         if (isSavingRef.current && savedScrollPosition.current !== null && scrollContainerRef.current) {
-          console.log('[Scroll Restore] RAF - Restoring scroll to:', savedScrollPosition.current);
           scrollContainerRef.current.scrollTop = savedScrollPosition.current;
         }
       });
@@ -240,63 +355,42 @@ export const OrderDetailsPage: React.FC = () => {
     // Start with base count of 2 (Vinyl/CNC, QC & Packing)
     let count = 2;
 
-    // Check all parts for specific specifications
-    for (const part of orderParts) {
-      const specs = part.specifications || {};
+    // Define specification checks - each adds 1 to shop count if found
+    const specChecks = [
+      // Check for Return
+      (specs: any) => specs.return || specs.Return,
 
-      // +1 if Return is included
-      if (specs.return || specs.Return) {
-        count += 1;
-        break; // Only count once per order
-      }
-    }
+      // Check for Trim
+      (specs: any) => specs.trim || specs.Trim,
 
-    for (const part of orderParts) {
-      const specs = part.specifications || {};
+      // Check for Pins with count OR D-Tape/Mounting
+      (specs: any) => {
+        const hasPins = specs.pins || specs.Pins;
+        const hasDTape = specs['D-Tape'] || specs['d-tape'] || specs.dtape ||
+                         specs.Dtape || specs.DTape || specs.mounting || specs.Mounting;
+        return (hasPins && parseInt(String(hasPins)) > 0) || hasDTape;
+      },
 
-      // +1 if Trim is included
-      if (specs.trim || specs.Trim) {
-        count += 1;
-        break;
-      }
-    }
-
-    for (const part of orderParts) {
-      const specs = part.specifications || {};
-
-      // +1 if Pins have count OR D-Tape/Mounting is included
-      const hasPins = specs.pins || specs.Pins;
-      const hasDTape = specs['D-Tape'] || specs['d-tape'] || specs.dtape || specs.Dtape || specs.DTape || specs.mounting || specs.Mounting;
-      if ((hasPins && parseInt(String(hasPins)) > 0) || hasDTape) {
-        count += 1;
-        break;
-      }
-    }
-
-    for (const part of orderParts) {
-      const specs = part.specifications || {};
-
-      // +1 if LEDs or LED Neon have actual count or is included
-      const hasLEDs = specs.leds || specs.LEDs || specs.led || specs.LED;
-      const hasLEDNeon = specs.led_neon || specs['LED Neon'] || specs.ledNeon;
-      if (hasLEDs || hasLEDNeon) {
-        // Check if it has a count or is just included
-        const ledCount = parseInt(String(hasLEDs)) || 0;
-        const neonCount = parseInt(String(hasLEDNeon)) || 0;
-        if (ledCount > 0 || neonCount > 0 || hasLEDs === true || hasLEDNeon === true) {
-          count += 1;
-          break;
+      // Check for LEDs or LED Neon
+      (specs: any) => {
+        const hasLEDs = specs.leds || specs.LEDs || specs.led || specs.LED;
+        const hasLEDNeon = specs.led_neon || specs['LED Neon'] || specs.ledNeon;
+        if (hasLEDs || hasLEDNeon) {
+          const ledCount = parseInt(String(hasLEDs)) || 0;
+          const neonCount = parseInt(String(hasLEDNeon)) || 0;
+          return ledCount > 0 || neonCount > 0 || hasLEDs === true || hasLEDNeon === true;
         }
-      }
-    }
+        return false;
+      },
 
-    for (const part of orderParts) {
-      const specs = part.specifications || {};
+      // Check for Painting
+      (specs: any) => specs.painting || specs.Painting
+    ];
 
-      // +1 if Painting is included
-      if (specs.painting || specs.Painting) {
-        count += 1;
-        break;
+    // Apply each check - add 1 to count if any part matches
+    for (const check of specChecks) {
+      if (orderParts.some(part => check(part.specifications || {}))) {
+        count++;
       }
     }
 
@@ -448,10 +542,6 @@ export const OrderDetailsPage: React.FC = () => {
     // Mark that we're saving and capture scroll position ONCE
     isSavingRef.current = true;
     savedScrollPosition.current = scrollContainerRef.current?.scrollTop || 0;
-    console.log('[Scroll Save] Captured scroll position:', savedScrollPosition.current);
-    console.log('[Scroll Save] Scroll container element:', scrollContainerRef.current);
-    console.log('[Scroll Save] Current scrollHeight:', scrollContainerRef.current?.scrollHeight);
-    console.log('[Scroll Save] Current clientHeight:', scrollContainerRef.current?.clientHeight);
 
     try {
       setSaving(true);
@@ -515,7 +605,6 @@ export const OrderDetailsPage: React.FC = () => {
       // Clear scroll preservation AFTER all operations complete
       // Using setTimeout to ensure the final render has completed
       setTimeout(() => {
-        console.log('[Scroll Save] Clearing scroll preservation');
         isSavingRef.current = false;
         savedScrollPosition.current = null;
       }, 0);
@@ -714,7 +803,7 @@ export const OrderDetailsPage: React.FC = () => {
               {/* Top Row: Order Info (Left) and Invoice Info (Right) */}
               <div className="flex gap-4">
                 {/* Left: Order Info Panel - Narrower */}
-                <div className="flex-shrink-0 bg-white rounded-lg shadow p-4 flex gap-6" style={{ width: '1123px', minHeight: '200px', maxHeight: '220px' }}>
+                <div className="flex-shrink-0 bg-white rounded-lg shadow p-4 flex gap-6" style={{ width: '1123px', minHeight: '240px', maxHeight: '250px' }}>
                 {/* Left: Order Image - 32% of panel width */}
                 <div style={{ width: '32%' }}>
                   <OrderImage
@@ -745,108 +834,57 @@ export const OrderDetailsPage: React.FC = () => {
                     {/* Customer PO - Editable */}
                     <div className="flex-1">
                       <span className="text-gray-500 text-sm">Customer PO:</span>
-                      {editingField === 'customer_po' ? (
-                        <div className="flex items-center space-x-1 h-6">
-                          <input
-                            type="text"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onKeyDown={(e) => handleKeyDown(e, 'customer_po')}
-                            className="font-medium text-gray-900 border border-indigo-300 rounded px-1 text-base w-full h-full"
-                            autoFocus
-                          />
-                          <button onClick={() => saveEdit('customer_po')} disabled={saving} className="text-green-600 hover:text-green-700 flex-shrink-0">
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button onClick={cancelEdit} className="text-gray-500 hover:text-gray-700 flex-shrink-0">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center space-x-2 group h-6">
-                          <p className="font-medium text-gray-900 text-base">
-                            {order.customer_po || '-'}
-                          </p>
-                          <button
-                            onClick={() => startEdit('customer_po', order.customer_po || '')}
-                            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
+                      <EditableField
+                        field="customer_po"
+                        value={order.customer_po}
+                        type="text"
+                        isEditing={editingField === 'customer_po'}
+                        isSaving={saving}
+                        onEdit={startEdit}
+                        onSave={saveEdit}
+                        onCancel={cancelEdit}
+                        editValue={editValue}
+                        onEditValueChange={setEditValue}
+                      />
                     </div>
 
                     {/* Customer Job # - Editable */}
                     <div className="flex-1">
                       <span className="text-gray-500 text-sm">Customer Job #:</span>
-                      {editingField === 'customer_job_number' ? (
-                        <div className="flex items-center space-x-1 h-6">
-                          <input
-                            type="text"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onKeyDown={(e) => handleKeyDown(e, 'customer_job_number')}
-                            className="font-medium text-gray-900 border border-indigo-300 rounded px-1 text-base w-full h-full"
-                            autoFocus
-                          />
-                          <button onClick={() => saveEdit('customer_job_number')} disabled={saving} className="text-green-600 hover:text-green-700 flex-shrink-0">
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button onClick={cancelEdit} className="text-gray-500 hover:text-gray-700 flex-shrink-0">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center space-x-2 group h-6">
-                          <p className="font-medium text-gray-900 text-base">
-                            {order.customer_job_number || '-'}
-                          </p>
-                          <button
-                            onClick={() => startEdit('customer_job_number', order.customer_job_number || '')}
-                            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
+                      <EditableField
+                        field="customer_job_number"
+                        value={order.customer_job_number}
+                        type="text"
+                        isEditing={editingField === 'customer_job_number'}
+                        isSaving={saving}
+                        onEdit={startEdit}
+                        onSave={saveEdit}
+                        onCancel={cancelEdit}
+                        editValue={editValue}
+                        onEditValueChange={setEditValue}
+                      />
                     </div>
 
                     {/* Shipping Method - Dropdown (uses shipping_required boolean) */}
                     <div className="flex-1">
                       <span className="text-gray-500 text-sm">Shipping Method:</span>
-                      {editingField === 'shipping_required' ? (
-                        <div className="flex items-center space-x-1 h-6">
-                          <select
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onKeyDown={(e) => handleKeyDown(e, 'shipping_required')}
-                            className="font-medium text-gray-900 border border-indigo-300 rounded px-1 text-base w-full h-full"
-                            autoFocus
-                          >
-                            <option value="true">Shipping</option>
-                            <option value="false">Pick Up</option>
-                          </select>
-                          <button onClick={() => saveEdit('shipping_required')} disabled={saving} className="text-green-600 hover:text-green-700 flex-shrink-0">
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button onClick={cancelEdit} className="text-gray-500 hover:text-gray-700 flex-shrink-0">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center space-x-2 group h-6">
-                          <p className="font-medium text-gray-900 text-base">
-                            {order.shipping_required ? 'Shipping' : 'Pick Up'}
-                          </p>
-                          <button
-                            onClick={() => startEdit('shipping_required', String(order.shipping_required))}
-                            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
+                      <EditableField
+                        field="shipping_required"
+                        value={order.shipping_required}
+                        type="select"
+                        options={[
+                          { value: 'true', label: 'Shipping' },
+                          { value: 'false', label: 'Pick Up' }
+                        ]}
+                        isEditing={editingField === 'shipping_required'}
+                        isSaving={saving}
+                        onEdit={startEdit}
+                        onSave={saveEdit}
+                        onCancel={cancelEdit}
+                        editValue={editValue}
+                        onEditValueChange={setEditValue}
+                        displayFormatter={(val) => val ? 'Shipping' : 'Pick Up'}
+                      />
                     </div>
                   </div>
 
@@ -855,71 +893,37 @@ export const OrderDetailsPage: React.FC = () => {
                     {/* Due Date - Editable */}
                     <div className="flex-1">
                       <span className="text-gray-500 text-sm">Due Date:</span>
-                      {editingField === 'due_date' ? (
-                        <div className="flex items-center space-x-1 h-6">
-                          <input
-                            type="date"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onKeyDown={(e) => handleKeyDown(e, 'due_date')}
-                            className="font-medium text-gray-900 border border-indigo-300 rounded px-1 text-base h-full"
-                            autoFocus
-                          />
-                          <button onClick={() => saveEdit('due_date')} disabled={saving} className="text-green-600 hover:text-green-700 flex-shrink-0">
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button onClick={cancelEdit} className="text-gray-500 hover:text-gray-700 flex-shrink-0">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center space-x-2 group h-6">
-                          <p className="font-medium text-gray-900 text-base">
-                            {formatDateString(order.due_date)}
-                          </p>
-                          <button
-                            onClick={() => startEdit('due_date', order.due_date || '')}
-                            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
+                      <EditableField
+                        field="due_date"
+                        value={order.due_date}
+                        type="date"
+                        isEditing={editingField === 'due_date'}
+                        isSaving={saving}
+                        onEdit={startEdit}
+                        onSave={saveEdit}
+                        onCancel={cancelEdit}
+                        editValue={editValue}
+                        onEditValueChange={setEditValue}
+                        displayFormatter={formatDateString}
+                      />
                     </div>
 
                     {/* Hard Due Time - Editable */}
                     <div className="flex-1">
                       <span className="text-gray-500 text-sm">Hard Due Time:</span>
-                      {editingField === 'hard_due_date_time' ? (
-                        <div className="flex items-center space-x-1 h-6">
-                          <input
-                            type="time"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onKeyDown={(e) => handleKeyDown(e, 'hard_due_date_time')}
-                            className="font-medium text-gray-900 border border-indigo-300 rounded px-1 text-base w-full h-full"
-                            autoFocus
-                          />
-                          <button onClick={() => saveEdit('hard_due_date_time')} disabled={saving} className="text-green-600 hover:text-green-700 flex-shrink-0">
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button onClick={cancelEdit} className="text-gray-500 hover:text-gray-700 flex-shrink-0">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center space-x-2 group h-6">
-                          <p className="font-medium text-gray-900 text-base">
-                            {formatTimeTo12Hour(order.hard_due_date_time)}
-                          </p>
-                          <button
-                            onClick={() => startEdit('hard_due_date_time', order.hard_due_date_time || '')}
-                            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
+                      <EditableField
+                        field="hard_due_date_time"
+                        value={order.hard_due_date_time}
+                        type="time"
+                        isEditing={editingField === 'hard_due_date_time'}
+                        isSaving={saving}
+                        onEdit={startEdit}
+                        onSave={saveEdit}
+                        onCancel={cancelEdit}
+                        editValue={editValue}
+                        onEditValueChange={setEditValue}
+                        displayFormatter={formatTimeTo12Hour}
+                      />
                     </div>
 
                     {/* Turnaround Time */}
@@ -957,30 +961,30 @@ export const OrderDetailsPage: React.FC = () => {
                               style={{ height: '60px' }}
                               autoFocus
                             />
-                            <div className="absolute top-2 right-2 flex items-center space-x-1">
-                              <button
-                                onClick={cancelEdit}
-                                className="px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs hover:bg-gray-300"
-                              >
-                                Cancel
-                              </button>
+                            <div className="absolute top-1 right-6 flex flex-col space-y-1">
                               <button
                                 onClick={() => saveEdit('manufacturing_note')}
                                 disabled={saving}
-                                className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50"
+                                className="px-2 py-0.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50"
                               >
                                 {saving ? 'Saving...' : 'Save'}
+                              </button>
+                              <button
+                                onClick={cancelEdit}
+                                className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded text-xs hover:bg-gray-300"
+                              >
+                                Cancel
                               </button>
                             </div>
                           </div>
                         ) : (
                           <div className="group h-full">
-                            <p className="text-base text-gray-600 whitespace-pre-wrap h-full overflow-y-auto">
+                            <p className="text-base text-gray-600 whitespace-pre-wrap h-full overflow-y-auto border border-gray-300 rounded px-2 py-1">
                               {order.manufacturing_note || '-'}
                             </p>
                             <button
                               onClick={() => startEdit('manufacturing_note', order.manufacturing_note || '')}
-                              className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 transition-opacity"
+                              className="absolute top-1 right-5 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 transition-opacity"
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
@@ -1005,30 +1009,30 @@ export const OrderDetailsPage: React.FC = () => {
                               style={{ height: '60px' }}
                               autoFocus
                             />
-                            <div className="absolute top-2 right-2 flex items-center space-x-1">
-                              <button
-                                onClick={cancelEdit}
-                                className="px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs hover:bg-gray-300"
-                              >
-                                Cancel
-                              </button>
+                            <div className="absolute top-1 right-6 flex flex-col space-y-1">
                               <button
                                 onClick={() => saveEdit('internal_note')}
                                 disabled={saving}
-                                className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50"
+                                className="px-2 py-0.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50"
                               >
                                 {saving ? 'Saving...' : 'Save'}
+                              </button>
+                              <button
+                                onClick={cancelEdit}
+                                className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded text-xs hover:bg-gray-300"
+                              >
+                                Cancel
                               </button>
                             </div>
                           </div>
                         ) : (
                           <div className="group h-full">
-                            <p className="text-base text-gray-600 whitespace-pre-wrap h-full overflow-y-auto">
+                            <p className="text-base text-gray-600 whitespace-pre-wrap h-full overflow-y-auto border border-gray-300 rounded px-2 py-1">
                               {order.internal_note || '-'}
                             </p>
                             <button
                               onClick={() => startEdit('internal_note', order.internal_note || '')}
-                              className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 transition-opacity"
+                              className="absolute top-1 right-5 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 transition-opacity"
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
@@ -1041,8 +1045,8 @@ export const OrderDetailsPage: React.FC = () => {
               </div>
 
                 {/* Right: Contact & Invoice Details Panel */}
-                <div className="flex-shrink-0 bg-white rounded-lg shadow p-4" style={{ width: '749px', minHeight: '200px', maxHeight: '220px' }}>
-                  <div className="h-full flex flex-col justify-between">
+                <div className="flex-shrink-0 bg-white rounded-lg shadow p-4" style={{ width: '749px', minHeight: '240px', maxHeight: '250px' }}>
+                  <div className="h-full flex flex-col gap-4">
                     {/* Top Section: Point Persons, Accounting Email, Terms */}
                     <div className="flex gap-4">
                       {/* Point Persons - Display only, flex-2 (managed via order_point_persons table) */}
@@ -1065,71 +1069,35 @@ export const OrderDetailsPage: React.FC = () => {
                       {/* Accounting Email - Editable (from Customer) */}
                       <div className="flex-1">
                         <span className="text-gray-500 text-sm">Accounting Email:</span>
-                        {editingField === 'invoice_email' ? (
-                          <div className="flex items-center space-x-1 h-6">
-                            <input
-                              type="email"
-                              value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              onKeyDown={(e) => handleKeyDown(e, 'invoice_email')}
-                              className="font-medium text-gray-900 border border-indigo-300 rounded px-1 text-base w-full h-full"
-                              autoFocus
-                            />
-                            <button onClick={() => saveEdit('invoice_email')} disabled={saving} className="text-green-600 hover:text-green-700 flex-shrink-0">
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button onClick={cancelEdit} className="text-gray-500 hover:text-gray-700 flex-shrink-0">
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center space-x-2 group h-6">
-                            <p className="font-medium text-gray-900 text-base">
-                              {order.invoice_email || '-'}
-                            </p>
-                            <button
-                              onClick={() => startEdit('invoice_email', order.invoice_email || '')}
-                              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
+                        <EditableField
+                          field="invoice_email"
+                          value={order.invoice_email}
+                          type="email"
+                          isEditing={editingField === 'invoice_email'}
+                          isSaving={saving}
+                          onEdit={startEdit}
+                          onSave={saveEdit}
+                          onCancel={cancelEdit}
+                          editValue={editValue}
+                          onEditValueChange={setEditValue}
+                        />
                       </div>
 
                       {/* Terms - Editable (from Customer) */}
                       <div className="flex-1">
                         <span className="text-gray-500 text-sm">Terms:</span>
-                        {editingField === 'terms' ? (
-                          <div className="flex items-center space-x-1 h-6">
-                            <input
-                              type="text"
-                              value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              onKeyDown={(e) => handleKeyDown(e, 'terms')}
-                              className="font-medium text-gray-900 border border-indigo-300 rounded px-1 text-base w-full h-full"
-                              autoFocus
-                            />
-                            <button onClick={() => saveEdit('terms')} disabled={saving} className="text-green-600 hover:text-green-700 flex-shrink-0">
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button onClick={cancelEdit} className="text-gray-500 hover:text-gray-700 flex-shrink-0">
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center space-x-2 group h-6">
-                            <p className="font-medium text-gray-900 text-base">
-                              {order.terms || '-'}
-                            </p>
-                            <button
-                              onClick={() => startEdit('terms', order.terms || '')}
-                              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
+                        <EditableField
+                          field="terms"
+                          value={order.terms}
+                          type="text"
+                          isEditing={editingField === 'terms'}
+                          isSaving={saving}
+                          onEdit={startEdit}
+                          onSave={saveEdit}
+                          onCancel={cancelEdit}
+                          editValue={editValue}
+                          onEditValueChange={setEditValue}
+                        />
                       </div>
                     </div>
 
@@ -1139,41 +1107,41 @@ export const OrderDetailsPage: React.FC = () => {
                       {/* Deposit Required - Checkbox (from Customer) */}
                       <div className="flex-1">
                         <span className="text-gray-500 text-sm">Deposit Required:</span>
-                        <div className="flex items-center space-x-2 group h-6">
-                          <input
-                            type="checkbox"
-                            checked={order.deposit_required || false}
-                            onChange={(e) => {
-                              const newValue = String(e.target.checked);
-                              setEditingField('deposit_required');
-                              saveEdit('deposit_required', newValue);
-                            }}
-                            className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                          />
-                          <p className="font-medium text-gray-900 text-base">
-                            {order.deposit_required ? 'Yes' : 'No'}
-                          </p>
-                        </div>
+                        <EditableField
+                          field="deposit_required"
+                          value={order.deposit_required}
+                          type="checkbox"
+                          isEditing={false}
+                          isSaving={saving}
+                          onEdit={(field, value) => {
+                            setEditingField(field);
+                            saveEdit(field, value);
+                          }}
+                          onSave={saveEdit}
+                          onCancel={cancelEdit}
+                          editValue={editValue}
+                          onEditValueChange={setEditValue}
+                        />
                       </div>
 
                       {/* Cash Customer - Checkbox (from Customer) */}
                       <div className="flex-1">
                         <span className="text-gray-500 text-sm">Cash Customer:</span>
-                        <div className="flex items-center space-x-2 group h-6">
-                          <input
-                            type="checkbox"
-                            checked={order.cash || false}
-                            onChange={(e) => {
-                              const newValue = String(e.target.checked);
-                              setEditingField('cash');
-                              saveEdit('cash', newValue);
-                            }}
-                            className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                          />
-                          <p className="font-medium text-gray-900 text-base">
-                            {order.cash ? 'Yes' : 'No'}
-                          </p>
-                        </div>
+                        <EditableField
+                          field="cash"
+                          value={order.cash}
+                          type="checkbox"
+                          isEditing={false}
+                          isSaving={saving}
+                          onEdit={(field, value) => {
+                            setEditingField(field);
+                            saveEdit(field, value);
+                          }}
+                          onSave={saveEdit}
+                          onCancel={cancelEdit}
+                          editValue={editValue}
+                          onEditValueChange={setEditValue}
+                        />
                       </div>
 
                       {/* Discount - Display Only (from Customer) */}
@@ -1234,9 +1202,9 @@ export const OrderDetailsPage: React.FC = () => {
                     </div>
 
                     {/* Bottom Section: Invoice Notes - Editable (from Customer) */}
-                    <div>
+                    <div className="mt-2">
                       <h3 className="text-sm font-semibold text-gray-700 mb-1">Invoice Notes</h3>
-                      <div className="relative" style={{ height: '48px' }}>
+                      <div className="relative" style={{ height: '60px' }}>
                         {editingField === 'invoice_notes' ? (
                           <div className="h-full">
                             <textarea
@@ -1246,33 +1214,33 @@ export const OrderDetailsPage: React.FC = () => {
                                 if (e.key === 'Escape') cancelEdit();
                               }}
                               className="w-full text-sm text-gray-900 border border-indigo-300 rounded p-2 pr-28 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none box-border"
-                              style={{ height: '48px' }}
+                              style={{ height: '60px' }}
                               autoFocus
                             />
-                            <div className="absolute top-2 right-2 flex items-center space-x-1">
-                              <button
-                                onClick={cancelEdit}
-                                className="px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs hover:bg-gray-300"
-                              >
-                                Cancel
-                              </button>
+                            <div className="absolute top-1 right-6 flex flex-col space-y-1">
                               <button
                                 onClick={() => saveEdit('invoice_notes')}
                                 disabled={saving}
-                                className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50"
+                                className="px-2 py-0.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50"
                               >
                                 {saving ? 'Saving...' : 'Save'}
+                              </button>
+                              <button
+                                onClick={cancelEdit}
+                                className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded text-xs hover:bg-gray-300"
+                              >
+                                Cancel
                               </button>
                             </div>
                           </div>
                         ) : (
                           <div className="group h-full">
-                            <p className="text-base text-gray-600 whitespace-pre-wrap h-full overflow-y-auto">
+                            <p className="text-base text-gray-600 whitespace-pre-wrap h-full overflow-y-auto border border-gray-300 rounded px-2 py-1">
                               {order.invoice_notes || '-'}
                             </p>
                             <button
                               onClick={() => startEdit('invoice_notes', order.invoice_notes || '')}
-                              className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 transition-opacity"
+                              className="absolute top-1 right-5 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 transition-opacity"
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
