@@ -7,7 +7,7 @@
 - Components: ≤500 lines
 - Maintain Route → Controller → Service → Repository pattern
 
-**Progress:** 0 / 24 Complete
+**Progress:** 0 / 31 Complete (8 new Phase 1.5g tasks added 2025-11-12)
 
 ---
 
@@ -217,6 +217,59 @@
 
 ---
 
+## 🟣 PHASE 8 - PHASE 1.5g ADDITIONS (New Architecture Layer)
+
+**Target:** Refactor Phase 1.5g image management and printing features
+
+### Backend Controllers & Services (Phase 1.5g)
+
+- [ ] **18. `orderImageController.ts`** - 250+ lines (NEW)
+  - **Current Issues:** Image upload/retrieval/deletion endpoints
+  - **Refactor Plan:**
+    - [ ] Extract image validation logic to `imageValidationService.ts`
+    - [ ] Extract crop coordinate management to `imageCropService.ts`
+    - [ ] Keep controller focused on HTTP handling
+
+- [ ] **19. `printController.ts`** - 180+ lines (NEW)
+  - **Current Issues:** PDF print operations
+  - **Refactor Plan:**
+    - [ ] Extract print template logic to separate service
+    - [ ] Keep controller focused on request/response
+
+- [ ] **20. `orderFolderService.ts`** - 280+ lines (NEW)
+  - **Current Issues:** Folder tracking and management
+  - **Refactor Plan:**
+    - [ ] Extract folder validation logic to helper module
+    - [ ] Extract SMB mount operations to separate service
+    - [ ] Keep orchestration logic in service
+
+- [ ] **21. `printService.ts`** - 220+ lines (NEW)
+  - **Current Issues:** Print orchestration and form generation
+  - **Refactor Plan:**
+    - [ ] Extract form assembly to modular generators
+    - [ ] Extract PDF rendering logic to separate module
+    - [ ] Keep as coordinating service
+
+### Frontend Components (Phase 1.5g)
+
+- [ ] **22. `OrderImage.tsx`** - 150+ lines (NEW)
+  - **Current Issues:** Image display and interaction
+  - **Refactor Plan:** Break into smaller sub-components if exceeds 200 lines
+
+- [ ] **23. `ImagePickerModal.tsx`** - 388 lines (NEW)
+  - **Current Issues:** Image selection and cropping UI
+  - **Refactor Plan:**
+    - [ ] Extract image grid to `ImageGrid.tsx`
+    - [ ] Extract crop interface to `ImageCropper.tsx`
+    - [ ] Extract upload section to `ImageUploadSection.tsx`
+
+### PDF Generation (Phase 1.5g)
+
+- [ ] **24. `orderFormGenerator.ts`** - Now includes Phase 1.5g logic
+  - **Note:** Already in PHASE 4, now extended with folder/image support
+
+---
+
 ## 🎯 QUICK WINS (Optional - Low Impact)
 
 **Files close to limits that could use minor cleanup**
@@ -241,6 +294,7 @@
 - **Phase 5 (Lower):** 0 / 4 complete (Pricing Modules)
 - **Phase 6 (Lower):** 0 / 2 complete (UI Components)
 - **Phase 7 (Architectural):** 0 / 1 complete (Routes)
+- **Phase 8 (Phase 1.5g):** 0 / 7 complete (Image & Printing Management)
 - **Quick Wins:** 0 / 7 complete
 
 ### By File Type

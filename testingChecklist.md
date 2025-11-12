@@ -106,6 +106,30 @@
 - [ ] No port conflicts
 - [ ] SSL/TLS certificates valid (if applicable)
 
+### Phase 1.5g: Order Folder & Image Management - ✅ IMPLEMENTED (November 2025)
+- [ ] Order folder creation automatic on order creation
+- [ ] SMB mount connectivity verified (1,978 legacy orders migrated successfully)
+- [ ] Folder conflicts detected and handled gracefully (no overwrite, warning shown)
+- [ ] Image upload API endpoint working (/api/orders/:orderId/images)
+- [ ] Image retrieval API endpoint working (/api/orders/:orderId/images/:imageId)
+- [ ] Image deletion API endpoint working (/api/orders/:orderId/images/:imageId DELETE)
+- [ ] Crop coordinates stored and retrieved correctly
+- [ ] ImagePickerModal displays existing images in grid
+- [ ] Image selection workflow working (click to select, visual feedback)
+- [ ] Image cropping UI responsive and accurate
+- [ ] OrderImage component displays selected images
+- [ ] Print service generates correct PDF format
+- [ ] Print controller routes working (/api/orders/:orderId/print)
+- [ ] Folder migration successful (test with test orders)
+- [ ] Folder location moved to "1Finished" on order completion
+- [ ] OrderFolderService folder operations (create, move, delete) working
+- [ ] Image metadata stored correctly (filename, path, crop coords)
+- [ ] No console errors in image picker modal
+- [ ] No console errors in order image display
+- [ ] API returns consistent response format for image operations
+- [ ] Error handling for failed folder operations (SMB unavailable, permissions)
+- [ ] Error handling for failed image operations (oversized file, invalid format)
+
 ## Pre-Deployment Checklist
 - [ ] All tests passing
 - [ ] Code reviewed
@@ -114,3 +138,6 @@
 - [ ] Stakeholders notified
 - [ ] Documentation updated
 - [ ] Backup created
+- [ ] Phase 1.5g folder/image functionality verified
+- [ ] SMB mount connectivity confirmed
+- [ ] Legacy order folder migration verified

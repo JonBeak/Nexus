@@ -15,6 +15,7 @@ A comprehensive production-grade ERP system for sign manufacturing businesses wi
 - **Validation System** - Field-level validation with visual feedback and error prevention
 - **Performance Optimization** - Infinite render loop elimination and memoization
 - **Audit System** - Complete tracking of all data changes
+- **Order Folder & Image Management (Phase 1.5g)** - SMB folder tracking, image uploads, crop coordinates, and print services
 
 **🚧 IN DEVELOPMENT:**
 - **Job Workflow Integration** - Estimate → Job → Materials → Invoice automation
@@ -258,16 +259,24 @@ GET    /api/pricing/discounts           - Volume discounts
 - **Data Validation**: Comprehensive input validation and sanitization
 - **Error Handling**: Graceful error management with logging
 
-## 🎯 Recent Major Achievements - September 2025
+## 🎯 Recent Major Achievements - November 2025
 
-### ✅ Validation System Integration Complete
+### ✅ Phase 1.5g: Order Folder & Image Management Complete
+- **SMB Folder Tracking**: Automatic folder creation with 1,978 legacy orders successfully migrated
+- **Image Management API**: Upload, retrieve, delete, and organize order images with crop coordinates
+- **Image Picker Modal**: React component with image grid, selection, and cropping UI
+- **Print Service**: PDF generation with integrated image support and form layouts
+- **Folder Organization**: Automatic movement to "1Finished" folder on order completion
+- **Database Migrations**: Four migrations for folder tracking, part scope, hard due times, and crop coordinates
+
+### ✅ Validation System Integration Complete (September 2025)
 - **useGridValidation Hook**: Comprehensive field-level validation with visual feedback
 - **Database Schema Flexibility**: Numeric fields converted to VARCHAR(255) for maximum compatibility
 - **Informational Validation**: Shows UI feedback without blocking functionality - purely guidance-based
 - **Validation-Aware Calculations**: Pricing engine intelligently skips invalid fields preventing garbage math
 - **Error Prevention**: Red borders and tooltips guide users toward correct inputs
 
-### ✅ Performance Optimization Complete  
+### ✅ Performance Optimization Complete (September 2025)
 - **Four-Phase Render Loop Elimination**: Comprehensive memoization strategy eliminating all circular dependencies
 - **EstimateTable Optimization**: React.memo and stable dependency arrays preventing unnecessary renders
 - **Validation State Isolation**: Prevented validation updates from triggering infinite re-render cycles

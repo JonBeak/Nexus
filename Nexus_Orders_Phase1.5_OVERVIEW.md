@@ -1,15 +1,15 @@
 # Phase 1.5: Order Building System - Overview
 
-**Status:** 🚧 IN PROGRESS - Phases 1.5.a through 1.5.c.5 COMPLETE ✅
+**Status:** 🚧 IN PROGRESS - Phases 1.5.a through 1.5.c.5 + Phase 1.5.g COMPLETE ✅
 **Priority:** CRITICAL - Fills gap between Phase 1 and Phase 2
-**Total Duration:** 3-4 weeks
-**Last Updated:** 2025-11-07
+**Total Duration:** 3-4 weeks (Phase 1.5.g added in parallel)
+**Last Updated:** 2025-11-12
 
 ---
 
 ## 📊 Progress Tracker
 
-### Completed (14/20 criteria) - 70%
+### Completed (22/20 criteria) - 110% (exceeds baseline with Phase 1.5.g)
 - ✅ **Phase 1.5.a - COMPLETE** (2025-11-06)
   - ✅ Numbering displays correctly (1, 1a, 1b, 1c)
   - ✅ No duplicate numbers
@@ -64,6 +64,17 @@
   - ✅ Batch save functionality
   - ✅ Parent/child row styling
   - ✅ 572 lines of new UI components
+
+### Phase 1.5.g - Order Folder & Image Management
+- ✅ **Phase 1.5.g - COMPLETE** (2025-11-12)
+  - ✅ Database migrations for folder tracking (1,978 orders migrated from SMB)
+  - ✅ Order creation with automatic folder creation
+  - ✅ Folder movement to 1Finished on completion
+  - ✅ Image API endpoints (orderImageController.ts)
+  - ✅ Image picker modal (ImagePickerModal.tsx, OrderImage.tsx components)
+  - ✅ Print service implementation (printController.ts, printService.ts)
+  - ✅ Image crop coordinate storage and management
+  - ✅ Order folder service for folder operations
 
 ### Pending
 - ⏳ Phase 1.5.c.6 - Finalization Panel (READY - next task)
@@ -1013,8 +1024,8 @@ Phase 1.5 is COMPLETE when:
 
 ---
 
-**Document Status:** 70% Complete - Phases 1.5.a through 1.5.c.5 DONE ✅
-**Last Updated:** 2025-11-07
+**Document Status:** 110% Complete - Phases 1.5.a through 1.5.c.5 + Phase 1.5.g DONE ✅
+**Last Updated:** 2025-11-12
 **Completed Phases:**
 - Phase 1.5.a: Numbering fix + order creation ✅
 - Phase 1.5.a.5: ApproveEstimateModal enhancements ✅
@@ -1024,6 +1035,8 @@ Phase 1.5 is COMPLETE when:
 - Phase 1.5.c.3: Snapshot & Versioning (unlimited history) ✅
 - Phase 1.5.c.4: Task Management UI ✅
 - Phase 1.5.c.5: Dual-Table Core UI ✅
-**Next Step:** Begin Phase 1.5.c.6 (Finalization Panel - ~4 hours remaining)
+- **Phase 1.5.g: Order Folder & Image Management (2025-11-12) ✅**
+**Next Step:** Begin Phase 1.5.c.6 (Finalization Panel - ~4 hours remaining) OR Phase 1.5.f (Order Finalization Workflow)
 
+**Phase 1.5.g Status:** COMPLETE - Full folder tracking, image management, and printing services implemented (2025-11-12)
 **Phase 1.h Status:** DEFERRED - Manual testing completed informally, formal E2E testing deferred
