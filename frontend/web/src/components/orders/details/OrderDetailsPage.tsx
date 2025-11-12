@@ -157,7 +157,7 @@ interface EditableFieldProps {
   field: string;
   value: any;
   label?: string;
-  type?: 'text' | 'date' | 'time' | 'email' | 'select' | 'checkbox';
+  type?: 'text' | 'date' | 'time' | 'email' | 'select' | 'checkbox' | 'textarea';
   options?: Array<{ value: string; label: string }>;
   isEditing: boolean;
   isSaving: boolean;
@@ -168,6 +168,8 @@ interface EditableFieldProps {
   onEditValueChange?: (value: string) => void;
   displayFormatter?: (value: any) => string;
   className?: string;
+  height?: string; // For textarea height
+  placeholder?: string; // For textarea placeholder
 }
 
 const EditableField: React.FC<EditableFieldProps> = ({
