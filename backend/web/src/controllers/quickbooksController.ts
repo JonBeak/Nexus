@@ -221,16 +221,11 @@ export class QuickBooksController {
         return;
       }
 
-      // OWNER-ONLY: Debug mode access control
-      if (debugMode && user?.role !== 'owner') {
-        res.status(403).json({
-          success: false,
-          error: 'Debug mode is only available to system owners',
-        });
-        return;
-      }
+      // OWNER-ONLY: Debug mode with comparison logs
+      // Non-owners can still create estimates, but debugMode is silently disabled
+      const enableDebugMode = debugMode && user?.role === 'owner';
 
-      if (debugMode) {
+      if (enableDebugMode) {
         console.log('\n🔬 DEBUG MODE ENABLED - Will fetch estimate back for comparison\n');
       }
 
@@ -239,7 +234,7 @@ export class QuickBooksController {
         estimateId,
         estimatePreviewData,
         user?.user_id || 0,
-        debugMode
+        enableDebugMode
       );
 
       res.json({
