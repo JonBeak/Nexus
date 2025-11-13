@@ -185,13 +185,22 @@ const EditableField: React.FC<EditableFieldProps> = ({
   editValue = '',
   onEditValueChange,
   displayFormatter,
-  className = ''
+  className = '',
+  height = '60px',
+  placeholder = ''
 }) => {
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      onSave(field);
-    } else if (e.key === 'Escape') {
-      onCancel();
+    // For textarea, don't trigger save on Enter (allow multiline)
+    if (type === 'textarea') {
+      if (e.key === 'Escape') {
+        onCancel();
+      }
+    } else {
+      if (e.key === 'Enter') {
+        onSave(field);
+      } else if (e.key === 'Escape') {
+        onCancel();
+      }
     }
   };
 
@@ -216,6 +225,58 @@ const EditableField: React.FC<EditableFieldProps> = ({
     );
   }
 
+  // Handle textarea type
+  if (type === 'textarea') {
+    if (isEditing) {
+      return (
+        <div className="relative" style={{ height }}>
+          <div className="h-full">
+            <textarea
+              value={editValue}
+              onChange={(e) => onEditValueChange?.(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholder}
+              className="w-full text-sm text-gray-900 border border-indigo-300 rounded p-2 pr-28 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none box-border"
+              style={{ height }}
+              autoFocus
+            />
+            <div className="absolute top-1 right-6 flex flex-col space-y-1">
+              <button
+                onClick={() => onSave(field)}
+                disabled={isSaving}
+                className="px-2 py-0.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50"
+              >
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                onClick={onCancel}
+                className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded text-xs hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Display mode for textarea
+    return (
+      <div className="relative group" style={{ height }}>
+        <p className="text-base text-gray-600 whitespace-pre-wrap h-full overflow-y-auto border border-gray-300 rounded px-2 py-1">
+          {displayValue}
+        </p>
+        <button
+          onClick={() => onEdit(field, String(value || ''))}
+          className="absolute top-1 right-5 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 transition-opacity"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    );
+  }
+
+  // Default behavior for non-textarea types
   if (isEditing) {
     return (
       <div className="flex items-center space-x-1 h-6">
@@ -1079,97 +1140,39 @@ export const OrderDetailsPage: React.FC = () => {
                     {/* Special Instructions */}
                     <div className="flex-1">
                       <h3 className="text-sm font-semibold text-gray-700 mb-1">Special Instructions</h3>
-                      <div className="relative" style={{ height: '60px' }}>
-                        {editState.editingField === 'manufacturing_note' ? (
-                          <div className="h-full">
-                            <textarea
-                              value={editValue}
-                              onChange={(e) => setEditState(prev => ({ ...prev, editValue: e.target.value }))}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Escape') cancelEdit();
-                              }}
-                              className="w-full text-sm text-gray-900 border border-indigo-300 rounded p-2 pr-28 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none box-border"
-                              style={{ height: '60px' }}
-                              autoFocus
-                            />
-                            <div className="absolute top-1 right-6 flex flex-col space-y-1">
-                              <button
-                                onClick={() => saveEdit('manufacturing_note')}
-                                disabled={uiState.saving}
-                                className="px-2 py-0.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50"
-                              >
-                                {uiState.saving ? 'Saving...' : 'Save'}
-                              </button>
-                              <button
-                                onClick={cancelEdit}
-                                className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded text-xs hover:bg-gray-300"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="group h-full">
-                            <p className="text-base text-gray-600 whitespace-pre-wrap h-full overflow-y-auto border border-gray-300 rounded px-2 py-1">
-                              {orderData.order.manufacturing_note || '-'}
-                            </p>
-                            <button
-                              onClick={() => startEdit('manufacturing_note', orderData.order.manufacturing_note || '')}
-                              className="absolute top-1 right-5 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 transition-opacity"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                      <EditableField
+                        field="manufacturing_note"
+                        value={orderData.order.manufacturing_note}
+                        type="textarea"
+                        height="60px"
+                        placeholder="Enter special manufacturing instructions..."
+                        isEditing={editState.editingField === 'manufacturing_note'}
+                        isSaving={uiState.saving}
+                        onEdit={startEdit}
+                        onSave={saveEdit}
+                        onCancel={cancelEdit}
+                        editValue={editState.editValue}
+                        onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
+                      />
                     </div>
 
                     {/* Internal Notes */}
                     <div className="flex-1">
                       <h3 className="text-sm font-semibold text-gray-700 mb-1">Internal Notes</h3>
-                      <div className="relative" style={{ height: '60px' }}>
-                        {editState.editingField === 'internal_note' ? (
-                          <div className="h-full">
-                            <textarea
-                              value={editValue}
-                              onChange={(e) => setEditState(prev => ({ ...prev, editValue: e.target.value }))}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Escape') cancelEdit();
-                              }}
-                              className="w-full text-sm text-gray-900 border border-indigo-300 rounded p-2 pr-28 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none box-border"
-                              style={{ height: '60px' }}
-                              autoFocus
-                            />
-                            <div className="absolute top-1 right-6 flex flex-col space-y-1">
-                              <button
-                                onClick={() => saveEdit('internal_note')}
-                                disabled={uiState.saving}
-                                className="px-2 py-0.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50"
-                              >
-                                {uiState.saving ? 'Saving...' : 'Save'}
-                              </button>
-                              <button
-                                onClick={cancelEdit}
-                                className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded text-xs hover:bg-gray-300"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="group h-full">
-                            <p className="text-base text-gray-600 whitespace-pre-wrap h-full overflow-y-auto border border-gray-300 rounded px-2 py-1">
-                              {orderData.order.internal_note || '-'}
-                            </p>
-                            <button
-                              onClick={() => startEdit('internal_note', orderData.order.internal_note || '')}
-                              className="absolute top-1 right-5 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 transition-opacity"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                      <EditableField
+                        field="internal_note"
+                        value={orderData.order.internal_note}
+                        type="textarea"
+                        height="60px"
+                        placeholder="Enter internal notes..."
+                        isEditing={editState.editingField === 'internal_note'}
+                        isSaving={uiState.saving}
+                        onEdit={startEdit}
+                        onSave={saveEdit}
+                        onCancel={cancelEdit}
+                        editValue={editState.editValue}
+                        onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
+                      />
                     </div>
                   </div>
                 </div>
@@ -1335,49 +1338,20 @@ export const OrderDetailsPage: React.FC = () => {
                     {/* Bottom Section: Invoice Notes - Editable (from Customer) */}
                     <div className="mt-2">
                       <h3 className="text-sm font-semibold text-gray-700 mb-1">Invoice Notes</h3>
-                      <div className="relative" style={{ height: '60px' }}>
-                        {editState.editingField === 'invoice_notes' ? (
-                          <div className="h-full">
-                            <textarea
-                              value={editValue}
-                              onChange={(e) => setEditState(prev => ({ ...prev, editValue: e.target.value }))}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Escape') cancelEdit();
-                              }}
-                              className="w-full text-sm text-gray-900 border border-indigo-300 rounded p-2 pr-28 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none box-border"
-                              style={{ height: '60px' }}
-                              autoFocus
-                            />
-                            <div className="absolute top-1 right-6 flex flex-col space-y-1">
-                              <button
-                                onClick={() => saveEdit('invoice_notes')}
-                                disabled={uiState.saving}
-                                className="px-2 py-0.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50"
-                              >
-                                {uiState.saving ? 'Saving...' : 'Save'}
-                              </button>
-                              <button
-                                onClick={cancelEdit}
-                                className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded text-xs hover:bg-gray-300"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="group h-full">
-                            <p className="text-base text-gray-600 whitespace-pre-wrap h-full overflow-y-auto border border-gray-300 rounded px-2 py-1">
-                              {orderData.order.invoice_notes || '-'}
-                            </p>
-                            <button
-                              onClick={() => startEdit('invoice_notes', orderData.order.invoice_notes || '')}
-                              className="absolute top-1 right-5 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 transition-opacity"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                      <EditableField
+                        field="invoice_notes"
+                        value={orderData.order.invoice_notes}
+                        type="textarea"
+                        height="60px"
+                        placeholder="Enter invoice notes..."
+                        isEditing={editState.editingField === 'invoice_notes'}
+                        isSaving={uiState.saving}
+                        onEdit={startEdit}
+                        onSave={saveEdit}
+                        onCancel={cancelEdit}
+                        editValue={editState.editValue}
+                        onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
+                      />
                     </div>
                   </div>
                 </div>
