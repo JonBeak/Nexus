@@ -27,9 +27,11 @@ import {
   renderQuantityBox,
   getImageFullPath,
   shouldIncludePart,
-  shouldStartNewColumn
+  shouldStartNewColumn,
+  getSpecsQuantity
 } from './pdfCommonGenerator';
 import { renderNotesAndImage } from '../utils/imageProcessing';
+import { buildPartColumns } from '../utils/partColumnBuilder';
 
 
 // =============================================
@@ -101,38 +103,7 @@ export async function generatePackingList(
       const availableHeight = pageHeight - contentStartY - 15;
 
       // Group parts: parent items with their sub-items (using shared logic)
-      const partColumns: Array<{ parent: any; subItems: any[] }> = [];
-
-      orderData.parts.forEach((part, index) => {
-        // Skip parts with no meaningful data
-        if (!shouldIncludePart(part, 'master')) {
-          console.log(`[Packing List] ✓ SKIPPING empty part ${index + 1} (no display name or spec templates)`);
-          return;
-        }
-
-        console.log(`[Packing List] ✓ INCLUDING part ${index + 1}`);
-
-        if (shouldStartNewColumn(part)) {
-          // This is a parent or regular base item - create new column
-          partColumns.push({ parent: part, subItems: [] });
-          console.log(`[Packing List] Created column ${partColumns.length} for:`, part.specs_display_name || part.product_type);
-        } else {
-          // This is a sub-item - find the matching parent column by display number prefix
-          const parentNumber = part.display_number?.replace(/[a-zA-Z]/g, '');
-          const matchingColumn = partColumns.find(col => col.parent.display_number === parentNumber);
-
-          if (matchingColumn) {
-            matchingColumn.subItems.push(part);
-            console.log(`[Packing List] Added sub-item to column (matched by number ${parentNumber}):`, part.specs_display_name || part.product_type);
-          } else if (partColumns.length > 0) {
-            // Fallback: append to last column if no match found
-            partColumns[partColumns.length - 1].subItems.push(part);
-            console.log(`[Packing List] Added sub-item to last column (fallback):`, part.specs_display_name || part.product_type);
-          }
-        }
-      });
-
-      console.log(`[Packing List] Final column count: ${partColumns.length}`);
+      const partColumns = buildPartColumns(orderData.parts, 'packing', shouldIncludePart, shouldStartNewColumn);
 
       // Calculate column layout for main parts only - up to 3 columns
       const numParts = partColumns.length;
@@ -150,16 +121,8 @@ export async function generatePackingList(
         const partX = marginLeft + (colIndex * columnWidth);
         let partY = contentStartY;
 
-        // Get specs_qty from specifications (same as Master Form)
-        let specsQty = 0;
-        try {
-          const specs = typeof part.specifications === 'string'
-            ? JSON.parse(part.specifications)
-            : part.specifications;
-          specsQty = specs?.specs_qty ?? part.quantity ?? 0;
-        } catch {
-          specsQty = part.quantity ?? 0;
-        }
+        // Get specs_qty from specifications (using shared utility)
+        const specsQty = getSpecsQuantity(part);
 
         // Part header - use specs_display_name instead of product_type
         const displayName = part.specs_display_name || part.product_type;

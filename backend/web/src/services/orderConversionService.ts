@@ -27,6 +27,7 @@ import { mapQBItemNameToSpecsDisplayName } from '../utils/qbItemNameMapper';
 import { mapSpecsDisplayNameToTypes } from '../utils/specsTypeMapper';
 import { autoFillSpecifications } from './specsAutoFillService';
 import { orderFolderService } from './orderFolderService';
+import { CustomerContactRepository } from '../repositories/customerContactRepository';
 
 export class OrderConversionService {
 
@@ -133,7 +134,10 @@ export class OrderConversionService {
         due_date: request.dueDate ? new Date(request.dueDate) : undefined,
         hard_due_date_time: request.hardDueDateTime || undefined,  // Phase 1.5.a.5: TIME format "HH:mm:ss"
         production_notes: request.productionNotes,
-        manufacturing_note: customer?.special_instructions || null,  // Auto-fill from customer
+        // Combine customer special_instructions with modal special instructions (if provided)
+        manufacturing_note: [customer?.special_instructions, request.modalSpecialInstructions]
+          .filter(Boolean)
+          .join('\n') || undefined,
         internal_note: customer?.comments || null,                   // Auto-fill from customer
         invoice_email: customer?.invoice_email || null,              // Auto-fill from customer
         terms: customer?.payment_terms || null,                      // Auto-fill from customer
@@ -170,10 +174,36 @@ export class OrderConversionService {
       if (request.pointPersons && request.pointPersons.length > 0) {
         for (let i = 0; i < request.pointPersons.length; i++) {
           const person = request.pointPersons[i];
+          let contactId = person.contact_id;
+
+          // If this is a custom contact with saveToDatabase flag, create it in customer_contacts first
+          if (person.saveToDatabase && !person.contact_id && person.contact_email) {
+            console.log('💾 Saving custom contact to database:', {
+              email: person.contact_email,
+              name: person.contact_name,
+              role: person.contact_role,
+              phone: person.contact_phone
+            });
+
+            contactId = await CustomerContactRepository.createContact(
+              {
+                customer_id: estimate.customer_id,
+                contact_name: person.contact_name || person.contact_email, // Use email as fallback name
+                contact_email: person.contact_email,
+                contact_phone: person.contact_phone || undefined,
+                contact_role: person.contact_role || undefined,
+                notes: 'Auto-created during order conversion'
+              },
+              userId
+            );
+
+            console.log(`✅ Saved custom contact to database with ID: ${contactId}`);
+          }
+
           await orderRepository.createOrderPointPerson(
             {
               order_id: orderId,
-              contact_id: person.contact_id,
+              contact_id: contactId,
               contact_email: person.contact_email,
               contact_name: person.contact_name,
               contact_phone: person.contact_phone,

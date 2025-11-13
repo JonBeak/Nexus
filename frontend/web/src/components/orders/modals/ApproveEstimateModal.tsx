@@ -19,11 +19,13 @@ interface ApproveEstimateModalProps {
 
 interface PointPersonEntry {
   id: string;                 // Temporary ID for React key
+  mode: 'existing' | 'custom'; // Mode: existing contact or custom entry
   contact_id?: number;
   contact_email: string;
   contact_name?: string;
   contact_phone?: string;
   contact_role?: string;
+  saveToDatabase?: boolean;   // Only applicable for custom contacts
 }
 
 export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
@@ -60,6 +62,10 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
   // Hard Due Date/Time (always visible, optional)
   const [hardDueTime, setHardDueTime] = useState('');
 
+  // Special Instructions (modal-specific, appended to customer special_instructions)
+  const [modalSpecialInstructions, setModalSpecialInstructions] = useState('');
+  const specialInstructionsRef = React.useRef<HTMLTextAreaElement>(null);
+
   // Point Persons (NEW: Array-based)
   const [pointPersons, setPointPersons] = useState<PointPersonEntry[]>([]);
   const [contactEmails, setContactEmails] = useState<string[]>([]);
@@ -83,6 +89,7 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
       setDueDateManuallyChanged(false);
       setBusinessDaysFromToday(null);
       setHardDueTime('');
+      setModalSpecialInstructions('');
       // Don't reset pointPersons here - it will be set by the fetch contacts useEffect
       setContactEmails([]);
       setAllContacts([]);
@@ -150,46 +157,74 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
   // Fetch customer contacts and auto-fill primary contacts when modal opens
   useEffect(() => {
     if (isOpen && customerId) {
-      // Fetch emails and primary contacts (both require orders.create permission)
-      // Note: We skip getContacts() since it requires customers.view permission
-      Promise.all([
-        customerContactsApi.getEmails(customerId),
-        customerContactsApi.getPrimaryContacts(customerId)
-      ])
-        .then(([emails, primaryContacts]) => {
-          setContactEmails(emails || []);
+      // Try to fetch ALL contacts first (requires customers.view permission)
+      // If that fails, fall back to just emails and primary contacts (requires orders.create permission)
+      customerContactsApi.getContacts(customerId)
+        .then(contacts => {
+          // Success - we have all contacts
+          setAllContacts(contacts || []);
+          setContactEmails(contacts.map((c: any) => c.contact_email) || []);
 
-          // Auto-fill from primary contacts
-          if (primaryContacts && primaryContacts.length > 0) {
-            const primaryEntries: PointPersonEntry[] = primaryContacts.map((contact: any) => ({
-              id: `primary-${contact.contact_id}`,
-              contact_id: contact.contact_id,
-              contact_email: contact.contact_email,
-              contact_name: contact.contact_name,
-              contact_phone: contact.contact_phone,
-              contact_role: contact.contact_role
-            }));
-            setPointPersons(primaryEntries);
-            // Store primary contacts as allContacts for lookup
-            setAllContacts(primaryContacts || []);
-          } else {
-            // No primary contacts - initialize with one empty entry so user can type custom email
+          // Check if there are any contacts
+          if (contacts && contacts.length > 0) {
+            // Has contacts - start with existing contact mode but empty dropdown
             setPointPersons([{
               id: `empty-${Date.now()}`,
+              mode: 'existing' as const,
               contact_email: ''
             }]);
-            setAllContacts([]);
+          } else {
+            // No contacts - start with custom mode and save enabled by default
+            setPointPersons([{
+              id: `empty-${Date.now()}`,
+              mode: 'custom' as const,
+              contact_email: '',
+              saveToDatabase: true
+            }]);
           }
         })
         .catch(error => {
-          console.error('Error fetching contacts:', error);
-          setContactEmails([]);
-          setAllContacts([]);
-          // On error, still show one empty entry
-          setPointPersons([{
-            id: `empty-${Date.now()}`,
-            contact_email: ''
-          }]);
+          console.warn('Could not fetch all contacts (may lack customers.view permission), falling back to primary contacts only:', error);
+
+          // Fallback: Fetch emails and primary contacts only
+          Promise.all([
+            customerContactsApi.getEmails(customerId),
+            customerContactsApi.getPrimaryContacts(customerId)
+          ])
+            .then(([emails, primaryContacts]) => {
+              setContactEmails(emails || []);
+              setAllContacts(primaryContacts || []);
+
+              // Check if there are any contacts
+              if (primaryContacts && primaryContacts.length > 0) {
+                // Has contacts - start with existing contact mode but empty dropdown
+                setPointPersons([{
+                  id: `empty-${Date.now()}`,
+                  mode: 'existing' as const,
+                  contact_email: ''
+                }]);
+              } else {
+                // No contacts - start with custom mode and save enabled by default
+                setPointPersons([{
+                  id: `empty-${Date.now()}`,
+                  mode: 'custom' as const,
+                  contact_email: '',
+                  saveToDatabase: true
+                }]);
+              }
+            })
+            .catch(fallbackError => {
+              console.error('Error fetching contacts (fallback):', fallbackError);
+              setContactEmails([]);
+              setAllContacts([]);
+              // On error, still show one empty entry in custom mode with save enabled
+              setPointPersons([{
+                id: `empty-${Date.now()}`,
+                mode: 'custom' as const,
+                contact_email: '',
+                saveToDatabase: true
+              }]);
+            });
         });
     }
   }, [isOpen, customerId]);
@@ -220,6 +255,17 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
     return () => clearTimeout(timer);
   }, [orderName, customerId, isOpen]);
 
+  // Auto-resize Special Instructions textarea based on content
+  useEffect(() => {
+    const textarea = specialInstructionsRef.current;
+    if (textarea) {
+      // Reset height to auto to get the correct scrollHeight
+      textarea.style.height = 'auto';
+      // Set height to scrollHeight to fit content
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  }, [modalSpecialInstructions]);
+
   if (!isOpen || !estimatePreviewData) return null;
 
   const handleAddPointPerson = () => {
@@ -227,7 +273,9 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
       ...pointPersons,
       {
         id: `new-${Date.now()}`,
-        contact_email: ''
+        mode: 'custom' as const,
+        contact_email: '',
+        saveToDatabase: true
       }
     ]);
   };
@@ -236,30 +284,63 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
     setPointPersons(pointPersons.filter(p => p.id !== id));
   };
 
-  const handlePointPersonChange = (id: string, email: string) => {
-    const selectedContact = allContacts.find(c => c.contact_email === email);
-
+  const handleModeChange = (id: string, mode: 'existing' | 'custom') => {
     setPointPersons(pointPersons.map(person => {
       if (person.id === id) {
-        if (selectedContact) {
+        if (mode === 'custom') {
           return {
             ...person,
-            contact_id: selectedContact.contact_id,
-            contact_email: selectedContact.contact_email,
-            contact_name: selectedContact.contact_name,
-            contact_phone: selectedContact.contact_phone,
-            contact_role: selectedContact.contact_role
+            mode,
+            contact_id: undefined,
+            contact_email: '',
+            contact_name: undefined,
+            contact_phone: undefined,
+            contact_role: undefined,
+            saveToDatabase: true
           };
         } else {
           return {
             ...person,
+            mode,
             contact_id: undefined,
-            contact_email: email,
+            contact_email: '',
             contact_name: undefined,
             contact_phone: undefined,
-            contact_role: undefined
+            contact_role: undefined,
+            saveToDatabase: undefined
           };
         }
+      }
+      return person;
+    }));
+  };
+
+  const handleExistingContactChange = (id: string, contactId: number) => {
+    const selectedContact = allContacts.find(c => c.contact_id === contactId);
+    if (!selectedContact) return;
+
+    setPointPersons(pointPersons.map(person => {
+      if (person.id === id) {
+        return {
+          ...person,
+          contact_id: selectedContact.contact_id,
+          contact_email: selectedContact.contact_email,
+          contact_name: selectedContact.contact_name,
+          contact_phone: selectedContact.contact_phone,
+          contact_role: selectedContact.contact_role
+        };
+      }
+      return person;
+    }));
+  };
+
+  const handleCustomFieldChange = (id: string, field: keyof PointPersonEntry, value: any) => {
+    setPointPersons(pointPersons.map(person => {
+      if (person.id === id) {
+        return {
+          ...person,
+          [field]: value
+        };
       }
       return person;
     }));
@@ -291,7 +372,8 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
         contact_email: p.contact_email.trim(),
         contact_name: p.contact_name,
         contact_phone: p.contact_phone,
-        contact_role: p.contact_role
+        contact_role: p.contact_role,
+        saveToDatabase: p.mode === 'custom' ? p.saveToDatabase : undefined
       }));
 
     setLoading(true);
@@ -305,6 +387,7 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
         customerJobNumber: customerJobNumber.trim() || undefined,
         dueDate: dueDate || undefined,
         hardDueDateTime: hardDueTimeFormatted, // Now just TIME format "HH:mm:ss"
+        modalSpecialInstructions: modalSpecialInstructions.trim() || undefined,
         pointPersons: pointPersonsData.length > 0 ? pointPersonsData : undefined,
         estimatePreviewData
       });
@@ -334,6 +417,7 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
       setDueDateManuallyChanged(false);
       setBusinessDaysFromToday(null);
       setHardDueTime('');
+      setModalSpecialInstructions('');
       setPointPersons([]);
       setContactEmails([]);
       setAllContacts([]);
@@ -374,36 +458,6 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
           </button>
         </div>
 
-        {/* Warning Banner - No QB Estimate */}
-        {needsNoQBConfirmation && (
-          <div className="mx-6 mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-amber-900 mb-2">
-                  ⚠️ This estimate has not been created in QuickBooks
-                </p>
-                <p className="text-sm text-amber-800 mb-3">
-                  This estimate has not been sent to QuickBooks and therefore has not been sent to the customer.
-                  Are you sure you want to convert this to an order?
-                </p>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={confirmedNoQBEstimate}
-                    onChange={(e) => setConfirmedNoQBEstimate(e.target.checked)}
-                    disabled={loading}
-                    className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500 disabled:opacity-50"
-                  />
-                  <span className="text-sm font-medium text-amber-900">
-                    I understand this estimate hasn't been sent to the customer
-                  </span>
-                </label>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Body - Two Column Layout */}
         <div className="p-6 flex gap-6">
           {/* LEFT COLUMN: Estimate Summary */}
@@ -442,10 +496,7 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* RIGHT COLUMN: Order Details */}
-          <div className="flex-1 space-y-4">
             {/* Order Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -467,11 +518,11 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
               <p className="mt-1 text-xs text-gray-500">Must be unique per customer</p>
             </div>
 
-            {/* Customer Job Number & PO# - Horizontal */}
+            {/* Customer Job # & PO# - Horizontal */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Customer Job Number
+                  Customer Job #
                 </label>
                 <input
                   type="text"
@@ -536,41 +587,132 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
                 <p className="mt-1 text-xs text-gray-500">Optional</p>
               </div>
             </div>
+          </div>
+
+          {/* RIGHT COLUMN: Special Instructions & Point Persons */}
+          <div className="flex-1 space-y-4">
+            {/* Special Instructions */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Special Instructions
+              </label>
+              <textarea
+                ref={specialInstructionsRef}
+                value={modalSpecialInstructions}
+                onChange={(e) => setModalSpecialInstructions(e.target.value)}
+                disabled={loading}
+                rows={1}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed resize-none overflow-hidden"
+                placeholder="Additional instructions for this order (optional)"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Will be appended to customer's default special instructions
+              </p>
+            </div>
 
             {/* Point Persons */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Point Persons
               </label>
-              <div className="space-y-2">
+              <div className="space-y-4">
                 {pointPersons.map((person, index) => (
-                  <div key={person.id} className="flex gap-2">
-                    <div className="flex-1 relative">
-                      <input
-                        type="email"
-                        list={`contact-emails-${person.id}`}
-                        value={person.contact_email}
-                        onChange={(e) => handlePointPersonChange(person.id, e.target.value)}
-                        disabled={loading}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                        placeholder="Select or type email..."
-                      />
-                      <datalist id={`contact-emails-${person.id}`}>
-                        {contactEmails.map(email => (
-                          <option key={email} value={email} />
-                        ))}
-                      </datalist>
+                  <div key={person.id} className="border border-gray-200 rounded-lg p-3 space-y-3">
+                    {/* Header with Mode Toggle and Remove Button */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name={`mode-${person.id}`}
+                            checked={person.mode === 'existing'}
+                            onChange={() => handleModeChange(person.id, 'existing')}
+                            disabled={loading}
+                            className="w-4 h-4 text-purple-600 focus:ring-purple-500 disabled:opacity-50"
+                          />
+                          <span className="text-sm text-gray-700">Existing Contact</span>
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name={`mode-${person.id}`}
+                            checked={person.mode === 'custom'}
+                            onChange={() => handleModeChange(person.id, 'custom')}
+                            disabled={loading}
+                            className="w-4 h-4 text-purple-600 focus:ring-purple-500 disabled:opacity-50"
+                          />
+                          <span className="text-sm text-gray-700">New Contact</span>
+                        </label>
+                      </div>
+                      {pointPersons.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePointPerson(person.id)}
+                          disabled={loading}
+                          className="px-2 py-1 text-red-600 hover:bg-red-50 rounded disabled:opacity-50"
+                          title="Remove"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
-                    {pointPersons.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePointPerson(person.id)}
-                        disabled={loading}
-                        className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50"
-                        title="Remove"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+
+                    {/* Existing Contact Mode */}
+                    {person.mode === 'existing' && (
+                      <div>
+                        <select
+                          value={person.contact_id || ''}
+                          onChange={(e) => handleExistingContactChange(person.id, parseInt(e.target.value))}
+                          disabled={loading}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        >
+                          <option value="">Select a contact...</option>
+                          {allContacts.map(contact => (
+                            <option key={contact.contact_id} value={contact.contact_id}>
+                              {contact.contact_name}
+                              {contact.contact_role && ` (${contact.contact_role})`}
+                              {' - '}
+                              {contact.contact_email}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Custom Contact Mode */}
+                    {person.mode === 'custom' && (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-[65%_35%] gap-2">
+                          <input
+                            type="email"
+                            value={person.contact_email}
+                            onChange={(e) => handleCustomFieldChange(person.id, 'contact_email', e.target.value)}
+                            disabled={loading}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            placeholder="Email *"
+                          />
+                          <input
+                            type="text"
+                            value={person.contact_name || ''}
+                            onChange={(e) => handleCustomFieldChange(person.id, 'contact_name', e.target.value)}
+                            disabled={loading}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            placeholder="Name (optional)"
+                          />
+                        </div>
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={person.saveToDatabase || false}
+                            onChange={(e) => handleCustomFieldChange(person.id, 'saveToDatabase', e.target.checked)}
+                            disabled={loading}
+                            className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500 disabled:opacity-50"
+                          />
+                          <span className="text-sm text-gray-700">
+                            Save this contact to database for future use
+                          </span>
+                        </label>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -597,31 +739,63 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
         )}
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 p-6 border-t bg-gray-50">
-          <button
-            onClick={handleClose}
-            disabled={loading}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleApprove}
-            disabled={loading || !canApprove}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {loading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                <span>Creating Order...</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle className="w-4 h-4" />
-                <span>Approve & Create Order</span>
-              </>
-            )}
-          </button>
+        <div className="flex items-center justify-between gap-4 p-6 border-t bg-gray-50">
+          {/* QB Warning (if needed) - Left side */}
+          {needsNoQBConfirmation ? (
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">⚠️</span>
+              <div className="flex flex-col gap-1">
+                <span className="text-base text-gray-700">
+                  This Estimate has not been sent to QuickBooks.
+                </span>
+                <span className="text-sm text-gray-600">
+                  Please confirm to proceed.
+                </span>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap ml-6">
+                <input
+                  type="checkbox"
+                  checked={confirmedNoQBEstimate}
+                  onChange={(e) => setConfirmedNoQBEstimate(e.target.checked)}
+                  disabled={loading}
+                  className="w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500 disabled:opacity-50"
+                />
+                <span className="text-base font-medium text-gray-700">
+                  Confirm
+                </span>
+              </label>
+            </div>
+          ) : (
+            <div></div>
+          )}
+
+          {/* Action Buttons - Right side */}
+          <div className="flex gap-3">
+            <button
+              onClick={handleClose}
+              disabled={loading}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleApprove}
+              disabled={loading || !canApprove}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                  <span>Creating Order...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4" />
+                  <span>Approve & Create Order</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

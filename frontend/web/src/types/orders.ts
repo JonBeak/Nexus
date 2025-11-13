@@ -188,6 +188,7 @@ export interface PointPersonInput {
   contact_name?: string;      // Required for new contacts
   contact_phone?: string;
   contact_role?: string;
+  saveToDatabase?: boolean;   // If true, save custom contact to customer_contacts table
 }
 
 export interface PartUpdateData {

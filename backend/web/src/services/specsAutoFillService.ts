@@ -862,26 +862,32 @@ function autoFillExtraWire(
 
   // Check if calculationDisplay contains "pcs"
   const hasPcs = /\bpcs\b/i.test(input.calculationDisplay);
-  console.log(`[Specs Auto-Fill] Extra Wire has "pcs": ${hasPcs}`);
+  console.log(`\n🔍 [Extra Wire Debug] ====== STARTING EXTRA WIRE PROCESSING ======`);
+  console.log(`🔍 [Extra Wire Debug] calculationDisplay: "${input.calculationDisplay}"`);
+  console.log(`🔍 [Extra Wire Debug] Has "pcs": ${hasPcs}`);
+  console.log(`🔍 [Extra Wire Debug] Number of previousItems: ${input.previousItems?.length || 0}`);
 
   if (hasPcs && input.previousItems && input.previousItems.length > 0) {
     // Look back through previous items for the most recent LED
     // Reverse iterate to find the closest LED
     let ledFound = false;
 
+    console.log(`🔍 [Extra Wire Debug] Looking back through ${input.previousItems.length} previous items...`);
+
     for (let i = input.previousItems.length - 1; i >= 0; i--) {
       const prevItem = input.previousItems[i];
+      console.log(`🔍 [Extra Wire Debug] Checking item ${i}: specsDisplayName="${prevItem.specsDisplayName}"`);
 
       // Stop if we encounter another Extra Wire or a Special Item
       if (prevItem.specsDisplayName === 'Extra Wire' ||
           prevItem.specsDisplayName?.toLowerCase().includes('special')) {
-        console.log(`[Specs Auto-Fill] Found intervening ${prevItem.specsDisplayName}, stopping LED search`);
+        console.log(`🔍 [Extra Wire Debug] ❌ Found intervening ${prevItem.specsDisplayName}, stopping LED search`);
         break;
       }
 
       // Check if this is an LED item
       if (prevItem.specsDisplayName === 'LEDs') {
-        console.log('[Specs Auto-Fill] Found LED item in previous items');
+        console.log(`🔍 [Extra Wire Debug] ✅ Found LED item in previous items!`);
 
         // Check if LED has Wire Length spec
         let ledWireLengthRow: number | null = null;
@@ -897,7 +903,9 @@ function autoFillExtraWire(
           const ledLength = prevItem.specifications[`row${ledWireLengthRow}_length`];
           const ledGauge = prevItem.specifications[`row${ledWireLengthRow}_wire_gauge`];
 
-          console.log(`[Specs Auto-Fill] LED has Wire Length: ${ledLength}, Gauge: ${ledGauge}`);
+          console.log(`🔍 [Extra Wire Debug] ✅ LED has Wire Length at row ${ledWireLengthRow}`);
+          console.log(`🔍 [Extra Wire Debug]    - LED Length: ${ledLength}`);
+          console.log(`🔍 [Extra Wire Debug]    - LED Gauge: ${ledGauge}`);
 
           // Parse LED length (e.g., "8ft" → 8)
           const ledLengthMatch = ledLength?.match(/(\d+(?:\.\d+)?)/);
@@ -906,22 +914,24 @@ function autoFillExtraWire(
           // Calculate total wire length
           const totalLength = ledLengthNum + extraWireLength;
 
+          console.log(`🔍 [Extra Wire Debug] Calculated total length: ${ledLengthNum}ft + ${extraWireLength}ft = ${totalLength}ft`);
+
           // Fill Extra Wire's Wire Length
           const lengthField = `row${wireLengthRow}_length`;
           specs[lengthField] = `${totalLength}ft`;
           filledFields.push(lengthField);
-          console.log(`[Specs Auto-Fill] ✓ Filled ${lengthField} = "${totalLength}ft" (${ledLengthNum}ft from LED + ${extraWireLength}ft extra)`);
+          console.log(`🔍 [Extra Wire Debug] ✓ Filled ${lengthField} = "${totalLength}ft"`);
 
           // Fill wire gauge from LED
           if (ledGauge) {
             const gaugeField = `row${wireLengthRow}_wire_gauge`;
             specs[gaugeField] = ledGauge;
             filledFields.push(gaugeField);
-            console.log(`[Specs Auto-Fill] ✓ Filled ${gaugeField} = "${ledGauge}" (from LED)`);
+            console.log(`🔍 [Extra Wire Debug] ✓ Filled ${gaugeField} = "${ledGauge}"`);
           }
 
           // Remove LED's Wire Length spec by clearing all template rows and rebuilding without Wire Length
-          console.log('[Specs Auto-Fill] Removing Wire Length spec from LED');
+          console.log(`🔍 [Extra Wire Debug] 🗑️  Removing Wire Length spec from LED...`);
           const ledTemplates: string[] = [];
           for (let j = 1; j <= 10; j++) {
             const templateName = prevItem.specifications[`_template_${j}`];
@@ -988,12 +998,13 @@ function autoFillExtraWire(
 
           // Update the previous item's specifications
           prevItem.specifications = newLedSpecs;
-          console.log('[Specs Auto-Fill] ✓ Removed Wire Length from LED specifications');
+          console.log(`🔍 [Extra Wire Debug] ✓ Removed Wire Length from LED specifications`);
+          console.log(`🔍 [Extra Wire Debug] LED templates after removal:`, ledTemplates);
 
           ledFound = true;
           break;
         } else {
-          console.log('[Specs Auto-Fill] LED found but has no Wire Length spec, skipping consolidation');
+          console.log(`🔍 [Extra Wire Debug] ❌ LED found but has NO Wire Length spec, skipping consolidation`);
           break;
         }
       }
@@ -1004,15 +1015,18 @@ function autoFillExtraWire(
       const lengthField = `row${wireLengthRow}_length`;
       specs[lengthField] = `${extraWireLength}ft`;
       filledFields.push(lengthField);
-      console.log(`[Specs Auto-Fill] ✓ Filled ${lengthField} = "${extraWireLength}ft" (no LED found)`);
+      console.log(`🔍 [Extra Wire Debug] ⚠️  No LED found - Filled ${lengthField} = "${extraWireLength}ft" (no LED to consolidate with)`);
     }
   } else {
     // No "pcs" in calculationDisplay - just fill length without gauge
+    console.log(`🔍 [Extra Wire Debug] No "pcs" found or no previousItems - just filling length`);
     const lengthField = `row${wireLengthRow}_length`;
     specs[lengthField] = `${extraWireLength}ft`;
     filledFields.push(lengthField);
-    console.log(`[Specs Auto-Fill] ✓ Filled ${lengthField} = "${extraWireLength}ft" (no pcs in calculation)`);
+    console.log(`🔍 [Extra Wire Debug] ✓ Filled ${lengthField} = "${extraWireLength}ft" (standalone wire)`);
   }
+
+  console.log(`🔍 [Extra Wire Debug] ====== FINISHED EXTRA WIRE PROCESSING ======\n`);
 }
 
 /**

@@ -5,7 +5,7 @@
 
 import path from 'path';
 
-export type FormType = 'master' | 'customer' | 'shop';
+export type FormType = 'master' | 'customer' | 'shop' | 'packing';
 
 // ============================================
 // CONSTANTS - COLORS
@@ -463,3 +463,148 @@ export function renderMasterCustomerPageHeader(
 
   return currentY + SPACING.SECTION_GAP;
 }
+
+/**
+ * Render master/customer form header info rows (3-row)
+ * Row 1: Order # | Date | Customer
+ * Row 2: Job # | PO# | Job Name
+ * Row 3: (blank) | Due | Delivery
+ *
+ * @param showDueDate - Whether to show due date (false for customer forms)
+ * @returns Y position after rows
+ */
+export function renderMasterCustomerInfoRows(
+  doc: any,
+  orderData: any,
+  col1X: number,
+  col2X: number,
+  col3X: number,
+  startY: number,
+  showDueDate: boolean = true
+): number {
+  let currentY = startY;
+
+  // Row 1: Order # | Date | Customer
+  let label = 'Order #';
+  let labelWidth = renderHeaderLabel(doc, label, col1X, currentY);
+  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
+  doc.text(orderData.order_number, col1X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+
+  const orderDateStr = new Date(orderData.order_date).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+  label = 'Date';
+  labelWidth = renderHeaderLabel(doc, label, col2X, currentY);
+  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
+  doc.text(orderDateStr, col2X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+
+  label = 'Customer';
+  labelWidth = renderHeaderLabel(doc, label, col3X, currentY);
+  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
+  doc.text(orderData.company_name, col3X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+  currentY += SPACING.HEADER_ROW;
+
+  // Row 2: Job # | PO# | Job Name
+  label = 'Job #';
+  labelWidth = renderHeaderLabel(doc, label, col1X, currentY);
+  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
+  doc.text(orderData.customer_job_number || '', col1X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+
+  label = 'PO#';
+  labelWidth = renderHeaderLabel(doc, label, col2X, currentY);
+  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
+  doc.text(orderData.customer_po || '', col2X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+
+  label = 'Job Name';
+  labelWidth = renderHeaderLabel(doc, label, col3X, currentY);
+  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
+  doc.text(orderData.order_name, col3X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+  currentY += SPACING.HEADER_ROW;
+
+  // Row 3: (blank) | Due | Delivery
+  if (showDueDate) {
+    renderDueDate(doc, orderData, col2X, currentY);
+  }
+
+  const shippingText = orderData.shipping_required ? 'Shipping' : 'Pick Up';
+  label = 'Delivery';
+  labelWidth = renderHeaderLabel(doc, label, col3X, currentY);
+  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
+  doc.text(shippingText, col3X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+  currentY += SPACING.HEADER_ROW;
+
+  return currentY;
+}
+
+/**
+ * Render shop form header info rows (2-row)
+ * Row 1: Order # | Date | Job
+ * Row 2: (blank) | Due | Delivery
+ *
+ * @returns Y position after rows
+ */
+export function renderShopInfoRows(
+  doc: any,
+  orderData: any,
+  col1X: number,
+  col2X: number,
+  col3X: number,
+  startY: number
+): number {
+  let currentY = startY;
+
+  // Row 1: Order # | Date | Job
+  let label = 'Order #';
+  let labelWidth = renderHeaderLabel(doc, label, col1X, currentY);
+  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
+  doc.text(orderData.order_number, col1X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+
+  const orderDateStr = new Date(orderData.order_date).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+  label = 'Date';
+  labelWidth = renderHeaderLabel(doc, label, col2X, currentY);
+  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
+  doc.text(orderDateStr, col2X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+
+  label = 'Job';
+  labelWidth = renderHeaderLabel(doc, label, col3X, currentY);
+  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
+  doc.text(orderData.order_name, col3X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+  currentY += SPACING.HEADER_ROW;
+
+  // Row 2: (blank) | Due | Delivery
+  renderDueDate(doc, orderData, col2X, currentY);
+
+  const shippingText = orderData.shipping_required ? 'Shipping' : 'Pick Up';
+  label = 'Delivery';
+  labelWidth = renderHeaderLabel(doc, label, col3X, currentY);
+  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
+  doc.text(shippingText, col3X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+  currentY += SPACING.HEADER_ROW;
+
+  return currentY;
+}
+
+/**
+ * Extract specs_qty from part specifications
+ * Safely parses specifications JSON and extracts specs_qty with fallbacks
+ *
+ * @param part - Part object with specifications field
+ * @returns Quantity value (specs_qty > quantity > 0)
+ */
+export function getSpecsQuantity(part: any): number {
+  try {
+    const specs = typeof part.specifications === 'string'
+      ? JSON.parse(part.specifications)
+      : part.specifications;
+    return specs?.specs_qty ?? part.quantity ?? 0;
+  } catch {
+    return part.quantity ?? 0;
+  }
+}
+

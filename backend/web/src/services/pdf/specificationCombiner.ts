@@ -7,6 +7,16 @@
 import { formatBooleanValue, cleanSpecValue } from './generators/pdfCommonGenerator';
 
 /**
+ * Check if any value in array indicates inclusion (Yes/true)
+ * Used for boolean template fields like UL, Drain Holes, D-Tape
+ */
+function checkInclusionValue(values: string[]): boolean {
+  return values.some(v =>
+    v === 'Yes' || v === 'true' || String(v).toLowerCase().includes('yes')
+  );
+}
+
+/**
  * Combines specifications from multiple parts (parent + sub-items)
  * Returns a Map of template names to their spec values
  *
@@ -116,31 +126,14 @@ export function flattenCombinedSpecs(templateRowsMap: Map<string, string[]>): an
         break;
 
       case 'UL':
-        // UL template: check if any value indicates inclusion
-        const ulIncluded = values.some(v =>
-          v === 'Yes' || v === 'true' || String(v).toLowerCase().includes('yes')
-        );
-        flatSpecs[`row${rowIndex}_include`] = ulIncluded;
-        break;
-
       case 'Drain Holes':
-        // Drain Holes: check if any value indicates inclusion
-        const drainIncluded = values.some(v =>
-          v === 'Yes' || v === 'true' || String(v).toLowerCase().includes('yes')
-        );
-        flatSpecs[`row${rowIndex}_include`] = drainIncluded;
-        break;
-
       case 'D-Tape':
       case 'D-tape':
       case 'Dtape':
       case 'DTape':
       case 'D tape':
-        // D-Tape: check if any value indicates inclusion (usually "Yes" or true)
-        const dtapeIncluded = values.some(v =>
-          v === 'Yes' || v === 'true' || String(v).toLowerCase().includes('yes')
-        );
-        flatSpecs[`row${rowIndex}_include`] = dtapeIncluded;
+        // Boolean templates: check if any value indicates inclusion
+        flatSpecs[`row${rowIndex}_include`] = checkInclusionValue(values);
         break;
     }
 

@@ -192,6 +192,7 @@ export interface PointPersonInput {
   contact_name?: string;         // Required for new contacts
   contact_phone?: string;
   contact_role?: string;
+  saveToDatabase?: boolean;      // If true, save custom contact to customer_contacts table
 }
 
 // =============================================
@@ -207,6 +208,7 @@ export interface ConvertEstimateRequest {
   hardDueDateTime?: string;          // Phase 1.5.a.5: ISO datetime string (YYYY-MM-DDTHH:MM:SS)
   pointPersons?: PointPersonInput[]; // Array of point persons (from order_point_persons table)
   productionNotes?: string;
+  modalSpecialInstructions?: string; // Special instructions from conversion modal (appended to customer special_instructions)
   // Phase 1.5: Include full estimate preview data for order creation
   estimatePreviewData?: EstimatePreviewData;
 }
