@@ -391,7 +391,9 @@ export class DynamicTemplateService {
 
       // Validate order_by if it's a simple column name (not a SQL function)
       if (orderBy && !orderBy.includes('(')) {
-        this.validateColumnName(field.data_source, orderBy);
+        // Extract just the column name (remove ASC/DESC if present)
+        const columnName = orderBy.trim().split(/\s+/)[0];
+        this.validateColumnName(field.data_source, columnName);
       }
 
       const queryStr = `

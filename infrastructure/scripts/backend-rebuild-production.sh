@@ -10,6 +10,12 @@ echo ""
 
 cd "$BACKEND_DIR"
 
+# Remove symlink first to prevent building through it
+if [ -L "dist" ]; then
+    echo "🔗 Removing existing symlink..."
+    rm dist
+fi
+
 # Build TypeScript
 echo "📦 Running TypeScript build..."
 npm run build

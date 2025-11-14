@@ -1,16 +1,16 @@
 #!/bin/bash
-# Start Sign House System with DEV Backend
+# Start Sign House System with PRODUCTION Backend
 
 set -e
 
 REPO_DIR="/home/jon/Nexus"
 
-echo "🚀 Starting Sign House (DEV MODE)..."
+echo "🚀 Starting Sign House (PRODUCTION MODE)..."
 echo ""
 
-# Switch backend to dev
-echo "🔧 Switching to development backend..."
-/home/jon/Nexus/infrastructure/scripts/backend-switch-to-dev.sh
+# Switch backend to production
+echo "🔧 Switching to production backend..."
+/home/jon/Nexus/infrastructure/scripts/backend-switch-to-production.sh
 
 echo ""
 
@@ -50,14 +50,14 @@ echo "$FRONTEND_PID" > /tmp/signhouse-frontend.pid
 echo "   ✓ Frontend dev server running on port 5173 (PID: $FRONTEND_PID)"
 
 echo ""
-echo "✅ Sign House started in DEV MODE!"
+echo "✅ Sign House started in PRODUCTION MODE!"
 echo ""
 echo "📊 Access URLs:"
 echo "   Development:  http://192.168.2.14:5173 (hot reload)"
 echo "   Production:   https://nexuswebapp.duckdns.org"
 echo "   Backend API:  http://192.168.2.14:3001"
 echo ""
-echo "🏗️  Backend Build: DEVELOPMENT (latest code)"
+echo "🏗️  Backend Build: PRODUCTION (commit 8c2a637)"
 echo ""
 echo "📋 Logs:"
 echo "   Backend:  pm2 logs signhouse-backend"

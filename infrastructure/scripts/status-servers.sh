@@ -12,6 +12,22 @@ if pm2 list | grep -q "signhouse-backend"; then
     if [ "$STATUS" == "online" ]; then
         echo "   ✅ Running (PM2)"
         echo "   🌐 URL: http://192.168.2.14:3001"
+
+        # Check which build is active
+        BACKEND_DIR="/home/jon/Nexus/backend/web"
+        if [ -L "$BACKEND_DIR/dist" ]; then
+            ACTIVE_BUILD=$(readlink "$BACKEND_DIR/dist")
+            if [ "$ACTIVE_BUILD" == "dist-production" ]; then
+                echo "   🏗️  Build: PRODUCTION (commit 8c2a637)"
+            elif [ "$ACTIVE_BUILD" == "dist-dev" ]; then
+                echo "   🏗️  Build: DEVELOPMENT (latest code)"
+            else
+                echo "   🏗️  Build: $ACTIVE_BUILD"
+            fi
+        else
+            echo "   ⚠️  Build: Unknown (dist is not a symlink)"
+        fi
+
         if curl -s http://192.168.2.14:3001/api/health > /dev/null 2>&1; then
             echo "   💚 Health check: PASSED"
         else

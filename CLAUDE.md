@@ -292,14 +292,52 @@ export const ExampleComponent = ({ }: Props) => {
 
   <SystemAccess>
     <ServerManagement>
-      <StartServers>/home/jon/Nexus/infrastructure/scripts/start-servers.sh</StartServers>
+      <StartProduction>/home/jon/Nexus/infrastructure/scripts/start-production.sh</StartProduction>
+      <StartDevelopment>/home/jon/Nexus/infrastructure/scripts/start-dev.sh</StartDevelopment>
       <StopServers>/home/jon/Nexus/infrastructure/scripts/stop-servers.sh</StopServers>
-      <CheckStatus>/home/jon/Nexus/infrastructure/scripts/status-servers.sh</CheckStatus>
+      <CheckStatus>/home/jon/Nexus/infrastructure/scripts/status-servers.sh (shows active build)</CheckStatus>
       <ViewLogs>
-        <Backend>tail -f /tmp/signhouse-backend.log</Backend>
+        <Backend>pm2 logs signhouse-backend</Backend>
         <Frontend>tail -f /tmp/signhouse-frontend.log</Frontend>
       </ViewLogs>
+      <Deprecated>
+        <OldScript>/home/jon/Nexus/infrastructure/scripts/start-servers.sh (DO NOT USE - not build-aware)</OldScript>
+      </Deprecated>
     </ServerManagement>
+
+    <BuildManagement>
+      <DualBuildSystem>
+        The backend supports simultaneous production and development builds for safe testing.
+        PM2 runs whichever build the 'dist' symlink points to.
+      </DualBuildSystem>
+
+      <BuildStructure>
+        /backend/web/
+        ├── dist-production/  (stable production build from commit 8c2a637)
+        ├── dist-dev/        (development build with latest changes)
+        └── dist -> [symlink] (points to active build)
+      </BuildStructure>
+
+      <RebuildScripts>
+        <Production>/home/jon/Nexus/infrastructure/scripts/backend-rebuild-production.sh</Production>
+        <Development>/home/jon/Nexus/infrastructure/scripts/backend-rebuild-dev.sh</Development>
+        <Note>Scripts automatically remove symlink, build, move to target, recreate symlink</Note>
+      </RebuildScripts>
+
+      <SwitchScripts>
+        <ToProduction>/home/jon/Nexus/infrastructure/scripts/backend-switch-to-production.sh</ToProduction>
+        <ToDevelopment>/home/jon/Nexus/infrastructure/scripts/backend-switch-to-dev.sh</ToDevelopment>
+        <Note>Scripts update symlink and restart PM2 automatically</Note>
+      </SwitchScripts>
+
+      <CheckActiveBuild>readlink /home/jon/Nexus/backend/web/dist</CheckActiveBuild>
+
+      <Backups>
+        <Location>/home/jon/Nexus/infrastructure/backups/backend-builds/</Location>
+        <Format>dist-production-YYYYMMDD-HHMMSS-commit-8c2a637.tar.gz</Format>
+        <Restore>tar -xzf [backup-file]</Restore>
+      </Backups>
+    </BuildManagement>
 
     <DatabaseAccess>
       <CheckStatus>systemctl status mysql</CheckStatus>
@@ -317,8 +355,8 @@ export const ExampleComponent = ({ }: Props) => {
 
     <DemoUsers>
       <User role="manager">
-        <Username>admin</Username>
-        <Password>admin123</Password>
+        <Username>manager</Username>
+        <Password>managermanager123123</Password>
       </User>
       <User role="designer">
         <Username>designer</Username>

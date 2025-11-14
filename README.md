@@ -145,10 +145,74 @@ mysql -u root -p sign_manufacturing < 04_sample_pricing_data.sql
 ### Access the System
 - **Frontend**: http://localhost:5173
 - **API**: http://localhost:3001/api
-- **Demo Users**: 
-  - Owner: admin/admin123
-  - Manager: manager/manager123  
+- **Demo Users**:
+  - Manager: manager/managermanager123123
   - Designer: designer/design123
+  - Production Staff: staff/staff123
+
+## 🔄 Development & Production Builds
+
+### Dual-Build System
+The backend supports **simultaneous production and development builds** for safe testing:
+
+```bash
+# Backend build structure:
+/backend/web/
+├── dist-production/    # Stable production build (commit 8c2a637)
+├── dist-dev/          # Development build (latest code)
+└── dist -> [symlink]  # Points to active build
+```
+
+### Build Management Scripts
+
+**Rebuild Builds:**
+```bash
+# Rebuild production (overwrites dist-production/)
+/home/jon/Nexus/infrastructure/scripts/backend-rebuild-production.sh
+
+# Rebuild development (overwrites dist-dev/)
+/home/jon/Nexus/infrastructure/scripts/backend-rebuild-dev.sh
+```
+
+**Switch Active Build:**
+```bash
+# Switch to production (stable, tested)
+/home/jon/Nexus/infrastructure/scripts/backend-switch-to-production.sh
+
+# Switch to development (test new features)
+/home/jon/Nexus/infrastructure/scripts/backend-switch-to-dev.sh
+```
+
+**Check Which Build is Running:**
+```bash
+# View symlink target
+readlink /home/jon/Nexus/backend/web/dist
+# Output: dist-production (running production)
+# Output: dist-dev (running development)
+```
+
+### Backup & Recovery
+
+**Safe Backups:**
+```bash
+# Production build backup (tarball)
+/home/jon/Nexus/infrastructure/backups/backend-builds/
+└── dist-production-YYYYMMDD-HHMMSS-commit-8c2a637.tar.gz
+
+# Restore from backup:
+cd /home/jon/Nexus/backend/web
+tar -xzf /home/jon/Nexus/infrastructure/backups/backend-builds/dist-production-*.tar.gz
+```
+
+**Rebuild from Git:**
+```bash
+# Nuclear option - rebuild production from known-good commit
+cd /home/jon/Nexus/backend/web
+git checkout 8c2a637
+npm run build
+mv dist dist-production
+git checkout main
+```
 
 ## 🔧 API Endpoints
 
