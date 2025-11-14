@@ -1,46 +1,41 @@
+// File Clean up Finished: Nov 14, 2025
+// Changes:
+//   - Removed dead code: validateEstimateForConversion() controller method (unused route)
+//   - Removed redundant auth check (middleware guarantees user exists)
+//   - Replaced error handling with sendErrorResponse() helper
+//   - Changed Request param to AuthRequest for type safety
+//   - Added non-null assertion (req.user!) since auth middleware guarantees user
+//   - Reduced from 118 → 62 lines (47% reduction)
+
 /**
  * Order Conversion Controller
  * HTTP Request Handlers for Estimate → Order Conversion
  */
 
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { AuthRequest } from '../types';
 import { orderConversionService } from '../services/orderConversionService';
 import { ConvertEstimateRequest } from '../types/orders';
+import { sendErrorResponse } from '../utils/controllerHelpers';
 
 /**
  * Convert approved estimate to order
  * POST /api/orders/convert-estimate
  * Permission: orders.create (Manager+ only)
  */
-export const convertEstimateToOrder = async (req: Request, res: Response) => {
+export const convertEstimateToOrder = async (req: AuthRequest, res: Response) => {
   try {
-    const user = (req as AuthRequest).user;
-
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'User not authenticated'
-      });
-    }
-
     const conversionRequest: ConvertEstimateRequest = req.body;
 
     // Validate required fields
     if (!conversionRequest.estimateId || !conversionRequest.orderName) {
-      return res.status(400).json({
-        success: false,
-        message: 'estimateId and orderName are required'
-      });
+      return sendErrorResponse(res, 'estimateId and orderName are required', 'VALIDATION_ERROR');
     }
 
     // Validate estimateId is a number
     const estimateId = parseInt(conversionRequest.estimateId.toString());
     if (isNaN(estimateId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'estimateId must be a valid number'
-      });
+      return sendErrorResponse(res, 'estimateId must be a valid number', 'VALIDATION_ERROR');
     }
 
     // Convert estimate to order
@@ -49,7 +44,7 @@ export const convertEstimateToOrder = async (req: Request, res: Response) => {
         ...conversionRequest,
         estimateId
       },
-      user.user_id
+      req.user!.user_id
     );
 
     res.json({
@@ -64,54 +59,13 @@ export const convertEstimateToOrder = async (req: Request, res: Response) => {
 
     // Check for specific error types
     if (errorMessage.includes('not found')) {
-      return res.status(404).json({
-        success: false,
-        message: errorMessage
-      });
+      return sendErrorResponse(res, errorMessage, 'NOT_FOUND');
     }
 
     if (errorMessage.includes('approved')) {
-      return res.status(400).json({
-        success: false,
-        message: errorMessage
-      });
+      return sendErrorResponse(res, errorMessage, 'VALIDATION_ERROR');
     }
 
-    res.status(500).json({
-      success: false,
-      message: errorMessage
-    });
-  }
-};
-
-/**
- * Validate estimate can be converted (preview)
- * GET /api/orders/convert-estimate/validate/:estimateId
- * Permission: orders.create (Manager+ only)
- */
-export const validateEstimateForConversion = async (req: Request, res: Response) => {
-  try {
-    const { estimateId } = req.params;
-    const estimateIdNum = parseInt(estimateId);
-
-    if (isNaN(estimateIdNum)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid estimate ID'
-      });
-    }
-
-    const validation = await orderConversionService.validateEstimateForConversion(estimateIdNum);
-
-    res.json({
-      success: true,
-      data: validation
-    });
-  } catch (error) {
-    console.error('Error validating estimate for conversion:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to validate estimate'
-    });
+    sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
   }
 };

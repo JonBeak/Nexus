@@ -1,11 +1,12 @@
 /**
- * File Clean up Finished: Nov 13, 2025
- * Changes: Removed unused AuthenticatedRequest export (available in ../../types if needed)
+ * File Clean up Finished: Nov 14, 2025
+ * Changes: Replaced hybridPermissionCheck with direct hasPermission calls
+ * Previous cleanup (Nov 13): Removed unused AuthenticatedRequest export
  */
 
 import { Request, Response } from 'express';
 import { User } from '../../types';
-import { hybridPermissionCheck } from '../../middleware/rbac';
+import { hasPermission } from '../../middleware/rbac';
 
 export class CustomerPermissions {
   /**
@@ -30,12 +31,7 @@ export class CustomerPermissions {
    * Uses RBAC permission system
    */
   static async canDeleteAddressesHybrid(user: User): Promise<boolean> {
-    return await hybridPermissionCheck(
-      user.user_id,
-      user.role,
-      'customer_addresses.delete',
-      ['manager', 'owner']
-    );
+    return await hasPermission(user.user_id, 'customer_addresses.delete');
   }
 
   /**
@@ -43,12 +39,7 @@ export class CustomerPermissions {
    * Uses RBAC permission system
    */
   static async canDeactivateCustomersHybrid(user: User): Promise<boolean> {
-    return await hybridPermissionCheck(
-      user.user_id,
-      user.role,
-      'customers.deactivate',
-      ['manager', 'owner']
-    );
+    return await hasPermission(user.user_id, 'customers.deactivate');
   }
 
   /**
@@ -56,12 +47,7 @@ export class CustomerPermissions {
    * Uses customers.update permission for reactivation operations
    */
   static async canReactivateCustomersHybrid(user: User): Promise<boolean> {
-    return await hybridPermissionCheck(
-      user.user_id,
-      user.role,
-      'customers.update',
-      ['manager', 'owner']
-    );
+    return await hasPermission(user.user_id, 'customers.update');
   }
 
   /**
@@ -69,12 +55,7 @@ export class CustomerPermissions {
    * Uses RBAC permission system
    */
   static async canViewCustomersHybrid(user: User): Promise<boolean> {
-    return await hybridPermissionCheck(
-      user.user_id,
-      user.role,
-      'customers.read',
-      ['manager', 'designer', 'owner']
-    );
+    return await hasPermission(user.user_id, 'customers.read');
   }
 
   /**
@@ -82,12 +63,7 @@ export class CustomerPermissions {
    * Uses RBAC permission system
    */
   static async canEditCustomersHybrid(user: User): Promise<boolean> {
-    return await hybridPermissionCheck(
-      user.user_id,
-      user.role,
-      'customers.update',
-      ['manager', 'designer', 'owner']
-    );
+    return await hasPermission(user.user_id, 'customers.update');
   }
 
   /**
@@ -95,12 +71,7 @@ export class CustomerPermissions {
    * Uses RBAC permission system
    */
   static async canViewAddressesHybrid(user: User): Promise<boolean> {
-    return await hybridPermissionCheck(
-      user.user_id,
-      user.role,
-      'customer_addresses.read',
-      ['manager', 'designer', 'owner']
-    );
+    return await hasPermission(user.user_id, 'customer_addresses.read');
   }
 
   /**
@@ -108,11 +79,6 @@ export class CustomerPermissions {
    * Uses RBAC permission system
    */
   static async canEditAddressesHybrid(user: User): Promise<boolean> {
-    return await hybridPermissionCheck(
-      user.user_id,
-      user.role,
-      'customer_addresses.update',
-      ['manager', 'designer', 'owner']
-    );
+    return await hasPermission(user.user_id, 'customer_addresses.update');
   }
 }

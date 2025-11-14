@@ -1,6 +1,15 @@
 /**
- * One-Time Migration Script: Existing SMB Folders → Database Orders
+ * ⚠️ ARCHIVED - MIGRATION COMPLETED ⚠️
  *
+ * Completion Date: November 10, 2025
+ * Migration Results: Successfully migrated 1,978 existing SMB folders to database
+ * Order Range: 100000-101977 (migrated orders)
+ *
+ * This script was a ONE-TIME migration and should NOT be run again.
+ * All existing folders at the time of migration have been imported.
+ *
+ * Original Purpose:
+ * One-Time Migration Script: Existing SMB Folders → Database Orders
  * Scans /mnt/channelletter and /mnt/channelletter/1Finished
  * Creates orders for folders following pattern: "{order_name} ----- {customer_name}"
  *
@@ -13,9 +22,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { pool } from '../config/database';
-
-const SMB_ROOT = '/mnt/channelletter';
-const FINISHED_FOLDER = '1Finished';
+import { SMB_ROOT, FINISHED_FOLDER } from '../config/paths';
 const MIGRATION_LOG = '/tmp/order-migration-log.txt';
 const UNMATCHED_LOG = '/tmp/order-migration-unmatched.log';
 

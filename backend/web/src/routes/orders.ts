@@ -29,17 +29,6 @@ router.post(
 );
 
 /**
- * Validate estimate can be converted (Manager+ only)
- * GET /api/orders/convert-estimate/validate/:estimateId
- */
-router.get(
-  '/convert-estimate/validate/:estimateId',
-  authenticateToken,
-  requirePermission('orders.create'),
-  orderConversionController.validateEstimateForConversion
-);
-
-/**
  * Validate order name uniqueness for customer (Phase 1.5.a)
  * GET /api/orders/validate-name?orderName=xxx&customerId=123
  */

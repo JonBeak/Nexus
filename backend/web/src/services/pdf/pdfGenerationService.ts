@@ -1,3 +1,13 @@
+// File Clean up Finished: Nov 14, 2025
+// Changes:
+//   - Moved database queries to orderRepository (proper 3-layer architecture)
+//   - Migrated to query() helper for all DB operations (in repository)
+//   - Removed hardcoded SMB paths, now using config/paths.ts
+//   - Moved FormPaths, OrderDataForPDF, OrderPartForPDF to types/orders.ts
+//   - Removed point_persons field (dead code - never fetched)
+//   - Updated specifications type from any to OrderSpecifications
+//   - Removed unused imports (pool, ResultSetHeader, PoolConnection)
+//   - File size reduced from 432 to 243 lines (44% reduction)
 /**
  * PDF Generation Service
  * Main orchestrator for generating all order forms
@@ -9,11 +19,11 @@
  * - Store form paths in database
  */
 
-import { pool } from '../../config/database';
-import { RowDataPacket, ResultSetHeader, PoolConnection } from 'mysql2/promise';
 import fs from 'fs/promises';
 import path from 'path';
-import { getOrderStoragePath } from '../../config/storage';
+import { orderRepository } from '../../repositories/orderRepository';
+import { FormPaths, OrderDataForPDF, OrderPartForPDF } from '../../types/orders';
+import { SMB_ROOT, ORDERS_FOLDER, FINISHED_FOLDER } from '../../config/paths';
 
 // =============================================
 // TYPES
@@ -23,72 +33,6 @@ export interface FormGenerationOptions {
   orderId: number;
   createNewVersion?: boolean;
   userId?: number;
-}
-
-export interface FormPaths {
-  masterForm: string;
-  shopForm: string;
-  customerForm: string;
-  packingList: string;
-}
-
-export interface OrderDataForPDF {
-  // Order info
-  order_id: number;
-  order_number: number;
-  order_name: string;
-  order_date: Date;
-  due_date?: Date;
-  hard_due_date_time?: string;  // TIME format "HH:mm:ss" or "HH:mm" from database
-  customer_po?: string;
-  customer_job_number?: string;
-  point_persons?: Array<{ contact_email: string; contact_name?: string }>;
-  production_notes?: string;
-  manufacturing_note?: string;
-  internal_note?: string;
-  status: string;
-  form_version: number;
-  sign_image_path?: string;  // Filename only (e.g., "design.jpg")
-  crop_top?: number;         // Auto-crop coordinates
-  crop_right?: number;
-  crop_bottom?: number;
-  crop_left?: number;
-  shipping_required: boolean;
-
-  // Folder info (for constructing full image path)
-  folder_name?: string;
-  folder_location?: 'active' | 'finished' | 'none';
-  is_migrated?: boolean;
-
-  // Customer info
-  customer_id: number;
-  company_name: string;
-  contact_first_name?: string;
-  contact_last_name?: string;
-  phone?: string;
-  email?: string;
-
-  // Customer packing preferences
-  pattern_yes_or_no?: number;              // For packing list pattern logic
-  pattern_type?: string;                   // "Paper" or "Digital"
-  wiring_diagram_yes_or_no?: number;       // For packing list wiring diagram logic
-
-  // Parts
-  parts: OrderPartForPDF[];
-}
-
-export interface OrderPartForPDF {
-  part_id: number;
-  part_number: number;
-  display_number?: string;
-  is_parent?: boolean;
-  product_type: string;
-  part_scope?: string;
-  specs_display_name?: string;
-  product_type_id: string;
-  quantity: number;
-  specifications: any;
-  production_notes?: string;
 }
 
 // =============================================
@@ -101,10 +45,6 @@ class PDFGenerationService {
    * Get the actual order folder path on SMB share
    */
   private getOrderFolderPath(orderData: OrderDataForPDF): string {
-    const SMB_ROOT = '/mnt/channelletter';
-    const ORDERS_FOLDER = 'Orders';
-    const FINISHED_FOLDER = '1Finished';
-
     if (!orderData.folder_name || orderData.folder_location === 'none') {
       throw new Error('Order does not have a folder');
     }
@@ -214,75 +154,13 @@ class PDFGenerationService {
    * Fetch complete order data with customer and parts
    */
   private async fetchOrderData(orderId: number): Promise<OrderDataForPDF> {
-    // Fetch order with customer info
-    const [orderRows] = await pool.execute<RowDataPacket[]>(`
-      SELECT
-        o.order_id,
-        o.order_number,
-        o.order_name,
-        o.order_date,
-        o.due_date,
-        o.hard_due_date_time,
-        o.customer_po,
-        o.customer_job_number,
-        o.production_notes,
-        o.manufacturing_note,
-        o.internal_note,
-        o.status,
-        o.form_version,
-        o.sign_image_path,
-        o.crop_top,
-        o.crop_right,
-        o.crop_bottom,
-        o.crop_left,
-        o.shipping_required,
-        o.folder_name,
-        o.folder_location,
-        o.is_migrated,
-        o.customer_id,
-        c.company_name,
-        c.contact_first_name,
-        c.contact_last_name,
-        c.phone,
-        c.email,
-        c.pattern_yes_or_no,
-        c.pattern_type,
-        c.wiring_diagram_yes_or_no
-      FROM orders o
-      JOIN customers c ON o.customer_id = c.customer_id
-      WHERE o.order_id = ?
-    `, [orderId]);
+    const orderData = await orderRepository.getOrderWithCustomerForPDF(orderId);
 
-    if (orderRows.length === 0) {
+    if (!orderData) {
       throw new Error(`Order ${orderId} not found`);
     }
 
-    const order = orderRows[0];
-
-    // Fetch order parts
-    const [parts] = await pool.execute<RowDataPacket[]>(`
-      SELECT
-        part_id,
-        order_id,
-        part_number,
-        display_number,
-        is_parent,
-        product_type,
-        part_scope,
-        specs_display_name,
-        product_type_id,
-        quantity,
-        specifications,
-        production_notes
-      FROM order_parts
-      WHERE order_id = ?
-      ORDER BY part_number
-    `, [orderId]);
-
-    return {
-      ...order,
-      parts: parts as OrderPartForPDF[]
-    } as OrderDataForPDF;
+    return orderData;
   }
 
   /**
@@ -340,10 +218,7 @@ class PDFGenerationService {
    * Update order version number
    */
   private async updateOrderVersion(orderId: number, version: number): Promise<void> {
-    await pool.execute(
-      'UPDATE orders SET form_version = ? WHERE order_id = ?',
-      [version, orderId]
-    );
+    await orderRepository.updateOrderFormVersion(orderId, version);
   }
 
   /**
@@ -355,76 +230,21 @@ class PDFGenerationService {
     paths: FormPaths,
     userId?: number
   ): Promise<void> {
-    // Check if version record exists
-    const [existing] = await pool.execute<RowDataPacket[]>(
-      'SELECT version_id FROM order_form_versions WHERE order_id = ? AND version_number = ?',
-      [orderId, version]
-    );
-
-    if (existing.length > 0) {
-      // Update existing record
-      await pool.execute(
-        `UPDATE order_form_versions
-         SET master_form_path = ?, shop_form_path = ?, customer_form_path = ?, packing_list_path = ?
-         WHERE order_id = ? AND version_number = ?`,
-        [paths.masterForm, paths.shopForm, paths.customerForm, paths.packingList, orderId, version]
-      );
-    } else {
-      // Insert new record
-      await pool.execute(
-        `INSERT INTO order_form_versions
-         (order_id, version_number, master_form_path, shop_form_path, customer_form_path, packing_list_path, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [orderId, version, paths.masterForm, paths.shopForm, paths.customerForm, paths.packingList, userId || null]
-      );
-    }
+    await orderRepository.upsertOrderFormPaths(orderId, version, paths, userId);
   }
 
   /**
    * Get form paths for an order
    */
   async getFormPaths(orderId: number, version?: number): Promise<FormPaths | null> {
-    let sql = `
-      SELECT master_form_path, shop_form_path, customer_form_path, packing_list_path
-      FROM order_form_versions
-      WHERE order_id = ?
-    `;
-
-    const params: any[] = [orderId];
-
-    if (version) {
-      sql += ' AND version_number = ?';
-      params.push(version);
-    } else {
-      // Get latest version
-      sql += ' ORDER BY version_number DESC LIMIT 1';
-    }
-
-    const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
-
-    if (rows.length === 0) {
-      return null;
-    }
-
-    const row = rows[0];
-    return {
-      masterForm: row.master_form_path,
-      shopForm: row.shop_form_path,
-      customerForm: row.customer_form_path,
-      packingList: row.packing_list_path
-    };
+    return await orderRepository.getOrderFormPaths(orderId, version);
   }
 
   /**
    * Check if forms exist for an order
    */
   async formsExist(orderId: number): Promise<boolean> {
-    const [rows] = await pool.execute<RowDataPacket[]>(
-      'SELECT COUNT(*) as count FROM order_form_versions WHERE order_id = ?',
-      [orderId]
-    );
-
-    return rows[0].count > 0;
+    return await orderRepository.orderFormsExist(orderId);
   }
 }
 

@@ -1,5 +1,22 @@
+// File Clean up Finished: Nov 14, 2025
+// Changes (Phase 1):
+//   - Removed dead session management routes (POST/GET/DELETE /session)
+//   - Removed dead calculation routes (POST /calculate, POST /validate)
+//   - Removed dead save operation route (POST /save)
+//
+// Changes (Phase 2 - Nov 14, 2025):
+//   - Removed GET /rates/:category - unused endpoint
+//   - Removed GET /multipliers - unused quantity-based pricing feature
+//   - Removed GET /discounts - unused volume-based discounts feature
+//
+// Active Routes:
+//   - GET /all-pricing-data - Used by frontend PricingDataResource
+//   - GET /push-thru-assembly - Used by frontend PricingDataResource
+//   - POST /admin/clear-cache - Admin endpoint for debugging
+//   - GET /admin/cache-stats - Admin endpoint for monitoring
+//
 // =====================================================
-// PRICING CALCULATION ROUTES - User-Isolated API
+// RATE LOOKUP ROUTES - Pricing Data Access
 // =====================================================
 
 import { Router } from 'express';
@@ -10,36 +27,6 @@ const router = Router();
 const controller = new PricingCalculationController();
 
 // =====================================================
-// SESSION MANAGEMENT ROUTES
-// =====================================================
-
-// Create new estimation session
-router.post('/session', authenticateToken, controller.createSession);
-
-// Get session data
-router.get('/session/:sessionId', authenticateToken, controller.getSession);
-
-// Close session
-router.delete('/session/:sessionId', authenticateToken, controller.closeSession);
-
-// =====================================================
-// REAL-TIME CALCULATION ROUTES
-// =====================================================
-
-// Calculate item pricing in real-time (no save)
-router.post('/calculate/:sessionId', authenticateToken, controller.calculateItem);
-
-// Validate calculation input without calculating
-router.post('/validate/:sessionId', authenticateToken, controller.validateInput);
-
-// =====================================================
-// SAVE OPERATIONS
-// =====================================================
-
-// Save draft to database with conflict detection
-router.post('/save/:sessionId', authenticateToken, controller.saveDraft);
-
-// =====================================================
 // RATE LOOKUP ROUTES
 // =====================================================
 
@@ -48,15 +35,6 @@ router.get('/all-pricing-data', authenticateToken, controller.getAllPricingData)
 
 // Get Push Thru assembly pricing
 router.get('/push-thru-assembly', authenticateToken, controller.getPushThruAssemblyPricing);
-
-// Get available rate types for category (for dropdowns)
-router.get('/rates/:category', authenticateToken, controller.getRateTypes);
-
-// Get multiplier ranges
-router.get('/multipliers', authenticateToken, controller.getMultipliers);
-
-// Get discount ranges
-router.get('/discounts', authenticateToken, controller.getDiscounts);
 
 // =====================================================
 // ADMIN ROUTES

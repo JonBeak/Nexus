@@ -1,3 +1,17 @@
+// File Clean up Finished: Nov 14, 2025
+// Previous changes:
+//   - Added EstimateRepository integration for clearer error messages
+//   - Replaced 9 ambiguous error messages with specific ones
+//   - Now separates "not found" (404) from "invalid state" (400) errors
+//   - sendEstimate: "not found or draft" → "not found" | "still in draft mode"
+//   - approveEstimate: "not found, draft, or not sent" → "not found" | "must be finalized and sent"
+//   - markNotApproved: "not found or draft" → "not found" | "still in draft mode"
+//   - retractEstimate: "not found or draft" → "not found" | "still in draft mode"
+//   - convertToOrder: "not found or not approved" → "not found" | "must be approved before conversion"
+// Current changes (Nov 14, 2025):
+//   - Migrated all 12 database calls from pool.execute() to query() helper
+//   - Consistent with DATABASE_QUERY_STANDARDIZATION_PLAN.md
+//   - Improved error logging and performance monitoring
 /**
  * Estimate Status Service
  *
@@ -10,12 +24,18 @@
  * - Status validation and business rules
  */
 
-import { pool } from '../../config/database';
+import { query } from '../../config/database';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { OrderConversionResult } from '../../interfaces/estimateTypes';
 import { estimateHistoryService } from '../estimateHistoryService';
+import { EstimateRepository } from '../../repositories/estimateRepository';
 
 export class EstimateStatusService {
+  private estimateRepository: EstimateRepository;
+
+  constructor() {
+    this.estimateRepository = new EstimateRepository();
+  }
 
   // =============================================
   // STATUS UPDATE METHODS
@@ -23,14 +43,19 @@ export class EstimateStatusService {
 
   async sendEstimate(estimateId: number, userId: number): Promise<void> {
     try {
+      // Validate estimate exists
+      if (!(await this.estimateRepository.estimateExists(estimateId))) {
+        throw new Error('Estimate not found');
+      }
+
       // Get estimate info for history logging
-      const [estimateRows] = await pool.execute<RowDataPacket[]>(
+      const estimateRows = await query(
         'SELECT id, job_id FROM job_estimates WHERE id = ? AND is_draft = 0',
         [estimateId]
-      );
+      ) as RowDataPacket[];
 
       if (estimateRows.length === 0) {
-        throw new Error('Estimate not found or is still in draft');
+        throw new Error('Estimate is still in draft mode');
       }
 
       const estimate = estimateRows[0];
@@ -39,16 +64,16 @@ export class EstimateStatusService {
       const currentSentCount = await estimateHistoryService.getSentCount(estimateId);
       const newSentCount = currentSentCount + 1;
 
-      const [result] = await pool.execute<ResultSetHeader>(
+      const result = await query(
         `UPDATE job_estimates
          SET is_sent = 1,
              updated_by = ?
          WHERE id = ? AND is_draft = 0`,
         [userId, estimateId]
-      );
+      ) as ResultSetHeader;
 
       if (result.affectedRows === 0) {
-        throw new Error('Estimate not found or is still in draft');
+        throw new Error('Estimate is still in draft mode');
       }
 
       // Log to history
@@ -72,32 +97,37 @@ export class EstimateStatusService {
 
   async approveEstimate(estimateId: number, userId: number): Promise<void> {
     try {
+      // Validate estimate exists
+      if (!(await this.estimateRepository.estimateExists(estimateId))) {
+        throw new Error('Estimate not found');
+      }
+
       // Get estimate info for history logging
-      const [estimateRows] = await pool.execute<RowDataPacket[]>(
+      const estimateRows = await query(
         'SELECT id, job_id FROM job_estimates WHERE id = ? AND is_draft = 0 AND is_sent = 1',
         [estimateId]
-      );
+      ) as RowDataPacket[];
 
       if (estimateRows.length === 0) {
-        throw new Error('Estimate not found, is draft, or not sent yet');
+        throw new Error('Estimate must be finalized and sent before approval');
       }
 
       const estimate = estimateRows[0];
 
-      const [result] = await pool.execute<ResultSetHeader>(
+      const result = await query(
         `UPDATE job_estimates
          SET is_approved = 1,
              updated_by = ?
          WHERE id = ? AND is_draft = 0 AND is_sent = 1`,
         [userId, estimateId]
-      );
+      ) as ResultSetHeader;
 
       if (result.affectedRows === 0) {
-        throw new Error('Estimate not found, is draft, or not sent yet');
+        throw new Error('Estimate must be finalized and sent before approval');
       }
 
       // Update job status to 'approved' when estimate is approved
-      await pool.execute(
+      await query(
         `UPDATE jobs j
          JOIN job_estimates e ON j.job_id = e.job_id
          SET j.status = 'approved'
@@ -122,28 +152,33 @@ export class EstimateStatusService {
 
   async markNotApproved(estimateId: number, userId: number): Promise<void> {
     try {
+      // Validate estimate exists
+      if (!(await this.estimateRepository.estimateExists(estimateId))) {
+        throw new Error('Estimate not found');
+      }
+
       // Get estimate info for history logging
-      const [estimateRows] = await pool.execute<RowDataPacket[]>(
+      const estimateRows = await query(
         'SELECT id, job_id FROM job_estimates WHERE id = ? AND is_draft = 0',
         [estimateId]
-      );
+      ) as RowDataPacket[];
 
       if (estimateRows.length === 0) {
-        throw new Error('Estimate not found or is still in draft');
+        throw new Error('Estimate is still in draft mode');
       }
 
       const estimate = estimateRows[0];
 
-      const [result] = await pool.execute<ResultSetHeader>(
+      const result = await query(
         `UPDATE job_estimates
          SET is_approved = 0,
              updated_by = ?
          WHERE id = ? AND is_draft = 0`,
         [userId, estimateId]
-      );
+      ) as ResultSetHeader;
 
       if (result.affectedRows === 0) {
-        throw new Error('Estimate not found or is still in draft');
+        throw new Error('Estimate is still in draft mode');
       }
 
       // Log to history
@@ -163,28 +198,33 @@ export class EstimateStatusService {
 
   async retractEstimate(estimateId: number, userId: number): Promise<void> {
     try {
+      // Validate estimate exists
+      if (!(await this.estimateRepository.estimateExists(estimateId))) {
+        throw new Error('Estimate not found');
+      }
+
       // Get estimate info for history logging
-      const [estimateRows] = await pool.execute<RowDataPacket[]>(
+      const estimateRows = await query(
         'SELECT id, job_id FROM job_estimates WHERE id = ? AND is_draft = 0',
         [estimateId]
-      );
+      ) as RowDataPacket[];
 
       if (estimateRows.length === 0) {
-        throw new Error('Estimate not found or is still in draft');
+        throw new Error('Estimate is still in draft mode');
       }
 
       const estimate = estimateRows[0];
 
-      const [result] = await pool.execute<ResultSetHeader>(
+      const result = await query(
         `UPDATE job_estimates
          SET is_retracted = 1,
              updated_by = ?
          WHERE id = ? AND is_draft = 0`,
         [userId, estimateId]
-      );
+      ) as ResultSetHeader;
 
       if (result.affectedRows === 0) {
-        throw new Error('Estimate not found or is still in draft');
+        throw new Error('Estimate is still in draft mode');
       }
 
       // Log to history
@@ -208,14 +248,19 @@ export class EstimateStatusService {
 
   async convertToOrder(estimateId: number, userId: number, hasExistingOrdersCheck?: (jobId: number) => Promise<boolean>): Promise<OrderConversionResult> {
     try {
+      // Validate estimate exists
+      if (!(await this.estimateRepository.estimateExists(estimateId))) {
+        throw new Error('Estimate not found');
+      }
+
       // Get estimate info and check if it's approved
-      const [estimateRows] = await pool.execute<RowDataPacket[]>(
+      const estimateRows = await query(
         'SELECT id, job_id, is_approved FROM job_estimates WHERE id = ? AND is_approved = 1',
         [estimateId]
-      );
+      ) as RowDataPacket[];
 
       if (estimateRows.length === 0) {
-        throw new Error('Estimate not found or not approved yet');
+        throw new Error('Estimate must be approved before conversion to order');
       }
 
       const jobId = estimateRows[0].job_id;
@@ -228,7 +273,7 @@ export class EstimateStatusService {
         }
       }
 
-      const [result] = await pool.execute<ResultSetHeader>(
+      const result = await query(
         `UPDATE job_estimates
          SET is_draft = 0,
              finalized_at = COALESCE(finalized_at, NOW()),
@@ -236,14 +281,14 @@ export class EstimateStatusService {
              updated_by = ?
          WHERE id = ?`,
         [userId, userId, estimateId]
-      );
+      ) as ResultSetHeader;
 
       if (result.affectedRows === 0) {
         throw new Error('Failed to update estimate status');
       }
 
       // Update job status to production when estimate is ordered
-      await pool.execute(
+      await query(
         `UPDATE jobs j
          JOIN job_estimates e ON j.job_id = e.job_id
          SET j.status = 'production'

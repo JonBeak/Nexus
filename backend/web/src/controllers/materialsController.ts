@@ -1,33 +1,42 @@
+// File Clean up Finished: Nov 14, 2025
+// Changes:
+// - Migrated from direct pool.execute() to query() helper via repository layer
+// - Implemented full 3-layer architecture (Route → Controller → Service → Repository)
+// - Created SubstrateRepository for database access (findAllActiveNames, findByName, etc.)
+// - Created SubstrateService for business logic (includes cost calculation helpers)
+// - Controller now contains ONLY HTTP handling logic
+// - Enhanced error handling and logging
+// - Added proper TypeScript types from repository
+/**
+ * Materials Controller
+ *
+ * HTTP request/response handlers for substrate material management
+ * Created: Nov 14, 2025 during materialsController.ts refactoring
+ * Part of 3-layer architecture: Route → Controller → Service → Repository → Database
+ */
+
 import { Request, Response } from 'express';
-import { pool } from '../config/database';
-import { RowDataPacket } from 'mysql2';
+import { SubstrateService } from '../services/substrateService';
+
+const substrateService = new SubstrateService();
 
 /**
- * Get all active substrate materials
- * Used for specification dropdowns in order parts (Material template)
+ * GET /api/materials/substrates
+ * Get all active substrate names for specification dropdowns
  */
-export const getActiveSubstrates = async (req: Request, res: Response) => {
+export const getActiveSubstrates = async (req: Request, res: Response): Promise<void> => {
   try {
-    const [rows] = await pool.execute<RowDataPacket[]>(
-      `SELECT DISTINCT
-        substrate_name
-      FROM substrate_cut_pricing
-      WHERE is_active = 1
-      ORDER BY substrate_name ASC`
-    );
-
-    // Extract just the substrate names into a simple string array
-    const substrates = rows.map(row => row.substrate_name);
+    const substrates = await substrateService.getActiveSubstrateNames();
 
     res.json({
       success: true,
       substrates
     });
   } catch (error) {
-    console.error('Error fetching active substrates:', error);
+    console.error('Controller error fetching active substrates:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch substrate materials'
+      message: error instanceof Error ? error.message : 'Failed to fetch substrate materials'
     });
   }
 };

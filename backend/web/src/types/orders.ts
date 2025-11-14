@@ -90,7 +90,7 @@ export interface OrderPart {
   channel_letter_type_id?: number;
   base_product_type_id?: number;
   quantity: number;
-  specifications: any;  // JSON
+  specifications: import('./orderTemplates').OrderSpecifications;  // JSON
   production_notes?: string;
   // Phase 1.5: Invoice data (nullable = determines row "type")
   invoice_description?: string;
@@ -111,7 +111,7 @@ export interface CreateOrderPartData {
   channel_letter_type_id?: number;
   base_product_type_id?: number;
   quantity: number;
-  specifications: any;
+  specifications: import('./orderTemplates').OrderSpecifications;
   production_notes?: string;
   // Phase 1.5: Invoice fields
   invoice_description?: string;
@@ -381,4 +381,83 @@ export interface ProductTypeInfo {
   name: string;
   category: string;
   is_channel_letter: boolean;
+}
+
+// =============================================
+// PDF GENERATION TYPES
+// =============================================
+
+/**
+ * Paths to generated PDF forms for an order
+ */
+export interface FormPaths {
+  masterForm: string;
+  shopForm: string;
+  customerForm: string;
+  packingList: string;
+}
+
+/**
+ * Complete order data structure for PDF generation
+ * Includes order, customer, and parts information
+ */
+export interface OrderDataForPDF {
+  // Order info
+  order_id: number;
+  order_number: number;
+  order_name: string;
+  order_date: Date;
+  due_date?: Date;
+  hard_due_date_time?: string;  // TIME format "HH:mm:ss" or "HH:mm" from database
+  customer_po?: string;
+  customer_job_number?: string;
+  production_notes?: string;
+  manufacturing_note?: string;
+  internal_note?: string;
+  status: string;
+  form_version: number;
+  sign_image_path?: string;  // Filename only (e.g., "design.jpg")
+  crop_top?: number;         // Auto-crop coordinates
+  crop_right?: number;
+  crop_bottom?: number;
+  crop_left?: number;
+  shipping_required: boolean;
+
+  // Folder info (for constructing full image path)
+  folder_name?: string;
+  folder_location?: 'active' | 'finished' | 'none';
+  is_migrated?: boolean;
+
+  // Customer info
+  customer_id: number;
+  company_name: string;
+  contact_first_name?: string;
+  contact_last_name?: string;
+  phone?: string;
+  email?: string;
+
+  // Customer packing preferences
+  pattern_yes_or_no?: number;              // For packing list pattern logic
+  pattern_type?: string;                   // "Paper" or "Digital"
+  wiring_diagram_yes_or_no?: number;       // For packing list wiring diagram logic
+
+  // Parts
+  parts: OrderPartForPDF[];
+}
+
+/**
+ * Order part structure for PDF generation
+ */
+export interface OrderPartForPDF {
+  part_id: number;
+  part_number: number;
+  display_number?: string;
+  is_parent?: boolean;
+  product_type: string;
+  part_scope?: string;
+  specs_display_name?: string;
+  product_type_id: string;
+  quantity: number;
+  specifications: import('./orderTemplates').OrderSpecifications;
+  production_notes?: string;
 }

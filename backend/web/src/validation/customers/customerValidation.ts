@@ -1,3 +1,5 @@
+import { isValidEmail, isValidPhone } from '../../utils/validation';
+
 export interface CustomerValidationResult {
   isValid: boolean;
   errors: string[];
@@ -13,15 +15,15 @@ export class CustomerValidation {
     }
 
     // Optional field validation with type checking
-    if (data.email && !this.isValidEmail(data.email)) {
+    if (data.email && !isValidEmail(data.email)) {
       errors.push('Invalid email format');
     }
 
-    if (data.invoice_email && !this.isValidEmail(data.invoice_email)) {
+    if (data.invoice_email && !isValidEmail(data.invoice_email)) {
       errors.push('Invalid invoice email format');
     }
 
-    if (data.phone && !this.isValidPhoneNumber(data.phone)) {
+    if (data.phone && !isValidPhone(data.phone)) {
       errors.push('Invalid phone number format');
     }
 
@@ -88,16 +90,5 @@ export class CustomerValidation {
       isValid: errors.length === 0,
       errors
     };
-  }
-
-  private static isValidEmail(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  }
-
-  private static isValidPhoneNumber(phone: string): boolean {
-    // Basic phone number validation - allows various formats
-    const phoneRegex = /^[\d\s\-\(\)\+\.]{10,}$/;
-    return phoneRegex.test(phone);
   }
 }

@@ -1,3 +1,7 @@
+// File Clean up Finished: Nov 14, 2025
+// Changes:
+//   - Removed dead code: checkItemRequirement() function (never used, marked as TODO stub)
+//   - File size reduced from 419 to 402 lines (4% reduction)
 /**
  * Packing Items Mapper
  * Maps product types to their required packing items
@@ -398,21 +402,3 @@ function shouldIncludeDTape(specs: any): boolean {
   return false;
 }
 
-/**
- * Stub function for future specification-based item requirements
- * This will be implemented later to check actual specifications
- */
-export function checkItemRequirement(
-  itemName: string,
-  productType: string,
-  specifications: any
-): boolean {
-  // TODO: Implement specification checking logic
-  // Examples:
-  // - if (itemName === 'Drainholes') return specifications.has_drain_holes === true;
-  // - if (itemName === 'Transformer') return specifications.requires_power === true;
-
-  // For now, use base mapping
-  const requiredItems = PRODUCT_PACKING_MAP[productType] || [];
-  return requiredItems.includes(itemName);
-}

@@ -1,11 +1,12 @@
 /**
- * File Clean up Finished: Nov 13, 2025
- * Changes: Removed unused AuthenticatedRequest export (available in ../../types if needed)
+ * File Clean up Finished: Nov 14, 2025
+ * Changes: Replaced hybridPermissionCheck with direct hasPermission calls
+ * Previous cleanup (Nov 13): Removed unused AuthenticatedRequest export
  */
 
 import { Request, Response } from 'express';
 import { User } from '../../types';
-import { hybridPermissionCheck } from '../../middleware/rbac';
+import { hasPermission } from '../../middleware/rbac';
 
 export class TimeTrackingPermissions {
   // =====================================================
@@ -17,12 +18,7 @@ export class TimeTrackingPermissions {
    * Uses RBAC permission system
    */
   static async canViewTimeEntriesHybrid(user: User): Promise<boolean> {
-    return await hybridPermissionCheck(
-      user.user_id,
-      user.role,
-      'time_tracking.list',
-      ['manager', 'owner']
-    );
+    return await hasPermission(user.user_id, 'time_tracking.list');
   }
 
   /**
@@ -30,12 +26,7 @@ export class TimeTrackingPermissions {
    * Uses RBAC permission system
    */
   static async canCreateTimeEntriesHybrid(user: User): Promise<boolean> {
-    return await hybridPermissionCheck(
-      user.user_id,
-      user.role,
-      'time_tracking.create',
-      ['manager', 'owner']
-    );
+    return await hasPermission(user.user_id, 'time_tracking.create');
   }
 
   /**
@@ -43,12 +34,7 @@ export class TimeTrackingPermissions {
    * Uses RBAC permission system
    */
   static async canUpdateTimeEntriesHybrid(user: User): Promise<boolean> {
-    return await hybridPermissionCheck(
-      user.user_id,
-      user.role,
-      'time_tracking.update',
-      ['manager', 'owner']
-    );
+    return await hasPermission(user.user_id, 'time_tracking.update');
   }
 
   /**
@@ -56,12 +42,7 @@ export class TimeTrackingPermissions {
    * Uses RBAC permission system
    */
   static async canDeleteTimeEntriesHybrid(user: User): Promise<boolean> {
-    return await hybridPermissionCheck(
-      user.user_id,
-      user.role,
-      'time_tracking.update',
-      ['manager', 'owner']
-    );
+    return await hasPermission(user.user_id, 'time_tracking.update');
   }
 
   /**
@@ -69,12 +50,7 @@ export class TimeTrackingPermissions {
    * Uses RBAC permission system
    */
   static async canApproveTimeRequestsHybrid(user: User): Promise<boolean> {
-    return await hybridPermissionCheck(
-      user.user_id,
-      user.role,
-      'time.approve',
-      ['manager', 'owner']
-    );
+    return await hasPermission(user.user_id, 'time.approve');
   }
 
   /**
@@ -82,12 +58,7 @@ export class TimeTrackingPermissions {
    * Uses RBAC permission system
    */
   static async canRejectTimeRequestsHybrid(user: User): Promise<boolean> {
-    return await hybridPermissionCheck(
-      user.user_id,
-      user.role,
-      'time_tracking.reject',
-      ['manager', 'owner']
-    );
+    return await hasPermission(user.user_id, 'time_tracking.reject');
   }
 
   /**
@@ -95,12 +66,7 @@ export class TimeTrackingPermissions {
    * Uses RBAC permission system
    */
   static async canExportTimeDataHybrid(user: User): Promise<boolean> {
-    return await hybridPermissionCheck(
-      user.user_id,
-      user.role,
-      'time_tracking.export',
-      ['manager', 'owner']
-    );
+    return await hasPermission(user.user_id, 'time_tracking.export');
   }
 
   /**
@@ -108,12 +74,7 @@ export class TimeTrackingPermissions {
    * Uses RBAC permission system
    */
   static async canManageTimeSchedulesHybrid(user: User): Promise<boolean> {
-    return await hybridPermissionCheck(
-      user.user_id,
-      user.role,
-      'time_management.update',
-      ['manager', 'owner']
-    );
+    return await hasPermission(user.user_id, 'time_management.update');
   }
 
   /**
@@ -121,12 +82,7 @@ export class TimeTrackingPermissions {
    * Uses RBAC permission system
    */
   static async canViewTimeAnalyticsHybrid(user: User): Promise<boolean> {
-    return await hybridPermissionCheck(
-      user.user_id,
-      user.role,
-      'time_management.view_reports',
-      ['manager', 'owner']
-    );
+    return await hasPermission(user.user_id, 'time_management.view_reports');
   }
 
   /**

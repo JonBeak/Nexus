@@ -1,5 +1,10 @@
+/**
+ * Phase 1 Cleanup: Nov 14, 2025
+ * Updated to use generic lockService (resource_locks table) instead of legacy
+ * estimate-specific lock API (job_estimates columns - never used, 0 locks in DB)
+ */
 import { useState, useCallback } from 'react';
-import { jobVersioningApi } from '../../../services/api';
+import { lockService } from '../../../services/lockService';
 import { EstimateVersion, EditLockStatus } from '../types';
 import { User } from '../../../types';
 
@@ -13,11 +18,14 @@ export const useVersionLocking = ({ user, onVersionSelect }: UseVersionLockingPa
 
   const checkEditLockStatus = useCallback(async (estimateId: number) => {
     try {
-      const response = await jobVersioningApi.checkEditLock(estimateId);
-      setLockStatuses(prev => ({
-        ...prev,
-        [estimateId]: response
-      }));
+      // Use generic lock service (resource_locks table - 331 active locks)
+      const response = await lockService.checkLock('estimate', estimateId.toString());
+      if (response) {
+        setLockStatuses(prev => ({
+          ...prev,
+          [estimateId]: response
+        }));
+      }
     } catch (err) {
       console.error('Error checking lock status:', err);
     }
@@ -27,7 +35,8 @@ export const useVersionLocking = ({ user, onVersionSelect }: UseVersionLockingPa
     if (user.role !== 'manager' && user.role !== 'owner') return;
 
     try {
-      await jobVersioningApi.overrideEditLock(estimateId);
+      // Use generic lock service override
+      await lockService.overrideLock('estimate', estimateId.toString());
       await checkEditLockStatus(estimateId);
     } catch (err) {
       console.error('Error overriding lock:', err);

@@ -1,15 +1,28 @@
+// File Clean up Finished: Nov 14, 2025 (Phase 2: Architectural refactoring)
+// Changes:
+//   - Removed direct pool.execute() calls
+//   - Extracted database queries to estimateRepository methods
+//   - Maintained transaction support in saveGridData()
+//   - loadGridData() now uses estimateRepository.getEstimateItemsWithProductTypes()
+//   - Draft checks use estimateRepository.getEstimateWithDraftCheckInTransaction()
+//
+// Note on pool usage (Nov 14, 2025):
+//   - Uses pool.getConnection() for transaction support in saveGridData()
+//   - Transactions require BEGIN/COMMIT/ROLLBACK with dedicated connection
+//   - This is the CORRECT and ONLY valid use case for pool in services
+//   - Cannot use query() helper for transactional operations
 /**
  * Grid Data Service
- * 
+ *
  * Extracted from estimateVersioningService.ts during refactoring
  * Handles Phase 4 grid data persistence, assembly management, and field transformations
- * 
+ *
  * Responsibilities:
  * - Grid data persistence (saveGridData/loadGridData)
  * - Assembly group restoration and management
  * - Frontend ↔ Database transformation logic
  * - Item index mapping for sequential references
- * 
+ *
  * CRITICAL: This service contains the most complex Phase 4 logic
  * Test thoroughly with existing estimates containing grid data
  */
@@ -19,8 +32,10 @@ import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { EstimateGridRow } from '../interfaces/estimateTypes';
 import { DynamicTemplateService } from './dynamicTemplateService';
 import { estimateHistoryService } from './estimateHistoryService';
+import { EstimateRepository } from '../repositories/estimateRepository';
 
 export class GridDataService {
+  private estimateRepository = new EstimateRepository();
   
   // =============================================
   // PHASE 4: GRID DATA PERSISTENCE
@@ -31,24 +46,23 @@ export class GridDataService {
     try {
       await connection.beginTransaction();
 
-      // First, check if estimate is still a draft
-      const [draftCheck] = await connection.execute<RowDataPacket[]>(
-        'SELECT is_draft FROM job_estimates WHERE id = ? AND is_draft = TRUE',
-        [estimateId]
-      );
+      // Validate estimate exists
+      if (!(await this.estimateRepository.estimateExists(estimateId))) {
+        throw new Error('Estimate not found');
+      }
 
-      if (draftCheck.length === 0) {
+      // First, check if estimate is still a draft
+      const draftCheck = await this.estimateRepository.getEstimateWithDraftCheckInTransaction(estimateId, connection);
+
+      if (!draftCheck) {
         throw new Error('Cannot save grid data - estimate is already finalized');
       }
 
       // CONSOLIDATION UPDATE: Replace DELETE+INSERT with UPDATE+INSERT pattern
       // This preserves database IDs and prevents assembly field orphaning
-      
+
       // Get existing items with their current database IDs
-      const [existingItems] = await connection.execute<RowDataPacket[]>(
-        'SELECT id, item_order FROM job_estimate_items WHERE estimate_id = ? ORDER BY item_order',
-        [estimateId]
-      );
+      const existingItems = await this.estimateRepository.getExistingEstimateItems(estimateId, connection);
 
       // Create mapping of existing database IDs
       const existingIdsByOrder = new Map<number, number>();
@@ -229,12 +243,8 @@ export class GridDataService {
         );
       }
 
-      // Get job_id for history logging
-      const [jobRows] = await connection.execute<RowDataPacket[]>(
-        'SELECT job_id FROM job_estimates WHERE id = ?',
-        [estimateId]
-      );
-      const jobId = jobRows[0]?.job_id;
+      // Get job_id for history logging using repository
+      const jobId = await this.estimateRepository.getJobIdByEstimateId(estimateId);
 
       await connection.commit();
 
@@ -270,28 +280,7 @@ export class GridDataService {
   async loadGridData(estimateId: number): Promise<any[]> {
     try {
       console.log('🔍 Loading grid data for estimate ID:', estimateId);
-      const [rows] = await pool.execute<RowDataPacket[]>(
-        `SELECT
-          i.id,
-          i.assembly_group_id,
-          i.parent_item_id,
-          i.product_type_id,
-          pt.name as product_type_name,
-          pt.category as product_type_category,
-          i.item_name,
-          i.item_order,
-          i.item_index,
-          i.grid_data,
-          i.unit_price,
-          i.extended_price,
-          i.customer_description,
-          i.internal_notes
-        FROM job_estimate_items i
-        LEFT JOIN product_types pt ON i.product_type_id = pt.id
-        WHERE i.estimate_id = ?
-        ORDER BY i.item_order`,
-        [estimateId]
-      );
+      const rows = await this.estimateRepository.getEstimateItemsWithProductTypes(estimateId);
 
       const dynamicTemplateService = new DynamicTemplateService();
       
@@ -387,21 +376,7 @@ export class GridDataService {
   // =============================================
 
   async validateEstimateAccess(estimateId: number, jobId?: number): Promise<boolean> {
-    try {
-      let query = 'SELECT id FROM job_estimates WHERE id = ?';
-      let params: any[] = [estimateId];
-      
-      if (jobId) {
-        query += ' AND job_id = ?';
-        params.push(jobId);
-      }
-      
-      const [rows] = await pool.execute<RowDataPacket[]>(query, params);
-      return rows.length > 0;
-    } catch (error) {
-      console.error('Error validating estimate access:', error);
-      return false;
-    }
+    return this.estimateRepository.validateEstimateAccess(estimateId, jobId);
   }
 
   // =============================================

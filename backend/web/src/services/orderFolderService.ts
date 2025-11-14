@@ -1,3 +1,10 @@
+// File Clean up Finished: Nov 14, 2025
+// Changes:
+//   - Removed direct pool.execute() calls - all database operations now use orderRepository
+//   - Added updateFolderTracking() to orderRepository (was missing)
+//   - Removed unused pool import
+//   - Service now follows proper 3-layer architecture (no direct DB access)
+//   - All folder database operations: checkFolderNameConflict, getOrderFolderLocation, updateFolderTracking
 /**
  * Order Folder Service
  * Manages SMB folder lifecycle for orders
@@ -12,12 +19,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { pool } from '../config/database';
-
-// SMB mount paths
-const SMB_ROOT = '/mnt/channelletter';
-const ORDERS_FOLDER = 'Orders'; // Subfolder for app-created orders
-const FINISHED_FOLDER = '1Finished';
+import { orderRepository } from '../repositories/orderRepository';
+import { SMB_ROOT, ORDERS_FOLDER, FINISHED_FOLDER } from '../config/paths';
 
 // Path helpers
 const LEGACY_ACTIVE_PATH = SMB_ROOT; // Legacy migrated orders in root
@@ -160,12 +163,7 @@ export class OrderFolderService {
    */
   async checkDatabaseConflict(folderName: string): Promise<boolean> {
     try {
-      const [rows] = await pool.execute<any[]>(
-        `SELECT order_id FROM orders WHERE LOWER(folder_name) = LOWER(?) LIMIT 1`,
-        [folderName]
-      );
-
-      return rows.length > 0;
+      return await orderRepository.checkFolderNameConflict(folderName);
     } catch (error) {
       console.error('[OrderFolderService] Error checking database conflict:', error);
       throw new Error('Failed to check database conflict');
@@ -330,16 +328,7 @@ export class OrderFolderService {
    */
   async getFolderLocation(orderId: number): Promise<'active' | 'finished' | 'none'> {
     try {
-      const [rows] = await pool.execute<any[]>(
-        `SELECT folder_location FROM orders WHERE order_id = ?`,
-        [orderId]
-      );
-
-      if (rows.length === 0) {
-        throw new Error('Order not found');
-      }
-
-      return rows[0].folder_location as 'active' | 'finished' | 'none';
+      return await orderRepository.getOrderFolderLocation(orderId);
     } catch (error) {
       console.error('[OrderFolderService] Error getting folder location:', error);
       throw error;
@@ -358,14 +347,12 @@ export class OrderFolderService {
     connection?: any
   ): Promise<void> {
     try {
-      const db = connection || pool;
-      await db.execute(
-        `UPDATE orders
-         SET folder_name = ?,
-             folder_exists = ?,
-             folder_location = ?
-         WHERE order_id = ?`,
-        [folderName, folderExists, folderLocation, orderId]
+      await orderRepository.updateFolderTracking(
+        orderId,
+        folderName,
+        folderExists,
+        folderLocation,
+        connection
       );
 
       console.log(`[OrderFolderService] Updated folder tracking for order ${orderId}`);

@@ -1,12 +1,16 @@
+// File Clean up Finished: Nov 14, 2025 (migrated getLedTypes to use LEDService, eliminating SQL duplication)
 import { query } from '../../config/database';
+import { LEDService } from '../ledService';
+
+const ledService = new LEDService();
 
 export class LookupService {
+  /**
+   * Get LED types for customer preferences
+   * Uses LEDService to maintain consistency across the application
+   */
   static async getLedTypes() {
-    const ledTypes = await query(
-      'SELECT led_id, product_code, price, watts, colour, brand, is_default FROM leds WHERE is_active = 1 ORDER BY is_default DESC, product_code',
-      []
-    );
-    return ledTypes;
+    return await ledService.getActiveLEDs();
   }
 
   static async getPowerSupplyTypes() {

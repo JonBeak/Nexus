@@ -1,3 +1,5 @@
+// File Clean up Finished: Nov 14, 2025
+
 /**
  * Vinyl Products Service
  * Business logic layer for vinyl products catalog management
@@ -581,24 +583,16 @@ export class VinylProductsService {
     }
   ): Promise<VinylResponse<{ product_id: number; created: boolean }>> {
     try {
-      const productId = await VinylProductsRepository.findOrCreateProductFromInventory({
+      const result = await VinylProductsRepository.findOrCreateProductFromInventory({
         ...inventoryData,
         created_by: user.user_id
       });
 
-      // Check if it was newly created by comparing with existing products
-      const existingProducts = await VinylProductsRepository.getVinylProducts({
-        brand: inventoryData.brand,
-        series: inventoryData.series
-      });
-
-      const wasCreated = existingProducts.some(p => p.product_id === productId);
-
       return {
         success: true,
         data: {
-          product_id: productId,
-          created: !wasCreated
+          product_id: result.productId,
+          created: result.created
         }
       };
     } catch (error: any) {

@@ -1,11 +1,13 @@
 /**
- * File Clean up Finished: Nov 13, 2025
- * Changes: Removed duplicate AuthRequest interface definition, now imported from ../types
+ * File Clean up Finished: Nov 14, 2025
+ * Changes:
+ *   - Removed duplicate AuthRequest interface definition, now imported from ../types (Nov 13)
+ *   - Migrated pool.execute() to query() helper for standardization (Nov 14)
  */
 
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { pool } from '../config/database';
+import { query } from '../config/database';
 import { User, UserRole, JWTPayload, AuthRequest } from '../types';
 
 export const authenticateToken = async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -18,19 +20,18 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
-    
+
     // Get user from database
-    const [rows] = await pool.execute(
+    const rows = await query(
       'SELECT * FROM users WHERE user_id = ? AND is_active = true',
       [decoded.userId]
-    );
-    
-    const users = rows as User[];
-    if (users.length === 0) {
+    ) as User[];
+
+    if (rows.length === 0) {
       return res.status(401).json({ error: 'User not found or inactive' });
     }
 
-    req.user = users[0];
+    req.user = rows[0];
     next();
   } catch (error) {
     return res.status(401).json({ error: 'Invalid or expired token' });

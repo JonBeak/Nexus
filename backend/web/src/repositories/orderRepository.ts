@@ -1,3 +1,10 @@
+// File Clean up Finished: Nov 14, 2025
+// Changes:
+//   - Removed duplicate updateTaskCompleted() method (was identical to updateTaskCompletion)
+//   - Migrated 14 pool.execute() calls to query() helper for consistency
+//   - Kept pool import for transaction support (connection?: PoolConnection parameters)
+//   - All non-transactional queries now use centralized query() helper
+//   - Benefits: centralized error logging, slow query detection, performance monitoring
 /**
  * Order Repository
  * Data Access Layer for Orders System
@@ -5,7 +12,7 @@
  * Handles all direct database operations for orders, parts, tasks, and status history
  */
 
-import { pool } from '../config/database';
+import { query, pool } from '../config/database';
 import { RowDataPacket, ResultSetHeader, PoolConnection } from 'mysql2/promise';
 import {
   Order,
@@ -35,10 +42,10 @@ export class OrderRepository {
    * Get order_id from order_number
    */
   async getOrderIdFromOrderNumber(orderNumber: number): Promise<number | null> {
-    const [rows] = await pool.execute<RowDataPacket[]>(
+    const rows = await query(
       'SELECT order_id FROM orders WHERE order_number = ?',
       [orderNumber]
-    );
+    ) as RowDataPacket[];
 
     if (rows.length === 0) {
       return null;
@@ -154,7 +161,7 @@ export class OrderRepository {
       }
     }
 
-    const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
+    const rows = await query(sql, params) as RowDataPacket[];
     return rows as Order[];
   }
 
@@ -162,7 +169,7 @@ export class OrderRepository {
    * Get single order by ID
    */
   async getOrderById(orderId: number): Promise<Order | null> {
-    const [rows] = await pool.execute<RowDataPacket[]>(
+    const rows = await query(
       `SELECT
         o.*,
         TIME_FORMAT(o.hard_due_date_time, '%H:%i') as hard_due_date_time,
@@ -171,7 +178,7 @@ export class OrderRepository {
       LEFT JOIN customers c ON o.customer_id = c.customer_id
       WHERE o.order_id = ?`,
       [orderId]
-    );
+    ) as RowDataPacket[];
 
     return rows.length > 0 ? (rows[0] as Order) : null;
   }
@@ -251,7 +258,7 @@ export class OrderRepository {
 
     params.push(orderId);
 
-    await pool.execute(
+    await query(
       `UPDATE orders SET ${updates.join(', ')} WHERE order_id = ?`,
       params
     );
@@ -273,7 +280,7 @@ export class OrderRepository {
    * Delete order
    */
   async deleteOrder(orderId: number): Promise<void> {
-    await pool.execute('DELETE FROM orders WHERE order_id = ?', [orderId]);
+    await query('DELETE FROM orders WHERE order_id = ?', [orderId]);
   }
 
   /**
@@ -336,10 +343,10 @@ export class OrderRepository {
    * Get parts for an order
    */
   async getOrderParts(orderId: number): Promise<OrderPart[]> {
-    const [rows] = await pool.execute<RowDataPacket[]>(
+    const rows = await query(
       `SELECT * FROM order_parts WHERE order_id = ? ORDER BY part_number`,
       [orderId]
-    );
+    ) as RowDataPacket[];
 
     return rows.map(row => ({
       ...row,
@@ -353,10 +360,10 @@ export class OrderRepository {
    * Get a single order part by ID
    */
   async getOrderPartById(partId: number): Promise<OrderPart | null> {
-    const [rows] = await pool.execute<RowDataPacket[]>(
+    const rows = await query(
       `SELECT * FROM order_parts WHERE part_id = ?`,
       [partId]
-    );
+    ) as RowDataPacket[];
 
     if (rows.length === 0) {
       return null;
@@ -387,7 +394,8 @@ export class OrderRepository {
     extended_price?: number;
     production_notes?: string;
     is_parent?: boolean;
-  }): Promise<void> {
+  }, connection?: PoolConnection): Promise<void> {
+    const conn = connection || pool;
     const updateFields: string[] = [];
     const params: any[] = [];
 
@@ -442,7 +450,7 @@ export class OrderRepository {
 
     params.push(partId);
 
-    await pool.execute(
+    await conn.execute(
       `UPDATE order_parts SET ${updateFields.join(', ')} WHERE part_id = ?`,
       params
     );
@@ -456,11 +464,11 @@ export class OrderRepository {
     task_name: string;
     assigned_role: string | null;
   }[]> {
-    const [rows] = await pool.execute<RowDataPacket[]>(
+    const rows = await query(
       `SELECT DISTINCT task_name, assigned_role
        FROM order_tasks
        ORDER BY assigned_role, task_name`
-    );
+    ) as RowDataPacket[];
 
     return rows as {
       task_name: string;
@@ -492,10 +500,10 @@ export class OrderRepository {
    * Get tasks for an order
    */
   async getOrderTasks(orderId: number): Promise<OrderTask[]> {
-    const [rows] = await pool.execute<RowDataPacket[]>(
+    const rows = await query(
       `SELECT * FROM order_tasks WHERE order_id = ? ORDER BY task_id`,
       [orderId]
-    );
+    ) as RowDataPacket[];
 
     return rows as OrderTask[];
   }
@@ -508,7 +516,7 @@ export class OrderRepository {
     completed: boolean,
     userId?: number
   ): Promise<void> {
-    await pool.execute(
+    await query(
       `UPDATE order_tasks
        SET completed = ?,
            completed_at = ${completed ? 'NOW()' : 'NULL'},
@@ -523,7 +531,7 @@ export class OrderRepository {
    * Allows removing tasks during job_details_setup phase
    */
   async deleteTask(taskId: number): Promise<void> {
-    await pool.execute(
+    await query(
       'DELETE FROM order_tasks WHERE task_id = ?',
       [taskId]
     );
@@ -543,7 +551,7 @@ export class OrderRepository {
 
     const params = includeCompleted ? [role, hoursBack] : [role];
 
-    const [rows] = await pool.execute<RowDataPacket[]>(
+    const rows = await query(
       `SELECT
         ot.task_id,
         ot.task_name,
@@ -563,7 +571,7 @@ export class OrderRepository {
        WHERE ot.assigned_role = ? ${completedFilter}
        ORDER BY o.order_number, op.part_number, ot.task_id`,
       params
-    );
+    ) as RowDataPacket[];
 
     return rows;
   }
@@ -576,30 +584,12 @@ export class OrderRepository {
     started: boolean,
     userId: number
   ): Promise<void> {
-    await pool.execute(
+    await query(
       `UPDATE order_tasks
        SET started_at = ${started ? 'NOW()' : 'NULL'},
            started_by = ?
        WHERE task_id = ?`,
       [started ? userId : null, taskId]
-    );
-  }
-
-  /**
-   * Update task completed status
-   */
-  async updateTaskCompleted(
-    taskId: number,
-    completed: boolean,
-    userId: number
-  ): Promise<void> {
-    await pool.execute(
-      `UPDATE order_tasks
-       SET completed = ?,
-           completed_at = ${completed ? 'NOW()' : 'NULL'},
-           completed_by = ?
-       WHERE task_id = ?`,
-      [completed, completed ? userId : null, taskId]
     );
   }
 
@@ -626,7 +616,7 @@ export class OrderRepository {
    * Get status history for an order
    */
   async getStatusHistory(orderId: number): Promise<OrderStatusHistory[]> {
-    const [rows] = await pool.execute<RowDataPacket[]>(
+    const rows = await query(
       `SELECT
         h.*,
         u.username as changed_by_username
@@ -635,7 +625,7 @@ export class OrderRepository {
       WHERE h.order_id = ?
       ORDER BY h.changed_at DESC`,
       [orderId]
-    );
+    ) as RowDataPacket[];
 
     return rows as OrderStatusHistory[];
   }
@@ -737,10 +727,10 @@ export class OrderRepository {
    * Returns the order if it exists, null otherwise
    */
   async getOrderByEstimateId(estimateId: number): Promise<{ order_id: number; order_number: number } | null> {
-    const [rows] = await pool.execute<RowDataPacket[]>(
+    const rows = await query(
       'SELECT order_id, order_number FROM orders WHERE estimate_id = ? LIMIT 1',
       [estimateId]
-    );
+    ) as RowDataPacket[];
 
     if (rows.length === 0) {
       return null;
@@ -766,7 +756,7 @@ export class OrderRepository {
       params.push(excludeOrderId);
     }
 
-    const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
+    const rows = await query(sql, params) as RowDataPacket[];
 
     return rows[0].count === 0;
   }
@@ -807,12 +797,12 @@ export class OrderRepository {
    * Get all point persons for an order
    */
   async getOrderPointPersons(orderId: number): Promise<import('../types/orders').OrderPointPerson[]> {
-    const [rows] = await pool.execute<RowDataPacket[]>(
+    const rows = await query(
       `SELECT * FROM order_point_persons
        WHERE order_id = ?
        ORDER BY display_order ASC`,
       [orderId]
-    );
+    ) as RowDataPacket[];
 
     return rows as import('../types/orders').OrderPointPerson[];
   }
@@ -826,6 +816,232 @@ export class OrderRepository {
     await conn.execute(
       'DELETE FROM order_point_persons WHERE order_id = ?',
       [orderId]
+    );
+  }
+
+  // =============================================
+  // PDF GENERATION METHODS
+  // =============================================
+
+  /**
+   * Get complete order data with customer info and parts for PDF generation
+   */
+  async getOrderWithCustomerForPDF(orderId: number): Promise<import('../types/orders').OrderDataForPDF | null> {
+    // Fetch order with customer info
+    const orderRows = await query(`
+      SELECT
+        o.order_id,
+        o.order_number,
+        o.order_name,
+        o.order_date,
+        o.due_date,
+        o.hard_due_date_time,
+        o.customer_po,
+        o.customer_job_number,
+        o.production_notes,
+        o.manufacturing_note,
+        o.internal_note,
+        o.status,
+        o.form_version,
+        o.sign_image_path,
+        o.crop_top,
+        o.crop_right,
+        o.crop_bottom,
+        o.crop_left,
+        o.shipping_required,
+        o.folder_name,
+        o.folder_location,
+        o.is_migrated,
+        o.customer_id,
+        c.company_name,
+        c.contact_first_name,
+        c.contact_last_name,
+        c.phone,
+        c.email,
+        c.pattern_yes_or_no,
+        c.pattern_type,
+        c.wiring_diagram_yes_or_no
+      FROM orders o
+      JOIN customers c ON o.customer_id = c.customer_id
+      WHERE o.order_id = ?
+    `, [orderId]) as RowDataPacket[];
+
+    if (orderRows.length === 0) {
+      return null;
+    }
+
+    const order = orderRows[0];
+
+    // Fetch order parts
+    const parts = await query(`
+      SELECT
+        part_id,
+        order_id,
+        part_number,
+        display_number,
+        is_parent,
+        product_type,
+        part_scope,
+        specs_display_name,
+        product_type_id,
+        quantity,
+        specifications,
+        production_notes
+      FROM order_parts
+      WHERE order_id = ?
+      ORDER BY part_number
+    `, [orderId]) as RowDataPacket[];
+
+    return {
+      ...order,
+      parts
+    } as import('../types/orders').OrderDataForPDF;
+  }
+
+  /**
+   * Update order form version number
+   */
+  async updateOrderFormVersion(orderId: number, version: number): Promise<void> {
+    await query(
+      'UPDATE orders SET form_version = ? WHERE order_id = ?',
+      [version, orderId]
+    );
+  }
+
+  /**
+   * Insert or update order form paths (upsert)
+   */
+  async upsertOrderFormPaths(
+    orderId: number,
+    version: number,
+    paths: import('../types/orders').FormPaths,
+    userId?: number
+  ): Promise<void> {
+    // Check if version record exists
+    const existing = await query(
+      'SELECT version_id FROM order_form_versions WHERE order_id = ? AND version_number = ?',
+      [orderId, version]
+    ) as RowDataPacket[];
+
+    if (existing.length > 0) {
+      // Update existing record
+      await query(
+        `UPDATE order_form_versions
+         SET master_form_path = ?, shop_form_path = ?, customer_form_path = ?, packing_list_path = ?
+         WHERE order_id = ? AND version_number = ?`,
+        [paths.masterForm, paths.shopForm, paths.customerForm, paths.packingList, orderId, version]
+      );
+    } else {
+      // Insert new record
+      await query(
+        `INSERT INTO order_form_versions
+         (order_id, version_number, master_form_path, shop_form_path, customer_form_path, packing_list_path, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [orderId, version, paths.masterForm, paths.shopForm, paths.customerForm, paths.packingList, userId || null]
+      );
+    }
+  }
+
+  /**
+   * Get order form paths by order ID and optional version
+   */
+  async getOrderFormPaths(orderId: number, version?: number): Promise<import('../types/orders').FormPaths | null> {
+    let sql = `
+      SELECT master_form_path, shop_form_path, customer_form_path, packing_list_path
+      FROM order_form_versions
+      WHERE order_id = ?
+    `;
+
+    const params: any[] = [orderId];
+
+    if (version) {
+      sql += ' AND version_number = ?';
+      params.push(version);
+    } else {
+      // Get latest version
+      sql += ' ORDER BY version_number DESC LIMIT 1';
+    }
+
+    const rows = await query(sql, params) as RowDataPacket[];
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    const row = rows[0];
+    return {
+      masterForm: row.master_form_path,
+      shopForm: row.shop_form_path,
+      customerForm: row.customer_form_path,
+      packingList: row.packing_list_path
+    };
+  }
+
+  /**
+   * Check if order forms exist for an order
+   */
+  async orderFormsExist(orderId: number): Promise<boolean> {
+    const rows = await query(
+      'SELECT COUNT(*) as count FROM order_form_versions WHERE order_id = ?',
+      [orderId]
+    ) as RowDataPacket[];
+
+    return rows[0].count > 0;
+  }
+
+  // =====================================================
+  // FOLDER TRACKING METHODS
+  // =====================================================
+
+  /**
+   * Check if folder name already exists in database (case-insensitive)
+   * Used to prevent duplicate folder names before filesystem operations
+   */
+  async checkFolderNameConflict(folderName: string): Promise<boolean> {
+    const rows = await query(
+      `SELECT order_id FROM orders WHERE LOWER(folder_name) = LOWER(?) LIMIT 1`,
+      [folderName]
+    ) as RowDataPacket[];
+
+    return rows.length > 0;
+  }
+
+  /**
+   * Get folder location for an order
+   * Returns 'active', 'finished', or 'none' based on folder_location column
+   */
+  async getOrderFolderLocation(orderId: number): Promise<'active' | 'finished' | 'none'> {
+    const rows = await query(
+      `SELECT folder_location FROM orders WHERE order_id = ?`,
+      [orderId]
+    ) as RowDataPacket[];
+
+    if (rows.length === 0) {
+      throw new Error('Order not found');
+    }
+
+    return rows[0].folder_location as 'active' | 'finished' | 'none';
+  }
+
+  /**
+   * Update folder tracking information for an order
+   * Accepts optional connection parameter for transaction support
+   */
+  async updateFolderTracking(
+    orderId: number,
+    folderName: string,
+    folderExists: boolean,
+    folderLocation: 'active' | 'finished' | 'none',
+    connection?: PoolConnection
+  ): Promise<void> {
+    const db = connection || pool;
+    await db.execute(
+      `UPDATE orders
+       SET folder_name = ?,
+           folder_exists = ?,
+           folder_location = ?
+       WHERE order_id = ?`,
+      [folderName, folderExists, folderLocation, orderId]
     );
   }
 }

@@ -1,14 +1,51 @@
+// File Clean up Finished: Nov 14, 2025
+// Changes:
+//   - Added new getJobs() handler for /api/jobs endpoint
+//   - Migrated from direct pool.execute() to use JobService/JobRepository pattern
+//   - Removed pool import, now uses JobService exclusively
+
 import { Request, Response } from 'express';
 import { AuthRequest } from '../types';
 import { EstimateVersioningService, JobData } from '../services/estimateVersioningService';
-import { pool } from '../config/database';
-import { RowDataPacket } from 'mysql2';
+import { JobService } from '../services/jobService';
 
 const versioningService = new EstimateVersioningService();
+const jobService = new JobService();
 
 // =============================================
 // JOB MANAGEMENT ENDPOINTS
 // =============================================
+
+/**
+ * Get jobs with optional filtering
+ * NEW HANDLER: Added Nov 14, 2025 for /api/jobs endpoint refactoring
+ * Used by: Vinyl inventory, bulk operations, status change modals
+ */
+export const getJobs = async (req: Request, res: Response) => {
+  try {
+    const { search, status, customer_id, active_only, limit } = req.query;
+
+    // Parse limit with proper default handling
+    const limitNum = limit ? parseInt(limit as string) : 50;
+    const validLimit = isNaN(limitNum) ? 50 : limitNum;
+
+    const jobs = await jobService.getJobs({
+      search: search as string | undefined,
+      status: status as string | undefined,
+      customer_id: customer_id ? parseInt(customer_id as string) : undefined,
+      active_only: active_only === 'true',
+      limit: validLimit
+    });
+
+    res.json(jobs);
+  } catch (error) {
+    console.error('Controller error fetching jobs:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch jobs'
+    });
+  }
+};
 
 export const getAllJobsWithRecentActivity = async (req: Request, res: Response) => {
   try {
@@ -270,30 +307,27 @@ export const suggestJobNameSuffix = async (req: Request, res: Response) => {
   try {
     const { jobId } = req.params;
     const { baseJobName } = req.body;
-    
+
     if (!jobId || !baseJobName) {
       return res.status(400).json({
         success: false,
         message: 'Job ID and base job name are required'
       });
     }
-    
-    // Get customer ID from the original job
-    const [jobRows] = await pool.execute<RowDataPacket[]>(
-      'SELECT customer_id FROM jobs WHERE job_id = ?',
-      [parseInt(jobId)]
-    );
-    
-    if (jobRows.length === 0) {
+
+    // Get job to extract customer ID - using JobService instead of direct pool.execute()
+    const job = await jobService.getJobById(parseInt(jobId));
+
+    if (!job) {
       return res.status(404).json({
         success: false,
         message: 'Job not found'
       });
     }
-    
-    const customerId = jobRows[0].customer_id;
+
+    const customerId = job.customer_id;
     const suggestedName = await versioningService.generateJobNameSuffix(customerId, baseJobName);
-    
+
     res.json({
       success: true,
       data: {

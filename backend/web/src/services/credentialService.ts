@@ -1,29 +1,41 @@
+// File Clean up Finished: Nov 14, 2025
+// Changes (Initial):
+// - Added IP address and user agent parameters to all credential methods
+// - Now passes audit trail info through to repository layer
+//
+// Changes (Final Cleanup):
+// - Removed dead code: setQuickBooksTokens() method (25 lines, never called)
+// - Removed unused import: QuickBooksTokens type
+// - QuickBooks OAuth token management now handled by /utils/quickbooks/dbManager.ts
+// - Reduced file size from 353 lines to 327 lines (7.4% reduction)
 /**
  * Credential Service
- * Manages encrypted storage and retrieval of sensitive credentials
+ *
+ * Business logic layer for credential management
+ * Handles encryption/decryption and QuickBooks-specific operations
+ *
+ * Refactored: Nov 14, 2025 to use CredentialRepository (3-layer architecture)
+ * Part of: Route → Controller → Service → Repository → Database
  */
 
-import { pool } from '../config/database';
 import { EncryptionService } from './encryptionService';
+import { CredentialRepository } from '../repositories/credentialRepository';
 import {
-  EncryptedCredential,
   CredentialInput,
-  DecryptedCredential,
   QuickBooksCredentials,
-  QuickBooksTokens,
-  CredentialAuditLog,
   CredentialServiceConfig
 } from '../types/credentials';
-import { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 export class CredentialService {
   private static instance: CredentialService;
   private encryptionService: EncryptionService;
+  private repository: CredentialRepository;
   private config: CredentialServiceConfig;
   private cache: Map<string, { value: string; timestamp: number }> = new Map();
 
   private constructor(config?: Partial<CredentialServiceConfig>) {
     this.encryptionService = EncryptionService.getInstance();
+    this.repository = new CredentialRepository();
     this.config = {
       enableAuditLog: true,
       cacheTTL: 300, // 5 minutes default
@@ -47,68 +59,35 @@ export class CredentialService {
    */
   public async setCredential(
     input: CredentialInput,
-    userId?: number
+    userId?: number,
+    ipAddress?: string,
+    userAgent?: string
   ): Promise<void> {
-    const connection = await pool.getConnection();
-
     try {
-      await connection.beginTransaction();
-
       // Encrypt the value
       const encrypted = this.encryptionService.encrypt(input.value);
 
-      // Store in database
-      const [result] = await connection.execute<ResultSetHeader>(
-        `INSERT INTO encrypted_credentials
-         (service_name, credential_key, encrypted_value, iv, auth_tag, metadata, created_by_user_id, updated_by_user_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE
-         encrypted_value = VALUES(encrypted_value),
-         iv = VALUES(iv),
-         auth_tag = VALUES(auth_tag),
-         metadata = VALUES(metadata),
-         updated_by_user_id = VALUES(updated_by_user_id),
-         updated_at = CURRENT_TIMESTAMP`,
-        [
-          input.service_name,
-          input.credential_key,
-          encrypted.encrypted,
-          encrypted.iv,
-          encrypted.authTag,
-          input.metadata ? JSON.stringify(input.metadata) : null,
-          userId || null,
-          userId || null
-        ]
+      // Store in database via repository
+      await this.repository.upsert(
+        {
+          service_name: input.service_name,
+          credential_key: input.credential_key,
+          encrypted_value: encrypted.encrypted,
+          iv: encrypted.iv,
+          auth_tag: encrypted.authTag,
+          metadata: input.metadata
+        },
+        userId,
+        this.config.enableAuditLog,
+        ipAddress,
+        userAgent
       );
-
-      // Log audit trail
-      if (this.config.enableAuditLog && userId) {
-        const credentialId = result.insertId || await this.getCredentialId(
-          input.service_name,
-          input.credential_key,
-          connection
-        );
-
-        if (credentialId) {
-          await this.logAuditTrail(
-            credentialId,
-            result.insertId ? 'CREATE' : 'UPDATE',
-            userId,
-            connection
-          );
-        }
-      }
-
-      await connection.commit();
 
       // Clear cache for this credential
       this.clearCache(`${input.service_name}:${input.credential_key}`);
     } catch (error) {
-      await connection.rollback();
       console.error('Failed to store credential:', error);
       throw new Error('Failed to store credential');
-    } finally {
-      connection.release();
     }
   }
 
@@ -118,7 +97,9 @@ export class CredentialService {
   public async getCredential(
     serviceName: string,
     credentialKey: string,
-    userId?: number
+    userId?: number,
+    ipAddress?: string,
+    userAgent?: string
   ): Promise<string | null> {
     // Check cache first
     const cacheKey = `${serviceName}:${credentialKey}`;
@@ -127,21 +108,12 @@ export class CredentialService {
       return cached;
     }
 
-    const connection = await pool.getConnection();
-
     try {
-      const [rows] = await connection.execute(
-        `SELECT id, encrypted_value, iv, auth_tag
-         FROM encrypted_credentials
-         WHERE service_name = ? AND credential_key = ?`,
-        [serviceName, credentialKey]
-      ) as any;
+      const credential = await this.repository.findByServiceAndKey(serviceName, credentialKey);
 
-      if (!rows || rows.length === 0) {
+      if (!credential) {
         return null;
       }
-
-      const credential = rows[0];
 
       // Decrypt the value
       const decrypted = this.encryptionService.decrypt(
@@ -151,8 +123,16 @@ export class CredentialService {
       );
 
       // Log audit trail
-      if (this.config.enableAuditLog && userId) {
-        await this.logAuditTrail(credential.id, 'READ', userId, connection);
+      if (this.config.enableAuditLog && userId && credential.id) {
+        await this.repository.logAudit(
+          credential.id,
+          'READ',
+          userId,
+          undefined, // connection
+          undefined, // details
+          ipAddress,
+          userAgent
+        );
       }
 
       // Cache the decrypted value
@@ -162,8 +142,6 @@ export class CredentialService {
     } catch (error) {
       console.error('Failed to retrieve credential:', error);
       throw new Error('Failed to retrieve credential');
-    } finally {
-      connection.release();
     }
   }
 
@@ -172,17 +150,12 @@ export class CredentialService {
    */
   public async getServiceCredentials(
     serviceName: string,
-    userId?: number
+    userId?: number,
+    ipAddress?: string,
+    userAgent?: string
   ): Promise<Record<string, string>> {
-    const connection = await pool.getConnection();
-
     try {
-      const [rows] = await connection.execute(
-        `SELECT id, credential_key, encrypted_value, iv, auth_tag
-         FROM encrypted_credentials
-         WHERE service_name = ?`,
-        [serviceName]
-      ) as any;
+      const rows = await this.repository.findByService(serviceName);
 
       const credentials: Record<string, string> = {};
 
@@ -196,8 +169,16 @@ export class CredentialService {
           credentials[row.credential_key] = decrypted;
 
           // Log audit trail
-          if (this.config.enableAuditLog && userId) {
-            await this.logAuditTrail(row.id, 'READ', userId, connection);
+          if (this.config.enableAuditLog && userId && row.id) {
+            await this.repository.logAudit(
+              row.id,
+              'READ',
+              userId,
+              undefined, // connection
+              undefined, // details
+              ipAddress,
+              userAgent
+            );
           }
         }
       }
@@ -206,8 +187,6 @@ export class CredentialService {
     } catch (error) {
       console.error('Failed to retrieve service credentials:', error);
       throw new Error('Failed to retrieve service credentials');
-    } finally {
-      connection.release();
     }
   }
 
@@ -217,49 +196,29 @@ export class CredentialService {
   public async deleteCredential(
     serviceName: string,
     credentialKey: string,
-    userId?: number
+    userId?: number,
+    ipAddress?: string,
+    userAgent?: string
   ): Promise<boolean> {
-    const connection = await pool.getConnection();
-
     try {
-      await connection.beginTransaction();
-
-      // Get credential ID for audit log
-      const credentialId = await this.getCredentialId(
+      const deleted = await this.repository.delete(
         serviceName,
         credentialKey,
-        connection
+        userId,
+        this.config.enableAuditLog,
+        ipAddress,
+        userAgent
       );
 
-      if (!credentialId) {
-        await connection.rollback();
-        return false;
+      if (deleted) {
+        // Clear cache
+        this.clearCache(`${serviceName}:${credentialKey}`);
       }
 
-      // Log audit trail before deletion
-      if (this.config.enableAuditLog && userId) {
-        await this.logAuditTrail(credentialId, 'DELETE', userId, connection);
-      }
-
-      // Delete the credential
-      const [result] = await connection.execute<ResultSetHeader>(
-        `DELETE FROM encrypted_credentials
-         WHERE service_name = ? AND credential_key = ?`,
-        [serviceName, credentialKey]
-      );
-
-      await connection.commit();
-
-      // Clear cache
-      this.clearCache(`${serviceName}:${credentialKey}`);
-
-      return result.affectedRows > 0;
+      return deleted;
     } catch (error) {
-      await connection.rollback();
       console.error('Failed to delete credential:', error);
       throw new Error('Failed to delete credential');
-    } finally {
-      connection.release();
     }
   }
 
@@ -268,26 +227,28 @@ export class CredentialService {
    */
   public async setQuickBooksCredentials(
     credentials: QuickBooksCredentials,
-    userId?: number
+    userId?: number,
+    ipAddress?: string,
+    userAgent?: string
   ): Promise<void> {
     await this.setCredential({
       service_name: 'quickbooks',
       credential_key: 'client_id',
       value: credentials.client_id
-    }, userId);
+    }, userId, ipAddress, userAgent);
 
     await this.setCredential({
       service_name: 'quickbooks',
       credential_key: 'client_secret',
       value: credentials.client_secret
-    }, userId);
+    }, userId, ipAddress, userAgent);
 
     if (credentials.redirect_uri) {
       await this.setCredential({
         service_name: 'quickbooks',
         credential_key: 'redirect_uri',
         value: credentials.redirect_uri
-      }, userId);
+      }, userId, ipAddress, userAgent);
     }
 
     if (credentials.environment) {
@@ -295,15 +256,19 @@ export class CredentialService {
         service_name: 'quickbooks',
         credential_key: 'environment',
         value: credentials.environment
-      }, userId);
+      }, userId, ipAddress, userAgent);
     }
   }
 
   /**
    * QuickBooks-specific: Get credentials
    */
-  public async getQuickBooksCredentials(userId?: number): Promise<QuickBooksCredentials | null> {
-    const credentials = await this.getServiceCredentials('quickbooks', userId);
+  public async getQuickBooksCredentials(
+    userId?: number,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<QuickBooksCredentials | null> {
+    const credentials = await this.getServiceCredentials('quickbooks', userId, ipAddress, userAgent);
 
     if (!credentials.client_id || !credentials.client_secret) {
       return null;
@@ -315,98 +280,6 @@ export class CredentialService {
       redirect_uri: credentials.redirect_uri,
       environment: credentials.environment as 'sandbox' | 'production' | undefined
     };
-  }
-
-  /**
-   * QuickBooks-specific: Store OAuth tokens
-   */
-  public async setQuickBooksTokens(
-    tokens: QuickBooksTokens,
-    userId?: number
-  ): Promise<void> {
-    const connection = await pool.getConnection();
-
-    try {
-      await connection.beginTransaction();
-
-      // Encrypt tokens
-      const accessEncrypted = this.encryptionService.encrypt(tokens.access_token);
-      const refreshEncrypted = this.encryptionService.encrypt(tokens.refresh_token);
-
-      // Update tokens in qb_oauth_tokens table
-      await connection.execute(
-        `UPDATE qb_oauth_tokens SET
-         access_token_encrypted = ?,
-         access_token_iv = ?,
-         access_token_tag = ?,
-         refresh_token_encrypted = ?,
-         refresh_token_iv = ?,
-         refresh_token_tag = ?,
-         encryption_version = 1,
-         expires_at = DATE_ADD(NOW(), INTERVAL ? SECOND),
-         refresh_token_expires_at = DATE_ADD(NOW(), INTERVAL ? SECOND),
-         updated_at = CURRENT_TIMESTAMP
-         WHERE id = 1`,
-        [
-          accessEncrypted.encrypted,
-          accessEncrypted.iv,
-          accessEncrypted.authTag,
-          refreshEncrypted.encrypted,
-          refreshEncrypted.iv,
-          refreshEncrypted.authTag,
-          tokens.expires_in || 3600,
-          tokens.x_refresh_token_expires_in || 8726400
-        ]
-      );
-
-      await connection.commit();
-    } catch (error) {
-      await connection.rollback();
-      console.error('Failed to store QuickBooks tokens:', error);
-      throw error;
-    } finally {
-      connection.release();
-    }
-  }
-
-  /**
-   * Helper: Get credential ID
-   */
-  private async getCredentialId(
-    serviceName: string,
-    credentialKey: string,
-    connection: any
-  ): Promise<number | null> {
-    const [rows] = await connection.execute(
-      `SELECT id FROM encrypted_credentials
-       WHERE service_name = ? AND credential_key = ?`,
-      [serviceName, credentialKey]
-    ) as any;
-
-    return rows && rows.length > 0 ? rows[0].id : null;
-  }
-
-  /**
-   * Log audit trail
-   */
-  private async logAuditTrail(
-    credentialId: number,
-    operation: CredentialAuditLog['operation'],
-    userId: number,
-    connection: any,
-    details?: Record<string, any>
-  ): Promise<void> {
-    await connection.execute(
-      `INSERT INTO credential_audit_log
-       (credential_id, operation, user_id, details)
-       VALUES (?, ?, ?, ?)`,
-      [
-        credentialId,
-        operation,
-        userId,
-        details ? JSON.stringify(details) : null
-      ]
-    );
   }
 
   /**
@@ -445,8 +318,7 @@ export class CredentialService {
    */
   public async testCredentials(serviceName: string): Promise<boolean> {
     try {
-      const creds = await this.getServiceCredentials(serviceName);
-      return Object.keys(creds).length > 0;
+      return await this.repository.serviceHasCredentials(serviceName);
     } catch {
       return false;
     }

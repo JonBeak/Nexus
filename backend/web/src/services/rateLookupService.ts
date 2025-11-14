@@ -1,8 +1,26 @@
 // =====================================================
 // RATE LOOKUP SERVICE - Cached Pricing Data Access
 // =====================================================
+// File Clean up Finished: Nov 14, 2025
+// Changes:
+//   - Removed getCurrentRates() - dead code (only called by other dead methods)
+//   - Removed getSpecificRate() - dead code (never used)
+//   - Removed getMultiplierRanges() - unused feature (quantity-based pricing)
+//   - Removed getDiscountRanges() - unused feature (volume-based discounts)
+//   - Removed getAvailableRateTypes() - unused endpoint
+//   - Removed isCached() - dead code (never called)
+//   - Removed fetchRatesFromDatabase() - only called by dead methods
+//   - Removed getCategoryTableName() - only called by dead methods
+//   - Removed getRateKey() - only called by dead methods
+//   - Removed RateQueryResult import - type only used by dead code
+// Result: 449 lines → 265 lines (184 lines removed, 41% reduction)
+//
+// Active Methods:
+//   - getAllPricingData() - Used by frontend PricingDataResource
+//   - getPushThruAssemblyPricing() - Used by frontend PricingDataResource
+//   - clearCache() - Admin endpoint for debugging
+//   - getCacheStats() - Admin endpoint for monitoring
 
-import { RateQueryResult } from '../types/pricing';
 import { query } from '../config/database';
 
 // =====================================================
@@ -139,87 +157,6 @@ export class RateLookupService {
     });
   }
 
-  /**
-   * Get current rates for a specific category with caching
-   */
-  async getCurrentRates(category: string): Promise<Record<string, any>> {
-    return this.withCache(`rates_${category}`, async () => {
-      return this.fetchRatesFromDatabase(category);
-    });
-  }
-
-  /**
-   * Get specific rate by code and category
-   */
-  async getSpecificRate(category: string, rateCode: string): Promise<RateQueryResult> {
-    const allRates = await this.getCurrentRates(category);
-    const rateData = allRates[rateCode];
-
-    return {
-      found: !!rateData,
-      rates: rateData || {},
-      effectiveDate: rateData?.effective_date || new Date(),
-      rateTable: this.getCategoryTableName(category)
-    };
-  }
-
-  /**
-   * Get multiplier ranges for quantity calculations
-   */
-  async getMultiplierRanges(): Promise<any[]> {
-    return this.withCache('multiplier_ranges', async () => {
-      const multipliers = await query(`
-        SELECT
-          multiplier_name,
-          multiplier_code,
-          quantity_ranges,
-          applies_to_categories,
-          priority_order
-        FROM multiplier_ranges
-        WHERE is_active = true
-        AND effective_date <= CURDATE()
-        AND (expires_date IS NULL OR expires_date > CURDATE())
-        ORDER BY priority_order, multiplier_name
-      `) as any[];
-
-      // Parse JSON fields
-      return multipliers.map(m => ({
-        ...m,
-        quantity_ranges: JSON.parse(m.quantity_ranges || '[]'),
-        applies_to_categories: JSON.parse(m.applies_to_categories || '[]')
-      }));
-    });
-  }
-
-  /**
-   * Get discount ranges for volume discounts
-   */
-  async getDiscountRanges(): Promise<any[]> {
-    return this.withCache('discount_ranges', async () => {
-      const discounts = await query(`
-        SELECT
-          discount_name,
-          discount_code,
-          discount_ranges,
-          applies_to_categories,
-          customer_restrictions,
-          priority_order
-        FROM discount_ranges
-        WHERE is_active = true
-        AND effective_date <= CURDATE()
-        AND (expires_date IS NULL OR expires_date > CURDATE())
-        ORDER BY priority_order, discount_name
-      `) as any[];
-
-      // Parse JSON fields
-      return discounts.map(d => ({
-        ...d,
-        discount_ranges: JSON.parse(d.discount_ranges || '[]'),
-        applies_to_categories: JSON.parse(d.applies_to_categories || '[]'),
-        customer_restrictions: JSON.parse(d.customer_restrictions || '{}')
-      }));
-    });
-  }
 
   /**
    * Get Push Thru assembly pricing (single active row)
@@ -255,22 +192,6 @@ export class RateLookupService {
     }
   }
 
-  /**
-   * Get all available rate types for a category (for dropdowns)
-   */
-  async getAvailableRateTypes(category: string): Promise<string[]> {
-    const rates = await this.getCurrentRates(category);
-    return Object.keys(rates);
-  }
-
-  /**
-   * Check if rates are cached
-   */
-  isCached(category: string): boolean {
-    const cacheKey = `rates_${category}`;
-    const cached = RateLookupService.rateCache.get(cacheKey);
-    return cached ? cached.expires > new Date() : false;
-  }
 
   /**
    * Get cache statistics for monitoring
@@ -358,91 +279,4 @@ export class RateLookupService {
     }
   }
 
-  /**
-   * Fetch rates from database for specific category
-   */
-  private async fetchRatesFromDatabase(category: string): Promise<Record<string, any>> {
-    const tableName = this.getCategoryTableName(category);
-
-    if (!tableName) {
-      return {};
-    }
-
-    try {
-      const rates = await query(`
-        SELECT * FROM ${tableName}
-        WHERE is_active = true
-        AND effective_date <= CURDATE()
-        AND (expires_date IS NULL OR expires_date > CURDATE())
-        ORDER BY effective_date DESC
-      `) as any[];
-
-      // Convert array to keyed object for easy lookup
-      const rateMap: Record<string, any> = {};
-
-      rates.forEach(rate => {
-        const key = this.getRateKey(rate, category);
-        if (key) {
-          rateMap[key] = rate;
-        }
-      });
-
-      return rateMap;
-
-    } catch (error) {
-      console.error(`Error fetching rates for category ${category}:`, error);
-      return {};
-    }
-  }
-
-  /**
-   * Get database table name for category
-   */
-  private getCategoryTableName(category: string): string | null {
-    const tableMap: Record<string, string> = {
-      'vinyl': 'vinyl_pricing',
-      'channel_letters': 'channel_letter_types',
-      'substrate': 'substrate_cut_pricing',
-      'backer': 'backer_pricing',
-      'push_thru': 'push_thru_pricing',
-      'blade_sign': 'blade_sign_pricing',
-      'led_neon': 'led_neon_pricing',
-      'painting': 'painting_pricing',
-      'custom': 'custom_pricing',
-      'wiring': 'wiring_pricing',
-      'material_cut': 'material_cut_pricing',
-      'shipping': 'shipping_rates_pricing',
-      'ul_supplementary': 'ul_listing_pricing',
-      'led_types': 'led_types_pricing',
-      'transformer_types': 'transformer_types_pricing'
-    };
-
-    return tableMap[category] || null;
-  }
-
-  /**
-   * Get the key field for rate lookup based on category
-   */
-  private getRateKey(rate: any, category: string): string | null {
-    const keyFieldMap: Record<string, string> = {
-      'vinyl': 'vinyl_component',
-      'channel_letters': 'type_name',
-      'substrate': 'substrate_type',
-      'backer': 'backer_type',
-      'push_thru': 'push_thru_type',
-      'blade_sign': 'blade_type',
-      'led_neon': 'neon_type',
-      'painting': 'painting_type',
-      'custom': 'custom_type',
-      'wiring': 'wiring_type',
-      'material_cut': 'material_type',
-      'shipping': 'shipping_type',
-      'ul_supplementary': 'ul_type',
-      'led_types': 'led_type',
-      'transformer_types': 'transformer_type'
-    };
-
-    const keyField = keyFieldMap[category];
-    return keyField ? rate[keyField] : null;
-  }
 }

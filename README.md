@@ -159,12 +159,14 @@ POST   /api/auth/login          - User authentication
 GET    /api/auth/me             - Current user info
 POST   /api/auth/refresh        - Token refresh
 
-Job Estimation System:
-GET    /api/job-estimation/estimates     - List estimates
-POST   /api/job-estimation/estimates     - Create estimate
-GET    /api/job-estimation/estimates/:id - Get estimate details
-POST   /api/pricing/session              - Create calculation session
-POST   /api/pricing/calculate/:session   - Real-time calculations
+Job Estimation System (Versioning Architecture):
+GET    /api/job-estimation/jobs/:jobId/estimates        - List estimate versions for job
+POST   /api/job-estimation/jobs/:jobId/estimates        - Create new estimate version
+POST   /api/job-estimation/estimates/:id/grid-data      - Save estimate grid data
+GET    /api/job-estimation/estimates/:id/grid-data      - Load estimate grid data
+POST   /api/job-estimation/estimates/:id/finalize       - Finalize estimate (draft → sent/approved)
+GET    /api/job-estimation/product-types                - Get product types for templates
+GET    /api/job-estimation/templates/all                - Get all field prompt templates
 
 Customer Management:
 GET    /api/customers           - List customers  
@@ -178,18 +180,20 @@ GET    /api/suppliers           - Supplier list
 GET    /api/supply-chain        - Supply chain dashboard
 ```
 
-### Pricing Calculation APIs
+### Pricing Data APIs
 ```
-Real-time Pricing:
-POST   /api/pricing/session              - Create user session
-POST   /api/pricing/calculate/:sessionId - Calculate item pricing
-POST   /api/pricing/validate/:sessionId  - Validate inputs
-POST   /api/pricing/save/:sessionId      - Save with conflict detection
-
-Rate Management:
+Rate Lookup (Active):
+GET    /api/pricing/all-pricing-data     - Get all pricing rates (cached 30min)
+GET    /api/pricing/push-thru-assembly   - Push Thru assembly pricing
 GET    /api/pricing/rates/:category      - Get rate types
-GET    /api/pricing/multipliers          - Quantity multipliers  
-GET    /api/pricing/discounts           - Volume discounts
+GET    /api/pricing/multipliers          - Quantity multipliers
+GET    /api/pricing/discounts            - Volume discounts
+
+Admin Endpoints:
+POST   /api/pricing/admin/clear-cache    - Clear pricing cache (Manager+)
+GET    /api/pricing/admin/cache-stats    - Cache statistics (Manager+)
+
+Note: Calculations performed client-side in frontend calculation engine
 ```
 
 ## 💼 Business Workflow
@@ -260,6 +264,14 @@ GET    /api/pricing/discounts           - Volume discounts
 - **Error Handling**: Graceful error management with logging
 
 ## 🎯 Recent Major Achievements - November 2025
+
+### ✅ Code Cleanup: Session-Based Pricing System Removal (November 14, 2025)
+- **Dead Code Removal**: Removed 500+ lines of abandoned session-based pricing architecture
+- **Architecture Clarification**: Single clear pricing system (frontend calculations + rate lookup)
+- **Files Deleted**: estimationSessionService.ts, pricingCalculationEngine.ts (~20KB)
+- **Files Cleaned**: pricingCalculationController.ts (53% reduction), types/pricing.ts (90% reduction)
+- **Impact**: Zero breaking changes, improved maintainability, clearer codebase
+- **Details**: See CLEANUP_REPORT_2025-11-14.md for full analysis
 
 ### ✅ Phase 1.5g: Order Folder & Image Management Complete
 - **SMB Folder Tracking**: Automatic folder creation with 1,978 legacy orders successfully migrated
@@ -379,4 +391,4 @@ This system is designed specifically for sign manufacturing businesses as a comp
 
 **Contact**: System documentation and support available through project maintainer.
 
-**Last Updated**: September 2025 - Production-ready system with 15-category pricing engine, comprehensive validation system, performance optimization, and user-isolated real-time calculations.
+**Last Updated**: November 14, 2025 - Production-ready system with 15-category pricing engine, comprehensive validation system, performance optimization, and frontend-based real-time calculations.

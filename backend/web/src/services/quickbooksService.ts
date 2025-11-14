@@ -1,3 +1,11 @@
+// File Clean up Finished: 2025-11-14
+// Changes:
+// - Removed dead code: unused setDefaultRealmId import from dbManager
+// - Migrated to repository pattern: storeTokens() now uses quickbooksRepository
+// - Migrated to repository pattern: getActiveTokens() now uses quickbooksRepository
+// - Architecture fix: All token methods now go through repository layer (uses query() helper)
+// - Consistent data access: Service layer now exclusively uses repository, no direct dbManager calls
+// - Preserved encryption: Token encryption with AES-256-GCM maintained through migration
 /**
  * QuickBooks Service
  * Business Logic Layer for QuickBooks Integration
@@ -23,12 +31,7 @@ import {
   getItemIdByName,
   getEstimatePdfUrl,
 } from '../utils/quickbooks/apiClient';
-import {
-  storeTokens,
-  getActiveTokens,
-  getDefaultRealmId,
-  setDefaultRealmId,
-} from '../utils/quickbooks/dbManager';
+import { getDefaultRealmId } from '../utils/quickbooks/dbManager';
 
 /**
  * QuickBooks Line Item Interface
@@ -113,7 +116,7 @@ export class QuickBooksService {
     const tokenData = await exchangeCodeForTokens(code);
 
     // Store tokens in database (encrypted)
-    await storeTokens(realmId, tokenData);
+    await quickbooksRepository.storeTokens(realmId, tokenData);
 
     // Set as default realm if this is first/only connection
     const currentDefault = await quickbooksRepository.getDefaultRealmId();
@@ -156,7 +159,7 @@ export class QuickBooksService {
       };
     }
 
-    const tokenData = await getActiveTokens(realmId);
+    const tokenData = await quickbooksRepository.getActiveTokens(realmId);
 
     if (!tokenData) {
       return {

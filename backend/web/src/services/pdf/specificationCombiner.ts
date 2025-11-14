@@ -1,3 +1,8 @@
+// File Clean up Finished: Nov 14, 2025
+// Changes:
+//   - Replaced `any[]` with `OrderPartForPDF[]` for type safety
+//   - Added clarifying comment for D-Tape naming variations
+//   - Improved code documentation
 /**
  * Specification Combiner Utility
  * Combines specifications from parent and sub-item parts
@@ -5,6 +10,7 @@
  */
 
 import { formatBooleanValue, cleanSpecValue } from './generators/pdfCommonGenerator';
+import type { OrderPartForPDF } from '../../types/orders';
 
 /**
  * Check if any value in array indicates inclusion (Yes/true)
@@ -23,7 +29,7 @@ function checkInclusionValue(values: string[]): boolean {
  * @param parts - Array of parts to combine (parent + sub-items)
  * @returns Map of template names to arrays of spec values
  */
-export function combineSpecifications(parts: any[]): Map<string, string[]> {
+export function combineSpecifications(parts: OrderPartForPDF[]): Map<string, string[]> {
   const templateRowsMap = new Map<string, string[]>();
 
   // Process each part (parent and sub-items)
@@ -127,6 +133,7 @@ export function flattenCombinedSpecs(templateRowsMap: Map<string, string[]>): an
 
       case 'UL':
       case 'Drain Holes':
+      // Handle D-Tape variations (inconsistent naming in data)
       case 'D-Tape':
       case 'D-tape':
       case 'Dtape':

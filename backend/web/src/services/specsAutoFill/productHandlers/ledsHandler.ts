@@ -1,15 +1,23 @@
-// File Clean up Finished: Nov 13, 2025
+// File Clean up Finished: Nov 14, 2025
+// Previous cleanup: Nov 13, 2025
+// Current cleanup (Nov 14, 2025):
+// - Migrated from direct database connection.execute() to LEDService layer
+// - Now follows 3-layer architecture for LED lookups
+// - Removed direct SQL queries in favor of service methods
 /**
  * LEDs Product Handler
  *
  * Auto-fills specifications for LED products including:
  * - LED count (extracted from calculation display)
- * - LED type (with fuzzy database matching)
+ * - LED type (with fuzzy database matching via LEDService)
  * - Wire length (default 8ft)
  * - Wire gauge (18 AWG for most LEDs, 22 AWG for Strip LEDs)
  */
 
 import { AutoFillInput, ParsedData } from '../types';
+import { LEDService } from '../../ledService';
+
+const ledService = new LEDService();
 
 /**
  * Auto-fill specs for LEDs
@@ -56,25 +64,13 @@ export async function autoFillLeds(
     console.warn('[Specs Auto-Fill] ⚠ Failed to extract LED count');
   }
 
-  // Auto-fill type with fuzzy matching
-  if (parsed.type && connection) {
+  // Auto-fill type with fuzzy matching via LEDService
+  if (parsed.type) {
     try {
-      // Try to find matching LED type from database
-      // The extracted type might be "Interone 9K" and we need to match "Interone 9K - 9000K (0.80W, 12V)"
-      // The dropdown format uses product_code - colour (watts, volts)
-      // So we add " - " and look for options that start with that pattern
-      const searchPattern = `${parsed.type} - %`;
-      const [ledRows] = await connection.execute(
-        `SELECT CONCAT(product_code, ' - ', colour, ' (', watts, 'W, ', volts, 'V)') AS full_name
-         FROM leds
-         WHERE is_active = 1
-         AND CONCAT(product_code, ' - ', colour, ' (', watts, 'W, ', volts, 'V)') LIKE ?
-         LIMIT 1`,
-        [searchPattern]
-      );
+      // Use LEDService for fuzzy matching instead of direct SQL
+      const matchedType = await ledService.findLEDByFuzzyMatch(parsed.type);
 
-      if (ledRows && ledRows.length > 0) {
-        const matchedType = ledRows[0].full_name;
+      if (matchedType) {
         const typeField = `row${ledsRow}_led_type`;
         specs[typeField] = matchedType;
         filledFields.push(typeField);
@@ -94,12 +90,6 @@ export async function autoFillLeds(
       specs[typeField] = parsed.type;
       filledFields.push(typeField);
     }
-  } else if (parsed.type) {
-    // No connection available, use extracted type
-    const typeField = `row${ledsRow}_led_type`;
-    specs[typeField] = parsed.type;
-    filledFields.push(typeField);
-    console.log(`[Specs Auto-Fill] ✓ Filled ${typeField} = "${parsed.type}"`);
   } else {
     warnings.push('Could not extract LED type from calculation display');
     console.warn('[Specs Auto-Fill] ⚠ Failed to extract LED type');

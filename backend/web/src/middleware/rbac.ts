@@ -1,3 +1,12 @@
+// File Clean up Finished: Nov 14, 2025
+// Changes:
+//   - Removed duplicate interface (now using AuthRequest from ../types)
+//   - Removed unused exports: grantTemporaryPermission, getUserPermissionsWithMetadata,
+//     clearAllPermissionCache, hybridPermissionCheck
+//   - Made hasAnyPermission and hasAllPermissions internal (removed export)
+//   - Removed 40 lines of documentation examples
+//   - Result: 430 lines → 262 lines (39% reduction)
+//   - Kept: Permission logging infrastructure, clearUserPermissionCache for cache invalidation
 // =====================================================
 // RBAC Middleware and Helper Functions
 // For Controller-Based Architecture
@@ -6,12 +15,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { query } from '../config/database';
 import { RowDataPacket } from 'mysql2';
+import { AuthRequest } from '../types';
 
 /**
  * ARCHITECTURE NOTE:
  * The system uses a layered architecture:
  * Routes (routing) → Controllers (permissions + HTTP) → Services (business logic)
- * 
+ *
  * RBAC can be implemented in two ways:
  * 1. Middleware approach: Add requirePermission() to route definitions
  * 2. Controller approach: Use hasPermission() directly in controller methods
@@ -22,15 +32,6 @@ import { RowDataPacket } from 'mysql2';
 // Cache for user permissions (in production, use Redis)
 const permissionCache = new Map<string, { permissions: Set<string>, expires: number }>();
 const CACHE_TTL = 3600000; // 1 hour in milliseconds
-
-// Interface for authenticated request
-interface AuthenticatedRequest extends Request {
-  user?: {
-    user_id: number;
-    username: string;
-    role: string;
-  };
-}
 
 // =====================================================
 // CORE PERMISSION FUNCTIONS
@@ -112,11 +113,11 @@ export async function getUserPermissions(userId: number): Promise<string[]> {
 }
 
 /**
- * Check multiple permissions at once
+ * Check multiple permissions at once (internal helper for middleware)
  */
-export async function hasAnyPermission(userId: number, permissionNames: string[]): Promise<boolean> {
+async function hasAnyPermission(userId: number, permissionNames: string[]): Promise<boolean> {
   if (permissionNames.length === 0) return false;
-  
+
   for (const permission of permissionNames) {
     if (await hasPermission(userId, permission)) {
       return true;
@@ -126,11 +127,11 @@ export async function hasAnyPermission(userId: number, permissionNames: string[]
 }
 
 /**
- * Check if user has all specified permissions
+ * Check if user has all specified permissions (internal helper for middleware)
  */
-export async function hasAllPermissions(userId: number, permissionNames: string[]): Promise<boolean> {
+async function hasAllPermissions(userId: number, permissionNames: string[]): Promise<boolean> {
   if (permissionNames.length === 0) return true;
-  
+
   for (const permission of permissionNames) {
     if (!await hasPermission(userId, permission)) {
       return false;
@@ -147,13 +148,6 @@ export function clearUserPermissionCache(userId: number): void {
   permissionCache.delete(cacheKey);
 }
 
-/**
- * Clear all permission cache (call when system permissions change)
- */
-export function clearAllPermissionCache(): void {
-  permissionCache.clear();
-}
-
 // =====================================================
 // MIDDLEWARE FUNCTIONS
 // =====================================================
@@ -161,8 +155,8 @@ export function clearAllPermissionCache(): void {
 /**
  * Middleware to require a specific permission
  */
-export function requirePermission(permissionName: string, resourceContextFn?: (req: AuthenticatedRequest) => string) {
-  return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+export function requirePermission(permissionName: string, resourceContextFn?: (req: AuthRequest) => string) {
+  return async (req: AuthRequest, res: Response, next: NextFunction) => {
     const user = req.user;
     
     if (!user || !user.user_id) {
@@ -188,7 +182,7 @@ export function requirePermission(permissionName: string, resourceContextFn?: (r
  * Middleware to require any of the specified permissions
  */
 export function requireAnyPermission(permissionNames: string[]) {
-  return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  return async (req: AuthRequest, res: Response, next: NextFunction) => {
     const user = req.user;
     
     if (!user || !user.user_id) {
@@ -212,7 +206,7 @@ export function requireAnyPermission(permissionNames: string[]) {
  * Middleware to require all specified permissions
  */
 export function requireAllPermissions(permissionNames: string[]) {
-  return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  return async (req: AuthRequest, res: Response, next: NextFunction) => {
     const user = req.user;
     
     if (!user || !user.user_id) {
@@ -274,157 +268,3 @@ async function logPermissionCheck(
   }
 }
 
-/**
- * Grant temporary permission to user
- */
-export async function grantTemporaryPermission(
-  userId: number,
-  permissionName: string,
-  expiresInHours: number,
-  grantedBy: number,
-  reason: string
-): Promise<boolean> {
-  try {
-    // Get permission ID
-    const permissionResult = await query(
-      'SELECT permission_id FROM rbac_permissions WHERE permission_name = ? AND is_active = 1',
-      [permissionName]
-    ) as RowDataPacket[];
-
-    if (permissionResult.length === 0) {
-      throw new Error(`Permission '${permissionName}' not found`);
-    }
-
-    const permissionId = permissionResult[0].permission_id;
-    const expiresAt = new Date(Date.now() + (expiresInHours * 60 * 60 * 1000));
-
-    await query(`
-      INSERT INTO rbac_user_permissions 
-      (user_id, permission_id, access_type, expires_at, granted_by, reason)
-      VALUES (?, ?, 'grant', ?, ?, ?)
-      ON DUPLICATE KEY UPDATE
-        access_type = 'grant',
-        expires_at = VALUES(expires_at),
-        granted_by = VALUES(granted_by),
-        reason = VALUES(reason),
-        granted_at = CURRENT_TIMESTAMP
-    `, [userId, permissionId, expiresAt, grantedBy, reason]);
-
-    // Clear user's permission cache
-    clearUserPermissionCache(userId);
-    
-    return true;
-  } catch (error) {
-    console.error('Error granting temporary permission:', error);
-    return false;
-  }
-}
-
-/**
- * Get user's current permissions with metadata
- */
-export async function getUserPermissionsWithMetadata(userId: number): Promise<any[]> {
-  const permissionsQuery = `
-    SELECT 
-      p.permission_name,
-      p.permission_description,
-      r.resource_name,
-      a.action_name,
-      'role' as source,
-      role.role_name as source_detail,
-      NULL as expires_at
-    FROM rbac_permissions p
-    JOIN rbac_resources r ON p.resource_id = r.resource_id
-    JOIN rbac_actions a ON p.action_id = a.action_id
-    JOIN rbac_role_permissions rp ON p.permission_id = rp.permission_id
-    JOIN rbac_roles role ON rp.role_id = role.role_id
-    JOIN users u ON u.role = role.role_name
-    WHERE u.user_id = ? AND p.is_active = 1 AND role.is_active = 1
-
-    UNION ALL
-
-    SELECT 
-      p.permission_name,
-      p.permission_description,
-      r.resource_name,
-      a.action_name,
-      up.access_type as source,
-      up.reason as source_detail,
-      up.expires_at
-    FROM rbac_permissions p
-    JOIN rbac_resources r ON p.resource_id = r.resource_id
-    JOIN rbac_actions a ON p.action_id = a.action_id
-    JOIN rbac_user_permissions up ON p.permission_id = up.permission_id
-    WHERE up.user_id = ? 
-    AND p.is_active = 1 
-    AND (up.expires_at IS NULL OR up.expires_at > NOW())
-    
-    ORDER BY permission_name
-  `;
-
-  return await query(permissionsQuery, [userId, userId]) as RowDataPacket[];
-}
-
-// =====================================================
-// BACKWARDS COMPATIBILITY HELPERS
-// =====================================================
-
-/**
- * Simplified permission check - uses RBAC system directly
- * Legacy hybrid functionality removed since RBAC is fully enabled
- */
-export async function hybridPermissionCheck(
-  userId: number,
-  userRole: string,
-  permissionName: string,
-  legacyRoles: string[]
-): Promise<boolean> {
-  try {
-    return await hasPermission(userId, permissionName);
-  } catch (error) {
-    console.error('Error in permission check:', error);
-    return false;
-  }
-}
-
-// =====================================================
-// CONTROLLER INTEGRATION EXAMPLES
-// =====================================================
-
-/**
- * Example: Using RBAC in Controller (Direct Approach)
- * 
- * // Before (hardcoded role check):
- * export class AddressController {
- *   static async deleteAddress(req: Request, res: Response) {
- *     const user = (req as any).user;
- *     
- *     if (user.role !== 'manager' && user.role !== 'owner') {
- *       return res.status(403).json({ error: 'Unauthorized' });
- *     }
- *     
- *     // ... business logic
- *   }
- * }
- * 
- * // After (RBAC approach):
- * export class AddressController {
- *   static async deleteAddress(req: Request, res: Response) {
- *     const user = (req as any).user;
- *     
- *     const canDelete = await hasPermission(user.user_id, 'customer_addresses.delete');
- *     if (!canDelete) {
- *       return res.status(403).json({ error: 'Insufficient permissions' });
- *     }
- *     
- *     // ... business logic (same as before)
- *   }
- * }
- * 
- * // Alternative: Middleware approach in routes:
- * router.delete('/:id/addresses/:addressId', 
- *   authenticateToken,
- *   requirePermission('customer_addresses.delete'),
- *   AddressController.deleteAddress  // Controller becomes permission-free
- * );
- */

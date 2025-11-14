@@ -9,7 +9,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import { testConnection } from './config/database';
+import { testConnection, startPoolHealthMonitoring } from './config/database';
 import authRoutes from './routes/auth';
 import customersRoutes from './routes/customers';
 import timeTrackingRoutes from './routes/timeTracking';
@@ -38,8 +38,11 @@ import materialsRoutes from './routes/materials';
 import printRoutes from './routes/print';
 
 // QuickBooks utilities for startup
-import { cleanupExpiredOAuthStates } from './utils/quickbooks/dbManager';
+import { quickbooksRepository } from './repositories/quickbooksRepository';
 import { startQuickBooksCleanupJob } from './jobs/quickbooksCleanup';
+
+// SMB path configuration
+import { SMB_ROOT } from './config/paths';
 
 dotenv.config();
 
@@ -126,7 +129,7 @@ app.use('/order-images', (req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   next();
-}, express.static('/mnt/channelletter', {
+}, express.static(SMB_ROOT, {
   maxAge: '7d',         // 7-day browser caching for performance
   immutable: true,      // Images don't change (same filename = same content)
   fallthrough: false,   // Return 404 if file not found (don't continue to next middleware)
@@ -199,8 +202,11 @@ const startServer = async () => {
       process.exit(1);
     }
 
+    // Start connection pool health monitoring
+    startPoolHealthMonitoring();
+
     // Clean up expired OAuth state tokens on startup
-    await cleanupExpiredOAuthStates();
+    await quickbooksRepository.cleanupExpiredOAuthStates();
 
     // Start QuickBooks cleanup job (runs daily at 2 AM)
     startQuickBooksCleanupJob();

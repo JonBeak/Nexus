@@ -1,15 +1,19 @@
-// File Clean up Finished: Nov 13, 2025
+// File Clean up Finished: Nov 14, 2025
+// Previous cleanup: Nov 13, 2025
 // Changes made:
 // 1. Removed unused RBAC imports (getUserPermissions, hasPermission)
 // 2. Implemented comprehensive failed login tracking with failure reasons
 // 3. Added username_attempted field to successful login logs for consistency
 // 4. Fixed deprecated req.connection.remoteAddress to req.socket.remoteAddress
+// Current cleanup (Nov 14, 2025):
+// 5. Migrated all 7 database calls from pool.execute() to query() helper for consistency and performance monitoring
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { pool } from '../config/database';
+import { query } from '../config/database';
 import { User } from '../types';
+import { RowDataPacket } from 'mysql2';
 
 const DEFAULT_REFRESH_TOKEN_TTL = 48 * 60 * 60 * 1000; // 48 hours fallback
 
@@ -66,15 +70,13 @@ export const login = async (req: Request, res: Response) => {
     const userAgent = req.headers['user-agent'] || 'unknown';
 
     // Get user from database
-    const [rows] = await pool.execute(
+    const users = await query(
       'SELECT * FROM users WHERE username = ? AND is_active = true',
       [username]
-    );
-
-    const users = rows as User[];
+    ) as User[];
     if (users.length === 0) {
       // Log failed login - user not found
-      await pool.execute(
+      await query(
         'INSERT INTO login_logs (username_attempted, ip_address, user_agent, login_time, login_successful, failure_reason) VALUES (?, ?, ?, NOW(), 0, ?)',
         [username, clientIp, userAgent, 'User not found or inactive']
       );
@@ -87,7 +89,7 @@ export const login = async (req: Request, res: Response) => {
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
     if (!isValidPassword) {
       // Log failed login - invalid password
-      await pool.execute(
+      await query(
         'INSERT INTO login_logs (user_id, username_attempted, ip_address, user_agent, login_time, login_successful, failure_reason) VALUES (?, ?, ?, ?, NOW(), 0, ?)',
         [user.user_id, username, clientIp, userAgent, 'Invalid password']
       );
@@ -110,13 +112,13 @@ export const login = async (req: Request, res: Response) => {
     const refreshTokenExpiresAt = buildRefreshTokenExpiry();
 
     // Store refresh token in database
-    await pool.execute(
+    await query(
       'UPDATE users SET refresh_token = ?, refresh_token_expires_at = ?, last_login = NOW() WHERE user_id = ?',
       [refreshToken, refreshTokenExpiresAt, user.user_id]
     );
 
     // Log the successful login activity
-    await pool.execute(
+    await query(
       'INSERT INTO login_logs (user_id, username_attempted, ip_address, user_agent, login_time, login_successful) VALUES (?, ?, ?, ?, NOW(), 1)',
       [user.user_id, username, clientIp, userAgent]
     );
@@ -157,12 +159,10 @@ export const refreshToken = async (req: Request, res: Response) => {
     }
 
     // Find user with this refresh token
-    const [rows] = await pool.execute(
+    const users = await query(
       'SELECT * FROM users WHERE refresh_token = ? AND refresh_token_expires_at > NOW() AND is_active = true',
       [refreshToken]
-    );
-
-    const users = rows as User[];
+    ) as User[];
     if (users.length === 0) {
       return res.status(401).json({ error: 'Invalid or expired refresh token' });
     }
@@ -185,7 +185,7 @@ export const refreshToken = async (req: Request, res: Response) => {
     const refreshTokenExpiresAt = buildRefreshTokenExpiry();
 
     // Update refresh token in database
-    await pool.execute(
+    await query(
       'UPDATE users SET refresh_token = ?, refresh_token_expires_at = ? WHERE user_id = ?',
       [newRefreshToken, refreshTokenExpiresAt, user.user_id]
     );

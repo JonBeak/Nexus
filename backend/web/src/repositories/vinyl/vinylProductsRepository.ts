@@ -1,3 +1,5 @@
+// File Clean up Finished: Nov 14, 2025
+
 /**
  * Vinyl Products Repository
  * Data access layer for vinyl products catalog operations
@@ -378,24 +380,6 @@ export class VinylProductsRepository {
     return groupedSuppliers;
   }
 
-  /**
-   * Update supplier associations for a product
-   */
-  static async updateProductSuppliers(productId: number, supplierIds: number[]): Promise<void> {
-    // Delete existing associations
-    await query('DELETE FROM product_suppliers WHERE product_id = ?', [productId]);
-
-    // Insert new associations if provided
-    if (supplierIds.length > 0) {
-      const insertSql = 'INSERT INTO product_suppliers (product_id, supplier_id, is_primary) VALUES ?';
-      const values = supplierIds.map((supplierId, index) => [
-        productId,
-        supplierId,
-        index === 0 // First supplier is primary
-      ]);
-      await query(insertSql, [values]);
-    }
-  }
 
   /**
    * Get vinyl product statistics
@@ -455,6 +439,7 @@ export class VinylProductsRepository {
 
   /**
    * Find or create product from inventory data
+   * Returns both the product ID and whether it was newly created
    */
   static async findOrCreateProductFromInventory(inventoryData: {
     brand: string;
@@ -463,7 +448,7 @@ export class VinylProductsRepository {
     colour_name?: string;
     width?: number;
     created_by?: number;
-  }): Promise<number> {
+  }): Promise<{ productId: number; created: boolean }> {
     // Try to find existing product
     let sql = `
       SELECT product_id
@@ -486,7 +471,7 @@ export class VinylProductsRepository {
     const existing = await query(sql, searchParams) as any[];
 
     if (existing.length > 0) {
-      return existing[0].product_id;
+      return { productId: existing[0].product_id, created: false };
     }
 
     // Create new product
@@ -501,56 +486,10 @@ export class VinylProductsRepository {
       updated_by: inventoryData.created_by || undefined
     };
 
-    return await this.createVinylProduct(productData);
+    const newProductId = await this.createVinylProduct(productData);
+    return { productId: newProductId, created: true };
   }
 
-  /**
-   * Sync product changes to related inventory items
-   */
-  private static async syncProductChangesToInventory(
-    productId: number,
-    productData: Partial<VinylProductData>
-  ): Promise<void> {
-    // Get the current product to know what to sync
-    const product = await this.getVinylProductById(productId);
-    if (!product) {
-      return;
-    }
-
-    // Build update query for matching inventory items
-    const fields: string[] = [];
-    const params: any[] = [];
-
-    if (productData.colour_number !== undefined) {
-      fields.push('colour_number = ?');
-      params.push(productData.colour_number);
-    }
-
-    if (productData.colour_name !== undefined) {
-      fields.push('colour_name = ?');
-      params.push(productData.colour_name);
-    }
-
-    if (fields.length === 0) {
-      return; // Nothing to sync
-    }
-
-    fields.push('updated_at = NOW()');
-
-    // Add WHERE clause parameters
-    params.push(product.brand, product.series);
-
-    const sql = `
-      UPDATE vinyl_inventory
-      SET ${fields.join(', ')}
-      WHERE brand = ? AND series = ?
-        AND (colour_number = ? OR (colour_number IS NULL AND ? IS NULL))
-    `;
-
-    params.push(product.colour_number || null, product.colour_number || null);
-
-    await query(sql, params);
-  }
 
   /**
    * Check if vinyl product exists
@@ -559,19 +498,5 @@ export class VinylProductsRepository {
     const sql = 'SELECT 1 FROM vinyl_products WHERE product_id = ? LIMIT 1';
     const result = await query(sql, [productId]) as any[];
     return result.length > 0;
-  }
-
-  /**
-   * Get products by brand
-   */
-  static async getProductsByBrand(brand: string): Promise<VinylProduct[]> {
-    return this.getVinylProducts({ brand });
-  }
-
-  /**
-   * Get active products only
-   */
-  static async getActiveProducts(): Promise<VinylProduct[]> {
-    return this.getVinylProducts({ is_active: true });
   }
 }

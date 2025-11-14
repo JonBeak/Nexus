@@ -1,4 +1,7 @@
-import { pool } from '../config/database';
+// File Clean up Finished: Nov 14, 2025
+// Status: No dead code found - legacy methods already removed (getEstimateGroups, createGroup)
+// Migrated to query() helper: Nov 14, 2025
+import { query } from '../config/database';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 export interface EstimateFilters {
@@ -51,13 +54,13 @@ export class JobEstimationRepository {
     }
     
     sql += ` ORDER BY updated_at DESC LIMIT ${parseInt(limit.toString())}`;
-    
-    const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
+
+    const rows = await query(sql, params) as RowDataPacket[];
     return rows;
   }
 
   async getEstimateById(id: number): Promise<RowDataPacket | null> {
-    const [estimateRows] = await pool.execute<RowDataPacket[]>(
+    const estimateRows = await query(
       `SELECT je.*, c.company_name as customer_name,
         COALESCE(tr.tax_percent, 1.0) as tax_rate
        FROM job_estimates je
@@ -71,7 +74,7 @@ export class JobEstimationRepository {
        LEFT JOIN tax_rules tr ON pt.tax_name = tr.tax_name AND tr.is_active = 1
        WHERE je.id = ?`,
       [id]
-    );
+    ) as RowDataPacket[];
 
     return estimateRows.length > 0 ? estimateRows[0] : null;
   }
@@ -79,33 +82,33 @@ export class JobEstimationRepository {
   // Legacy getEstimateGroups method removed - Phase 4/5 uses grid-data endpoints instead
 
   async createEstimate(data: EstimateData, jobCode: string, userId: number): Promise<number> {
-    const [result] = await pool.execute<ResultSetHeader>(
-      `INSERT INTO job_estimates 
-       (job_code, customer_id, estimate_name, created_by, updated_by) 
+    const result = await query(
+      `INSERT INTO job_estimates
+       (job_code, customer_id, estimate_name, created_by, updated_by)
        VALUES (?, ?, ?, ?, ?)`,
       [jobCode, data.customer_id, data.estimate_name, userId, userId]
-    );
-    
+    ) as ResultSetHeader;
+
     return result.insertId;
   }
 
   async updateEstimate(id: number, data: EstimateData, userId: number): Promise<boolean> {
-    const [result] = await pool.execute<ResultSetHeader>(
-      `UPDATE job_estimates 
+    const result = await query(
+      `UPDATE job_estimates
        SET customer_id = ?, estimate_name = ?, status = ?, notes = ?, updated_by = ?
        WHERE id = ?`,
       [data.customer_id, data.estimate_name, data.status, data.notes, userId, id]
-    );
-    
+    ) as ResultSetHeader;
+
     return result.affectedRows > 0;
   }
 
   async deleteEstimate(id: number): Promise<boolean> {
-    const [result] = await pool.execute<ResultSetHeader>(
+    const result = await query(
       `DELETE FROM job_estimates WHERE id = ?`,
       [id]
-    );
-    
+    ) as ResultSetHeader;
+
     return result.affectedRows > 0;
   }
 
@@ -126,16 +129,16 @@ export class JobEstimationRepository {
       params.push(category);
     }
 
-    const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
+    const rows = await query(sql, params) as RowDataPacket[];
     return rows;
   }
 
 
   async getJobCodeCount(dateStr: string): Promise<number> {
-    const [countResult] = await pool.execute<RowDataPacket[]>(
+    const countResult = await query(
       `SELECT COUNT(*) as count FROM job_estimates WHERE job_code LIKE ?`,
       [`CH${dateStr}%`]
-    );
+    ) as RowDataPacket[];
     return countResult[0].count;
   }
 }

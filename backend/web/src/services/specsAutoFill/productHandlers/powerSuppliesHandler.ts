@@ -1,15 +1,23 @@
-// File Clean up Finished: Nov 13, 2025
+// File Clean up Finished: Nov 14, 2025
+// Previous cleanup: Nov 13, 2025
+// Current cleanup (Nov 14, 2025):
+// - Migrated from direct database connection.execute() to PowerSupplyService layer
+// - Now follows 3-layer architecture for power supply lookups
+// - Removed direct SQL queries in favor of service methods
 /**
  * Power Supplies Product Handler
  *
  * Auto-fills specifications for power supply products:
  * - Parses multiple power supplies from calculation display
  * - Creates dynamic specification rows for each power supply
- * - Matches power supply types with database (with fuzzy matching)
+ * - Matches power supply types with database via PowerSupplyService (with fuzzy matching)
  * - Auto-fills count and type for each power supply
  */
 
 import { AutoFillInput, ParsedData, PowerSupplyData } from '../types';
+import { PowerSupplyService } from '../../powerSupplyService';
+
+const powerSupplyService = new PowerSupplyService();
 
 /**
  * Parse multiple power supply entries from calculation display
@@ -124,49 +132,30 @@ export async function autoFillPowerSupplies(
     filledFields.push(countField);
     console.log(`[Specs Auto-Fill] ✓ Filled ${countField} = "${ps.count}"`);
 
-    // Try to match power supply type with database if connection available
-    if (connection) {
-      try {
-        // Query database for matching power supply
-        // The extracted type might be "Speedbox 60W" and we need to match "Speedbox 60W (50W, 12V)"
-        // So we add " (" and look for options that start with that pattern
-        const searchPattern = `${ps.type} (%`;
-        const [psRows] = await connection.execute(
-          `SELECT CONCAT(transformer_type, ' (', watts, 'W, ', volts, 'V)') AS full_name
-           FROM power_supplies
-           WHERE is_active = 1
-           AND CONCAT(transformer_type, ' (', watts, 'W, ', volts, 'V)') LIKE ?
-           LIMIT 1`,
-          [searchPattern]
-        );
+    // Try to match power supply type with database via PowerSupplyService
+    try {
+      // Use PowerSupplyService for fuzzy matching instead of direct SQL
+      const matchedType = await powerSupplyService.findPowerSupplyByFuzzyMatch(ps.type);
 
-        if (psRows && psRows.length > 0) {
-          const matchedType = psRows[0].full_name;
-          const typeField = `row${rowNum}_ps_type`;
-          specs[typeField] = matchedType;
-          filledFields.push(typeField);
-          console.log(`[Specs Auto-Fill] ✓ Filled ${typeField} = "${matchedType}" (matched from "${ps.type}")`);
-        } else {
-          // No match found, use extracted type as-is
-          const typeField = `row${rowNum}_ps_type`;
-          specs[typeField] = ps.type;
-          filledFields.push(typeField);
-          warnings.push(`Power supply type "${ps.type}" extracted but no exact match found in database`);
-          console.warn(`[Specs Auto-Fill] ⚠ PS type "${ps.type}" extracted but no match in DB`);
-        }
-      } catch (error) {
-        console.error('[Specs Auto-Fill] Error matching power supply type:', error);
-        // Fall back to using extracted type
+      if (matchedType) {
+        const typeField = `row${rowNum}_ps_type`;
+        specs[typeField] = matchedType;
+        filledFields.push(typeField);
+        console.log(`[Specs Auto-Fill] ✓ Filled ${typeField} = "${matchedType}" (matched from "${ps.type}")`);
+      } else {
+        // No match found, use extracted type as-is
         const typeField = `row${rowNum}_ps_type`;
         specs[typeField] = ps.type;
         filledFields.push(typeField);
+        warnings.push(`Power supply type "${ps.type}" extracted but no exact match found in database`);
+        console.warn(`[Specs Auto-Fill] ⚠ PS type "${ps.type}" extracted but no match in DB`);
       }
-    } else {
-      // No connection available, use extracted type
+    } catch (error) {
+      console.error('[Specs Auto-Fill] Error matching power supply type:', error);
+      // Fall back to using extracted type
       const typeField = `row${rowNum}_ps_type`;
       specs[typeField] = ps.type;
       filledFields.push(typeField);
-      console.log(`[Specs Auto-Fill] ✓ Filled ${typeField} = "${ps.type}"`);
     }
   }
 

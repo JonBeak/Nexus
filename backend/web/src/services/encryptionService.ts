@@ -1,3 +1,9 @@
+// File Clean up Finished: Nov 14, 2025
+// Changes:
+// - Removed dead code: rotateKey() method (25 lines, never used)
+// - Removed dead code: hash() method (3 lines, never used, bcrypt handles password hashing)
+// - Reduced file size from 196 lines to 165 lines (15.8% reduction)
+
 /**
  * Encryption Service
  * Provides AES-256-GCM encryption for sensitive data storage
@@ -156,39 +162,6 @@ export class EncryptionService {
       console.error('Encryption self-test failed:', error);
       return false;
     }
-  }
-
-  /**
-   * Rotate encryption key (requires re-encrypting all data)
-   * This is a helper method for key rotation operations
-   */
-  public async rotateKey(
-    oldSalt: string,
-    newSalt: string,
-    reencryptCallback: (oldService: EncryptionService, newService: EncryptionService) => Promise<void>
-  ): Promise<void> {
-    // Create new instance with new salt
-    const oldEncryptionSalt = this.encryptionSalt;
-    const oldMasterKey = this.masterKey;
-
-    // Update to new salt
-    this.encryptionSalt = newSalt;
-    this.masterKey = this.deriveKey();
-
-    // Create temporary old service for decryption
-    const oldService = new EncryptionService();
-    oldService.encryptionSalt = oldEncryptionSalt;
-    oldService.masterKey = oldMasterKey;
-
-    // Execute callback to re-encrypt all data
-    await reencryptCallback(oldService, this);
-  }
-
-  /**
-   * Hash a value using SHA-256 (for non-reversible storage)
-   */
-  public hash(value: string): string {
-    return crypto.createHash('sha256').update(value).digest('hex');
   }
 }
 

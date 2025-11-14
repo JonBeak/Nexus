@@ -4,11 +4,15 @@
  *
  * Created: Nov 13, 2025
  * Part of cleanup: Consolidating /auth/users and /accounts/users endpoints
+ *
+ * File Clean up Finished: Nov 14, 2025
+ * Changes: Added cache invalidation when user role changes (bug fix)
  */
 
 import { userRepository, UserFields, BasicUserFields } from '../repositories/userRepository';
 import { RowDataPacket } from 'mysql2';
 import bcrypt from 'bcrypt';
+import { clearUserPermissionCache } from '../middleware/rbac';
 
 export interface CreateUserData {
   first_name: string;
@@ -192,6 +196,11 @@ export class UserService {
 
     // Update user in database
     await userRepository.updateUser(userId, userData);
+
+    // Clear permission cache if role changed (ensures immediate permission updates)
+    if (existingUser.role !== userData.role) {
+      clearUserPermissionCache(userId);
+    }
 
     // Log audit trail
     await userRepository.createAuditEntry({

@@ -1,3 +1,4 @@
+// File Clean up Started: 2025-11-14
 /**
  * Print Controller
  * Handles server-side printing of Order Forms
@@ -11,6 +12,7 @@ import { RowDataPacket } from 'mysql2/promise';
 import { PDFDocument } from 'pdf-lib';
 import fs from 'fs/promises';
 import os from 'os';
+import { SMB_ROOT, ORDERS_FOLDER, FINISHED_FOLDER } from '../config/paths';
 
 /**
  * Merge multiple PDFs into a single document
@@ -107,10 +109,6 @@ async function getOrderFormPaths(orderNumber: number): Promise<{
   }
 
   // Build folder paths using same logic as pdfGenerationService
-  const SMB_ROOT = '/mnt/channelletter';
-  const ORDERS_FOLDER = 'Orders';
-  const FINISHED_FOLDER = '1Finished';
-
   let basePath: string;
   if (order.is_migrated) {
     // Legacy orders: use old paths (root or root/1Finished)

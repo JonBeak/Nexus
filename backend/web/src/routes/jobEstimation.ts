@@ -1,38 +1,36 @@
+// File Clean up Finished: Nov 14, 2025
+// Changes:
+//   - Removed 6 legacy CRUD endpoints (getEstimates, createEstimate, updateEstimate, deleteEstimate, bulkCreateEstimate, getEstimateById)
+//   - Removed test route
+//   - Removed inline debug logging middleware
+//   - Organized routes into clear functional sections
+//   - Added architecture documentation
+//
+// Architecture: This file implements the NEW versioning-based job estimation system
+// Old endpoints removed - system now uses: Jobs → Estimates (versions) → Grid Data
+// Frontend uses: jobVersioningApi.ts for all estimation operations
+
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import * as jobEstimationController from '../controllers/jobEstimationController';
-// Refactored focused controllers
+// New architecture controllers (versioning system)
 import * as jobController from '../controllers/jobController';
 import * as estimateController from '../controllers/estimateController';
-import * as editLockController from '../controllers/editLockController';
 import * as estimateStatusController from '../controllers/estimateStatusController';
 
 const router = Router();
 
-// Job Estimates
-router.get('/estimates', authenticateToken, jobEstimationController.getEstimates);
-router.get('/estimates/:id', authenticateToken, jobEstimationController.getEstimateById);
-router.post('/estimates', authenticateToken, jobEstimationController.createEstimate);
-router.post('/estimates/bulk-create', authenticateToken, jobEstimationController.bulkCreateEstimate);
-router.put('/estimates/:id', authenticateToken, jobEstimationController.updateEstimate);
-router.delete('/estimates/:id', authenticateToken, jobEstimationController.deleteEstimate);
-
-// Field prompts for product types - TEST ROUTE
-router.get('/test-route', (req, res) => {
-  res.json({ message: 'Test route works!' });
-});
-
+// =============================================
+// TEMPLATES & FIELD PROMPTS (Legacy support for dynamic form generation)
+// =============================================
 
 // Batch endpoint for all templates (must come before specific productTypeId route)
 router.get('/templates/all', authenticateToken, jobEstimationController.getAllFieldPrompts);
 router.get('/field-prompts/:productTypeId', authenticateToken, jobEstimationController.getFieldPrompts);
 
-// Legacy routes removed - Phase 4/5 uses grid-data endpoints instead
-
 // Product Types and Templates
 router.get('/product-types', authenticateToken, jobEstimationController.getProductTypes);
 router.get('/product-types/:productTypeId/field-prompts', authenticateToken, jobEstimationController.getFieldPrompts);
-// Legacy calculation and export routes removed - Phase 4/5 uses new grid-based system
 
 // =============================================
 // NEW VERSIONING WORKFLOW ENDPOINTS
@@ -67,21 +65,15 @@ router.post('/estimates/:estimateId/clear-all', authenticateToken, estimateContr
 router.post('/estimates/:estimateId/clear-empty', authenticateToken, estimateController.clearEmptyItems);
 router.post('/estimates/:estimateId/add-section', authenticateToken, estimateController.addTemplateSection);
 
-// Edit Lock System - Using EditLockController
-router.post('/estimates/:estimateId/acquire-lock', authenticateToken, editLockController.acquireEditLock);
-router.post('/estimates/:estimateId/release-lock', authenticateToken, editLockController.releaseEditLock);
-router.get('/estimates/:estimateId/lock-status', authenticateToken, editLockController.checkEditLock);
-router.post('/estimates/:estimateId/override-lock', authenticateToken, editLockController.overrideEditLock);
-// Phase 4: Grid Data Persistence - Using EditLockController
-router.post('/estimates/:estimateId/grid-data', authenticateToken, editLockController.saveGridData);
-router.get('/estimates/:estimateId/grid-data', 
-  (req, res, next) => { 
-    console.log('🚨 ROUTE HIT: /estimates/:estimateId/grid-data', req.params.estimateId); 
-    next(); 
-  },
-  authenticateToken, 
-  editLockController.loadGridData
-);
+// Edit Lock System - REMOVED Nov 14, 2025 (Phase 1 Cleanup)
+// Legacy estimate-specific locks removed (never used - 0 locks in job_estimates columns)
+// Now using generic lock system via /api/locks endpoints (resource_locks table - 331 active locks)
+// Frontend: lockService.ts + useEditLock hook in GridJobBuilderRefactored.tsx
+// Frontend: lockService.ts + useVersionLocking hook in VersionManager.tsx
+
+// Phase 4: Grid Data Persistence - Using EstimateController (moved from editLockController Nov 14, 2025)
+router.post('/estimates/:estimateId/grid-data', authenticateToken, estimateController.saveGridData);
+router.get('/estimates/:estimateId/grid-data', authenticateToken, estimateController.loadGridData);
 
 // Enhanced Status System - Using EstimateStatusController
 router.post('/estimates/:estimateId/send', authenticateToken, estimateStatusController.sendEstimate);

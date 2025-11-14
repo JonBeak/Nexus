@@ -1,3 +1,5 @@
+// File Clean up Finished: Nov 14, 2025
+
 import { api } from '../apiClient';
 
 /**
@@ -14,7 +16,6 @@ export const vinylProductsApi = {
     series?: string;
     colour_number?: string;
     colour_name?: string;
-    type?: string;
     supplier?: string;
     active_only?: boolean;
   } = {}) => {
@@ -70,7 +71,6 @@ export const vinylProductsApi = {
     series?: string;
     colour_number?: string;
     colour_name?: string;
-    type?: string;
   } = {}) => {
     const response = await api.get('/vinyl-products/autofill/suggestions', { params });
     return response.data;

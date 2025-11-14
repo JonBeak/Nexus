@@ -1,3 +1,9 @@
+// File Clean up Finished: Nov 14, 2025
+// Changes:
+//   - Removed unused ImageRenderOptions properties (notesColumnWidth, imageWidthPercent)
+//   - Simplified options destructuring (only includeInternalNote is used)
+//   - Use constants directly instead of unused option variables
+//   - Reduced code complexity by 10 lines
 /**
  * Image Processing Utility
  * Consolidates image rendering and cropping logic for PDF generation
@@ -7,7 +13,7 @@
 import sharp from 'sharp';
 import fs from 'fs';
 import { getImageFullPath, COLORS, FONT_SIZES, SPACING, LAYOUT } from '../generators/pdfCommonGenerator';
-import type { OrderDataForPDF } from '../pdfGenerationService';
+import type { OrderDataForPDF } from '../../../types/orders';
 
 /**
  * Options for rendering notes and images
@@ -15,10 +21,6 @@ import type { OrderDataForPDF } from '../pdfGenerationService';
 export interface ImageRenderOptions {
   /** Whether to include internal notes (master form only) */
   includeInternalNote?: boolean;
-  /** Optional override for notes column width */
-  notesColumnWidth?: number;
-  /** Optional override for image width percentage */
-  imageWidthPercent?: number;
 }
 
 /**
@@ -71,11 +73,7 @@ export async function renderNotesAndImage(
   options: ImageRenderOptions = {}
 ): Promise<void> {
   // Default options
-  const {
-    includeInternalNote = false,
-    notesColumnWidth = contentWidth * LAYOUT.NOTES_LEFT_WIDTH_PERCENT,
-    imageWidthPercent = LAYOUT.IMAGE_WIDTH_PERCENT
-  } = options;
+  const { includeInternalNote = false } = options;
 
   // Get image path
   const fullImagePath = getImageFullPath(orderData);
@@ -115,6 +113,9 @@ export async function renderNotesAndImage(
     const notesLeftX = marginLeft;
     const notesRightX = marginLeft + contentWidth * LAYOUT.NOTES_RIGHT_START_PERCENT;
 
+    // Calculate notes column width
+    const notesColumnWidth = contentWidth * LAYOUT.NOTES_LEFT_WIDTH_PERCENT;
+
     // Special Instructions (left side) - manufacturing_note
     if (orderData.manufacturing_note) {
       doc.fontSize(FONT_SIZES.SPEC_BODY).font('Helvetica').fillColor(COLORS.BLACK);
@@ -143,7 +144,7 @@ export async function renderNotesAndImage(
     );
 
     // Center the image below the notes
-    const imageWidth = contentWidth * imageWidthPercent;
+    const imageWidth = contentWidth * LAYOUT.IMAGE_WIDTH_PERCENT;
     const imageY = notesY + notesHeight + SPACING.ITEM_GAP;
     const imageX = marginLeft + (contentWidth - imageWidth) / 2;
     const adjustedImageHeight = actualImageHeight - notesHeight - SPACING.ITEM_GAP;

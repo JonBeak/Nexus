@@ -8,6 +8,12 @@
  * - Version retrieval and creation
  * - Draft/final workflow management
  * - Edit permission validation
+ *
+ * Refactored: Nov 14, 2025 (Phase 2: Architectural refactoring)
+ * Changes:
+ *   - Removed all direct pool.execute() calls
+ *   - Database queries moved to estimateRepository
+ *   - Maintained transaction support
  */
 
 import { pool } from '../../config/database';
@@ -15,9 +21,11 @@ import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { EstimateVersionData, EstimateFinalizationData } from '../../interfaces/estimateTypes';
 import { JobCodeGenerator } from '../../utils/jobCodeGenerator';
 import { EstimateDuplicationService } from './estimateDuplicationService';
+import { EstimateRepository } from '../../repositories/estimateRepository';
 
 export class EstimateVersionService {
   private duplicationService = new EstimateDuplicationService();
+  private estimateRepository = new EstimateRepository();
 
   // =============================================
   // VERSION RETRIEVAL AND CREATION
@@ -25,47 +33,7 @@ export class EstimateVersionService {
 
   async getEstimateVersionsByJob(jobId: number): Promise<RowDataPacket[]> {
     try {
-      const [rows] = await pool.execute<RowDataPacket[]>(
-        `SELECT
-          e.id,
-          e.job_id,
-          j.customer_id AS customer_id,
-          e.job_code,
-          e.version_number,
-          e.parent_estimate_id,
-          pe.version_number as parent_version,
-          CAST(e.is_draft AS UNSIGNED) as is_draft,
-          CAST(e.is_active AS UNSIGNED) as is_active,
-          e.status,
-          e.finalized_at,
-          fu.username as finalized_by_name,
-          e.subtotal,
-          e.tax_amount,
-          e.total_amount,
-          e.qb_estimate_id,
-          e.sent_to_qb_at,
-          e.created_at,
-          e.updated_at,
-          e.notes,
-          cu.username as created_by_name,
-          CAST(e.is_sent AS UNSIGNED) as is_sent,
-          CAST(e.is_approved AS UNSIGNED) as is_approved,
-          CAST(e.is_retracted AS UNSIGNED) as is_retracted,
-          j.job_name,
-          j.job_number,
-          c.company_name as customer_name
-         FROM job_estimates e
-         LEFT JOIN job_estimates pe ON e.parent_estimate_id = pe.id
-         LEFT JOIN users fu ON e.finalized_by_user_id = fu.user_id
-         LEFT JOIN users cu ON e.created_by = cu.user_id
-         LEFT JOIN jobs j ON e.job_id = j.job_id
-         LEFT JOIN customers c ON j.customer_id = c.customer_id
-         WHERE e.job_id = ?
-         ORDER BY e.version_number ASC`,
-        [jobId]
-      );
-
-      return rows;
+      return await this.estimateRepository.getEstimateVersionsByJobId(jobId);
     } catch (error) {
       console.error('Service error fetching estimate versions:', error);
       throw new Error('Failed to fetch estimate versions');
@@ -79,11 +47,7 @@ export class EstimateVersionService {
       await connection.beginTransaction();
 
       // Get next version number for this job
-      const [versionRows] = await connection.execute<RowDataPacket[]>(
-        'SELECT COALESCE(MAX(version_number), 0) + 1 as next_version FROM job_estimates WHERE job_id = ?',
-        [data.job_id]
-      );
-      const nextVersion = versionRows[0].next_version;
+      const nextVersion = await this.estimateRepository.getNextVersionNumber(data.job_id, connection);
 
       // Generate new job code with version
       const jobCode = JobCodeGenerator.generateVersionedJobCode(nextVersion);
@@ -137,21 +101,20 @@ export class EstimateVersionService {
 
   async saveDraft(estimateId: number, userId: number): Promise<void> {
     try {
-      // Check if estimate is still a draft
-      const [rows] = await pool.execute<RowDataPacket[]>(
-        'SELECT is_draft FROM job_estimates WHERE id = ? AND is_draft = TRUE',
-        [estimateId]
-      );
+      // Validate estimate exists
+      if (!(await this.estimateRepository.estimateExists(estimateId))) {
+        throw new Error('Estimate not found');
+      }
 
-      if (rows.length === 0) {
+      // Check if estimate is still a draft
+      const isDraft = await this.estimateRepository.checkEstimateIsDraft(estimateId);
+
+      if (!isDraft) {
         throw new Error('Cannot save - estimate is already finalized');
       }
 
       // Update timestamp to show it was saved
-      await pool.execute(
-        'UPDATE job_estimates SET updated_by = ?, updated_at = NOW() WHERE id = ?',
-        [userId, estimateId]
-      );
+      await this.estimateRepository.updateEstimateDraftTimestamp(estimateId, userId);
 
     } catch (error) {
       console.error('Service error saving draft:', error);
@@ -161,17 +124,19 @@ export class EstimateVersionService {
 
   async finalizEstimate(estimateId: number, finalizationData: EstimateFinalizationData, userId: number, hasExistingOrdersCheck?: (jobId: number) => Promise<boolean>): Promise<void> {
     try {
-      // Check if estimate is still a draft and get job info for multiple orders check
-      const [rows] = await pool.execute<RowDataPacket[]>(
-        'SELECT e.id, e.is_draft, e.job_id FROM job_estimates e WHERE e.id = ? AND e.is_draft = TRUE',
-        [estimateId]
-      );
-
-      if (rows.length === 0) {
-        throw new Error('Cannot finalize - estimate is already finalized or does not exist');
+      // Validate estimate exists
+      if (!(await this.estimateRepository.estimateExists(estimateId))) {
+        throw new Error('Estimate not found');
       }
 
-      const jobId = rows[0].job_id;
+      // Check if estimate is still a draft and get job info for multiple orders check
+      const estimate = await this.estimateRepository.getEstimateWithJobId(estimateId);
+
+      if (!estimate) {
+        throw new Error('Cannot finalize - estimate is already finalized');
+      }
+
+      const jobId = estimate.job_id;
 
       // Check for multiple orders scenario when finalizing as ordered
       if (finalizationData.status === 'ordered' && hasExistingOrdersCheck) {
@@ -181,54 +146,37 @@ export class EstimateVersionService {
         }
       }
 
-      // Prepare status flag updates based on finalization type
-      let statusUpdates = '';
+      // Prepare status flags based on finalization type
+      const statusFlags: { is_sent?: boolean; is_approved?: boolean } = {};
 
       switch (finalizationData.status) {
         case 'sent':
-          statusUpdates = ', is_sent = 1';
+          statusFlags.is_sent = true;
           break;
         case 'approved':
-          statusUpdates = ', is_approved = 1';
+          statusFlags.is_approved = true;
           break;
         case 'ordered':
-          statusUpdates = '';  // No additional flags for ordered
+          // No additional flags for ordered
           break;
         case 'deactivated':
-          statusUpdates = '';  // No additional flags for deactivated
+          // No additional flags for deactivated
           break;
       }
 
       // Finalize the estimate (make it immutable) with proper boolean flags
-      await pool.execute(
-        `UPDATE job_estimates
-         SET status = ?,
-             is_draft = FALSE,
-             finalized_at = NOW(),
-             finalized_by_user_id = ?,
-             updated_by = ?
-             ${statusUpdates}
-         WHERE id = ?`,
-        [finalizationData.status, userId, userId, estimateId]
+      await this.estimateRepository.updateEstimateFinalization(
+        estimateId,
+        finalizationData.status,
+        userId,
+        statusFlags
       );
 
       // Update job status based on estimate status
       if (finalizationData.status === 'approved') {
-        await pool.execute(
-          `UPDATE jobs j
-           JOIN job_estimates e ON j.job_id = e.job_id
-           SET j.status = 'active'
-           WHERE e.id = ?`,
-          [estimateId]
-        );
+        await this.estimateRepository.updateJobStatusByEstimate(estimateId, 'active');
       } else if (finalizationData.status === 'ordered') {
-        await pool.execute(
-          `UPDATE jobs j
-           JOIN job_estimates e ON j.job_id = e.job_id
-           SET j.status = 'production'
-           WHERE e.id = ?`,
-          [estimateId]
-        );
+        await this.estimateRepository.updateJobStatusByEstimate(estimateId, 'production');
       }
 
     } catch (error) {
@@ -239,12 +187,12 @@ export class EstimateVersionService {
 
   async canEditEstimate(estimateId: number): Promise<boolean> {
     try {
-      const [rows] = await pool.execute<RowDataPacket[]>(
-        'SELECT is_draft FROM job_estimates WHERE id = ?',
-        [estimateId]
-      );
+      // Check existence first
+      if (!(await this.estimateRepository.estimateExists(estimateId))) {
+        return false;
+      }
 
-      return rows.length > 0 && rows[0].is_draft === 1;
+      return await this.estimateRepository.checkEstimateIsDraft(estimateId);
     } catch (error) {
       console.error('Service error checking edit permission:', error);
       return false;

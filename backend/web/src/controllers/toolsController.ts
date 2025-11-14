@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { SMB_ROOT, ORDERS_FOLDER } from '../config/paths';
 
 const SOURCE_DIR = '/home/jon/Nexus/tools/folder-opener';
-const TARGET_DIR = '/mnt/channelletter/NexusTesting/Folder Opener Tool';
+const TARGET_DIR = path.join(SMB_ROOT, ORDERS_FOLDER, 'Folder Opener Tool');
 
 export const copyFolderOpenerToSMB = async (req: Request, res: Response) => {
   try {

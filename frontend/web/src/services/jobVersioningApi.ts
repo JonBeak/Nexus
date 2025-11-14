@@ -77,26 +77,10 @@ export const jobVersioningApi = {
     return response.data;
   },
 
-  // Edit Lock System
-  acquireEditLock: async (estimateId: number) => {
-    const response = await api.post(`/job-estimation/estimates/${estimateId}/acquire-lock`);
-    return response.data;
-  },
-
-  releaseEditLock: async (estimateId: number) => {
-    const response = await api.post(`/job-estimation/estimates/${estimateId}/release-lock`);
-    return response.data;
-  },
-
-  checkEditLock: async (estimateId: number) => {
-    const response = await api.get(`/job-estimation/estimates/${estimateId}/lock-status`);
-    return response.data;
-  },
-
-  overrideEditLock: async (estimateId: number) => {
-    const response = await api.post(`/job-estimation/estimates/${estimateId}/override-lock`);
-    return response.data;
-  },
+  // Edit Lock System - REMOVED Nov 14, 2025
+  // Legacy lock methods removed (acquireEditLock, releaseEditLock, checkEditLock, overrideEditLock)
+  // Now using generic lockService from services/lockService.ts (resource_locks table)
+  // See useVersionLocking hook for current implementation
 
   // Enhanced Status System
   sendEstimate: async (estimateId: number) => {

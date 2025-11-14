@@ -4,6 +4,7 @@
  */
 
 import path from 'path';
+import { SMB_ROOT, ORDERS_FOLDER, FINISHED_FOLDER } from '../../../config/paths';
 
 export type FormType = 'master' | 'customer' | 'shop' | 'packing';
 
@@ -95,12 +96,12 @@ export const LINE_WIDTHS = {
 };
 
 // ============================================
-// CONSTANTS - SMB PATHS
+// CONSTANTS - SMB PATHS (Re-exported from config/paths.ts)
 // ============================================
 export const SMB_PATHS = {
-  ROOT: '/mnt/channelletter',
-  ORDERS_FOLDER: 'Orders',
-  FINISHED_FOLDER: '1Finished',
+  ROOT: SMB_ROOT,
+  ORDERS_FOLDER: ORDERS_FOLDER,
+  FINISHED_FOLDER: FINISHED_FOLDER,
 };
 
 // ============================================

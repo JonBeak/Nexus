@@ -14,8 +14,10 @@ import { pool } from '../../config/database';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { estimateHistoryService } from '../estimateHistoryService';
 import { DynamicTemplateService } from '../dynamicTemplateService';
+import { EstimateRepository } from '../../repositories/estimateRepository';
 
 export class EstimateTemplateService {
+  private estimateRepository = new EstimateRepository();
 
   // =============================================
   // TEMPLATE CREATION FOR NEW ESTIMATES
@@ -404,12 +406,8 @@ export class EstimateTemplateService {
       await connection.commit();
 
       // ✅ SIMPLIFIED: Use existing audit system for Clear Empty logging
-      // Get job_id for history logging
-      const [jobRows] = await pool.execute<RowDataPacket[]>(
-        'SELECT job_id FROM job_estimates WHERE id = ?',
-        [estimateId]
-      );
-      const jobId = jobRows[0]?.job_id;
+      // Get job_id for history logging using repository
+      const jobId = await this.estimateRepository.getJobIdByEstimateId(estimateId);
 
       if (jobId) {
         try {

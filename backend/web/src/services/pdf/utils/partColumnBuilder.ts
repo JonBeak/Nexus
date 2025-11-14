@@ -1,3 +1,9 @@
+// File Clean up Finished: Nov 14, 2025
+// Changes:
+//   - Replaced `any` types with proper `OrderPartForPDF` interface
+//   - Improved type safety for PartColumn interface (parent and subItems)
+//   - Added proper type imports from types/orders.ts
+//   - Enhanced function signature with specific types for better IntelliSense and compile-time checking
 /**
  * Part Column Builder Utility
  *
@@ -9,10 +15,11 @@
  */
 
 import { FormType } from '../generators/pdfCommonGenerator';
+import type { OrderPartForPDF } from '../../../types/orders';
 
 export interface PartColumn {
-  parent: any;
-  subItems: any[];
+  parent: OrderPartForPDF;
+  subItems: OrderPartForPDF[];
 }
 
 /**
@@ -37,10 +44,10 @@ export interface PartColumn {
  * );
  */
 export function buildPartColumns(
-  parts: any[],
+  parts: OrderPartForPDF[],
   formType: FormType,
-  shouldIncludePart: (part: any, formType: FormType) => boolean,
-  shouldStartNewColumn: (part: any) => boolean
+  shouldIncludePart: (part: OrderPartForPDF, formType: FormType) => boolean,
+  shouldStartNewColumn: (part: OrderPartForPDF) => boolean
 ): PartColumn[] {
   const partColumns: PartColumn[] = [];
 
