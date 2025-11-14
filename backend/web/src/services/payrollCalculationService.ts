@@ -1,19 +1,44 @@
+// File Clean up Finished: Nov 13, 2025
+/**
+ * Cleanup Summary (Nov 13, 2025):
+ * - Consolidated getBiWeeklyWageData() and getBiWeeklyWageDataWithOverrides() into single method
+ * - Extracted DEFAULT_OVERTIME_THRESHOLD_HOURS constant (was hardcoded 8)
+ * - Added documentation for provincial_tax (future feature, currently unused)
+ * - Added JSDoc comments with parameter descriptions
+ *
+ * Further Cleanup Opportunities (deferred):
+ * - Consider adding performance optimization for DATE() function in time_entries query
+ * - Verify if PayrollRepository.getAllPayrollSettings() is used, remove if dead code
+ * - Potential database migration to add comment on provincial_tax column
+ */
+
 /**
  * Payroll Calculation Service
- * 
+ *
  * Business logic layer for payroll calculations and time processing
  * Part of Enhanced Three-Layer Architecture: Route → Controller → Service → Repository → Database
- * 
+ *
  * Responsibilities:
  * - Complex payroll time calculations (rounding, breaks, overtime detection)
  * - Wage calculations (regular/overtime/holiday pay, vacation pay)
  * - Payroll adjustment processing with audit trails
  * - Business rule validation and enforcement
- * 
+ *
  * Extracted from wages.ts during refactoring - all calculation logic preserved exactly
  */
 
 import { PayrollRepository } from '../repositories/payrollRepository';
+
+// =============================================
+// CONSTANTS
+// =============================================
+
+/**
+ * Default overtime threshold in hours per day
+ * Used as fallback when overtime_threshold_daily setting is not configured
+ * Standard Canadian employment law: 8 hours/day or 44 hours/week
+ */
+const DEFAULT_OVERTIME_THRESHOLD_HOURS = 8;
 import {
   PayrollSettings,
   PayrollSettingsMap,
@@ -116,7 +141,7 @@ export class PayrollCalculationService implements IPayrollCalculationService {
         payroll_clock_out,
         payroll_break_minutes: entry.break_minutes || 0,
         payroll_total_hours,
-        is_overtime: payroll_total_hours > (settings.overtime_threshold_daily || 8),
+        is_overtime: payroll_total_hours > (settings.overtime_threshold_daily || DEFAULT_OVERTIME_THRESHOLD_HOURS),
         is_holiday: !!entry.holiday_name
       };
     } catch (error) {
@@ -193,8 +218,8 @@ export class PayrollCalculationService implements IPayrollCalculationService {
           
           if (entry.is_holiday) {
             holiday_hours += hours;
-          } else if (hours > (settings.overtime_threshold_daily || 8)) {
-            const overtimeThreshold = settings.overtime_threshold_daily || 8;
+          } else if (hours > (settings.overtime_threshold_daily || DEFAULT_OVERTIME_THRESHOLD_HOURS)) {
+            const overtimeThreshold = settings.overtime_threshold_daily || DEFAULT_OVERTIME_THRESHOLD_HOURS;
             regular_hours += overtimeThreshold;
             overtime_hours += hours - overtimeThreshold;
           } else {
@@ -214,10 +239,16 @@ export class PayrollCalculationService implements IPayrollCalculationService {
         
         // Get deduction overrides for this user
         const userOverrides = overrides[user.user_id] || {};
-        
+
         // Use overrides if available, otherwise default to 0
         const federal_tax = userOverrides.tax || 0;
-        const provincial_tax = 0; // Not currently used in original logic
+
+        // FUTURE FEATURE: Provincial tax calculation
+        // Currently set to 0 as business uses federal tax only
+        // Database column and interfaces maintained for future provincial tax support
+        // See: payroll_deduction_overrides.provincial_tax (cleanup note: Nov 13, 2025)
+        const provincial_tax = 0;
+
         const ei_deduction = userOverrides.ei || 0;
         const cpp_deduction = userOverrides.cpp || 0;
         
@@ -293,69 +324,45 @@ export class PayrollCalculationService implements IPayrollCalculationService {
   // =============================================
   // BI-WEEKLY WAGE DATA CALCULATION
   // =============================================
-  
+
   /**
    * Get comprehensive bi-weekly wage data
    * Orchestrates the complete payroll calculation workflow
+   *
+   * @param startDate - Pay period start date (YYYY-MM-DD)
+   * @param endDate - Pay period end date (YYYY-MM-DD)
+   * @param overrides - Optional deduction overrides (loaded by DeductionService)
+   * @param group - Optional user group filter ('Group A', 'Group B', 'all', or user_id)
+   *
+   * Note: Consolidated from getBiWeeklyWageData() and getBiWeeklyWageDataWithOverrides()
+   * to eliminate code duplication (cleanup Nov 13, 2025)
    */
-  async getBiWeeklyWageData(startDate: string, endDate: string, group?: string): Promise<UserWageData[]> {
-    try {
-      // Get payroll settings
-      const settings = await this.getPayrollSettingsMap();
-      
-      // Get users with wage info
-      const users = await this.payrollRepository.getPayrollUsers(group);
-      
-      // Get time entries for the date range
-      const entries = await this.payrollRepository.getTimeEntries(startDate, endDate);
-      
-      // Process payroll adjustments for each entry
-      const processedEntries = await this.processTimeEntries(entries, settings);
-      
-      // Get deduction overrides (handled by DeductionService, but needed here for calculations)
-      // This will be injected by the controller layer
-      const overrides: DeductionOverrideMap = {};
-      
-      // Calculate wage data
-      const userWageData = await this.calculateWageData(users, processedEntries, settings, overrides);
-      
-      return userWageData;
-    } catch (error) {
-      console.error('Service error getting bi-weekly wage data:', error);
-      throw new Error('Failed to get bi-weekly wage data');
-    }
-  }
-  
-  /**
-   * Calculate wage data with provided overrides
-   * Used when deduction overrides are already loaded by DeductionService
-   */
-  async getBiWeeklyWageDataWithOverrides(
-    startDate: string, 
-    endDate: string, 
-    overrides: DeductionOverrideMap,
+  async getBiWeeklyWageData(
+    startDate: string,
+    endDate: string,
+    overrides: DeductionOverrideMap = {},
     group?: string
   ): Promise<UserWageData[]> {
     try {
       // Get payroll settings
       const settings = await this.getPayrollSettingsMap();
-      
+
       // Get users with wage info
       const users = await this.payrollRepository.getPayrollUsers(group);
-      
+
       // Get time entries for the date range
       const entries = await this.payrollRepository.getTimeEntries(startDate, endDate);
-      
+
       // Process payroll adjustments for each entry
       const processedEntries = await this.processTimeEntries(entries, settings);
-      
-      // Calculate wage data with provided overrides
+
+      // Calculate wage data with provided overrides (empty object if none provided)
       const userWageData = await this.calculateWageData(users, processedEntries, settings, overrides);
-      
+
       return userWageData;
     } catch (error) {
-      console.error('Service error getting bi-weekly wage data with overrides:', error);
-      throw new Error('Failed to get bi-weekly wage data with overrides');
+      console.error('Service error getting bi-weekly wage data:', error);
+      throw new Error('Failed to get bi-weekly wage data');
     }
   }
 }

@@ -1,11 +1,12 @@
+/**
+ * File Clean up Finished: Nov 13, 2025
+ * Changes: Removed duplicate AuthRequest interface definition, now imported from ../types
+ */
+
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { pool } from '../config/database';
-import { User, UserRole, JWTPayload } from '../types';
-
-interface AuthRequest extends Request {
-  user?: User;
-}
+import { User, UserRole, JWTPayload, AuthRequest } from '../types';
 
 export const authenticateToken = async (req: AuthRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers['authorization'];

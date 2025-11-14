@@ -1,15 +1,18 @@
 /**
+ * File Clean up Finished: Nov 13, 2025
+ * Changes: Removed duplicate AuthRequest interface definition, now imported from ../types
+ *
  * Wages Controller
- * 
+ *
  * HTTP request/response handling layer for payroll operations
  * Part of Enhanced Three-Layer Architecture: Route → Controller → Service → Repository → Database
- * 
+ *
  * Responsibilities:
  * - HTTP request validation and parameter extraction
  * - Response formatting and error handling
  * - RBAC permission enforcement (wages.manage permission)
  * - Request routing to appropriate services
- * 
+ *
  * Extracted from wages.ts during refactoring - all endpoints preserved exactly
  */
 
@@ -19,6 +22,7 @@ import { PayrollCalculationService } from '../services/payrollCalculationService
 import { DeductionService } from '../services/deductionService';
 import { PaymentRecordService } from '../services/paymentRecordService';
 import { hasPermission } from '../middleware/rbac';
+import { AuthRequest } from '../types';
 import {
   BiWeeklyWageRequest,
   PayrollUpdateChange,
@@ -27,13 +31,6 @@ import {
   PaymentRecordRequest,
   PayrollSettingsUpdateRequest
 } from '../types/payrollTypes';
-
-interface AuthRequest extends Request {
-  user?: {
-    user_id: number;
-    role: string;
-  };
-}
 
 export class WagesController {
   private payrollRepository: PayrollRepository;
@@ -140,9 +137,10 @@ export class WagesController {
         startDate as string,
         endDate as string
       );
-      
+
       // Get wage data with overrides
-      const userWageData = await this.payrollCalculationService.getBiWeeklyWageDataWithOverrides(
+      // Note: getBiWeeklyWageData now accepts optional overrides parameter (cleanup Nov 13, 2025)
+      const userWageData = await this.payrollCalculationService.getBiWeeklyWageData(
         startDate as string,
         endDate as string,
         overrides,

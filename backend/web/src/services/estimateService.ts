@@ -21,6 +21,7 @@ import { EstimateVersionService } from './estimate/estimateVersionService';
 import { EstimateStatusService } from './estimate/estimateStatusService';
 import { EstimateTemplateService } from './estimate/estimateTemplateService';
 import { EstimateDuplicationService } from './estimate/estimateDuplicationService';
+import { EstimateRepository } from '../repositories/estimateRepository';
 
 export class EstimateService {
 
@@ -29,6 +30,7 @@ export class EstimateService {
   private statusService = new EstimateStatusService();
   private templateService = new EstimateTemplateService();
   private duplicationService = new EstimateDuplicationService();
+  private estimateRepository = new EstimateRepository();
 
   // =============================================
   // ESTIMATE VERSION MANAGEMENT - Delegated to EstimateVersionService
@@ -130,8 +132,34 @@ export class EstimateService {
     );
   }
 
+  // =============================================
+  // ESTIMATE DATA ACCESS - Repository layer
+  // =============================================
 
+  /**
+   * Update estimate notes
+   * @param estimateId - The estimate ID
+   * @param notes - New notes content (null to clear)
+   * @param userId - User making the update
+   */
+  async updateEstimateNotes(estimateId: number, notes: string | null, userId: number): Promise<void> {
+    const updated = await this.estimateRepository.updateEstimateNotes(estimateId, notes, userId);
+    if (!updated) {
+      throw new Error('Failed to update estimate notes');
+    }
+  }
 
-
-
+  /**
+   * Get job ID associated with an estimate
+   * @param estimateId - The estimate ID
+   * @returns Job ID
+   * @throws Error if estimate not found
+   */
+  async getJobIdByEstimateId(estimateId: number): Promise<number> {
+    const jobId = await this.estimateRepository.getJobIdByEstimateId(estimateId);
+    if (jobId === null) {
+      throw new Error('Estimate not found');
+    }
+    return jobId;
+  }
 }

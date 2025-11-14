@@ -122,7 +122,7 @@ export const updateJob = async (req: Request, res: Response) => {
       });
     }
     
-    await versioningService.updateJobName(jobIdNum, job_name.trim(), user?.user_id || (user as any)?.userId);
+    await versioningService.updateJobName(jobIdNum, job_name.trim(), user?.user_id!);
     
     res.json({
       success: true,

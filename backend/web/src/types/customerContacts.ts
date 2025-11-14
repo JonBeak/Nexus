@@ -1,4 +1,8 @@
 /**
+ * File Clean up Finished: Nov 13, 2025
+ * Changes:
+ * - Removed is_primary field from CustomerContact interface
+ *
  * Customer Contacts Type Definitions
  *
  * Defines interfaces for customer contact management system.
@@ -19,7 +23,6 @@ export interface CustomerContact {
   contact_email: string;
   contact_phone?: string;
   contact_role?: string;
-  is_primary: boolean;    // Can have multiple primary contacts per customer - all auto-fill in order creation
   is_active: boolean;
   notes?: string;
   created_at: Date;

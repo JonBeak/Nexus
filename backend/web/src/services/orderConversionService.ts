@@ -25,7 +25,7 @@ import {
 } from '../types/orders';
 import { mapQBItemNameToSpecsDisplayName } from '../utils/qbItemNameMapper';
 import { mapSpecsDisplayNameToTypes } from '../utils/specsTypeMapper';
-import { autoFillSpecifications } from './specsAutoFillService';
+import { autoFillSpecifications } from './specsAutoFill';
 import { orderFolderService } from './orderFolderService';
 import { CustomerContactRepository } from '../repositories/customerContactRepository';
 

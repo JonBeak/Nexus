@@ -1,10 +1,15 @@
+// File Clean up Finished: Nov 13, 2025
+// Changes made:
+// 1. Removed unused RBAC imports (getUserPermissions, hasPermission)
+// 2. Implemented comprehensive failed login tracking with failure reasons
+// 3. Added username_attempted field to successful login logs for consistency
+// 4. Fixed deprecated req.connection.remoteAddress to req.socket.remoteAddress
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { pool } from '../config/database';
 import { User } from '../types';
-import { getUserPermissions, hasPermission } from '../middleware/rbac';
 
 const DEFAULT_REFRESH_TOKEN_TTL = 48 * 60 * 60 * 1000; // 48 hours fallback
 
@@ -56,6 +61,10 @@ export const login = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Username and password required' });
     }
 
+    // Get client info for logging
+    const clientIp = req.ip || req.socket.remoteAddress || (req.headers['x-forwarded-for'] as string) || 'unknown';
+    const userAgent = req.headers['user-agent'] || 'unknown';
+
     // Get user from database
     const [rows] = await pool.execute(
       'SELECT * FROM users WHERE username = ? AND is_active = true',
@@ -64,6 +73,11 @@ export const login = async (req: Request, res: Response) => {
 
     const users = rows as User[];
     if (users.length === 0) {
+      // Log failed login - user not found
+      await pool.execute(
+        'INSERT INTO login_logs (username_attempted, ip_address, user_agent, login_time, login_successful, failure_reason) VALUES (?, ?, ?, NOW(), 0, ?)',
+        [username, clientIp, userAgent, 'User not found or inactive']
+      );
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -72,6 +86,11 @@ export const login = async (req: Request, res: Response) => {
     // Check password
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
     if (!isValidPassword) {
+      // Log failed login - invalid password
+      await pool.execute(
+        'INSERT INTO login_logs (user_id, username_attempted, ip_address, user_agent, login_time, login_successful, failure_reason) VALUES (?, ?, ?, ?, NOW(), 0, ?)',
+        [user.user_id, username, clientIp, userAgent, 'Invalid password']
+      );
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -96,13 +115,10 @@ export const login = async (req: Request, res: Response) => {
       [refreshToken, refreshTokenExpiresAt, user.user_id]
     );
 
-    // Log the login activity
-    const clientIp = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] as string || 'unknown';
-    const userAgent = req.headers['user-agent'] || 'unknown';
-    
+    // Log the successful login activity
     await pool.execute(
-      'INSERT INTO login_logs (user_id, ip_address, user_agent, login_time) VALUES (?, ?, ?, NOW())',
-      [user.user_id, clientIp, userAgent]
+      'INSERT INTO login_logs (user_id, username_attempted, ip_address, user_agent, login_time, login_successful) VALUES (?, ?, ?, ?, NOW(), 1)',
+      [user.user_id, username, clientIp, userAgent]
     );
 
     // Return user data without password and refresh token

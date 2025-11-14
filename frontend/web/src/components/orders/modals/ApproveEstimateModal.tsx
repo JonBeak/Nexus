@@ -1,3 +1,10 @@
+/**
+ * File Clean up Finished: Nov 13, 2025
+ * Changes:
+ * - Removed fallback to getPrimaryContacts() API call (is_primary feature removal)
+ * - Added user-friendly error handling for duplicate email attempts (409 Conflict)
+ */
+
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, AlertTriangle, X, Plus, Trash2 } from 'lucide-react';
 import { apiClient, ordersApi, customerApi, customerContactsApi } from '../../../services/api';
@@ -154,11 +161,11 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
     }
   }, [dueDate, autoCalculatedDate]);
 
-  // Fetch customer contacts and auto-fill primary contacts when modal opens
+  // Fetch customer contacts when modal opens
   useEffect(() => {
     if (isOpen && customerId) {
       // Try to fetch ALL contacts first (requires customers.view permission)
-      // If that fails, fall back to just emails and primary contacts (requires orders.create permission)
+      // If that fails, fall back to just emails (requires orders.create permission)
       customerContactsApi.getContacts(customerId)
         .then(contacts => {
           // Success - we have all contacts
@@ -184,27 +191,24 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
           }
         })
         .catch(error => {
-          console.warn('Could not fetch all contacts (may lack customers.view permission), falling back to primary contacts only:', error);
+          console.warn('Could not fetch all contacts (may lack customers.view permission), falling back to emails only:', error);
 
-          // Fallback: Fetch emails and primary contacts only
-          Promise.all([
-            customerContactsApi.getEmails(customerId),
-            customerContactsApi.getPrimaryContacts(customerId)
-          ])
-            .then(([emails, primaryContacts]) => {
+          // Fallback: Fetch emails only
+          customerContactsApi.getEmails(customerId)
+            .then(emails => {
               setContactEmails(emails || []);
-              setAllContacts(primaryContacts || []);
+              setAllContacts([]);
 
-              // Check if there are any contacts
-              if (primaryContacts && primaryContacts.length > 0) {
-                // Has contacts - start with existing contact mode but empty dropdown
+              // Check if there are any emails
+              if (emails && emails.length > 0) {
+                // Has emails - start with existing contact mode but empty dropdown
                 setPointPersons([{
                   id: `empty-${Date.now()}`,
                   mode: 'existing' as const,
                   contact_email: ''
                 }]);
               } else {
-                // No contacts - start with custom mode and save enabled by default
+                // No emails - start with custom mode and save enabled by default
                 setPointPersons([{
                   id: `empty-${Date.now()}`,
                   mode: 'custom' as const,
@@ -400,8 +404,16 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
       }
     } catch (err: any) {
       console.error('Error creating order:', err);
-      const errorMessage = err.response?.data?.message || err.message || 'Failed to create order';
-      setError(errorMessage);
+
+      // Handle specific error cases
+      if (err.response?.status === 409) {
+        // Duplicate email error
+        const message = err.response?.data?.message || 'A contact with this email already exists for this customer';
+        setError(`${message}. Please use a different email or select the existing contact.`);
+      } else {
+        const errorMessage = err.response?.data?.message || err.message || 'Failed to create order';
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }

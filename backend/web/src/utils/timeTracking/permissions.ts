@@ -1,10 +1,11 @@
+/**
+ * File Clean up Finished: Nov 13, 2025
+ * Changes: Removed unused AuthenticatedRequest export (available in ../../types if needed)
+ */
+
 import { Request, Response } from 'express';
 import { User } from '../../types';
 import { hybridPermissionCheck } from '../../middleware/rbac';
-
-export interface AuthenticatedRequest extends Request {
-  user?: User;
-}
 
 export class TimeTrackingPermissions {
   // =====================================================

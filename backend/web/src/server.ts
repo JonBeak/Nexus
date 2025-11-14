@@ -1,3 +1,9 @@
+/**
+ * File Clean up Finished: Nov 13, 2025
+ * Changes: Removed commented-out imports and route registrations for old/unused routes
+ *          (old vinyl routes, categories, productStandards)
+ */
+
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -10,11 +16,9 @@ import timeTrackingRoutes from './routes/timeTracking';
 import timeManagementRoutes from './routes/timeManagement';
 import wagesRoutes from './routes/wages';
 import accountsRoutes from './routes/accounts';
-// Old vinyl routes (backup)
-// import vinylRoutes from './routes/vinyl';
-// import vinylProductsRoutes from './routes/vinylProducts';
-
-// New vinyl routes (refactored architecture)
+import usersRoutes from './routes/users';  // New properly-architected users endpoint
+import loginLogsRoutes from './routes/loginLogs';  // New properly-architected login logs endpoint (Nov 13, 2025)
+import vacationsRoutes from './routes/vacations';  // New properly-architected vacations endpoint (Nov 13, 2025)
 import vinylRoutes from './routes/vinylNew';
 import vinylProductsRoutes from './routes/vinylProductsNew';
 import suppliersRoutes from './routes/suppliers';
@@ -32,8 +36,6 @@ import ledsRoutes from './routes/leds';
 import powerSuppliesRoutes from './routes/powerSupplies';
 import materialsRoutes from './routes/materials';
 import printRoutes from './routes/print';
-// import categoriesRoutes from './routes/categories';
-// import productStandardsRoutes from './routes/productStandards';
 
 // QuickBooks utilities for startup
 import { cleanupExpiredOAuthStates } from './utils/quickbooks/dbManager';
@@ -82,6 +84,9 @@ app.use('/api/time', timeTrackingRoutes);
 app.use('/api/time-management', timeManagementRoutes);
 app.use('/api/wages', wagesRoutes);
 app.use('/api/accounts', accountsRoutes);
+app.use('/api/users', usersRoutes);  // New properly-architected users endpoint (Nov 13, 2025)
+app.use('/api/login-logs', loginLogsRoutes);  // New properly-architected login logs endpoint (Nov 13, 2025)
+app.use('/api/vacations', vacationsRoutes);  // New properly-architected vacations endpoint (Nov 13, 2025)
 // Vinyl management (refactored with proper 3-layer architecture)
 app.use('/api/vinyl', vinylRoutes);
 app.use('/api/vinyl-products', vinylProductsRoutes);
@@ -100,8 +105,6 @@ app.use('/api/leds', ledsRoutes);
 app.use('/api/power-supplies', powerSuppliesRoutes);
 app.use('/api/materials', materialsRoutes);
 app.use('/api/print', printRoutes);
-// app.use('/api/categories', categoriesRoutes);
-// app.use('/api/product-standards', productStandardsRoutes);
 
 // =============================================
 // STATIC FILE SERVING (Phase 1.5.g)

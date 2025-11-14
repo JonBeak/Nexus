@@ -1,3 +1,4 @@
+// File Clean up Finished: Nov 13, 2025
 /**
  * Vinyl Inventory Service
  * Business logic layer for vinyl inventory management
@@ -6,7 +7,6 @@
 
 import { User } from '../../types';
 import { VinylInventoryRepository } from '../../repositories/vinyl/vinylInventoryRepository';
-import { VinylProductsRepository } from '../../repositories/vinyl/vinylProductsRepository';
 import {
   VinylItem,
   VinylInventoryFilters,
@@ -167,7 +167,7 @@ export class VinylInventoryService {
       const fieldMappings = [
         'brand', 'series', 'colour_number', 'colour_name', 'width',
         'length_yards', 'location', 'supplier_id', 'disposition',
-        'waste_reason', 'storage_user', 'usage_user', 'notes', 'storage_note'
+        'waste_reason', 'storage_user', 'usage_user', 'notes'
       ];
 
       fieldMappings.forEach(field => {
@@ -463,7 +463,7 @@ export class VinylInventoryService {
     }
 
     if (data.disposition !== undefined) {
-      const validDispositions = ['in_stock', 'used', 'waste', 'returned'];
+      const validDispositions = ['in_stock', 'used', 'waste', 'returned', 'damaged'];
       if (!validDispositions.includes(data.disposition)) {
         errors.push('Invalid disposition value');
       }

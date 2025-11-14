@@ -13,7 +13,6 @@
 
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
-import { STORAGE_CONFIG } from '../../../config/storage';
 import type { OrderDataForPDF } from '../pdfGenerationService';
 import {
   FormType,

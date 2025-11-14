@@ -13,11 +13,7 @@ import { pool } from '../../config/database';
 import { RowDataPacket, ResultSetHeader, PoolConnection } from 'mysql2/promise';
 import fs from 'fs/promises';
 import path from 'path';
-import {
-  getOrderStoragePath,
-  STORAGE_CONFIG,
-  ensureDirectory
-} from '../../config/storage';
+import { getOrderStoragePath } from '../../config/storage';
 
 // =============================================
 // TYPES
@@ -170,11 +166,11 @@ class PDFGenerationService {
     // 3. Ensure directory structure exists
     // Master Form goes in order folder root
     const orderFolderRoot = this.getOrderFolderPath(orderData);
-    await ensureDirectory(orderFolderRoot);
+    await fs.mkdir(orderFolderRoot, { recursive: true });
 
     // Other forms go in "Specs" subfolder
     const orderFormsSubfolder = path.join(orderFolderRoot, 'Specs');
-    await ensureDirectory(orderFormsSubfolder);
+    await fs.mkdir(orderFormsSubfolder, { recursive: true });
 
     // Get dynamic filenames
     const filenames = this.getPdfFilenames(orderData);
@@ -301,7 +297,7 @@ class PDFGenerationService {
     const filenames = this.getPdfFilenames(orderData);
 
     // Create archive directory
-    await ensureDirectory(archiveDir);
+    await fs.mkdir(archiveDir, { recursive: true });
 
     // Master and Shop forms are in order folder root
     const rootForms = [

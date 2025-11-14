@@ -1,3 +1,10 @@
+// File Clean up Finished: Nov 13, 2025
+// Changes made:
+// 1. Fixed inconsistent user ID access pattern (user?.user_id || (user as any)?.userId → user.user_id)
+// 2. Removed 8 debug console.log statements for production cleanliness
+// 3. Removed redundant authentication checks (middleware already validates user)
+// 4. Added edit lock validation to saveGridData for security (prevents data races)
+// 5. Ensured consistent AuthRequest type usage with non-null assertion (user!)
 import { Request, Response } from 'express';
 import { AuthRequest } from '../types';
 import { EstimateVersioningService } from '../services/estimateVersioningService';
@@ -11,19 +18,12 @@ const versioningService = new EstimateVersioningService();
 export const acquireEditLock = async (req: Request, res: Response) => {
   try {
     const estimateId = parseInt(req.params.estimateId);
-    const user = (req as AuthRequest).user;
-    
+    const user = (req as AuthRequest).user!;
+
     if (isNaN(estimateId)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid estimate ID'
-      });
-    }
-
-    if (!user || !user.user_id) {
-      return res.status(401).json({
-        success: false,
-        message: 'User authentication required'
       });
     }
 
@@ -54,19 +54,12 @@ export const acquireEditLock = async (req: Request, res: Response) => {
 export const releaseEditLock = async (req: Request, res: Response) => {
   try {
     const estimateId = parseInt(req.params.estimateId);
-    const user = (req as AuthRequest).user;
-    
+    const user = (req as AuthRequest).user!;
+
     if (isNaN(estimateId)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid estimate ID'
-      });
-    }
-
-    if (!user || !user.user_id) {
-      return res.status(401).json({
-        success: false,
-        message: 'User authentication required'
       });
     }
 
@@ -114,19 +107,12 @@ export const checkEditLock = async (req: Request, res: Response) => {
 export const overrideEditLock = async (req: Request, res: Response) => {
   try {
     const estimateId = parseInt(req.params.estimateId);
-    const user = (req as AuthRequest).user;
-    
+    const user = (req as AuthRequest).user!;
+
     if (isNaN(estimateId)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid estimate ID'
-      });
-    }
-
-    if (!user || !user.user_id) {
-      return res.status(401).json({
-        success: false,
-        message: 'User authentication required'
       });
     }
 
@@ -158,15 +144,10 @@ export const overrideEditLock = async (req: Request, res: Response) => {
 // =============================================
 
 export const saveGridData = async (req: Request, res: Response) => {
-  console.log('🚨 BACKEND: saveGridData endpoint HIT!');
   try {
-    const user = (req as AuthRequest).user;
+    const user = (req as AuthRequest).user!;
     const { estimateId } = req.params;
     const { gridRows, total } = req.body;
-
-    console.log('🔍 DEBUG - saveGridData called for estimate:', estimateId);
-    console.log('🔍 DEBUG - gridRows received:', gridRows?.length || 0, 'rows');
-    console.log('🔍 DEBUG - total received:', total);
 
     const estimateIdNum = parseInt(estimateId);
     if (isNaN(estimateIdNum)) {
@@ -177,14 +158,13 @@ export const saveGridData = async (req: Request, res: Response) => {
     }
 
     if (!gridRows || !Array.isArray(gridRows)) {
-      console.log('❌ DEBUG - Invalid gridRows data:', { gridRows, isArray: Array.isArray(gridRows) });
       return res.status(400).json({
         success: false,
         message: 'Grid rows data is required'
       });
     }
 
-    // Check if user can edit this estimate
+    // Check if user can edit this estimate (finalized check)
     const canEdit = await versioningService.canEditEstimate(estimateIdNum);
     if (!canEdit) {
       return res.status(403).json({
@@ -193,7 +173,17 @@ export const saveGridData = async (req: Request, res: Response) => {
       });
     }
 
-    await versioningService.saveGridData(estimateIdNum, gridRows, user?.user_id || (user as any)?.userId, total);
+    // Verify user holds the edit lock
+    const lockStatus = await versioningService.checkEditLock(estimateIdNum);
+    if (!lockStatus.can_edit && lockStatus.editing_user_id !== user.user_id) {
+      return res.status(409).json({
+        success: false,
+        message: `Cannot save grid data - estimate is locked by ${lockStatus.editing_user}`,
+        ...lockStatus
+      });
+    }
+
+    await versioningService.saveGridData(estimateIdNum, gridRows, user.user_id, total);
 
     res.json({
       success: true,
@@ -211,8 +201,7 @@ export const saveGridData = async (req: Request, res: Response) => {
 export const loadGridData = async (req: Request, res: Response) => {
   try {
     const { estimateId } = req.params;
-    console.log('🎯 Controller: Loading grid data for estimate ID:', estimateId);
-    
+
     const estimateIdNum = parseInt(estimateId);
     if (isNaN(estimateIdNum)) {
       return res.status(400).json({
@@ -221,9 +210,7 @@ export const loadGridData = async (req: Request, res: Response) => {
       });
     }
 
-    console.log('🎯 Controller: Calling versioningService.loadGridData');
     const gridRows = await versioningService.loadGridData(estimateIdNum);
-    console.log('🎯 Controller: Got grid rows:', gridRows?.length || 0, 'rows');
 
     res.json({
       success: true,

@@ -172,30 +172,62 @@
 
   <CodeStandards>
     <Backend>
-      <PatternLocation>/home/jon/Nexus/backend/web/src/controllers/</PatternLocation>
-      <Example>
+      <PatternLocation>/home/jon/Nexus/backend/web/src/</PatternLocation>
+      <RepositoryExample>
         <![CDATA[
-import { pool } from '../config/database';
+// Repository Layer - Database Access
+import { query } from '../config/database';
+import { RowDataPacket } from 'mysql2';
+
+export class ExampleRepository {
+  async findById(id: number): Promise<RowDataPacket | null> {
+    const rows = await query(
+      'SELECT * FROM table_name WHERE id = ?',
+      [id]
+    ) as RowDataPacket[];
+    return rows.length > 0 ? rows[0] : null;
+  }
+}
+        ]]>
+      </RepositoryExample>
+      <ServiceExample>
+        <![CDATA[
+// Service Layer - Business Logic
+export class ExampleService {
+  constructor(private repository: ExampleRepository) {}
+
+  async getItemDetails(id: number) {
+    const item = await this.repository.findById(id);
+    if (!item) {
+      throw new Error('Item not found');
+    }
+    // Business logic here
+    return item;
+  }
+}
+        ]]>
+      </ServiceExample>
+      <ControllerExample>
+        <![CDATA[
+// Controller Layer - HTTP Handling
 import { Request, Response } from 'express';
 
 export const exampleController = async (req: Request, res: Response) => {
   try {
-    const [rows] = await pool.execute(
-      'SELECT * FROM table_name WHERE column = ?',
-      [req.params.value]
+    const data = await exampleService.getItemDetails(
+      parseInt(req.params.id)
     );
-    
-    res.json({ success: true, data: rows });
+    res.json({ success: true, data });
   } catch (error) {
-    console.error('Database error:', error);
+    console.error('Controller error:', error);
     res.status(500).json({
       success: false,
-      message: 'Database operation failed'
+      message: error instanceof Error ? error.message : 'Operation failed'
     });
   }
 };
         ]]>
-      </Example>
+      </ControllerExample>
     </Backend>
 
   <Frontend>
@@ -345,7 +377,7 @@ SHOW CREATE TABLE table_name;
 DESCRIBE table_name;
 
 -- Check for dependencies
-SELECT * FROM information_schema.KEY_COLUMN_USAGE 
+SELECT * FROM information_schema.KEY_COLUMN_USAGE
 WHERE REFERENCED_TABLE_NAME = 'table_name';
 
 -- Test with sample data first
@@ -359,6 +391,51 @@ SELECT * FROM table_name LIMIT 10;
       <CredentialsLocation>/home/jon/Nexus/backend/web/.env</CredentialsLocation>
       <PoolConfiguration>/backend/web/src/config/database.ts</PoolConfiguration>
     </ConnectionConfiguration>
+
+    <QueryStandards>
+      <Critical>ALWAYS use the query() helper function from config/database.ts</Critical>
+      <MandatoryPattern>
+        <![CDATA[
+// CORRECT - Use query() helper
+import { query } from '../config/database';
+import { RowDataPacket } from 'mysql2';
+
+async getItemById(id: number): Promise<RowDataPacket | null> {
+  const rows = await query(
+    'SELECT * FROM items WHERE id = ?',
+    [id]
+  ) as RowDataPacket[];
+  return rows.length > 0 ? rows[0] : null;
+}
+
+// WRONG - Do NOT use pool.execute() directly
+import { pool } from '../config/database';
+const [rows] = await pool.execute(...);  // ❌ NEVER DO THIS
+        ]]>
+      </MandatoryPattern>
+
+      <Benefits>
+        <Benefit>Automatic destructuring - returns rows directly, not [rows, fields] tuple</Benefit>
+        <Benefit>Centralized error logging - all database errors logged consistently</Benefit>
+        <Benefit>Cleaner syntax - less boilerplate code</Benefit>
+        <Benefit>No TypeScript generics needed at call sites</Benefit>
+        <Benefit>Single enhancement point for query timing, metrics, retry logic</Benefit>
+        <Benefit>Future-proof - easy to add monitoring, slow query detection, etc.</Benefit>
+      </Benefits>
+
+      <ArchitectureRules>
+        <Rule layer="Repository">ONLY layer that should import and use query() function</Rule>
+        <Rule layer="Service">Call repository methods, NEVER query database directly</Rule>
+        <Rule layer="Controller">Call service methods, NEVER access database or repository</Rule>
+        <Rule layer="Route">Define middleware chains only, NEVER access database</Rule>
+      </ArchitectureRules>
+
+      <MigrationReference>
+        <Document>/home/jon/Nexus/DATABASE_QUERY_STANDARDIZATION_PLAN.md</Document>
+        <Status>In progress - migrating all pool.execute() to query() helper</Status>
+        <Note>Legacy code may still use pool.execute() - update to query() when touching those files</Note>
+      </MigrationReference>
+    </QueryStandards>
   </DatabaseGuidelines>
 
   <QuickReference>

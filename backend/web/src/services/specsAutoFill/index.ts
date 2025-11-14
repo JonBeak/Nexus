@@ -1,0 +1,117 @@
+// File Clean up Finished: Nov 13, 2025
+/**
+ * Specs Auto-Fill Service
+ *
+ * Main orchestrator for intelligently auto-filling SPEC1, SPEC2, SPEC3 values during order conversion
+ * based on estimate data, QB item names, and business rules.
+ *
+ * Flow:
+ * 1. Parse source data (qb_item_name, calculationDisplay, calculationComponents)
+ * 2. Apply product-specific business rules
+ * 3. Auto-fill spec field values
+ * 4. Return updated specifications JSON with logging
+ *
+ * Behavior:
+ * - Non-blocking: Failed parsing leaves fields empty (manual entry)
+ * - Logged: All parsing attempts are logged for debugging
+ * - Extensible: Easy to add new product type rules
+ */
+
+import { AutoFillInput, AutoFillOutput } from './types';
+import { parseSourceData } from './parsers';
+import {
+  autoFillChannelLetters,
+  autoFillLeds,
+  autoFillPowerSupplies,
+  autoFillPushThru,
+  autoFillUL,
+  autoFillExtraWire,
+  autoFillVinylAndDigitalPrint
+} from './productHandlers';
+
+/**
+ * Auto-fill specifications based on estimate data and business rules
+ *
+ * This is the main entry point for the auto-fill service.
+ * It orchestrates parsing, rule application, and field population.
+ */
+export async function autoFillSpecifications(input: AutoFillInput): Promise<AutoFillOutput> {
+  console.log('\n========================================');
+  console.log('🔧 SPECS AUTO-FILL FUNCTION CALLED!!!');
+  console.log('========================================\n');
+  console.log('\n=== SPECS AUTO-FILL START ===');
+  console.log('[Specs Auto-Fill] Input:', {
+    qbItemName: input.qbItemName,
+    specsDisplayName: input.specsDisplayName,
+    calculationDisplay: input.calculationDisplay?.substring(0, 100) + '...',
+    hasComponents: !!input.calculationComponents,
+    isParentOrRegular: input.isParentOrRegular
+  });
+
+  const warnings: string[] = [];
+  const filledFields: string[] = [];
+  const specs = { ...input.currentSpecifications };
+
+  // Parse source data
+  const parsed = parseSourceData(input);
+
+  // Apply product-specific rules
+  switch (input.specsDisplayName) {
+    case 'Front Lit':
+    case 'Halo Lit':
+    case 'Front Lit Acrylic Face':
+    case 'Dual Lit - Single Layer':
+    case 'Dual Lit - Double Layer':
+      autoFillChannelLetters(input, parsed, specs, warnings, filledFields);
+      break;
+
+    case 'LEDs':
+      await autoFillLeds(input, parsed, specs, warnings, filledFields, input.connection);
+      break;
+
+    case 'Power Supplies':
+      await autoFillPowerSupplies(input, parsed, specs, warnings, filledFields, input.connection);
+      break;
+
+    case '3D print':
+      // 3D print uses same logic as channel letters but with different defaults
+      autoFillChannelLetters(input, parsed, specs, warnings, filledFields);
+      break;
+
+    case 'Push Thru':
+    case 'Knockout Box':
+      autoFillPushThru(input, parsed, specs, warnings, filledFields);
+      break;
+
+    case 'Vinyl':
+    case 'Digital Print':
+      autoFillVinylAndDigitalPrint(input, specs, warnings, filledFields);
+      break;
+
+    case 'UL':
+      await autoFillUL(input, specs, warnings, filledFields, input.connection);
+      break;
+
+    case 'Extra Wire':
+      autoFillExtraWire(input, specs, warnings, filledFields);
+      break;
+
+    default:
+      console.log('[Specs Auto-Fill] No auto-fill rules defined for:', input.specsDisplayName);
+  }
+
+  console.log('[Specs Auto-Fill] Summary:', {
+    filledFields: filledFields.length,
+    warnings: warnings.length
+  });
+  console.log('=== SPECS AUTO-FILL END ===\n');
+
+  return {
+    specifications: specs,
+    autoFilledFields: filledFields,
+    warnings
+  };
+}
+
+// Re-export types for convenience
+export type { AutoFillInput, AutoFillOutput } from './types';

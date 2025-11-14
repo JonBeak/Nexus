@@ -292,6 +292,30 @@ export class EstimateVersioningService {
     // Delegate to EstimateService for adding template section
     return this.estimateService.addTemplateSection(estimateId, userId);
   }
+
+  // =============================================
+  // ESTIMATE DATA ACCESS - Delegated to EstimateService/Repository
+  // =============================================
+
+  /**
+   * Update estimate notes
+   * @param estimateId - The estimate ID
+   * @param notes - New notes content (null to clear)
+   * @param userId - User making the update
+   */
+  async updateEstimateNotes(estimateId: number, notes: string | null, userId: number): Promise<void> {
+    return this.estimateService.updateEstimateNotes(estimateId, notes, userId);
+  }
+
+  /**
+   * Get job ID associated with an estimate
+   * @param estimateId - The estimate ID
+   * @returns Job ID
+   * @throws Error if estimate not found
+   */
+  async getJobIdByEstimateId(estimateId: number): Promise<number> {
+    return this.estimateService.getJobIdByEstimateId(estimateId);
+  }
 }
 
 // Export all interfaces for backward compatibility

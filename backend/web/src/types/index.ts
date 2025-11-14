@@ -11,6 +11,17 @@ export interface User {
   refresh_token_expires_at?: Date;
   created_at: Date;
   updated_at: Date;
+  user_group?: string;
+  hourly_rate?: number;
+  overtime_rate_multiplier?: number;
+  vacation_pay_percent?: number;
+  holiday_rate_multiplier?: number;
+  hourly_wage?: number;
+  auto_clock_in?: string;
+  auto_clock_out?: string;
+  last_login?: Date;
+  hire_date?: Date;
+  production_roles?: string[];
 }
 
 export type UserRole = 'production_staff' | 'designer' | 'manager' | 'owner';
@@ -31,6 +42,19 @@ export interface JWTPayload {
   iat?: number;
   exp?: number;
 }
+
+/**
+ * Extract user ID from authenticated user object
+ * @param user - User object from AuthRequest (set by authenticateToken middleware)
+ * @returns User ID
+ * @throws Error if user is undefined or missing user_id
+ */
+export const extractUserId = (user: User | undefined): number => {
+  if (!user?.user_id) {
+    throw new Error('User authentication required');
+  }
+  return user.user_id;
+};
 
 export interface Customer {
   customer_id: number;

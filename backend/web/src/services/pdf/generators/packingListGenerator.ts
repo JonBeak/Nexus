@@ -8,7 +8,6 @@
 
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
-import { STORAGE_CONFIG } from '../../../config/storage';
 import { getPackingItemsForProduct, PackingItem } from '../packingItemsMapper';
 import { combineSpecifications, flattenCombinedSpecs } from '../specificationCombiner';
 import type { OrderDataForPDF } from '../pdfGenerationService';

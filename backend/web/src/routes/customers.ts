@@ -1,3 +1,9 @@
+/**
+ * File Clean up Finished: Nov 13, 2025
+ * Changes:
+ * - Removed /api/customers/:customerId/contacts/primary route
+ */
+
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
@@ -44,24 +50,17 @@ router.get(
   customerContactController.getCustomerContactEmails
 );
 
-// Get primary contacts for customer (auto-fill in order creation)
-router.get(
-  '/:customerId/contacts/primary',
-  requirePermission('orders.create'),
-  customerContactController.getPrimaryCustomerContacts
-);
-
 // Get all contacts for customer
 router.get(
   '/:customerId/contacts',
-  requirePermission('customers.view'),
+  requirePermission('customers.read'),
   customerContactController.getCustomerContacts
 );
 
 // Get single contact by ID
 router.get(
   '/:customerId/contacts/:contactId',
-  requirePermission('customers.view'),
+  requirePermission('customers.read'),
   customerContactController.getCustomerContact
 );
 

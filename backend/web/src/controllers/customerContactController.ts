@@ -1,4 +1,10 @@
 /**
+ * File Clean up Finished: Nov 13, 2025
+ * Changes:
+ * - Removed getPrimaryCustomerContacts() endpoint (is_primary feature removal)
+ * - Added email uniqueness validation to createCustomerContact()
+ * - Added email uniqueness validation to updateCustomerContact()
+ *
  * Customer Contact Controller
  *
  * Handles HTTP requests for customer contact management.
@@ -48,7 +54,7 @@ export const getCustomerContactEmails = async (req: Request, res: Response) => {
  * Get all contacts for customer (with full details)
  * GET /api/customers/:customerId/contacts
  *
- * @permission customers.view
+ * @permission customers.read
  */
 export const getCustomerContacts = async (req: Request, res: Response) => {
   try {
@@ -78,43 +84,10 @@ export const getCustomerContacts = async (req: Request, res: Response) => {
 };
 
 /**
- * Get primary contacts for customer (for auto-fill in order creation)
- * GET /api/customers/:customerId/contacts/primary
- *
- * @permission orders.create
- */
-export const getPrimaryCustomerContacts = async (req: Request, res: Response) => {
-  try {
-    const customerId = parseInt(req.params.customerId);
-
-    if (isNaN(customerId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid customer ID'
-      });
-    }
-
-    const contacts = await CustomerContactRepository.getPrimaryContactsForCustomer(customerId);
-
-    res.json({
-      success: true,
-      contacts,
-      count: contacts.length
-    });
-  } catch (error) {
-    console.error('Error fetching primary customer contacts:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch primary contacts'
-    });
-  }
-};
-
-/**
  * Get contact by ID
  * GET /api/customers/:customerId/contacts/:contactId
  *
- * @permission customers.view
+ * @permission customers.read
  */
 export const getCustomerContact = async (req: Request, res: Response) => {
   try {
@@ -197,6 +170,19 @@ export const createCustomerContact = async (req: Request, res: Response) => {
       });
     }
 
+    // Check if email already exists for this customer
+    const emailExists = await CustomerContactRepository.emailExistsForCustomer(
+      customerId,
+      trimmedEmail
+    );
+
+    if (emailExists) {
+      return res.status(409).json({
+        success: false,
+        message: 'A contact with this email already exists for this customer'
+      });
+    }
+
     // Debug: Log received data
     console.log('📞 Creating contact with data:', {
       customer_id: customerId,
@@ -261,6 +247,28 @@ export const updateCustomerContact = async (req: Request, res: Response) => {
         return res.status(400).json({
           success: false,
           message: 'Invalid email format'
+        });
+      }
+
+      // Check if email already exists for this customer (excluding current contact)
+      const contact = await CustomerContactRepository.getContactById(contactId);
+      if (!contact) {
+        return res.status(404).json({
+          success: false,
+          message: 'Contact not found'
+        });
+      }
+
+      const emailExists = await CustomerContactRepository.emailExistsForCustomer(
+        contact.customer_id,
+        contact_email.trim(),
+        contactId
+      );
+
+      if (emailExists) {
+        return res.status(409).json({
+          success: false,
+          message: 'A contact with this email already exists for this customer'
         });
       }
     }
