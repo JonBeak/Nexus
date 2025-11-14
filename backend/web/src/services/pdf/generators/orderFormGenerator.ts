@@ -13,7 +13,7 @@
 
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
-import type { OrderDataForPDF } from '../pdfGenerationService';
+import type { OrderDataForPDF } from '../../../types/orders';
 import {
   FormType,
   COLORS,

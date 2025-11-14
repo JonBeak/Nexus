@@ -10,7 +10,7 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import { getPackingItemsForProduct, PackingItem } from '../packingItemsMapper';
 import { combineSpecifications, flattenCombinedSpecs } from '../specificationCombiner';
-import type { OrderDataForPDF } from '../pdfGenerationService';
+import type { OrderDataForPDF } from '../../../types/orders';
 import {
   FormType,
   COLORS,

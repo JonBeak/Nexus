@@ -154,7 +154,7 @@ export class CustomerService {
    * Get customer by ID with addresses
    * Business logic: Combine customer and address data, convert boolean fields
    */
-  static async getCustomerById(customerId: number) {
+  static async getCustomerById(customerId: number): Promise<(Customer & { addresses: any[] }) | null> {
     // Delegate database access to repository
     const customer = await customerRepository.getCustomerWithDetails(customerId);
 
@@ -175,7 +175,7 @@ export class CustomerService {
       'drain_holes_yes_or_no',
       'plug_n_play_yes_or_no'
     ];
-    const convertedCustomer = convertBooleanFields(customer, customerBooleanFields);
+    const convertedCustomer = convertBooleanFields(customer, customerBooleanFields) as Customer;
 
     // Business logic: Convert boolean fields for addresses
     const addressBooleanFields = [
