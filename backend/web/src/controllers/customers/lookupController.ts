@@ -18,13 +18,13 @@
 import { Response } from 'express';
 import { AuthRequest } from '../../types';
 import { LookupService } from '../../services/customers/lookupService';
-import { sendErrorResponse } from '../../utils/controllerHelpers';
+import { sendErrorResponse, handleServiceResult } from '../../utils/controllerHelpers';
 
 export class LookupController {
   static async getLedTypes(req: AuthRequest, res: Response) {
     try {
-      const ledTypes = await LookupService.getLedTypes();
-      res.json(ledTypes);
+      const result = await LookupService.getLedTypes();
+      handleServiceResult(res, result);
     } catch (error) {
       console.error('Error fetching LED types:', error);
       sendErrorResponse(res, 'Failed to fetch LED types', 'INTERNAL_ERROR');

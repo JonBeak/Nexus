@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, Plus } from 'lucide-react';
 import { useProductsData } from './hooks/useProductsData';
 import { ProductsTableHeader } from './components/ProductsTableHeader';
@@ -10,13 +10,15 @@ interface ProductsTabProps {
   onShowAddModal: () => void;
   onEditProduct: (product: VinylProduct) => void;
   onDeleteProduct: (id: number) => void;
+  onRefreshReady?: (refreshFn: () => void) => void;
 }
 
 export const ProductsTab: React.FC<ProductsTabProps> = ({
   user,
   onShowAddModal,
   onEditProduct,
-  onDeleteProduct
+  onDeleteProduct,
+  onRefreshReady
 }) => {
   const {
     productsLoading,
@@ -42,6 +44,13 @@ export const ProductsTab: React.FC<ProductsTabProps> = ({
     getStatusOptions,
     filteredAndSortedProducts
   } = useProductsData({ onDeleteProduct });
+
+  // Expose refresh function to parent component
+  useEffect(() => {
+    if (onRefreshReady) {
+      onRefreshReady(refreshProducts);
+    }
+  }, [onRefreshReady, refreshProducts]);
 
   return (
     <div className="space-y-6">

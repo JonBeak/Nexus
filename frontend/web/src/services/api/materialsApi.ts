@@ -10,6 +10,7 @@ export const materialsApi = {
    */
   async getActiveSubstrates(): Promise<string[]> {
     const response = await api.get('/materials/substrates');
-    return response.data.substrates;
+    // Interceptor unwraps { success: true, data: [...] } to just [...]
+    return response.data;
   }
 };

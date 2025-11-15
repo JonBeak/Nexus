@@ -29,9 +29,10 @@ export const MultipleOrdersModal: React.FC<MultipleOrdersModalProps> = ({
   const fetchSuggestedName = useCallback(async () => {
     setSuggestingName(true);
     try {
-      const response = await jobVersioningApi.suggestJobNameSuffix(jobId, originalJobName);
-      if (response.data?.suggestedJobName) {
-        setNewJobName(response.data.suggestedJobName);
+      const data = await jobVersioningApi.suggestJobNameSuffix(jobId, originalJobName);
+      // API interceptor unwraps response, data = { suggestedJobName: string }
+      if (data?.suggestedJobName) {
+        setNewJobName(data.suggestedJobName);
       }
     } catch (error) {
       console.error('Error fetching suggested job name:', error);

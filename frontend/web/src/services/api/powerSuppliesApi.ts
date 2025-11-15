@@ -19,6 +19,7 @@ export const powerSuppliesApi = {
     is_default_ul: boolean;
   }>> {
     const response = await api.get('/power-supplies');
-    return response.data.powerSupplies;
+    // Interceptor unwraps { success: true, data: [...] } to just [...]
+    return response.data;
   }
 };

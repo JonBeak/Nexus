@@ -213,8 +213,8 @@ function renderSpecsInTwoColumns(
   const maxSpecsY = Math.max(leftY, rightY);
   let finalY = maxSpecsY + 5; // Add gap before quantity box
 
-  // Render quantity box under the right column (position it under right specs)
-  finalY = renderQuantityBox(doc, specsQty, rightColumnX, finalY, columnWidth);
+  // Render quantity box under the left column (position it under lowest spec row)
+  finalY = renderQuantityBox(doc, specsQty, leftColumnX, finalY, columnWidth);
 
   return finalY;
 }

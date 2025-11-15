@@ -32,7 +32,7 @@ export const timeSchedulesApi = {
   /**
    * Create holiday
    */
-  createHoliday: async (data: { holiday_name: string; holiday_date: string }) => {
+  createHoliday: async (data: { holiday_name: string; holiday_date: string; overwrite?: boolean }) => {
     const response = await api.post('/time-management/holidays', data);
     return response.data;
   },

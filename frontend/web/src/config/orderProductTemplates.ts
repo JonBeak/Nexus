@@ -783,6 +783,10 @@ export function getCachedPowerSupplies(): PowerSupplyType[] {
  * @param leds - Array of LED types from API
  */
 export function populateLEDOptions(leds: LEDType[]): void {
+  if (!leds || !Array.isArray(leds)) {
+    console.warn('populateLEDOptions called with invalid data:', leds);
+    return;
+  }
   cachedLEDs = leds;
   if (LEDS_TEMPLATE.spec2) {
     LEDS_TEMPLATE.spec2.options = leds.map(led =>
@@ -803,6 +807,10 @@ export function populateLEDOptions(leds: LEDType[]): void {
  * @param powerSupplies - Array of power supply types from API
  */
 export function populatePowerSupplyOptions(powerSupplies: PowerSupplyType[]): void {
+  if (!powerSupplies || !Array.isArray(powerSupplies)) {
+    console.warn('populatePowerSupplyOptions called with invalid data:', powerSupplies);
+    return;
+  }
   cachedPowerSupplies = powerSupplies;
   if (POWER_SUPPLY_TEMPLATE.spec2) {
     POWER_SUPPLY_TEMPLATE.spec2.options = powerSupplies.map(ps =>
@@ -832,6 +840,10 @@ export function getCachedMaterials(): string[] {
  * @param materials - Array of material names from substrate_cut_pricing
  */
 export function populateMaterialOptions(materials: string[]): void {
+  if (!materials || !Array.isArray(materials)) {
+    console.warn('populateMaterialOptions called with invalid data:', materials);
+    return;
+  }
   cachedMaterials = materials;
   if (MATERIAL_TEMPLATE.spec1) {
     MATERIAL_TEMPLATE.spec1.options = materials;

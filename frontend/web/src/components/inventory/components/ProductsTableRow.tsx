@@ -43,11 +43,19 @@ export const ProductsTableRow: React.FC<ProductsTableRowProps> = ({
       </td>
       <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
         <div>
-          {product.suppliers || 'No suppliers'}
-          {product.supplier_details && product.supplier_details.length > 0 && (
-            <div className="text-xs text-gray-400 mt-1">
-              {product.supplier_details.length} supplier{product.supplier_details.length === 1 ? '' : 's'}
+          {Array.isArray(product.suppliers) && product.suppliers.length > 0 ? (
+            <div>
+              {product.suppliers.map((s: any, idx: number) => (
+                <div key={idx} className={idx > 0 ? 'mt-1' : ''}>
+                  {s.supplier_name || s.name}
+                  {(s.is_primary === true || s.is_primary === 1) && <span className="ml-1 text-xs text-purple-600">(Primary)</span>}
+                </div>
+              ))}
             </div>
+          ) : typeof product.suppliers === 'string' ? (
+            product.suppliers
+          ) : (
+            '-'
           )}
         </div>
       </td>

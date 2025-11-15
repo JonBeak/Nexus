@@ -67,10 +67,10 @@ export class DataPersistence {
    */
   async reloadFromBackend(estimateId: number, jobVersioningApi: any): Promise<GridRowCore[]> {
     try {
-      const response = await jobVersioningApi.loadGridData(estimateId);
-      const savedRows = response.data || [];
+      const savedRows = await jobVersioningApi.loadGridData(estimateId);
+      // API interceptor unwraps response, savedRows is the array directly
 
-      if (savedRows.length > 0) {
+      if (savedRows && savedRows.length > 0) {
         const coreRows = savedRows.map((row: any, index: number) => {
           // Derive rowType from backend data
           let rowType: 'main' | 'continuation' | 'subItem';

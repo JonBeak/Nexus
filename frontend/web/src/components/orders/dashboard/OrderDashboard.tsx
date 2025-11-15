@@ -25,9 +25,11 @@ export const OrderDashboard: React.FC = () => {
       setLoading(true);
       setError(null);
       const data = await ordersApi.getOrders(filters);
-      setOrders(data);
+      // Ensure data is an array
+      setOrders(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch orders');
+      setOrders([]); // Reset to empty array on error
       console.error('Error fetching orders:', err);
     } finally {
       setLoading(false);

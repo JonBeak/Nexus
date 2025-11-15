@@ -58,7 +58,8 @@ class LockService {
   async checkLock(resourceType: string, resourceId: string): Promise<LockStatus | null> {
     try {
       const response = await api.get(`/locks/check/${resourceType}/${resourceId}`);
-      return response.data;
+      // Backend uses handleServiceResult which wraps response in { success, data }
+      return response.data.data;
     } catch (error: any) {
       console.error('Error checking lock status:', error);
       return null;

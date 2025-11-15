@@ -61,12 +61,9 @@ export const useProductsData = ({ onDeleteProduct }: UseProductsDataProps): UseP
   }, [loadData]);
 
   const handleDelete = useCallback((id: number) => {
+    // Parent component (VinylInventory) handles the confirmation modal and refresh
     onDeleteProduct(id);
-    // Refresh data after deletion
-    setTimeout(() => {
-      void loadData();
-    }, 100);
-  }, [onDeleteProduct, loadData]);
+  }, [onDeleteProduct]);
 
   return {
     products,

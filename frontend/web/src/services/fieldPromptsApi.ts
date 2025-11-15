@@ -18,12 +18,8 @@ export const fieldPromptsApi = {
    */
   async getAllTemplates(): Promise<Record<number, SimpleProductTemplate>> {
     const response = await api.get('/job-estimation/templates/all');
-
-    if (!response.data.success) {
-      throw new Error(response.data.message || 'Failed to fetch all templates');
-    }
-
-    return response.data.data;
+    // API interceptor unwraps { success: true, data: templates } -> templates directly
+    return response.data;
   },
 
   /**
@@ -31,11 +27,7 @@ export const fieldPromptsApi = {
    */
   async getFieldPrompts(productTypeId: number): Promise<SimpleProductTemplate> {
     const response = await api.get(`/job-estimation/product-types/${productTypeId}/field-prompts`);
-
-    if (!response.data.success) {
-      throw new Error(response.data.message || 'Failed to fetch field prompts');
-    }
-
-    return response.data.data;
+    // API interceptor unwraps { success: true, data: prompts } -> prompts directly
+    return response.data;
   }
 };

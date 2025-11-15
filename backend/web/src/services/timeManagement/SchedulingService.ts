@@ -177,15 +177,23 @@ export class SchedulingService {
       // Fetch holidays
       const holidays = await SchedulingRepository.getActiveHolidays();
 
+      // Format dates to YYYY-MM-DD strings to avoid timezone issues
+      const formattedHolidays = holidays.map(holiday => ({
+        ...holiday,
+        holiday_date: holiday.holiday_date instanceof Date
+          ? holiday.holiday_date.toISOString().split('T')[0]
+          : holiday.holiday_date
+      }));
+
       // Cache result
       if (options.useCache !== false) {
         this.cache.set(cacheKey, {
-          data: holidays,
+          data: formattedHolidays,
           expiry: Date.now() + CACHE_TTL.HOLIDAYS
         });
       }
 
-      return { success: true, data: holidays };
+      return { success: true, data: formattedHolidays };
     } catch (error: any) {
       console.error('Error in getHolidays:', error);
       return {

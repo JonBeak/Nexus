@@ -182,14 +182,14 @@ export class VinylProductsRepository {
         // Delete any existing associations (shouldn't be any for new product, but for consistency)
         await connection.execute('DELETE FROM product_suppliers WHERE product_id = ?', [productId]);
 
-        // Insert new associations
-        const insertSql = 'INSERT INTO product_suppliers (product_id, supplier_id, is_primary) VALUES ?';
-        const values = supplierIds.map((supplierId, index) => [
-          productId,
-          supplierId,
-          index === 0 // First supplier is primary
-        ]);
-        await connection.execute(insertSql, [values]);
+        // Insert new associations one by one
+        for (let index = 0; index < supplierIds.length; index++) {
+          const supplierId = supplierIds[index];
+          await connection.execute(
+            'INSERT INTO product_suppliers (product_id, supplier_id, is_primary) VALUES (?, ?, ?)',
+            [productId, supplierId, index === 0 ? 1 : 0] // First supplier is primary
+          );
+        }
       }
 
       await connection.commit();
@@ -241,13 +241,13 @@ export class VinylProductsRepository {
 
         // Insert new associations if provided
         if (supplierIds.length > 0) {
-          const insertSql = 'INSERT INTO product_suppliers (product_id, supplier_id, is_primary) VALUES ?';
-          const values = supplierIds.map((supplierId, index) => [
-            productId,
-            supplierId,
-            index === 0 // First supplier is primary
-          ]);
-          await connection.execute(insertSql, [values]);
+          for (let index = 0; index < supplierIds.length; index++) {
+            const supplierId = supplierIds[index];
+            await connection.execute(
+              'INSERT INTO product_suppliers (product_id, supplier_id, is_primary) VALUES (?, ?, ?)',
+              [productId, supplierId, index === 0 ? 1 : 0] // First supplier is primary
+            );
+          }
         }
       }
 

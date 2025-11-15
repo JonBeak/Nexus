@@ -96,10 +96,9 @@ export class OrderConversionService {
       // Allow draft estimates to be approved without QB estimate (user confirms in modal)
       // Allow sent estimates (from QB) to be approved
       // Allow already approved estimates (shouldn't happen in UI, but safe to allow)
+      // Note: 'ordered' status removed - we rely on order existence check above (line 68)
       if (estimate.status !== 'draft' && estimate.status !== 'sent' && estimate.status !== 'approved') {
-        if (estimate.status === 'ordered') {
-          throw new Error('This estimate has already been ordered. Please check existing orders for this estimate.');
-        } else if (estimate.status === 'retracted') {
+        if (estimate.status === 'retracted') {
           throw new Error('Cannot convert a retracted estimate to an order.');
         } else {
           throw new Error(`Cannot convert estimate with status '${estimate.status}'. Only draft, sent, or approved estimates can be converted.`);
@@ -198,7 +197,7 @@ export class OrderConversionService {
 
           // If this is a custom contact with saveToDatabase flag, create it in customer_contacts first
           if (person.saveToDatabase && !person.contact_id && person.contact_email) {
-            contactId = await customerContactService.createContact(
+            const result = await customerContactService.createContact(
               {
                 customer_id: estimate.customer_id,
                 contact_name: person.contact_name || person.contact_email, // Use email as fallback name
@@ -209,6 +208,10 @@ export class OrderConversionService {
               },
               userId
             );
+            if (!result.success) {
+              throw new Error(`Failed to create contact: ${result.error}`);
+            }
+            contactId = result.data;
           }
 
           await orderRepository.createOrderPointPerson(
@@ -241,8 +244,8 @@ export class OrderConversionService {
       );
       console.timeEnd('[Order Conversion] Create order parts');
 
-      // 10. Update estimate status to 'ordered' (and mark as approved if not already)
-      await orderRepository.updateEstimateStatusAndApproval(request.estimateId, 'ordered', true, connection);
+      // 10. Mark estimate as approved (order existence is tracked via orders.estimate_id foreign key)
+      await orderRepository.updateEstimateStatusAndApproval(request.estimateId, 'approved', true, connection);
 
       // 11. Create initial status history entry
       await orderRepository.createStatusHistory(

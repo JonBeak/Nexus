@@ -149,7 +149,7 @@ export interface JobSummary {
   job_name: string;
   customer_id: number;
   customer_name: string;
-  job_status: 'quote' | 'active' | 'production' | 'completed' | 'cancelled';
+  job_status: 'quote' | 'sent' | 'approved';
   estimate_count: number;
   draft_count: number;
   finalized_count: number;

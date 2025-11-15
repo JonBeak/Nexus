@@ -28,10 +28,10 @@ export const useProductsAPI = (): UseProductsAPIReturn => {
         vinylProductsApi.getVinylProductStats()
       ]);
 
-      // API returns { success: true, data: ... }, so we need to access .data
+      // Interceptor unwraps ServiceResult, so we get data directly
       return {
-        products: (productsResponse?.data || []) as VinylProduct[],
-        stats: (statsResponse?.data || {}) as VinylProductStats
+        products: (productsResponse || []) as VinylProduct[],
+        stats: (statsResponse || {}) as VinylProductStats
       };
     } catch (err: unknown) {
       console.error('Error loading products data:', err);

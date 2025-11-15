@@ -95,9 +95,6 @@ export class EstimateService {
     return this.statusService.retractEstimate(estimateId, userId);
   }
 
-  async convertToOrder(estimateId: number, userId: number, hasExistingOrdersCheck?: (jobId: number) => Promise<boolean>): Promise<OrderConversionResult> {
-    return this.statusService.convertToOrder(estimateId, userId, hasExistingOrdersCheck);
-  }
 
   // =============================================
   // TEMPLATE AND ITEM MANAGEMENT - Delegated to EstimateTemplateService

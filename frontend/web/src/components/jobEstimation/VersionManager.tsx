@@ -44,11 +44,11 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const response = await jobVersioningApi.getEstimateVersions(jobId);
-      const allVersions = response.data || [];
+      const allVersions = await jobVersioningApi.getEstimateVersions(jobId);
+      // API interceptor unwraps { success: true, data: versions } -> versions array directly
 
       // Filter out deactivated estimates (using is_active flag)
-      const activeVersions = allVersions.filter(v => v.is_active !== false && v.is_active !== 0);
+      const activeVersions = (allVersions || []).filter(v => v.is_active !== false && v.is_active !== 0);
       setVersions(activeVersions);
 
       // Check edit lock status for all drafts
@@ -189,11 +189,13 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
 
   const renderActionButtons = (version: EstimateVersion) => {
     const orderNumber = estimateOrders.get(version.id);
+    // Show "View" for approved estimates (converted to orders), otherwise show "Edit" for drafts
+    const isViewOnly = version.is_approved || !version.is_draft;
 
     return (
       <div className="flex flex-col items-center justify-center gap-2 w-full">
         <div className="flex items-center gap-1 w-full">
-          {version.is_draft ? (
+          {!isViewOnly ? (
             <button
               onClick={() => handleVersionSelect(version)}
               className="flex items-center justify-center space-x-1 px-2 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 flex-1"

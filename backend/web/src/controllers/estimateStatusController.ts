@@ -125,23 +125,3 @@ export const retractEstimate = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const convertToOrder = async (req: AuthRequest, res: Response) => {
-  try {
-    const validated = validateEstimateRequest(req, res);
-    if (!validated) return;
-
-    const result = await versioningService.convertToOrder(validated.estimateId, validated.userId);
-
-    res.json({
-      success: true,
-      message: 'Estimate converted to order successfully',
-      order_id: result.order_id
-    });
-  } catch (error) {
-    console.error('Controller error converting estimate to order:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to convert estimate to order'
-    });
-  }
-};

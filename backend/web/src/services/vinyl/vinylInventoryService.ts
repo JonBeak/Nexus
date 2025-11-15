@@ -150,7 +150,7 @@ export class VinylInventoryService {
   ): Promise<VinylResponse<{ updated: boolean }>> {
     try {
       // Check if item exists
-      const exists = await VinylInventoryRepository.vinylItemExists(id);
+      const exists = await VinylInventoryStatsRepository.vinylItemExists(id);
       if (!exists) {
         return {
           success: false,

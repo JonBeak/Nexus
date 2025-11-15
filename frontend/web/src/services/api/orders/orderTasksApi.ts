@@ -10,7 +10,8 @@ export const orderTasksApi = {
    */
   async getOrderProgress(orderNumber: number): Promise<any> {
     const response = await api.get(`/orders/${orderNumber}/progress`);
-    return response.data.data;
+    // Interceptor already unwraps { success: true, data: T } to just T
+    return response.data;
   },
 
   /**
@@ -18,7 +19,8 @@ export const orderTasksApi = {
    */
   async getOrderTasks(orderNumber: number): Promise<any[]> {
     const response = await api.get(`/orders/${orderNumber}/tasks`);
-    return response.data.data;
+    // Interceptor already unwraps { success: true, data: T } to just T
+    return response.data;
   },
 
   /**
@@ -26,7 +28,8 @@ export const orderTasksApi = {
    */
   async getTasksByPart(orderNumber: number): Promise<any[]> {
     const response = await api.get(`/orders/${orderNumber}/tasks/by-part`);
-    return response.data.data;
+    // Interceptor already unwraps { success: true, data: T } to just T
+    return response.data;
   },
 
   /**
@@ -43,7 +46,8 @@ export const orderTasksApi = {
     const response = await api.get('/orders/tasks/by-role', {
       params: { includeCompleted, hoursBack }
     });
-    return response.data.data;
+    // Interceptor already unwraps { success: true, data: T } to just T
+    return response.data;
   },
 
   /**
@@ -62,7 +66,8 @@ export const orderTasksApi = {
     assigned_role: string | null;
   }>> {
     const response = await api.get('/orders/task-templates');
-    return response.data.data;
+    // Interceptor already unwraps { success: true, data: T } to just T
+    return response.data;
   },
 
   /**

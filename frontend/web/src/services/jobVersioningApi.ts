@@ -68,7 +68,15 @@ export const jobVersioningApi = {
   },
 
   loadGridData: async (estimateId: number) => {
+    console.log('🔍 [jobVersioningApi.loadGridData] Fetching grid data for estimateId:', estimateId);
     const response = await api.get(`/job-estimation/estimates/${estimateId}/grid-data`);
+    console.log('📦 [jobVersioningApi.loadGridData] Response received:', {
+      estimateId,
+      data: response.data,
+      dataType: typeof response.data,
+      isArray: Array.isArray(response.data),
+      length: Array.isArray(response.data) ? response.data.length : 'N/A'
+    });
     return response.data;
   },
 

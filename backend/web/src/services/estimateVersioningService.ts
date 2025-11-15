@@ -149,14 +149,6 @@ export class EstimateVersioningService {
     return this.estimateService.retractEstimate(estimateId, userId);
   }
 
-  async convertToOrder(estimateId: number, userId: number): Promise<OrderConversionResult> {
-    // Inject hasExistingOrders check from JobService
-    return this.estimateService.convertToOrder(
-      estimateId, 
-      userId, 
-      (jobId: number) => this.jobService.hasExistingOrders(jobId)
-    );
-  }
 
   // =============================================
   // PHASE 4: GRID DATA PERSISTENCE - Delegated to GridDataService

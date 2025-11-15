@@ -54,9 +54,16 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       loadSuppliers();
 
       if (initialData) {
-        const supplierIds = initialData.supplier_details ? 
-          initialData.supplier_details.map((s) => s.supplier_id) : [];
-        
+        // Extract supplier IDs from either supplier_details or suppliers array
+        let supplierIds: number[] = [];
+        if (initialData.supplier_details) {
+          supplierIds = initialData.supplier_details.map((s) => s.supplier_id);
+        } else if (Array.isArray(initialData.suppliers)) {
+          supplierIds = (initialData.suppliers as any[]).map((s) => s.supplier_id);
+        } else if (initialData.supplier_ids) {
+          supplierIds = initialData.supplier_ids;
+        }
+
         setFormData({
           brand: initialData.brand || '',
           series: initialData.series || '',

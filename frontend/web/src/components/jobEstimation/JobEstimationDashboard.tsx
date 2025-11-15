@@ -250,6 +250,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
                   user={user}
                   estimate={currentEstimate}
                   isCreatingNew={false}
+                  isReadOnly={!currentEstimate.is_draft}
                   onEstimateChange={setCurrentEstimate}
                   onBackToEstimates={() => {
                     const navAction = () => navigate('/dashboard');

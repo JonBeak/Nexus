@@ -17,6 +17,7 @@ export const orderStatusApi = {
    */
   async getStatusHistory(orderNumber: number): Promise<any[]> {
     const response = await api.get(`/orders/${orderNumber}/status-history`);
-    return response.data.data;
+    // Interceptor already unwraps { success: true, data: T } to just T
+    return response.data;
   },
 };

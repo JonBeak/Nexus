@@ -29,7 +29,6 @@
 
 import { pool } from '../config/database';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
-import { EstimateGridRow } from '../interfaces/estimateTypes';
 import { DynamicTemplateService } from './dynamicTemplateService';
 import { estimateHistoryService } from './estimateHistoryService';
 import { EstimateRepository } from '../repositories/estimateRepository';

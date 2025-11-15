@@ -158,7 +158,9 @@ export const useCustomerPreferences = (customerId?: number): UseCustomerPreferen
 
       const response = await customerApi.getManufacturingPreferences(id);
 
-      if (response.success) {
+      // API interceptor unwraps { success: true, data: T } → T
+      // So response.data is the preferences object directly
+      if (response.data && typeof response.data === 'object') {
         setPreferences(normalizePreferences(response.data));
       } else {
         const fallback = await getDefaultPreferences(id);
@@ -265,18 +267,30 @@ export const useCustomerPreferencesWithCache = (customerId?: number): UseCustome
 
       const response = await customerApi.getManufacturingPreferences(id);
 
+      console.log('🔍 [useCustomerPreferences] API response:', {
+        customerId: id,
+        response,
+        hasData: !!response.data,
+        dataType: typeof response.data
+      });
+
+      // API interceptor unwraps { success: true, data: T } → T
+      // So response.data is the preferences object directly
       let prefs: CustomerManufacturingPreferences;
 
-      if (response.success) {
+      if (response.data && typeof response.data === 'object') {
+        console.log('✅ [useCustomerPreferences] Normalizing preferences:', response.data);
         prefs = normalizePreferences(response.data);
+        console.log('✅ [useCustomerPreferences] Normalized:', prefs);
       } else {
+        console.warn('❌ [useCustomerPreferences] No data, using defaults');
         prefs = await getDefaultPreferences(id);
       }
 
       PreferencesCache.set(id, prefs);
       setPreferences(prefs);
     } catch (err) {
-      console.warn('Error fetching customer preferences, using defaults:', err);
+      console.warn('❌ [useCustomerPreferences] Error fetching customer preferences, using defaults:', err);
       const fallback = await getDefaultPreferences(id);
       PreferencesCache.set(id, fallback);
       setPreferences(fallback);

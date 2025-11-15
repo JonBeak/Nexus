@@ -109,7 +109,8 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ onClose 
     try {
       await timeApi.createHoliday({
         holiday_name: newHoliday.name,
-        holiday_date: newHoliday.date
+        holiday_date: newHoliday.date,
+        overwrite
       });
 
       setNewHoliday({ name: '', date: '' });
@@ -118,14 +119,19 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ onClose 
       if (error.response?.status === 409) {
         // Conflict - holiday already exists
         const existingHoliday = error.response.data.existing_holiday;
+        const dateStr = typeof existingHoliday.holiday_date === 'string'
+          ? existingHoliday.holiday_date
+          : existingHoliday.holiday_date.toISOString().split('T')[0];
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const formattedDate = new Date(year, month - 1, day).toLocaleDateString();
+
         const confirmOverwrite = confirm(
-          `A holiday "${existingHoliday.holiday_name}" already exists on ${new Date(existingHoliday.holiday_date).toLocaleDateString()}.\n\nDo you want to overwrite it with "${newHoliday.name}"?`
+          `A holiday "${existingHoliday.holiday_name}" already exists on ${formattedDate}.\n\nDo you want to overwrite it with "${newHoliday.name}"?`
         );
 
         if (confirmOverwrite) {
-          // Retry with overwrite flag - would need backend support for overwrite param
-          // For now, alert user to delete existing holiday first
-          alert('Please delete the existing holiday first, then add the new one.');
+          // Retry with overwrite flag
+          await addHoliday(true);
         }
       } else {
         console.error('Error adding holiday:', error);
@@ -395,7 +401,12 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ onClose 
                     <div>
                       <span className="font-medium">{holiday.holiday_name}</span>
                       <span className="text-gray-500 ml-2">
-                        {new Date(holiday.holiday_date).toLocaleDateString()}
+                        {(() => {
+                          // Extract YYYY-MM-DD from string (handles both date and datetime formats)
+                          const dateStr = String(holiday.holiday_date).split('T')[0].split(' ')[0];
+                          const [year, month, day] = dateStr.split('-').map(Number);
+                          return new Date(year, month - 1, day).toLocaleDateString();
+                        })()}
                       </span>
                     </div>
                     <button

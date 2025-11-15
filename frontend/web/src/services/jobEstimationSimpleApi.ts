@@ -44,29 +44,32 @@ export const jobEstimationSimpleApi = {
   // Get all items for an estimate
   async getEstimateItems(estimateId: number): Promise<SimpleEstimateItem[]> {
     const response = await api.get(`/job-estimation-simple/estimates/${estimateId}/items`);
-    return response.data.data;
+    // API interceptor unwraps response
+    return response.data;
   },
-  
+
   // Save all items for an estimate
   async saveEstimateItems(estimateId: number, items: SimpleEstimateItem[]): Promise<void> {
     await api.post(`/job-estimation-simple/estimates/${estimateId}/items`, { items });
   },
-  
+
   // Get single item by ID
   async getItemById(itemId: number): Promise<SimpleEstimateItem> {
     const response = await api.get(`/job-estimation-simple/items/${itemId}`);
-    return response.data.data;
+    // API interceptor unwraps response
+    return response.data;
   },
-  
+
   // Delete single item
   async deleteItem(itemId: number): Promise<void> {
     await api.delete(`/job-estimation-simple/items/${itemId}`);
   },
-  
+
   // Get product types for dropdown population
   async getProductTypes(): Promise<ProductType[]> {
     const response = await api.get('/job-estimation-simple/product-types');
-    return response.data.data;
+    // API interceptor unwraps response
+    return response.data;
   }
   
 };

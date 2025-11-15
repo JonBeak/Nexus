@@ -745,7 +745,7 @@ export class OrderRepository {
     const conn = connection || pool;
 
     await conn.execute(
-      'UPDATE job_estimates SET status = ?, is_approved = ? WHERE id = ?',
+      'UPDATE job_estimates SET status = ?, is_approved = ?, is_draft = 0 WHERE id = ?',
       [status, isApproved ? 1 : 0, estimateId]
     );
   }

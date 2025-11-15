@@ -43,8 +43,9 @@ export const useEstimateNavigation = ({
 
     // Get job name for display
     try {
-      const response = await jobVersioningApi.getJobDetails(jobId);
-      setJobName(response.data?.job_name || null);
+      const job = await jobVersioningApi.getJobDetails(jobId);
+      // API interceptor unwraps response
+      setJobName(job?.job_name || null);
     } catch (error) {
       console.error('Error fetching job name:', error);
     }
@@ -54,13 +55,14 @@ export const useEstimateNavigation = ({
     if (!selectedCustomerId) return;
 
     try {
-      const response = await jobVersioningApi.createJob({
+      const createdJob = await jobVersioningApi.createJob({
         customer_id: selectedCustomerId,
         job_name: jobName
       });
+      // API interceptor unwraps response
 
       // Select the newly created job
-      await handleJobSelected(response.data.job_id);
+      await handleJobSelected(createdJob.job_id);
     } catch (error) {
       console.error('Error creating job:', error);
       throw error;
@@ -71,7 +73,8 @@ export const useEstimateNavigation = ({
     try {
       // Load the estimate version details
       const versions = await jobVersioningApi.getEstimateVersions(selectedJobId!);
-      const estimate = versions.data?.find((v: EstimateVersion) => v.id === estimateId);
+      // API interceptor unwraps response - versions is array directly
+      const estimate = versions?.find((v: EstimateVersion) => v.id === estimateId);
 
       if (estimate) {
         const estimateCustomerId = estimate.customer_id ?? selectedCustomerId ?? null;
@@ -102,13 +105,14 @@ export const useEstimateNavigation = ({
     if (!selectedJobId) return;
 
     try {
-      const response = await jobVersioningApi.createEstimateVersion(
+      const createdEstimate = await jobVersioningApi.createEstimateVersion(
         selectedJobId,
         parentId ? { parent_estimate_id: parentId } : {}
       );
+      // API interceptor unwraps response
 
       // Automatically select the new version
-      await handleVersionSelected(response.data.estimate_id);
+      await handleVersionSelected(createdEstimate.estimate_id);
     } catch (error) {
       console.error('Error creating new version:', error);
     }

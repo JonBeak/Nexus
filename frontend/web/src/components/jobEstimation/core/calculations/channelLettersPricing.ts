@@ -49,12 +49,19 @@ const getLetterCount = (
 export const calculateChannelLetters = async (input: ValidatedPricingInput): Promise<RowCalculationResult> => {
   console.log('[CL] Starting calculateChannelLetters', {
     type: input.parsedValues.field1,
-    hasValidationErrors: input.hasValidationErrors
+    hasValidationErrors: input.hasValidationErrors,
+    parsedValues: input.parsedValues,
+    calculatedValues: input.calculatedValues
   });
 
   // Skip calculation if validation errors exist
   if (input.hasValidationErrors) {
-    console.log('[CL] Skipping due to validation errors');
+    console.error('[CL] VALIDATION ERRORS DETECTED - Skipping calculation', {
+      rowId: input.rowId,
+      parsedValues: input.parsedValues,
+      calculatedValues: input.calculatedValues,
+      hasValidationErrors: input.hasValidationErrors
+    });
     return {
       status: 'pending',
       display: 'Fix validation errors first',

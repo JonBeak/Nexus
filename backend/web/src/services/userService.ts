@@ -1,11 +1,22 @@
-// File Clean up Finished: 2025-11-15 (Second cleanup - Audit Trail Refactoring)
-// Current Cleanup Changes (Nov 15, 2025):
+// File Clean up Finished: 2025-11-15 (Third cleanup - ServiceResult Migration)
+// Latest Cleanup Changes (Nov 15, 2025 - 3rd cleanup):
+// - ✅ Migrated all 5 methods to ServiceResult<T> pattern for consistency
+// - ✅ getUsers() → ServiceResult<RowDataPacket[]>
+// - ✅ getUserById() → ServiceResult<RowDataPacket | null>
+// - ✅ createUser() → ServiceResult<number>
+// - ✅ updateUser() → ServiceResult<void>
+// - ✅ updatePassword() → ServiceResult<void>
+// - ✅ All business logic errors now return structured error codes
+// - ✅ Zero breaking changes - controllers updated to match
+// - Consistent error codes: VALIDATION_ERROR, PERMISSION_DENIED, DUPLICATE_EMAIL, etc.
+//
+// Second Cleanup (Nov 15, 2025 - Audit Trail Refactoring):
 // - Migrated from userRepository.createAuditEntry() to centralized auditRepository
 // - Updated all 3 audit trail calls to use auditRepository.createAuditEntry()
 // - Added import for auditRepository
 // - Part of Phase 1: Centralized Audit Repository implementation
 //
-// Previous Cleanup (Nov 14, 2025):
+// First Cleanup (Nov 14, 2025):
 // - Added cache invalidation when user role changes (bug fix)
 /**
  * User Service
@@ -20,6 +31,7 @@ import { auditRepository } from '../repositories/auditRepository';
 import { RowDataPacket } from 'mysql2';
 import bcrypt from 'bcrypt';
 import { clearUserPermissionCache } from '../middleware/rbac';
+import { ServiceResult } from '../types/serviceResults';
 
 export interface CreateUserData {
   first_name: string;
@@ -55,16 +67,27 @@ export class UserService {
   async getUsers(options: {
     includeInactive?: boolean;
     fieldsType?: 'basic' | 'full';
-  } = {}): Promise<RowDataPacket[]> {
-    const {
-      includeInactive = false,
-      fieldsType = 'basic'
-    } = options;
+  } = {}): Promise<ServiceResult<RowDataPacket[]>> {
+    try {
+      const {
+        includeInactive = false,
+        fieldsType = 'basic'
+      } = options;
 
-    // Business rule: Only return basic fields by default for security
-    const users = await userRepository.getAllUsers(includeInactive, fieldsType);
+      // Business rule: Only return basic fields by default for security
+      const users = await userRepository.getAllUsers(includeInactive, fieldsType);
 
-    return users;
+      return {
+        success: true,
+        data: users
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch users',
+        code: 'FETCH_USERS_ERROR'
+      };
+    }
   }
 
   /**
@@ -72,8 +95,20 @@ export class UserService {
    * @param userId - User ID to fetch
    * @returns User or null if not found
    */
-  async getUserById(userId: number): Promise<RowDataPacket | null> {
-    return await userRepository.getUserById(userId);
+  async getUserById(userId: number): Promise<ServiceResult<RowDataPacket | null>> {
+    try {
+      const user = await userRepository.getUserById(userId);
+      return {
+        success: true,
+        data: user
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch user',
+        code: 'FETCH_USER_ERROR'
+      };
+    }
   }
 
   /**
@@ -107,66 +142,92 @@ export class UserService {
     userData: CreateUserData,
     creatorUserId: number,
     creatorRole: string
-  ): Promise<number> {
-    // Validate required fields
-    if (!userData.first_name || !userData.last_name || !userData.email || !userData.password || !userData.role) {
-      throw new Error('Missing required fields');
-    }
+  ): Promise<ServiceResult<number>> {
+    try {
+      // Validate required fields
+      if (!userData.first_name || !userData.last_name || !userData.email || !userData.password || !userData.role) {
+        return {
+          success: false,
+          error: 'Missing required fields',
+          code: 'VALIDATION_ERROR'
+        };
+      }
 
-    // Business rule: Only owners can create owner accounts
-    if (userData.role === 'owner' && creatorRole !== 'owner') {
-      throw new Error('Only owners can create owner accounts');
-    }
+      // Business rule: Only owners can create owner accounts
+      if (userData.role === 'owner' && creatorRole !== 'owner') {
+        return {
+          success: false,
+          error: 'Only owners can create owner accounts',
+          code: 'PERMISSION_DENIED'
+        };
+      }
 
-    // Check if email already exists
-    const emailExists = await userRepository.emailExists(userData.email);
-    if (emailExists) {
-      throw new Error('Email already exists');
-    }
+      // Check if email already exists
+      const emailExists = await userRepository.emailExists(userData.email);
+      if (emailExists) {
+        return {
+          success: false,
+          error: 'Email already exists',
+          code: 'DUPLICATE_EMAIL'
+        };
+      }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(userData.password, 12);
+      // Hash password
+      const hashedPassword = await bcrypt.hash(userData.password, 12);
 
-    // Create username from email (before @ symbol)
-    const username = userData.email.split('@')[0];
+      // Create username from email (before @ symbol)
+      const username = userData.email.split('@')[0];
 
-    // Check if username already exists (unlikely but possible)
-    const usernameExists = await userRepository.usernameExists(username);
-    if (usernameExists) {
-      // Add a random suffix if username exists
-      const suffix = Math.floor(Math.random() * 1000);
-      throw new Error(`Username ${username} already exists. Please use a different email or contact admin.`);
-    }
+      // Check if username already exists (unlikely but possible)
+      const usernameExists = await userRepository.usernameExists(username);
+      if (usernameExists) {
+        return {
+          success: false,
+          error: `Username ${username} already exists. Please use a different email or contact admin.`,
+          code: 'DUPLICATE_USERNAME'
+        };
+      }
 
-    // Create user in database
-    const userId = await userRepository.createUser({
-      username,
-      first_name: userData.first_name,
-      last_name: userData.last_name,
-      email: userData.email,
-      password_hash: hashedPassword,
-      role: userData.role,
-      user_group: userData.user_group,
-      hourly_wage: userData.hourly_wage,
-      auto_clock_in: userData.auto_clock_in,
-      auto_clock_out: userData.auto_clock_out
-    });
-
-    // Log audit trail
-    await auditRepository.createAuditEntry({
-      user_id: creatorUserId,
-      action: 'create',
-      entity_type: 'user',
-      entity_id: userId,
-      details: JSON.stringify({
+      // Create user in database
+      const userId = await userRepository.createUser({
+        username,
         first_name: userData.first_name,
         last_name: userData.last_name,
         email: userData.email,
-        role: userData.role
-      })
-    });
+        password_hash: hashedPassword,
+        role: userData.role,
+        user_group: userData.user_group,
+        hourly_wage: userData.hourly_wage,
+        auto_clock_in: userData.auto_clock_in,
+        auto_clock_out: userData.auto_clock_out
+      });
 
-    return userId;
+      // Log audit trail
+      await auditRepository.createAuditEntry({
+        user_id: creatorUserId,
+        action: 'create',
+        entity_type: 'user',
+        entity_id: userId,
+        details: JSON.stringify({
+          first_name: userData.first_name,
+          last_name: userData.last_name,
+          email: userData.email,
+          role: userData.role
+        })
+      });
+
+      return {
+        success: true,
+        data: userId
+      };
+    } catch (error: any) {
+      console.error('Error in UserService.createUser:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to create user',
+        code: 'CREATE_USER_ERROR'
+      };
+    }
   }
 
   /**
@@ -181,49 +242,75 @@ export class UserService {
     userData: UpdateUserData,
     updaterUserId: number,
     updaterRole: string
-  ): Promise<void> {
-    // Check if user exists
-    const existingUser = await userRepository.getUserById(userId);
-    if (!existingUser) {
-      throw new Error('User not found');
-    }
-
-    // Business rule: Only owners can create owner accounts or change roles to owner
-    if (userData.role === 'owner' && updaterRole !== 'owner') {
-      throw new Error('Only owners can create owner accounts');
-    }
-
-    // Business rule: Cannot deactivate the last owner
-    if (userData.is_active === 0 && (existingUser.role === 'owner' || userData.role === 'owner')) {
-      const activeOwnerCount = await userRepository.countActiveOwners();
-      if (activeOwnerCount <= 1) {
-        throw new Error('Cannot deactivate the last owner account. At least one owner must remain active.');
+  ): Promise<ServiceResult<void>> {
+    try {
+      // Check if user exists
+      const existingUser = await userRepository.getUserById(userId);
+      if (!existingUser) {
+        return {
+          success: false,
+          error: 'User not found',
+          code: 'USER_NOT_FOUND'
+        };
       }
+
+      // Business rule: Only owners can create owner accounts or change roles to owner
+      if (userData.role === 'owner' && updaterRole !== 'owner') {
+        return {
+          success: false,
+          error: 'Only owners can create owner accounts',
+          code: 'PERMISSION_DENIED'
+        };
+      }
+
+      // Business rule: Cannot deactivate the last owner
+      if (userData.is_active === 0 && (existingUser.role === 'owner' || userData.role === 'owner')) {
+        const activeOwnerCount = await userRepository.countActiveOwners();
+        if (activeOwnerCount <= 1) {
+          return {
+            success: false,
+            error: 'Cannot deactivate the last owner account. At least one owner must remain active.',
+            code: 'LAST_OWNER_ERROR'
+          };
+        }
+      }
+
+      // Update user in database
+      await userRepository.updateUser(userId, userData);
+
+      // Clear permission cache if role changed (ensures immediate permission updates)
+      if (existingUser.role !== userData.role) {
+        clearUserPermissionCache(userId);
+      }
+
+      // Log audit trail
+      await auditRepository.createAuditEntry({
+        user_id: updaterUserId,
+        action: 'update',
+        entity_type: 'user',
+        entity_id: userId,
+        details: JSON.stringify({
+          first_name: userData.first_name,
+          last_name: userData.last_name,
+          email: userData.email,
+          role: userData.role,
+          hourly_wage: userData.hourly_wage,
+          is_active: userData.is_active
+        })
+      });
+
+      return {
+        success: true,
+        data: undefined
+      };
+    } catch (error: any) {
+      console.error('Error in UserService.updateUser:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to update user',
+        code: 'UPDATE_USER_ERROR'
+      };
     }
-
-    // Update user in database
-    await userRepository.updateUser(userId, userData);
-
-    // Clear permission cache if role changed (ensures immediate permission updates)
-    if (existingUser.role !== userData.role) {
-      clearUserPermissionCache(userId);
-    }
-
-    // Log audit trail
-    await auditRepository.createAuditEntry({
-      user_id: updaterUserId,
-      action: 'update',
-      entity_type: 'user',
-      entity_id: userId,
-      details: JSON.stringify({
-        first_name: userData.first_name,
-        last_name: userData.last_name,
-        email: userData.email,
-        role: userData.role,
-        hourly_wage: userData.hourly_wage,
-        is_active: userData.is_active
-      })
-    });
   }
 
   /**
@@ -236,31 +323,53 @@ export class UserService {
     userId: number,
     newPassword: string,
     updaterUserId: number
-  ): Promise<void> {
-    if (!newPassword) {
-      throw new Error('Password is required');
+  ): Promise<ServiceResult<void>> {
+    try {
+      if (!newPassword) {
+        return {
+          success: false,
+          error: 'Password is required',
+          code: 'VALIDATION_ERROR'
+        };
+      }
+
+      // Check if user exists
+      const existingUser = await userRepository.getUserById(userId);
+      if (!existingUser) {
+        return {
+          success: false,
+          error: 'User not found',
+          code: 'USER_NOT_FOUND'
+        };
+      }
+
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+      // Update password in database
+      await userRepository.updatePassword(userId, hashedPassword);
+
+      // Log audit trail
+      await auditRepository.createAuditEntry({
+        user_id: updaterUserId,
+        action: 'update',
+        entity_type: 'user_password',
+        entity_id: userId,
+        details: JSON.stringify({ action: 'password_reset' })
+      });
+
+      return {
+        success: true,
+        data: undefined
+      };
+    } catch (error: any) {
+      console.error('Error in UserService.updatePassword:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to update password',
+        code: 'UPDATE_PASSWORD_ERROR'
+      };
     }
-
-    // Check if user exists
-    const existingUser = await userRepository.getUserById(userId);
-    if (!existingUser) {
-      throw new Error('User not found');
-    }
-
-    // Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 12);
-
-    // Update password in database
-    await userRepository.updatePassword(userId, hashedPassword);
-
-    // Log audit trail
-    await auditRepository.createAuditEntry({
-      user_id: updaterUserId,
-      action: 'update',
-      entity_type: 'user_password',
-      entity_id: userId,
-      details: JSON.stringify({ action: 'password_reset' })
-    });
   }
 }
 

@@ -25,12 +25,14 @@ import { PoolConnection } from 'mysql2/promise';
  *
  * TODO (Technical Debt): Migrate redundant status tracking system
  * The job_estimates table currently has BOTH:
- * - status ENUM ('draft', 'sent', 'approved', 'ordered', 'deactivated')
+ * - status ENUM ('draft', 'sent', 'approved', 'retracted', 'deactivated')
  * - Boolean flags (is_draft, is_sent, is_approved, is_retracted)
  *
  * This duplication adds complexity and risk of inconsistency.
  * Future migration should consolidate to single status enum pattern.
  * Affects: ~15+ service files, controllers, and frontend components
+ *
+ * Note: 'ordered' status removed (2025-11-15) - order conversion tracked via orders.estimate_id foreign key
  */
 export class EstimateRepository {
 

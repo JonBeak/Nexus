@@ -47,7 +47,10 @@ export const customerApi = {
    */
   getManufacturingPreferences: async (id: number) => {
     const response = await api.get(`/customers/${id}/manufacturing-preferences`);
-    return response.data;
+    // API interceptor already unwraps response.data from backend's { success, data }
+    // So response.data contains the preferences object directly
+    // Return the whole response so hooks can access response.data
+    return response;
   },
 
   // Address management

@@ -102,7 +102,7 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
       // Auto-save removed from GridEngine - now handled by Dashboard after calculation completes
       // This eliminates race condition between auto-save and calculation
       validation: {
-        enabled: !isReadOnly // Enable validation only when editing
+        enabled: true // Always enable validation for pricing calculations (even in read-only mode)
       },
       callbacks: {
         onRowsChange: (gridRows) => {
@@ -140,7 +140,7 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
     };
 
     return new GridEngine(config);
-  }, [isReadOnly, versioningMode, user?.role, estimateId]);
+  }, [isReadOnly, versioningMode, user?.role, estimateId, effectiveCustomerId, customerName, cashCustomer, taxRate]);
 
   // Customer prefs effect
   useEffect(() => {

@@ -20,12 +20,22 @@ const router = Router();
  * Returns: All users (active + inactive) with full fields (12 fields)
  * Migration: This proxies to the new UserController with proper 3-layer architecture
  */
-router.get('/users', authenticateToken, requirePermission('users.read'), async (req, res) => {
+router.get('/users', authenticateToken, requirePermission('users.read'), async (req, res, next) => {
   // Proxy to new controller with backward-compatible defaults
-  req.query.includeInactive = 'true';   // All users (original behavior)
-  req.query.fields = 'full';            // Full fields (original behavior)
+  // Note: req.query is read-only, so we create a new modified request
+  const modifiedReq = Object.create(req, {
+    query: {
+      value: {
+        ...req.query,
+        includeInactive: 'true',   // All users (original behavior)
+        fields: 'full'             // Full fields (original behavior)
+      },
+      writable: false,
+      enumerable: true
+    }
+  });
 
-  return userController.getUsers(req, res);
+  return userController.getUsers(modifiedReq, res);
 });
 
 // Create new user

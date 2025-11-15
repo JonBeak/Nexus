@@ -240,14 +240,10 @@ export class PricingDataResource {
     this.inFlightRequest = (async () => {
       try {
         const response = await api.get('/pricing/all-pricing-data');
-
-        if (response.data.success) {
-          this.cachedData = response.data.data;
-          this.cacheTimestamp = Date.now();
-          return this.cachedData!;
-        } else {
-          throw new Error('API returned unsuccessful response');
-        }
+        // API interceptor unwraps { success: true, data: pricing } -> pricing directly
+        this.cachedData = response.data;
+        this.cacheTimestamp = Date.now();
+        return this.cachedData!;
       } catch (error) {
         console.error('Error fetching pricing data:', error);
         throw new Error('Failed to fetch pricing data');

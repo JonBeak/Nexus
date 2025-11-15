@@ -60,6 +60,17 @@ export const runRowPricingCalculationFromValidationOutput = async (
     };
   }
 
+  // Log validation status for debugging
+  if (hasValidationErrors) {
+    console.warn('[CalculationEngine] Row has validation errors', {
+      rowId,
+      productTypeId,
+      hasValidationErrors,
+      parsedValues,
+      calculatedValues
+    });
+  }
+
   // Create clean validated input for pricing calculators
   const validatedInput: ValidatedPricingInput = {
     rowId,

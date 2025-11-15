@@ -80,7 +80,6 @@ router.post('/estimates/:estimateId/send', authenticateToken, estimateStatusCont
 router.post('/estimates/:estimateId/approve', authenticateToken, estimateStatusController.approveEstimate);
 router.post('/estimates/:estimateId/not-approved', authenticateToken, estimateStatusController.markNotApproved);
 router.post('/estimates/:estimateId/retract', authenticateToken, estimateStatusController.retractEstimate);
-router.post('/estimates/:estimateId/convert-to-order', authenticateToken, estimateStatusController.convertToOrder);
 
 // Multiple orders support - Using JobController
 router.get('/jobs/:jobId/check-existing-orders', authenticateToken, jobController.checkExistingOrders);

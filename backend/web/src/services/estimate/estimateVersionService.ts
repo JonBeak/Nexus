@@ -151,14 +151,6 @@ export class EstimateVersionService {
 
       const jobId = estimate.job_id;
 
-      // Check for multiple orders scenario when finalizing as ordered
-      if (finalizationData.status === 'ordered' && hasExistingOrdersCheck) {
-        const hasExisting = await hasExistingOrdersCheck(jobId);
-        if (hasExisting) {
-          throw new Error('This job already has ordered estimates. Please use the multiple orders workflow to create a new job.');
-        }
-      }
-
       // Prepare status flags based on finalization type
       const statusFlags: { is_sent?: boolean; is_approved?: boolean } = {};
 
@@ -168,9 +160,6 @@ export class EstimateVersionService {
           break;
         case 'approved':
           statusFlags.is_approved = true;
-          break;
-        case 'ordered':
-          // No additional flags for ordered
           break;
         case 'deactivated':
           // No additional flags for deactivated
@@ -188,8 +177,6 @@ export class EstimateVersionService {
       // Update job status based on estimate status
       if (finalizationData.status === 'approved') {
         await this.estimateRepository.updateJobStatusByEstimate(estimateId, 'active');
-      } else if (finalizationData.status === 'ordered') {
-        await this.estimateRepository.updateJobStatusByEstimate(estimateId, 'production');
       }
 
     } catch (error) {

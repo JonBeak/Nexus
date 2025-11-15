@@ -38,10 +38,12 @@ export const useVersionLocking = ({ user, onVersionSelect }: UseVersionLockingPa
       // Use generic lock service override
       await lockService.overrideLock('estimate', estimateId.toString());
       await checkEditLockStatus(estimateId);
+      // After successfully overriding, open the estimate for editing
+      onVersionSelect(estimateId);
     } catch (err) {
       console.error('Error overriding lock:', err);
     }
-  }, [user.role, checkEditLockStatus]);
+  }, [user.role, checkEditLockStatus, onVersionSelect]);
 
   const showLockConflictDialog = useCallback((version: EstimateVersion, lockStatus: EditLockStatus) => {
     const canOverride = user.role === 'manager' || user.role === 'owner';

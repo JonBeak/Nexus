@@ -22,6 +22,14 @@ export interface SupplierSummary {
   name: string;
 }
 
+export interface ProductSupplier {
+  product_id: number;
+  supplier_id: number;
+  supplier_name: string;
+  is_primary: boolean;
+  created_at: string;
+}
+
 export interface VinylProduct {
   product_id: number;
   brand: string;
@@ -31,7 +39,7 @@ export interface VinylProduct {
   colour_name?: string;
   default_width?: number | null;
   default_length_yards?: number | null;
-  suppliers?: string;
+  suppliers?: string | ProductSupplier[]; // Can be string (legacy) or array of ProductSupplier objects
   supplier_ids?: number[];
   supplier_details?: SupplierDetail[];
   available_widths?: string | null;

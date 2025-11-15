@@ -34,7 +34,8 @@ export const ordersApi = {
     }
 
     const response = await api.get('/orders', { params });
-    return response.data.data;
+    // Backend returns orders directly in response.data, not response.data.data
+    return response.data;
   },
 
   /**
@@ -42,7 +43,7 @@ export const ordersApi = {
    */
   async getOrderById(orderNumber: number): Promise<any> {
     const response = await api.get(`/orders/${orderNumber}`);
-    return response.data.data;
+    return response.data;
   },
 
   /**
@@ -75,7 +76,7 @@ export const ordersApi = {
     estimatePreviewData?: any;
   }): Promise<{ order_id: number; order_number: number }> {
     const response = await api.post('/orders/convert-estimate', data);
-    return response.data.data;
+    return response.data;
   },
 
   /**
@@ -102,9 +103,10 @@ export const ordersApi = {
     parts: any[];
   }> {
     const response = await api.get(`/orders/${orderNumber}`);
+    // Interceptor already unwraps response.data.data to response.data
     return {
-      order: response.data.data,
-      parts: response.data.data.parts || []
+      order: response.data,
+      parts: response.data.parts || []
     };
   },
 };

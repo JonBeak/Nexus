@@ -19,6 +19,7 @@ export const ledsApi = {
     is_default: boolean;
   }>> {
     const response = await api.get('/leds');
-    return response.data.leds;
+    // Interceptor unwraps { success: true, data: [...] } to just [...]
+    return response.data;
   }
 };

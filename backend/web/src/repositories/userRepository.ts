@@ -204,10 +204,10 @@ export class UserRepository {
       userData.email,
       userData.password_hash,
       userData.role,
-      userData.user_group || null,
-      userData.hourly_wage || null,
-      userData.auto_clock_in || null,
-      userData.auto_clock_out || null
+      userData.user_group ?? null,
+      userData.hourly_wage ?? null,
+      userData.auto_clock_in ?? null,
+      userData.auto_clock_out ?? null
     ]) as ResultSetHeader;
 
     return result.insertId;
@@ -250,10 +250,10 @@ export class UserRepository {
       userData.last_name,
       userData.email,
       userData.role,
-      userData.user_group || null,
-      userData.hourly_wage || null,
-      userData.auto_clock_in || null,
-      userData.auto_clock_out || null,
+      userData.user_group ?? null,
+      userData.hourly_wage ?? null,
+      userData.auto_clock_in ?? null,
+      userData.auto_clock_out ?? null,
       userData.is_active,
       userId
     ]);

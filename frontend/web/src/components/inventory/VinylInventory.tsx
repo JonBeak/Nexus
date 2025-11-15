@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { vinylApi, vinylProductsApi } from '../../services/api';
@@ -29,7 +29,10 @@ interface VinylInventoryProps {
 const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'bulk' | 'inventory' | 'products'>('bulk');
-  
+
+  // Refs to hold refresh functions from child tabs
+  const refreshProductsRef = useRef<(() => void) | null>(null);
+
   // Data state
   const [vinylItems, setVinylItems] = useState<VinylItem[]>([]);
   const [stats, setStats] = useState<InventoryStats | null>(null);
@@ -108,9 +111,9 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
         vinylApi.getVinylStats()
       ]);
 
-      // API returns { success: true, data: [...] }, so we need to access .data
-      setVinylItems((itemsResponse?.data || []) as VinylItem[]);
-      setStats((statsResponse?.data || {}) as InventoryStats);
+      // Interceptor unwraps ServiceResult, so we get data directly
+      setVinylItems((itemsResponse || []) as VinylItem[]);
+      setStats((statsResponse || {}) as InventoryStats);
     } catch (error) {
       console.error('Failed to load vinyl data:', error);
       showNotification('Failed to load vinyl data', 'error');
@@ -123,8 +126,8 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
     setBulkLoadingSuggestions(true);
     try {
       const response = await vinylProductsApi.getAutofillSuggestions({});
-      // API returns { success: true, data: {...} }, so we need to access .data
-      setBulkAutofillSuggestions(response?.data || { combinations: [] });
+      // Interceptor unwraps ServiceResult, so we get data directly
+      setBulkAutofillSuggestions(response || { combinations: [] });
     } catch (error) {
       console.error('Failed to load autofill suggestions:', error);
       setBulkAutofillSuggestions({ combinations: [] });
@@ -136,8 +139,8 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
   const loadProductsData = useCallback(async () => {
     try {
       const productsResponse = await vinylProductsApi.getVinylProducts();
-      // API returns { success: true, data: [...] }, so we need to access .data
-      setProducts((productsResponse?.data || []) as VinylProduct[]);
+      // Interceptor unwraps ServiceResult, so we get data directly
+      setProducts((productsResponse || []) as VinylProduct[]);
     } catch (error) {
       console.error('Failed to load product catalog:', error);
       setProducts([]);
@@ -182,7 +185,10 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
       async () => {
         try {
           await vinylProductsApi.deleteVinylProduct(id);
-          await loadProductsData();
+          // Refresh the products tab
+          if (refreshProductsRef.current) {
+            refreshProductsRef.current();
+          }
           await loadBulkAutofillSuggestions(); // Reload suggestions - product catalog changed
           showNotification('Product deleted successfully', 'success');
         } catch (error) {
@@ -239,7 +245,10 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
     try {
       await vinylProductsApi.createVinylProduct(productData);
       setShowAddProductModal(false);
-      await loadProductsData();
+      // Refresh the products tab
+      if (refreshProductsRef.current) {
+        refreshProductsRef.current();
+      }
       await loadBulkAutofillSuggestions(); // Reload suggestions - product catalog changed
       showNotification('Product added successfully', 'success');
     } catch (error) {
@@ -252,7 +261,10 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
     try {
       await vinylProductsApi.updateVinylProduct(id, updates);
       setEditingProduct(null);
-      await loadProductsData();
+      // Refresh the products tab
+      if (refreshProductsRef.current) {
+        refreshProductsRef.current();
+      }
       await loadBulkAutofillSuggestions(); // Reload suggestions - product catalog changed
       showNotification('Product updated successfully', 'success');
     } catch (error) {
@@ -395,6 +407,7 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
               onShowAddModal={() => setShowAddProductModal(true)}
               onEditProduct={handleEditProductClick}
               onDeleteProduct={handleDeleteProduct}
+              onRefreshReady={(refreshFn) => { refreshProductsRef.current = refreshFn; }}
             />
           )}
         </div>

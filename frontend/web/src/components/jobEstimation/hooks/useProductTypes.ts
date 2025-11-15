@@ -33,23 +33,20 @@ export const useProductTypes = () => {
         setError(null);
         
         // Fetch from our unified product_types table
-        const response = await api.get('/job-estimation/product-types');
-        
-        if (response.data.success) {
-          // Filter active products and sort by display_order, then id
-          const activeProducts = response.data.data
-            .filter((pt: ProductType) => pt.is_active)
-            .sort((a: ProductType, b: ProductType) => {
-              if (a.display_order !== b.display_order) {
-                return a.display_order - b.display_order;
-              }
-              return a.id - b.id;
-            });
+        const productTypesData = await api.get('/job-estimation/product-types');
+        // API interceptor unwraps { success: true, data: products } -> products array directly
 
-          setProductTypes(activeProducts);
-        } else {
-          setError('Failed to load product types');
-        }
+        // Filter active products and sort by display_order, then id
+        const activeProducts = (productTypesData.data || [])
+          .filter((pt: ProductType) => pt.is_active)
+          .sort((a: ProductType, b: ProductType) => {
+            if (a.display_order !== b.display_order) {
+              return a.display_order - b.display_order;
+            }
+            return a.id - b.id;
+          });
+
+        setProductTypes(activeProducts);
       } catch (err) {
         console.error('Error fetching product types:', err);
         setError('Error loading product types');
