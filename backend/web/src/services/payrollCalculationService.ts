@@ -228,7 +228,7 @@ export class PayrollCalculationService implements IPayrollCalculationService {
         });
         
         // Calculate pay
-        const hourlyRate = parseFloat(user.hourly_rate.toString()) || 0;
+        const hourlyRate = parseFloat(user.hourly_wage.toString()) || 0;
         const regular_pay = regular_hours * hourlyRate;
         const overtime_pay = overtime_hours * hourlyRate * (parseFloat(user.overtime_rate_multiplier.toString()) || 1.5);
         const holiday_pay = holiday_hours * hourlyRate * (parseFloat(user.holiday_rate_multiplier.toString()) || 1.5);
@@ -277,7 +277,7 @@ export class PayrollCalculationService implements IPayrollCalculationService {
           first_name: user.first_name,
           last_name: user.last_name,
           user_group: user.user_group,
-          hourly_rate: user.hourly_rate,
+          hourly_wage: user.hourly_wage,
           entries: entriesMap,
           totals
         } as UserWageData;

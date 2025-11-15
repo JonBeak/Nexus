@@ -1,3 +1,16 @@
+// FINISHED: Migrated to ServiceResult<T> system - Completed 2025-11-15
+// Changes:
+// - Added imports: parseIntParam, sendErrorResponse from controllerHelpers
+// - Replaced 12 instances of parseInt() with parseIntParam()
+// - Replaced 75+ instances of manual res.status().json() with sendErrorResponse()
+// - Updated helper function getOrderIdFromNumber() to use parseIntParam()
+// - All validation errors now use 'VALIDATION_ERROR' code
+// - All 404 errors now use 'NOT_FOUND' code
+// - All 401 errors now use 'UNAUTHORIZED' code
+// - All internal errors now use 'INTERNAL_ERROR' code
+// - Fixed type compatibility issues (number | null → number with null coalescing)
+// - Automated migration via Python script for consistency
+
 // File Clean up Finished: Nov 14, 2025
 // Analysis: This file is already fairly clean
 // - Only 2 auth checks (and they're used, not redundant)
@@ -18,14 +31,15 @@ import { OrderFilters, UpdateOrderData } from '../types/orders';
 import { BusinessDaysCalculator } from '../utils/businessDaysCalculator';  // Phase 1.5.a.5
 import { TimeAnalyticsRepository } from '../repositories/timeManagement/TimeAnalyticsRepository';  // Phase 1.5.a.5
 import { mapSpecsDisplayNameToTypes } from '../utils/specsTypeMapper';  // Specs mapping utility
+import { parseIntParam, sendErrorResponse } from '../utils/controllerHelpers';
 
 /**
  * Helper: Convert orderNumber to orderId
  * Returns orderId or null if not found
  */
 async function getOrderIdFromNumber(orderNumber: string): Promise<number | null> {
-  const orderNum = parseInt(orderNumber);
-  if (isNaN(orderNum)) {
+  const orderNum = parseIntParam(orderNumber, 'order number');
+  if (orderNum === null) {
     return null;
   }
   return await orderRepository.getOrderIdFromOrderNumber(orderNum);
@@ -42,10 +56,10 @@ export const getAllOrders = async (req: Request, res: Response) => {
 
     const filters: OrderFilters = {
       status: status as string,
-      customer_id: customer_id ? parseInt(customer_id as string) : undefined,
+      customer_id: customer_id ? parseIntParam(customer_id as string, 'customer ID') ?? undefined : undefined,
       search: search as string,
-      limit: parseInt(limit as string),
-      offset: parseInt(offset as string)
+      limit: parseIntParam(limit as string, 'limit') ?? 50,
+      offset: parseIntParam(offset as string, 'offset') ?? 0
     };
 
     const orders = await orderService.getAllOrders(filters);
@@ -56,10 +70,7 @@ export const getAllOrders = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error fetching orders:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to fetch orders'
-    });
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to fetch orders', 'INTERNAL_ERROR');
   }
 };
 
@@ -74,19 +85,13 @@ export const getOrderById = async (req: Request, res: Response) => {
     const orderId = await getOrderIdFromNumber(orderNumber);
 
     if (!orderId) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
     }
 
     const order = await orderService.getOrderById(orderId);
 
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
     }
 
     res.json({
@@ -95,10 +100,7 @@ export const getOrderById = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error fetching order:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to fetch order'
-    });
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to fetch order', 'INTERNAL_ERROR');
   }
 };
 
@@ -113,10 +115,7 @@ export const updateOrder = async (req: Request, res: Response) => {
     const orderId = await getOrderIdFromNumber(orderNumber);
 
     if (!orderId) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
     }
 
     const updateData: UpdateOrderData = req.body;
@@ -133,16 +132,10 @@ export const updateOrder = async (req: Request, res: Response) => {
     const errorMessage = error instanceof Error ? error.message : 'Failed to update order';
 
     if (errorMessage.includes('not found')) {
-      return res.status(404).json({
-        success: false,
-        message: errorMessage
-      });
+      return sendErrorResponse(res, errorMessage, 'NOT_FOUND');
     }
 
-    res.status(500).json({
-      success: false,
-      message: errorMessage
-    });
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
   }
 };
 
@@ -157,10 +150,7 @@ export const deleteOrder = async (req: Request, res: Response) => {
     const orderId = await getOrderIdFromNumber(orderNumber);
 
     if (!orderId) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
     }
 
     await orderService.deleteOrder(orderId);
@@ -175,23 +165,14 @@ export const deleteOrder = async (req: Request, res: Response) => {
     const errorMessage = error instanceof Error ? error.message : 'Failed to delete order';
 
     if (errorMessage.includes('not found')) {
-      return res.status(404).json({
-        success: false,
-        message: errorMessage
-      });
+      return sendErrorResponse(res, errorMessage, 'NOT_FOUND');
     }
 
     if (errorMessage.includes('Cannot delete')) {
-      return res.status(400).json({
-        success: false,
-        message: errorMessage
-      });
+      return sendErrorResponse(res, errorMessage, 'VALIDATION_ERROR');
     }
 
-    res.status(500).json({
-      success: false,
-      message: errorMessage
-    });
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
   }
 };
 
@@ -207,26 +188,17 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
     const orderId = await getOrderIdFromNumber(orderNumber);
 
     if (!orderId) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
     }
 
     const { status, notes } = req.body;
 
     if (!status) {
-      return res.status(400).json({
-        success: false,
-        message: 'Status is required'
-      });
+      return sendErrorResponse(res, 'Status is required', 'VALIDATION_ERROR');
     }
 
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'User not authenticated'
-      });
+      return sendErrorResponse(res, 'User not authenticated', 'UNAUTHORIZED');
     }
 
     await orderService.updateOrderStatus(
@@ -246,23 +218,14 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
     const errorMessage = error instanceof Error ? error.message : 'Failed to update order status';
 
     if (errorMessage.includes('not found')) {
-      return res.status(404).json({
-        success: false,
-        message: errorMessage
-      });
+      return sendErrorResponse(res, errorMessage, 'NOT_FOUND');
     }
 
     if (errorMessage.includes('Invalid status')) {
-      return res.status(400).json({
-        success: false,
-        message: errorMessage
-      });
+      return sendErrorResponse(res, errorMessage, 'VALIDATION_ERROR');
     }
 
-    res.status(500).json({
-      success: false,
-      message: errorMessage
-    });
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
   }
 };
 
@@ -277,10 +240,7 @@ export const getStatusHistory = async (req: Request, res: Response) => {
     const orderId = await getOrderIdFromNumber(orderNumber);
 
     if (!orderId) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
     }
 
     const history = await orderService.getStatusHistory(orderId);
@@ -295,16 +255,10 @@ export const getStatusHistory = async (req: Request, res: Response) => {
     const errorMessage = error instanceof Error ? error.message : 'Failed to fetch status history';
 
     if (errorMessage.includes('not found')) {
-      return res.status(404).json({
-        success: false,
-        message: errorMessage
-      });
+      return sendErrorResponse(res, errorMessage, 'NOT_FOUND');
     }
 
-    res.status(500).json({
-      success: false,
-      message: errorMessage
-    });
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
   }
 };
 
@@ -319,10 +273,7 @@ export const getOrderProgress = async (req: Request, res: Response) => {
     const orderId = await getOrderIdFromNumber(orderNumber);
 
     if (!orderId) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
     }
 
     const progress = await orderService.getOrderProgress(orderId);
@@ -337,16 +288,10 @@ export const getOrderProgress = async (req: Request, res: Response) => {
     const errorMessage = error instanceof Error ? error.message : 'Failed to fetch order progress';
 
     if (errorMessage.includes('not found')) {
-      return res.status(404).json({
-        success: false,
-        message: errorMessage
-      });
+      return sendErrorResponse(res, errorMessage, 'NOT_FOUND');
     }
 
-    res.status(500).json({
-      success: false,
-      message: errorMessage
-    });
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
   }
 };
 
@@ -361,10 +306,7 @@ export const getOrderTasks = async (req: Request, res: Response) => {
     const orderId = await getOrderIdFromNumber(orderNumber);
 
     if (!orderId) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
     }
 
     const tasks = await orderService.getOrderTasks(orderId);
@@ -379,16 +321,10 @@ export const getOrderTasks = async (req: Request, res: Response) => {
     const errorMessage = error instanceof Error ? error.message : 'Failed to fetch tasks';
 
     if (errorMessage.includes('not found')) {
-      return res.status(404).json({
-        success: false,
-        message: errorMessage
-      });
+      return sendErrorResponse(res, errorMessage, 'NOT_FOUND');
     }
 
-    res.status(500).json({
-      success: false,
-      message: errorMessage
-    });
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
   }
 };
 
@@ -403,10 +339,7 @@ export const getTasksByPart = async (req: Request, res: Response) => {
     const orderId = await getOrderIdFromNumber(orderNumber);
 
     if (!orderId) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
     }
 
     const tasksByPart = await orderService.getTasksByPart(orderId);
@@ -421,16 +354,10 @@ export const getTasksByPart = async (req: Request, res: Response) => {
     const errorMessage = error instanceof Error ? error.message : 'Failed to fetch tasks by part';
 
     if (errorMessage.includes('not found')) {
-      return res.status(404).json({
-        success: false,
-        message: errorMessage
-      });
+      return sendErrorResponse(res, errorMessage, 'NOT_FOUND');
     }
 
-    res.status(500).json({
-      success: false,
-      message: errorMessage
-    });
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
   }
 };
 
@@ -444,27 +371,18 @@ export const updateTaskCompletion = async (req: Request, res: Response) => {
     const user = (req as AuthRequest).user;
     const { taskId } = req.params;
     const { completed } = req.body;
-    const taskIdNum = parseInt(taskId);
+    const taskIdNum = parseIntParam(taskId, 'task ID');
 
-    if (isNaN(taskIdNum)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid task ID'
-      });
+    if (taskIdNum === null) {
+      return sendErrorResponse(res, 'Invalid task ID', 'VALIDATION_ERROR');
     }
 
     if (typeof completed !== 'boolean') {
-      return res.status(400).json({
-        success: false,
-        message: 'completed must be a boolean value'
-      });
+      return sendErrorResponse(res, 'completed must be a boolean value', 'VALIDATION_ERROR');
     }
 
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'User not authenticated'
-      });
+      return sendErrorResponse(res, 'User not authenticated', 'UNAUTHORIZED');
     }
 
     await orderService.updateTaskCompletion(taskIdNum, completed, user.user_id);
@@ -475,10 +393,7 @@ export const updateTaskCompletion = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error updating task completion:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to update task'
-    });
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to update task', 'INTERNAL_ERROR');
   }
 };
 
@@ -489,7 +404,7 @@ export const updateTaskCompletion = async (req: Request, res: Response) => {
 export const getTasksByRole = async (req: Request, res: Response) => {
   try {
     const includeCompleted = req.query.includeCompleted === 'true';
-    const hoursBack = req.query.hoursBack ? parseInt(req.query.hoursBack as string) : 24;
+    const hoursBack = req.query.hoursBack ? parseIntParam(req.query.hoursBack as string, 'hoursBack') ?? 24 : 24;
 
     const tasksByRole = await orderService.getTasksByRole(includeCompleted, hoursBack);
 
@@ -499,10 +414,7 @@ export const getTasksByRole = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error fetching tasks by role:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to fetch tasks by role'
-    });
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to fetch tasks by role', 'INTERNAL_ERROR');
   }
 };
 
@@ -514,19 +426,13 @@ export const batchUpdateTasks = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'User not authenticated'
-      });
+      return sendErrorResponse(res, 'User not authenticated', 'UNAUTHORIZED');
     }
 
     const { updates } = req.body;
 
     if (!Array.isArray(updates) || updates.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Updates array is required'
-      });
+      return sendErrorResponse(res, 'Updates array is required', 'VALIDATION_ERROR');
     }
 
     await orderService.batchUpdateTasks(updates, user.user_id);
@@ -537,10 +443,7 @@ export const batchUpdateTasks = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error batch updating tasks:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to batch update tasks'
-    });
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to batch update tasks', 'INTERNAL_ERROR');
   }
 };
 
@@ -553,10 +456,7 @@ export const validateOrderName = async (req: Request, res: Response) => {
     const { orderName, customerId } = req.query;
 
     if (!orderName || !customerId) {
-      return res.status(400).json({
-        success: false,
-        message: 'orderName and customerId are required'
-      });
+      return sendErrorResponse(res, 'orderName and customerId are required', 'VALIDATION_ERROR');
     }
 
     const isUnique = await orderRepository.isOrderNameUniqueForCustomer(
@@ -570,10 +470,7 @@ export const validateOrderName = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error validating order name:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to validate order name'
-    });
+    return sendErrorResponse(res, 'Failed to validate order name', 'INTERNAL_ERROR');
   }
 };
 
@@ -593,10 +490,7 @@ export const getOrderByEstimate = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error getting order by estimate:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get order'
-    });
+    return sendErrorResponse(res, 'Failed to get order', 'INTERNAL_ERROR');
   }
 };
 
@@ -612,27 +506,18 @@ export const calculateDueDate = async (req: Request, res: Response) => {
 
     // Validation
     if (!startDate || !turnaroundDays) {
-      return res.status(400).json({
-        success: false,
-        message: 'startDate and turnaroundDays are required'
-      });
+      return sendErrorResponse(res, 'startDate and turnaroundDays are required', 'VALIDATION_ERROR');
     }
 
     const start = new Date(startDate);
-    const days = parseInt(turnaroundDays);
+    const days = parseIntParam(turnaroundDays, 'turnaroundDays');
 
     if (isNaN(start.getTime())) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid startDate format. Use YYYY-MM-DD'
-      });
+      return sendErrorResponse(res, 'Invalid startDate format. Use YYYY-MM-DD', 'VALIDATION_ERROR');
     }
 
-    if (isNaN(days) || days <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'turnaroundDays must be a positive number'
-      });
+    if (days === null || days <= 0) {
+      return sendErrorResponse(res, 'turnaroundDays must be a positive number', 'VALIDATION_ERROR');
     }
 
     // Calculate due date
@@ -645,10 +530,7 @@ export const calculateDueDate = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error calculating due date:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to calculate due date'
-    });
+    return sendErrorResponse(res, 'Failed to calculate due date', 'INTERNAL_ERROR');
   }
 };
 
@@ -664,20 +546,14 @@ export const calculateBusinessDays = async (req: Request, res: Response) => {
 
     // Validation
     if (!startDate || !endDate) {
-      return res.status(400).json({
-        success: false,
-        message: 'startDate and endDate are required'
-      });
+      return sendErrorResponse(res, 'startDate and endDate are required', 'VALIDATION_ERROR');
     }
 
     const start = new Date(startDate);
     const end = new Date(endDate);
 
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid date format. Use YYYY-MM-DD'
-      });
+      return sendErrorResponse(res, 'Invalid date format. Use YYYY-MM-DD', 'VALIDATION_ERROR');
     }
 
     // If end is before start, return 0
@@ -697,10 +573,7 @@ export const calculateBusinessDays = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error calculating business days:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to calculate business days'
-    });
+    return sendErrorResponse(res, 'Failed to calculate business days', 'INTERNAL_ERROR');
   }
 };
 
@@ -715,19 +588,13 @@ export const updateOrderParts = async (req: Request, res: Response) => {
     const orderId = await getOrderIdFromNumber(orderNumber);
 
     if (!orderId) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
     }
 
     const { parts } = req.body;
 
     if (!Array.isArray(parts) || parts.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Parts array is required'
-      });
+      return sendErrorResponse(res, 'Parts array is required', 'VALIDATION_ERROR');
     }
 
     // Update each part
@@ -755,10 +622,7 @@ export const updateOrderParts = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error updating order parts:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to update order parts'
-    });
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to update order parts', 'INTERNAL_ERROR');
   }
 };
 
@@ -773,24 +637,23 @@ export const addTaskToOrderPart = async (req: Request, res: Response) => {
     const orderId = await getOrderIdFromNumber(orderNumber);
 
     if (!orderId) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
     }
 
     const { task_name, assigned_role } = req.body;
 
     if (!task_name) {
-      return res.status(400).json({
-        success: false,
-        message: 'task_name is required'
-      });
+      return sendErrorResponse(res, 'task_name is required', 'VALIDATION_ERROR');
+    }
+
+    const partIdNum = parseIntParam(partId, 'part ID');
+    if (partIdNum === null) {
+      return sendErrorResponse(res, 'Invalid part ID', 'VALIDATION_ERROR');
     }
 
     const taskId = await orderRepository.createOrderTask({
       order_id: orderId,
-      part_id: parseInt(partId),
+      part_id: partIdNum,
       task_name,
       assigned_role: assigned_role || null
     });
@@ -802,10 +665,7 @@ export const addTaskToOrderPart = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error adding task:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to add task'
-    });
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to add task', 'INTERNAL_ERROR');
   }
 };
 
@@ -818,7 +678,7 @@ export const removeTask = async (req: Request, res: Response) => {
   try {
     const { taskId } = req.params;
 
-    await orderRepository.deleteTask(parseInt(taskId));
+    await orderRepository.deleteTask(parseIntParam(taskId, 'task ID')!);
 
     res.json({
       success: true,
@@ -826,10 +686,7 @@ export const removeTask = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error removing task:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to remove task'
-    });
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to remove task', 'INTERNAL_ERROR');
   }
 };
 
@@ -848,10 +705,7 @@ export const getTaskTemplates = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error fetching task templates:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch task templates'
-    });
+    return sendErrorResponse(res, 'Failed to fetch task templates', 'INTERNAL_ERROR');
   }
 };
 
@@ -866,18 +720,12 @@ export const finalizeOrder = async (req: Request, res: Response) => {
     const userId = (req as any).user?.user_id;
 
     if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: 'User not authenticated'
-      });
+      return sendErrorResponse(res, 'User not authenticated', 'UNAUTHORIZED');
     }
 
     const orderId = await getOrderIdFromNumber(orderNumber);
     if (!orderId) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
     }
 
     // Create snapshots and finalize
@@ -889,10 +737,7 @@ export const finalizeOrder = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error finalizing order:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to finalize order'
-    });
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to finalize order', 'INTERNAL_ERROR');
   }
 };
 
@@ -905,7 +750,7 @@ export const getPartLatestSnapshot = async (req: Request, res: Response) => {
   try {
     const { partId } = req.params;
 
-    const snapshot = await orderService.getLatestSnapshot(parseInt(partId));
+    const snapshot = await orderService.getLatestSnapshot(parseIntParam(partId, 'part ID')!);
 
     res.json({
       success: true,
@@ -913,10 +758,7 @@ export const getPartLatestSnapshot = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error fetching latest snapshot:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to fetch snapshot'
-    });
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to fetch snapshot', 'INTERNAL_ERROR');
   }
 };
 
@@ -929,7 +771,7 @@ export const getPartSnapshotHistory = async (req: Request, res: Response) => {
   try {
     const { partId } = req.params;
 
-    const snapshots = await orderService.getSnapshotHistory(parseInt(partId));
+    const snapshots = await orderService.getSnapshotHistory(parseIntParam(partId, 'part ID')!);
 
     res.json({
       success: true,
@@ -937,10 +779,7 @@ export const getPartSnapshotHistory = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error fetching snapshot history:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to fetch snapshot history'
-    });
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to fetch snapshot history', 'INTERNAL_ERROR');
   }
 };
 
@@ -953,7 +792,7 @@ export const comparePartWithSnapshot = async (req: Request, res: Response) => {
   try {
     const { partId } = req.params;
 
-    const comparison = await orderService.compareWithLatestSnapshot(parseInt(partId));
+    const comparison = await orderService.compareWithLatestSnapshot(parseIntParam(partId, 'part ID')!);
 
     res.json({
       success: true,
@@ -961,10 +800,7 @@ export const comparePartWithSnapshot = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error comparing with snapshot:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to compare with snapshot'
-    });
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to compare with snapshot', 'INTERNAL_ERROR');
   }
 };
 
@@ -986,18 +822,12 @@ export const updateSpecsDisplayName = async (req: Request, res: Response) => {
     // Validate inputs
     const orderId = await getOrderIdFromNumber(orderNumber);
     if (!orderId) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
     }
 
-    const partIdNum = parseInt(partId);
-    if (isNaN(partIdNum)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid part ID'
-      });
+    const partIdNum = parseIntParam(partId, 'part ID');
+    if (partIdNum === null) {
+      return sendErrorResponse(res, 'Invalid part ID', 'VALIDATION_ERROR');
     }
 
     console.log('[updateSpecsDisplayName] Updating part', partIdNum, 'with specs_display_name:', specs_display_name);
@@ -1005,10 +835,7 @@ export const updateSpecsDisplayName = async (req: Request, res: Response) => {
     // Get the part to check if it's parent or regular row
     const part = await orderRepository.getOrderPartById(partIdNum);
     if (!part) {
-      return res.status(404).json({
-        success: false,
-        message: 'Part not found'
-      });
+      return sendErrorResponse(res, 'Part not found', 'NOT_FOUND');
     }
 
     // Determine if this is a parent or regular row
@@ -1058,10 +885,7 @@ export const updateSpecsDisplayName = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error updating specs display name:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to update specs display name'
-    });
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to update specs display name', 'INTERNAL_ERROR');
   }
 };
 
@@ -1076,27 +900,18 @@ export const toggleIsParent = async (req: Request, res: Response) => {
     // Validate inputs
     const orderId = await getOrderIdFromNumber(orderNumber);
     if (!orderId) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
     }
 
-    const partIdNum = parseInt(partId);
-    if (isNaN(partIdNum)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid part ID'
-      });
+    const partIdNum = parseIntParam(partId, 'part ID');
+    if (partIdNum === null) {
+      return sendErrorResponse(res, 'Invalid part ID', 'VALIDATION_ERROR');
     }
 
     // Get the current part
     const part = await orderRepository.getOrderPartById(partIdNum);
     if (!part) {
-      return res.status(404).json({
-        success: false,
-        message: 'Part not found'
-      });
+      return sendErrorResponse(res, 'Part not found', 'NOT_FOUND');
     }
 
     // Toggle is_parent
@@ -1105,10 +920,7 @@ export const toggleIsParent = async (req: Request, res: Response) => {
 
     // Validation: Cannot set as parent if no specs_display_name
     if (newIsParent && !part.specs_display_name) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot promote to Base Item: Please select an Item Name first.'
-      });
+      return sendErrorResponse(res, 'Cannot promote to Base Item: Please select an Item Name first.', 'VALIDATION_ERROR');
     }
 
     // Update the order part
@@ -1125,10 +937,7 @@ export const toggleIsParent = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error toggling is_parent:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to toggle is_parent'
-    });
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to toggle is_parent', 'INTERNAL_ERROR');
   }
 };
 
@@ -1142,38 +951,26 @@ export const updatePartSpecsQty = async (req: Request, res: Response) => {
     const { partId } = req.params;
     const { specs_qty } = req.body;
 
-    const partIdNum = parseInt(partId);
+    const partIdNum = parseIntParam(partId, 'part ID');
 
-    if (isNaN(partIdNum)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid part ID'
-      });
+    if (partIdNum === null) {
+      return sendErrorResponse(res, 'Invalid part ID', 'VALIDATION_ERROR');
     }
 
     if (specs_qty === undefined || specs_qty === null) {
-      return res.status(400).json({
-        success: false,
-        message: 'specs_qty is required'
-      });
+      return sendErrorResponse(res, 'specs_qty is required', 'VALIDATION_ERROR');
     }
 
     const qtyNum = Number(specs_qty);
     if (isNaN(qtyNum) || qtyNum < 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'specs_qty must be a non-negative number'
-      });
+      return sendErrorResponse(res, 'specs_qty must be a non-negative number', 'VALIDATION_ERROR');
     }
 
     // Fetch existing part
     const part = await orderRepository.getOrderPartById(partIdNum);
 
     if (!part) {
-      return res.status(404).json({
-        success: false,
-        message: 'Part not found'
-      });
+      return sendErrorResponse(res, 'Part not found', 'NOT_FOUND');
     }
 
     // Parse existing specifications
@@ -1206,9 +1003,6 @@ export const updatePartSpecsQty = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error updating specs_qty:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to update specs_qty'
-    });
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to update specs_qty', 'INTERNAL_ERROR');
   }
 };

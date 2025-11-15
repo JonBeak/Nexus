@@ -9,7 +9,7 @@
  * Used by both Order Forms and Packing Lists
  */
 
-import { formatBooleanValue, cleanSpecValue } from './generators/pdfCommonGenerator';
+import { formatBooleanValue, cleanSpecValue } from './generators/pdfHelpers';
 import type { OrderPartForPDF } from '../../types/orders';
 
 /**

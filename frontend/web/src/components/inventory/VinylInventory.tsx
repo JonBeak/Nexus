@@ -108,8 +108,9 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
         vinylApi.getVinylStats()
       ]);
 
-      setVinylItems((itemsResponse || []) as VinylItem[]);
-      setStats((statsResponse || {}) as InventoryStats);
+      // API returns { success: true, data: [...] }, so we need to access .data
+      setVinylItems((itemsResponse?.data || []) as VinylItem[]);
+      setStats((statsResponse?.data || {}) as InventoryStats);
     } catch (error) {
       console.error('Failed to load vinyl data:', error);
       showNotification('Failed to load vinyl data', 'error');
@@ -121,8 +122,9 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
   const loadBulkAutofillSuggestions = useCallback(async () => {
     setBulkLoadingSuggestions(true);
     try {
-      const response = await vinylProductsApi.getAutofillSuggestions({}) as VinylAutofillSuggestions;
-      setBulkAutofillSuggestions(response || { combinations: [] });
+      const response = await vinylProductsApi.getAutofillSuggestions({});
+      // API returns { success: true, data: {...} }, so we need to access .data
+      setBulkAutofillSuggestions(response?.data || { combinations: [] });
     } catch (error) {
       console.error('Failed to load autofill suggestions:', error);
       setBulkAutofillSuggestions({ combinations: [] });
@@ -134,7 +136,8 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
   const loadProductsData = useCallback(async () => {
     try {
       const productsResponse = await vinylProductsApi.getVinylProducts();
-      setProducts((productsResponse || []) as VinylProduct[]);
+      // API returns { success: true, data: [...] }, so we need to access .data
+      setProducts((productsResponse?.data || []) as VinylProduct[]);
     } catch (error) {
       console.error('Failed to load product catalog:', error);
       setProducts([]);
@@ -365,7 +368,6 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
             showNotification={showNotification}
             bulkAutofillSuggestions={bulkAutofillSuggestions}
             bulkLoadingSuggestions={bulkLoadingSuggestions}
-            products={products}
           />
         </div>
       )}

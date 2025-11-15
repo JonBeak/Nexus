@@ -5,7 +5,6 @@
 
 import axios from 'axios';
 import { quickbooksRepository } from '../../repositories/quickbooksRepository';
-import { getDefaultRealmId } from './dbManager';
 import { refreshAccessToken, OAuthError } from './oauthClient';
 
 // =============================================

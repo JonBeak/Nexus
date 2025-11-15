@@ -1,4 +1,11 @@
-// File Clean up Finished: Nov 14, 2025
+// File Clean up Finished: 2025-11-15 (Second cleanup - Audit Trail Refactoring)
+// Current Cleanup Changes (Nov 15, 2025):
+// - Migrated from vacationRepository.createAuditEntry() to centralized auditRepository
+// - Updated 2 audit trail calls to use auditRepository.createAuditEntry()
+// - Added import for auditRepository
+// - Part of Phase 2: Centralized Audit Repository implementation
+//
+// Previous Cleanup (Nov 14, 2025):
 /**
  * Vacation Service
  * Business logic layer for vacation period operations
@@ -16,7 +23,9 @@
  */
 
 import { vacationRepository } from '../repositories/vacationRepository';
+import { auditRepository } from '../repositories/auditRepository';
 import { RowDataPacket } from 'mysql2';
+import { ServiceResult } from '../types/serviceResults';
 
 export interface CreateVacationData {
   user_id: number;
@@ -30,8 +39,18 @@ export class VacationService {
    * Get all vacation periods
    * @returns Array of vacation periods with user details
    */
-  async getVacations(): Promise<RowDataPacket[]> {
-    return await vacationRepository.getAllVacations();
+  async getVacations(): Promise<ServiceResult<RowDataPacket[]>> {
+    try {
+      const vacations = await vacationRepository.getAllVacations();
+      return { success: true, data: vacations };
+    } catch (error) {
+      console.error('Error in VacationService.getVacations:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch vacation periods',
+        code: 'FETCH_ERROR'
+      };
+    }
   }
 
   /**
@@ -39,8 +58,18 @@ export class VacationService {
    * @param userId - User ID to fetch vacations for
    * @returns Array of vacation periods with user details
    */
-  async getUserVacations(userId: number): Promise<RowDataPacket[]> {
-    return await vacationRepository.getVacationsByUserId(userId);
+  async getUserVacations(userId: number): Promise<ServiceResult<RowDataPacket[]>> {
+    try {
+      const vacations = await vacationRepository.getVacationsByUserId(userId);
+      return { success: true, data: vacations };
+    } catch (error) {
+      console.error('Error in VacationService.getUserVacations:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch user vacation periods',
+        code: 'FETCH_ERROR'
+      };
+    }
   }
 
   /**
@@ -52,38 +81,55 @@ export class VacationService {
   async createVacation(
     vacationData: CreateVacationData,
     creatorUserId: number
-  ): Promise<number> {
-    // Validate required fields
-    if (!vacationData.user_id || !vacationData.start_date || !vacationData.end_date) {
-      throw new Error('Missing required fields');
+  ): Promise<ServiceResult<number>> {
+    try {
+      // Validate required fields
+      if (!vacationData.user_id || !vacationData.start_date || !vacationData.end_date) {
+        return {
+          success: false,
+          error: 'Missing required fields',
+          code: 'VALIDATION_ERROR'
+        };
+      }
+
+      // Business rule: Start date must be before or equal to end date
+      const startDate = new Date(vacationData.start_date);
+      const endDate = new Date(vacationData.end_date);
+
+      if (startDate > endDate) {
+        return {
+          success: false,
+          error: 'Start date must be before or equal to end date',
+          code: 'VALIDATION_ERROR'
+        };
+      }
+
+      // Create vacation in database
+      const vacationId = await vacationRepository.createVacation(vacationData);
+
+      // Log audit trail
+      await auditRepository.createAuditEntry({
+        user_id: creatorUserId,
+        action: 'create',
+        entity_type: 'vacation_period',
+        entity_id: vacationId,
+        details: JSON.stringify({
+          user_id: vacationData.user_id,
+          start_date: vacationData.start_date,
+          end_date: vacationData.end_date,
+          description: vacationData.description
+        })
+      });
+
+      return { success: true, data: vacationId };
+    } catch (error) {
+      console.error('Error in VacationService.createVacation:', error);
+      return {
+        success: false,
+        error: 'Failed to create vacation period',
+        code: 'CREATE_ERROR'
+      };
     }
-
-    // Business rule: Start date must be before or equal to end date
-    const startDate = new Date(vacationData.start_date);
-    const endDate = new Date(vacationData.end_date);
-
-    if (startDate > endDate) {
-      throw new Error('Start date must be before or equal to end date');
-    }
-
-    // Create vacation in database
-    const vacationId = await vacationRepository.createVacation(vacationData);
-
-    // Log audit trail
-    await vacationRepository.createAuditEntry({
-      user_id: creatorUserId,
-      action: 'create',
-      entity_type: 'vacation_period',
-      entity_id: vacationId,
-      details: JSON.stringify({
-        user_id: vacationData.user_id,
-        start_date: vacationData.start_date,
-        end_date: vacationData.end_date,
-        description: vacationData.description
-      })
-    });
-
-    return vacationId;
   }
 
   /**
@@ -94,24 +140,39 @@ export class VacationService {
   async deleteVacation(
     vacationId: number,
     deleterUserId: number
-  ): Promise<void> {
-    // Business rule: Check if vacation exists before deleting
-    const exists = await vacationRepository.vacationExists(vacationId);
-    if (!exists) {
-      throw new Error('Vacation period not found');
+  ): Promise<ServiceResult<void>> {
+    try {
+      // Business rule: Check if vacation exists before deleting
+      const exists = await vacationRepository.vacationExists(vacationId);
+      if (!exists) {
+        return {
+          success: false,
+          error: 'Vacation period not found',
+          code: 'NOT_FOUND'
+        };
+      }
+
+      // Delete vacation
+      await vacationRepository.deleteVacation(vacationId);
+
+      // Log audit trail
+      await auditRepository.createAuditEntry({
+        user_id: deleterUserId,
+        action: 'delete',
+        entity_type: 'vacation_period',
+        entity_id: vacationId,
+        details: JSON.stringify({ action: 'delete_vacation' })
+      });
+
+      return { success: true, data: undefined };
+    } catch (error) {
+      console.error('Error in VacationService.deleteVacation:', error);
+      return {
+        success: false,
+        error: 'Failed to delete vacation period',
+        code: 'DELETE_ERROR'
+      };
     }
-
-    // Delete vacation
-    await vacationRepository.deleteVacation(vacationId);
-
-    // Log audit trail
-    await vacationRepository.createAuditEntry({
-      user_id: deleterUserId,
-      action: 'delete',
-      entity_type: 'vacation_period',
-      entity_id: vacationId,
-      details: JSON.stringify({ action: 'delete_vacation' })
-    });
   }
 }
 

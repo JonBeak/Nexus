@@ -1,4 +1,11 @@
-// File Clean up Finished: Nov 14, 2025
+// File Clean up Finished: 2025-11-15 (Second cleanup - Audit Trail Refactoring)
+// Current Cleanup Changes (Nov 15, 2025):
+// - Migrated from payrollRepository.logAuditTrail() to centralized auditRepository
+// - Updated 3 audit trail calls to use auditRepository.logAuditTrail()
+// - Added import for auditRepository
+// - Part of Phase 2: Centralized Audit Repository implementation
+//
+// Previous Cleanup (Nov 14, 2025):
 // Changes:
 // - Removed unused utility methods: calculatePaymentTotals() and formatPaymentRecordForDisplay() (~60 lines)
 // - Improved type safety: Changed validatePaymentEntry to use proper typed parameter instead of 'any'
@@ -20,6 +27,7 @@
  */
 
 import { PayrollRepository } from '../repositories/payrollRepository';
+import { auditRepository } from '../repositories/auditRepository';
 import {
   PaymentRecordRequest,
   PayrollRecordWithEntries,
@@ -47,7 +55,7 @@ export class PaymentRecordService implements IPaymentRecordService {
       const recordId = await this.payrollRepository.createPayrollRecord(request, userId);
       
       // Log audit trail
-      await this.payrollRepository.logAuditTrail(
+      await auditRepository.logAuditTrail(
         userId,
         'create',
         'payroll_record',
@@ -125,7 +133,7 @@ export class PaymentRecordService implements IPaymentRecordService {
       await this.payrollRepository.deactivatePaymentRecord(recordId);
       
       // Log audit trail - preserving exact format from original
-      await this.payrollRepository.logAuditTrail(
+      await auditRepository.logAuditTrail(
         userId,
         'deactivate',
         'payroll_record',
@@ -160,7 +168,7 @@ export class PaymentRecordService implements IPaymentRecordService {
       await this.payrollRepository.reactivatePaymentRecord(recordId);
       
       // Log audit trail - preserving exact format from original
-      await this.payrollRepository.logAuditTrail(
+      await auditRepository.logAuditTrail(
         userId,
         'reactivate',
         'payroll_record',

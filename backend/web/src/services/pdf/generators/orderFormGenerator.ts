@@ -1,3 +1,5 @@
+// File Clean up Finished: 2025-11-15
+
 /**
  * Unified Order Form Generator
  * Generates Master, Customer, and Shop order forms from a single template
@@ -21,29 +23,31 @@ import {
   SPACING,
   LAYOUT,
   LINE_WIDTHS,
-  SMB_PATHS,
+  SMB_PATHS
+} from './pdfConstants';
+import {
   debugLog,
   formatBooleanValue,
   cleanSpecValue,
   formatDueDateTime,
-  renderHeaderLabel,
-  renderDueDate,
-  renderQuantityBox,
   getImageFullPath,
   shouldIncludePart,
   shouldStartNewColumn,
-  renderMasterCustomerInfoRows,
-  renderShopInfoRows,
   getSpecsQuantity
-} from './pdfCommonGenerator';
+} from './pdfHelpers';
+import {
+  renderHeaderLabel,
+  renderDueDate,
+  renderQuantityBox,
+  renderMasterCustomerInfoRows,
+  renderShopInfoRows
+} from './pdfHeaderRenderers';
 import { renderNotesAndImage } from '../utils/imageProcessing';
 import { SPEC_ORDER, CRITICAL_SPECS, SPECS_EXEMPT_FROM_CRITICAL, formatSpecValues } from '../formatters/specFormatters';
 import {
   buildSortedTemplateRows,
   renderSpecifications,
-  renderSpecRow,
   calculateOptimalSplitIndex,
-  shouldAdjustSplit,
   TemplateRow
 } from '../renderers/specRenderers';
 import { buildPartColumns, PartColumn } from '../utils/partColumnBuilder';

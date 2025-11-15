@@ -1,3 +1,14 @@
+// FINISHED: Migrated to ServiceResult<T> system - Completed 2025-11-15
+// Changes:
+// - Added imports: parseIntParam, handleServiceResult, sendErrorResponse
+// - Replaced 6 instances of parseInt() with parseIntParam()
+// - Replaced all manual res.status().json() calls with helper functions
+// - Updated CustomerContactService to return ServiceResult<T> for all methods
+// - Service layer: 7 methods migrated (getUniqueEmailsForCustomer, getContactsForCustomer, getContactById, getContactByEmail, createContact, updateContact, deleteContact, getContactCount)
+// - Controller layer: 6 endpoints migrated (getCustomerContactEmails, getCustomerContacts, getCustomerContact, createCustomerContact, updateCustomerContact, deleteCustomerContact)
+// - Zero breaking changes - all endpoints maintain same response format
+// - Build verified - no new TypeScript errors
+
 // File Clean up Finished: Nov 14, 2025
 /**
  * File Clean up Finished: Nov 13, 2025
@@ -34,6 +45,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../types';
 import { CustomerContactService } from '../services/customerContactService';
+import { parseIntParam, handleServiceResult, sendErrorResponse } from '../utils/controllerHelpers';
 
 const customerContactService = new CustomerContactService();
 
@@ -45,27 +57,30 @@ const customerContactService = new CustomerContactService();
  */
 export const getCustomerContactEmails = async (req: AuthRequest, res: Response) => {
   try {
-    const customerId = parseInt(req.params.customerId);
+    const customerId = parseIntParam(req.params.customerId, 'Customer ID');
 
-    if (isNaN(customerId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid customer ID'
-      });
+    if (customerId === null) {
+      return sendErrorResponse(res, 'Invalid customer ID', 'VALIDATION_ERROR');
     }
 
-    const emails = await customerContactService.getUniqueEmailsForCustomer(customerId);
+    const result = await customerContactService.getUniqueEmailsForCustomer(customerId);
 
+    if (!result.success) {
+      return handleServiceResult(res, result);
+    }
+
+    // Return with custom response format (emails instead of data)
     res.json({
       success: true,
-      emails
+      emails: result.data
     });
   } catch (error) {
     console.error('Error fetching customer contact emails:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to fetch contact emails'
-    });
+    return sendErrorResponse(
+      res,
+      error instanceof Error ? error.message : 'Failed to fetch contact emails',
+      'INTERNAL_ERROR'
+    );
   }
 };
 
@@ -77,28 +92,31 @@ export const getCustomerContactEmails = async (req: AuthRequest, res: Response) 
  */
 export const getCustomerContacts = async (req: AuthRequest, res: Response) => {
   try {
-    const customerId = parseInt(req.params.customerId);
+    const customerId = parseIntParam(req.params.customerId, 'Customer ID');
 
-    if (isNaN(customerId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid customer ID'
-      });
+    if (customerId === null) {
+      return sendErrorResponse(res, 'Invalid customer ID', 'VALIDATION_ERROR');
     }
 
-    const contacts = await customerContactService.getContactsForCustomer(customerId);
+    const result = await customerContactService.getContactsForCustomer(customerId);
 
+    if (!result.success) {
+      return handleServiceResult(res, result);
+    }
+
+    // Return with custom response format (contacts instead of data, plus count)
     res.json({
       success: true,
-      contacts,
-      count: contacts.length
+      contacts: result.data,
+      count: result.data.length
     });
   } catch (error) {
     console.error('Error fetching customer contacts:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to fetch contacts'
-    });
+    return sendErrorResponse(
+      res,
+      error instanceof Error ? error.message : 'Failed to fetch contacts',
+      'INTERNAL_ERROR'
+    );
   }
 };
 
@@ -110,34 +128,30 @@ export const getCustomerContacts = async (req: AuthRequest, res: Response) => {
  */
 export const getCustomerContact = async (req: AuthRequest, res: Response) => {
   try {
-    const contactId = parseInt(req.params.contactId);
+    const contactId = parseIntParam(req.params.contactId, 'Contact ID');
 
-    if (isNaN(contactId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid contact ID'
-      });
+    if (contactId === null) {
+      return sendErrorResponse(res, 'Invalid contact ID', 'VALIDATION_ERROR');
     }
 
-    const contact = await customerContactService.getContactById(contactId);
+    const result = await customerContactService.getContactById(contactId);
 
-    if (!contact) {
-      return res.status(404).json({
-        success: false,
-        message: 'Contact not found'
-      });
+    if (!result.success) {
+      return handleServiceResult(res, result);
     }
 
+    // Return with custom response format (contact instead of data)
     res.json({
       success: true,
-      contact
+      contact: result.data
     });
   } catch (error) {
     console.error('Error fetching customer contact:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to fetch contact'
-    });
+    return sendErrorResponse(
+      res,
+      error instanceof Error ? error.message : 'Failed to fetch contact',
+      'INTERNAL_ERROR'
+    );
   }
 };
 
@@ -149,26 +163,20 @@ export const getCustomerContact = async (req: AuthRequest, res: Response) => {
  */
 export const createCustomerContact = async (req: AuthRequest, res: Response) => {
   try {
-    const customerId = parseInt(req.params.customerId);
+    const customerId = parseIntParam(req.params.customerId, 'Customer ID');
     const userId = req.user?.user_id;
 
     if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: 'Unauthorized'
-      });
+      return sendErrorResponse(res, 'Unauthorized', 'UNAUTHORIZED');
     }
 
-    if (isNaN(customerId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid customer ID'
-      });
+    if (customerId === null) {
+      return sendErrorResponse(res, 'Invalid customer ID', 'VALIDATION_ERROR');
     }
 
     const { contact_name, contact_phone, contact_email, contact_role, notes } = req.body;
 
-    const contactId = await customerContactService.createContact(
+    const result = await customerContactService.createContact(
       {
         customer_id: customerId,
         contact_name,
@@ -180,23 +188,23 @@ export const createCustomerContact = async (req: AuthRequest, res: Response) => 
       userId
     );
 
+    if (!result.success) {
+      return handleServiceResult(res, result);
+    }
+
+    // Return with custom response format (contact_id instead of data)
     res.status(201).json({
       success: true,
-      contact_id: contactId,
+      contact_id: result.data,
       message: 'Contact created successfully'
     });
   } catch (error) {
     console.error('Error creating customer contact:', error);
-
-    // Handle validation errors with appropriate status codes
-    const errorMessage = error instanceof Error ? error.message : 'Failed to create contact';
-    const statusCode = errorMessage.includes('already exists') ? 409 :
-                       errorMessage.includes('Invalid') || errorMessage.includes('required') ? 400 : 500;
-
-    res.status(statusCode).json({
-      success: false,
-      message: errorMessage
-    });
+    return sendErrorResponse(
+      res,
+      error instanceof Error ? error.message : 'Failed to create contact',
+      'INTERNAL_ERROR'
+    );
   }
 };
 
@@ -208,26 +216,20 @@ export const createCustomerContact = async (req: AuthRequest, res: Response) => 
  */
 export const updateCustomerContact = async (req: AuthRequest, res: Response) => {
   try {
-    const contactId = parseInt(req.params.contactId);
+    const contactId = parseIntParam(req.params.contactId, 'Contact ID');
     const userId = req.user?.user_id;
 
     if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: 'Unauthorized'
-      });
+      return sendErrorResponse(res, 'Unauthorized', 'UNAUTHORIZED');
     }
 
-    if (isNaN(contactId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid contact ID'
-      });
+    if (contactId === null) {
+      return sendErrorResponse(res, 'Invalid contact ID', 'VALIDATION_ERROR');
     }
 
     const { contact_name, contact_email, contact_phone, contact_role, is_active, notes } = req.body;
 
-    const updated = await customerContactService.updateContact(
+    const result = await customerContactService.updateContact(
       contactId,
       {
         contact_name,
@@ -240,11 +242,12 @@ export const updateCustomerContact = async (req: AuthRequest, res: Response) => 
       userId
     );
 
-    if (!updated) {
-      return res.status(404).json({
-        success: false,
-        message: 'Contact not found or no changes made'
-      });
+    if (!result.success) {
+      return handleServiceResult(res, result);
+    }
+
+    if (!result.data) {
+      return sendErrorResponse(res, 'Contact not found or no changes made', 'NOT_FOUND');
     }
 
     res.json({
@@ -253,16 +256,11 @@ export const updateCustomerContact = async (req: AuthRequest, res: Response) => 
     });
   } catch (error) {
     console.error('Error updating customer contact:', error);
-
-    // Handle validation errors with appropriate status codes
-    const errorMessage = error instanceof Error ? error.message : 'Failed to update contact';
-    const statusCode = errorMessage.includes('already exists') ? 409 :
-                       errorMessage.includes('Invalid') || errorMessage.includes('not found') ? 400 : 500;
-
-    res.status(statusCode).json({
-      success: false,
-      message: errorMessage
-    });
+    return sendErrorResponse(
+      res,
+      error instanceof Error ? error.message : 'Failed to update contact',
+      'INTERNAL_ERROR'
+    );
   }
 };
 
@@ -274,30 +272,25 @@ export const updateCustomerContact = async (req: AuthRequest, res: Response) => 
  */
 export const deleteCustomerContact = async (req: AuthRequest, res: Response) => {
   try {
-    const contactId = parseInt(req.params.contactId);
+    const contactId = parseIntParam(req.params.contactId, 'Contact ID');
     const userId = req.user?.user_id;
 
     if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: 'Unauthorized'
-      });
+      return sendErrorResponse(res, 'Unauthorized', 'UNAUTHORIZED');
     }
 
-    if (isNaN(contactId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid contact ID'
-      });
+    if (contactId === null) {
+      return sendErrorResponse(res, 'Invalid contact ID', 'VALIDATION_ERROR');
     }
 
-    const deleted = await customerContactService.deleteContact(contactId, userId);
+    const result = await customerContactService.deleteContact(contactId, userId);
 
-    if (!deleted) {
-      return res.status(404).json({
-        success: false,
-        message: 'Contact not found'
-      });
+    if (!result.success) {
+      return handleServiceResult(res, result);
+    }
+
+    if (!result.data) {
+      return sendErrorResponse(res, 'Contact not found', 'NOT_FOUND');
     }
 
     res.json({
@@ -306,9 +299,10 @@ export const deleteCustomerContact = async (req: AuthRequest, res: Response) => 
     });
   } catch (error) {
     console.error('Error deleting customer contact:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to delete contact'
-    });
+    return sendErrorResponse(
+      res,
+      error instanceof Error ? error.message : 'Failed to delete contact',
+      'INTERNAL_ERROR'
+    );
   }
 };

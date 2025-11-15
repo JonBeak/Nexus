@@ -1,3 +1,10 @@
+// FINISHED: Migrated to ServiceResult<T> system - Completed 2025-11-15
+// Changes:
+// - Added import: handleServiceResult from controllerHelpers
+// - Updated service layer to return ServiceResult<LED[]>
+// - Replaced manual res.json() with handleServiceResult() helper
+// - Zero breaking changes - endpoint continues to work as expected
+//
 // File Clean up Finished: Nov 14, 2025
 // Changes:
 // - Migrated from direct pool.execute() to query() helper via repository layer
@@ -17,6 +24,7 @@
 
 import { Request, Response } from 'express';
 import { LEDService } from '../services/ledService';
+import { handleServiceResult } from '../utils/controllerHelpers';
 
 const ledService = new LEDService();
 
@@ -26,12 +34,8 @@ const ledService = new LEDService();
  */
 export const getActiveLEDs = async (req: Request, res: Response): Promise<void> => {
   try {
-    const leds = await ledService.getActiveLEDs();
-
-    res.json({
-      success: true,
-      leds
-    });
+    const result = await ledService.getActiveLEDs();
+    handleServiceResult(res, result);
   } catch (error) {
     console.error('Controller error fetching active LEDs:', error);
     res.status(500).json({

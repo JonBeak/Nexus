@@ -34,8 +34,7 @@ import {
   EstimateVersionData,
   EstimateFinalizationData,
   MultipleJobResult,
-  OrderConversionResult,
-  EstimateGridRow
+  OrderConversionResult
 } from '../interfaces/estimateTypes';
 
 // Import the focused services

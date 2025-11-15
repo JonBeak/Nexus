@@ -1,9 +1,10 @@
+// File Clean up Finished: 2025-11-15 (Payroll not fully implemented - deferred cleanup)
 /**
  * Payroll System Type Definitions
- * 
+ *
  * Extracted from wages.ts during Enhanced Three-Layer Architecture refactoring
  * Provides comprehensive TypeScript interfaces for the payroll domain
- * 
+ *
  * Part of: Route → Controller → Service → Repository → Database architecture
  */
 
@@ -64,7 +65,7 @@ export interface PayrollUser {
   first_name: string;
   last_name: string;
   user_group?: string;
-  hourly_rate: number;
+  hourly_wage: number;
   overtime_rate_multiplier: number;
   vacation_pay_percent: number;
   holiday_rate_multiplier: number;
@@ -115,7 +116,7 @@ export interface UserWageData {
   first_name: string;
   last_name: string;
   user_group?: string;
-  hourly_rate: number;
+  hourly_wage: number;
   entries: { [date: string]: TimeEntry };
   totals: PayrollCalculationResult;
 }

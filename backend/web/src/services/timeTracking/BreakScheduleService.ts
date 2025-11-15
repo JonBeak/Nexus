@@ -13,7 +13,7 @@ import {
   ScheduledBreak,
   BreakScheduleUpdateBody,
   SuccessResponse
-} from '../../types/TimeTrackingTypes';
+} from '../../types/TimeTypes';
 
 /**
  * Break Schedule Service

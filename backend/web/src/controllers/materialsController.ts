@@ -1,3 +1,10 @@
+// FINISHED: Migrated to ServiceResult<T> system - Completed 2025-11-15
+// Changes:
+// - Added imports: sendErrorResponse
+// - Replaced 0 instances of parseInt() (none present)
+// - Replaced 1 instance of manual res.status().json() with sendErrorResponse()
+// - Service layer uses appropriate error handling
+
 // File Clean up Finished: Nov 14, 2025
 // Changes:
 // - Migrated from direct pool.execute() to query() helper via repository layer
@@ -17,6 +24,7 @@
 
 import { Request, Response } from 'express';
 import { SubstrateService } from '../services/substrateService';
+import { sendErrorResponse } from '../utils/controllerHelpers';
 
 const substrateService = new SubstrateService();
 
@@ -34,9 +42,6 @@ export const getActiveSubstrates = async (req: Request, res: Response): Promise<
     });
   } catch (error) {
     console.error('Controller error fetching active substrates:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to fetch substrate materials'
-    });
+    sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to fetch substrate materials', 'INTERNAL_ERROR');
   }
 };

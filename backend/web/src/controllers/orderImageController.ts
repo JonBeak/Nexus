@@ -1,3 +1,18 @@
+// FINISHED: Migrated to ServiceResult<T> system - Completed 2025-11-15
+// Changes:
+// - Added imports: parseIntParam, sendErrorResponse
+// - Replaced 2 instances of parseInt() with parseIntParam()
+// - Replaced 10 instances of manual res.status().json() with sendErrorResponse()
+// - Service layer already returns appropriate errors (no migration needed)
+
+// File Clean up Finished: 2025-11-15
+// Changes:
+//   - Migrated 2 pool.execute() calls to query() helper (via repository layer)
+//   - Refactored to 3-layer architecture (Controller → Repository → Database)
+//   - Removed duplicate database query logic (both methods now use orderRepository.getOrderFolderDetails)
+//   - Added orderRepository.updateJobImage() for job image updates
+//   - Removed direct database access - controller now uses repository pattern
+//   - Extended orderRepository.getOrderFolderDetails() to include order_id and folder_exists
 /**
  * Order Image Controller
  * HTTP Request Handlers for Order Image Management (Phase 1.5.g)
@@ -8,8 +23,9 @@
  */
 
 import { Request, Response } from 'express';
-import { pool } from '../config/database';
+import { orderRepository } from '../repositories/orderRepository';
 import { orderFolderService } from '../services/orderFolderService';
+import { parseIntParam, sendErrorResponse } from '../utils/controllerHelpers';
 
 /**
  * Get available images for an order
@@ -20,31 +36,18 @@ import { orderFolderService } from '../services/orderFolderService';
  */
 export const getAvailableImages = async (req: Request, res: Response) => {
   try {
-    const orderNumber = parseInt(req.params.orderNumber);
+    const orderNumber = parseIntParam(req.params.orderNumber, 'order number');
 
-    if (isNaN(orderNumber)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid order number'
-      });
+    if (orderNumber === null) {
+      return sendErrorResponse(res, 'Invalid order number', 'VALIDATION_ERROR');
     }
 
-    // Get order details
-    const [orderRows] = await pool.execute<any[]>(
-      `SELECT order_id, folder_name, folder_exists, folder_location, is_migrated
-       FROM orders
-       WHERE order_number = ?`,
-      [orderNumber]
-    );
+    // Get order details from repository
+    const order = await orderRepository.getOrderFolderDetails(orderNumber);
 
-    if (orderRows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+    if (!order) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
     }
-
-    const order = orderRows[0];
 
     // Check if order has a folder
     if (!order.folder_exists || !order.folder_name || order.folder_location === 'none') {
@@ -73,10 +76,7 @@ export const getAvailableImages = async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('[OrderImageController] Error listing images:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to list images'
-    });
+    sendErrorResponse(res, 'Failed to list images', 'INTERNAL_ERROR');
   }
 };
 
@@ -90,65 +90,40 @@ export const getAvailableImages = async (req: Request, res: Response) => {
  */
 export const setJobImage = async (req: Request, res: Response) => {
   try {
-    const orderNumber = parseInt(req.params.orderNumber);
+    const orderNumber = parseIntParam(req.params.orderNumber, 'order number');
     const { filename, cropCoords } = req.body;
 
     // Validation
-    if (isNaN(orderNumber)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid order number'
-      });
+    if (orderNumber === null) {
+      return sendErrorResponse(res, 'Invalid order number', 'VALIDATION_ERROR');
     }
 
     if (!filename || typeof filename !== 'string') {
-      return res.status(400).json({
-        success: false,
-        message: 'Filename is required'
-      });
+      return sendErrorResponse(res, 'Filename is required', 'VALIDATION_ERROR');
     }
 
     // Validate file extension (security: only allow images)
     const allowedExtensions = ['.jpg', '.jpeg', '.png'];
     const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
     if (!allowedExtensions.includes(ext)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid file type. Only JPG, JPEG, and PNG are allowed.'
-      });
+      return sendErrorResponse(res, 'Invalid file type. Only JPG, JPEG, and PNG are allowed.', 'VALIDATION_ERROR');
     }
 
     // Validate no path traversal attempts (security)
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid filename: path characters not allowed'
-      });
+      return sendErrorResponse(res, 'Invalid filename: path characters not allowed', 'VALIDATION_ERROR');
     }
 
-    // Get order details
-    const [orderRows] = await pool.execute<any[]>(
-      `SELECT order_id, folder_name, folder_exists, folder_location, is_migrated
-       FROM orders
-       WHERE order_number = ?`,
-      [orderNumber]
-    );
+    // Get order details from repository
+    const order = await orderRepository.getOrderFolderDetails(orderNumber);
 
-    if (orderRows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+    if (!order) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
     }
-
-    const order = orderRows[0];
 
     // Check if order has a folder
     if (!order.folder_exists || !order.folder_name || order.folder_location === 'none') {
-      return res.status(400).json({
-        success: false,
-        message: 'Order has no folder'
-      });
+      return sendErrorResponse(res, 'Order has no folder', 'VALIDATION_ERROR');
     }
 
     // Verify image exists in folder
@@ -160,10 +135,7 @@ export const setJobImage = async (req: Request, res: Response) => {
     );
 
     if (!imageExists) {
-      return res.status(404).json({
-        success: false,
-        message: 'Image file not found in order folder'
-      });
+      return sendErrorResponse(res, 'Image file not found in order folder', 'NOT_FOUND');
     }
 
     // Validate crop coordinates if provided
@@ -174,22 +146,14 @@ export const setJobImage = async (req: Request, res: Response) => {
 
     // Ensure crop values are non-negative integers
     if (cropTop < 0 || cropRight < 0 || cropBottom < 0 || cropLeft < 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Crop coordinates must be non-negative integers'
-      });
+      return sendErrorResponse(res, 'Crop coordinates must be non-negative integers', 'VALIDATION_ERROR');
     }
 
-    // Update sign_image_path and crop coordinates in database
-    await pool.execute(
-      `UPDATE orders
-       SET sign_image_path = ?,
-           crop_top = ?,
-           crop_right = ?,
-           crop_bottom = ?,
-           crop_left = ?
-       WHERE order_id = ?`,
-      [filename, cropTop, cropRight, cropBottom, cropLeft, order.order_id]
+    // Update job image and crop coordinates via repository
+    await orderRepository.updateJobImage(
+      order.order_id,
+      filename,
+      { top: cropTop, right: cropRight, bottom: cropBottom, left: cropLeft }
     );
 
     const cropInfo = cropTop || cropRight || cropBottom || cropLeft
@@ -206,9 +170,6 @@ export const setJobImage = async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('[OrderImageController] Error setting job image:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update job image'
-    });
+    sendErrorResponse(res, 'Failed to update job image', 'INTERNAL_ERROR');
   }
 };

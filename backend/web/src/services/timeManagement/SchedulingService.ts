@@ -1,13 +1,26 @@
+// File Clean up Finished: 2025-11-15
+// Changes:
+// - Removed unused import: query from '../../config/database' (dead code)
+// - File already follows proper 3-layer architecture (no direct DB queries)
+// - Audit trail already migrated to auditRepository (Nov 15, 2025)
+// - CSV parsing kept as private methods (YAGNI - no other CSV features yet)
+
 /**
  * Scheduling Service
  * Business logic layer for work schedules and company holidays operations
  * Extracted from timeScheduling.ts (290 → 100 lines, 65% reduction)
+ *
+ * ARCHITECTURAL FIX (Nov 15, 2025):
+ * - Migrated 4 direct INSERT INTO audit_trail queries to use auditRepository
+ * - Fixed architectural violation: Services no longer query database directly
+ * - Added import for centralized auditRepository
+ * - Part of Phase 2: Centralized Audit Repository implementation
  */
 
 import { User } from '../../types';
 import { TimeTrackingPermissions } from '../../utils/timeTracking/permissions';
 import { SchedulingRepository } from '../../repositories/timeManagement/SchedulingRepository';
-import { query } from '../../config/database';
+import { auditRepository } from '../../repositories/auditRepository';
 import {
   ServiceResponse,
   ServiceOptions,
@@ -21,7 +34,7 @@ import {
   HolidayConflict,
   HolidayImportResult,
   CSVImportRequest
-} from '../../types/TimeManagementTypes';
+} from '../../types/TimeTypes';
 
 export class SchedulingService {
   // Cache storage
@@ -105,16 +118,12 @@ export class SchedulingService {
       await SchedulingRepository.createWorkSchedules(userId, schedules);
 
       // Audit logging
-      await query(
-        `INSERT INTO audit_trail (user_id, action, entity_type, entity_id, details)
-         VALUES (?, ?, ?, ?, ?)`,
-        [
-          user.user_id,
-          'update_work_schedule',
-          'work_schedule',
-          userId.toString(),
-          JSON.stringify({ schedules_count: schedules.length })
-        ]
+      await auditRepository.logAuditTrail(
+        user.user_id,
+        'update_work_schedule',
+        'work_schedule',
+        userId,
+        JSON.stringify({ schedules_count: schedules.length })
       );
 
       return {
@@ -247,16 +256,12 @@ export class SchedulingService {
       const holidayId = await SchedulingRepository.createHoliday(holiday_name, holiday_date);
 
       // Audit logging
-      await query(
-        `INSERT INTO audit_trail (user_id, action, entity_type, entity_id, details)
-         VALUES (?, ?, ?, ?, ?)`,
-        [
-          user.user_id,
-          'create_holiday',
-          'company_holiday',
-          holidayId.toString(),
-          JSON.stringify({ holiday_name, holiday_date, overwrite })
-        ]
+      await auditRepository.logAuditTrail(
+        user.user_id,
+        'create_holiday',
+        'company_holiday',
+        holidayId,
+        JSON.stringify({ holiday_name, holiday_date, overwrite })
       );
 
       // Invalidate cache
@@ -302,16 +307,12 @@ export class SchedulingService {
       await SchedulingRepository.softDeleteHoliday(holidayId);
 
       // Audit logging
-      await query(
-        `INSERT INTO audit_trail (user_id, action, entity_type, entity_id, details)
-         VALUES (?, ?, ?, ?, ?)`,
-        [
-          user.user_id,
-          'delete_holiday',
-          'company_holiday',
-          holidayId.toString(),
-          JSON.stringify({ action: 'soft_delete' })
-        ]
+      await auditRepository.logAuditTrail(
+        user.user_id,
+        'delete_holiday',
+        'company_holiday',
+        holidayId,
+        JSON.stringify({ action: 'soft_delete' })
       );
 
       // Invalidate cache
@@ -463,16 +464,12 @@ export class SchedulingService {
       }
 
       // Audit logging
-      await query(
-        `INSERT INTO audit_trail (user_id, action, entity_type, entity_id, details)
-         VALUES (?, ?, ?, ?, ?)`,
-        [
-          user.user_id,
-          'import_holidays',
-          'company_holiday',
-          'bulk',
-          JSON.stringify({ imported_count: importedCount, overwrite_all: overwriteAll })
-        ]
+      await auditRepository.logAuditTrail(
+        user.user_id,
+        'import_holidays',
+        'company_holiday',
+        'bulk',
+        JSON.stringify({ imported_count: importedCount, overwrite_all: overwriteAll })
       );
 
       // Invalidate cache

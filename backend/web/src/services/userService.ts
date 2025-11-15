@@ -1,15 +1,22 @@
+// File Clean up Finished: 2025-11-15 (Second cleanup - Audit Trail Refactoring)
+// Current Cleanup Changes (Nov 15, 2025):
+// - Migrated from userRepository.createAuditEntry() to centralized auditRepository
+// - Updated all 3 audit trail calls to use auditRepository.createAuditEntry()
+// - Added import for auditRepository
+// - Part of Phase 1: Centralized Audit Repository implementation
+//
+// Previous Cleanup (Nov 14, 2025):
+// - Added cache invalidation when user role changes (bug fix)
 /**
  * User Service
  * Business logic layer for user-related operations
  *
  * Created: Nov 13, 2025
  * Part of cleanup: Consolidating /auth/users and /accounts/users endpoints
- *
- * File Clean up Finished: Nov 14, 2025
- * Changes: Added cache invalidation when user role changes (bug fix)
  */
 
 import { userRepository, UserFields, BasicUserFields } from '../repositories/userRepository';
+import { auditRepository } from '../repositories/auditRepository';
 import { RowDataPacket } from 'mysql2';
 import bcrypt from 'bcrypt';
 import { clearUserPermissionCache } from '../middleware/rbac';
@@ -146,7 +153,7 @@ export class UserService {
     });
 
     // Log audit trail
-    await userRepository.createAuditEntry({
+    await auditRepository.createAuditEntry({
       user_id: creatorUserId,
       action: 'create',
       entity_type: 'user',
@@ -203,7 +210,7 @@ export class UserService {
     }
 
     // Log audit trail
-    await userRepository.createAuditEntry({
+    await auditRepository.createAuditEntry({
       user_id: updaterUserId,
       action: 'update',
       entity_type: 'user',
@@ -247,7 +254,7 @@ export class UserService {
     await userRepository.updatePassword(userId, hashedPassword);
 
     // Log audit trail
-    await userRepository.createAuditEntry({
+    await auditRepository.createAuditEntry({
       user_id: updaterUserId,
       action: 'update',
       entity_type: 'user_password',

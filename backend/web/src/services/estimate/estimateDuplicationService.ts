@@ -1,22 +1,25 @@
+// File Clean up Finished: Nov 14, 2025 (Re-cleaned same day)
+// File Clean up Finished: 2025-11-15 (Architectural cleanup)
+// Changes:
+//   - Migrated all 4 direct SQL queries to repository methods
+//   - duplicateEstimateToNewJob(): Now uses getSourceEstimateForDuplication() + createDuplicateEstimateToNewJob()
+//   - duplicateEstimate(): Now uses createDuplicateEstimate()
+//   - duplicatePhase4Data(): Now uses duplicateEstimateItems()
+//   - Removed unused RowDataPacket and ResultSetHeader imports
+//   - All database access now properly delegated to repository layer
+//   - Service layer only contains business logic and transaction orchestration
+
 /**
  * Estimate Duplication Service
  *
  * Extracted from estimateService.ts during refactoring
  * Handles estimate duplication and copying logic
  *
- * File Clean up Finished: Nov 14, 2025 (Re-cleaned same day)
- * Changes:
- *   - Removed legacy duplicateLegacyData() method (job_estimate_groups table dropped)
- *   - Removed conditional logic in duplicateEstimateData() - always uses Phase 4
- *   - Simplified to only support grid-based duplication
- *   - Removed unused pool import (standardization - Nov 14, 2025)
- *
  * Responsibilities:
  * - Estimate duplication within same job
  * - Cross-job estimate copying
  * - Grid-based data structure handling (Phase 4+)
  */
-import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { JobCodeGenerator } from '../../utils/jobCodeGenerator';
 import { EstimateRepository } from '../../repositories/estimateRepository';
 
@@ -35,36 +38,38 @@ export class EstimateDuplicationService {
     userId: number
   ): Promise<number> {
     // Get source estimate data
-    const [sourceRows] = await connection.execute(
-      `SELECT * FROM job_estimates WHERE id = ?`,
-      [sourceEstimateId]
-    ) as [RowDataPacket[]];
+    const source = await this.estimateRepository.getSourceEstimateForDuplication(
+      connection,
+      sourceEstimateId
+    );
 
-    if (sourceRows.length === 0) {
+    if (!source) {
       throw new Error('Source estimate not found');
     }
 
-    const source = sourceRows[0];
+    // Get current date for job code
+    const dateStr = JobCodeGenerator.getCurrentDateString();
+
+    // Get next sequence number for today (transaction-safe)
+    const sequence = await this.estimateRepository.getNextSequenceForDate(connection, dateStr);
 
     // Generate new job code for the target version
-    const newJobCode = JobCodeGenerator.generateVersionedJobCode(targetVersion);
+    const newJobCode = JobCodeGenerator.generateVersionedJobCode(dateStr, sequence, targetVersion);
 
     // Create new estimate in target job
-    const [newEstimateResult] = await connection.execute(
-      `INSERT INTO job_estimates (
-        job_code, job_id, customer_id, version_number, parent_estimate_id,
-        subtotal, tax_rate, tax_amount, total_amount, notes,
-        created_by, updated_by, is_draft
-       )
-       VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
-      [
-        newJobCode, targetJobId, source.customer_id, targetVersion,
-        source.subtotal, source.tax_rate, source.tax_amount, source.total_amount, source.notes,
-        userId, userId
-      ]
-    ) as [ResultSetHeader];
-
-    const newEstimateId = newEstimateResult.insertId;
+    const newEstimateId = await this.estimateRepository.createDuplicateEstimateToNewJob(
+      connection,
+      newJobCode,
+      targetJobId,
+      targetVersion,
+      source.customer_id,
+      source.subtotal,
+      source.tax_rate,
+      source.tax_amount,
+      source.total_amount,
+      source.notes,
+      userId
+    );
 
     // Duplicate the estimate items and groups
     await this.duplicateEstimateData(connection, sourceEstimateId, newEstimateId);
@@ -88,19 +93,15 @@ export class EstimateDuplicationService {
       }
 
       // Create new estimate record
-      const [result] = await connection.execute(
-        `INSERT INTO job_estimates (
-          job_code, job_id, customer_id, version_number, parent_estimate_id,
-          subtotal, tax_rate, tax_amount, total_amount, notes,
-          created_by, updated_by, is_draft
-         )
-         SELECT ?, ?, customer_id, ?, ?, subtotal, tax_rate, tax_amount, total_amount, ?, ?, ?, TRUE
-         FROM job_estimates
-         WHERE id = ?`,
-        [jobCode, jobId, version, sourceEstimateId, notes || null, userId, userId, sourceEstimateId]
-      ) as [ResultSetHeader];
-
-      const newEstimateId = result.insertId;
+      const newEstimateId = await this.estimateRepository.createDuplicateEstimate(
+        connection,
+        jobCode,
+        jobId,
+        version,
+        sourceEstimateId,
+        notes || null,
+        userId
+      );
 
       // Duplicate the estimate items and groups
       await this.duplicateEstimateData(connection, sourceEstimateId, newEstimateId);
@@ -134,20 +135,10 @@ export class EstimateDuplicationService {
    * Duplicates grid-based estimate data (direct item structure)
    */
   private async duplicatePhase4Data(connection: any, sourceEstimateId: number, newEstimateId: number): Promise<void> {
-    await connection.execute(
-      `INSERT INTO job_estimate_items (
-        estimate_id, assembly_group_id, parent_item_id,
-        product_type_id, item_name, item_order, item_index, grid_data,
-        unit_price, extended_price, customer_description, internal_notes
-       )
-       SELECT
-        ?, assembly_group_id, parent_item_id,
-        product_type_id, item_name, item_order, item_index, grid_data,
-        unit_price, extended_price, customer_description, internal_notes
-       FROM job_estimate_items
-       WHERE estimate_id = ?
-       ORDER BY item_order`,
-      [newEstimateId, sourceEstimateId]
+    await this.estimateRepository.duplicateEstimateItems(
+      connection,
+      sourceEstimateId,
+      newEstimateId
     );
   }
 }

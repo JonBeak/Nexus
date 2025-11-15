@@ -54,6 +54,41 @@ export class OrderRepository {
     return rows[0].order_id;
   }
 
+  /**
+   * Get order folder details by order_number
+   * Used for PDF generation, printing operations, and image management
+   */
+  async getOrderFolderDetails(orderNumber: number): Promise<{
+    order_id: number;
+    order_number: number;
+    order_name: string;
+    folder_name: string;
+    folder_exists: boolean;
+    folder_location: 'active' | 'finished' | 'none';
+    is_migrated: boolean;
+  } | null> {
+    const rows = await query(
+      `SELECT order_id, order_number, order_name, folder_name, folder_exists, folder_location, is_migrated
+       FROM orders
+       WHERE order_number = ?`,
+      [orderNumber]
+    ) as RowDataPacket[];
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    return rows[0] as {
+      order_id: number;
+      order_number: number;
+      order_name: string;
+      folder_name: string;
+      folder_exists: boolean;
+      folder_location: 'active' | 'finished' | 'none';
+      is_migrated: boolean;
+    };
+  }
+
   // =============================================
   // ORDER CRUD OPERATIONS
   // =============================================
@@ -273,6 +308,27 @@ export class OrderRepository {
     await conn.execute(
       'UPDATE orders SET status = ? WHERE order_id = ?',
       [status, orderId]
+    );
+  }
+
+  /**
+   * Update job image and crop coordinates for an order
+   * Used by order image management endpoints
+   */
+  async updateJobImage(
+    orderId: number,
+    filename: string,
+    cropCoords: { top: number; right: number; bottom: number; left: number }
+  ): Promise<void> {
+    await query(
+      `UPDATE orders
+       SET sign_image_path = ?,
+           crop_top = ?,
+           crop_right = ?,
+           crop_bottom = ?,
+           crop_left = ?
+       WHERE order_id = ?`,
+      [filename, cropCoords.top, cropCoords.right, cropCoords.bottom, cropCoords.left, orderId]
     );
   }
 

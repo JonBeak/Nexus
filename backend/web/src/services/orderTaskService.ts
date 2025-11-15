@@ -1,3 +1,14 @@
+// File Clean up Finished: 2025-11-15
+// Status: UNIMPLEMENTED FEATURE - NOT YET INTEGRATED
+// Notes:
+//   - Service contains task auto-generation logic for production workflows
+//   - Hard-coded task templates for 5 product types (channel_letters, dimensional_letters, acm_panel, vinyl, substrate_cut)
+//   - Task-to-role mappings (42 assignments: designer, vinyl_cnc, painting, cut_bend, leds, packing)
+//   - Currently NOT called anywhere in codebase (tasks are created manually via controller)
+//   - Future integration: Import and use in orderConversionService to auto-generate tasks when creating orders
+//   - No cleanup needed: Code is clean, well-structured, ready for future integration
+//   - Phase 3 plan: Migrate hard-coded templates to database-driven system
+
 /**
  * Order Task Service
  * Business Logic for Task Generation and Management

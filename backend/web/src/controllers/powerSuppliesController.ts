@@ -1,3 +1,10 @@
+// FINISHED: Migrated to ServiceResult<T> system - Completed 2025-11-15
+// Changes:
+// - Added import: handleServiceResult from controllerHelpers
+// - Updated service layer to return ServiceResult<PowerSupply[]>
+// - Replaced manual res.json() with handleServiceResult() helper
+// - Zero breaking changes - endpoint continues to work as expected
+//
 // File Clean up Finished: Nov 14, 2025
 // Changes:
 // - Migrated from direct pool.execute() to query() helper via repository layer
@@ -17,6 +24,7 @@
 
 import { Request, Response } from 'express';
 import { PowerSupplyService } from '../services/powerSupplyService';
+import { handleServiceResult } from '../utils/controllerHelpers';
 
 const powerSupplyService = new PowerSupplyService();
 
@@ -26,12 +34,8 @@ const powerSupplyService = new PowerSupplyService();
  */
 export const getActivePowerSupplies = async (req: Request, res: Response): Promise<void> => {
   try {
-    const powerSupplies = await powerSupplyService.getActivePowerSupplies();
-
-    res.json({
-      success: true,
-      powerSupplies
-    });
+    const result = await powerSupplyService.getActivePowerSupplies();
+    handleServiceResult(res, result);
   } catch (error) {
     console.error('Controller error fetching active power supplies:', error);
     res.status(500).json({

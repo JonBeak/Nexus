@@ -71,6 +71,66 @@ export class OrderFolderService {
   }
 
   /**
+   * Get order form PDF paths for printing operations
+   * Builds complete filesystem paths for all order form types
+   *
+   * @param orderNumber - The order number to get paths for
+   * @returns Object with order details and paths to all form PDFs
+   * @throws Error if order not found or folder not configured
+   */
+  async getOrderFormPaths(orderNumber: number): Promise<{
+    order_name: string;
+    folder_name: string;
+    folder_location: 'active' | 'finished' | 'none';
+    is_migrated: boolean;
+    paths: {
+      master: string;
+      shop: string;
+      customer: string;
+      estimate: string;
+      packing: string;
+    };
+  }> {
+    // Get order details from repository
+    const order = await orderRepository.getOrderFolderDetails(orderNumber);
+
+    if (!order) {
+      throw new Error(`Order ${orderNumber} not found`);
+    }
+
+    if (!order.folder_name || order.folder_location === 'none') {
+      throw new Error(`Order ${orderNumber} does not have a folder`);
+    }
+
+    // Build folder paths using same logic as PDF generation
+    const orderFolderRoot = this.getFolderPath(
+      order.folder_name,
+      order.folder_location,
+      order.is_migrated
+    );
+
+    const specsSubfolder = path.join(orderFolderRoot, 'Specs');
+
+    // Build PDF filenames
+    const orderNum = order.order_number;
+    const jobName = order.order_name;
+
+    return {
+      order_name: order.order_name,
+      folder_name: order.folder_name,
+      folder_location: order.folder_location,
+      is_migrated: order.is_migrated,
+      paths: {
+        master: path.join(orderFolderRoot, `${orderNum} - ${jobName}.pdf`),
+        shop: path.join(orderFolderRoot, `${orderNum} - ${jobName} - Shop.pdf`),
+        customer: path.join(specsSubfolder, `${orderNum} - ${jobName} - Specs.pdf`),
+        estimate: path.join(specsSubfolder, `${orderNum} - ${jobName} - Estimate.pdf`),
+        packing: path.join(specsSubfolder, `${orderNum} - ${jobName} - Packing List.pdf`)
+      }
+    };
+  }
+
+  /**
    * Check if SMB share is accessible with 7-second timeout
    * Used during order conversion to fail fast if network share is unavailable
    */

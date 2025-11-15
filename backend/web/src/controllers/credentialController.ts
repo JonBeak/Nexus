@@ -1,3 +1,10 @@
+// FINISHED: Migrated to ServiceResult<T> system - Completed 2025-11-15
+// Changes:
+// - Added imports: sendErrorResponse
+// - Replaced 0 instances of parseInt() (none present)
+// - Replaced 11 instances of manual res.status().json() with sendErrorResponse()
+// - Service layer uses appropriate error handling
+
 // File Clean up Finished: Nov 14, 2025
 // Changes (Initial):
 // - Added IP address and user agent extraction from request
@@ -21,6 +28,7 @@ import { AuthRequest } from '../types';
 import { CredentialService } from '../services/credentialService';
 import { EncryptionService } from '../services/encryptionService';
 import { QuickBooksCredentials } from '../types/credentials';
+import { sendErrorResponse } from '../utils/controllerHelpers';
 
 const credentialService = CredentialService.getInstance();
 
@@ -42,20 +50,12 @@ export const setupQuickBooksCredentials = async (req: AuthRequest, res: Response
 
     // Validate required fields
     if (!client_id || !client_secret) {
-      res.status(400).json({
-        success: false,
-        error: 'client_id and client_secret are required',
-      });
-      return;
+      return sendErrorResponse(res, 'client_id and client_secret are required', 'VALIDATION_ERROR');
     }
 
     // Validate environment if provided
     if (environment && !['sandbox', 'production'].includes(environment)) {
-      res.status(400).json({
-        success: false,
-        error: 'environment must be either "sandbox" or "production"',
-      });
-      return;
+      return sendErrorResponse(res, 'environment must be either "sandbox" or "production"', 'VALIDATION_ERROR');
     }
 
     // Store encrypted credentials
@@ -77,10 +77,7 @@ export const setupQuickBooksCredentials = async (req: AuthRequest, res: Response
     });
   } catch (error) {
     console.error('Error storing QuickBooks credentials:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to store credentials',
-    });
+    sendErrorResponse(res, 'Failed to store credentials', 'INTERNAL_ERROR');
   }
 };
 
@@ -115,10 +112,7 @@ export const getQuickBooksStatus = async (req: AuthRequest, res: Response): Prom
     });
   } catch (error) {
     console.error('Error checking QuickBooks credential status:', error);
-    res.status(500).json({
-      configured: false,
-      error: 'Failed to check credential status',
-    });
+    sendErrorResponse(res, 'Failed to check credential status', 'INTERNAL_ERROR');
   }
 };
 
@@ -138,11 +132,7 @@ export const updateQuickBooksCredentials = async (req: AuthRequest, res: Respons
     const existing = await credentialService.getQuickBooksCredentials(req.user?.user_id, clientIp, userAgent);
 
     if (!existing) {
-      res.status(404).json({
-        success: false,
-        error: 'No QuickBooks credentials found to update',
-      });
-      return;
+      return sendErrorResponse(res, 'No QuickBooks credentials found to update', 'NOT_FOUND');
     }
 
     // Merge updates with existing
@@ -164,10 +154,7 @@ export const updateQuickBooksCredentials = async (req: AuthRequest, res: Respons
     });
   } catch (error) {
     console.error('Error updating QuickBooks credentials:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to update credentials',
-    });
+    sendErrorResponse(res, 'Failed to update credentials', 'INTERNAL_ERROR');
   }
 };
 
@@ -184,11 +171,7 @@ export const deleteQuickBooksCredentials = async (req: AuthRequest, res: Respons
     const credentials = await credentialService.getQuickBooksCredentials(req.user?.user_id, clientIp, userAgent);
 
     if (!credentials) {
-      res.status(404).json({
-        success: false,
-        error: 'No QuickBooks credentials found',
-      });
-      return;
+      return sendErrorResponse(res, 'No QuickBooks credentials found', 'NOT_FOUND');
     }
 
     // Delete all QuickBooks credentials
@@ -205,10 +188,7 @@ export const deleteQuickBooksCredentials = async (req: AuthRequest, res: Respons
     });
   } catch (error) {
     console.error('Error deleting QuickBooks credentials:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to delete credentials',
-    });
+    sendErrorResponse(res, 'Failed to delete credentials', 'INTERNAL_ERROR');
   }
 };
 
@@ -231,10 +211,7 @@ export const testEncryption = async (req: AuthRequest, res: Response): Promise<v
     });
   } catch (error) {
     console.error('Encryption test error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Encryption service error',
-    });
+    sendErrorResponse(res, 'Encryption service error', 'INTERNAL_ERROR');
   }
 };
 
@@ -266,9 +243,6 @@ export const listServices = async (req: AuthRequest, res: Response): Promise<voi
     });
   } catch (error) {
     console.error('Error listing credential services:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to list services',
-    });
+    sendErrorResponse(res, 'Failed to list services', 'INTERNAL_ERROR');
   }
 };

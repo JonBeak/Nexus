@@ -1,3 +1,5 @@
+// File Clean up Finished: 2025-11-15
+
 /**
  * Spec Renderers Module
  * Handles spec processing and rendering logic for PDF generation
@@ -5,7 +7,8 @@
  * Extracted from orderFormGenerator.ts as part of Phase 2 refactoring
  */
 
-import { COLORS, FONT_SIZES, SPACING, debugLog, formatBooleanValue, cleanSpecValue, FormType } from '../generators/pdfCommonGenerator';
+import { COLORS, FONT_SIZES, SPACING, FormType } from '../generators/pdfConstants';
+import { debugLog, formatBooleanValue, cleanSpecValue } from '../generators/pdfHelpers';
 import {
   SPEC_ORDER,
   CRITICAL_SPECS,
@@ -22,8 +25,6 @@ export interface TemplateRow {
   rowNum: string;
   specs: Record<string, any>;
 }
-
-export type { FormType };
 
 // ============================================
 // SPEC PROCESSING FUNCTIONS
@@ -209,7 +210,7 @@ export function calculateOptimalSplitIndex(
  * Check if split would separate same spec type on both sides
  * Returns true if the spec type at (index-1) == spec type at (index)
  */
-export function shouldAdjustSplit(
+function shouldAdjustSplit(
   sortedTemplateRows: Array<{ template: string; rowNum: string; specs: Record<string, any> }>,
   splitIndex: number
 ): boolean {
@@ -272,7 +273,7 @@ export function renderSpecifications(
 /**
  * Render a single spec row with label and value
  */
-export function renderSpecRow(
+function renderSpecRow(
   doc: any,
   label: string,
   value: string,

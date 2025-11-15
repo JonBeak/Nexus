@@ -1,5 +1,11 @@
-// File Clean up Finished: Nov 14, 2025 (Second cleanup - Token Management Migration)
-// Current Cleanup Changes (Nov 14, 2025):
+// File Clean up Finished: Nov 15, 2025 (Third cleanup - Complete dbManager.ts Deprecation)
+// Latest Cleanup Changes (Nov 15, 2025):
+// - DEPRECATED dbManager.ts completely (450 lines eliminated)
+// - Updated 4 files to use quickbooksRepository.getDefaultRealmId() instead of dbManager
+// - Deleted utils/quickbooks/dbManager.ts (all methods either duplicated or dead code)
+// - Architecture compliance: Repository is now single source of truth for QB database access
+//
+// Previous Cleanup (Nov 14, 2025 - Token Management Migration):
 // - Added token management methods from dbManager.ts (architectural consolidation)
 // - Added storeTokens() with AES-256-GCM encryption (migrated from dbManager)
 // - Added getActiveTokens() with automatic decryption (migrated from dbManager)

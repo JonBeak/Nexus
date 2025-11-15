@@ -31,7 +31,6 @@ import {
   getItemIdByName,
   getEstimatePdfUrl,
 } from '../utils/quickbooks/apiClient';
-import { getDefaultRealmId } from '../utils/quickbooks/dbManager';
 
 /**
  * QuickBooks Line Item Interface
@@ -131,10 +130,17 @@ export class QuickBooksService {
   /**
    * Disconnect from QuickBooks
    * Deletes stored tokens
+   * If realmId not provided, uses default realm ID
    */
-  async disconnect(realmId: string): Promise<void> {
-    await quickbooksRepository.deleteTokens(realmId);
-    console.log(`✅ Disconnected from QuickBooks (Realm ID: ${realmId})`);
+  async disconnect(realmId?: string): Promise<void> {
+    const targetRealmId = realmId || await quickbooksRepository.getDefaultRealmId();
+
+    if (!targetRealmId) {
+      throw new Error('Not connected to QuickBooks');
+    }
+
+    await quickbooksRepository.deleteTokens(targetRealmId);
+    console.log(`✅ Disconnected from QuickBooks (Realm ID: ${targetRealmId})`);
   }
 
   // =============================================
@@ -144,34 +150,38 @@ export class QuickBooksService {
   /**
    * Check QuickBooks connection status
    * Returns connection info and token expiry
+   * If realmId not provided, uses default realm ID
    */
-  async checkConnectionStatus(realmId: string | null): Promise<{
+  async checkConnectionStatus(realmId?: string | null): Promise<{
     connected: boolean;
     realmId?: string;
     environment?: string;
     tokenExpiresAt?: Date;
     message: string;
   }> {
-    if (!realmId) {
+    // Fetch default realm ID if not provided
+    const targetRealmId = realmId ?? await quickbooksRepository.getDefaultRealmId();
+
+    if (!targetRealmId) {
       return {
         connected: false,
         message: 'Not connected to QuickBooks',
       };
     }
 
-    const tokenData = await quickbooksRepository.getActiveTokens(realmId);
+    const tokenData = await quickbooksRepository.getActiveTokens(targetRealmId);
 
     if (!tokenData) {
       return {
         connected: false,
-        realmId,
+        realmId: targetRealmId,
         message: 'Token expired or invalid. Please reconnect.',
       };
     }
 
     return {
       connected: true,
-      realmId,
+      realmId: targetRealmId,
       environment: process.env.QB_ENVIRONMENT || 'sandbox',
       tokenExpiresAt: tokenData.access_token_expires_at,
       message: 'Connected to QuickBooks',
@@ -240,7 +250,7 @@ export class QuickBooksService {
     await this.validateEstimateEligibility(estimateId, estimatePreviewData);
 
     // Get realm ID
-    const realmId = await getDefaultRealmId();
+    const realmId = await quickbooksRepository.getDefaultRealmId();
     if (!realmId) {
       throw new Error('Not connected to QuickBooks. Please connect first.');
     }
@@ -350,7 +360,7 @@ export class QuickBooksService {
 
     // Validate: Not already sent
     if (estimateDetails.qb_estimate_id) {
-      const realmId = await getDefaultRealmId();
+      const realmId = await quickbooksRepository.getDefaultRealmId();
       const qbEstimateUrl = getEstimatePdfUrl(estimateDetails.qb_estimate_id, realmId || '');
       throw new Error(`Estimate already sent to QuickBooks. URL: ${qbEstimateUrl}`);
     }
@@ -683,14 +693,22 @@ export class QuickBooksService {
   /**
    * Fetch estimate from QuickBooks for analysis
    * Used by debug endpoints
+   * If realmId not provided, uses default realm ID
    */
-  async fetchEstimateForAnalysis(estimateId: string, realmId: string): Promise<any> {
+  async fetchEstimateForAnalysis(estimateId: string, realmId?: string): Promise<any> {
+    // Fetch default realm ID if not provided
+    const targetRealmId = realmId || await quickbooksRepository.getDefaultRealmId();
+
+    if (!targetRealmId) {
+      throw new Error('Not connected to QuickBooks');
+    }
+
     console.log('\n🔍 FETCHING QUICKBOOKS ESTIMATE');
     console.log('================================');
     console.log(`Estimate ID: ${estimateId}`);
-    console.log(`Realm ID: ${realmId}`);
+    console.log(`Realm ID: ${targetRealmId}`);
 
-    const response = await makeQBApiCall('GET', `estimate/${estimateId}`, realmId, {});
+    const response = await makeQBApiCall('GET', `estimate/${estimateId}`, targetRealmId, {});
     const estimate = response.Estimate;
 
     if (!estimate) {

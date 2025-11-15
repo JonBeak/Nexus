@@ -1,5 +1,21 @@
+// FINISHED: Migrated to ServiceResult<T> system - Completed 2025-11-15
+// Changes:
+// - Added imports: parseIntParam, sendErrorResponse from ../utils/controllerHelpers
+// - Replaced 2 instances of parseInt() with parseIntParam()
+// - Replaced 20+ instances of manual res.status().json() with sendErrorResponse()
+// - Updated requireWagesPermission() to use sendErrorResponse() for auth errors
+// - All error responses now use standardized error codes (VALIDATION_ERROR, INTERNAL_ERROR, UNAUTHORIZED, PERMISSION_DENIED)
+// - Zero breaking changes - all endpoints maintain exact same behavior
+// - Build verified - no TypeScript errors
+
+// File Clean up Finished: 2025-11-15 (Second cleanup - Audit Trail Refactoring)
+// Current Cleanup Changes (Nov 15, 2025):
+// - Migrated from payrollRepository.logAuditTrail() to centralized auditRepository
+// - Updated 1 audit trail call to use auditRepository.logAuditTrail()
+// - Added import for auditRepository
+// - Part of Phase 2: Centralized Audit Repository implementation
 /**
- * File Clean up Finished: Nov 13, 2025
+ * Previous Cleanup (Nov 13, 2025):
  * Changes: Removed duplicate AuthRequest interface definition, now imported from ../types
  *
  * Wages Controller
@@ -18,6 +34,7 @@
 
 import { Request, Response } from 'express';
 import { PayrollRepository } from '../repositories/payrollRepository';
+import { auditRepository } from '../repositories/auditRepository';
 import { PayrollCalculationService } from '../services/payrollCalculationService';
 import { DeductionService } from '../services/deductionService';
 import { PaymentRecordService } from '../services/paymentRecordService';
@@ -31,6 +48,7 @@ import {
   PaymentRecordRequest,
   PayrollSettingsUpdateRequest
 } from '../types/payrollTypes';
+import { parseIntParam, sendErrorResponse } from '../utils/controllerHelpers';
 
 export class WagesController {
   private payrollRepository: PayrollRepository;
@@ -62,16 +80,16 @@ export class WagesController {
   
   private async requireWagesPermission(req: AuthRequest, res: Response, action?: string): Promise<boolean> {
     if (!req.user) {
-      res.status(401).json({ success: false, error: 'Authentication required' });
+      sendErrorResponse(res, 'Authentication required', 'UNAUTHORIZED');
       return false;
     }
-    
+
     const hasAccess = await this.checkWagesPermission(req.user.user_id, action);
     if (!hasAccess) {
-      res.status(403).json({ success: false, error: 'Insufficient permissions for wages management' });
+      sendErrorResponse(res, 'Insufficient permissions for wages management', 'PERMISSION_DENIED');
       return false;
     }
-    
+
     return true;
   }
   
@@ -86,28 +104,22 @@ export class WagesController {
   getDeductionOverrides = async (req: AuthRequest, res: Response) => {
     try {
       if (!await this.requireWagesPermission(req, res, 'view')) return;
-      
+
       const { startDate, endDate } = req.query;
-      
+
       if (!startDate || !endDate) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'startDate and endDate are required' 
-        });
+        return sendErrorResponse(res, 'startDate and endDate are required', 'VALIDATION_ERROR');
       }
-      
+
       const overrideMap = await this.deductionService.loadDeductionOverrides(
         startDate as string,
         endDate as string
       );
-      
+
       res.json(overrideMap);
     } catch (error) {
       console.error('Controller error fetching deduction overrides:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to fetch deduction overrides'
-      });
+      sendErrorResponse(res, 'Failed to fetch deduction overrides', 'INTERNAL_ERROR');
     }
   };
   
@@ -122,16 +134,13 @@ export class WagesController {
   getBiWeeklyWageData = async (req: AuthRequest, res: Response) => {
     try {
       if (!await this.requireWagesPermission(req, res, 'view')) return;
-      
+
       const { startDate, endDate, group } = req.query;
-      
+
       if (!startDate || !endDate) {
-        return res.status(400).json({
-          success: false,
-          error: 'startDate and endDate are required'
-        });
+        return sendErrorResponse(res, 'startDate and endDate are required', 'VALIDATION_ERROR');
       }
-      
+
       // Load deduction overrides first
       const overrides = await this.deductionService.loadDeductionOverrides(
         startDate as string,
@@ -146,14 +155,11 @@ export class WagesController {
         overrides,
         group as string
       );
-      
+
       res.json(userWageData);
     } catch (error) {
       console.error('Controller error fetching wage data:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to fetch wage data'
-      });
+      sendErrorResponse(res, 'Failed to fetch wage data', 'INTERNAL_ERROR');
     }
   };
   
@@ -168,22 +174,19 @@ export class WagesController {
   updatePayroll = async (req: AuthRequest, res: Response) => {
     try {
       if (!await this.requireWagesPermission(req, res, 'update')) return;
-      
+
       const { changes } = req.body;
-      
+
       if (!changes || !Array.isArray(changes)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid changes data'
-        });
+        return sendErrorResponse(res, 'Invalid changes data', 'VALIDATION_ERROR');
       }
-      
+
       await this.payrollCalculationService.processPayrollChanges(changes as PayrollUpdateChange[]);
-      
+
       // Log audit trail for each change
       if (req.user) {
         for (const change of changes) {
-          await this.payrollRepository.logAuditTrail(
+          await auditRepository.logAuditTrail(
             req.user.user_id,
             'update',
             'payroll_entry',
@@ -192,17 +195,14 @@ export class WagesController {
           );
         }
       }
-      
-      res.json({ 
+
+      res.json({
         success: true,
-        message: 'Payroll entries updated successfully' 
+        message: 'Payroll entries updated successfully'
       });
     } catch (error) {
       console.error('Controller error updating payroll entries:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to update payroll entries'
-      });
+      sendErrorResponse(res, 'Failed to update payroll entries', 'INTERNAL_ERROR');
     }
   };
   
@@ -217,16 +217,13 @@ export class WagesController {
   getPayrollSettings = async (req: AuthRequest, res: Response) => {
     try {
       if (!await this.requireWagesPermission(req, res, 'view')) return;
-      
+
       const settings = await this.payrollRepository.getAllPayrollSettings();
-      
+
       res.json(settings);
     } catch (error) {
       console.error('Controller error fetching payroll settings:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to fetch payroll settings'
-      });
+      sendErrorResponse(res, 'Failed to fetch payroll settings', 'INTERNAL_ERROR');
     }
   };
   
@@ -237,28 +234,22 @@ export class WagesController {
   updatePayrollSettings = async (req: AuthRequest, res: Response) => {
     try {
       if (!await this.requireWagesPermission(req, res, 'admin')) return;
-      
+
       const { settings } = req.body;
-      
+
       if (!settings || !Array.isArray(settings)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid settings data'
-        });
+        return sendErrorResponse(res, 'Invalid settings data', 'VALIDATION_ERROR');
       }
-      
+
       await this.payrollCalculationService.updatePayrollSettings(settings);
-      
-      res.json({ 
+
+      res.json({
         success: true,
-        message: 'Settings updated successfully' 
+        message: 'Settings updated successfully'
       });
     } catch (error) {
       console.error('Controller error updating payroll settings:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to update payroll settings'
-      });
+      sendErrorResponse(res, 'Failed to update payroll settings', 'INTERNAL_ERROR');
     }
   };
   
@@ -273,21 +264,18 @@ export class WagesController {
   updateDeductions = async (req: AuthRequest, res: Response) => {
     try {
       if (!await this.requireWagesPermission(req, res, 'update')) return;
-      
+
       const request = req.body as DeductionUpdateRequest;
-      
+
       await this.deductionService.updateDeduction(request);
-      
-      res.json({ 
+
+      res.json({
         success: true,
-        message: 'Deduction override saved successfully' 
+        message: 'Deduction override saved successfully'
       });
     } catch (error) {
       console.error('Controller error updating deductions:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to update deductions'
-      });
+      sendErrorResponse(res, 'Failed to update deductions', 'INTERNAL_ERROR');
     }
   };
   
@@ -298,21 +286,18 @@ export class WagesController {
   updateDeductionsBatch = async (req: AuthRequest, res: Response) => {
     try {
       if (!await this.requireWagesPermission(req, res, 'update')) return;
-      
+
       const request = req.body as BatchDeductionUpdate;
-      
+
       await this.deductionService.batchUpdateDeductions(request);
-      
-      res.json({ 
+
+      res.json({
         success: true,
-        message: 'Batch deduction overrides saved successfully' 
+        message: 'Batch deduction overrides saved successfully'
       });
     } catch (error) {
       console.error('Controller error updating batch deductions:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to update batch deductions'
-      });
+      sendErrorResponse(res, 'Failed to update batch deductions', 'INTERNAL_ERROR');
     }
   };
   
@@ -327,29 +312,23 @@ export class WagesController {
   recordPayment = async (req: AuthRequest, res: Response) => {
     try {
       if (!await this.requireWagesPermission(req, res, 'record')) return;
-      
+
       if (!req.user) {
-        return res.status(401).json({
-          success: false,
-          error: 'User authentication required'
-        });
+        return sendErrorResponse(res, 'User authentication required', 'UNAUTHORIZED');
       }
-      
+
       const request = req.body as PaymentRecordRequest;
-      
+
       const recordId = await this.paymentRecordService.recordPayment(request, req.user.user_id);
-      
-      res.json({ 
+
+      res.json({
         success: true,
-        message: 'Payment recorded successfully', 
-        record_id: recordId 
+        message: 'Payment recorded successfully',
+        record_id: recordId
       });
     } catch (error) {
       console.error('Controller error recording payment:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to record payment'
-      });
+      sendErrorResponse(res, 'Failed to record payment', 'INTERNAL_ERROR');
     }
   };
   
@@ -360,19 +339,16 @@ export class WagesController {
   getPaymentHistory = async (req: AuthRequest, res: Response) => {
     try {
       if (!await this.requireWagesPermission(req, res, 'view')) return;
-      
+
       const { includeInactive } = req.query;
       const includeInactiveFlag = includeInactive === 'true';
-      
+
       const records = await this.paymentRecordService.getPaymentHistory(includeInactiveFlag);
-      
+
       res.json(records);
     } catch (error) {
       console.error('Controller error fetching payment history:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to fetch payment history'
-      });
+      sendErrorResponse(res, 'Failed to fetch payment history', 'INTERNAL_ERROR');
     }
   };
   
@@ -383,35 +359,27 @@ export class WagesController {
   deactivatePaymentRecord = async (req: AuthRequest, res: Response) => {
     try {
       if (!await this.requireWagesPermission(req, res, 'delete')) return;
-      
+
       if (!req.user) {
-        return res.status(401).json({
-          success: false,
-          error: 'User authentication required'
-        });
+        return sendErrorResponse(res, 'User authentication required', 'UNAUTHORIZED');
       }
-      
-      const recordId = parseInt(req.params.recordId);
-      
-      if (isNaN(recordId)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid record ID'
-        });
+
+      const recordId = parseIntParam(req.params.recordId, 'record ID');
+
+      if (recordId === null) {
+        return sendErrorResponse(res, 'Invalid record ID', 'VALIDATION_ERROR');
       }
-      
+
       await this.paymentRecordService.deactivatePayment(recordId, req.user.user_id);
-      
-      res.json({ 
+
+      res.json({
         success: true,
-        message: 'Payment record deactivated successfully' 
+        message: 'Payment record deactivated successfully'
       });
     } catch (error) {
       console.error('Controller error deactivating payment record:', error);
-      res.status(500).json({
-        success: false,
-        error: (error as Error).message || 'Failed to deactivate payment record'
-      });
+      const errorMessage = (error as Error).message || 'Failed to deactivate payment record';
+      sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
     }
   };
   
@@ -422,35 +390,27 @@ export class WagesController {
   reactivatePaymentRecord = async (req: AuthRequest, res: Response) => {
     try {
       if (!await this.requireWagesPermission(req, res, 'update')) return;
-      
+
       if (!req.user) {
-        return res.status(401).json({
-          success: false,
-          error: 'User authentication required'
-        });
+        return sendErrorResponse(res, 'User authentication required', 'UNAUTHORIZED');
       }
-      
-      const recordId = parseInt(req.params.recordId);
-      
-      if (isNaN(recordId)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid record ID'
-        });
+
+      const recordId = parseIntParam(req.params.recordId, 'record ID');
+
+      if (recordId === null) {
+        return sendErrorResponse(res, 'Invalid record ID', 'VALIDATION_ERROR');
       }
-      
+
       await this.paymentRecordService.reactivatePayment(recordId, req.user.user_id);
-      
-      res.json({ 
+
+      res.json({
         success: true,
-        message: 'Payment record reactivated successfully' 
+        message: 'Payment record reactivated successfully'
       });
     } catch (error) {
       console.error('Controller error reactivating payment record:', error);
-      res.status(500).json({
-        success: false,
-        error: (error as Error).message || 'Failed to reactivate payment record'
-      });
+      const errorMessage = (error as Error).message || 'Failed to reactivate payment record';
+      sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
     }
   };
 }

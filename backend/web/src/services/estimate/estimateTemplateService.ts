@@ -1,3 +1,11 @@
+// File Clean up Finished: 2025-11-15
+// Changes:
+//   - Removed all debugging console.log statements (~15 lines)
+//   - Created shared getTemplateRowsDefinition() method to eliminate duplication
+//   - Refactored createDefaultTemplateRows() and createDefaultTemplateRowsWithOffset() to use shared definition
+//   - Reduced file from ~530 lines to ~470 lines
+//   - Architecture compliance verified: Correct transaction management pattern
+
 /**
  * Estimate Template Service
  *
@@ -32,52 +40,7 @@ export class EstimateTemplateService {
    */
   async createDefaultTemplateRows(connection: any, estimateId: number, userId: number): Promise<void> {
     const dynamicTemplateService = new DynamicTemplateService();
-
-    const templateRows = [
-      // Channel Letters + sub-item products
-      { productTypeId: 1, productTypeName: 'Channel Letters', order: 1, isMain: true },
-      { productTypeId: 16, productTypeName: '↳ Vinyl', order: 2, isMain: false, parentRef: 1 },
-      { productTypeId: 17, productTypeName: '↳ Painting', order: 3, isMain: false, parentRef: 1 },
-
-      // Substrate Cut + sub-item products
-      { productTypeId: 3, productTypeName: 'Substrate Cut', order: 4, isMain: true },
-      { productTypeId: 16, productTypeName: '↳ Vinyl', order: 5, isMain: false, parentRef: 4 },
-      { productTypeId: 17, productTypeName: '↳ Painting', order: 6, isMain: false, parentRef: 4 },
-
-      // Backer + sub-item products
-      { productTypeId: 4, productTypeName: 'Backer', order: 7, isMain: true },
-      { productTypeId: 16, productTypeName: '↳ Vinyl', order: 8, isMain: false, parentRef: 7 },
-      { productTypeId: 17, productTypeName: '↳ Painting', order: 9, isMain: false, parentRef: 7 },
-
-      // Assembly
-      { productTypeId: 14, productTypeName: 'Assembly', order: 10, isMain: true },
-
-      // Push Thru + empty sub-item
-      { productTypeId: 5, productTypeName: 'Push Thru', order: 11, isMain: true },
-      { productTypeId: 16, productTypeName: '↳ Vinyl', order: 12, isMain: false, parentRef: 11 },
-
-      // Blade Sign + empty sub-item
-      { productTypeId: 6, productTypeName: 'Blade Sign', order: 13, isMain: true },
-      { productTypeId: 16, productTypeName: '↳ Vinyl', order: 14, isMain: false, parentRef: 13 },
-
-      // LED Neon
-      { productTypeId: 7, productTypeName: 'LED Neon', order: 15, isMain: true },
-
-      // Custom
-      { productTypeId: 9, productTypeName: 'Custom', order: 16, isMain: true },
-
-      // Multiplier
-      { productTypeId: 23, productTypeName: 'Multiplier', order: 17, isMain: true },
-
-      // Discount/Fee
-      { productTypeId: 22, productTypeName: 'Discount/Fee', order: 18, isMain: true },
-
-      // UL
-      { productTypeId: 12, productTypeName: 'UL', order: 19, isMain: true },
-
-      // Shipping
-      { productTypeId: 13, productTypeName: 'Shipping', order: 20, isMain: true }
-    ];
+    const templateRows = this.getTemplateRowsDefinition();
 
     // Track parent IDs for sub-items
     const parentIdMap = new Map();
@@ -273,14 +236,10 @@ export class EstimateTemplateService {
 
       // Filter out empty rows - keep rows that have any input field data (excluding QTY)
       const itemsToKeep = (items as any[]).filter(item => {
-        // 🔍 DEBUG: Log what we're checking (remove after testing)
-        console.log(`🔍 CLEAR EMPTY: Checking item ${item.id} (product_type_id: ${item.product_type_id}):`);
-
         // ALWAYS preserve Subtotal and Divider items regardless of content
         const isSpecialStructuralItem = item.product_type_id === 21 || item.product_type_id === 25; // Subtotal || Divider
 
         if (isSpecialStructuralItem) {
-          console.log(`   Preserving structural item: ${item.product_type_id === 21 ? 'Subtotal' : 'Divider'}`);
           return true;
         }
 
@@ -289,7 +248,7 @@ export class EstimateTemplateService {
         if (item.grid_data) {
           let gridData: Record<string, any> = {};
           try {
-            // 🐛 FIX: Handle MySQL JSON column - comes back as object, not string
+            // Handle MySQL JSON column - comes back as object, not string
             if (typeof item.grid_data === 'object' && item.grid_data !== null) {
               gridData = item.grid_data; // Already parsed by MySQL driver
             } else if (typeof item.grid_data === 'string') {
@@ -297,8 +256,6 @@ export class EstimateTemplateService {
             } else {
               gridData = {}; // Fallback for null/undefined
             }
-
-            console.log(`   Grid data type: ${typeof item.grid_data}, keys:`, Object.keys(gridData));
 
             // System fields to exclude when checking for empty rows
             const systemFields = [
@@ -314,19 +271,12 @@ export class EstimateTemplateService {
               }
 
               const value = gridData[key];
-              // 🐛 FIX: Don't exclude valid falsy values like 0, false
+              // Don't exclude valid falsy values like 0, false
               const isValueMeaningful = value != null && value.toString().trim() !== '';
-
-              if (isValueMeaningful) {
-                console.log(`   Found meaningful data in field '${key}':`, value);
-              }
 
               return isValueMeaningful;
             });
           } catch (error) {
-            console.error(`⚠️  CLEAR EMPTY: Error parsing grid_data for item ${item.id}:`, error);
-            console.error('   Grid data value:', item.grid_data);
-            console.error('   Grid data type:', typeof item.grid_data);
             hasInputData = false;
           }
         }
@@ -335,28 +285,8 @@ export class EstimateTemplateService {
         const hasOtherData = (item.customer_description && item.customer_description.trim() !== '') ||
                            (item.internal_notes && item.internal_notes.trim() !== '');
 
-        const willKeep = hasInputData || hasOtherData;
-        console.log(`   Result: hasInputData=${hasInputData}, hasOtherData=${hasOtherData}, willKeep=${willKeep}`);
-
-        return willKeep;
+        return hasInputData || hasOtherData;
       });
-
-      // 🔍 DEBUG: Log filtering results
-      console.log(`🔍 CLEAR EMPTY SUMMARY: Found ${items.length} total items, keeping ${itemsToKeep.length}`);
-
-      // Safeguard: Never delete everything if we can't determine emptiness reliably
-      if (items.length > 0 && itemsToKeep.length === 0) {
-        console.warn(`⚠️  CLEAR EMPTY: All ${items.length} rows detected as empty - investigating...`);
-        // Log first few items for analysis
-        items.slice(0, 3).forEach((item, i) => {
-          console.warn(`   Sample item ${i + 1}:`, {
-            id: item.id,
-            productTypeId: item.product_type_id,
-            gridDataType: typeof item.grid_data,
-            gridDataSample: typeof item.grid_data === 'object' ? Object.keys(item.grid_data || {}) : item.grid_data
-          });
-        });
-      }
 
       // Delete all items first
       await connection.execute(
@@ -366,7 +296,6 @@ export class EstimateTemplateService {
 
       // If no items to keep, create one empty row
       if (itemsToKeep.length === 0) {
-        console.log('🔍 CLEAR EMPTY: Creating single Channel Letters row (no items had data)');
         await connection.execute(
           `INSERT INTO job_estimate_items (
             estimate_id, product_type_id, item_order, item_index
@@ -374,7 +303,6 @@ export class EstimateTemplateService {
           [estimateId]
         );
       } else {
-        console.log(`🔍 CLEAR EMPTY: Recreating ${itemsToKeep.length} items with data`);
         // Recreate the kept items with new order
         for (let i = 0; i < itemsToKeep.length; i++) {
           const item = itemsToKeep[i];
@@ -442,10 +370,12 @@ export class EstimateTemplateService {
   // =============================================
 
   /**
-   * Creates default template rows with a starting order offset
+   * Get template rows definition with optional starting order offset
+   * @param startingOrder - The order number to start from (default: 1)
+   * @returns Array of template row configurations
    */
-  private async createDefaultTemplateRowsWithOffset(connection: any, estimateId: number, userId: number, startingOrder: number): Promise<void> {
-    const templateRows = [
+  private getTemplateRowsDefinition(startingOrder: number = 1) {
+    return [
       // Channel Letters + sub-item products
       { productTypeId: 1, productTypeName: 'Channel Letters', order: startingOrder, isMain: true },
       { productTypeId: 16, productTypeName: '↳ Vinyl', order: startingOrder + 1, isMain: false, parentRef: startingOrder },
@@ -490,6 +420,13 @@ export class EstimateTemplateService {
       // Shipping
       { productTypeId: 13, productTypeName: 'Shipping', order: startingOrder + 19, isMain: true }
     ];
+  }
+
+  /**
+   * Creates default template rows with a starting order offset
+   */
+  private async createDefaultTemplateRowsWithOffset(connection: any, estimateId: number, userId: number, startingOrder: number): Promise<void> {
+    const templateRows = this.getTemplateRowsDefinition(startingOrder);
 
     for (const row of templateRows) {
       // Create a basic grid data structure

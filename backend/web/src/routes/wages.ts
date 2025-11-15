@@ -1,15 +1,16 @@
+// File Clean up Finished: 2025-11-15 (Payroll not fully implemented - deferred cleanup)
 /**
  * Wages Routes - Enhanced Three-Layer Architecture
- * 
+ *
  * Route definitions for payroll/wages endpoints
  * Part of Enhanced Three-Layer Architecture: Route → Controller → Service → Repository → Database
- * 
+ *
  * Responsibilities:
  * - HTTP routing and middleware chain definitions
  * - Authentication and permission middleware setup
  * - Route parameter validation
  * - Controller method delegation
- * 
+ *
  * Refactored from original wages.ts - all endpoints preserved exactly
  */
 

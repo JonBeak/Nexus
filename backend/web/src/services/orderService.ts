@@ -11,6 +11,9 @@
 //   - Transactions require BEGIN/COMMIT/ROLLBACK with dedicated connection
 //   - This is the CORRECT and ONLY valid use case for pool in services
 //   - Cannot use query() helper for transactional operations
+//
+// File Clean up Finished: 2025-11-15
+// Additional cleanup: Added getOrderIdFromOrderNumber helper for orderFormController refactoring
 /**
  * Order Service
  * Business Logic for Order CRUD Operations
@@ -44,6 +47,20 @@ export class OrderService {
    */
   async getAllOrders(filters: OrderFilters): Promise<Order[]> {
     return await orderRepository.getOrders(filters);
+  }
+
+  /**
+   * Get order_id from order_number
+   * Used for controllers that receive order_number from URL params
+   */
+  async getOrderIdFromOrderNumber(orderNumber: number): Promise<number> {
+    const orderId = await orderRepository.getOrderIdFromOrderNumber(orderNumber);
+
+    if (!orderId) {
+      throw new Error('Order not found');
+    }
+
+    return orderId;
   }
 
   /**

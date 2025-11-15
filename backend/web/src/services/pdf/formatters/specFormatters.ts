@@ -1,10 +1,18 @@
+// File Clean up Finished: 2025-11-15
+
 /**
  * Specification Formatters
  * Constants and functions for formatting specification values in PDFs
+ *
+ * FUTURE IMPROVEMENT (Option C):
+ * Consider extracting all format patterns into a declarative configuration object
+ * using a formatting strategy pattern. This would make adding new spec types
+ * trivial and move formatting rules from code to data. Trade-off: more abstraction
+ * vs current explicit switch-case clarity. Evaluate after Option B proves stable.
  */
 
-import { FormType } from '../generators/pdfCommonGenerator';
-import { formatBooleanValue } from '../generators/pdfCommonGenerator';
+import { FormType } from '../generators/pdfConstants';
+import { formatBooleanValue } from '../generators/pdfHelpers';
 
 /**
  * Define spec ordering - templates will be rendered in this order
@@ -53,6 +61,80 @@ export const SPECS_EXEMPT_FROM_CRITICAL = [
   'Material Cut'
 ] as const;
 
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+/**
+ * Get colour value handling British/American spelling variants
+ */
+function getColourValue(specs: Record<string, any>): string {
+  return specs.colour || specs.color || '';
+}
+
+/**
+ * Get spec field value with fallback support
+ * Tries each field name in order and returns the first non-empty value
+ */
+function getSpecField(specs: Record<string, any>, ...fieldNames: string[]): string {
+  for (const field of fieldNames) {
+    if (specs[field]) return specs[field];
+  }
+  return '';
+}
+
+/**
+ * Format count/type specifications (used for LEDs and Power Supply)
+ * Handles both customer form (Yes/No) and master/shop forms (count + type)
+ *
+ * @param specs - Specification object
+ * @param countField - Field name for count value
+ * @param typeFields - Array of possible field names for type (in priority order)
+ * @param typeSplitPattern - Pattern to split type string (e.g., ' - ' or ' (')
+ * @param formType - Form type (master, customer, shop)
+ * @returns Formatted string
+ */
+function formatCountTypeSpec(
+  specs: Record<string, any>,
+  countField: string,
+  typeFields: string[],
+  typeSplitPattern: string,
+  formType: FormType
+): string {
+  const count = specs[countField] || '';
+  let type = getSpecField(specs, ...typeFields);
+
+  // Shorten type: keep only part before split pattern
+  if (type && type.includes(typeSplitPattern)) {
+    type = type.split(typeSplitPattern)[0].trim();
+  }
+
+  // Customer form: Replace count with "Yes/No" but preserve type
+  if (formType === 'customer') {
+    const countNum = Number(count);
+    if (!isNaN(countNum) && countNum > 0) {
+      return type ? `Yes [${type}]` : 'Yes';
+    } else if (type) {
+      return type;
+    }
+    return 'No';
+  }
+
+  // Master/Shop: Format as {count} [{type}]
+  if (count && type) {
+    return `${count} [${type}]`;
+  } else if (count) {
+    return count;
+  } else if (type) {
+    return type;
+  }
+  return '';
+}
+
+// ============================================
+// MAIN FORMATTING FUNCTION
+// ============================================
+
 /**
  * Format spec values based on template name using named keys
  */
@@ -62,14 +144,14 @@ export function formatSpecValues(templateName: string, specs: Record<string, any
   switch (templateName) {
     case 'Return':
       // Format: depth + " " + colour (e.g., "3" White")
-      const depth = specs.depth || specs.return_depth || '';
-      const colour = specs.colour || specs.color || '';
+      const depth = getSpecField(specs, 'depth', 'return_depth');
+      const colour = getColourValue(specs);
       return [depth, colour].filter(v => v).join(' ');
 
     case 'Face':
       // Format as {material} [{colour}] (swap order)
       const faceMaterial = specs.material || '';
-      const faceColour = specs.colour || specs.color || '';
+      const faceColour = getColourValue(specs);
       if (faceMaterial && faceColour) {
         return `${faceMaterial} [${faceColour}]`;
       }
@@ -87,40 +169,11 @@ export function formatSpecValues(templateName: string, specs: Record<string, any
 
     case 'LEDs':
       // Template stores: count, led_type (full string), note
-      const ledCount = specs.count || '';
-      let ledType = specs.type || specs.led_type || '';
-
-      // Shorten LED type: keep only part before " - "
-      if (ledType && ledType.includes(' - ')) {
-        ledType = ledType.split(' - ')[0].trim();
-      }
-
-      // Customer form: Replace count with "Yes" if it's a number > 0, but preserve type
-      if (formType === 'customer') {
-        const countNum = Number(ledCount);
-        if (!isNaN(countNum) && countNum > 0) {
-          // Count is a valid number > 0, show "Yes [type]"
-          return ledType ? `Yes [${ledType}]` : 'Yes';
-        } else if (ledType) {
-          // No count, but has type
-          return ledType;
-        }
-        return 'No';
-      }
-
-      // Master/Shop: Format as {count} [{led_type}]
-      if (ledCount && ledType) {
-        return `${ledCount} [${ledType}]`;
-      } else if (ledCount) {
-        return ledCount;
-      } else if (ledType) {
-        return ledType;
-      }
-      return '';
+      return formatCountTypeSpec(specs, 'count', ['type', 'led_type'], ' - ', formType);
 
     case 'Wire Length':
       // Add " ft" unit if not already present
-      const wireLength = specs.length || specs.wire_length || '';
+      const wireLength = getSpecField(specs, 'length', 'wire_length');
       const wireGauge = specs.wire_gauge || '';
       const wireLengthWithUnit = wireLength && !String(wireLength).toLowerCase().includes('ft')
         ? `${wireLength} ft`
@@ -133,36 +186,7 @@ export function formatSpecValues(templateName: string, specs: Record<string, any
 
     case 'Power Supply':
       // Template stores: count, ps_type (full string), note
-      const psCount = specs.count || '';
-      let psType = specs.ps_type || specs.model || specs.power_supply || '';
-
-      // Shorten PS type: keep only part before " ("
-      if (psType && psType.includes(' (')) {
-        psType = psType.split(' (')[0].trim();
-      }
-
-      // Customer form: Replace count with "Yes" if it's a number > 0, but preserve type
-      if (formType === 'customer') {
-        const countNum = Number(psCount);
-        if (!isNaN(countNum) && countNum > 0) {
-          // Count is a valid number > 0, show "Yes [type]"
-          return psType ? `Yes [${psType}]` : 'Yes';
-        } else if (psType) {
-          // No count, but has type
-          return psType;
-        }
-        return 'No';
-      }
-
-      // Master/Shop: Format as {count} [{ps_type}]
-      if (psCount && psType) {
-        return `${psCount} [${psType}]`;
-      } else if (psCount) {
-        return psCount;
-      } else if (psType) {
-        return psType;
-      }
-      return '';
+      return formatCountTypeSpec(specs, 'count', ['ps_type', 'model', 'power_supply'], ' (', formType);
 
     case 'UL':
       // Template stores: include (boolean), note (textbox)
@@ -176,7 +200,7 @@ export function formatSpecValues(templateName: string, specs: Record<string, any
 
     case 'Vinyl':
       // Format as {colours/vinyl_code} [{application}] (don't show size/yardage)
-      const vinylCode = specs.colours || specs.vinyl_code || specs.code || '';
+      const vinylCode = getSpecField(specs, 'colours', 'vinyl_code', 'code');
       const vinylApplication = specs.application || '';
       if (vinylCode && vinylApplication) {
         return `${vinylCode} [${vinylApplication}]`;
@@ -186,7 +210,7 @@ export function formatSpecValues(templateName: string, specs: Record<string, any
     case 'Digital Print':
       // Template stores: colour, type, application
       // Format as {colour} - {type} [{application}]
-      const dpColour = specs.colour || specs.color || '';
+      const dpColour = getColourValue(specs);
       const dpType = specs.type || '';
       const dpApplication = specs.application || '';
 
@@ -202,7 +226,7 @@ export function formatSpecValues(templateName: string, specs: Record<string, any
     case 'Painting':
       // Template stores: colour, component, timing
       // Format as {colour} [{component}] (ignore timing)
-      const paintColour = specs.colour || specs.color || '';
+      const paintColour = getColourValue(specs);
       const paintComponent = specs.component || '';
       if (paintColour && paintComponent) {
         return `${paintColour} [${paintComponent}]`;
@@ -214,7 +238,7 @@ export function formatSpecValues(templateName: string, specs: Record<string, any
     case 'Material':
       // Template stores: substrate, colour
       // Format as {colour} - {substrate}
-      const matColour = specs.colour || specs.color || '';
+      const matColour = getColourValue(specs);
       const substrate = specs.substrate || '';
       if (matColour && substrate) {
         return `${matColour} - ${substrate}`;
@@ -224,7 +248,7 @@ export function formatSpecValues(templateName: string, specs: Record<string, any
     case 'Box Material':
       // Template stores: material, colour
       // Format as {colour} - {material}
-      const boxColour = specs.colour || specs.color || '';
+      const boxColour = getColourValue(specs);
       const boxMaterial = specs.material || '';
       if (boxColour && boxMaterial) {
         return `${boxColour} - ${boxMaterial}`;
@@ -235,7 +259,7 @@ export function formatSpecValues(templateName: string, specs: Record<string, any
       // Template stores: thickness, colour
       // Format as {thickness} - {colour}
       const ptThickness = specs.thickness || '';
-      const ptColour = specs.colour || specs.color || '';
+      const ptColour = getColourValue(specs);
       if (ptThickness && ptColour) {
         return `${ptThickness} - ${ptColour}`;
       }
@@ -246,14 +270,14 @@ export function formatSpecValues(templateName: string, specs: Record<string, any
       // Format as {thickness} {colour} {material}
       const neonBaseThickness = specs.thickness || '';
       const neonBaseMaterial = specs.material || '';
-      const neonBaseColour = specs.colour || specs.color || '';
+      const neonBaseColour = getColourValue(specs);
       return [neonBaseThickness, neonBaseColour, neonBaseMaterial].filter(v => v).join(' ');
 
     case 'Neon LED':
       // Template stores: stroke_width, colour
       // Format as {stroke_width} - {colour}
       const strokeWidth = specs.stroke_width || '';
-      const neonColour = specs.colour || specs.color || '';
+      const neonColour = getColourValue(specs);
       if (strokeWidth && neonColour) {
         return `${strokeWidth} - ${neonColour}`;
       }

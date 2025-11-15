@@ -12,7 +12,8 @@
 
 import sharp from 'sharp';
 import fs from 'fs';
-import { getImageFullPath, COLORS, FONT_SIZES, SPACING, LAYOUT } from '../generators/pdfCommonGenerator';
+import { COLORS, FONT_SIZES, SPACING, LAYOUT } from '../generators/pdfConstants';
+import { getImageFullPath } from '../generators/pdfHelpers';
 import type { OrderDataForPDF } from '../../../types/orders';
 
 /**

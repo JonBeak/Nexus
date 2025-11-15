@@ -1,3 +1,10 @@
+// File Clean up Finished: 2025-11-15
+// Changes:
+//   - Removed Promise constructor async anti-pattern (line 59)
+//   - Removed all debug console.log statements (4 instances)
+//   - Removed unused PackingItem type import
+//   - File size reduced from 272 to 264 lines (3% reduction)
+
 /**
  * Packing List Generator
  * Based on Master Form layout with Specs section replaced by packing checklist
@@ -8,7 +15,7 @@
 
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
-import { getPackingItemsForProduct, PackingItem } from '../packingItemsMapper';
+import { getPackingItemsForProduct } from '../packingItemsMapper';
 import { combineSpecifications, flattenCombinedSpecs } from '../specificationCombiner';
 import type { OrderDataForPDF } from '../../../types/orders';
 import {
@@ -18,17 +25,21 @@ import {
   SPACING,
   LAYOUT,
   LINE_WIDTHS,
-  SMB_PATHS,
+  SMB_PATHS
+} from './pdfConstants';
+import {
   debugLog,
   formatDueDateTime,
-  renderHeaderLabel,
-  renderMasterCustomerPageHeader,
-  renderQuantityBox,
   getImageFullPath,
   shouldIncludePart,
   shouldStartNewColumn,
   getSpecsQuantity
-} from './pdfCommonGenerator';
+} from './pdfHelpers';
+import {
+  renderHeaderLabel,
+  renderMasterCustomerPageHeader,
+  renderQuantityBox
+} from './pdfHeaderRenderers';
 import { renderNotesAndImage } from '../utils/imageProcessing';
 import { buildPartColumns } from '../utils/partColumnBuilder';
 
@@ -158,9 +169,6 @@ export async function generatePackingList(
         // Get packing items using combined specifications from parent + sub-items
         const productTypeForPacking = part.specs_display_name || part.product_type;
 
-        // Debug logging
-        console.log(`[Packing List] Part ${part.display_number}: productTypeForPacking="${productTypeForPacking}" (specs_display_name="${part.specs_display_name}", product_type="${part.product_type}")`);
-
         // Combine specifications from parent + sub-items (same as Master Form)
         const allParts = [part, ...column.subItems];
         const combinedSpecsMap = combineSpecifications(allParts);
@@ -172,11 +180,6 @@ export async function generatePackingList(
           pattern_type: orderData.pattern_type,
           wiring_diagram_yes_or_no: orderData.wiring_diagram_yes_or_no
         };
-
-        // Debug: Log combined specs
-        console.log(`\n[Packing List] Part ${part.display_number} (${productTypeForPacking})`);
-        console.log(`[Packing List] Combined specs templates:`, Object.keys(combinedSpecs).filter(k => k.startsWith('_template')).map(k => `${k}=${combinedSpecs[k]}`));
-        console.log(`[Packing List] Full combined specs:`, JSON.stringify(combinedSpecs, null, 2));
 
         // Get packing items using combined specs - show only relevant items
         const packingItems = getPackingItemsForProduct(productTypeForPacking, combinedSpecs, customerPrefs);

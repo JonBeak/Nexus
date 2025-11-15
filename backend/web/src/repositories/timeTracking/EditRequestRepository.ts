@@ -1,17 +1,24 @@
-import { pool } from '../../config/database';
-import { ResultSetHeader, RowDataPacket } from 'mysql2';
-import { 
-  TimeEditRequest, 
-  PendingEditRequest, 
-  EditRequestData,
-  TimeEditNotification,
-  NotificationWithDetails,
-  NotificationData
-} from '../../types/TimeTrackingTypes';
+// File Clean up Finished: 2025-11-15
+// Changes:
+// - Migrated all pool.execute() calls to query() helper (11 instances)
+// - All methods now use centralized error logging and performance monitoring
+// File Clean up Finished: 2025-11-15 (Second pass - architectural refactoring)
+// Changes:
+// - Extracted 5 notification methods to new NotificationRepository
+// - Removed unused imports (TimeEditNotification, NotificationWithDetails, NotificationData, RowDataPacket)
+// - Now focuses solely on time_edit_requests table (single-responsibility)
+// - Reduced from 219 lines → 129 lines (41% reduction)
+import { query } from '../../config/database';
+import { ResultSetHeader } from 'mysql2';
+import {
+  TimeEditRequest,
+  PendingEditRequest,
+  EditRequestData
+} from '../../types/TimeTypes';
 
 /**
  * Edit Request Repository
- * Handles all database operations for time_edit_requests and time_edit_notifications tables
+ * Handles all database operations for time_edit_requests table
  */
 export class EditRequestRepository {
   /**
@@ -20,10 +27,10 @@ export class EditRequestRepository {
    * @returns Affected rows
    */
   static async cancelPendingRequests(entryId: number): Promise<number> {
-    const [result] = await pool.execute<ResultSetHeader>(
+    const result = await query(
       'UPDATE time_edit_requests SET status = "cancelled" WHERE entry_id = ? AND status = "pending"',
       [entryId]
-    );
+    ) as ResultSetHeader;
     return result.affectedRows;
   }
 
@@ -33,8 +40,8 @@ export class EditRequestRepository {
    * @returns Insert ID
    */
   static async createEditRequest(data: EditRequestData): Promise<number> {
-    const [result] = await pool.execute<ResultSetHeader>(
-      `INSERT INTO time_edit_requests 
+    const result = await query(
+      `INSERT INTO time_edit_requests
        (entry_id, user_id, requested_clock_in, requested_clock_out, requested_break_minutes, reason)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [
@@ -45,7 +52,7 @@ export class EditRequestRepository {
         data.requested_break_minutes,
         data.reason
       ]
-    );
+    ) as ResultSetHeader;
     return result.insertId;
   }
 
@@ -55,12 +62,12 @@ export class EditRequestRepository {
    * @returns Insert ID
    */
   static async createDeleteRequest(data: { entry_id: number; user_id: number; reason: string }): Promise<number> {
-    const [result] = await pool.execute<ResultSetHeader>(
-      `INSERT INTO time_edit_requests 
+    const result = await query(
+      `INSERT INTO time_edit_requests
        (entry_id, user_id, requested_clock_in, requested_clock_out, requested_break_minutes, reason, request_type)
        VALUES (?, ?, NULL, NULL, NULL, ?, 'delete')`,
       [data.entry_id, data.user_id, data.reason]
-    );
+    ) as ResultSetHeader;
     return result.insertId;
   }
 
@@ -69,8 +76,8 @@ export class EditRequestRepository {
    * @returns Pending requests with user information
    */
   static async getPendingRequests(): Promise<PendingEditRequest[]> {
-    const [rows] = await pool.execute<PendingEditRequest[]>(
-      `SELECT 
+    const rows = await query(
+      `SELECT
         ter.*,
         te.clock_in as original_clock_in,
         te.clock_out as original_clock_out,
@@ -84,7 +91,7 @@ export class EditRequestRepository {
        WHERE ter.status = 'pending'
        ORDER BY ter.request_type, ter.created_at DESC`,
       []
-    );
+    ) as PendingEditRequest[];
     return rows;
   }
 
@@ -94,10 +101,10 @@ export class EditRequestRepository {
    * @returns Edit request or null
    */
   static async getRequestById(requestId: number): Promise<TimeEditRequest | null> {
-    const [rows] = await pool.execute<TimeEditRequest[]>(
+    const rows = await query(
       'SELECT * FROM time_edit_requests WHERE request_id = ? AND status = "pending"',
       [requestId]
-    );
+    ) as TimeEditRequest[];
     return rows[0] || null;
   }
 
@@ -110,109 +117,18 @@ export class EditRequestRepository {
    * @returns Affected rows
    */
   static async updateRequestStatus(
-    requestId: number, 
-    status: string, 
-    reviewedBy: number, 
+    requestId: number,
+    status: string,
+    reviewedBy: number,
     reviewerNotes?: string
   ): Promise<number> {
-    const [result] = await pool.execute<ResultSetHeader>(
-      `UPDATE time_edit_requests 
+    const result = await query(
+      `UPDATE time_edit_requests
        SET status = ?, reviewed_by = ?, reviewed_at = NOW(), reviewer_notes = ?
        WHERE request_id = ?`,
       [status, reviewedBy, reviewerNotes, requestId]
-    );
+    ) as ResultSetHeader;
     return result.affectedRows;
   }
 
-  /**
-   * Create a notification for edit request action
-   * @param data - Notification data
-   * @returns Insert ID
-   */
-  static async createNotification(data: NotificationData): Promise<number> {
-    const [result] = await pool.execute<ResultSetHeader>(
-      `INSERT INTO time_edit_notifications 
-       (user_id, request_id, action, reviewer_notes, reviewer_name)
-       VALUES (?, ?, ?, ?, ?)`,
-      [
-        data.user_id,
-        data.request_id,
-        data.action,
-        data.reviewer_notes,
-        data.reviewer_name
-      ]
-    );
-    return result.insertId;
-  }
-
-  /**
-   * Get notifications for a user
-   * @param userId - User ID
-   * @param showCleared - Whether to include cleared notifications
-   * @returns User notifications with details
-   */
-  static async getUserNotifications(userId: number, showCleared: boolean = false): Promise<NotificationWithDetails[]> {
-    let whereClause = 'WHERE n.user_id = ?';
-    const params = [userId];
-    
-    if (!showCleared) {
-      whereClause += ' AND n.is_cleared = FALSE';
-    }
-    
-    const [rows] = await pool.execute<NotificationWithDetails[]>(
-      `SELECT 
-        n.*,
-        ter.entry_id,
-        te.clock_in as original_clock_in,
-        te.clock_out as original_clock_out
-       FROM time_edit_notifications n
-       JOIN time_edit_requests ter ON n.request_id = ter.request_id
-       JOIN time_entries te ON ter.entry_id = te.entry_id
-       ${whereClause}
-       ORDER BY n.created_at DESC`,
-      params
-    );
-    return rows;
-  }
-
-  /**
-   * Mark notification as read
-   * @param notificationId - Notification ID
-   * @param userId - User ID (for security)
-   * @returns Affected rows
-   */
-  static async markNotificationAsRead(notificationId: number, userId: number): Promise<number> {
-    const [result] = await pool.execute<ResultSetHeader>(
-      'UPDATE time_edit_notifications SET is_read = TRUE WHERE notification_id = ? AND user_id = ?',
-      [notificationId, userId]
-    );
-    return result.affectedRows;
-  }
-
-  /**
-   * Clear notification (hide from default view)
-   * @param notificationId - Notification ID
-   * @param userId - User ID (for security)
-   * @returns Affected rows
-   */
-  static async clearNotification(notificationId: number, userId: number): Promise<number> {
-    const [result] = await pool.execute<ResultSetHeader>(
-      'UPDATE time_edit_notifications SET is_cleared = TRUE WHERE notification_id = ? AND user_id = ?',
-      [notificationId, userId]
-    );
-    return result.affectedRows;
-  }
-
-  /**
-   * Clear all notifications for a user
-   * @param userId - User ID
-   * @returns Affected rows
-   */
-  static async clearAllNotifications(userId: number): Promise<number> {
-    const [result] = await pool.execute<ResultSetHeader>(
-      'UPDATE time_edit_notifications SET is_cleared = TRUE WHERE user_id = ? AND is_cleared = FALSE',
-      [userId]
-    );
-    return result.affectedRows;
-  }
 }

@@ -6,7 +6,7 @@
 
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth';
-import { getDefaultRealmId } from '../utils/quickbooks/dbManager';
+import { quickbooksRepository } from '../repositories/quickbooksRepository';
 
 const router = Router();
 
@@ -19,7 +19,7 @@ router.post('/row-types', authenticateToken, async (req: Request, res: Response)
   try {
     const { testItems, customerName = 'Test Customer', debugMode = true, useHardcodedTest = false } = req.body;
 
-    const realmId = await getDefaultRealmId();
+    const realmId = await quickbooksRepository.getDefaultRealmId();
     if (!realmId) {
       return res.status(400).json({
         success: false,

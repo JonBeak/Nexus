@@ -6,7 +6,7 @@
 // Changes (Final Cleanup):
 // - Removed dead code: setQuickBooksTokens() method (25 lines, never called)
 // - Removed unused import: QuickBooksTokens type
-// - QuickBooks OAuth token management now handled by /utils/quickbooks/dbManager.ts
+// - QuickBooks OAuth token management now handled by repositories/quickbooksRepository.ts
 // - Reduced file size from 353 lines to 327 lines (7.4% reduction)
 /**
  * Credential Service

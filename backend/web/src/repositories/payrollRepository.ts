@@ -1,4 +1,10 @@
-// File Clean up Finished: Nov 14, 2025
+// File Clean up Finished: 2025-11-15 (Second cleanup - Audit Trail Refactoring)
+// Current Cleanup Changes (Nov 15, 2025):
+// - Removed logAuditTrail() method (moved to centralized auditRepository)
+// - Reduced from 472 → 455 lines (3.6% reduction)
+// - Part of Phase 2: Centralized Audit Repository implementation
+//
+// Previous Cleanup (Nov 14, 2025):
 // Changes:
 // - Migrated all 21 pool.execute() calls to query() helper (standardization)
 // - Deleted unused getDeductionOverrideForUser() method (dead code)
@@ -203,7 +209,7 @@ export class PayrollRepository implements PayrollDataAccess {
           u.first_name,
           u.last_name,
           u.user_group,
-          u.hourly_rate,
+          u.hourly_wage,
           u.overtime_rate_multiplier,
           u.vacation_pay_percent,
           u.holiday_rate_multiplier,
@@ -449,23 +455,6 @@ export class PayrollRepository implements PayrollDataAccess {
       );
     } catch (error) {
       throw new Error('Failed to reactivate payment record');
-    }
-  }
-
-  // =============================================
-  // AUDIT TRAIL
-  // =============================================
-
-  async logAuditTrail(userId: number, action: string, entityType: string, entityId: number, details: string): Promise<void> {
-    try {
-      await query(
-        `INSERT INTO audit_trail (user_id, action, entity_type, entity_id, details)
-         VALUES (?, ?, ?, ?, ?)`,
-        [userId, action, entityType, entityId, details]
-      );
-    } catch (error) {
-      console.error('Repository error logging audit trail:', error);
-      // Don't throw error for audit logging to avoid disrupting main operations
     }
   }
 }

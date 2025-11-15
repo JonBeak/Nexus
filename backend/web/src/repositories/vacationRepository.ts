@@ -1,4 +1,10 @@
-// File Clean up Finished: Nov 14, 2025
+// File Clean up Finished: 2025-11-15 (Second cleanup - Audit Trail Refactoring)
+// Current Cleanup Changes (Nov 15, 2025):
+// - Removed createAuditEntry() method (moved to centralized auditRepository)
+// - Reduced from 153 → 135 lines (12% reduction)
+// - Part of Phase 2: Centralized Audit Repository implementation
+//
+// Previous Cleanup (Nov 14, 2025):
 /**
  * Vacation Repository
  * Data access layer for vacation period operations
@@ -126,24 +132,6 @@ export class VacationRepository {
     ) as RowDataPacket[];
 
     return result.length > 0;
-  }
-
-  /**
-   * Create audit trail entry
-   * @param auditData - Audit data to insert
-   */
-  async createAuditEntry(auditData: {
-    user_id: number;
-    action: string;
-    entity_type: string;
-    entity_id: number | string;
-    details: string;
-  }): Promise<void> {
-    await query(
-      `INSERT INTO audit_trail (user_id, action, entity_type, entity_id, details)
-       VALUES (?, ?, ?, ?, ?)`,
-      [auditData.user_id, auditData.action, auditData.entity_type, auditData.entity_id, auditData.details]
-    );
   }
 }
 

@@ -26,6 +26,7 @@
 import { CustomerContactRepository } from '../repositories/customerContactRepository';
 import { CustomerContact, CreateCustomerContactData, UpdateCustomerContactData } from '../types/customerContacts';
 import { isValidEmail } from '../utils/validation';
+import { ServiceResult } from '../types/serviceResults';
 
 export class CustomerContactService {
   /**
@@ -34,16 +35,25 @@ export class CustomerContactService {
    * @param customerId - Customer ID
    * @returns Array of unique email addresses
    */
-  async getUniqueEmailsForCustomer(customerId: number): Promise<string[]> {
+  async getUniqueEmailsForCustomer(customerId: number): Promise<ServiceResult<string[]>> {
     try {
       if (!customerId || customerId <= 0) {
-        throw new Error('Invalid customer ID');
+        return {
+          success: false,
+          error: 'Invalid customer ID',
+          code: 'VALIDATION_ERROR'
+        };
       }
 
-      return await CustomerContactRepository.getUniqueEmailsForCustomer(customerId);
+      const emails = await CustomerContactRepository.getUniqueEmailsForCustomer(customerId);
+      return { success: true, data: emails };
     } catch (error) {
       console.error('Service error fetching unique emails:', error);
-      throw new Error(error instanceof Error ? error.message : 'Failed to fetch contact emails');
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch contact emails',
+        code: 'INTERNAL_ERROR'
+      };
     }
   }
 
@@ -53,16 +63,25 @@ export class CustomerContactService {
    * @param customerId - Customer ID
    * @returns Array of customer contacts
    */
-  async getContactsForCustomer(customerId: number): Promise<CustomerContact[]> {
+  async getContactsForCustomer(customerId: number): Promise<ServiceResult<CustomerContact[]>> {
     try {
       if (!customerId || customerId <= 0) {
-        throw new Error('Invalid customer ID');
+        return {
+          success: false,
+          error: 'Invalid customer ID',
+          code: 'VALIDATION_ERROR'
+        };
       }
 
-      return await CustomerContactRepository.getContactsForCustomer(customerId);
+      const contacts = await CustomerContactRepository.getContactsForCustomer(customerId);
+      return { success: true, data: contacts };
     } catch (error) {
       console.error('Service error fetching contacts:', error);
-      throw new Error(error instanceof Error ? error.message : 'Failed to fetch contacts');
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch contacts',
+        code: 'INTERNAL_ERROR'
+      };
     }
   }
 
@@ -72,16 +91,34 @@ export class CustomerContactService {
    * @param contactId - Contact ID
    * @returns Customer contact or null if not found
    */
-  async getContactById(contactId: number): Promise<CustomerContact | null> {
+  async getContactById(contactId: number): Promise<ServiceResult<CustomerContact>> {
     try {
       if (!contactId || contactId <= 0) {
-        throw new Error('Invalid contact ID');
+        return {
+          success: false,
+          error: 'Invalid contact ID',
+          code: 'VALIDATION_ERROR'
+        };
       }
 
-      return await CustomerContactRepository.getContactById(contactId);
+      const contact = await CustomerContactRepository.getContactById(contactId);
+
+      if (!contact) {
+        return {
+          success: false,
+          error: 'Contact not found',
+          code: 'NOT_FOUND'
+        };
+      }
+
+      return { success: true, data: contact };
     } catch (error) {
       console.error('Service error fetching contact by ID:', error);
-      throw new Error(error instanceof Error ? error.message : 'Failed to fetch contact');
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch contact',
+        code: 'INTERNAL_ERROR'
+      };
     }
   }
 
@@ -92,20 +129,42 @@ export class CustomerContactService {
    * @param email - Contact email
    * @returns Customer contact or null if not found
    */
-  async getContactByEmail(customerId: number, email: string): Promise<CustomerContact | null> {
+  async getContactByEmail(customerId: number, email: string): Promise<ServiceResult<CustomerContact>> {
     try {
       if (!customerId || customerId <= 0) {
-        throw new Error('Invalid customer ID');
+        return {
+          success: false,
+          error: 'Invalid customer ID',
+          code: 'VALIDATION_ERROR'
+        };
       }
 
       if (!email || !isValidEmail(email)) {
-        throw new Error('Invalid email format');
+        return {
+          success: false,
+          error: 'Invalid email format',
+          code: 'VALIDATION_ERROR'
+        };
       }
 
-      return await CustomerContactRepository.getContactByEmail(customerId, email);
+      const contact = await CustomerContactRepository.getContactByEmail(customerId, email);
+
+      if (!contact) {
+        return {
+          success: false,
+          error: 'Contact not found',
+          code: 'NOT_FOUND'
+        };
+      }
+
+      return { success: true, data: contact };
     } catch (error) {
       console.error('Service error fetching contact by email:', error);
-      throw new Error(error instanceof Error ? error.message : 'Failed to fetch contact');
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch contact',
+        code: 'INTERNAL_ERROR'
+      };
     }
   }
 
@@ -118,11 +177,15 @@ export class CustomerContactService {
    * @param userId - User creating the contact
    * @returns Contact ID of newly created contact
    */
-  async createContact(data: CreateCustomerContactData, userId: number): Promise<number> {
+  async createContact(data: CreateCustomerContactData, userId: number): Promise<ServiceResult<number>> {
     try {
       // Validate customer ID
       if (!data.customer_id || data.customer_id <= 0) {
-        throw new Error('Invalid customer ID');
+        return {
+          success: false,
+          error: 'Invalid customer ID',
+          code: 'VALIDATION_ERROR'
+        };
       }
 
       // Validate required fields
@@ -130,16 +193,28 @@ export class CustomerContactService {
       const trimmedEmail = data.contact_email?.trim() || '';
 
       if (!trimmedName || trimmedName.length === 0) {
-        throw new Error('Contact name is required');
+        return {
+          success: false,
+          error: 'Contact name is required',
+          code: 'VALIDATION_ERROR'
+        };
       }
 
       if (!trimmedEmail || trimmedEmail.length === 0) {
-        throw new Error('Contact email is required');
+        return {
+          success: false,
+          error: 'Contact email is required',
+          code: 'VALIDATION_ERROR'
+        };
       }
 
       // Validate email format
       if (!isValidEmail(trimmedEmail)) {
-        throw new Error('Invalid email format');
+        return {
+          success: false,
+          error: 'Invalid email format',
+          code: 'VALIDATION_ERROR'
+        };
       }
 
       // Check email uniqueness for this customer
@@ -149,7 +224,11 @@ export class CustomerContactService {
       );
 
       if (emailExists) {
-        throw new Error('A contact with this email already exists for this customer');
+        return {
+          success: false,
+          error: 'A contact with this email already exists for this customer',
+          code: 'ALREADY_EXISTS'
+        };
       }
 
       // Prepare clean data for repository
@@ -162,10 +241,15 @@ export class CustomerContactService {
         notes: data.notes?.trim() || undefined
       };
 
-      return await CustomerContactRepository.createContact(contactData, userId);
+      const contactId = await CustomerContactRepository.createContact(contactData, userId);
+      return { success: true, data: contactId };
     } catch (error) {
       console.error('Service error creating contact:', error);
-      throw new Error(error instanceof Error ? error.message : 'Failed to create contact');
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to create contact',
+        code: 'INTERNAL_ERROR'
+      };
     }
   }
 
@@ -183,17 +267,25 @@ export class CustomerContactService {
     contactId: number,
     data: UpdateCustomerContactData,
     userId: number
-  ): Promise<boolean> {
+  ): Promise<ServiceResult<boolean>> {
     try {
       // Validate contact ID
       if (!contactId || contactId <= 0) {
-        throw new Error('Invalid contact ID');
+        return {
+          success: false,
+          error: 'Invalid contact ID',
+          code: 'VALIDATION_ERROR'
+        };
       }
 
       // Get existing contact
       const existingContact = await CustomerContactRepository.getContactById(contactId);
       if (!existingContact) {
-        throw new Error('Contact not found');
+        return {
+          success: false,
+          error: 'Contact not found',
+          code: 'NOT_FOUND'
+        };
       }
 
       // Validate email if being updated
@@ -201,12 +293,20 @@ export class CustomerContactService {
         const trimmedEmail = data.contact_email.trim();
 
         if (trimmedEmail.length === 0) {
-          throw new Error('Contact email cannot be empty');
+          return {
+            success: false,
+            error: 'Contact email cannot be empty',
+            code: 'VALIDATION_ERROR'
+          };
         }
 
         // Validate email format
         if (!isValidEmail(trimmedEmail)) {
-          throw new Error('Invalid email format');
+          return {
+            success: false,
+            error: 'Invalid email format',
+            code: 'VALIDATION_ERROR'
+          };
         }
 
         // Check email uniqueness (excluding current contact)
@@ -217,7 +317,11 @@ export class CustomerContactService {
         );
 
         if (emailExists) {
-          throw new Error('A contact with this email already exists for this customer');
+          return {
+            success: false,
+            error: 'A contact with this email already exists for this customer',
+            code: 'ALREADY_EXISTS'
+          };
         }
 
         data.contact_email = trimmedEmail;
@@ -233,10 +337,15 @@ export class CustomerContactService {
         notes: data.notes?.trim()
       };
 
-      return await CustomerContactRepository.updateContact(contactId, updateData, userId);
+      const updated = await CustomerContactRepository.updateContact(contactId, updateData, userId);
+      return { success: true, data: updated };
     } catch (error) {
       console.error('Service error updating contact:', error);
-      throw new Error(error instanceof Error ? error.message : 'Failed to update contact');
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to update contact',
+        code: 'INTERNAL_ERROR'
+      };
     }
   }
 
@@ -247,16 +356,25 @@ export class CustomerContactService {
    * @param userId - User deleting the contact
    * @returns True if deleted, false if not found
    */
-  async deleteContact(contactId: number, userId: number): Promise<boolean> {
+  async deleteContact(contactId: number, userId: number): Promise<ServiceResult<boolean>> {
     try {
       if (!contactId || contactId <= 0) {
-        throw new Error('Invalid contact ID');
+        return {
+          success: false,
+          error: 'Invalid contact ID',
+          code: 'VALIDATION_ERROR'
+        };
       }
 
-      return await CustomerContactRepository.deleteContact(contactId, userId);
+      const deleted = await CustomerContactRepository.deleteContact(contactId, userId);
+      return { success: true, data: deleted };
     } catch (error) {
       console.error('Service error deleting contact:', error);
-      throw new Error(error instanceof Error ? error.message : 'Failed to delete contact');
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to delete contact',
+        code: 'INTERNAL_ERROR'
+      };
     }
   }
 
@@ -269,16 +387,25 @@ export class CustomerContactService {
    * @param customerId - Customer ID
    * @returns Number of active contacts
    */
-  async getContactCount(customerId: number): Promise<number> {
+  async getContactCount(customerId: number): Promise<ServiceResult<number>> {
     try {
       if (!customerId || customerId <= 0) {
-        throw new Error('Invalid customer ID');
+        return {
+          success: false,
+          error: 'Invalid customer ID',
+          code: 'VALIDATION_ERROR'
+        };
       }
 
-      return await CustomerContactRepository.getContactCount(customerId);
+      const count = await CustomerContactRepository.getContactCount(customerId);
+      return { success: true, data: count };
     } catch (error) {
       console.error('Service error getting contact count:', error);
-      throw new Error(error instanceof Error ? error.message : 'Failed to get contact count');
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to get contact count',
+        code: 'INTERNAL_ERROR'
+      };
     }
   }
 }

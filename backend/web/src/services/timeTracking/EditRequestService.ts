@@ -1,3 +1,9 @@
+// File Clean up Finished: 2025-11-15
+// Changes:
+// - Removed excessive debug logging (console.log statements with emojis)
+// - Removed redundant actionPastTense variable (used status directly)
+// - Cleaned up code from 215 → 192 lines (11% reduction)
+// - Dependent repositories migrated to query() helper
 import { TimeEntryRepository } from '../../repositories/timeTracking/TimeEntryRepository';
 import { EditRequestRepository } from '../../repositories/timeTracking/EditRequestRepository';
 import { TimeCalculationService } from './TimeCalculationService';
@@ -5,13 +11,13 @@ import { NotificationService } from './NotificationService';
 import { TimeTrackingPermissions } from '../../utils/timeTracking/permissions';
 import { convertLocalToUTC } from '../../utils/timeTracking/DateTimeUtils';
 import { User } from '../../types';
-import { 
-  EditRequestBody, 
-  DeleteRequestBody, 
+import {
+  EditRequestBody,
+  DeleteRequestBody,
   ProcessRequestBody,
   PendingEditRequest,
-  ApiResponse 
-} from '../../types/TimeTrackingTypes';
+  ApiResponse
+} from '../../types/TimeTypes';
 
 /**
  * Edit Request Service
@@ -115,18 +121,11 @@ export class EditRequestService {
       throw new Error('Insufficient permissions to process requests');
     }
 
-    console.log('🟦 BACKEND DEBUG - Process Request Started');
-    console.log('📥 Received data:', data);
-    console.log('🔧 Request ID:', data.request_id);
-    console.log('🔧 Action:', data.action);
-
     // Get the request details
     const request = await EditRequestRepository.getRequestById(data.request_id);
     if (!request) {
       throw new Error('Request not found or already processed');
     }
-
-    console.log('📋 Original request data from DB:', request);
 
     if (data.action === 'approve' || data.action === 'modify') {
       if (request.request_type === 'delete') {
@@ -137,39 +136,25 @@ export class EditRequestService {
         let clockIn: string;
         let clockOut: string;
         let breakMinutes: number;
-        
+
         if (data.action === 'modify') {
           // In modify mode, use modified values if provided, otherwise fall back to requested
           clockIn = data.modified_clock_in ? convertLocalToUTC(data.modified_clock_in) : request.requested_clock_in!;
           clockOut = data.modified_clock_out ? convertLocalToUTC(data.modified_clock_out) : request.requested_clock_out!;
           breakMinutes = data.modified_break_minutes !== undefined ? data.modified_break_minutes : request.requested_break_minutes!;
-          console.log('   MODIFY MODE: Using modified values where available');
         } else {
           // In approve mode, ALWAYS use the original requested values
           clockIn = request.requested_clock_in!;
           clockOut = request.requested_clock_out!;
           breakMinutes = request.requested_break_minutes!;
-          console.log('   APPROVE MODE: Using requested values only');
-          
-          // Safety check - if modified values were sent for approve, log warning
-          if (data.modified_clock_in || data.modified_clock_out || data.modified_break_minutes !== undefined) {
-            console.log('⚠️ WARNING: Modified values received for approve action, but ignoring them');
-          }
         }
-        
-        console.log('🔄 FINAL VALUES TO BE APPLIED:');
-        console.log('   clockIn:', clockIn);
-        console.log('   clockOut:', clockOut);
-        console.log('   breakMinutes:', breakMinutes);
-        
+
         // Recalculate hours using the service
         const calculation = await TimeCalculationService.recalculateHoursForRequest(
           clockIn,
           clockOut,
           breakMinutes
         );
-        
-        console.log('   Total calculation result:', calculation);
 
         // Update the time entry
         await TimeEntryRepository.updateEntryFromRequest(request.entry_id, {
@@ -185,9 +170,9 @@ export class EditRequestService {
     }
 
     // Update request status
-    const status = data.action === 'modify' ? 'modified' : 
+    const status = data.action === 'modify' ? 'modified' :
                   data.action === 'approve' ? 'approved' : 'rejected';
-    
+
     await EditRequestRepository.updateRequestStatus(
       data.request_id,
       status,
@@ -204,12 +189,9 @@ export class EditRequestService {
       reviewer_name: `${user.first_name} ${user.last_name}`
     });
 
-    const actionPastTense = data.action === 'modify' ? 'modified' : 
-                           data.action === 'approve' ? 'approved' : 'rejected';
-    
-    return { 
+    return {
       success: true,
-      message: `Request ${actionPastTense} successfully` 
+      message: `Request ${status} successfully`
     };
   }
 }

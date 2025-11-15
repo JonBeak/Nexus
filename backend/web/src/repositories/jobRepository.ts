@@ -65,12 +65,17 @@ export class JobRepository {
       queryParams.push(params.customer_id);
     }
 
-    // Order and limit (properly parameterized)
+    // Order and limit
     sql += ` ORDER BY j.created_at DESC`;
 
+    // NOTE: Using literal value for LIMIT instead of placeholder
+    // MySQL prepared statements with LIMIT ? don't work reliably in all contexts
     if (params.limit) {
-      sql += ` LIMIT ?`;
-      queryParams.push(params.limit);
+      const limit = parseInt(String(params.limit));
+      if (isNaN(limit) || limit < 0) {
+        throw new Error('Invalid limit value');
+      }
+      sql += ` LIMIT ${limit}`;
     }
 
     const rows = await query(sql, queryParams) as RowDataPacket[];

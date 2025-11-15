@@ -1,3 +1,6 @@
+// File Clean up Finished: 2025-11-15
+// Changes: Removed 5 console.log debugging statements (kept console.warn for unmapped items - that's valuable)
+
 /**
  * Specs Type Mapper
  * Maps specs_display_name to appropriate specification types
@@ -25,16 +28,12 @@ export function mapSpecsDisplayNameToTypes(
   specsDisplayName: string | null | undefined,
   isParentOrRegular: boolean = false
 ): SpecType[] {
-  console.log('[Specs Type Mapper] Input:', specsDisplayName, 'isParentOrRegular:', isParentOrRegular);
-
   // If no specs display name, return empty array
   if (!specsDisplayName) {
-    console.log('[Specs Type Mapper] No specs display name, returning empty array');
     return [];
   }
 
   const normalizedName = specsDisplayName.trim();
-  console.log('[Specs Type Mapper] Normalized:', normalizedName);
 
   // Mapping table based on specs_display_name
   const specsMap: Record<string, string[]> = {
@@ -94,7 +93,6 @@ export function mapSpecsDisplayNameToTypes(
   // Special handling for Vinyl: add Cut, Peel, Mask for parent items only
   if (normalizedName === 'Vinyl' && isParentOrRegular) {
     specTypeNames.push('Cut', 'Peel', 'Mask');
-    console.log('[Specs Type Mapper] Added Cut/Peel/Mask to parent Vinyl item');
   }
 
   // Convert spec type names into SpecType objects (with empty values)
@@ -115,7 +113,6 @@ export function mapSpecsDisplayNameToTypes(
     });
   }
 
-  console.log('[Specs Type Mapper] Mapped to spec types:', specTypes);
   return specTypes;
 }
 

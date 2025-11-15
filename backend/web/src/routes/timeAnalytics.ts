@@ -28,7 +28,7 @@ router.get('/weekly-summary', authenticateToken, async (req, res) => {
     const result = await TimeAnalyticsService.getWeeklySummary(
       user,
       { startDate: startDate as string, endDate: endDate as string },
-      { group: group as string, users: users as string },
+      { group: group as string },
       {}
     );
 
@@ -68,7 +68,7 @@ router.get('/analytics-overview', authenticateToken, async (req, res) => {
     const result = await TimeAnalyticsService.getAnalyticsOverview(
       user,
       { startDate: startDate as string, endDate: endDate as string },
-      { group: group as string, users: users as string },
+      { group: group as string },
       {}
     );
 
@@ -150,7 +150,7 @@ router.get('/missing-entries', authenticateToken, async (req, res) => {
     const result = await TimeAnalyticsService.getMissingEntries(
       user,
       { startDate: startDate as string, endDate: endDate as string },
-      { group: group as string, users: users as string },
+      { group: group as string },
       { timeout: 8000 } // 8 second timeout
     );
 

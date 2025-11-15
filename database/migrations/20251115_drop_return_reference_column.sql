@@ -1,0 +1,16 @@
+-- Migration: Drop unused return_reference column from vinyl_inventory table
+-- Date: 2025-11-15
+-- Reason: Column was identified as unused in codebase during repository refactoring
+--
+-- Status: SKIPPED - Column does not exist in database
+-- Note: Either the column was never created in this environment, or it was previously dropped
+--       Grep searches found references to return_reference in initial DB schema check
+--       but subsequent verification shows it does not exist
+--
+-- Impact: None
+-- Rollback: N/A (column doesn't exist)
+
+-- Check if column exists before attempting to drop (safe migration)
+-- ALTER TABLE vinyl_inventory DROP COLUMN IF EXISTS return_reference;
+-- Note: MySQL 5.7 doesn't support DROP COLUMN IF EXISTS
+-- Column verified as non-existent on 2025-11-15

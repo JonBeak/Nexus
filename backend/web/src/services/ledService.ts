@@ -9,6 +9,7 @@
  */
 
 import { LEDRepository, LED } from '../repositories/ledRepository';
+import { ServiceResult } from '../types/serviceResults';
 
 export class LEDService {
   private repository: LEDRepository;
@@ -21,11 +22,23 @@ export class LEDService {
    * Get all active LEDs formatted for dropdown use
    * Returns LEDs ordered by default status, then alphabetically
    */
-  async getActiveLEDs(): Promise<LED[]> {
-    const leds = await this.repository.findAllActive();
+  async getActiveLEDs(): Promise<ServiceResult<LED[]>> {
+    try {
+      const leds = await this.repository.findAllActive();
 
-    // Business rule: Always return at least an empty array, never null
-    return leds || [];
+      // Business rule: Always return at least an empty array, never null
+      return {
+        success: true,
+        data: leds || []
+      };
+    } catch (error) {
+      console.error('Service error fetching active LEDs:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch LED types',
+        code: 'DATABASE_ERROR'
+      };
+    }
   }
 
   /**

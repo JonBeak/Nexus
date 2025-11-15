@@ -6,7 +6,7 @@
 // - Follows DATABASE_QUERY_STANDARDIZATION_PLAN.md
 import { query } from '../../config/database';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
-import { ScheduledBreak } from '../../types/TimeTrackingTypes';
+import { ScheduledBreak } from '../../types/TimeTypes';
 
 /**
  * Break Schedule Repository

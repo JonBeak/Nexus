@@ -14,7 +14,7 @@
  * Extracted from orderFormGenerator.ts Phase 5 refactoring
  */
 
-import { FormType } from '../generators/pdfCommonGenerator';
+import { FormType } from '../generators/pdfConstants';
 import type { OrderPartForPDF } from '../../../types/orders';
 
 export interface PartColumn {

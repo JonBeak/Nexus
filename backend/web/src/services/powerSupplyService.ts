@@ -8,6 +8,7 @@
  */
 
 import { PowerSupplyRepository, PowerSupply } from '../repositories/powerSupplyRepository';
+import { ServiceResult } from '../types/serviceResults';
 
 export class PowerSupplyService {
   private repository: PowerSupplyRepository;
@@ -20,11 +21,23 @@ export class PowerSupplyService {
    * Get all active power supplies formatted for dropdown use
    * Returns power supplies ordered by default status (UL first), then alphabetically
    */
-  async getActivePowerSupplies(): Promise<PowerSupply[]> {
-    const powerSupplies = await this.repository.findAllActive();
+  async getActivePowerSupplies(): Promise<ServiceResult<PowerSupply[]>> {
+    try {
+      const powerSupplies = await this.repository.findAllActive();
 
-    // Business rule: Always return at least an empty array, never null
-    return powerSupplies || [];
+      // Business rule: Always return at least an empty array, never null
+      return {
+        success: true,
+        data: powerSupplies || []
+      };
+    } catch (error) {
+      console.error('Service error fetching active power supplies:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch power supply types',
+        code: 'DATABASE_ERROR'
+      };
+    }
   }
 
   /**

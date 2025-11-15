@@ -1,10 +1,15 @@
-import { EditRequestRepository } from '../../repositories/timeTracking/EditRequestRepository';
+// File Clean up Finished: 2025-11-15
+// Changes:
+// - Updated to use new NotificationRepository instead of EditRequestRepository
+// - Improved architectural separation (Service → Repository pattern)
+// - No business logic changes, only updated repository layer
+import { NotificationRepository } from '../../repositories/timeTracking/NotificationRepository';
 import { User } from '../../types';
-import { 
+import {
   NotificationWithDetails,
   NotificationData,
-  ApiResponse 
-} from '../../types/TimeTrackingTypes';
+  ApiResponse
+} from '../../types/TimeTypes';
 
 /**
  * Notification Service
@@ -17,7 +22,7 @@ export class NotificationService {
    * @returns Insert ID
    */
   static async createEditRequestNotification(data: NotificationData): Promise<number> {
-    return await EditRequestRepository.createNotification(data);
+    return await NotificationRepository.createNotification(data);
   }
 
   /**
@@ -27,7 +32,7 @@ export class NotificationService {
    * @returns User notifications with details
    */
   static async getUserNotifications(user: User, showCleared: boolean = false): Promise<NotificationWithDetails[]> {
-    return await EditRequestRepository.getUserNotifications(user.user_id, showCleared);
+    return await NotificationRepository.getUserNotifications(user.user_id, showCleared);
   }
 
   /**
@@ -38,15 +43,15 @@ export class NotificationService {
    * @throws Error if notification not found or doesn't belong to user
    */
   static async markAsRead(user: User, notificationId: number): Promise<ApiResponse> {
-    const affectedRows = await EditRequestRepository.markNotificationAsRead(notificationId, user.user_id);
-    
+    const affectedRows = await NotificationRepository.markNotificationAsRead(notificationId, user.user_id);
+
     if (affectedRows === 0) {
       throw new Error('Notification not found');
     }
 
-    return { 
+    return {
       success: true,
-      message: 'Notification marked as read' 
+      message: 'Notification marked as read'
     };
   }
 
@@ -58,15 +63,15 @@ export class NotificationService {
    * @throws Error if notification not found or doesn't belong to user
    */
   static async clearNotification(user: User, notificationId: number): Promise<ApiResponse> {
-    const affectedRows = await EditRequestRepository.clearNotification(notificationId, user.user_id);
-    
+    const affectedRows = await NotificationRepository.clearNotification(notificationId, user.user_id);
+
     if (affectedRows === 0) {
       throw new Error('Notification not found');
     }
 
-    return { 
+    return {
       success: true,
-      message: 'Notification cleared' 
+      message: 'Notification cleared'
     };
   }
 
@@ -76,11 +81,11 @@ export class NotificationService {
    * @returns Success response
    */
   static async clearAllNotifications(user: User): Promise<ApiResponse> {
-    await EditRequestRepository.clearAllNotifications(user.user_id);
+    await NotificationRepository.clearAllNotifications(user.user_id);
 
-    return { 
+    return {
       success: true,
-      message: 'All notifications cleared' 
+      message: 'All notifications cleared'
     };
   }
 }

@@ -1,3 +1,24 @@
+// File Clean up Finished: 2025-11-15
+// Cleanup Summary:
+// - ✅ Created standardized ServiceResult<T> type in types/serviceResults.ts
+// - ✅ Added ServiceResult<T> import and generic type parameter to handleServiceResult()
+// - ✅ Improved type safety with TypeScript generics for better IDE autocomplete
+// - ✅ Zero breaking changes - all existing code continues to work
+// - ✅ Build verified - no new TypeScript errors introduced
+//
+// Functions usage status:
+// - parseIntParam() - Used in 8 controllers ✓
+// - sendErrorResponse() - Used in 8 controllers ✓
+// - handleServiceResult() - Used in 2 controllers (vinyl module) ✓
+// - sendSuccessResponse() - Internal use only (called by handleServiceResult)
+// - mapErrorCodeToStatus() - Internal use only (called by sendErrorResponse)
+//
+// Future migration opportunities (20+ controllers still using manual patterns):
+// - customerController.ts, wagesController.ts, orderController.ts
+// - See git status for full list of modified controllers needing migration
+//
+// Architecture: This file is pure HTTP utility layer (no database access) ✓
+
 /**
  * Controller Helper Utilities
  *
@@ -9,6 +30,7 @@
  */
 
 import { Response } from 'express';
+import { ServiceResult } from '../types/serviceResults';
 
 /**
  * Parse and validate integer ID from request params
@@ -143,23 +165,24 @@ export function sendSuccessResponse(
  * Handle service result and send appropriate response
  *
  * Automatically handles both success and error cases from service layer.
+ * Uses the standardized ServiceResult<T> type for type safety.
  *
  * @param res - Express response object
- * @param result - Service result object
+ * @param result - Service result object (ServiceResult<T>)
  * @param options - Optional configuration
  *
  * @example
  * const result = await service.getItem(id);
  * return handleServiceResult(res, result);
+ *
+ * @example
+ * // With custom success status for creation
+ * const result = await service.createItem(data);
+ * return handleServiceResult(res, result, { successStatus: 201 });
  */
-export function handleServiceResult(
+export function handleServiceResult<T>(
   res: Response,
-  result: {
-    success: boolean;
-    data?: any;
-    error?: string;
-    code?: string;
-  },
+  result: ServiceResult<T>,
   options?: {
     successStatus?: number;
     errorMessage?: string;

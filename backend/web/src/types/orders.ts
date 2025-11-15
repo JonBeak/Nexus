@@ -1,3 +1,17 @@
+// File Clean up Finished: 2025-11-15
+// Changes (Pass 1 - Previous cleanup):
+//   - Removed misleading OrderSpecifications interface from orderTemplates.ts
+//   - Replaced import('./orderTemplates').OrderSpecifications with Record<string, any>
+//   - Deleted orderTemplates.ts file (interface didn't match actual data structure)
+//   - Actual structure is template-based: _template_N, rowN_field, _qb_description, specs_qty
+//   - Deleted 45 lines of misleading type definitions
+//
+// Changes (Pass 2 - Type safety improvements):
+//   - Added missing finalization fields to Order interface (finalized_at, finalized_by, modified_after_finalization)
+//   - Fixed hard_due_date_time type from Date to string (matches database TIME type and query formatting)
+//   - Updated in Order, UpdateOrderData interfaces (CreateOrderData and OrderDataForPDF already correct)
+//   - Preserved ProductTypeTaskTemplate for future task template implementation
+
 /**
  * Order System Type Definitions
  * Phase 1.b - Backend Order Conversion & Management
@@ -18,7 +32,7 @@ export interface Order {
   customer_job_number?: string;
   order_date: Date;
   due_date?: Date;
-  hard_due_date_time?: Date;
+  hard_due_date_time?: string;  // TIME string from database formatted as "HH:MM" (e.g., "14:30")
   production_notes?: string;
   manufacturing_note?: string;  // Auto-filled from customer special_instructions
   internal_note?: string;       // Auto-filled from customer comments
@@ -47,6 +61,11 @@ export interface Order {
   created_at: Date;
   updated_at: Date;
   created_by: number;
+
+  // Order finalization tracking (Phase 1.5.c.3 - Snapshot/Versioning)
+  finalized_at?: Date;
+  finalized_by?: number;
+  modified_after_finalization?: boolean;
 
   // From JOIN queries
   customer_name?: string;
@@ -90,7 +109,7 @@ export interface OrderPart {
   channel_letter_type_id?: number;
   base_product_type_id?: number;
   quantity: number;
-  specifications: import('./orderTemplates').OrderSpecifications;  // JSON
+  specifications: Record<string, any>;  // JSON - Template-based dynamic structure (_template_N, rowN_field, _qb_description, specs_qty)
   production_notes?: string;
   // Phase 1.5: Invoice data (nullable = determines row "type")
   invoice_description?: string;
@@ -111,7 +130,7 @@ export interface CreateOrderPartData {
   channel_letter_type_id?: number;
   base_product_type_id?: number;
   quantity: number;
-  specifications: import('./orderTemplates').OrderSpecifications;
+  specifications: Record<string, any>;  // JSON - Template-based dynamic structure (_template_N, rowN_field, _qb_description, specs_qty)
   production_notes?: string;
   // Phase 1.5: Invoice fields
   invoice_description?: string;
@@ -302,7 +321,7 @@ export interface UpdateOrderData {
   customer_po?: string;
   customer_job_number?: string;
   due_date?: Date;
-  hard_due_date_time?: Date;
+  hard_due_date_time?: string;  // TIME string formatted as "HH:MM"
   production_notes?: string;
   manufacturing_note?: string;
   internal_note?: string;
@@ -458,6 +477,6 @@ export interface OrderPartForPDF {
   specs_display_name?: string;
   product_type_id: string;
   quantity: number;
-  specifications: import('./orderTemplates').OrderSpecifications;
+  specifications: Record<string, any>;  // JSON - Template-based dynamic structure (_template_N, rowN_field, _qb_description, specs_qty)
   production_notes?: string;
 }

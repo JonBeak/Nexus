@@ -1,3 +1,9 @@
+// File Clean up Finished: 2025-11-15
+// Changes:
+// - Removed createAuditEntry() method (moved to centralized auditRepository)
+// - Fixed type casting: changed `as any` to `ResultSetHeader` for type safety
+// - Added ResultSetHeader import from mysql2
+// - Reduced from 289 → 276 lines (4.5% reduction)
 /**
  * User Repository
  * Data access layer for user-related database operations
@@ -7,7 +13,7 @@
  */
 
 import { query } from '../config/database';
-import { RowDataPacket } from 'mysql2';
+import { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 export interface UserFields {
   user_id: number;
@@ -202,7 +208,7 @@ export class UserRepository {
       userData.hourly_wage || null,
       userData.auto_clock_in || null,
       userData.auto_clock_out || null
-    ]) as any;
+    ]) as ResultSetHeader;
 
     return result.insertId;
   }
@@ -262,24 +268,6 @@ export class UserRepository {
     await query(
       'UPDATE users SET password_hash = ?, updated_at = NOW() WHERE user_id = ?',
       [passwordHash, userId]
-    );
-  }
-
-  /**
-   * Create audit trail entry
-   * @param auditData - Audit data to insert
-   */
-  async createAuditEntry(auditData: {
-    user_id: number;
-    action: string;
-    entity_type: string;
-    entity_id: number | string;
-    details: string;
-  }): Promise<void> {
-    await query(
-      `INSERT INTO audit_trail (user_id, action, entity_type, entity_id, details)
-       VALUES (?, ?, ?, ?, ?)`,
-      [auditData.user_id, auditData.action, auditData.entity_type, auditData.entity_id, auditData.details]
     );
   }
 }

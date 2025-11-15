@@ -1,9 +1,13 @@
+// File Clean up Finished: 2025-11-15
+// Changes: pool.execute() → query() (10+ instances), extracted buildFilterConditions() helper,
+// removed legacy filters.users support, added UserAnalyticsData type
+
 /**
  * Time Analytics Repository
  * Handles all database operations for time analytics queries
  */
 
-import { pool } from '../../config/database';
+import { query } from '../../config/database';
 import { RowDataPacket } from 'mysql2';
 import {
   WeeklySummaryData,
@@ -11,9 +15,10 @@ import {
   Holiday,
   VacationPeriod,
   TopPerformer,
+  UserAnalyticsData,
   DateRangeFilter,
   AnalyticsFilters
-} from '../../types/TimeManagementTypes';
+} from '../../types/TimeTypes';
 
 export class TimeAnalyticsRepository {
   /**
@@ -50,30 +55,14 @@ export class TimeAnalyticsRepository {
 
     const params: (string | number)[] = [dateRange.startDate, dateRange.endDate];
 
-    // Apply group/user filter
-    if (filters.group && filters.group !== 'all' && filters.group !== '') {
-      if (filters.group === 'Group A' || filters.group === 'Group B') {
-        sql += ' AND u.user_group = ?';
-        params.push(filters.group);
-      } else {
-        const userId = Number(filters.group);
-        if (!isNaN(userId)) {
-          sql += ' AND u.user_id = ?';
-          params.push(userId);
-        }
-      }
-    } else if (filters.users && filters.users !== '') {
-      // Legacy support for users parameter
-      const userIds = filters.users.split(',').map(Number).filter(Boolean);
-      if (userIds.length > 0) {
-        sql += ` AND u.user_id IN (${userIds.map(() => '?').join(',')})`;
-        params.push(...userIds);
-      }
-    }
+    // Apply group/user filter using helper
+    const filterConditions = this.buildFilterConditions(filters, 'u');
+    sql += filterConditions.sql;
+    params.push(...filterConditions.params);
 
     sql += ' GROUP BY u.user_id, u.first_name, u.last_name ORDER BY u.first_name, u.last_name';
 
-    const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
+    const rows = await query(sql, params) as RowDataPacket[];
     return rows as WeeklySummaryData[];
   }
 
@@ -95,20 +84,12 @@ export class TimeAnalyticsRepository {
 
     const params: (string | number)[] = [dateRange.startDate, dateRange.endDate];
 
-    if (filters.group && filters.group !== 'all' && filters.group !== '') {
-      if (filters.group === 'Group A' || filters.group === 'Group B') {
-        sql += ' AND EXISTS(SELECT 1 FROM users WHERE user_id = te.user_id AND user_group = ?)';
-        params.push(filters.group);
-      } else {
-        const userId = Number(filters.group);
-        if (!isNaN(userId)) {
-          sql += ' AND te.user_id = ?';
-          params.push(userId);
-        }
-      }
-    }
+    // Apply filter using helper
+    const filterConditions = this.buildFilterConditions(filters, 'te');
+    sql += filterConditions.sql;
+    params.push(...filterConditions.params);
 
-    const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
+    const rows = await query(sql, params) as RowDataPacket[];
     return rows[0];
   }
 
@@ -129,20 +110,12 @@ export class TimeAnalyticsRepository {
 
     const params: (string | number)[] = [dateRange.startDate, dateRange.endDate];
 
-    if (filters.group && filters.group !== 'all' && filters.group !== '') {
-      if (filters.group === 'Group A' || filters.group === 'Group B') {
-        sql += ' AND EXISTS(SELECT 1 FROM users WHERE user_id = te.user_id AND user_group = ?)';
-        params.push(filters.group);
-      } else {
-        const userId = Number(filters.group);
-        if (!isNaN(userId)) {
-          sql += ' AND te.user_id = ?';
-          params.push(userId);
-        }
-      }
-    }
+    // Apply filter using helper
+    const filterConditions = this.buildFilterConditions(filters, 'te');
+    sql += filterConditions.sql;
+    params.push(...filterConditions.params);
 
-    const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
+    const rows = await query(sql, params) as RowDataPacket[];
     return rows[0];
   }
 
@@ -163,20 +136,12 @@ export class TimeAnalyticsRepository {
 
     const params: (string | number)[] = [dateRange.startDate, dateRange.endDate];
 
-    if (filters.group && filters.group !== 'all' && filters.group !== '') {
-      if (filters.group === 'Group A' || filters.group === 'Group B') {
-        sql += ' AND EXISTS(SELECT 1 FROM users WHERE user_id = te.user_id AND user_group = ?)';
-        params.push(filters.group);
-      } else {
-        const userId = Number(filters.group);
-        if (!isNaN(userId)) {
-          sql += ' AND te.user_id = ?';
-          params.push(userId);
-        }
-      }
-    }
+    // Apply filter using helper
+    const filterConditions = this.buildFilterConditions(filters, 'te');
+    sql += filterConditions.sql;
+    params.push(...filterConditions.params);
 
-    const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
+    const rows = await query(sql, params) as RowDataPacket[];
     return rows[0];
   }
 
@@ -202,22 +167,14 @@ export class TimeAnalyticsRepository {
 
     const params: (string | number)[] = [dateRange.startDate, dateRange.endDate];
 
-    if (filters.group && filters.group !== 'all' && filters.group !== '') {
-      if (filters.group === 'Group A' || filters.group === 'Group B') {
-        sql += ' AND u.user_group = ?';
-        params.push(filters.group);
-      } else {
-        const userId = Number(filters.group);
-        if (!isNaN(userId)) {
-          sql += ' AND u.user_id = ?';
-          params.push(userId);
-        }
-      }
-    }
+    // Apply filter using helper
+    const filterConditions = this.buildFilterConditions(filters, 'u');
+    sql += filterConditions.sql;
+    params.push(...filterConditions.params);
 
     sql += ` GROUP BY u.user_id, u.first_name, u.last_name ORDER BY total_hours DESC LIMIT ${limit}`;
 
-    const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
+    const rows = await query(sql, params) as RowDataPacket[];
     return rows as TopPerformer[];
   }
 
@@ -228,20 +185,12 @@ export class TimeAnalyticsRepository {
     let sql = 'SELECT COUNT(*) as count FROM users WHERE is_active = 1';
     const params: (string | number)[] = [];
 
-    if (filters.group && filters.group !== 'all' && filters.group !== '') {
-      if (filters.group === 'Group A' || filters.group === 'Group B') {
-        sql += ' AND user_group = ?';
-        params.push(filters.group);
-      } else {
-        const userId = Number(filters.group);
-        if (!isNaN(userId)) {
-          sql += ' AND user_id = ?';
-          params.push(userId);
-        }
-      }
-    }
+    // Apply filter using helper
+    const filterConditions = this.buildFilterConditions(filters, 'users');
+    sql += filterConditions.sql;
+    params.push(...filterConditions.params);
 
-    const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
+    const rows = await query(sql, params) as RowDataPacket[];
     return (rows[0] as any).count;
   }
 
@@ -251,7 +200,7 @@ export class TimeAnalyticsRepository {
   static async getUserAnalytics(
     userId: number,
     dateRange: DateRangeFilter
-  ): Promise<any> {
+  ): Promise<UserAnalyticsData> {
     const [
       totalHours,
       overtimeHours,
@@ -260,50 +209,50 @@ export class TimeAnalyticsRepository {
       lateEntries
     ] = await Promise.all([
       // Total hours
-      pool.execute<RowDataPacket[]>(
+      query(
         `SELECT COALESCE(SUM(total_hours), 0) as total
          FROM time_entries
          WHERE user_id = ? AND clock_in BETWEEN ? AND ? AND is_deleted = 0`,
         [userId, dateRange.startDate, dateRange.endDate]
-      ),
+      ) as Promise<RowDataPacket[]>,
       // Overtime hours
-      pool.execute<RowDataPacket[]>(
+      query(
         `SELECT COALESCE(SUM(GREATEST(total_hours - 8, 0)), 0) as overtime
          FROM time_entries
          WHERE user_id = ? AND clock_in BETWEEN ? AND ? AND is_deleted = 0`,
         [userId, dateRange.startDate, dateRange.endDate]
-      ),
+      ) as Promise<RowDataPacket[]>,
       // Days worked
-      pool.execute<RowDataPacket[]>(
+      query(
         `SELECT COUNT(DISTINCT DATE(clock_in)) as days
          FROM time_entries
          WHERE user_id = ? AND clock_in BETWEEN ? AND ? AND is_deleted = 0`,
         [userId, dateRange.startDate, dateRange.endDate]
-      ),
+      ) as Promise<RowDataPacket[]>,
       // Weekends worked
-      pool.execute<RowDataPacket[]>(
+      query(
         `SELECT COUNT(DISTINCT DATE(clock_in)) as weekends
          FROM time_entries
          WHERE user_id = ? AND clock_in BETWEEN ? AND ?
          AND DAYOFWEEK(clock_in) IN (1, 7) AND is_deleted = 0`,
         [userId, dateRange.startDate, dateRange.endDate]
-      ),
+      ) as Promise<RowDataPacket[]>,
       // Late entries
-      pool.execute<RowDataPacket[]>(
+      query(
         `SELECT COUNT(*) as late
          FROM time_entries
          WHERE user_id = ? AND clock_in BETWEEN ? AND ?
          AND TIME(clock_in) > '09:00:00' AND is_deleted = 0`,
         [userId, dateRange.startDate, dateRange.endDate]
-      )
+      ) as Promise<RowDataPacket[]>
     ]);
 
     return {
-      totalHours: totalHours[0][0].total,
-      overtimeHours: overtimeHours[0][0].overtime,
-      daysWorked: daysWorked[0][0].days,
-      weekendsWorked: weekendsWorked[0][0].weekends,
-      lateEntries: lateEntries[0][0].late
+      totalHours: (totalHours[0] as any).total,
+      overtimeHours: (overtimeHours[0] as any).overtime,
+      daysWorked: (daysWorked[0] as any).days,
+      weekendsWorked: (weekendsWorked[0] as any).weekends,
+      lateEntries: (lateEntries[0] as any).late
     };
   }
 
@@ -337,18 +286,10 @@ export class TimeAnalyticsRepository {
 
     const params: (string | number)[] = [dateRange.startDate, dateRange.endDate];
 
-    if (filters.group && filters.group !== 'all' && filters.group !== '') {
-      if (filters.group === 'Group A' || filters.group === 'Group B') {
-        sql += ' AND u.user_group = ?';
-        params.push(filters.group);
-      } else {
-        const userId = Number(filters.group);
-        if (!isNaN(userId)) {
-          sql += ' AND u.user_id = ?';
-          params.push(userId);
-        }
-      }
-    }
+    // Apply filter using helper
+    const filterConditions = this.buildFilterConditions(filters, 'u');
+    sql += filterConditions.sql;
+    params.push(...filterConditions.params);
 
     sql += `
       GROUP BY u.user_id, u.first_name, u.last_name, u.hire_date,
@@ -356,7 +297,7 @@ export class TimeAnalyticsRepository {
       ORDER BY u.user_id, FIELD(ws.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')
     `;
 
-    const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
+    const rows = await query(sql, params) as RowDataPacket[];
     return rows as UserWithSchedule[];
   }
 
@@ -364,12 +305,12 @@ export class TimeAnalyticsRepository {
    * Get holidays in date range
    */
   static async getHolidaysInRange(dateRange: DateRangeFilter): Promise<Holiday[]> {
-    const [rows] = await pool.execute<RowDataPacket[]>(
+    const rows = await query(
       `SELECT holiday_id, holiday_name, holiday_date, is_active
        FROM company_holidays
        WHERE holiday_date BETWEEN ? AND ? AND is_active = 1`,
       [dateRange.startDate, dateRange.endDate]
-    );
+    ) as RowDataPacket[];
     return rows as Holiday[];
   }
 
@@ -377,7 +318,7 @@ export class TimeAnalyticsRepository {
    * Get vacation periods overlapping with date range
    */
   static async getVacationsInRange(dateRange: DateRangeFilter): Promise<VacationPeriod[]> {
-    const [rows] = await pool.execute<RowDataPacket[]>(
+    const rows = await query(
       `SELECT vacation_id, user_id, start_date, end_date
        FROM vacation_periods
        WHERE (start_date <= ? AND end_date >= ?) OR
@@ -391,7 +332,50 @@ export class TimeAnalyticsRepository {
         dateRange.startDate,
         dateRange.endDate
       ]
-    );
+    ) as RowDataPacket[];
     return rows as VacationPeriod[];
+  }
+
+  // ========================================================================
+  // Private Helper Methods
+  // ========================================================================
+
+  /**
+   * Build filter conditions for group/user filtering
+   * Eliminates code duplication across multiple methods
+   *
+   * @param filters - Analytics filters
+   * @param tableAlias - Table alias to use in SQL (e.g., 'u', 'te')
+   * @returns Object with SQL condition and parameters
+   */
+  private static buildFilterConditions(
+    filters: AnalyticsFilters,
+    tableAlias: string = 'u'
+  ): { sql: string; params: (string | number)[] } {
+    const params: (string | number)[] = [];
+    let sql = '';
+
+    if (filters.group && filters.group !== 'all' && filters.group !== '') {
+      if (filters.group === 'Group A' || filters.group === 'Group B') {
+        // Group filtering
+        if (tableAlias === 'te') {
+          // For time_entries queries, need to check users table
+          sql = ' AND EXISTS(SELECT 1 FROM users WHERE user_id = te.user_id AND user_group = ?)';
+        } else {
+          // For users table queries
+          sql = ` AND ${tableAlias}.user_group = ?`;
+        }
+        params.push(filters.group);
+      } else {
+        // Individual user filtering (group parameter contains user ID)
+        const userId = Number(filters.group);
+        if (!isNaN(userId)) {
+          sql = ` AND ${tableAlias}.user_id = ?`;
+          params.push(userId);
+        }
+      }
+    }
+
+    return { sql, params };
   }
 }

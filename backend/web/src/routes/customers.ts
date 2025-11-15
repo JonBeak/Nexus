@@ -2,6 +2,13 @@
  * File Clean up Finished: Nov 13, 2025
  * Changes:
  * - Removed /api/customers/:customerId/contacts/primary route
+ *
+ * File Clean up Finished: 2025-11-15
+ * Changes:
+ * - Migrated address routes to requirePermission() middleware pattern
+ * - Added permission checks for all 6 address operations
+ * - Routes now consistent with modern pattern (see customer contacts routes)
+ * - Permissions: .read, .update, .delete (no .create - uses .update for add operations)
  */
 
 import { Router } from 'express';
@@ -35,12 +42,30 @@ router.post('/:id/deactivate', CustomerController.deactivateCustomer);
 router.post('/:id/reactivate', CustomerController.reactivateCustomer);
 
 // Address Routes
-router.get('/:id/addresses', AddressController.getAddresses);
-router.post('/:id/addresses', AddressController.addAddress);
-router.put('/:id/addresses/:addressId', AddressController.updateAddress);
-router.delete('/:id/addresses/:addressId', AddressController.deleteAddress);
-router.post('/:id/addresses/:addressId/make-primary', AddressController.makePrimaryAddress);
-router.post('/:id/addresses/:addressId/reactivate', AddressController.reactivateAddress);
+router.get('/:id/addresses',
+  requirePermission('customer_addresses.read'),
+  AddressController.getAddresses
+);
+router.post('/:id/addresses',
+  requirePermission('customer_addresses.update'),
+  AddressController.addAddress
+);
+router.put('/:id/addresses/:addressId',
+  requirePermission('customer_addresses.update'),
+  AddressController.updateAddress
+);
+router.delete('/:id/addresses/:addressId',
+  requirePermission('customer_addresses.delete'),
+  AddressController.deleteAddress
+);
+router.post('/:id/addresses/:addressId/make-primary',
+  requirePermission('customer_addresses.update'),
+  AddressController.makePrimaryAddress
+);
+router.post('/:id/addresses/:addressId/reactivate',
+  requirePermission('customer_addresses.update'),
+  AddressController.reactivateAddress
+);
 
 // Customer Contacts Routes (Phase 1.5.a.5)
 // Get unique contact emails for dropdown (orders.create permission required)

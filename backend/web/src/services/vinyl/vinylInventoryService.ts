@@ -1,4 +1,11 @@
 // File Clean up Finished: Nov 13, 2025
+// File Clean up Finished: 2025-11-15 (Repository refactoring + status_change_date implementation)
+// Changes:
+// - Added imports for VinylInventoryJobLinksRepository and VinylInventoryStatsRepository
+// - Updated all method calls to use appropriate specialized repositories
+// - Enhanced changeVinylStatus() to properly set status_change_date for ALL disposition changes
+// - Added usage_date and return_date setting for respective disposition changes
+// - Maintains backward compatibility while adding proper audit trail
 /**
  * Vinyl Inventory Service
  * Business logic layer for vinyl inventory management
@@ -7,6 +14,8 @@
 
 import { User } from '../../types';
 import { VinylInventoryRepository } from '../../repositories/vinyl/vinylInventoryRepository';
+import { VinylInventoryJobLinksRepository } from '../../repositories/vinyl/vinylInventoryJobLinksRepository';
+import { VinylInventoryStatsRepository } from '../../repositories/vinyl/vinylInventoryStatsRepository';
 import {
   VinylItem,
   VinylInventoryFilters,
@@ -267,7 +276,7 @@ export class VinylInventoryService {
   ): Promise<VinylResponse<{ updated: boolean }>> {
     try {
       // Check if item exists
-      const exists = await VinylInventoryRepository.vinylItemExists(id);
+      const exists = await VinylInventoryStatsRepository.vinylItemExists(id);
       if (!exists) {
         return {
           success: false,
@@ -276,7 +285,7 @@ export class VinylInventoryService {
         };
       }
 
-      await VinylInventoryRepository.updateJobLinks(id, jobIds);
+      await VinylInventoryJobLinksRepository.updateJobLinks(id, jobIds);
 
       return {
         success: true,
@@ -300,7 +309,7 @@ export class VinylInventoryService {
   ): Promise<VinylResponse<{ deleted: boolean }>> {
     try {
       // Check if item exists
-      const exists = await VinylInventoryRepository.vinylItemExists(id);
+      const exists = await VinylInventoryStatsRepository.vinylItemExists(id);
       if (!exists) {
         return {
           success: false,
@@ -329,7 +338,7 @@ export class VinylInventoryService {
    */
   static async getVinylStats(user: User): Promise<VinylResponse<any>> {
     try {
-      const stats = await VinylInventoryRepository.getVinylStats();
+      const stats = await VinylInventoryStatsRepository.getVinylStats();
       return { success: true, data: stats };
     } catch (error: any) {
       return {
@@ -348,7 +357,7 @@ export class VinylInventoryService {
     limit: number = 10
   ): Promise<VinylResponse<VinylItem[]>> {
     try {
-      const items = await VinylInventoryRepository.getRecentVinylForCopying(limit);
+      const items = await VinylInventoryStatsRepository.getRecentVinylForCopying(limit);
       return { success: true, data: items };
     } catch (error: any) {
       return {
@@ -360,7 +369,10 @@ export class VinylInventoryService {
   }
 
   /**
-   * Handle status change (used, waste, returned)
+   * Handle status change (used, waste, returned, damaged)
+   *
+   * Properly sets status_change_date for audit trail
+   * Sets disposition-specific date fields as appropriate
    */
   static async changeVinylStatus(
     user: User,
@@ -369,18 +381,21 @@ export class VinylInventoryService {
     try {
       const updateData: UpdateVinylItemRequest = {
         disposition: statusData.disposition,
-        notes: statusData.notes
+        notes: statusData.notes,
+        status_change_date: statusData.status_change_date || new Date().toISOString()
       };
 
+      // Set disposition-specific fields
       if (statusData.disposition === 'waste' && statusData.waste_reason) {
         updateData.waste_reason = statusData.waste_reason;
       }
 
-      if (statusData.status_change_date) {
-        if (statusData.disposition === 'returned') {
-          updateData.return_date = statusData.status_change_date;
-        }
-        // For waste, we could add a waste_date field if needed
+      if (statusData.disposition === 'returned' && statusData.status_change_date) {
+        updateData.return_date = statusData.status_change_date;
+      }
+
+      if (statusData.disposition === 'used' && statusData.status_change_date) {
+        updateData.usage_date = statusData.status_change_date;
       }
 
       return this.updateVinylItem(user, statusData.vinyl_id, updateData);

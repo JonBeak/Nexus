@@ -1,12 +1,18 @@
-import { pool } from '../../config/database';
+// File Clean up Finished: 2025-11-15
+// Changes:
+// - Migrated all pool.execute() calls to query() helper (15 instances)
+// - All methods now use centralized error logging and performance monitoring
+import { query } from '../../config/database';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
-import { TimeEntry, TimeEntryData, WeeklySummaryEntry } from '../../types/TimeTrackingTypes';
 import {
-  TimeEntry as TimeEntryType,
+  TimeEntryDB as TimeEntry,
+  TimeEntryData,
+  WeeklySummaryEntry,
+  TimeEntryDTO,
   TimeEntryFilters,
   TimeEntryUpdateData,
   SimpleUser
-} from '../../types/TimeManagementTypes';
+} from '../../types/TimeTypes';
 import { SharedQueryBuilder } from '../../utils/timeTracking/SharedQueryBuilder';
 
 /**
@@ -21,14 +27,14 @@ export class TimeEntryRepository {
    * @returns Active time entry or null
    */
   static async getActiveEntry(userId: number): Promise<TimeEntry | null> {
-    const [rows] = await pool.execute<TimeEntry[]>(
-      `SELECT entry_id, clock_in, break_minutes, auto_break_minutes 
-       FROM time_entries 
-       WHERE user_id = ? AND status = 'active' 
+    const rows = await query(
+      `SELECT entry_id, clock_in, break_minutes, auto_break_minutes
+       FROM time_entries
+       WHERE user_id = ? AND status = 'active'
        ORDER BY clock_in DESC LIMIT 1`,
       [userId]
-    );
-    
+    ) as TimeEntry[];
+
     return rows[0] || null;
   }
 
@@ -38,10 +44,10 @@ export class TimeEntryRepository {
    * @returns Insert ID
    */
   static async createTimeEntry(data: TimeEntryData): Promise<number> {
-    const [result] = await pool.execute<ResultSetHeader>(
+    const result = await query(
       'INSERT INTO time_entries (user_id, clock_in) VALUES (?, ?)',
       [data.user_id, data.clock_in]
-    );
+    ) as ResultSetHeader;
     return result.insertId;
   }
 
@@ -52,10 +58,10 @@ export class TimeEntryRepository {
    * @returns Affected rows
    */
   static async updateTimeEntry(entryId: number, data: Partial<TimeEntryData>): Promise<number> {
-    const [result] = await pool.execute<ResultSetHeader>(
-      `UPDATE time_entries 
-       SET clock_out = ?, 
-           auto_break_minutes = ?, 
+    const result = await query(
+      `UPDATE time_entries
+       SET clock_out = ?,
+           auto_break_minutes = ?,
            break_minutes = ?,
            total_hours = ?,
            status = 'completed',
@@ -71,7 +77,7 @@ export class TimeEntryRepository {
         data.break_adjustment_notes,
         entryId
       ]
-    );
+    ) as ResultSetHeader;
     return result.affectedRows;
   }
 
@@ -83,8 +89,8 @@ export class TimeEntryRepository {
    * @returns Weekly time entries with pending requests
    */
   static async getWeeklyEntries(userId: number, weekStart: Date, weekEnd: Date): Promise<WeeklySummaryEntry[]> {
-    const [rows] = await pool.execute<WeeklySummaryEntry[]>(
-      `SELECT 
+    const rows = await query(
+      `SELECT
         te.*,
         ter.request_id,
         ter.status as request_status,
@@ -93,15 +99,15 @@ export class TimeEntryRepository {
         ter.requested_break_minutes,
         ter.reason
        FROM time_entries te
-       LEFT JOIN time_edit_requests ter ON te.entry_id = ter.entry_id 
+       LEFT JOIN time_edit_requests ter ON te.entry_id = ter.entry_id
          AND ter.status = 'pending'
-       WHERE te.user_id = ? 
-       AND te.clock_in >= ? 
+       WHERE te.user_id = ?
+       AND te.clock_in >= ?
        AND te.clock_in <= ?
        AND te.is_deleted = FALSE
        ORDER BY te.clock_in DESC`,
       [userId, weekStart, weekEnd]
-    );
+    ) as WeeklySummaryEntry[];
     return rows;
   }
 
@@ -112,10 +118,10 @@ export class TimeEntryRepository {
    * @returns Time entry or null
    */
   static async getEntryByIdAndUser(entryId: number, userId: number): Promise<RowDataPacket | null> {
-    const [rows] = await pool.execute<RowDataPacket[]>(
+    const rows = await query(
       'SELECT entry_id FROM time_entries WHERE entry_id = ? AND user_id = ?',
       [entryId, userId]
-    );
+    ) as RowDataPacket[];
     return rows[0] || null;
   }
 
@@ -134,9 +140,9 @@ export class TimeEntryRepository {
     applied_breaks: string;
     break_adjustment_notes?: string;
   }): Promise<number> {
-    const [result] = await pool.execute<ResultSetHeader>(
-      `UPDATE time_entries 
-       SET clock_in = ?, clock_out = ?, break_minutes = ?, auto_break_minutes = ?, total_hours = ?, 
+    const result = await query(
+      `UPDATE time_entries
+       SET clock_in = ?, clock_out = ?, break_minutes = ?, auto_break_minutes = ?, total_hours = ?,
            applied_breaks = ?, break_adjustment_notes = ?
        WHERE entry_id = ?`,
       [
@@ -149,7 +155,7 @@ export class TimeEntryRepository {
         data.break_adjustment_notes || null,
         entryId
       ]
-    );
+    ) as ResultSetHeader;
     return result.affectedRows;
   }
 
@@ -159,10 +165,10 @@ export class TimeEntryRepository {
    * @returns Affected rows
    */
   static async markAsDeleted(entryId: number): Promise<number> {
-    const [result] = await pool.execute<ResultSetHeader>(
+    const result = await query(
       'UPDATE time_entries SET is_deleted = TRUE WHERE entry_id = ?',
       [entryId]
-    );
+    ) as ResultSetHeader;
     return result.affectedRows;
   }
 
@@ -176,10 +182,10 @@ export class TimeEntryRepository {
    * @param filters - Query filters
    * @returns Array of time entries
    */
-  static async findEntries(filters: TimeEntryFilters): Promise<TimeEntryType[]> {
+  static async findEntries(filters: TimeEntryFilters): Promise<TimeEntryDTO[]> {
     const { sql, params } = SharedQueryBuilder.buildTimeEntriesQuery(filters, false);
-    const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
-    return rows as TimeEntryType[];
+    const rows = await query(sql, params) as RowDataPacket[];
+    return rows as TimeEntryDTO[];
   }
 
   /**
@@ -196,7 +202,7 @@ export class TimeEntryRepository {
     status: string;
     notes: string;
   }): Promise<number> {
-    const [result] = await pool.execute<ResultSetHeader>(
+    const result = await query(
       `INSERT INTO time_entries (user_id, clock_in, clock_out, break_minutes, total_hours, status, notes, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [
@@ -208,7 +214,7 @@ export class TimeEntryRepository {
         data.status,
         data.notes
       ]
-    );
+    ) as ResultSetHeader;
     return result.insertId;
   }
 
@@ -260,7 +266,7 @@ export class TimeEntryRepository {
       WHERE entry_id = ?
     `;
 
-    const [result] = await pool.execute<ResultSetHeader>(sql, [...updateValues, entryId]);
+    const result = await query(sql, [...updateValues, entryId]) as ResultSetHeader;
     return result.affectedRows;
   }
 
@@ -270,10 +276,10 @@ export class TimeEntryRepository {
    * @returns Time entry or null
    */
   static async getEntryById(entryId: number): Promise<RowDataPacket | null> {
-    const [rows] = await pool.execute<RowDataPacket[]>(
+    const rows = await query(
       'SELECT * FROM time_entries WHERE entry_id = ? AND is_deleted = 0',
       [entryId]
-    );
+    ) as RowDataPacket[];
     return rows[0] || null;
   }
 
@@ -283,10 +289,10 @@ export class TimeEntryRepository {
    * @returns Affected rows
    */
   static async deleteEntry(entryId: number): Promise<number> {
-    const [result] = await pool.execute<ResultSetHeader>(
+    const result = await query(
       'UPDATE time_entries SET is_deleted = 1, updated_at = NOW() WHERE entry_id = ?',
       [entryId]
-    );
+    ) as ResultSetHeader;
     return result.affectedRows;
   }
 
@@ -338,7 +344,7 @@ export class TimeEntryRepository {
       WHERE entry_id IN (${entryIds.map(() => '?').join(',')})
     `;
 
-    const [result] = await pool.execute<ResultSetHeader>(sql, [...updateValues, ...entryIds]);
+    const result = await query(sql, [...updateValues, ...entryIds]) as ResultSetHeader;
     return result.affectedRows;
   }
 
@@ -354,7 +360,7 @@ export class TimeEntryRepository {
       WHERE entry_id IN (${entryIds.map(() => '?').join(',')})
     `;
 
-    const [result] = await pool.execute<ResultSetHeader>(sql, entryIds);
+    const result = await query(sql, entryIds) as ResultSetHeader;
     return result.affectedRows;
   }
 
@@ -363,12 +369,12 @@ export class TimeEntryRepository {
    * @returns Array of active users
    */
   static async getActiveUsers(): Promise<SimpleUser[]> {
-    const [rows] = await pool.execute<RowDataPacket[]>(
+    const rows = await query(
       `SELECT user_id, username, first_name, last_name, email, role
        FROM users
        WHERE is_active = 1
        ORDER BY first_name, last_name`
-    );
+    ) as RowDataPacket[];
     return rows as SimpleUser[];
   }
 }

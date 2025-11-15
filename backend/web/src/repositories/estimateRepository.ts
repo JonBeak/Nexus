@@ -325,6 +325,139 @@ export class EstimateRepository {
   }
 
   // =============================================
+  // ESTIMATE CREATION METHODS (Transaction-aware)
+  // =============================================
+
+  /**
+   * Create new estimate version (brand new, not duplicated)
+   * Used when creating a version without parent/duplication source
+   */
+  async createNewEstimateVersion(
+    connection: PoolConnection,
+    jobCode: string,
+    jobId: number,
+    nextVersion: number,
+    userId: number,
+    notes?: string | null
+  ): Promise<number> {
+    const [result] = await connection.execute<ResultSetHeader>(
+      `INSERT INTO job_estimates (
+        job_code, job_id, customer_id, version_number,
+        is_draft, created_by, updated_by, notes
+       )
+       SELECT ?, ?, customer_id, ?, TRUE, ?, ?, ?
+       FROM jobs WHERE job_id = ?`,
+      [jobCode, jobId, nextVersion, userId, userId, notes || null, jobId]
+    );
+
+    return result.insertId;
+  }
+
+  /**
+   * Get source estimate data for duplication
+   * Returns full estimate record for copying
+   */
+  async getSourceEstimateForDuplication(
+    connection: PoolConnection,
+    sourceEstimateId: number
+  ): Promise<RowDataPacket | null> {
+    const [rows] = await connection.execute<RowDataPacket[]>(
+      `SELECT * FROM job_estimates WHERE id = ?`,
+      [sourceEstimateId]
+    );
+
+    return rows.length > 0 ? rows[0] : null;
+  }
+
+  /**
+   * Create duplicate estimate in a different job
+   * Used for cross-job estimate copying
+   */
+  async createDuplicateEstimateToNewJob(
+    connection: PoolConnection,
+    newJobCode: string,
+    targetJobId: number,
+    targetVersion: number,
+    sourceCustomerId: number,
+    subtotal: number,
+    taxRate: number,
+    taxAmount: number,
+    totalAmount: number,
+    notes: string | null,
+    userId: number
+  ): Promise<number> {
+    const [result] = await connection.execute<ResultSetHeader>(
+      `INSERT INTO job_estimates (
+        job_code, job_id, customer_id, version_number, parent_estimate_id,
+        subtotal, tax_rate, tax_amount, total_amount, notes,
+        created_by, updated_by, is_draft
+       )
+       VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+      [
+        newJobCode, targetJobId, sourceCustomerId, targetVersion,
+        subtotal, taxRate, taxAmount, totalAmount, notes,
+        userId, userId
+      ]
+    );
+
+    return result.insertId;
+  }
+
+  /**
+   * Create duplicate estimate within same job
+   * Uses SELECT to copy data from source estimate
+   */
+  async createDuplicateEstimate(
+    connection: PoolConnection,
+    jobCode: string,
+    jobId: number,
+    version: number,
+    sourceEstimateId: number,
+    notes: string | null,
+    userId: number
+  ): Promise<number> {
+    const [result] = await connection.execute<ResultSetHeader>(
+      `INSERT INTO job_estimates (
+        job_code, job_id, customer_id, version_number, parent_estimate_id,
+        subtotal, tax_rate, tax_amount, total_amount, notes,
+        created_by, updated_by, is_draft
+       )
+       SELECT ?, ?, customer_id, ?, ?, subtotal, tax_rate, tax_amount, total_amount, ?, ?, ?, TRUE
+       FROM job_estimates
+       WHERE id = ?`,
+      [jobCode, jobId, version, sourceEstimateId, notes || null, userId, userId, sourceEstimateId]
+    );
+
+    return result.insertId;
+  }
+
+  /**
+   * Duplicate all estimate items from source to new estimate
+   * Copies grid-based data structure (Phase 4+)
+   */
+  async duplicateEstimateItems(
+    connection: PoolConnection,
+    sourceEstimateId: number,
+    newEstimateId: number
+  ): Promise<void> {
+    await connection.execute(
+      `INSERT INTO job_estimate_items (
+        estimate_id, assembly_group_id, parent_item_id,
+        product_type_id, item_name, item_order, item_index, grid_data,
+        unit_price, extended_price, customer_description, internal_notes
+       )
+       SELECT
+        ?, assembly_group_id, parent_item_id,
+        product_type_id, item_name, item_order, item_index, grid_data,
+        unit_price, extended_price, customer_description, internal_notes
+       FROM job_estimate_items
+       WHERE estimate_id = ?
+       ORDER BY item_order`,
+      [newEstimateId, sourceEstimateId]
+    );
+  }
+
+  // =============================================
   // GRID DATA PERSISTENCE METHODS
   // =============================================
 
@@ -373,5 +506,38 @@ export class EstimateRepository {
     );
 
     return rows;
+  }
+
+  /**
+   * Get next sequence number for job code generation
+   * Ensures transaction-safe, collision-free sequence generation
+   *
+   * Format: Extracts sequence from job_code pattern SH-YYYYMMDD-XXX-vN
+   * where XXX is the 3-digit sequence we're incrementing
+   *
+   * @param connection - Database connection (for transaction safety)
+   * @param dateStr - Date string in YYYYMMDD format
+   * @returns Next available sequence number (1 if no codes exist for this date)
+   */
+  async getNextSequenceForDate(
+    connection: PoolConnection,
+    dateStr: string
+  ): Promise<number> {
+    const [rows] = await connection.execute<RowDataPacket[]>(
+      `SELECT COALESCE(
+        MAX(
+          CAST(
+            SUBSTRING(job_code, LOCATE('-', job_code, LOCATE('-', job_code) + 1) + 1, 3)
+            AS UNSIGNED
+          )
+        ),
+        0
+      ) + 1 AS next_sequence
+      FROM job_estimates
+      WHERE job_code LIKE ?`,
+      [`SH-${dateStr}-%`]
+    );
+
+    return rows[0]?.next_sequence || 1;
   }
 }

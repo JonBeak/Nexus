@@ -7,6 +7,11 @@
 // 4. Fixed deprecated req.connection.remoteAddress to req.socket.remoteAddress
 // Current cleanup (Nov 14, 2025):
 // 5. Migrated all 7 database calls from pool.execute() to query() helper for consistency and performance monitoring
+// File Clean up Finished: 2025-11-15
+// Refactored login log writes to use loginLogService for proper 3-layer architecture:
+// - Replaced 3 direct INSERT INTO login_logs queries with service layer calls
+// - Now uses loginLogService.logFailedLogin() and loginLogService.logSuccessfulLogin()
+// - Architectural violation fixed: Controller no longer accesses database directly for login logs
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -14,6 +19,7 @@ import crypto from 'crypto';
 import { query } from '../config/database';
 import { User } from '../types';
 import { RowDataPacket } from 'mysql2';
+import { loginLogService } from '../services/loginLogService';
 
 const DEFAULT_REFRESH_TOKEN_TTL = 48 * 60 * 60 * 1000; // 48 hours fallback
 
@@ -76,9 +82,11 @@ export const login = async (req: Request, res: Response) => {
     ) as User[];
     if (users.length === 0) {
       // Log failed login - user not found
-      await query(
-        'INSERT INTO login_logs (username_attempted, ip_address, user_agent, login_time, login_successful, failure_reason) VALUES (?, ?, ?, NOW(), 0, ?)',
-        [username, clientIp, userAgent, 'User not found or inactive']
+      await loginLogService.logFailedLogin(
+        username,
+        clientIp,
+        userAgent,
+        'User not found or inactive'
       );
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -89,9 +97,12 @@ export const login = async (req: Request, res: Response) => {
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
     if (!isValidPassword) {
       // Log failed login - invalid password
-      await query(
-        'INSERT INTO login_logs (user_id, username_attempted, ip_address, user_agent, login_time, login_successful, failure_reason) VALUES (?, ?, ?, ?, NOW(), 0, ?)',
-        [user.user_id, username, clientIp, userAgent, 'Invalid password']
+      await loginLogService.logFailedLogin(
+        username,
+        clientIp,
+        userAgent,
+        'Invalid password',
+        user.user_id
       );
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -118,9 +129,11 @@ export const login = async (req: Request, res: Response) => {
     );
 
     // Log the successful login activity
-    await query(
-      'INSERT INTO login_logs (user_id, username_attempted, ip_address, user_agent, login_time, login_successful) VALUES (?, ?, ?, ?, NOW(), 1)',
-      [user.user_id, username, clientIp, userAgent]
+    await loginLogService.logSuccessfulLogin(
+      user.user_id,
+      username,
+      clientIp,
+      userAgent
     );
 
     // Return user data without password and refresh token

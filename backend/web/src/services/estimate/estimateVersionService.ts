@@ -1,3 +1,11 @@
+// File Clean up Finished: 2025-11-15
+// Changes:
+//   - Migrated createNewEstimateVersion() to use repository method
+//   - Removed direct connection.execute() call (architectural violation)
+//   - Removed unused ResultSetHeader import
+//   - All SQL queries now properly delegated to repository layer
+//   - Maintains transaction orchestration at service level
+
 /**
  * Estimate Version Service
  *
@@ -17,7 +25,7 @@
  */
 
 import { pool } from '../../config/database';
-import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { RowDataPacket } from 'mysql2';
 import { EstimateVersionData, EstimateFinalizationData } from '../../interfaces/estimateTypes';
 import { JobCodeGenerator } from '../../utils/jobCodeGenerator';
 import { EstimateDuplicationService } from './estimateDuplicationService';
@@ -49,8 +57,14 @@ export class EstimateVersionService {
       // Get next version number for this job
       const nextVersion = await this.estimateRepository.getNextVersionNumber(data.job_id, connection);
 
-      // Generate new job code with version
-      const jobCode = JobCodeGenerator.generateVersionedJobCode(nextVersion);
+      // Get current date for job code
+      const dateStr = JobCodeGenerator.getCurrentDateString();
+
+      // Get next sequence number for today (transaction-safe)
+      const sequence = await this.estimateRepository.getNextSequenceForDate(connection, dateStr);
+
+      // Generate new job code with sequence and version
+      const jobCode = JobCodeGenerator.generateVersionedJobCode(dateStr, sequence, nextVersion);
 
       if (data.parent_estimate_id || duplicateFromId) {
         // Create version by duplicating existing estimate
@@ -71,20 +85,19 @@ export class EstimateVersionService {
         return newEstimateId;
       } else {
         // Create brand new estimate version
-        const [result] = await connection.execute<ResultSetHeader>(
-          `INSERT INTO job_estimates (
-            job_code, job_id, customer_id, version_number,
-            is_draft, created_by, updated_by, notes
-           )
-           SELECT ?, ?, customer_id, ?, TRUE, ?, ?, ?
-           FROM jobs WHERE job_id = ?`,
-          [jobCode, data.job_id, nextVersion, userId, userId, data.notes || null, data.job_id]
+        const newEstimateId = await this.estimateRepository.createNewEstimateVersion(
+          connection,
+          jobCode,
+          data.job_id,
+          nextVersion,
+          userId,
+          data.notes
         );
 
         // No template creation here - handled by parent service
 
         await connection.commit();
-        return result.insertId;
+        return newEstimateId;
       }
     } catch (error) {
       await connection.rollback();

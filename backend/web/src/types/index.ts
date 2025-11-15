@@ -1,3 +1,11 @@
+// File Clean up Finished: 2025-11-15
+// Changes:
+//   - Removed Customer interface (18 fields) - never imported, redundant with customerService.ts
+//   - Removed extractUserId function (11 lines) - never called, controllers access req.user.user_id directly
+//   - Removed duplicate hourly_rate field - database uses hourly_wage as source of truth
+//   - File size reduced: 76 → 46 lines (30 lines removed, 39% reduction)
+//   - Fixed architecture violation: removed utility function from types-only file
+
 export interface User {
   user_id: number;
   username: string;
@@ -12,11 +20,10 @@ export interface User {
   created_at: Date;
   updated_at: Date;
   user_group?: string;
-  hourly_rate?: number;
+  hourly_wage?: number;
   overtime_rate_multiplier?: number;
   vacation_pay_percent?: number;
   holiday_rate_multiplier?: number;
-  hourly_wage?: number;
   auto_clock_in?: string;
   auto_clock_out?: string;
   last_login?: Date;
@@ -43,34 +50,3 @@ export interface JWTPayload {
   exp?: number;
 }
 
-/**
- * Extract user ID from authenticated user object
- * @param user - User object from AuthRequest (set by authenticateToken middleware)
- * @returns User ID
- * @throws Error if user is undefined or missing user_id
- */
-export const extractUserId = (user: User | undefined): number => {
-  if (!user?.user_id) {
-    throw new Error('User authentication required');
-  }
-  return user.user_id;
-};
-
-export interface Customer {
-  customer_id: number;
-  original_customer_id: string;
-  company_name: string;
-  contact_first_name?: string;
-  contact_last_name?: string;
-  primary_phone?: string;
-  secondary_phone?: string;
-  email?: string;
-  website?: string;
-  notes?: string;
-  tax_exempt: boolean;
-  credit_limit?: number;
-  payment_terms?: string;
-  is_active: boolean;
-  created_at: Date;
-  updated_at: Date;
-}

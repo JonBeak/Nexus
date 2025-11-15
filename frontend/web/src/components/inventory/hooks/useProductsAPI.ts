@@ -22,15 +22,16 @@ export const useProductsAPI = (): UseProductsAPIReturn => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const [productsResponse, statsResponse] = await Promise.all([
         vinylProductsApi.getVinylProducts(),
         vinylProductsApi.getVinylProductStats()
       ]);
-      
+
+      // API returns { success: true, data: ... }, so we need to access .data
       return {
-        products: (productsResponse || []) as VinylProduct[],
-        stats: (statsResponse || {}) as VinylProductStats
+        products: (productsResponse?.data || []) as VinylProduct[],
+        stats: (statsResponse?.data || {}) as VinylProductStats
       };
     } catch (err: unknown) {
       console.error('Error loading products data:', err);
