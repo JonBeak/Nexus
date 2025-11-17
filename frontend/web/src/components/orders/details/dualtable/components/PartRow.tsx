@@ -14,13 +14,16 @@
  * - Quantity, unit price, extended price
  */
 
-import React, { useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { RefreshCw, GripVertical } from 'lucide-react';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { ordersApi } from '@/services/api';
 import { OrderPart } from '@/types/orders';
 import { QBItem } from '../constants/tableConstants';
 import { formatCurrency } from '../utils/formatting';
-import { getValidInputClass } from '@/utils/highlightStyles';
+import { getValidInputClass, EMPTY_FIELD_BG_CLASS } from '@/utils/highlightStyles';
+import { getSpecificationTemplate } from '@/config/orderProductTemplates';
 import { ItemNameDropdown } from './ItemNameDropdown';
 import { EditableSpecsQty } from './EditableSpecsQty';
 import { SpecificationRows } from './SpecificationRows';
@@ -39,6 +42,7 @@ interface PartRowProps {
   onAddRow: (partId: number) => void;
   onRemoveRow: (partId: number) => void;
   onToggleParent: (partId: number) => void;
+  onRemovePartRow: (partId: number) => void;
   onUpdate: () => void;
 }
 
@@ -54,16 +58,73 @@ export const PartRow: React.FC<PartRowProps> = ({
   onAddRow,
   onRemoveRow,
   onToggleParent,
+  onRemovePartRow,
   onUpdate
 }) => {
   const [saving, setSaving] = useState(false);
   const isParent = part.is_parent;
+
+  // Setup drag-and-drop sortable
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: part.part_id });
+
+  const style = {
+    // Only apply vertical (Y-axis) transform, ignore horizontal movement
+    transform: transform ? `translate3d(0, ${transform.y}px, 0)` : undefined,
+    transition,
+    opacity: isDragging ? 0.7 : 1,
+  };
 
   // Get QB description from specifications (auto-filled when QB Item changes, but editable)
   const qbDescription = part.specifications?._qb_description || '';
 
   // Use specs_display_name if available, otherwise fall back to product_type
   const displayName = part.specs_display_name || part.product_type;
+
+  // Calculate which spec rows are empty (all 3 spec fields empty)
+  const emptySpecRows = useMemo(() => {
+    const empty = new Set<number>();
+    for (let rowNum = 1; rowNum <= rowCount; rowNum++) {
+      const template = part.specifications?.[`_template_${rowNum}`] || '';
+      const templateConfig = template ? getSpecificationTemplate(template) : null;
+
+      let hasData = false;
+      for (let specNum = 1; specNum <= 3; specNum++) {
+        const field = templateConfig?.[`spec${specNum}` as 'spec1' | 'spec2' | 'spec3'];
+        if (field) {
+          const specKey = `row${rowNum}_${field.key}`;
+          const value = part.specifications?.[specKey] ?? '';
+          if (value !== '' && value !== null && value !== undefined && value !== false) {
+            hasData = true;
+            break;
+          }
+        }
+      }
+
+      if (!hasData) {
+        empty.add(rowNum);
+      }
+    }
+    return empty;
+  }, [part.specifications, rowCount]);
+
+  // Check if all spec rows are empty
+  const allSpecRowsEmpty = emptySpecRows.size === rowCount;
+
+  // Check if QB data is empty (QB Item, QB Description, Unit Price all empty)
+  const isQBDataEmpty = useMemo(() => {
+    const hasQBItem = !!part.qb_item_name && part.qb_item_name.trim() !== '';
+    const hasQBDescription = !!qbDescription && qbDescription.trim() !== '';
+    const hasUnitPrice = part.unit_price !== null && part.unit_price !== undefined && part.unit_price !== 0;
+
+    return !hasQBItem && !hasQBDescription && !hasUnitPrice;
+  }, [part.qb_item_name, qbDescription, part.unit_price]);
 
   // Render QB Item dropdown
   const renderQBItemDropdown = () => {
@@ -113,7 +174,7 @@ export const PartRow: React.FC<PartRowProps> = ({
 
     const baseClass = `w-full px-1.5 py-0.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 ${
       !currentValue ? 'text-gray-400' : 'text-gray-900'
-    }`;
+    } ${isQBDataEmpty ? EMPTY_FIELD_BG_CLASS : ''}`;
 
     return (
       <div className="py-1">
@@ -136,19 +197,53 @@ export const PartRow: React.FC<PartRowProps> = ({
 
   return (
     <div
+      ref={setNodeRef}
       className="border-b-2 border-gray-300 grid gap-2 px-2"
       style={{
-        gridTemplateColumns: '130px 120px 110px 110px 110px 70px 190px 410px 270px 55px 75px 85px'
+        ...style,
+        gridTemplateColumns: '75px 165px 120px 110px 110px 110px 60px 140px 380px 270px 55px 75px 85px'
       }}
     >
+      {/* Row Controls: Drag Handle, Remove Part, Toggle Parent */}
+      <div className="flex flex-row items-start justify-center pt-1 space-x-1">
+        {/* Drag Handle */}
+        <button
+          {...attributes}
+          {...listeners}
+          className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing"
+          title="Drag to reorder"
+        >
+          <GripVertical size={16} />
+        </button>
+        <button
+          onClick={() => onRemovePartRow(part.part_id)}
+          className="w-6 h-6 flex items-center justify-center text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded"
+          title="Remove part row"
+        >
+          −
+        </button>
+        <button
+          onClick={() => onToggleParent(part.part_id)}
+          className={`w-6 h-6 flex items-center justify-center text-white rounded ${
+            part.is_parent
+              ? 'bg-blue-600 hover:bg-blue-700'
+              : 'bg-gray-500 hover:bg-gray-600'
+          }`}
+          title={part.is_parent ? 'Convert to Sub-Item' : 'Promote to Base Item'}
+        >
+          <RefreshCw size={14} />
+        </button>
+      </div>
+
       {/* Item Name - editable dropdown + Part Scope + QTY field for parent parts */}
-      <div className={`flex flex-col ${isParent ? 'font-semibold text-gray-900 text-sm' : 'text-gray-700 text-sm'}`}>
+      <div className={`flex flex-col h-full ${isParent ? 'font-semibold text-gray-900 text-sm' : 'text-gray-700 text-sm'}`}>
         <ItemNameDropdown
           partId={part.part_id}
           orderNumber={orderNumber}
           currentValue={displayName}
           onUpdate={onUpdate}
           isParentOrRegular={isParent}
+          applyGrayBackground={allSpecRowsEmpty}
         />
         {!!isParent && (
           <>
@@ -182,43 +277,33 @@ export const PartRow: React.FC<PartRowProps> = ({
         part={part}
         rowCount={rowCount}
         availableTemplates={availableTemplates}
+        emptySpecRows={emptySpecRows}
         onTemplateSave={onTemplateSave}
         onSpecFieldSave={onSpecFieldSave}
       />
 
-      {/* Actions: Toggle Base/Sub, Add/Remove Row Buttons */}
-      <div className="flex flex-row items-start justify-center pt-1 space-x-1">
-        <button
-          onClick={() => onToggleParent(part.part_id)}
-          className={`w-6 h-6 flex items-center justify-center text-white rounded ${
-            part.is_parent
-              ? 'bg-blue-600 hover:bg-blue-700'
-              : 'bg-gray-500 hover:bg-gray-600'
-          }`}
-          title={part.is_parent ? 'Convert to Sub-Item' : 'Promote to Base Item'}
-        >
-          <RefreshCw size={14} />
-        </button>
+      {/* Actions: Add/Remove Spec Row Buttons */}
+      <div className="flex flex-row items-start justify-center pt-1 space-x-1 h-full">
         <button
           onClick={() => onAddRow(part.part_id)}
           disabled={rowCount >= 20}
-          className="w-6 h-6 flex items-center justify-center text-xs font-bold text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed rounded"
-          title="Add row"
+          className="w-5 h-5 flex items-center justify-center text-xs font-bold text-gray-700 bg-white hover:bg-gray-100 border-2 border-gray-500 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed rounded"
+          title="Add spec row"
         >
           +
         </button>
         <button
           onClick={() => onRemoveRow(part.part_id)}
           disabled={rowCount <= 1}
-          className="w-6 h-6 flex items-center justify-center text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed rounded"
-          title="Remove row"
+          className="w-5 h-5 flex items-center justify-center text-xs font-bold text-white bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed rounded"
+          title="Remove spec row"
         >
           −
         </button>
       </div>
 
       {/* QB Item Name - spans full height (with divider) */}
-      <div className="flex items-start border-l-2 border-gray-400 pl-2">
+      <div className="flex items-start border-l-2 border-gray-400 pl-2 h-full">
         {renderQBItemDropdown()}
       </div>
 
@@ -231,6 +316,7 @@ export const PartRow: React.FC<PartRowProps> = ({
           onSave={onFieldSave}
           placeholder="QB Description..."
           hasValue={!!qbDescription && qbDescription.trim() !== ''}
+          applyGrayBackground={isQBDataEmpty}
         />
       </div>
 
@@ -243,11 +329,12 @@ export const PartRow: React.FC<PartRowProps> = ({
           onSave={onFieldSave}
           placeholder="Description..."
           hasValue={false} // invoice_description doesn't use highlighting
+          applyGrayBackground={isQBDataEmpty}
         />
       </div>
 
       {/* Quantity - spans full height */}
-      <div className="flex items-start">
+      <div className="flex items-start h-full">
         <EditableInput
           partId={part.part_id}
           field="quantity"
@@ -256,11 +343,12 @@ export const PartRow: React.FC<PartRowProps> = ({
           placeholder="Qty"
           hasValue={part.quantity !== null && part.quantity !== 0}
           align="left"
+          applyGrayBackground={isQBDataEmpty}
         />
       </div>
 
       {/* Unit Price - spans full height */}
-      <div className="flex items-start text-right">
+      <div className="flex items-start text-right h-full">
         <EditableInput
           partId={part.part_id}
           field="unit_price"
@@ -269,11 +357,12 @@ export const PartRow: React.FC<PartRowProps> = ({
           placeholder="Price"
           hasValue={part.unit_price !== null && part.unit_price !== 0}
           align="right"
+          applyGrayBackground={isQBDataEmpty}
         />
       </div>
 
       {/* Extended Price - spans full height */}
-      <div className="flex items-start justify-end">
+      <div className="flex items-start justify-end h-full">
         <span className="text-base font-semibold text-gray-900">
           {formatCurrency(part.extended_price)}
         </span>

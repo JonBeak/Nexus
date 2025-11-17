@@ -179,16 +179,22 @@ export const JobPanel: React.FC<JobPanelProps> = ({
 
   const getJobStatusBadge = (job: JobSummary) => {
     const statusColors = {
-      quote: 'bg-yellow-100 text-yellow-800 border-yellow-800',
+      draft: 'bg-yellow-100 text-yellow-800 border-yellow-800',
       sent: 'bg-blue-100 text-blue-800 border-blue-800',
       approved: 'bg-green-100 text-green-800 border-green-800'
+    };
+
+    const statusLabels = {
+      draft: 'Draft',
+      sent: 'Sent',
+      approved: 'Approved'
     };
 
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${
         statusColors[job.job_status] || 'bg-gray-100 text-gray-800 border-gray-800'
       }`}>
-        {job.job_status}
+        {statusLabels[job.job_status] || job.job_status}
       </span>
     );
   };

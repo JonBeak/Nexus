@@ -70,6 +70,7 @@ class PDFGenerationService {
    */
   private getPdfFilenames(orderData: OrderDataForPDF): {
     master: string;
+    estimate: string;
     shop: string;
     customer: string;
     packing: string;
@@ -79,6 +80,7 @@ class PDFGenerationService {
 
     return {
       master: `${orderNum} - ${jobName}.pdf`,
+      estimate: `${orderNum} - ${jobName} - Estimate.pdf`,
       shop: `${orderNum} - ${jobName} - Shop.pdf`,
       customer: `${orderNum} - ${jobName} - Specs.pdf`,
       packing: `${orderNum} - ${jobName} - Packing List.pdf`
@@ -118,18 +120,21 @@ class PDFGenerationService {
     console.log(`[PDF Generation] Master & Shop Forms → ${orderFolderRoot}/`);
     console.log(`[PDF Generation] Customer & Packing → ${orderFormsSubfolder}/`);
 
-    // 4. Generate all 4 forms
+    // 4. Generate all 5 forms
     const { generateOrderForm } = await import('./generators/orderFormGenerator');
     const { generatePackingList } = await import('./generators/packingListGenerator');
+    const { generateEstimateForm } = await import('./generators/estimatePdfGenerator');
 
     // Build full paths with dynamic filenames
     const masterPath = path.join(orderFolderRoot, filenames.master);
+    const estimatePath = path.join(orderFolderRoot, filenames.estimate);   // Estimate in root
     const shopPath = path.join(orderFolderRoot, filenames.shop);           // Shop in root
     const customerPath = path.join(orderFormsSubfolder, filenames.customer);
     const packingPath = path.join(orderFormsSubfolder, filenames.packing);
 
     // Generate forms sequentially to avoid SMB file locking issues
     await generateOrderForm(orderData, masterPath, 'master');      // Master in root
+    await generateEstimateForm(orderData, estimatePath);           // Estimate in root
     await generateOrderForm(orderData, shopPath, 'shop');          // Shop in root
     await generateOrderForm(orderData, customerPath, 'customer');  // Customer in subfolder
     await generatePackingList(orderData, packingPath);             // Packing in subfolder
@@ -137,6 +142,7 @@ class PDFGenerationService {
     // 5. Store paths in database
     await this.saveFormPaths(orderId, version, {
       masterForm: masterPath,
+      estimateForm: estimatePath,
       shopForm: shopPath,
       customerForm: customerPath,
       packingList: packingPath
@@ -144,6 +150,7 @@ class PDFGenerationService {
 
     return {
       masterForm: masterPath,
+      estimateForm: estimatePath,
       shopForm: shopPath,
       customerForm: customerPath,
       packingList: packingPath
@@ -177,9 +184,10 @@ class PDFGenerationService {
     // Create archive directory
     await fs.mkdir(archiveDir, { recursive: true });
 
-    // Master and Shop forms are in order folder root
+    // Master, Estimate, and Shop forms are in order folder root
     const rootForms = [
       { filename: filenames.master, name: 'Master' },
+      { filename: filenames.estimate, name: 'Estimate' },
       { filename: filenames.shop, name: 'Shop' }
     ];
 

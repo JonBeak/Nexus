@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { getValidInputClass } from '@/utils/highlightStyles';
+import { getValidInputClass, EMPTY_FIELD_BG_CLASS } from '@/utils/highlightStyles';
 
 interface EditableTextareaProps {
   partId: number;
@@ -16,6 +16,7 @@ interface EditableTextareaProps {
   onSave: (partId: number, field: string, value: string) => Promise<void>;
   placeholder: string;
   hasValue: boolean;
+  applyGrayBackground?: boolean;
 }
 
 export const EditableTextarea = React.memo<EditableTextareaProps>(({
@@ -24,7 +25,8 @@ export const EditableTextarea = React.memo<EditableTextareaProps>(({
   currentValue,
   onSave,
   placeholder,
-  hasValue
+  hasValue,
+  applyGrayBackground = false
 }) => {
   const [localValue, setLocalValue] = useState(currentValue ?? '');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -56,8 +58,8 @@ export const EditableTextarea = React.memo<EditableTextareaProps>(({
   };
 
   const baseClass = field === 'invoice_description'
-    ? 'w-full px-1.5 py-1 text-sm text-gray-600 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none overflow-hidden bg-gray-50'
-    : 'w-full px-1.5 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none overflow-hidden';
+    ? `w-full px-1.5 py-1 text-sm text-gray-600 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none overflow-hidden ${applyGrayBackground ? EMPTY_FIELD_BG_CLASS : 'bg-gray-50'}`
+    : `w-full px-1.5 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none overflow-hidden ${applyGrayBackground ? EMPTY_FIELD_BG_CLASS : ''}`;
 
   const className = field === 'qb_description'
     ? getValidInputClass(hasValue, baseClass)
@@ -89,7 +91,8 @@ export const EditableTextarea = React.memo<EditableTextareaProps>(({
   // Only re-render if these specific props change
   return prevProps.currentValue === nextProps.currentValue &&
          prevProps.hasValue === nextProps.hasValue &&
-         prevProps.partId === nextProps.partId;
+         prevProps.partId === nextProps.partId &&
+         prevProps.applyGrayBackground === nextProps.applyGrayBackground;
 });
 
 EditableTextarea.displayName = 'EditableTextarea';

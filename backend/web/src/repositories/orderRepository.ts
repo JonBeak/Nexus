@@ -450,6 +450,8 @@ export class OrderRepository {
     extended_price?: number;
     production_notes?: string;
     is_parent?: boolean;
+    part_number?: number;
+    display_number?: string;
   }, connection?: PoolConnection): Promise<void> {
     const conn = connection || pool;
     const updateFields: string[] = [];
@@ -498,6 +500,14 @@ export class OrderRepository {
     if (updates.is_parent !== undefined) {
       updateFields.push('is_parent = ?');
       params.push(updates.is_parent);
+    }
+    if (updates.part_number !== undefined) {
+      updateFields.push('part_number = ?');
+      params.push(updates.part_number);
+    }
+    if (updates.display_number !== undefined) {
+      updateFields.push('display_number = ?');
+      params.push(updates.display_number);
     }
 
     if (updateFields.length === 0) {
@@ -942,7 +952,11 @@ export class OrderRepository {
         product_type_id,
         quantity,
         specifications,
-        production_notes
+        production_notes,
+        qb_item_name,
+        invoice_description,
+        unit_price,
+        extended_price
       FROM order_parts
       WHERE order_id = ?
       ORDER BY part_number
@@ -983,17 +997,17 @@ export class OrderRepository {
       // Update existing record
       await query(
         `UPDATE order_form_versions
-         SET master_form_path = ?, shop_form_path = ?, customer_form_path = ?, packing_list_path = ?
+         SET master_form_path = ?, estimate_form_path = ?, shop_form_path = ?, customer_form_path = ?, packing_list_path = ?
          WHERE order_id = ? AND version_number = ?`,
-        [paths.masterForm, paths.shopForm, paths.customerForm, paths.packingList, orderId, version]
+        [paths.masterForm, paths.estimateForm, paths.shopForm, paths.customerForm, paths.packingList, orderId, version]
       );
     } else {
       // Insert new record
       await query(
         `INSERT INTO order_form_versions
-         (order_id, version_number, master_form_path, shop_form_path, customer_form_path, packing_list_path, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [orderId, version, paths.masterForm, paths.shopForm, paths.customerForm, paths.packingList, userId || null]
+         (order_id, version_number, master_form_path, estimate_form_path, shop_form_path, customer_form_path, packing_list_path, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [orderId, version, paths.masterForm, paths.estimateForm, paths.shopForm, paths.customerForm, paths.packingList, userId || null]
       );
     }
   }
@@ -1003,7 +1017,7 @@ export class OrderRepository {
    */
   async getOrderFormPaths(orderId: number, version?: number): Promise<import('../types/orders').FormPaths | null> {
     let sql = `
-      SELECT master_form_path, shop_form_path, customer_form_path, packing_list_path
+      SELECT master_form_path, estimate_form_path, shop_form_path, customer_form_path, packing_list_path
       FROM order_form_versions
       WHERE order_id = ?
     `;
@@ -1027,6 +1041,7 @@ export class OrderRepository {
     const row = rows[0];
     return {
       masterForm: row.master_form_path,
+      estimateForm: row.estimate_form_path,
       shopForm: row.shop_form_path,
       customerForm: row.customer_form_path,
       packingList: row.packing_list_path
@@ -1098,6 +1113,17 @@ export class OrderRepository {
            folder_location = ?
        WHERE order_id = ?`,
       [folderName, folderExists, folderLocation, orderId]
+    );
+  }
+
+  /**
+   * Delete order part
+   */
+  async deleteOrderPart(partId: number, connection?: PoolConnection): Promise<void> {
+    const db = connection || pool;
+    await db.execute(
+      'DELETE FROM order_parts WHERE part_id = ?',
+      [partId]
     );
   }
 }

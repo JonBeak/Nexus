@@ -129,7 +129,7 @@ export interface CreateOrderPartData {
   product_type_id: string;
   channel_letter_type_id?: number;
   base_product_type_id?: number;
-  quantity: number;
+  quantity: number | null;
   specifications: Record<string, any>;  // JSON - Template-based dynamic structure (_template_N, rowN_field, _qb_description, specs_qty)
   production_notes?: string;
   // Phase 1.5: Invoice fields
@@ -411,6 +411,7 @@ export interface ProductTypeInfo {
  */
 export interface FormPaths {
   masterForm: string;
+  estimateForm: string;  // Estimate PDF (order folder root)
   shopForm: string;
   customerForm: string;
   packingList: string;
@@ -479,4 +480,9 @@ export interface OrderPartForPDF {
   quantity: number;
   specifications: Record<string, any>;  // JSON - Template-based dynamic structure (_template_N, rowN_field, _qb_description, specs_qty)
   production_notes?: string;
+  // Invoice/Pricing fields (for Estimate PDF)
+  qb_item_name?: string;         // QuickBooks item name (QB Item column)
+  invoice_description?: string;  // Invoice description (calculation display, e.g., "8 Letters × $45/letter")
+  unit_price?: number;           // Unit price
+  extended_price?: number;       // Extended price (unit_price * quantity)
 }

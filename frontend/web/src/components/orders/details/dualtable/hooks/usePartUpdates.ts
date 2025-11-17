@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useState, Dispatch, SetStateAction, MutableRefObject } from 'react';
-import { ordersApi } from '@/services/api';
+import { ordersApi, orderPartsApi } from '@/services/api';
 import { OrderPart } from '@/types/orders';
 
 interface UsePartUpdatesParams {
@@ -49,7 +49,9 @@ export const usePartUpdates = ({
           _qb_description: value
         };
       } else if (field === 'quantity' || field === 'unit_price') {
-        const numericValue = value === '' ? null : parseFloat(value);
+        // Convert empty string OR 0 to null
+        const parsed = value === '' ? null : parseFloat(value);
+        const numericValue = parsed === 0 ? null : parsed;
         updatedPart[field] = numericValue;
 
         // Auto-calculate extended_price
@@ -369,6 +371,62 @@ export const usePartUpdates = ({
     }
   }, [orderNumber, setParts, partsRef, specRowCounts, setSpecRowCounts]);
 
+  // Add a new part row to the order
+  const addPartRow = useCallback(async () => {
+    try {
+      setSaving(true);
+      await orderPartsApi.addPartRow(orderNumber);
+
+      // Refresh parts to get the new part
+      await handleRefreshParts();
+    } catch (error) {
+      console.error('Error adding part row:', error);
+      alert('Failed to add part row. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }, [orderNumber, handleRefreshParts]);
+
+  // Remove a part row from the order
+  const removePartRow = useCallback(async (partId: number) => {
+    const part = parts.find(p => p.part_id === partId);
+    if (!part) return;
+
+    // Confirm deletion
+    if (!confirm('Are you sure you want to remove this part row? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await orderPartsApi.removePartRow(orderNumber, partId);
+
+      // Refresh parts to show updated list
+      await handleRefreshParts();
+    } catch (error) {
+      console.error('Error removing part row:', error);
+      alert('Failed to remove part row. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }, [orderNumber, parts, handleRefreshParts]);
+
+  // Reorder parts in bulk (for drag-and-drop)
+  const reorderParts = useCallback(async (partIds: number[]) => {
+    try {
+      setSaving(true);
+      await orderPartsApi.reorderParts(orderNumber, partIds);
+
+      // Refresh parts to get updated order and display numbers
+      await handleRefreshParts();
+    } catch (error) {
+      console.error('Error reordering parts:', error);
+      alert('Failed to reorder parts. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }, [orderNumber, handleRefreshParts]);
+
   return {
     saving,
     handleFieldSave,
@@ -377,6 +435,9 @@ export const usePartUpdates = ({
     addSpecRow,
     removeSpecRow,
     toggleIsParent,
+    addPartRow,
+    removePartRow,
+    reorderParts,
     handleRefreshParts
   };
 };

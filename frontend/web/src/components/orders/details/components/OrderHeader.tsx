@@ -15,7 +15,7 @@ interface OrderHeaderProps {
   printingForm: boolean;
   showFormsDropdown: boolean;
   setShowFormsDropdown: (show: boolean) => void;
-  onViewSingleForm: (formType: 'master' | 'shop' | 'customer' | 'packing') => void;
+  onViewSingleForm: (formType: 'master' | 'estimate' | 'shop' | 'customer' | 'packing') => void;
   formsDropdownRef: React.RefObject<HTMLDivElement>;
 }
 
@@ -136,6 +136,13 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
                     >
                       <FileText className="w-4 h-4" />
                       <span>Master Form</span>
+                    </button>
+                    <button
+                      onClick={() => onViewSingleForm('estimate')}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span>Estimate Form</span>
                     </button>
                     <button
                       onClick={() => onViewSingleForm('shop')}

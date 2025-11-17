@@ -124,7 +124,7 @@ export class OrderFolderService {
         master: path.join(orderFolderRoot, `${orderNum} - ${jobName}.pdf`),
         shop: path.join(orderFolderRoot, `${orderNum} - ${jobName} - Shop.pdf`),
         customer: path.join(specsSubfolder, `${orderNum} - ${jobName} - Specs.pdf`),
-        estimate: path.join(specsSubfolder, `${orderNum} - ${jobName} - Estimate.pdf`),
+        estimate: path.join(orderFolderRoot, `${orderNum} - ${jobName} - Estimate.pdf`),
         packing: path.join(specsSubfolder, `${orderNum} - ${jobName} - Packing List.pdf`)
       }
     };

@@ -7,7 +7,7 @@
  */
 
 import React, { useState } from 'react';
-import { getValidSpecTemplateClass } from '@/utils/highlightStyles';
+import { getValidSpecTemplateClass, EMPTY_FIELD_BG_CLASS } from '@/utils/highlightStyles';
 
 interface SpecTemplateDropdownProps {
   partId: number;
@@ -16,6 +16,7 @@ interface SpecTemplateDropdownProps {
   onSave: (partId: number, rowNum: number, value: string) => Promise<void>;
   availableTemplates: string[];
   hasValue: boolean;
+  isEmpty?: boolean;
 }
 
 export const SpecTemplateDropdown = React.memo<SpecTemplateDropdownProps>(({
@@ -24,7 +25,8 @@ export const SpecTemplateDropdown = React.memo<SpecTemplateDropdownProps>(({
   currentValue,
   onSave,
   availableTemplates,
-  hasValue
+  hasValue,
+  isEmpty = false
 }) => {
   const [isSaving, setIsSaving] = useState(false);
 
@@ -41,7 +43,7 @@ export const SpecTemplateDropdown = React.memo<SpecTemplateDropdownProps>(({
 
   const baseClass = `w-full h-[26px] px-1.5 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 ${
     !currentValue ? 'text-gray-400' : 'text-gray-900 font-bold'
-  }`;
+  } ${isEmpty ? EMPTY_FIELD_BG_CLASS : ''}`;
 
   return (
     <div className="h-[26px] flex items-center py-1">
@@ -64,7 +66,8 @@ export const SpecTemplateDropdown = React.memo<SpecTemplateDropdownProps>(({
   return prevProps.currentValue === nextProps.currentValue &&
          prevProps.hasValue === nextProps.hasValue &&
          prevProps.partId === nextProps.partId &&
-         prevProps.rowNum === nextProps.rowNum;
+         prevProps.rowNum === nextProps.rowNum &&
+         prevProps.isEmpty === nextProps.isEmpty;
 });
 
 SpecTemplateDropdown.displayName = 'SpecTemplateDropdown';

@@ -14,9 +14,13 @@ import { quickbooksApi, provincesApi } from '@/services/api';
 import { OrderPart } from '@/types/orders';
 import { QBItem, TaxRule } from '../constants/tableConstants';
 
-export const useTableData = (initialParts: OrderPart[]) => {
+export const useTableData = (
+  initialParts: OrderPart[],
+  onPartsChange?: (parts: OrderPart[]) => void
+) => {
   const [parts, setParts] = useState<OrderPart[]>(initialParts);
   const partsRef = useRef<OrderPart[]>(initialParts);
+  const lastNotifiedPartsRef = useRef<OrderPart[]>(initialParts);
   const [qbItems, setQbItems] = useState<QBItem[]>([]);
   const [taxRules, setTaxRules] = useState<TaxRule[]>([]);
   const [specRowCounts, setSpecRowCounts] = useState<Record<number, number>>({});
@@ -51,6 +55,7 @@ export const useTableData = (initialParts: OrderPart[]) => {
   useEffect(() => {
     setParts(initialParts);
     partsRef.current = initialParts;
+    lastNotifiedPartsRef.current = initialParts;
     // Initialize row counts for each part from specifications._row_count
     // If no _row_count, leave undefined so renderPartRow uses template count
     const initialCounts: Record<number, number> = {};
@@ -67,6 +72,19 @@ export const useTableData = (initialParts: OrderPart[]) => {
   useEffect(() => {
     partsRef.current = parts;
   }, [parts]);
+
+  // Notify parent when parts change (only if actually different from last notification)
+  useEffect(() => {
+    // Skip if parts haven't changed since last notification
+    if (parts === lastNotifiedPartsRef.current) {
+      return;
+    }
+
+    if (onPartsChange) {
+      lastNotifiedPartsRef.current = parts;
+      onPartsChange(parts);
+    }
+  }, [parts, onPartsChange]);
 
   return {
     parts,

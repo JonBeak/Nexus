@@ -24,7 +24,7 @@
 
 import { Request, Response } from 'express';
 import { SubstrateService } from '../services/substrateService';
-import { sendErrorResponse } from '../utils/controllerHelpers';
+import { sendErrorResponse, sendSuccessResponse } from '../utils/controllerHelpers';
 
 const substrateService = new SubstrateService();
 
@@ -36,10 +36,7 @@ export const getActiveSubstrates = async (req: Request, res: Response): Promise<
   try {
     const substrates = await substrateService.getActiveSubstrateNames();
 
-    res.json({
-      success: true,
-      substrates
-    });
+    sendSuccessResponse(res, substrates);
   } catch (error) {
     console.error('Controller error fetching active substrates:', error);
     sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to fetch substrate materials', 'INTERNAL_ERROR');

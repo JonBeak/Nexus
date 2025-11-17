@@ -182,6 +182,40 @@ router.patch(
 );
 
 /**
+ * Reorder parts in bulk (for drag-and-drop)
+ * PATCH /api/orders/:orderNumber/parts/reorder
+ * Body: { partIds: number[] }
+ */
+router.patch(
+  '/:orderNumber/parts/reorder',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.reorderParts
+);
+
+/**
+ * Add a new part row to the order
+ * POST /api/orders/:orderNumber/parts/add
+ */
+router.post(
+  '/:orderNumber/parts/add',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.addPartRow
+);
+
+/**
+ * Remove a part row from the order
+ * DELETE /api/orders/:orderNumber/parts/:partId/remove
+ */
+router.delete(
+  '/:orderNumber/parts/:partId/remove',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.removePartRow
+);
+
+/**
  * Add task to order part (Phase 1.5.c)
  * POST /api/orders/:orderNumber/parts/:partId/tasks
  * Body: { task_name: string, assigned_role?: string }

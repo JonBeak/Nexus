@@ -9,6 +9,7 @@
 import React, { useState } from 'react';
 import { ordersApi } from '@/services/api';
 import { SPECS_DISPLAY_NAMES } from '../constants/tableConstants';
+import { EMPTY_FIELD_BG_CLASS } from '@/utils/highlightStyles';
 
 interface ItemNameDropdownProps {
   partId: number;
@@ -16,6 +17,7 @@ interface ItemNameDropdownProps {
   currentValue: string;
   onUpdate: () => void;
   isParentOrRegular?: boolean;
+  applyGrayBackground?: boolean;
 }
 
 export const ItemNameDropdown = React.memo<ItemNameDropdownProps>(({
@@ -23,7 +25,8 @@ export const ItemNameDropdown = React.memo<ItemNameDropdownProps>(({
   orderNumber,
   currentValue,
   onUpdate,
-  isParentOrRegular = false
+  isParentOrRegular = false,
+  applyGrayBackground = false
 }) => {
   const [isSaving, setIsSaving] = useState(false);
 
@@ -35,19 +38,16 @@ export const ItemNameDropdown = React.memo<ItemNameDropdownProps>(({
       console.log('[ItemNameDropdown] Updating part', partId, 'with specs_display_name:', value);
 
       // Call the new API endpoint
-      const response = await ordersApi.updateSpecsDisplayName(orderNumber, partId, value);
+      // Note: axios interceptor unwraps successful responses, so we just get the data
+      await ordersApi.updateSpecsDisplayName(orderNumber, partId, value);
 
-      if (response.success) {
-        console.log('[ItemNameDropdown] Successfully updated specs_display_name');
-        // Trigger parent refresh
-        onUpdate();
-      } else {
-        console.error('[ItemNameDropdown] Failed to update:', response.message);
-        alert(`Failed to update Item Name: ${response.message || 'Unknown error'}`);
-      }
-    } catch (error) {
+      console.log('[ItemNameDropdown] Successfully updated specs_display_name');
+      // Trigger parent refresh
+      onUpdate();
+    } catch (error: any) {
       console.error('[ItemNameDropdown] Error updating specs_display_name:', error);
-      alert('Failed to update Item Name. Please try again.');
+      const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
+      alert(`Failed to update Item Name: ${errorMsg}`);
     } finally {
       setIsSaving(false);
     }
@@ -59,7 +59,7 @@ export const ItemNameDropdown = React.memo<ItemNameDropdownProps>(({
     isParentOrRegular && currentValue
       ? 'border-2 border-blue-600 bg-blue-100 focus:ring-blue-600'
       : 'border border-gray-300 focus:ring-indigo-500'
-  }`;
+  } ${applyGrayBackground && !(isParentOrRegular && currentValue) ? EMPTY_FIELD_BG_CLASS : ''}`;
 
   return (
     <div className="py-1">
@@ -81,7 +81,8 @@ export const ItemNameDropdown = React.memo<ItemNameDropdownProps>(({
 }, (prevProps, nextProps) => {
   return prevProps.currentValue === nextProps.currentValue &&
          prevProps.partId === nextProps.partId &&
-         prevProps.isParentOrRegular === nextProps.isParentOrRegular;
+         prevProps.isParentOrRegular === nextProps.isParentOrRegular &&
+         prevProps.applyGrayBackground === nextProps.applyGrayBackground;
 });
 
 ItemNameDropdown.displayName = 'ItemNameDropdown';

@@ -2,16 +2,25 @@
 -- Date: 2025-11-15
 -- Purpose: Fix Jobs panel to show correct status based on estimate states
 --
--- Status priority (highest to lowest): approved > sent > quote
+-- Status priority (highest to lowest): approved > sent > draft
 -- Trigger recalculates job status based on ALL estimates for the job
 
--- Step 1: Modify jobs.status enum to 3 values
+-- Step 1: Add 'draft' and 'sent' to enum temporarily (if not already there)
 ALTER TABLE jobs
-  MODIFY COLUMN status ENUM('quote', 'sent', 'approved')
+  MODIFY COLUMN status ENUM('quote', 'draft', 'sent', 'approved', 'active', 'production', 'completed', 'cancelled')
   DEFAULT 'quote'
   NOT NULL;
 
--- Step 2: Backfill existing data based on estimates
+-- Step 2: Convert 'quote' to 'draft'
+UPDATE jobs SET status = 'draft' WHERE status = 'quote';
+
+-- Step 3: Remove old unused values from enum
+ALTER TABLE jobs
+  MODIFY COLUMN status ENUM('draft', 'sent', 'approved')
+  DEFAULT 'draft'
+  NOT NULL;
+
+-- Step 4: Backfill existing data based on estimates
 -- Set to 'approved' if any estimate has is_approved = 1
 UPDATE jobs j
   SET j.status = 'approved'
@@ -23,13 +32,13 @@ UPDATE jobs j
 -- Set to 'sent' if any estimate has is_sent = 1 (but not approved)
 UPDATE jobs j
   SET j.status = 'sent'
-  WHERE j.status = 'quote'
+  WHERE j.status = 'draft'
     AND EXISTS (
       SELECT 1 FROM job_estimates e
       WHERE e.job_id = j.job_id AND e.is_sent = 1
     );
 
--- Step 3: Create trigger to keep status in sync with estimate states
+-- Step 5: Create trigger to keep status in sync with estimate states
 DELIMITER $$
 
 DROP TRIGGER IF EXISTS tr_job_estimates_update_job_status$$
@@ -44,12 +53,12 @@ BEGIN
   IF (NEW.is_sent != OLD.is_sent OR NEW.is_approved != OLD.is_approved) THEN
 
     -- Calculate new status based on ALL estimates for this job
-    -- Priority: approved > sent > quote
+    -- Priority: approved > sent > draft
     SELECT
       CASE
         WHEN MAX(is_approved) = 1 THEN 'approved'
         WHEN MAX(is_sent) = 1 THEN 'sent'
-        ELSE 'quote'
+        ELSE 'draft'
       END INTO new_job_status
     FROM job_estimates
     WHERE job_id = NEW.job_id;
@@ -71,7 +80,7 @@ SELECT
   COUNT(*) as count
 FROM jobs
 GROUP BY status
-ORDER BY FIELD(status, 'approved', 'sent', 'quote');
+ORDER BY FIELD(status, 'approved', 'sent', 'draft');
 
 -- Show sample of updated jobs with their estimate states
 SELECT

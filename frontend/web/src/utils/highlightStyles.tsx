@@ -8,6 +8,12 @@
 import React from 'react';
 
 /**
+ * Background class for empty/unfilled input fields
+ * Used in dual table to highlight rows with no data
+ */
+export const EMPTY_FIELD_BG_CLASS = 'bg-gray-500';
+
+/**
  * Get className for a field that may be modified
  *
  * @param isModified - Whether the field has been modified

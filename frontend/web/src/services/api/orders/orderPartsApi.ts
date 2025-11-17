@@ -60,4 +60,26 @@ export const orderPartsApi = {
   async toggleIsParent(orderNumber: number, partId: number): Promise<void> {
     await api.patch(`/orders/${orderNumber}/parts/${partId}/toggle-parent`);
   },
+
+  /**
+   * Reorder parts in bulk (for drag-and-drop)
+   */
+  async reorderParts(orderNumber: number, partIds: number[]): Promise<void> {
+    await api.patch(`/orders/${orderNumber}/parts/reorder`, { partIds });
+  },
+
+  /**
+   * Add a new part row to the order
+   */
+  async addPartRow(orderNumber: number): Promise<{ part_id: number }> {
+    const response = await api.post(`/orders/${orderNumber}/parts/add`);
+    return response.data;
+  },
+
+  /**
+   * Remove a part row from the order
+   */
+  async removePartRow(orderNumber: number, partId: number): Promise<void> {
+    await api.delete(`/orders/${orderNumber}/parts/${partId}/remove`);
+  },
 };

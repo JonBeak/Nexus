@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ordersApi, printApi } from '../../../../services/api';
 import { Order, OrderPart } from '../../../../types/orders';
 import { calculateShopCount } from '../services/orderCalculations';
@@ -19,6 +19,7 @@ interface OrderData {
 
 interface FormUrls {
   master: string;
+  estimate: string;
   shop: string;
   customer: string;
   packing: string;
@@ -52,7 +53,7 @@ export function useOrderPrinting(
   };
 
   const handleOpenPrintModal = () => {
-    // Calculate shop count based on specs
+    // Calculate shop count based on current specs in state
     const shopCount = calculateShopCount(orderData.parts);
 
     // Set default quantities
@@ -104,6 +105,84 @@ export function useOrderPrinting(
     }
   };
 
+  const handlePrintMasterEstimate = async () => {
+    if (!orderData.order) return;
+
+    try {
+      setUiState(prev => ({ ...prev, printingForm: true }));
+      const masterEstimateConfig: PrintConfig = {
+        master: printConfig.master,
+        estimate: printConfig.estimate,
+        shop: 0,
+        packing: 0
+      };
+
+      const result = await printApi.printOrderFormsBatch(orderData.order.order_number, masterEstimateConfig);
+
+      if (result.success) {
+        const { summary } = result;
+        let message = `Successfully printed Master & Estimate forms!\n\n` +
+          `Master: ${summary.master}\n` +
+          `Estimate: ${summary.estimate}\n\n` +
+          `Job ID: ${result.jobId}`;
+
+        if (summary.skipped && summary.skipped.length > 0) {
+          message += `\n\n⚠️ Note: ${summary.skipped.join(', ')} not found and skipped`;
+        }
+
+        alert(message);
+      } else {
+        alert('Failed to print forms. Please check the printer and try again.');
+      }
+
+      setUiState(prev => ({ ...prev, showPrintModal: false }));
+    } catch (err: any) {
+      console.error('Error printing master/estimate forms:', err);
+      alert(err.response?.data?.message || 'Failed to print forms. Please check that CUPS is installed and a printer is configured.');
+    } finally {
+      setUiState(prev => ({ ...prev, printingForm: false }));
+    }
+  };
+
+  const handlePrintShopPacking = async () => {
+    if (!orderData.order) return;
+
+    try {
+      setUiState(prev => ({ ...prev, printingForm: true }));
+      const shopPackingConfig: PrintConfig = {
+        master: 0,
+        estimate: 0,
+        shop: printConfig.shop,
+        packing: printConfig.packing
+      };
+
+      const result = await printApi.printOrderFormsBatch(orderData.order.order_number, shopPackingConfig);
+
+      if (result.success) {
+        const { summary } = result;
+        let message = `Successfully printed Shop & Packing forms!\n\n` +
+          `Shop: ${summary.shop}\n` +
+          `Packing: ${summary.packing}\n\n` +
+          `Job ID: ${result.jobId}`;
+
+        if (summary.skipped && summary.skipped.length > 0) {
+          message += `\n\n⚠️ Note: ${summary.skipped.join(', ')} not found and skipped`;
+        }
+
+        alert(message);
+      } else {
+        alert('Failed to print forms. Please check the printer and try again.');
+      }
+
+      setUiState(prev => ({ ...prev, showPrintModal: false }));
+    } catch (err: any) {
+      console.error('Error printing shop/packing forms:', err);
+      alert(err.response?.data?.message || 'Failed to print forms. Please check that CUPS is installed and a printer is configured.');
+    } finally {
+      setUiState(prev => ({ ...prev, printingForm: false }));
+    }
+  };
+
   const handlePrintMasterForm = async () => {
     if (!orderData.order) return;
 
@@ -134,6 +213,7 @@ export function useOrderPrinting(
     // Build URLs using actual folder structure and new file names
     return {
       master: `${apiUrl}/order-images/Orders/${folderName}/${orderNum} - ${jobName}.pdf${cacheBuster}`,
+      estimate: `${apiUrl}/order-images/Orders/${folderName}/${orderNum} - ${jobName} - Estimate.pdf${cacheBuster}`,
       shop: `${apiUrl}/order-images/Orders/${folderName}/${orderNum} - ${jobName} - Shop.pdf${cacheBuster}`,
       customer: `${apiUrl}/order-images/Orders/${folderName}/Specs/${orderNum} - ${jobName} - Specs.pdf${cacheBuster}`,
       packing: `${apiUrl}/order-images/Orders/${folderName}/Specs/${orderNum} - ${jobName} - Packing List.pdf${cacheBuster}`
@@ -150,13 +230,20 @@ export function useOrderPrinting(
     });
   };
 
-  const handleViewSingleForm = (formType: 'master' | 'shop' | 'customer' | 'packing') => {
+  const handleViewSingleForm = (formType: 'master' | 'estimate' | 'shop' | 'customer' | 'packing') => {
     const urls = buildFormUrls();
     if (!urls) return;
 
     window.open(urls[formType], '_blank');
     setUiState(prev => ({ ...prev, showFormsDropdown: false }));
   };
+
+  // Memoize formUrls to prevent unnecessary re-renders of PDF components
+  const formUrls = useMemo(() => buildFormUrls(), [
+    orderData.order?.folder_name,
+    orderData.order?.order_number,
+    orderData.order?.order_name
+  ]);
 
   return {
     printConfig,
@@ -165,10 +252,12 @@ export function useOrderPrinting(
     handleOpenPrintModal,
     handleClosePrintModal,
     handlePrintForms,
+    handlePrintMasterEstimate,
+    handlePrintShopPacking,
     handleGenerateForms,
     handleViewForms,
     handleViewSingleForm,
     handlePrintMasterForm,
-    formUrls: buildFormUrls()
+    formUrls
   };
 }

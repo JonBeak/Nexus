@@ -1006,3 +1006,220 @@ export const updatePartSpecsQty = async (req: Request, res: Response) => {
     return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to update specs_qty', 'INTERNAL_ERROR');
   }
 };
+
+/**
+ * Helper function to recalculate display_number for all parts in an order
+ * Also recalculates is_parent based on position (first part is always parent)
+ */
+async function recalculatePartDisplayNumbers(orderId: number): Promise<void> {
+  // Get all parts for this order, ordered by part_number
+  const parts = await orderRepository.getOrderParts(orderId);
+
+  if (parts.length === 0) return;
+
+  // Sort by part_number to ensure correct ordering
+  parts.sort((a, b) => a.part_number - b.part_number);
+
+  // First part is always a parent
+  let currentParentNumber = 1;
+  let currentChildLetter = 'a';
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    let newIsParent = part.is_parent;
+    let newDisplayNumber = '';
+
+    // First part is always a parent
+    if (i === 0) {
+      newIsParent = true;
+      newDisplayNumber = String(currentParentNumber);
+      currentParentNumber++;
+      currentChildLetter = 'a';
+    } else if (part.is_parent) {
+      // This part is marked as a parent
+      newDisplayNumber = String(currentParentNumber);
+      currentParentNumber++;
+      currentChildLetter = 'a';
+    } else {
+      // This part is a child - assign parent number + letter
+      newDisplayNumber = `${currentParentNumber - 1}${currentChildLetter}`;
+      // Increment letter for next child
+      currentChildLetter = String.fromCharCode(currentChildLetter.charCodeAt(0) + 1);
+    }
+
+    // Update part if display_number or is_parent changed
+    if (part.display_number !== newDisplayNumber || part.is_parent !== newIsParent) {
+      await orderRepository.updateOrderPart(part.part_id, {
+        display_number: newDisplayNumber,
+        is_parent: newIsParent
+      });
+    }
+  }
+}
+
+/**
+ * Reorder parts in bulk (for drag-and-drop)
+ * PATCH /api/orders/:orderNumber/parts/reorder
+ * Body: { partIds: number[] } - ordered array of part IDs
+ * Permission: orders.update (Manager+ only)
+ */
+export const reorderParts = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const { partIds } = req.body;
+
+    // Validate inputs
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    if (!Array.isArray(partIds) || partIds.length === 0) {
+      return sendErrorResponse(res, 'Invalid partIds array', 'VALIDATION_ERROR');
+    }
+
+    // Get all parts for this order
+    const allParts = await orderRepository.getOrderParts(orderId);
+
+    // Validate that all partIds belong to this order
+    const validPartIds = new Set(allParts.map(p => p.part_id));
+    const invalidParts = partIds.filter(id => !validPartIds.has(id));
+
+    if (invalidParts.length > 0) {
+      return sendErrorResponse(res, `Invalid part IDs: ${invalidParts.join(', ')}`, 'VALIDATION_ERROR');
+    }
+
+    // Validate that all parts are included (no missing parts)
+    if (partIds.length !== allParts.length) {
+      return sendErrorResponse(res, 'All parts must be included in the reorder', 'VALIDATION_ERROR');
+    }
+
+    // Update part_number for each part based on new order
+    // part_number is 1-indexed
+    for (let i = 0; i < partIds.length; i++) {
+      const partId = partIds[i];
+      const newPartNumber = i + 1;
+
+      await orderRepository.updateOrderPart(partId, {
+        part_number: newPartNumber
+      });
+    }
+
+    // Recalculate display numbers and is_parent for all parts
+    await recalculatePartDisplayNumbers(orderId);
+
+    res.json({
+      success: true,
+      message: 'Parts reordered successfully'
+    });
+  } catch (error) {
+    console.error('Error reordering parts:', error);
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to reorder parts', 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Add a new part row to the order
+ * POST /api/orders/:orderNumber/parts
+ * Permission: orders.update (Manager+ only)
+ */
+export const addPartRow = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+
+    // Validate inputs
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    // Get all existing parts to determine next part_number
+    const allParts = await orderRepository.getOrderParts(orderId);
+    const maxPartNumber = allParts.length > 0
+      ? Math.max(...allParts.map(p => p.part_number))
+      : 0;
+    const newPartNumber = maxPartNumber + 1;
+
+    // Create new part with default values
+    const partId = await orderRepository.createOrderPart({
+      order_id: orderId,
+      part_number: newPartNumber,
+      product_type: 'New Part',
+      product_type_id: 'custom',
+      is_parent: false,
+      quantity: null,
+      specifications: {}
+    });
+
+    // Recalculate display numbers for all parts
+    await recalculatePartDisplayNumbers(orderId);
+
+    res.json({
+      success: true,
+      part_id: partId,
+      message: 'Part row added successfully'
+    });
+  } catch (error) {
+    console.error('Error adding part row:', error);
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to add part row', 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Remove a part row from the order
+ * DELETE /api/orders/:orderNumber/parts/:partId
+ * Permission: orders.update (Manager+ only)
+ */
+export const removePartRow = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber, partId } = req.params;
+
+    // Validate inputs
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    const partIdNum = parseIntParam(partId, 'part ID');
+    if (partIdNum === null) {
+      return sendErrorResponse(res, 'Invalid part ID', 'VALIDATION_ERROR');
+    }
+
+    // Get the part to verify it exists and belongs to this order
+    const part = await orderRepository.getOrderPartById(partIdNum);
+    if (!part) {
+      return sendErrorResponse(res, 'Part not found', 'NOT_FOUND');
+    }
+    if (part.order_id !== orderId) {
+      return sendErrorResponse(res, 'Part does not belong to this order', 'VALIDATION_ERROR');
+    }
+
+    // Delete the part (cascade will handle related tasks)
+    await orderRepository.deleteOrderPart(partIdNum);
+
+    // Get remaining parts and renumber them sequentially
+    const remainingParts = await orderRepository.getOrderParts(orderId);
+    remainingParts.sort((a, b) => a.part_number - b.part_number);
+
+    // Renumber parts sequentially
+    for (let i = 0; i < remainingParts.length; i++) {
+      const expectedPartNumber = i + 1;
+      if (remainingParts[i].part_number !== expectedPartNumber) {
+        await orderRepository.updateOrderPart(remainingParts[i].part_id, {
+          part_number: expectedPartNumber
+        });
+      }
+    }
+
+    // Recalculate display numbers for all remaining parts
+    await recalculatePartDisplayNumbers(orderId);
+
+    res.json({
+      success: true,
+      message: 'Part row removed successfully'
+    });
+  } catch (error) {
+    console.error('Error removing part row:', error);
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to remove part row', 'INTERNAL_ERROR');
+  }
+};

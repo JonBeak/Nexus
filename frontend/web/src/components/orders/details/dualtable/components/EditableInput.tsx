@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { getValidInputClass } from '@/utils/highlightStyles';
+import { getValidInputClass, EMPTY_FIELD_BG_CLASS } from '@/utils/highlightStyles';
 
 interface EditableInputProps {
   partId: number;
@@ -17,6 +17,7 @@ interface EditableInputProps {
   placeholder: string;
   hasValue: boolean;
   align?: 'left' | 'right';
+  applyGrayBackground?: boolean;
 }
 
 export const EditableInput = React.memo<EditableInputProps>(({
@@ -26,7 +27,8 @@ export const EditableInput = React.memo<EditableInputProps>(({
   onSave,
   placeholder,
   hasValue,
-  align = 'left'
+  align = 'left',
+  applyGrayBackground = false
 }) => {
   const [localValue, setLocalValue] = useState(currentValue?.toString() ?? '');
   const [isSaving, setIsSaving] = useState(false);
@@ -48,7 +50,7 @@ export const EditableInput = React.memo<EditableInputProps>(({
     }
   };
 
-  const baseClass = `w-full px-1.5 py-0.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 ${align === 'right' ? 'text-right' : ''}`;
+  const baseClass = `w-full px-1.5 py-0.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 ${align === 'right' ? 'text-right' : ''} ${applyGrayBackground ? EMPTY_FIELD_BG_CLASS : ''}`;
 
   return (
     <div className="py-1">
@@ -67,7 +69,8 @@ export const EditableInput = React.memo<EditableInputProps>(({
   // Only re-render if these specific props change
   return prevProps.currentValue === nextProps.currentValue &&
          prevProps.hasValue === nextProps.hasValue &&
-         prevProps.partId === nextProps.partId;
+         prevProps.partId === nextProps.partId &&
+         prevProps.applyGrayBackground === nextProps.applyGrayBackground;
 });
 
 EditableInput.displayName = 'EditableInput';

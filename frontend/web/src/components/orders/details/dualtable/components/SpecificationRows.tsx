@@ -18,6 +18,7 @@ interface SpecificationRowsProps {
   part: OrderPart;
   rowCount: number;
   availableTemplates: string[];
+  emptySpecRows: Set<number>;
   onTemplateSave: (partId: number, rowNum: number, value: string) => Promise<void>;
   onSpecFieldSave: (partId: number, specKey: string, value: string) => Promise<void>;
 }
@@ -26,6 +27,7 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
   part,
   rowCount,
   availableTemplates,
+  emptySpecRows,
   onTemplateSave,
   onSpecFieldSave
 }) => {
@@ -38,9 +40,10 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
         {subRows.map((rowNum) => {
           const currentValue = part.specifications?.[`_template_${rowNum}`] || '';
           const hasValue = !!currentValue;
+          const isEmpty = emptySpecRows.has(rowNum);
 
           return (
-            <div key={`${part.part_id}-template-${rowNum}`} className={rowNum > 1 ? 'border-t border-gray-100 py-0.5' : 'py-0.5'}>
+            <div key={`${part.part_id}-template-${rowNum}`} className={`${rowNum > 1 ? 'border-t border-gray-100' : ''} py-0.5`}>
               <SpecTemplateDropdown
                 partId={part.part_id}
                 rowNum={rowNum}
@@ -48,6 +51,7 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
                 onSave={onTemplateSave}
                 availableTemplates={availableTemplates}
                 hasValue={hasValue}
+                isEmpty={isEmpty}
               />
             </div>
           );
@@ -60,10 +64,11 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
           const selectedTemplateName = part.specifications?.[`_template_${rowNum}`] || '';
           const template = selectedTemplateName ? getSpecificationTemplate(selectedTemplateName) : undefined;
           const field = template?.spec1;
+          const isEmpty = emptySpecRows.has(rowNum);
 
           if (!field) {
             return (
-              <div key={`${part.part_id}-spec1-${rowNum}`} className={rowNum > 1 ? 'border-t border-gray-100 py-0.5' : 'py-0.5'}>
+              <div key={`${part.part_id}-spec1-${rowNum}`} className={`${rowNum > 1 ? 'border-t border-gray-100' : ''} py-0.5`}>
                 <div className="h-[26px] flex items-center text-xs text-gray-400">-</div>
               </div>
             );
@@ -76,7 +81,7 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
             : !!currentValue;
 
           return (
-            <div key={`${part.part_id}-spec1-${rowNum}`} className={rowNum > 1 ? 'border-t border-gray-100 py-0.5' : 'py-0.5'}>
+            <div key={`${part.part_id}-spec1-${rowNum}`} className={`${rowNum > 1 ? 'border-t border-gray-100' : ''} py-0.5`}>
               <SpecFieldInput
                 partId={part.part_id}
                 rowNum={rowNum}
@@ -85,6 +90,7 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
                 currentValue={currentValue}
                 onSave={onSpecFieldSave}
                 hasValue={hasValue}
+                isEmpty={isEmpty}
               />
             </div>
           );
@@ -97,10 +103,11 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
           const selectedTemplateName = part.specifications?.[`_template_${rowNum}`] || '';
           const template = selectedTemplateName ? getSpecificationTemplate(selectedTemplateName) : undefined;
           const field = template?.spec2;
+          const isEmpty = emptySpecRows.has(rowNum);
 
           if (!field) {
             return (
-              <div key={`${part.part_id}-spec2-${rowNum}`} className={rowNum > 1 ? 'border-t border-gray-100 py-0.5' : 'py-0.5'}>
+              <div key={`${part.part_id}-spec2-${rowNum}`} className={`${rowNum > 1 ? 'border-t border-gray-100' : ''} py-0.5`}>
                 <div className="h-[26px] flex items-center text-xs text-gray-400">-</div>
               </div>
             );
@@ -113,7 +120,7 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
             : !!currentValue;
 
           return (
-            <div key={`${part.part_id}-spec2-${rowNum}`} className={rowNum > 1 ? 'border-t border-gray-100 py-0.5' : 'py-0.5'}>
+            <div key={`${part.part_id}-spec2-${rowNum}`} className={`${rowNum > 1 ? 'border-t border-gray-100' : ''} py-0.5`}>
               <SpecFieldInput
                 partId={part.part_id}
                 rowNum={rowNum}
@@ -122,6 +129,7 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
                 currentValue={currentValue}
                 onSave={onSpecFieldSave}
                 hasValue={hasValue}
+                isEmpty={isEmpty}
               />
             </div>
           );
@@ -134,10 +142,11 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
           const selectedTemplateName = part.specifications?.[`_template_${rowNum}`] || '';
           const template = selectedTemplateName ? getSpecificationTemplate(selectedTemplateName) : undefined;
           const field = template?.spec3;
+          const isEmpty = emptySpecRows.has(rowNum);
 
           if (!field) {
             return (
-              <div key={`${part.part_id}-spec3-${rowNum}`} className={rowNum > 1 ? 'border-t border-gray-100 py-0.5' : 'py-0.5'}>
+              <div key={`${part.part_id}-spec3-${rowNum}`} className={`${rowNum > 1 ? 'border-t border-gray-100' : ''} py-0.5`}>
                 <div className="h-[26px] flex items-center text-xs text-gray-400">-</div>
               </div>
             );
@@ -150,7 +159,7 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
             : !!currentValue;
 
           return (
-            <div key={`${part.part_id}-spec3-${rowNum}`} className={rowNum > 1 ? 'border-t border-gray-100 py-0.5' : 'py-0.5'}>
+            <div key={`${part.part_id}-spec3-${rowNum}`} className={`${rowNum > 1 ? 'border-t border-gray-100' : ''} py-0.5`}>
               <SpecFieldInput
                 partId={part.part_id}
                 rowNum={rowNum}
@@ -159,6 +168,7 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
                 currentValue={currentValue}
                 onSave={onSpecFieldSave}
                 hasValue={hasValue}
+                isEmpty={isEmpty}
               />
             </div>
           );

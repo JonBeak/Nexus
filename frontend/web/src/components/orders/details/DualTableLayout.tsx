@@ -13,6 +13,8 @@
  */
 
 import React, { useMemo } from 'react';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { getAllTemplateNames } from '@/config/orderProductTemplates';
 import { DualTableLayoutProps } from './dualtable/constants/tableConstants';
 import { useTableData } from './dualtable/hooks/useTableData';
@@ -24,7 +26,8 @@ import { InvoiceSummary } from './dualtable/components/InvoiceSummary';
 export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
   orderNumber,
   initialParts,
-  taxName
+  taxName,
+  onPartsChange
 }) => {
   // Use custom hooks for data and updates
   const {
@@ -35,7 +38,7 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
     taxRules,
     specRowCounts,
     setSpecRowCounts
-  } = useTableData(initialParts);
+  } = useTableData(initialParts, onPartsChange);
 
   const {
     handleFieldSave,
@@ -44,6 +47,9 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
     addSpecRow,
     removeSpecRow,
     toggleIsParent,
+    addPartRow,
+    removePartRow,
+    reorderParts,
     handleRefreshParts
   } = usePartUpdates({
     orderNumber,
@@ -56,6 +62,47 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
 
   // Memoize available templates (prevent re-creation on every render)
   const availableTemplates = useMemo(() => getAllTemplateNames(), []);
+
+  // Setup drag-and-drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 3, // Require 3px of movement before drag starts (prevents accidental drags)
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Handle drag end event
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return; // No change in position
+    }
+
+    // Find the indices
+    const oldIndex = parts.findIndex(p => p.part_id === active.id);
+    const newIndex = parts.findIndex(p => p.part_id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) {
+      return;
+    }
+
+    // Create new order by moving the item
+    const reorderedParts = [...parts];
+    const [movedPart] = reorderedParts.splice(oldIndex, 1);
+    reorderedParts.splice(newIndex, 0, movedPart);
+
+    // Update local state immediately for responsive UI
+    setParts(reorderedParts);
+
+    // Send reorder to backend
+    const partIds = reorderedParts.map(p => p.part_id);
+    reorderParts(partIds);
+  };
 
   // Calculate row counts for each part (memoized)
   const rowCounts = useMemo(() => {
@@ -76,37 +123,50 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
         <TableHeader />
 
         {/* Body */}
-        <div>
-          {parts.length > 0 ? (
-            parts.map(part => (
-              <PartRow
-                key={part.part_id}
-                part={part}
-                orderNumber={orderNumber}
-                availableTemplates={availableTemplates}
-                qbItems={qbItems}
-                rowCount={rowCounts[part.part_id]}
-                onFieldSave={handleFieldSave}
-                onTemplateSave={handleTemplateSave}
-                onSpecFieldSave={handleSpecFieldSave}
-                onAddRow={addSpecRow}
-                onRemoveRow={removeSpecRow}
-                onToggleParent={toggleIsParent}
-                onUpdate={handleRefreshParts}
-              />
-            ))
-          ) : (
-            <div className="p-6 text-center text-gray-500">
-              No parts to display
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={parts.map(p => p.part_id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div>
+              {parts.length > 0 ? (
+                parts.map((part) => (
+                  <PartRow
+                    key={part.part_id}
+                    part={part}
+                    orderNumber={orderNumber}
+                    availableTemplates={availableTemplates}
+                    qbItems={qbItems}
+                    rowCount={rowCounts[part.part_id]}
+                    onFieldSave={handleFieldSave}
+                    onTemplateSave={handleTemplateSave}
+                    onSpecFieldSave={handleSpecFieldSave}
+                    onAddRow={addSpecRow}
+                    onRemoveRow={removeSpecRow}
+                    onToggleParent={toggleIsParent}
+                    onRemovePartRow={removePartRow}
+                    onUpdate={handleRefreshParts}
+                  />
+                ))
+              ) : (
+                <div className="p-6 text-center text-gray-500">
+                  No parts to display
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </SortableContext>
+        </DndContext>
 
         {/* Footer - Invoice Summary */}
         <InvoiceSummary
           parts={parts}
           taxName={taxName}
           taxRules={taxRules}
+          onAddPartRow={addPartRow}
         />
       </div>
     </div>

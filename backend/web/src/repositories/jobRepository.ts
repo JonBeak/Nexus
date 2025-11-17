@@ -193,7 +193,7 @@ export class JobRepository {
   async createJob(jobNumber: string, customerId: number, jobName: string): Promise<number> {
     const result = await query(
       `INSERT INTO jobs (job_number, customer_id, job_name, status, created_at)
-       VALUES (?, ?, ?, 'quote', NOW())`,
+       VALUES (?, ?, ?, 'draft', NOW())`,
       [jobNumber, customerId, jobName]
     ) as ResultSetHeader;
 

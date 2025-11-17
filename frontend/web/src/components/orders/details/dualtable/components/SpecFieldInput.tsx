@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { getValidSpecFieldClass } from '@/utils/highlightStyles';
+import { getValidSpecFieldClass, EMPTY_FIELD_BG_CLASS } from '@/utils/highlightStyles';
 import type { SpecificationField } from '@/config/orderProductTemplates';
 
 interface SpecFieldInputProps {
@@ -18,6 +18,7 @@ interface SpecFieldInputProps {
   currentValue: any;
   onSave: (partId: number, specKey: string, value: string) => Promise<void>;
   hasValue: boolean;
+  isEmpty?: boolean;
 }
 
 export const SpecFieldInput = React.memo<SpecFieldInputProps>(({
@@ -27,7 +28,8 @@ export const SpecFieldInput = React.memo<SpecFieldInputProps>(({
   specKey,
   currentValue,
   onSave,
-  hasValue
+  hasValue,
+  isEmpty = false
 }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [localValue, setLocalValue] = useState(currentValue);
@@ -62,7 +64,7 @@ export const SpecFieldInput = React.memo<SpecFieldInputProps>(({
 
   const baseClass = `w-full h-[26px] px-1.5 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
     !hasValue ? 'text-gray-400' : 'text-gray-900'
-  }`;
+  } ${isEmpty ? EMPTY_FIELD_BG_CLASS : ''}`;
 
   return (
     <div className="h-[26px] flex items-center py-1">
@@ -127,7 +129,8 @@ export const SpecFieldInput = React.memo<SpecFieldInputProps>(({
          prevProps.specKey === nextProps.specKey &&
          prevProps.rowNum === nextProps.rowNum &&
          prevProps.field.key === nextProps.field.key &&
-         prevProps.field.type === nextProps.field.type;
+         prevProps.field.type === nextProps.field.type &&
+         prevProps.isEmpty === nextProps.isEmpty;
 });
 
 SpecFieldInput.displayName = 'SpecFieldInput';

@@ -80,4 +80,5 @@ export interface DualTableLayoutProps {
   orderNumber: number;
   initialParts: OrderPart[];
   taxName?: string;
+  onPartsChange?: (parts: OrderPart[]) => void;
 }

@@ -16,7 +16,7 @@ import { FIELD_CONFIGS, getFieldConfig } from './constants/orderFieldConfigs';
 // Import components
 import EditableField from './components/EditableField';
 import OrderHeader from './components/OrderHeader';
-import PrintFormsModal from './components/PrintFormsModal';
+import PrintFormsWithPreview from './components/PrintFormsWithPreview';
 import LoadingState from './components/LoadingState';
 import ErrorState from './components/ErrorState';
 import TaxDropdown from './components/TaxDropdown';
@@ -68,6 +68,8 @@ export const OrderDetailsPage: React.FC = () => {
     handleOpenPrintModal,
     handleClosePrintModal,
     handlePrintForms,
+    handlePrintMasterEstimate,
+    handlePrintShopPacking,
     handleGenerateForms,
     handleViewForms,
     handleViewSingleForm,
@@ -476,6 +478,9 @@ export const OrderDetailsPage: React.FC = () => {
                   orderNumber={orderData.order.order_number}
                   initialParts={orderData.parts}
                   taxName={orderData.order.tax_name}
+                  onPartsChange={(updatedParts) => {
+                    setOrderData(prev => ({ ...prev, parts: updatedParts }));
+                  }}
                 />
               </div>
             </div>
@@ -497,14 +502,17 @@ export const OrderDetailsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Print Modal */}
-      <PrintFormsModal
+      {/* Print Modal with Preview */}
+      <PrintFormsWithPreview
         isOpen={uiState.showPrintModal}
         onClose={handleClosePrintModal}
         printConfig={printConfig}
         onPrintConfigChange={setPrintConfig}
         onPrint={handlePrintForms}
+        onPrintMasterEstimate={handlePrintMasterEstimate}
+        onPrintShopPacking={handlePrintShopPacking}
         printing={uiState.printingForm}
+        formUrls={formUrls}
       />
     </div>
   );

@@ -135,11 +135,11 @@ export interface OrderPart {
   product_type_id: string;
   channel_letter_type_id?: number;
   base_product_type_id?: number;
-  quantity: number;
+  quantity: number | null;  // Nullable - 0 is converted to null
   specifications: Record<string, any>;  // Semantic keys: { height: "12", depth: "3" }
   invoice_description?: string;
-  unit_price?: number;
-  extended_price?: number;
+  unit_price?: number | null;  // Nullable - 0 is converted to null
+  extended_price?: number | null;
   production_notes?: string;
 
   // Aggregated from tasks

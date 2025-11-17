@@ -2,42 +2,56 @@ import { OrderPart } from '../../../../types/orders';
 import { ordersApi } from '../../../../services/api';
 
 /**
+ * Helper function to check if any template in specs matches a given name
+ */
+const hasTemplate = (specs: any, templateName: string): boolean => {
+  if (!specs) return false;
+
+  // Check all _template_X keys for matching template name
+  return Object.keys(specs).some(key =>
+    key.startsWith('_template_') && specs[key] === templateName
+  );
+};
+
+/**
+ * Helper function to check if any of the given templates exist in any order part
+ */
+const hasAnyTemplate = (orderParts: OrderPart[], templateNames: string[]): boolean => {
+  return orderParts.some(part =>
+    templateNames.some(name => hasTemplate(part.specifications, name))
+  );
+};
+
+/**
  * Calculates the number of shop forms needed based on order specifications
  */
 export const calculateShopCount = (orderParts: OrderPart[]): number => {
   // Start with base count of 2 (Vinyl/CNC, QC & Packing)
   let count = 2;
 
-  // Define specification checks - each adds 1 to shop count if found
-  const specChecks = [
-    // Check for Return
-    (specs: any) => specs.return || specs.Return,
+  // Check for Return - adds 2 sheets
+  if (hasAnyTemplate(orderParts, ['Return'])) {
+    count += 2;
+  }
 
-    // Check for Trim
-    (specs: any) => specs.trim || specs.Trim,
+  // Check for Trim - adds 1 sheet
+  if (hasAnyTemplate(orderParts, ['Trim'])) {
+    count += 1;
+  }
 
-    // Check for Pins with count OR D-Tape/Mounting
-    (specs: any) => {
-      const hasPins = specs.pins || specs.Pins;
-      const hasPinCount = specs.pin_count || specs['Pin Count'];
-      const hasDTape = specs.dtape || specs['D-Tape'];
-      const hasMounting = specs.mounting || specs.Mounting;
+  // Check for Pins/D-Tape/Mounting - adds 1 sheet
+  if (hasAnyTemplate(orderParts, ['Pins', 'D-Tape', 'Mounting'])) {
+    count += 1;
+  }
 
-      return (hasPins && hasPinCount > 0) || hasDTape || hasMounting;
-    },
+  // Check for LED installation - adds 1 sheet
+  if (hasAnyTemplate(orderParts, ['LEDs'])) {
+    count += 1;
+  }
 
-    // Check for LED installation
-    (specs: any) => specs.leds || specs.LEDs || specs.led || specs.LED,
-
-    // Check for Painting
-    (specs: any) => specs.painting || specs.Painting
-  ];
-
-  // Apply each check - add 1 to count if any part matches
-  for (const check of specChecks) {
-    if (orderParts.some(part => check(part.specifications || {}))) {
-      count++;
-    }
+  // Check for Painting - adds 1 sheet
+  if (hasAnyTemplate(orderParts, ['Painting'])) {
+    count += 1;
   }
 
   return count;
