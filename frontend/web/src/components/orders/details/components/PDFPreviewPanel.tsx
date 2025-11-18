@@ -37,10 +37,11 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ url, label }) => {
 
   // Reset state when URL changes
   useEffect(() => {
+    console.log(`[PDFDocument] ${label} - URL changed, reloading PDF:`, url);
     setNumPages(null);
     setLoading(true);
     setError(null);
-  }, [url]);
+  }, [url, label]);
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);

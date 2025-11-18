@@ -1,3 +1,10 @@
+// File Clean up Finished: 2025-11-15 (Architecture improvement - centralized tax rate lookup)
+// Changes:
+//   - Added getTaxRateByName() method in HELPER METHODS section (proper repository layer)
+//   - Added tax_name to getOrderWithCustomerForPDF() SELECT query
+//   - Supports estimatePdfGenerator tax calculation (moved from service to repository)
+//   - Uses query() helper for consistency with codebase standards
+//
 // File Clean up Finished: Nov 14, 2025
 // Changes:
 //   - Removed duplicate updateTaskCompleted() method (was identical to updateTaskCompletion)
@@ -87,6 +94,24 @@ export class OrderRepository {
       folder_location: 'active' | 'finished' | 'none';
       is_migrated: boolean;
     };
+  }
+
+  /**
+   * Get tax rate by tax name
+   * Used by PDF generators to calculate tax amounts
+   */
+  async getTaxRateByName(taxName: string): Promise<number> {
+    const rows = await query(
+      'SELECT tax_percent FROM tax_rules WHERE tax_name = ? AND is_active = 1',
+      [taxName]
+    ) as RowDataPacket[];
+
+    if (rows.length === 0) {
+      console.warn(`[OrderRepository] Tax rate not found for: ${taxName}`);
+      return 0;
+    }
+
+    return Number(rows[0].tax_percent);
   }
 
   // =============================================
@@ -915,6 +940,7 @@ export class OrderRepository {
         o.crop_bottom,
         o.crop_left,
         o.shipping_required,
+        o.tax_name,
         o.folder_name,
         o.folder_location,
         o.is_migrated,

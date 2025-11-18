@@ -3,6 +3,7 @@
  * Changes:
  *   - Removed duplicate AuthRequest interface definition, now imported from ../types (Nov 13)
  *   - Migrated pool.execute() to query() helper for standardization (Nov 14)
+ *   - Added authenticateTokenFromQuery middleware (extracted from routes/quickbooks.ts) (Nov 15)
  */
 
 import { Request, Response, NextFunction } from 'express';
@@ -32,6 +33,32 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
     }
 
     req.user = rows[0];
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+};
+
+/**
+ * Custom auth middleware that accepts token from query parameter OR header
+ * Used for OAuth flows where headers cannot be set (e.g., window.open() popups)
+ * Note: Does NOT fetch full user from database - only validates JWT
+ */
+export const authenticateTokenFromQuery = async (req: Request, res: Response, next: NextFunction) => {
+  // Check query parameter first (for OAuth popup), then fall back to header
+  const token = (req.query.token as string) ||
+                (req.headers['authorization'] && (req.headers['authorization'] as string).split(' ')[1]);
+
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
+
+    // Simple validation - just check token is valid
+    // Attach minimal user info for OAuth flow (no database lookup needed)
+    (req as AuthRequest).user = { userId: decoded.userId } as any;
     next();
   } catch (error) {
     return res.status(401).json({ error: 'Invalid or expired token' });

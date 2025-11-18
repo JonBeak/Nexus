@@ -13,7 +13,6 @@ export { jobVersioningApi } from '../jobVersioningApi';
 export { authApi } from './authApi';
 export { ledsApi } from './ledsApi';
 export { powerSuppliesApi } from './powerSuppliesApi';
-export { materialsApi } from './materialsApi';
 export { jobsApi } from './jobsApi';
 
 // Phase 3 - Tier 2 Modules (Medium Complexity)
@@ -39,7 +38,8 @@ export {
   orderTasksApi,
   orderPartsApi,
   orderFormsApi,
-  orderBusinessLogicApi
+  orderBusinessLogicApi,
+  orderPreparationApi
 } from './orders';
 
 export {

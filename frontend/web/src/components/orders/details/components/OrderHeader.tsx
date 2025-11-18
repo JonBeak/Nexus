@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, Printer, ChevronDown } from 'lucide-react';
+import { ArrowLeft, FileText, Printer, ChevronDown, Settings } from 'lucide-react';
 import { Order } from '../../../../types/orders';
 import StatusBadge from '../../common/StatusBadge';
 
@@ -11,6 +11,7 @@ interface OrderHeaderProps {
   onGenerateForms: () => void;
   onOpenPrint: () => void;
   onViewForms: () => void;
+  onPrepareOrder: () => void;  // NEW: Phase 1.5.c.6.1
   generatingForms: boolean;
   printingForm: boolean;
   showFormsDropdown: boolean;
@@ -26,6 +27,7 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
   onGenerateForms,
   onOpenPrint,
   onViewForms,
+  onPrepareOrder,  // NEW: Phase 1.5.c.6.1
   generatingForms,
   printingForm,
   showFormsDropdown,
@@ -169,6 +171,17 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Prepare Order Button - Phase 1.5.c.6.1 */}
+            {order.status === 'job_details_setup' && (
+              <button
+                onClick={onPrepareOrder}
+                className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium"
+              >
+                <Settings className="w-4 h-4" />
+                <span>Prepare Order</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

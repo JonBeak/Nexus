@@ -276,16 +276,16 @@ export class QuickBooksRepository {
   /**
    * Get cached QuickBooks item mappings in batch (case-insensitive)
    * Returns Map with lowercase item names as keys for efficient lookups
-   * Used by orderPartCreationService for batch processing
+   * Used by orderPartCreationService and qbEstimateService for batch processing
    *
    * @param itemNames - Array of item names to fetch
    * @param connection - Optional transaction connection
-   * @returns Map of lowercase item names to { name, description }
+   * @returns Map of lowercase item names to { name, description, qb_item_id }
    */
   async getBatchQBItemMappings(
     itemNames: string[],
     connection?: any
-  ): Promise<Map<string, { name: string; description: string | null }>> {
+  ): Promise<Map<string, { name: string; description: string | null; qb_item_id: string }>> {
     if (itemNames.length === 0) {
       return new Map();
     }
@@ -293,7 +293,7 @@ export class QuickBooksRepository {
     const conn = connection || pool;
 
     const result = await conn.execute(
-      `SELECT item_name, description FROM qb_item_mappings
+      `SELECT item_name, description, qb_item_id FROM qb_item_mappings
        WHERE LOWER(item_name) IN (${itemNames.map(() => 'LOWER(?)').join(', ')})`,
       itemNames
     );
@@ -303,7 +303,7 @@ export class QuickBooksRepository {
     return new Map(
       rows.map((row: any) => [
         row.item_name.toLowerCase(),
-        { name: row.item_name, description: row.description }
+        { name: row.item_name, description: row.description, qb_item_id: row.qb_item_id }
       ])
     );
   }

@@ -7,7 +7,8 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { getValidInputClass, EMPTY_FIELD_BG_CLASS } from '@/utils/highlightStyles';
+import { getValidInputClass } from '@/utils/highlightStyles';
+import { INPUT_STYLES } from '@/utils/inputStyles';
 
 interface EditableTextareaProps {
   partId: number;
@@ -58,8 +59,8 @@ export const EditableTextarea = React.memo<EditableTextareaProps>(({
   };
 
   const baseClass = field === 'invoice_description'
-    ? `w-full px-1.5 py-1 text-sm text-gray-600 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none overflow-hidden ${applyGrayBackground ? EMPTY_FIELD_BG_CLASS : 'bg-gray-50'}`
-    : `w-full px-1.5 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none overflow-hidden ${applyGrayBackground ? EMPTY_FIELD_BG_CLASS : ''}`;
+    ? INPUT_STYLES.textarea({ variant: 'invoice', applyGrayBackground })
+    : INPUT_STYLES.textarea({ variant: 'qb', applyGrayBackground });
 
   const className = field === 'qb_description'
     ? getValidInputClass(hasValue, baseClass)

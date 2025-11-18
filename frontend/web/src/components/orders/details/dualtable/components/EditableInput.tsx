@@ -7,7 +7,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { getValidInputClass, EMPTY_FIELD_BG_CLASS } from '@/utils/highlightStyles';
+import { getValidInputClass } from '@/utils/highlightStyles';
+import { INPUT_STYLES } from '@/utils/inputStyles';
 
 interface EditableInputProps {
   partId: number;
@@ -50,7 +51,7 @@ export const EditableInput = React.memo<EditableInputProps>(({
     }
   };
 
-  const baseClass = `w-full px-1.5 py-0.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 ${align === 'right' ? 'text-right' : ''} ${applyGrayBackground ? EMPTY_FIELD_BG_CLASS : ''}`;
+  const baseClass = INPUT_STYLES.textInput({ align, applyGrayBackground });
 
   return (
     <div className="py-1">

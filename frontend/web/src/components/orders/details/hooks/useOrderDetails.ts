@@ -6,9 +6,9 @@ import {
   provincesApi,
   customerApi,
   ledsApi,
-  powerSuppliesApi,
-  materialsApi
+  powerSuppliesApi
 } from '../../../../services/api';
+import { PricingDataResource } from '../../../../services/pricingDataResource';
 import {
   populateLEDOptions,
   populatePowerSupplyOptions,
@@ -111,11 +111,14 @@ export function useOrderDetails(orderNumber: string | undefined) {
         return;
       }
       // Fetch LEDs, Power Supplies, and Materials in parallel
-      const [ledsData, powerSuppliesData, materialsData] = await Promise.all([
+      const [ledsData, powerSuppliesData, pricingData] = await Promise.all([
         ledsApi.getActiveLEDs(),
         powerSuppliesApi.getActivePowerSupplies(),
-        materialsApi.getActiveSubstrates()
+        PricingDataResource.getAllPricingData()
       ]);
+
+      // Extract substrate names from pricing data
+      const materialsData = pricingData.substrateCutPricing.map(s => s.substrate_name);
 
       setCalculatedValues(prev => ({
         ...prev,
@@ -126,8 +129,9 @@ export function useOrderDetails(orderNumber: string | undefined) {
       }));
 
       // Populate template options with fetched data (also caches it)
-      populateLEDOptions(ledsData);
-      populatePowerSupplyOptions(powerSuppliesData);
+      // Extract arrays from API response objects
+      populateLEDOptions(ledsData.leds || ledsData);
+      populatePowerSupplyOptions(powerSuppliesData.powerSupplies || powerSuppliesData);
       populateMaterialOptions(materialsData);
     } catch (err) {
       console.error('Error fetching specification data:', err);

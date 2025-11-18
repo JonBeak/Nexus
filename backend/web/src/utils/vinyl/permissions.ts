@@ -1,3 +1,5 @@
+// File Clean up Started: 2025-11-18
+
 /**
  * Vinyl Permissions Utility
  * Centralized permission checks for vinyl inventory system

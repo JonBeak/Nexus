@@ -7,7 +7,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { getValidSpecFieldClass, EMPTY_FIELD_BG_CLASS } from '@/utils/highlightStyles';
+import { getValidSpecFieldClass } from '@/utils/highlightStyles';
+import { INPUT_STYLES } from '@/utils/inputStyles';
 import type { SpecificationField } from '@/config/orderProductTemplates';
 
 interface SpecFieldInputProps {
@@ -62,9 +63,7 @@ export const SpecFieldInput = React.memo<SpecFieldInputProps>(({
     }
   };
 
-  const baseClass = `w-full h-[26px] px-1.5 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
-    !hasValue ? 'text-gray-400' : 'text-gray-900'
-  } ${isEmpty ? EMPTY_FIELD_BG_CLASS : ''}`;
+  const baseClass = INPUT_STYLES.specField({ hasValue, isEmpty });
 
   return (
     <div className="h-[26px] flex items-center py-1">

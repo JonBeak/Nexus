@@ -7,7 +7,8 @@
  */
 
 import React, { useState } from 'react';
-import { getValidSpecTemplateClass, EMPTY_FIELD_BG_CLASS } from '@/utils/highlightStyles';
+import { getValidSpecTemplateClass } from '@/utils/highlightStyles';
+import { INPUT_STYLES } from '@/utils/inputStyles';
 
 interface SpecTemplateDropdownProps {
   partId: number;
@@ -41,9 +42,10 @@ export const SpecTemplateDropdown = React.memo<SpecTemplateDropdownProps>(({
     }
   };
 
-  const baseClass = `w-full h-[26px] px-1.5 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 ${
-    !currentValue ? 'text-gray-400' : 'text-gray-900 font-bold'
-  } ${isEmpty ? EMPTY_FIELD_BG_CLASS : ''}`;
+  const baseClass = INPUT_STYLES.specTemplateDropdown({
+    hasValue: !!currentValue,
+    isEmpty,
+  });
 
   return (
     <div className="h-[26px] flex items-center py-1">

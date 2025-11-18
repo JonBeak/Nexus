@@ -396,22 +396,24 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
         estimatePreviewData
       });
 
-      if (response.data.success) {
-        onSuccess(response.data.data.order_number);
+      // Interceptor unwraps { success: true, data: T } to just T
+      // So response.data directly contains { order_id, order_number }
+      if (response.data.order_number) {
+        onSuccess(response.data.order_number);
         handleClose();
       } else {
-        setError(response.data.message || 'Failed to create order');
+        setError('Failed to create order - no order number returned');
       }
     } catch (err: any) {
       console.error('Error creating order:', err);
 
       // Handle specific error cases
       if (err.response?.status === 409) {
-        // Duplicate email error
-        const message = err.response?.data?.message || 'A contact with this email already exists for this customer';
-        setError(`${message}. Please use a different email or select the existing contact.`);
+        // Conflict error (duplicate email or already converted)
+        const message = err.response?.data?.error || err.response?.data?.message || 'A conflict occurred';
+        setError(message);
       } else {
-        const errorMessage = err.response?.data?.message || err.message || 'Failed to create order';
+        const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to create order';
         setError(errorMessage);
       }
     } finally {

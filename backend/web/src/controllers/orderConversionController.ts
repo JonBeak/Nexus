@@ -66,6 +66,10 @@ export const convertEstimateToOrder = async (req: AuthRequest, res: Response) =>
       return sendErrorResponse(res, errorMessage, 'VALIDATION_ERROR');
     }
 
+    if (errorMessage.includes('already been converted')) {
+      return sendErrorResponse(res, errorMessage, 'CONFLICT');
+    }
+
     sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
   }
 };

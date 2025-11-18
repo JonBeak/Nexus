@@ -1,4 +1,4 @@
-import React, { useRef, useLayoutEffect, useEffect } from 'react';
+import React, { useState, useRef, useLayoutEffect, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ProgressView from '../progress/ProgressView';
 import DualTableLayout from './DualTableLayout';
@@ -20,6 +20,7 @@ import PrintFormsWithPreview from './components/PrintFormsWithPreview';
 import LoadingState from './components/LoadingState';
 import ErrorState from './components/ErrorState';
 import TaxDropdown from './components/TaxDropdown';
+import PrepareOrderModal from '../preparation/PrepareOrderModal';
 
 export const OrderDetailsPage: React.FC = () => {
   const { orderNumber } = useParams<{ orderNumber: string }>();
@@ -30,6 +31,9 @@ export const OrderDetailsPage: React.FC = () => {
 
   // Ref for dropdown container
   const formsDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Phase 1.5.c.6.1: Prepare Order Modal State
+  const [isPrepareModalOpen, setIsPrepareModalOpen] = useState(false);
 
   // Use the custom hooks
   const {
@@ -84,6 +88,11 @@ export const OrderDetailsPage: React.FC = () => {
   // Get scroll preservation refs from editableFields hook
   const { savedScrollPosition, isSavingRef } = getScrollPreservationRefs();
 
+  // Memoized callback for parts updates to prevent unnecessary re-renders
+  const handlePartsChange = useCallback((updatedParts: typeof orderData.parts) => {
+    setOrderData(prev => ({ ...prev, parts: updatedParts }));
+  }, [setOrderData]);
+
   // Scroll preservation: Restore scroll position synchronously before each paint during save operations
   useLayoutEffect(() => {
     if (isSavingRef.current && savedScrollPosition.current !== null && scrollContainerRef.current) {
@@ -97,6 +106,20 @@ export const OrderDetailsPage: React.FC = () => {
       });
     }
   }, [orderData.order, editState.editingField, calculatedValues.turnaroundDays, calculatedValues.daysUntilDue, uiState.saving]);
+
+  // Phase 1.5.c.6.1: Prepare Order Modal Handlers
+  const handlePrepareOrder = () => {
+    setIsPrepareModalOpen(true);
+  };
+
+  const handleClosePrepareModal = () => {
+    setIsPrepareModalOpen(false);
+  };
+
+  const handlePreparationComplete = () => {
+    setIsPrepareModalOpen(false);
+    refetch(); // Reload order data to get updated status
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -130,6 +153,7 @@ export const OrderDetailsPage: React.FC = () => {
         onGenerateForms={handleGenerateForms}
         onOpenPrint={handleOpenPrintModal}
         onViewForms={handleViewForms}
+        onPrepareOrder={handlePrepareOrder}
         generatingForms={uiState.generatingForms}
         printingForm={uiState.printingForm}
         showFormsDropdown={uiState.showFormsDropdown}
@@ -478,9 +502,7 @@ export const OrderDetailsPage: React.FC = () => {
                   orderNumber={orderData.order.order_number}
                   initialParts={orderData.parts}
                   taxName={orderData.order.tax_name}
-                  onPartsChange={(updatedParts) => {
-                    setOrderData(prev => ({ ...prev, parts: updatedParts }));
-                  }}
+                  onPartsChange={handlePartsChange}
                 />
               </div>
             </div>
@@ -513,6 +535,14 @@ export const OrderDetailsPage: React.FC = () => {
         onPrintShopPacking={handlePrintShopPacking}
         printing={uiState.printingForm}
         formUrls={formUrls}
+      />
+
+      {/* Prepare Order Modal - Phase 1.5.c.6.1 */}
+      <PrepareOrderModal
+        isOpen={isPrepareModalOpen}
+        onClose={handleClosePrepareModal}
+        order={orderData.order}
+        onComplete={handlePreparationComplete}
       />
     </div>
   );

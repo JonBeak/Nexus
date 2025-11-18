@@ -9,7 +9,7 @@
 import React, { useState } from 'react';
 import { ordersApi } from '@/services/api';
 import { SPECS_DISPLAY_NAMES } from '../constants/tableConstants';
-import { EMPTY_FIELD_BG_CLASS } from '@/utils/highlightStyles';
+import { INPUT_STYLES } from '@/utils/inputStyles';
 
 interface ItemNameDropdownProps {
   partId: number;
@@ -53,13 +53,11 @@ export const ItemNameDropdown = React.memo<ItemNameDropdownProps>(({
     }
   };
 
-  const baseClass = `w-full px-1.5 py-0.5 text-sm rounded focus:outline-none focus:ring-1 ${
-    !currentValue ? 'text-gray-400' : 'text-gray-900'
-  } ${
-    isParentOrRegular && currentValue
-      ? 'border-2 border-blue-600 bg-blue-100 focus:ring-blue-600'
-      : 'border border-gray-300 focus:ring-indigo-500'
-  } ${applyGrayBackground && !(isParentOrRegular && currentValue) ? EMPTY_FIELD_BG_CLASS : ''}`;
+  const baseClass = INPUT_STYLES.itemNameDropdown({
+    hasValue: !!currentValue,
+    isParentOrRegular,
+    applyGrayBackground,
+  });
 
   return (
     <div className="py-1">

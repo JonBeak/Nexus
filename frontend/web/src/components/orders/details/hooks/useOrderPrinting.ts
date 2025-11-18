@@ -37,6 +37,9 @@ export function useOrderPrinting(
     packing: 2
   });
 
+  // Refresh key to force formUrls regeneration when modal opens
+  const [refreshKey, setRefreshKey] = useState(0);
+
   const handleGenerateForms = async () => {
     if (!orderData.order) return;
 
@@ -62,6 +65,13 @@ export function useOrderPrinting(
       estimate: 1,
       shop: shopCount,
       packing: 2
+    });
+
+    // Increment refresh key to force formUrls regeneration with new timestamp
+    setRefreshKey(prev => {
+      const newKey = prev + 1;
+      console.log('[Print Modal] Opening modal - incrementing refreshKey:', prev, '->', newKey);
+      return newKey;
     });
 
     setUiState(prev => ({ ...prev, showPrintModal: true }));
@@ -209,15 +219,19 @@ export function useOrderPrinting(
 
     // Add cache buster using current timestamp to ensure browser fetches latest PDF
     const cacheBuster = `?v=${Date.now()}`;
+    console.log('[Print Modal] Building form URLs with cache buster:', cacheBuster);
 
     // Build URLs using actual folder structure and new file names
-    return {
+    const urls = {
       master: `${apiUrl}/order-images/Orders/${folderName}/${orderNum} - ${jobName}.pdf${cacheBuster}`,
       estimate: `${apiUrl}/order-images/Orders/${folderName}/${orderNum} - ${jobName} - Estimate.pdf${cacheBuster}`,
       shop: `${apiUrl}/order-images/Orders/${folderName}/${orderNum} - ${jobName} - Shop.pdf${cacheBuster}`,
       customer: `${apiUrl}/order-images/Orders/${folderName}/Specs/${orderNum} - ${jobName} - Specs.pdf${cacheBuster}`,
       packing: `${apiUrl}/order-images/Orders/${folderName}/Specs/${orderNum} - ${jobName} - Packing List.pdf${cacheBuster}`
     };
+
+    console.log('[Print Modal] Generated URLs:', urls);
+    return urls;
   };
 
   const handleViewForms = () => {
@@ -239,10 +253,15 @@ export function useOrderPrinting(
   };
 
   // Memoize formUrls to prevent unnecessary re-renders of PDF components
-  const formUrls = useMemo(() => buildFormUrls(), [
+  // refreshKey is incremented when modal opens to ensure fresh timestamp
+  const formUrls = useMemo(() => {
+    console.log('[Print Modal] useMemo triggered - regenerating formUrls with refreshKey:', refreshKey);
+    return buildFormUrls();
+  }, [
     orderData.order?.folder_name,
     orderData.order?.order_number,
-    orderData.order?.order_name
+    orderData.order?.order_name,
+    refreshKey
   ]);
 
   return {

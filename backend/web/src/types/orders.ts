@@ -1,3 +1,9 @@
+// File Clean up Finished: 2025-11-15 (Added tax fields to OrderDataForPDF)
+// Changes (Pass 3 - Tax calculation support):
+//   - Added tax_name field to OrderDataForPDF interface (fetched from orders table)
+//   - Added tax_percent field to OrderDataForPDF interface (pre-calculated tax rate)
+//   - Supports estimatePdfGenerator architecture fix (tax calculated in service layer, not generator)
+//
 // File Clean up Finished: 2025-11-15
 // Changes (Pass 1 - Previous cleanup):
 //   - Removed misleading OrderSpecifications interface from orderTemplates.ts
@@ -442,6 +448,8 @@ export interface OrderDataForPDF {
   crop_bottom?: number;
   crop_left?: number;
   shipping_required: boolean;
+  tax_name?: string;         // Tax rule name (e.g., "HST ON", "GST")
+  tax_percent?: number;      // Pre-calculated tax rate (e.g., 0.13 for 13%)
 
   // Folder info (for constructing full image path)
   folder_name?: string;

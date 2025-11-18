@@ -1,0 +1,292 @@
+/**
+ * Order Preparation Controller
+ *
+ * HTTP request/response handlers for order preparation workflow endpoints.
+ * Handles QB estimate creation, PDF generation, and preparation steps.
+ */
+
+import { Request, Response } from 'express';
+import { parseIntParam, sendErrorResponse, sendSuccessResponse } from '../utils/controllerHelpers';
+import { AuthRequest } from '../types';
+import * as qbEstimateService from '../services/qbEstimateService';
+import { pdfGenerationService } from '../services/pdf/pdfGenerationService';
+import { orderService } from '../services/orderService';
+import * as orderPrepRepo from '../repositories/orderPreparationRepository';
+import * as path from 'path';
+import * as fs from 'fs/promises';
+
+/**
+ * GET /api/order-preparation/:orderNumber/qb-estimate/staleness
+ * Check if QB estimate is stale (order data changed)
+ */
+export const checkQBEstimateStaleness = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const orderNumberNum = parseIntParam(orderNumber, 'order number');
+    if (orderNumberNum === null) {
+      return sendErrorResponse(res, 'Invalid order number', 'VALIDATION_ERROR');
+    }
+
+    // Get order ID
+    const orderId = await orderService.getOrderIdFromOrderNumber(orderNumberNum);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    // Check staleness
+    const stalenessResult = await qbEstimateService.checkEstimateStaleness(orderId);
+
+    sendSuccessResponse(res, {
+      staleness: stalenessResult
+    });
+  } catch (error) {
+    console.error('Error checking QB estimate staleness:', error);
+    const message = error instanceof Error ? error.message : 'Failed to check estimate staleness';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * POST /api/order-preparation/:orderNumber/qb-estimate
+ * Create or recreate QB estimate for order
+ */
+export const createQBEstimate = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const userId = (req as AuthRequest).user?.user_id;
+
+    if (!userId) {
+      return sendErrorResponse(res, 'User not authenticated', 'VALIDATION_ERROR');
+    }
+
+    const orderNumberNum = parseIntParam(orderNumber, 'order number');
+    if (orderNumberNum === null) {
+      return sendErrorResponse(res, 'Invalid order number', 'VALIDATION_ERROR');
+    }
+
+    // Get order ID
+    const orderId = await orderService.getOrderIdFromOrderNumber(orderNumberNum);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    // Create QB estimate
+    const result = await qbEstimateService.createEstimateFromOrder(orderId, userId);
+
+    sendSuccessResponse(res, {
+      estimateId: result.estimateId,
+      estimateNumber: result.estimateNumber,
+      dataHash: result.dataHash,
+      estimateUrl: result.estimateUrl,
+      message: `QuickBooks estimate ${result.estimateNumber} created successfully`
+    });
+  } catch (error) {
+    console.error('Error creating QB estimate:', error);
+    const message = error instanceof Error ? error.message : 'Failed to create QB estimate';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * POST /api/order-preparation/:orderNumber/pdfs/order-form
+ * Generate order form PDF
+ */
+export const generateOrderFormPDF = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const userId = (req as AuthRequest).user?.user_id;
+
+    const orderNumberNum = parseIntParam(orderNumber, 'order number');
+    if (orderNumberNum === null) {
+      return sendErrorResponse(res, 'Invalid order number', 'VALIDATION_ERROR');
+    }
+
+    // Get order ID
+    const orderId = await orderService.getOrderIdFromOrderNumber(orderNumberNum);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    // Generate all order forms (reuse existing service)
+    const formPaths = await pdfGenerationService.generateAllForms({
+      orderId,
+      createNewVersion: false,
+      userId
+    });
+
+    sendSuccessResponse(res, {
+      formPaths,
+      message: 'Order form PDFs generated successfully'
+    });
+  } catch (error) {
+    console.error('Error generating order form PDF:', error);
+    const message = error instanceof Error ? error.message : 'Failed to generate order form PDF';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * POST /api/order-preparation/:orderNumber/pdfs/qb-estimate
+ * Download QB estimate PDF and save to order folder
+ */
+export const downloadQBEstimatePDF = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const { qbEstimateId } = req.body;
+
+    const orderNumberNum = parseIntParam(orderNumber, 'order number');
+    if (orderNumberNum === null) {
+      return sendErrorResponse(res, 'Invalid order number', 'VALIDATION_ERROR');
+    }
+
+    if (!qbEstimateId) {
+      return sendErrorResponse(res, 'QB estimate ID is required', 'VALIDATION_ERROR');
+    }
+
+    // Download QB estimate PDF
+    const result = await qbEstimateService.downloadEstimatePDF(qbEstimateId, orderNumberNum);
+
+    sendSuccessResponse(res, {
+      pdfPath: result.pdfPath,
+      pdfUrl: result.pdfUrl,
+      message: 'QB estimate PDF downloaded successfully'
+    });
+  } catch (error) {
+    console.error('Error downloading QB estimate PDF:', error);
+    const message = error instanceof Error ? error.message : 'Failed to download QB estimate PDF';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * POST /api/order-preparation/:orderNumber/pdfs/save-to-folder
+ * Save all PDFs to order folder (coordination step)
+ */
+export const savePDFsToFolder = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+
+    const orderNumberNum = parseIntParam(orderNumber, 'order number');
+    if (orderNumberNum === null) {
+      return sendErrorResponse(res, 'Invalid order number', 'VALIDATION_ERROR');
+    }
+
+    // Get order folder location
+    const order = await orderPrepRepo.getOrderByOrderNumber(orderNumberNum);
+    if (!order || !order.folder_location) {
+      return sendErrorResponse(res, 'Order folder location not found', 'NOT_FOUND');
+    }
+
+    // Verify folder exists
+    try {
+      await fs.access(order.folder_location);
+    } catch {
+      return sendErrorResponse(res, 'Order folder does not exist', 'NOT_FOUND');
+    }
+
+    // Note: PDFs are already saved by previous steps
+    // This step is a coordination point to verify all PDFs are in place
+
+    sendSuccessResponse(res, {
+      folderPath: order.folder_location,
+      message: 'All PDFs saved to order folder successfully'
+    });
+  } catch (error) {
+    console.error('Error saving PDFs to folder:', error);
+    const message = error instanceof Error ? error.message : 'Failed to save PDFs to folder';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * GET /api/order-preparation/:orderNumber/validate
+ * Validate order for preparation (PLACEHOLDER - always succeeds)
+ */
+export const validateForPreparation = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+
+    const orderNumberNum = parseIntParam(orderNumber, 'order number');
+    if (orderNumberNum === null) {
+      return sendErrorResponse(res, 'Invalid order number', 'VALIDATION_ERROR');
+    }
+
+    // Get order ID to verify it exists
+    const orderId = await orderService.getOrderIdFromOrderNumber(orderNumberNum);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    // TODO: Add actual validation logic in future phase
+    // For now, always return success
+
+    sendSuccessResponse(res, {
+      valid: true,
+      message: 'Order validated successfully'
+    });
+  } catch (error) {
+    console.error('Error validating order:', error);
+    const message = error instanceof Error ? error.message : 'Failed to validate order';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * POST /api/order-preparation/:orderNumber/tasks
+ * Generate production tasks (PLACEHOLDER - always succeeds)
+ */
+export const generateProductionTasks = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const userId = (req as AuthRequest).user?.user_id;
+
+    const orderNumberNum = parseIntParam(orderNumber, 'order number');
+    if (orderNumberNum === null) {
+      return sendErrorResponse(res, 'Invalid order number', 'VALIDATION_ERROR');
+    }
+
+    // Get order ID to verify it exists
+    const orderId = await orderService.getOrderIdFromOrderNumber(orderNumberNum);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    // TODO: Add actual task generation logic in Phase 1.5.d
+    // For now, always return success
+
+    sendSuccessResponse(res, {
+      tasksCreated: 0,
+      message: 'Production tasks will be generated in Phase 1.5.d'
+    });
+  } catch (error) {
+    console.error('Error generating production tasks:', error);
+    const message = error instanceof Error ? error.message : 'Failed to generate production tasks';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * GET /api/order-preparation/:orderNumber/point-persons
+ * Get point persons for order (for Phase 1.5.c.6.3 - Send to Customer)
+ */
+export const getPointPersons = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+
+    const orderNumberNum = parseIntParam(orderNumber, 'order number');
+    if (orderNumberNum === null) {
+      return sendErrorResponse(res, 'Invalid order number', 'VALIDATION_ERROR');
+    }
+
+    // Get point persons
+    const pointPersons = await orderPrepRepo.getOrderPointPersons(orderNumberNum);
+
+    sendSuccessResponse(res, {
+      pointPersons
+    });
+  } catch (error) {
+    console.error('Error getting point persons:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get point persons';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};

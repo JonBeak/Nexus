@@ -6,6 +6,8 @@
 // - 45 lines (well under 500 limit) ✅
 // - All imports used ✅
 // - No migrations needed ✅
+//
+// Updated: 2025-11-18 - Removed winston logger, standardized on console.log
 /**
  * QuickBooks OAuth State Cleanup Job
  * Scheduled task to clean up expired CSRF protection tokens
@@ -16,7 +18,6 @@
 
 import cron from 'node-cron';
 import { quickbooksRepository } from '../repositories/quickbooksRepository';
-import { logger } from '../utils/logger';
 
 /**
  * Start QuickBooks cleanup job
@@ -26,27 +27,22 @@ export function startQuickBooksCleanupJob(): void {
   // Schedule: 0 2 * * * = Daily at 2:00 AM
   cron.schedule('0 2 * * *', async () => {
     try {
-      logger.info('🧹 Starting QuickBooks OAuth state cleanup...');
+      console.log('🧹 Starting QuickBooks OAuth state cleanup...');
 
       const deletedCount = await quickbooksRepository.cleanupExpiredOAuthStates();
 
       if (deletedCount > 0) {
-        logger.info(`✅ Cleaned up ${deletedCount} expired OAuth state token(s)`, {
-          deletedCount,
-          timestamp: new Date().toISOString(),
-        });
+        console.log(`✅ Cleaned up ${deletedCount} expired OAuth state token(s) [${new Date().toISOString()}]`);
       } else {
-        logger.info('✅ No expired OAuth state tokens found', {
-          timestamp: new Date().toISOString(),
-        });
+        console.log(`✅ No expired OAuth state tokens found [${new Date().toISOString()}]`);
       }
     } catch (error) {
-      logger.error('❌ Failed to clean up OAuth state tokens', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-      });
+      console.error('❌ Failed to clean up OAuth state tokens:', error instanceof Error ? error.message : 'Unknown error');
+      if (error instanceof Error && error.stack) {
+        console.error(error.stack);
+      }
     }
   });
 
-  logger.info('📅 QuickBooks cleanup job scheduled (daily at 2:00 AM)');
+  console.log('📅 QuickBooks cleanup job scheduled (daily at 2:00 AM)');
 }

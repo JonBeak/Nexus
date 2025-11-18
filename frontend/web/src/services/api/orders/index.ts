@@ -12,6 +12,7 @@ export { orderTasksApi } from './orderTasksApi';
 export { orderPartsApi } from './orderPartsApi';
 export { orderFormsApi } from './orderFormsApi';
 export { orderBusinessLogicApi } from './orderBusinessLogicApi';
+export { orderPreparationApi } from './orderPreparationApi';
 
 // Re-export all methods as a single consolidated ordersApi object for backward compatibility
 import { ordersApi as coreOrders } from './ordersApi';
@@ -20,6 +21,7 @@ import { orderTasksApi } from './orderTasksApi';
 import { orderPartsApi } from './orderPartsApi';
 import { orderFormsApi } from './orderFormsApi';
 import { orderBusinessLogicApi } from './orderBusinessLogicApi';
+import { orderPreparationApi } from './orderPreparationApi';
 
 /**
  * Consolidated ordersApi object containing all order-related methods
@@ -32,4 +34,5 @@ export const ordersApiConsolidated = {
   ...orderPartsApi,
   ...orderFormsApi,
   ...orderBusinessLogicApi,
+  ...orderPreparationApi,
 };

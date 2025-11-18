@@ -31,9 +31,9 @@ import quickbooksRoutes from './routes/quickbooks';
 import quickbooksTestRoutes from './routes/quickbooksTest';
 import credentialsRoutes from './routes/credentials';
 import ordersRoutes from './routes/orders';
+import orderPreparationRoutes from './routes/orderPreparation';
 import ledsRoutes from './routes/leds';
 import powerSuppliesRoutes from './routes/powerSupplies';
-import materialsRoutes from './routes/materials';
 import printRoutes from './routes/print';
 
 // QuickBooks utilities for startup
@@ -102,9 +102,9 @@ app.use('/api/quickbooks', quickbooksRoutes);
 app.use('/api/quickbooks-test', quickbooksTestRoutes);
 app.use('/api/credentials', credentialsRoutes);
 app.use('/api/orders', ordersRoutes);
+app.use('/api/order-preparation', orderPreparationRoutes);
 app.use('/api/leds', ledsRoutes);
 app.use('/api/power-supplies', powerSuppliesRoutes);
-app.use('/api/materials', materialsRoutes);
 app.use('/api/print', printRoutes);
 
 // =============================================

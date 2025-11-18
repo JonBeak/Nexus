@@ -38,7 +38,7 @@ import {
   PayrollRecordWithEntries,
   PayrollDataAccess
 } from '../types/payrollTypes';
-import { convertBooleanFields, convertBooleanFieldsArray, toMySQLBoolean } from '../utils/databaseUtils';
+import { convertBooleanFields, convertBooleanFieldsArray } from '../utils/databaseUtils';
 
 export class PayrollRepository implements PayrollDataAccess {
 
@@ -141,8 +141,8 @@ export class PayrollRepository implements PayrollDataAccess {
           payroll_clock_out,
           payroll_break_minutes || 0,
           payroll_total_hours,
-          toMySQLBoolean(is_overtime),
-          toMySQLBoolean(is_holiday),
+          is_overtime ? 1 : 0,
+          is_holiday ? 1 : 0,
           entryId
         ]
       );

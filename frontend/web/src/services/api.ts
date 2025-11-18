@@ -28,7 +28,6 @@ export {
   authApi,
   ledsApi,
   powerSuppliesApi,
-  materialsApi,
   jobsApi,
   // Tier 2
   printApi,

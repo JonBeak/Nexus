@@ -84,7 +84,10 @@ export const useTableData = (
       lastNotifiedPartsRef.current = parts;
       onPartsChange(parts);
     }
-  }, [parts, onPartsChange]);
+    // Note: onPartsChange is intentionally excluded from deps to prevent unnecessary re-runs
+    // when the callback reference changes. The effect should only run when parts change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parts]);
 
   return {
     parts,

@@ -1,3 +1,10 @@
+// File Clean up Finished: 2025-11-15 (Pre-calculate tax_percent for PDF generators)
+// Changes:
+//   - Enhanced fetchOrderData() to pre-calculate tax_percent using orderRepository.getTaxRateByName()
+//   - Tax rate now included in OrderDataForPDF before passing to generators
+//   - Eliminates need for estimatePdfGenerator to query database directly
+//   - Proper orchestration: service prepares all data, generators only render
+//
 // File Clean up Finished: Nov 14, 2025
 // Changes:
 //   - Moved database queries to orderRepository (proper 3-layer architecture)
@@ -165,6 +172,13 @@ class PDFGenerationService {
 
     if (!orderData) {
       throw new Error(`Order ${orderId} not found`);
+    }
+
+    // Fetch and attach tax rate for PDF calculations
+    if (orderData.tax_name) {
+      orderData.tax_percent = await orderRepository.getTaxRateByName(orderData.tax_name);
+    } else {
+      orderData.tax_percent = 0;
     }
 
     return orderData;

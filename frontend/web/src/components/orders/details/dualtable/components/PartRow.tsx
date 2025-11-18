@@ -23,6 +23,7 @@ import { OrderPart } from '@/types/orders';
 import { QBItem } from '../constants/tableConstants';
 import { formatCurrency } from '../utils/formatting';
 import { getValidInputClass, EMPTY_FIELD_BG_CLASS } from '@/utils/highlightStyles';
+import { INPUT_STYLES } from '@/utils/inputStyles';
 import { getSpecificationTemplate } from '@/config/orderProductTemplates';
 import { ItemNameDropdown } from './ItemNameDropdown';
 import { EditableSpecsQty } from './EditableSpecsQty';
@@ -172,9 +173,10 @@ export const PartRow: React.FC<PartRowProps> = ({
       }
     };
 
-    const baseClass = `w-full px-1.5 py-0.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 ${
-      !currentValue ? 'text-gray-400' : 'text-gray-900'
-    } ${isQBDataEmpty ? EMPTY_FIELD_BG_CLASS : ''}`;
+    const baseClass = INPUT_STYLES.qbItemDropdown({
+      hasValue: !!currentValue,
+      isQBDataEmpty,
+    });
 
     return (
       <div className="py-1">
@@ -259,7 +261,7 @@ export const PartRow: React.FC<PartRowProps> = ({
                 onFieldSave(part.part_id, 'part_scope', e.target.value);
               }}
               placeholder="Scope (e.g., Main Sign, Logo...)"
-              className="text-xs px-1 py-0.5 border-2 border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 mt-1"
+              className={INPUT_STYLES.partScopeInput()}
             />
             <EditableSpecsQty
               partId={part.part_id}
