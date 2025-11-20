@@ -8,7 +8,7 @@
  */
 
 import { COLORS, FONT_SIZES, SPACING, FormType } from '../generators/pdfConstants';
-import { debugLog, formatBooleanValue, cleanSpecValue } from '../generators/pdfHelpers';
+import { debugLog, formatBooleanValue, cleanSpecValue, getStandardLabelWidth } from '../generators/pdfHelpers';
 import {
   SPEC_ORDER,
   CRITICAL_SPECS,
@@ -271,6 +271,71 @@ export function renderSpecifications(
 }
 
 /**
+ * Accurately calculate text height by counting wrapped lines
+ * Handles both manual newlines (\n) and automatic word wrapping
+ */
+export function calculateAccurateTextHeight(
+  doc: any,
+  text: string,
+  maxWidth: number,
+  fontSize: number,
+  fontStyle: string
+): number {
+  doc.fontSize(fontSize).font(fontStyle);
+  const lineHeight = doc.currentLineHeight();
+
+  // First split by manual newlines
+  const manualLines = text.split('\n');
+  let totalLineCount = 0;
+
+  // Process each manual line segment for word wrapping
+  for (const segment of manualLines) {
+    if (!segment.trim()) {
+      // Empty line from manual newline
+      totalLineCount++;
+      continue;
+    }
+
+    // Split segment into words and calculate wrapping
+    // Use regex to split by one or more whitespace chars, filter empty strings
+    const words = segment.split(/\s+/).filter(w => w.length > 0);
+    let currentLine = '';
+    let segmentLineCount = 0;
+
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      const testWidth = doc.widthOfString(testLine, { kerning: true });
+
+      if (testWidth > maxWidth && currentLine) {
+        // Line is too long, start a new line
+        segmentLineCount++;
+        currentLine = word;
+      } else {
+        currentLine = testLine;
+      }
+    }
+
+    // Count the last line of this segment
+    if (currentLine) {
+      segmentLineCount++;
+    }
+
+    totalLineCount += segmentLineCount;
+  }
+
+  // Add extra height buffer to account for line spacing and descenders
+  const baseHeight = totalLineCount * lineHeight;
+  const heightBuffer = totalLineCount > 1 ? (totalLineCount - 1) * 3 : 0; // 3px per line break
+
+  // Debug logging for long text
+  if (text.length > 100) {
+    console.log(`[HEIGHT CALC] Text length: ${text.length}, Calculated lines: ${totalLineCount}, MaxWidth: ${maxWidth}, Total height: ${baseHeight + heightBuffer}`);
+  }
+
+  return baseHeight + heightBuffer;
+}
+
+/**
  * Render a single spec row with label and value
  */
 function renderSpecRow(
@@ -282,102 +347,161 @@ function renderSpecRow(
   width: number
 ): number {
   const labelText = label;
+  const trimmedValue = value?.trim() || '';
 
-  // Label: 11pt (1pt smaller)
+  // === STEP 1: Calculate all dimensions first ===
+
+  // Label dimensions (11pt font)
   doc.fontSize(11).font('Helvetica-Bold');
-  const labelWidth = doc.widthOfString(labelText);
   const labelHeight = doc.currentLineHeight();
 
-  // Calculate black background dimensions
-  const grayBoxStartY = currentY - 2;
-  const grayBoxHeight = labelHeight + 3;
-  const grayBoxEndY = grayBoxStartY + grayBoxHeight; // = currentY + labelHeight + 1
+  // Get standardized label width
+  const standardLabelWidth = getStandardLabelWidth(doc);
 
-  // Draw black background behind label
-  doc.fillColor(COLORS.LABEL_BACKGROUND)
+  // Calculate actual text width for horizontal centering
+  const actualTextWidth = doc.widthOfString(labelText);
+  const textLeftPadding = (standardLabelWidth - actualTextWidth) / 2;
+
+  // Calculate value position and width
+  const valueX = x - SPACING.LABEL_PADDING + standardLabelWidth + doc.widthOfString('  ');
+  const availableValueWidth = width - (valueX - x);
+
+  // Calculate value height based on content and font - ACCURATELY
+  let valueHeight = 0;
+  let valueLineHeight = 0;
+
+  if (trimmedValue === 'No') {
+    // "No" values use 12pt font
+    doc.fontSize(12).font('Helvetica-Bold');
+    valueLineHeight = doc.currentLineHeight();
+    valueHeight = valueLineHeight;
+  } else {
+    // Normal values use 12pt font
+    if (trimmedValue) {
+      // Use accurate calculation for wrapped text
+      valueHeight = calculateAccurateTextHeight(doc, trimmedValue, availableValueWidth, 12, 'Helvetica');
+      doc.fontSize(12).font('Helvetica');
+      valueLineHeight = doc.currentLineHeight();
+    } else {
+      doc.fontSize(12).font('Helvetica');
+      valueLineHeight = doc.currentLineHeight();
+      valueHeight = valueLineHeight;
+    }
+  }
+
+  const effectiveValueHeight = Math.max(valueHeight, valueLineHeight);
+
+  // Add padding above and below the value height
+  const valuePadding = 1; // padding above and below the value text (reduced for compact layout)
+  const paddedValueHeight = effectiveValueHeight + (valuePadding * 2);
+
+  // Calculate label box height with padding for text positioning
+  const topTextPadding = 3; // reduced from 3 for compact layout
+  const bottomTextPadding = 1; // reduced from 2 for compact layout
+  const maxContentHeight = Math.max(labelHeight, paddedValueHeight);
+  const labelBoxHeight = maxContentHeight + topTextPadding + bottomTextPadding;
+
+  // === STEP 2: Determine label background color ===
+
+  let labelBgColor = COLORS.LABEL_BG_DEFAULT;
+  if (['LEDs', 'Neon LED', 'Power Supply', 'Wire Length', 'UL'].includes(labelText)) {
+    labelBgColor = COLORS.LABEL_BG_ELECTRICAL;
+  } else if (['Vinyl', 'Digital Print'].includes(labelText)) {
+    labelBgColor = COLORS.LABEL_BG_VINYL;
+  } else if (labelText === 'Painting') {
+    labelBgColor = COLORS.LABEL_BG_PAINTING;
+  }
+
+  // === STEP 3: Draw extended label box ===
+
+  const labelBoxStartY = currentY;
+  doc.fillColor(labelBgColor)
     .rect(
       x - SPACING.LABEL_PADDING,
-      grayBoxStartY,
-      labelWidth + (SPACING.LABEL_PADDING * 2),
-      grayBoxHeight
+      labelBoxStartY,
+      standardLabelWidth,
+      labelBoxHeight
     )
     .fill();
 
-  // Render label (11pt) in white
-  doc.fillColor(COLORS.WHITE)
+  // === STEP 4: Render label text (centered vertically in extended box) ===
+
+  const labelTextY = labelBoxStartY + (labelBoxHeight - labelHeight) / 2;
+  const centeredX = x - SPACING.LABEL_PADDING + textLeftPadding;
+
+  doc.fillColor(COLORS.BLACK)
     .fontSize(11)
     .font('Helvetica-Bold')
-    .text(`${labelText}  `, x, currentY, {
+    .text(labelText, centeredX, labelTextY, {
       continued: false,
-      width: width,
+      width: standardLabelWidth,
       lineBreak: false
     });
 
-  // Calculate value position (after label, raised 1pt)
-  const valueX = x + labelWidth + doc.widthOfString('  ');
-  const valueY = currentY - 1;  // Raise value by 1pt
+  // === STEP 5: Render value (with top padding + value padding) ===
 
-  // Calculate value height (13pt font, can wrap)
-  doc.fontSize(13).font('Helvetica');
-  const valueLineHeight = doc.currentLineHeight();
-
-  let valueHeight = 0;
-  if (value && value.trim()) {
-    // Only calculate height if there's actual text
-    valueHeight = doc.heightOfString(value, {
-      width: width - (valueX - x),
-      lineBreak: true
-    });
-  }
-
-  // Use at least one line height for spacing (even if value is empty)
-  const effectiveValueHeight = Math.max(valueHeight, valueLineHeight);
-
-  // Draw gray background if value is "No"
-  const trimmedValue = value?.trim() || '';
-  const availableValueWidth = width - (valueX - x);
+  const valueY = labelBoxStartY + topTextPadding + valuePadding;
 
   if (trimmedValue === 'No') {
-    const textWidth = doc.widthOfString(value);
-    const extraPadding = 10; // Add space on each side
-    const highlightWidth = textWidth + (extraPadding * 2);
+    // Special styling for "No" values - centered vertically in the box
+    doc.fontSize(11).font('Helvetica-Bold');
+    const noTextWidth = doc.widthOfString(value);
+    const noLineHeight = doc.currentLineHeight();
 
-    const grayBgStartY = valueY - 2;
-    const grayBgHeight = valueLineHeight + 3;
-    const rectStartX = valueX - SPACING.LABEL_PADDING;
+    const leftPadding = 12;
+    const rightPadding = 12;
+    const highlightWidth = noTextWidth + leftPadding + rightPadding;
 
-    // Draw dark gray background with padding
-    doc.fillColor('#999999')
+    // Position "No" with top padding + value padding (same as other text)
+    const noY = labelBoxStartY + topTextPadding + valuePadding;
+    const noBgStartY = noY - 2;
+    const noBgHeight = noLineHeight + 3;
+    const rectStartX = valueX - SPACING.LABEL_PADDING + 6;
+
+    // Draw red background for "No"
+    doc.fillColor(COLORS.NO_BG)
       .rect(
         rectStartX,
-        grayBgStartY,
+        noBgStartY,
         highlightWidth,
-        grayBgHeight
+        noBgHeight
       )
       .fill();
 
-    // Render centered "No" text within the highlight
-    const textX = rectStartX + extraPadding;
+    // Render "No" text in black
+    const noTextX = rectStartX + leftPadding;
     doc.fillColor(COLORS.BLACK)
-      .text(value, textX, valueY, {
-        width: textWidth,
+      .fontSize(11)
+      .font('Helvetica-Bold')
+      .text(value, noTextX, noY, {
+        width: noTextWidth,
         lineBreak: false
       });
   } else {
-    // Render value (even if empty) in black
+    // Render normal value (12pt font, can wrap)
     doc.fillColor(COLORS.BLACK)
+      .fontSize(12)
+      .font('Helvetica')
       .text(value, valueX, valueY, {
         width: availableValueWidth,
         lineBreak: true
       });
   }
 
-  // Calculate actual bottom positions
-  // Gray box (label background) ends at: currentY + labelHeight + 1
-  // Value ends at: (currentY - 1) + effectiveValueHeight = currentY + effectiveValueHeight - 1
-  const labelVisualBottom = grayBoxEndY;
-  const valueBottom = valueY + effectiveValueHeight;
-  const rowBottom = Math.max(labelVisualBottom, valueBottom);
+  // === STEP 6: Draw horizontal line at BOTTOM of label box ===
 
+  const lineY = labelBoxStartY + labelBoxHeight;
+  doc.fillColor(labelBgColor)
+    .rect(
+      x - SPACING.LABEL_PADDING,
+      lineY-1,
+      width,
+      1
+    )
+    .fill();
+
+  // === STEP 7: Return bottom of row + gap ===
+
+  const rowBottom = labelBoxStartY + labelBoxHeight;
   return rowBottom + SPACING.SPEC_ROW_GAP;
 }

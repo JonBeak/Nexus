@@ -64,6 +64,21 @@ export class OrderService {
   }
 
   /**
+   * Get tax name for order's customer based on billing address
+   * Used when unchecking cash job to restore proper tax
+   */
+  async getCustomerTaxFromBillingAddress(orderNumber: number): Promise<string> {
+    const orderId = await this.getOrderIdFromOrderNumber(orderNumber);
+    const taxName = await orderRepository.getCustomerTaxFromBillingAddress(orderId);
+
+    if (!taxName) {
+      throw new Error('No tax configuration found for customer billing address');
+    }
+
+    return taxName;
+  }
+
+  /**
    * Get single order with full details (parts, tasks, progress)
    */
   async getOrderById(orderId: number): Promise<OrderWithDetails | null> {

@@ -8,6 +8,7 @@
 import React, { useState } from 'react';
 import { Play, Loader2 } from 'lucide-react';
 import { PrepareStep, PreparationState } from '@/types/orderPreparation';
+import { Order } from '@/types/orders';
 import { getNextStep, updateStepStatus } from '@/utils/stepOrchestration';
 import { ordersApi } from '@/services/api';
 
@@ -15,15 +16,16 @@ interface QuickActionsProps {
   steps: PrepareStep[];
   state: PreparationState;
   onStateChange: (state: PreparationState) => void;
-  orderNumber: number;
+  order: Order;
 }
 
 export const QuickActions: React.FC<QuickActionsProps> = ({
   steps,
   state,
   onStateChange,
-  orderNumber
+  order
 }) => {
+  const orderNumber = order.order_number;
   const [isRunningAll, setIsRunningAll] = useState(false);
 
   const handleDoAllSteps = async () => {
@@ -93,15 +95,6 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
         currentState.pdfs.orderForm = { url: pdfResult.formPaths.estimateForm, loaded: false };
         break;
 
-      case 'download_qb_pdf':
-        const qbPdfResult = await ordersApi.downloadQBEstimatePDF(orderNumber);
-        currentState.pdfs.qbEstimate = { url: qbPdfResult.pdfUrl, loaded: false };
-        break;
-
-      case 'save_to_folder':
-        await ordersApi.savePDFsToFolder(orderNumber);
-        break;
-
       case 'generate_tasks':
         await new Promise(resolve => setTimeout(resolve, 1500));
         break;
@@ -116,35 +109,30 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
   const isDisabled = allCompleted || someRunning;
 
   return (
-    <div>
-      <button
-        onClick={handleDoAllSteps}
-        disabled={isDisabled}
-        className={`
-          w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg
-          text-sm font-medium transition-colors
-          ${
-            isDisabled
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : 'bg-green-600 text-white hover:bg-green-700'
-          }
-        `}
-      >
-        {isRunningAll ? (
-          <>
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span>Running All Steps...</span>
-          </>
-        ) : (
-          <>
-            <Play className="w-4 h-4" />
-            <span>{allCompleted ? 'All Steps Complete' : 'Do All Steps'}</span>
-          </>
-        )}
-      </button>
-      <p className="text-xs text-gray-500 mt-2 text-center">
-        Runs all pending steps in optimal order
-      </p>
-    </div>
+    <button
+      onClick={handleDoAllSteps}
+      disabled={isDisabled}
+      className={`
+        flex items-center space-x-2 px-4 py-2 rounded-lg
+        text-sm font-medium transition-colors whitespace-nowrap
+        ${
+          isDisabled
+            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            : 'bg-green-600 text-white hover:bg-green-700'
+        }
+      `}
+    >
+      {isRunningAll ? (
+        <>
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>Running...</span>
+        </>
+      ) : (
+        <>
+          <Play className="w-4 h-4" />
+          <span>{allCompleted ? 'All Complete' : 'Do All Steps'}</span>
+        </>
+      )}
+    </button>
   );
 };

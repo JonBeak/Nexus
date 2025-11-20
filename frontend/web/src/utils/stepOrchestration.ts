@@ -75,20 +75,11 @@ export function calculateProgress(steps: PrepareStep[]): number {
 
 /**
  * Check if all required steps are complete
- * Required steps: create_qb_estimate, generate_pdfs, download_qb_pdf, save_to_folder
+ * Required for "Send to Customer": ALL steps must be completed (100% progress)
  */
 export function areRequiredStepsComplete(steps: PrepareStep[]): boolean {
-  const requiredStepIds: PrepareStepId[] = [
-    'create_qb_estimate',
-    'generate_pdfs',
-    'download_qb_pdf',
-    'save_to_folder'
-  ];
-
-  return requiredStepIds.every(stepId => {
-    const step = steps.find(s => s.id === stepId);
-    return step?.status === 'completed';
-  });
+  // All steps must be completed (100% progress)
+  return steps.every(step => step.status === 'completed');
 }
 
 /**
@@ -127,26 +118,6 @@ export function initializeSteps(): PrepareStep[] {
       order: 3
     },
     {
-      id: 'download_qb_pdf',
-      name: 'Download QB Estimate PDF',
-      description: 'Download PDF from QuickBooks',
-      status: 'pending',
-      canRun: false,
-      dependencies: ['create_qb_estimate'],
-      canRunInParallel: true,
-      order: 4
-    },
-    {
-      id: 'save_to_folder',
-      name: 'Save PDFs to Folder',
-      description: 'Save PDFs to order SMB folder',
-      status: 'pending',
-      canRun: false,
-      dependencies: ['generate_pdfs', 'download_qb_pdf'],
-      canRunInParallel: false,
-      order: 5
-    },
-    {
       id: 'generate_tasks',
       name: 'Generate Production Tasks',
       description: 'Auto-generate production tasks (Phase 1.5.d)',
@@ -154,7 +125,7 @@ export function initializeSteps(): PrepareStep[] {
       canRun: true,
       dependencies: ['validation'],
       canRunInParallel: true,
-      order: 6
+      order: 4
     }
   ];
 }

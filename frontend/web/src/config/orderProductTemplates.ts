@@ -468,13 +468,13 @@ export const BOX_MATERIAL_TEMPLATE: SpecificationTemplate = {
 };
 
 /**
- * Template: Push Thru Acrylic
+ * Template: Acrylic
  * Spec 1: Thickness (combobox: 12mm, 9mm, 6mm, 0mm (Knockout))
  * Spec 2: Colour (combobox: 2447 White, Clear)
  * Spec 3: -
  */
-export const PUSH_THRU_ACRYLIC_TEMPLATE: SpecificationTemplate = {
-  templateName: 'Push Thru Acrylic',
+export const ACRYLIC_TEMPLATE: SpecificationTemplate = {
+  templateName: 'Acrylic',
   spec1: {
     key: 'thickness',
     label: 'Thickness',
@@ -699,6 +699,7 @@ export const BACK_TEMPLATE: SpecificationTemplate = {
 
 /**
  * Template registry - maps template names to templates
+ * Note: Mounting template kept for backward compatibility with legacy orders but removed from registry
  */
 const TEMPLATE_REGISTRY: Record<string, SpecificationTemplate> = {
   'Return': RETURN_TEMPLATE,
@@ -714,10 +715,10 @@ const TEMPLATE_REGISTRY: Record<string, SpecificationTemplate> = {
   'Notes': NOTES_TEMPLATE,
   'Cutting': CUTTING_TEMPLATE,
   'Painting': PAINTING_TEMPLATE,
-  'Mounting': MOUNTING_TEMPLATE,
+  // 'Mounting': MOUNTING_TEMPLATE,  // DEPRECATED - Removed from dropdown, kept for legacy order compatibility
   'Material': MATERIAL_TEMPLATE,
   'Box Material': BOX_MATERIAL_TEMPLATE,
-  'Push Thru Acrylic': PUSH_THRU_ACRYLIC_TEMPLATE,
+  'Acrylic': ACRYLIC_TEMPLATE,
   'Neon Base': NEON_BASE_TEMPLATE,
   'Neon LED': NEON_LED_TEMPLATE,
   'Assembly': ASSEMBLY_TEMPLATE,
@@ -743,9 +744,22 @@ let cachedMaterials: string[] = [];
  *
  * @param templateName - Template name
  * @returns Template or undefined if not found
+ *
+ * Note: Includes deprecated templates for backward compatibility with legacy orders
  */
 export function getSpecificationTemplate(templateName: string): SpecificationTemplate | undefined {
-  return TEMPLATE_REGISTRY[templateName];
+  // Check main registry first
+  const template = TEMPLATE_REGISTRY[templateName];
+  if (template) {
+    return template;
+  }
+
+  // Handle deprecated templates (not in registry but needed for legacy orders)
+  if (templateName === 'Mounting') {
+    return MOUNTING_TEMPLATE;
+  }
+
+  return undefined;
 }
 
 /**

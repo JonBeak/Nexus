@@ -121,6 +121,18 @@ router.get(
 );
 
 /**
+ * Get customer tax from billing address
+ * GET /api/orders/:orderNumber/customer-tax
+ * Returns tax_name for order's customer based on billing address province
+ */
+router.get(
+  '/:orderNumber/customer-tax',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderController.getCustomerTax
+);
+
+/**
  * Update order (Manager+ only)
  * PUT /api/orders/:orderNumber
  */

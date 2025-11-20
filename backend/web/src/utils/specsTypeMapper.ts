@@ -67,8 +67,8 @@ export function mapSpecsDisplayNameToTypes(
     'Extrusion Raceway': ['Extr. Colour', 'Assembly'],
 
     // Push Thru Products
-    'Push Thru': ['Box Material', 'Push Thru Acrylic'],
-    'Knockout Box': ['Box Material', 'Push Thru Acrylic'],
+    'Push Thru': ['Box Material', 'Acrylic'],
+    'Knockout Box': ['Box Material', 'Acrylic'],
 
     // Other Products
     'Substrate Cut': ['Material', 'Cutting', 'Mounting'],

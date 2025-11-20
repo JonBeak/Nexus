@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, Printer, ChevronDown, Settings } from 'lucide-react';
+import { ArrowLeft, FileText, Printer, FolderOpen, Settings } from 'lucide-react';
 import { Order } from '../../../../types/orders';
 import StatusBadge from '../../common/StatusBadge';
 
@@ -10,14 +10,10 @@ interface OrderHeaderProps {
   onTabChange: (tab: 'specs' | 'progress') => void;
   onGenerateForms: () => void;
   onOpenPrint: () => void;
-  onViewForms: () => void;
+  onOpenFolder: () => void;
   onPrepareOrder: () => void;  // NEW: Phase 1.5.c.6.1
   generatingForms: boolean;
   printingForm: boolean;
-  showFormsDropdown: boolean;
-  setShowFormsDropdown: (show: boolean) => void;
-  onViewSingleForm: (formType: 'master' | 'estimate' | 'shop' | 'customer' | 'packing') => void;
-  formsDropdownRef: React.RefObject<HTMLDivElement>;
 }
 
 const OrderHeader: React.FC<OrderHeaderProps> = ({
@@ -26,14 +22,10 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
   onTabChange,
   onGenerateForms,
   onOpenPrint,
-  onViewForms,
+  onOpenFolder,
   onPrepareOrder,  // NEW: Phase 1.5.c.6.1
   generatingForms,
-  printingForm,
-  showFormsDropdown,
-  setShowFormsDropdown,
-  onViewSingleForm,
-  formsDropdownRef
+  printingForm
 }) => {
   const navigate = useNavigate();
 
@@ -91,86 +83,34 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
 
           {/* Right: Quick Actions */}
           <div className="flex items-center space-x-3 flex-1 justify-end">
-            <button
-              onClick={onGenerateForms}
-              disabled={generatingForms}
-              className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium"
-            >
-              <FileText className="w-4 h-4" />
-              <span>{generatingForms ? 'Generating...' : 'Generate Order Forms'}</span>
-            </button>
-            <button
-              onClick={onOpenPrint}
-              disabled={printingForm}
-              className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium"
-            >
-              <Printer className="w-4 h-4" />
-              <span>{printingForm ? 'Printing...' : 'Print Forms'}</span>
-            </button>
-            {/* Split Button: View Forms with Dropdown */}
-            <div ref={formsDropdownRef} className="relative">
-              <div className="flex">
-                {/* Main Button - Opens All Forms */}
+            {/* Hide Generate Forms and Print Forms when status is Job Details Setup */}
+            {order.status !== 'job_details_setup' && (
+              <>
                 <button
-                  onClick={onViewForms}
-                  className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-l-lg hover:bg-gray-50 text-sm font-medium text-gray-700"
+                  onClick={onGenerateForms}
+                  disabled={generatingForms}
+                  className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium"
                 >
                   <FileText className="w-4 h-4" />
-                  <span>View Forms</span>
+                  <span>{generatingForms ? 'Generating...' : 'Generate Order Forms'}</span>
                 </button>
-
-                {/* Dropdown Toggle Button */}
                 <button
-                  onClick={() => setShowFormsDropdown(!showFormsDropdown)}
-                  className="px-2 py-2 bg-white border-t border-r border-b border-gray-300 border-l border-gray-200 rounded-r-lg hover:bg-gray-50 text-gray-700"
+                  onClick={onOpenPrint}
+                  disabled={printingForm}
+                  className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium"
                 >
-                  <ChevronDown className="w-4 h-4" />
+                  <Printer className="w-4 h-4" />
+                  <span>{printingForm ? 'Printing...' : 'Print Forms'}</span>
                 </button>
-              </div>
-
-              {/* Dropdown Menu */}
-              {showFormsDropdown && (
-                <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                  <div className="py-1">
-                    <button
-                      onClick={() => onViewSingleForm('master')}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-                    >
-                      <FileText className="w-4 h-4" />
-                      <span>Master Form</span>
-                    </button>
-                    <button
-                      onClick={() => onViewSingleForm('estimate')}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-                    >
-                      <FileText className="w-4 h-4" />
-                      <span>Estimate Form</span>
-                    </button>
-                    <button
-                      onClick={() => onViewSingleForm('shop')}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-                    >
-                      <FileText className="w-4 h-4" />
-                      <span>Shop Form</span>
-                    </button>
-                    <button
-                      onClick={() => onViewSingleForm('customer')}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-                    >
-                      <FileText className="w-4 h-4" />
-                      <span>Specs Form</span>
-                    </button>
-                    <button
-                      onClick={() => onViewSingleForm('packing')}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-                    >
-                      <FileText className="w-4 h-4" />
-                      <span>Packing List</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+              </>
+            )}
+            <button
+              onClick={onOpenFolder}
+              className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-700"
+            >
+              <FolderOpen className="w-4 h-4" />
+              <span>Open Folder</span>
+            </button>
 
             {/* Prepare Order Button - Phase 1.5.c.6.1 */}
             {order.status === 'job_details_setup' && (

@@ -44,10 +44,7 @@ export const usePartUpdates = ({
       let updatedPart = { ...partToUpdate };
 
       if (field === 'qb_description') {
-        updatedPart.specifications = {
-          ...updatedPart.specifications,
-          _qb_description: value
-        };
+        updatedPart.qb_description = value;
       } else if (field === 'quantity' || field === 'unit_price') {
         // Convert empty string OR 0 to null
         const parsed = value === '' ? null : parseFloat(value);
@@ -72,6 +69,7 @@ export const usePartUpdates = ({
       await ordersApi.updateOrderParts(orderNumber, [{
         part_id: updatedPart.part_id,
         qb_item_name: updatedPart.qb_item_name,
+        qb_description: updatedPart.qb_description,
         part_scope: updatedPart.part_scope,
         specifications: updatedPart.specifications,
         invoice_description: updatedPart.invoice_description,
@@ -176,6 +174,7 @@ export const usePartUpdates = ({
       await ordersApi.updateOrderParts(orderNumber, [{
         part_id: updatedPart.part_id,
         qb_item_name: updatedPart.qb_item_name,
+        qb_description: updatedPart.qb_description,
         part_scope: updatedPart.part_scope,
         specifications: updatedPart.specifications,
         invoice_description: updatedPart.invoice_description,

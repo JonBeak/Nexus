@@ -31,12 +31,18 @@ export const orderPartsApi = {
     orderNumber: number,
     partId: number,
     specsDisplayName: string
-  ): Promise<{ success: boolean; data?: any; message?: string }> {
-    const response = await api.put(
-      `/orders/${orderNumber}/parts/${partId}/specs-display-name`,
-      { specs_display_name: specsDisplayName }
-    );
-    return response.data;
+  ): Promise<{ success: boolean; data?: any; error?: string; code?: string }> {
+    try {
+      const response = await api.put(
+        `/orders/${orderNumber}/parts/${partId}/specs-display-name`,
+        { specs_display_name: specsDisplayName }
+      );
+      // Interceptor unwraps successful responses, so response.data is the part object
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      // Error responses are NOT unwrapped by interceptor
+      return error.response?.data || { success: false, error: 'Network error' };
+    }
   },
 
   /**
@@ -46,12 +52,18 @@ export const orderPartsApi = {
     orderNumber: number,
     partId: number,
     specsQty: number
-  ): Promise<{ success: boolean; data?: any; message?: string }> {
-    const response = await api.patch(
-      `/orders/${orderNumber}/parts/${partId}/specs-qty`,
-      { specs_qty: specsQty }
-    );
-    return response.data;
+  ): Promise<{ success: boolean; data?: any; error?: string; code?: string }> {
+    try {
+      const response = await api.patch(
+        `/orders/${orderNumber}/parts/${partId}/specs-qty`,
+        { specs_qty: specsQty }
+      );
+      // Interceptor unwraps successful responses, so response.data is the part object
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      // Error responses are NOT unwrapped by interceptor
+      return error.response?.data || { success: false, error: 'Network error' };
+    }
   },
 
   /**

@@ -113,27 +113,72 @@ export async function markPreviousEstimatesNotCurrent(orderId: number): Promise<
 
 /**
  * Get order parts data for hash calculation (staleness detection)
- * Only returns parts with invoice data
+ * Returns ALL parts with ALL fields that affect PDFs and QB estimates
  */
 export async function getOrderPartsForHash(orderId: number): Promise<any[]> {
   const rows = await query(
     `SELECT
       part_id,
       part_number,
-      invoice_description,
+      display_number,
+      is_parent,
+      product_type,
+      part_scope,
+      qb_item_name,
+      qb_description,
+      specs_display_name,
+      product_type_id,
+      channel_letter_type_id,
+      base_product_type_id,
       quantity,
+      specifications,
+      invoice_description,
       unit_price,
       extended_price,
-      product_type,
-      is_taxable
+      production_notes
     FROM order_parts
     WHERE order_id = ?
-      AND (invoice_description IS NOT NULL OR unit_price IS NOT NULL)
-    ORDER BY part_number`,
+    ORDER BY part_number, display_number`,
     [orderId]
   ) as RowDataPacket[];
 
   return rows;
+}
+
+/**
+ * Get order-level data for hash calculation (staleness detection)
+ * Returns all order fields that affect PDFs and QB estimates
+ */
+export async function getOrderDataForHash(orderId: number): Promise<any> {
+  const rows = await query(
+    `SELECT
+      order_name,
+      customer_po,
+      customer_job_number,
+      order_date,
+      due_date,
+      production_notes,
+      manufacturing_note,
+      internal_note,
+      invoice_email,
+      terms,
+      deposit_required,
+      cash,
+      discount,
+      tax_name,
+      invoice_notes,
+      shipping_required,
+      sign_image_path
+    FROM orders
+    WHERE order_id = ?`,
+    [orderId]
+  ) as RowDataPacket[];
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return rows[0];
 }
 
 /**
@@ -181,7 +226,7 @@ export async function getOrderByOrderNumber(orderNumber: number): Promise<any | 
       order_id,
       order_number,
       customer_id,
-      job_name,
+      order_name,
       status,
       folder_name,
       folder_location

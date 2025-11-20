@@ -97,6 +97,49 @@ export class OrderRepository {
   }
 
   /**
+   * Get customer's tax from billing address for an order
+   * Used when unchecking cash job to restore proper tax
+   */
+  async getCustomerTaxFromBillingAddress(orderId: number): Promise<string | null> {
+    const rows = await query(
+      `SELECT pt.tax_name
+       FROM orders o
+       JOIN customer_addresses ca ON o.customer_id = ca.customer_id
+       LEFT JOIN provinces_tax pt ON ca.province_state_short = pt.province_short
+       WHERE o.order_id = ?
+         AND ca.is_billing = 1
+         AND ca.is_active = 1
+         AND pt.is_active = 1
+       LIMIT 1`,
+      [orderId]
+    ) as RowDataPacket[];
+
+    // If no billing address, try primary address as fallback
+    if (rows.length === 0) {
+      const primaryRows = await query(
+        `SELECT pt.tax_name
+         FROM orders o
+         JOIN customer_addresses ca ON o.customer_id = ca.customer_id
+         LEFT JOIN provinces_tax pt ON ca.province_state_short = pt.province_short
+         WHERE o.order_id = ?
+           AND ca.is_primary = 1
+           AND ca.is_active = 1
+           AND pt.is_active = 1
+         LIMIT 1`,
+        [orderId]
+      ) as RowDataPacket[];
+
+      if (primaryRows.length === 0) {
+        return null;
+      }
+
+      return primaryRows[0].tax_name;
+    }
+
+    return rows[0].tax_name;
+  }
+
+  /**
    * Get tax rate by tax name
    * Used by PDF generators to calculate tax amounts
    */
@@ -391,11 +434,11 @@ export class OrderRepository {
     const [result] = await conn.execute<ResultSetHeader>(
       `INSERT INTO order_parts (
         order_id, part_number, display_number, is_parent,
-        product_type, part_scope, qb_item_name, specs_display_name, product_type_id,
+        product_type, part_scope, qb_item_name, qb_description, specs_display_name, specs_qty, product_type_id,
         channel_letter_type_id, base_product_type_id,
         quantity, specifications, production_notes,
         invoice_description, unit_price, extended_price
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.order_id,
         data.part_number,
@@ -404,7 +447,9 @@ export class OrderRepository {
         data.product_type,
         data.part_scope || null,
         data.qb_item_name || null,
+        data.qb_description || null,
         data.specs_display_name || null,
+        data.specs_qty || 0,
         data.product_type_id,
         data.channel_letter_type_id || null,
         data.base_product_type_id || null,
@@ -467,7 +512,9 @@ export class OrderRepository {
     product_type?: string;
     part_scope?: string;
     qb_item_name?: string;
+    qb_description?: string;
     specs_display_name?: string;
+    specs_qty?: number;
     specifications?: any;
     invoice_description?: string;
     quantity?: number;
@@ -494,9 +541,17 @@ export class OrderRepository {
       updateFields.push('qb_item_name = ?');
       params.push(updates.qb_item_name);
     }
+    if (updates.qb_description !== undefined) {
+      updateFields.push('qb_description = ?');
+      params.push(updates.qb_description);
+    }
     if (updates.specs_display_name !== undefined) {
       updateFields.push('specs_display_name = ?');
       params.push(updates.specs_display_name);
+    }
+    if (updates.specs_qty !== undefined) {
+      updateFields.push('specs_qty = ?');
+      params.push(updates.specs_qty);
     }
     if (updates.specifications !== undefined) {
       updateFields.push('specifications = ?');
@@ -1011,6 +1066,7 @@ export class OrderRepository {
     orderId: number,
     version: number,
     paths: import('../types/orders').FormPaths,
+    dataHash: string,
     userId?: number
   ): Promise<void> {
     // Check if version record exists
@@ -1023,17 +1079,17 @@ export class OrderRepository {
       // Update existing record
       await query(
         `UPDATE order_form_versions
-         SET master_form_path = ?, estimate_form_path = ?, shop_form_path = ?, customer_form_path = ?, packing_list_path = ?
+         SET master_form_path = ?, estimate_form_path = ?, shop_form_path = ?, customer_form_path = ?, packing_list_path = ?, data_hash = ?
          WHERE order_id = ? AND version_number = ?`,
-        [paths.masterForm, paths.estimateForm, paths.shopForm, paths.customerForm, paths.packingList, orderId, version]
+        [paths.masterForm, paths.estimateForm, paths.shopForm, paths.customerForm, paths.packingList, dataHash, orderId, version]
       );
     } else {
       // Insert new record
       await query(
         `INSERT INTO order_form_versions
-         (order_id, version_number, master_form_path, estimate_form_path, shop_form_path, customer_form_path, packing_list_path, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [orderId, version, paths.masterForm, paths.estimateForm, paths.shopForm, paths.customerForm, paths.packingList, userId || null]
+         (order_id, version_number, master_form_path, estimate_form_path, shop_form_path, customer_form_path, packing_list_path, data_hash, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [orderId, version, paths.masterForm, paths.estimateForm, paths.shopForm, paths.customerForm, paths.packingList, dataHash, userId || null]
       );
     }
   }
@@ -1084,6 +1140,146 @@ export class OrderRepository {
     ) as RowDataPacket[];
 
     return rows[0].count > 0;
+  }
+
+  /**
+   * Check if production tasks are stale (order data changed since tasks were generated)
+   * Returns staleness info including whether tasks exist and if they're stale
+   * Uses same hash as QB estimates and PDFs - shared staleness detection
+   */
+  async checkTaskStaleness(orderId: number): Promise<{
+    exists: boolean;
+    isStale: boolean;
+    tasksGeneratedAt: Date | null;
+    currentHash: string | null;
+    storedHash: string | null;
+    taskCount: number;
+  }> {
+    // Get task generation info from orders table
+    const orderRows = await query(
+      `SELECT tasks_generated_at, tasks_data_hash
+       FROM orders
+       WHERE order_id = ?`,
+      [orderId]
+    ) as RowDataPacket[];
+
+    if (orderRows.length === 0) {
+      return {
+        exists: false,
+        isStale: false,
+        tasksGeneratedAt: null,
+        currentHash: null,
+        storedHash: null,
+        taskCount: 0
+      };
+    }
+
+    const orderRow = orderRows[0];
+    const tasksGeneratedAt = orderRow.tasks_generated_at;
+    const storedHash = orderRow.tasks_data_hash;
+
+    // If tasks haven't been generated yet
+    if (!tasksGeneratedAt || !storedHash) {
+      return {
+        exists: false,
+        isStale: false,
+        tasksGeneratedAt: null,
+        currentHash: null,
+        storedHash: null,
+        taskCount: 0
+      };
+    }
+
+    // Count existing tasks
+    const taskCountRows = await query(
+      `SELECT COUNT(*) as count FROM order_tasks WHERE order_id = ?`,
+      [orderId]
+    ) as RowDataPacket[];
+    const taskCount = taskCountRows[0].count;
+
+    // Calculate current hash from order data (shared with QB/PDFs)
+    const { calculateOrderDataHash } = await import('../services/orderDataHashService');
+    const currentHash = await calculateOrderDataHash(orderId);
+
+    // Check if stale: current data hash differs from stored hash
+    const isStale = currentHash !== storedHash;
+
+    return {
+      exists: true,
+      isStale,
+      tasksGeneratedAt,
+      currentHash,
+      storedHash,
+      taskCount
+    };
+  }
+
+  /**
+   * Check if order form PDFs are stale (order data changed since PDFs were generated)
+   * Returns staleness info including whether PDFs exist and if they're stale
+   */
+  async checkOrderFormStaleness(orderId: number): Promise<{
+    exists: boolean;
+    isStale: boolean;
+    pdfGeneratedAt: Date | null;
+    currentHash: string | null;
+    storedHash: string | null;
+    formPaths: import('../types/orders').FormPaths | null;
+  }> {
+    // Get latest form version info
+    const formRows = await query(
+      `SELECT
+        created_at,
+        data_hash,
+        master_form_path,
+        estimate_form_path,
+        shop_form_path,
+        customer_form_path,
+        packing_list_path
+      FROM order_form_versions
+      WHERE order_id = ?
+      ORDER BY version_number DESC
+      LIMIT 1`,
+      [orderId]
+    ) as RowDataPacket[];
+
+    // No PDFs exist
+    if (formRows.length === 0) {
+      return {
+        exists: false,
+        isStale: false,
+        pdfGeneratedAt: null,
+        currentHash: null,
+        storedHash: null,
+        formPaths: null
+      };
+    }
+
+    const formRow = formRows[0];
+    const pdfGeneratedAt = formRow.created_at;
+    const storedHash = formRow.data_hash;
+
+    // Calculate current hash from order data
+    const { calculateOrderDataHash } = await import('../services/orderDataHashService');
+    const currentHash = await calculateOrderDataHash(orderId);
+
+    // Check if stale: current data hash differs from stored hash
+    const isStale = currentHash !== storedHash;
+
+    return {
+      exists: true,
+      isStale,
+      pdfGeneratedAt,
+      currentHash,
+      storedHash,
+      formPaths: {
+        masterForm: formRow.master_form_path,
+        estimateForm: formRow.estimate_form_path,
+        shopForm: formRow.shop_form_path,
+        customerForm: formRow.customer_form_path,
+        packingList: formRow.packing_list_path
+      }
+    };
   }
 
   // =====================================================

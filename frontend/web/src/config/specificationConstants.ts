@@ -48,6 +48,7 @@ export const FACE_COLORS = [
   'Black',
   'White 2447',
   'White 7328',
+  'Clear',
   'Custom'
 ] as const;
 
@@ -88,7 +89,9 @@ export interface PowerSupplyType {
  * Vinyl application options
  */
 export const VINYL_APPLICATIONS = [
-  'Face',
+  'Face, Full',
+  'Face, White Keyline',
+  'Face, Custom Cut',
   'Return Wrap',
   'Trim Wrap',
   'Return & Trim Wrap',

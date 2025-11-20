@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { PrepareStep, PreparationState } from '@/types/orderPreparation';
+import { Order } from '@/types/orders';
 import { calculateProgress } from '@/utils/stepOrchestration';
 import { StepList } from './StepList';
 import { QuickActions } from './QuickActions';
@@ -14,24 +15,34 @@ import { QuickActions } from './QuickActions';
 interface PrepareStepsPanelProps {
   state: PreparationState;
   onStateChange: (state: PreparationState) => void;
-  orderNumber: number;
+  order: Order;
+  isOpen: boolean;
 }
 
 export const PrepareStepsPanel: React.FC<PrepareStepsPanelProps> = ({
   state,
   onStateChange,
-  orderNumber
+  order,
+  isOpen
 }) => {
   const progress = calculateProgress(state.steps);
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">Preparation Steps</h3>
-        <p className="text-sm text-gray-600 mt-1">
-          Complete the steps below to prepare the order for sending to customer
-        </p>
+      {/* Header with Quick Actions */}
+      <div className="mb-4 flex items-start justify-between">
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold text-gray-900">Preparation Steps</h3>
+          <p className="text-sm text-gray-600 mt-1">
+            Complete the steps below to prepare the order for sending to customer
+          </p>
+        </div>
+        <QuickActions
+          steps={state.steps}
+          state={state}
+          onStateChange={onStateChange}
+          order={order}
+        />
       </div>
 
       {/* Progress Bar */}
@@ -54,17 +65,8 @@ export const PrepareStepsPanel: React.FC<PrepareStepsPanelProps> = ({
           steps={state.steps}
           state={state}
           onStateChange={onStateChange}
-          orderNumber={orderNumber}
-        />
-      </div>
-
-      {/* Quick Actions */}
-      <div className="mt-6 pt-4 border-t border-gray-200">
-        <QuickActions
-          steps={state.steps}
-          state={state}
-          onStateChange={onStateChange}
-          orderNumber={orderNumber}
+          order={order}
+          isOpen={isOpen}
         />
       </div>
     </div>

@@ -1,27 +1,28 @@
 /**
- * Generate PDFs Step Component
+ * Generate PDFs Step Component (Compact)
  *
- * Step 3: Generate order form PDFs.
- * Generates all order forms (master, estimate, shop, customer, packing list).
- * Updates PDF preview panel with generated URLs.
+ * Step 3: Generate order form PDFs with staleness detection.
+ * - Auto-completes if PDFs are fresh
+ * - Shows simple staleness warning
+ * - Generates all order forms and saves to SMB folder
  */
 
-import React, { useState } from 'react';
-import { FileText, ArrowRight } from 'lucide-react';
-import { StepCard } from '../common/StepCard';
-import { StepButton } from '../common/StepButton';
-import { StepStatusBadge } from '../common/StepStatusBadge';
+import React, { useState, useEffect } from 'react';
+import { CompactStepRow } from '../common/CompactStepRow';
+import { CompactStepButton } from '../common/CompactStepButton';
 import { PrepareStep, PreparationState } from '@/types/orderPreparation';
-import { updateStepStatus } from '@/utils/stepOrchestration';
-import { canRunStep } from '@/utils/stepOrchestration';
+import { Order } from '@/types/orders';
+import { updateStepStatus, canRunStep } from '@/utils/stepOrchestration';
 import { ordersApi } from '@/services/api';
+import { buildPdfUrls } from '@/utils/pdfUrls';
 
 interface GeneratePDFsStepProps {
   step: PrepareStep;
   steps: PrepareStep[];
   state: PreparationState;
   onStateChange: (state: PreparationState) => void;
-  orderNumber: number;
+  order: Order;
+  isOpen: boolean;
 }
 
 export const GeneratePDFsStep: React.FC<GeneratePDFsStepProps> = ({
@@ -29,40 +30,102 @@ export const GeneratePDFsStep: React.FC<GeneratePDFsStepProps> = ({
   steps,
   state,
   onStateChange,
-  orderNumber
+  order,
+  isOpen
 }) => {
+  const orderNumber = order.order_number;
   const [message, setMessage] = useState<string>('');
+  const [isChecking, setIsChecking] = useState(true);
+  const [pdfIsStale, setPdfIsStale] = useState(false);
+
+  // Check staleness when modal opens or reopens
+  useEffect(() => {
+    if (isOpen) {
+      checkPDFStaleness();
+    }
+  }, [isOpen]);
+
+  const checkPDFStaleness = async () => {
+    try {
+      const result = await ordersApi.checkPDFStaleness(orderNumber);
+      const staleness = result.staleness;
+
+      setPdfIsStale(staleness.isStale);
+
+      // Determine correct step status based on staleness
+      let newStatus: 'pending' | 'completed' = 'pending';
+      let newMessage = '';
+
+      if (staleness.exists && !staleness.isStale) {
+        // Fresh PDFs - complete the step
+        newStatus = 'completed';
+        newMessage = '✓ PDFs are up-to-date';
+      } else if (staleness.exists && staleness.isStale) {
+        // Stale PDFs - reset to pending (even if was completed before)
+        newStatus = 'pending';
+        newMessage = '⚠ PDFs are stale - order data has changed';
+      } else {
+        // No PDFs - keep/reset to pending
+        newStatus = 'pending';
+        newMessage = '';
+      }
+
+      // Update step status if it needs to change
+      if (step.status !== newStatus) {
+        onStateChange(prev => ({
+          ...prev,
+          steps: updateStepStatus(prev.steps, step.id, newStatus)
+        }));
+      }
+
+      setMessage(newMessage);
+    } catch (error) {
+      console.error('Error checking PDF staleness:', error);
+    } finally {
+      setIsChecking(false);
+    }
+  };
 
   const handleGeneratePDFs = async () => {
     try {
-      // Update status to running
-      const updatedSteps = updateStepStatus(steps, step.id, 'running');
-      onStateChange({ ...state, steps: updatedSteps });
-      setMessage('Generating order form PDFs...');
+      // Use functional update for running status
+      onStateChange(prev => ({
+        ...prev,
+        steps: updateStepStatus(prev.steps, step.id, 'running')
+      }));
+      setMessage('Generating order form PDFs and saving to SMB folder...');
 
-      // Generate PDFs
-      const result = await ordersApi.generateOrderFormPDF(orderNumber);
+      await ordersApi.generateOrderFormPDF(orderNumber);
 
-      // Update PDF URLs in state
-      const updatedState: PreparationState = {
-        ...state,
+      // Refresh PDF URLs with new cache busters to force iframe reload
+      const refreshedUrls = buildPdfUrls(order, true); // true = add cache buster
+
+      // Use functional update for completion
+      onStateChange(prev => ({
+        ...prev,
         pdfs: {
-          ...state.pdfs,
-          orderForm: {
-            url: result.formPaths.estimateForm, // Use estimate form for preview
-            loaded: false
-          }
-        }
-      };
+          ...prev.pdfs,
+          orderForm: refreshedUrls ? {
+            url: refreshedUrls.master,  // Master Order Form
+            loading: false,
+            error: null
+          } : prev.pdfs.orderForm,
+          packingList: refreshedUrls ? {
+            url: refreshedUrls.packing,  // Packing List
+            loading: false,
+            error: null
+          } : prev.pdfs.packingList,
+          internalEstimate: refreshedUrls ? {
+            url: refreshedUrls.estimate,  // Internal Estimate
+            loading: false,
+            error: null
+          } : prev.pdfs.internalEstimate
+        },
+        steps: updateStepStatus(prev.steps, step.id, 'completed')
+      }));
 
-      // Update status to completed
-      const completedSteps = updateStepStatus(steps, step.id, 'completed');
-      onStateChange({
-        ...updatedState,
-        steps: completedSteps
-      });
-
-      setMessage('Order form PDFs generated successfully (visible in preview panel →)');
+      await checkPDFStaleness();
+      setMessage('✓ PDFs generated and saved to SMB folder');
     } catch (error) {
       console.error('Error generating PDFs:', error);
       const failedSteps = updateStepStatus(
@@ -72,61 +135,32 @@ export const GeneratePDFsStep: React.FC<GeneratePDFsStepProps> = ({
         error instanceof Error ? error.message : 'Failed to generate PDFs'
       );
       onStateChange({ ...state, steps: failedSteps });
-      setMessage('Failed to generate PDFs');
+      setMessage('');
     }
   };
 
   const canRun = canRunStep(step, steps);
+  const buttonLabel = pdfIsStale ? 'Regenerate PDFs (Stale)' : 'Generate PDFs';
 
   return (
-    <StepCard
-      title={step.title}
-      description={step.description}
-      header={<StepStatusBadge status={step.status} />}
-      footer={
-        <StepButton
-          status={step.status}
-          onClick={handleGeneratePDFs}
-          disabled={!canRun}
-          label="Generate PDFs"
-        />
-      }
-    >
-      <div className="space-y-3">
-        {/* Info Message */}
-        <div className="flex items-start space-x-2 text-sm text-gray-600">
-          <FileText className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-medium text-gray-700">Order Form PDFs</p>
-            <p className="text-xs mt-1">
-              Generates master form, estimate form, shop form, customer form, and packing list.
-            </p>
-          </div>
-        </div>
-
-        {/* PDF Preview Indicator */}
-        {state.pdfs.orderForm && (
-          <div className="flex items-center space-x-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded border border-green-200">
-            <FileText className="w-4 h-4" />
-            <span>PDF generated - preview available</span>
-            <ArrowRight className="w-4 h-4 ml-auto" />
-          </div>
-        )}
-
-        {/* Status Message */}
-        {message && (
-          <div className="text-sm text-gray-700 bg-gray-50 px-3 py-2 rounded border border-gray-200">
-            {message}
-          </div>
-        )}
-
-        {/* Error Display */}
-        {step.error && (
-          <div className="text-sm text-red-700 bg-red-50 px-3 py-2 rounded border border-red-200">
-            {step.error}
-          </div>
-        )}
-      </div>
-    </StepCard>
+    <div className="border-b border-gray-200">
+      <CompactStepRow
+        stepNumber={step.order}
+        name={step.name}
+        description="Generate order form PDFs and save to SMB folder"
+        status={step.status}
+        message={isChecking ? 'Checking PDF status...' : message}
+        error={step.error}
+        disabled={!canRun}
+        button={
+          <CompactStepButton
+            status={step.status}
+            onClick={handleGeneratePDFs}
+            disabled={!canRun}
+            label={buttonLabel}
+          />
+        }
+      />
+    </div>
   );
 };

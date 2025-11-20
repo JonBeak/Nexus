@@ -94,10 +94,9 @@ export async function generateEstimateForm(
       } else {
         // Render line items table (on left side, 55% width)
         currentY = renderLineItemsTable(doc, pricingData.lineItems, marginLeft, tableWidth, currentY);
-        currentY += 15;
       }
 
-      // Render totals next to the table (not far right)
+      // Render totals next to the table (close to grid, minimal gap)
       renderTotalsBox(doc, pricingData, marginLeft, tableWidth, rightSideStartY);
 
       // Render job image at bottom of page (if space available and image exists)
@@ -149,7 +148,7 @@ async function calculatePricingData(orderData: OrderDataForPDF): Promise<Pricing
     part => part.extended_price !== null && part.extended_price !== undefined
   );
 
-  // Build line items and filter out rows with 0 or null values
+  // Build line items - only skip rows where QB Item Name, invoice_description, AND unit_price are ALL null
   const lineItems: LineItem[] = invoiceParts
     .map((part) => ({
       qbItem: part.qb_item_name || '',
@@ -158,11 +157,15 @@ async function calculatePricingData(orderData: OrderDataForPDF): Promise<Pricing
       unitPrice: Number(part.unit_price) || 0,
       extended: Number(part.extended_price) || 0
     }))
-    .filter(item =>
-      item.quantity > 0 &&
-      item.unitPrice > 0 &&
-      item.extended > 0
-    );
+    .filter(item => {
+      // Only skip if QB Item Name, invoice_description, AND unit_price are ALL empty/null
+      const hasQbItem = item.qbItem && item.qbItem.trim() !== '';
+      const hasDescription = item.description && item.description.trim() !== '';
+      const hasUnitPrice = item.unitPrice !== null && item.unitPrice !== undefined;
+
+      // Include row if ANY of these fields has a value
+      return hasQbItem || hasDescription || hasUnitPrice;
+    });
 
   // Calculate subtotal
   const subtotal = lineItems.reduce((sum, item) => sum + item.extended, 0);
@@ -200,6 +203,7 @@ function renderLineItemsTable(
   const rowHeight = 16;  // Condensed row height
   const fontSize = 9;    // Small font for compact table
   let y = startY;
+  const tableStartY = startY;  // Track start for box border
 
   // Column widths (narrower overall)
   const colWidths = {
@@ -210,20 +214,22 @@ function renderLineItemsTable(
     extended: 60        // Extended (narrower)
   };
 
-  // Table header
+  const cellPadding = 3;  // Padding from vertical lines
+
+  // Table header - with padding from top border
   doc.fontSize(fontSize).font('Helvetica-Bold');
   doc.fillColor(COLORS.BLACK);
 
-  let xPos = x;
-  doc.text('Item Name', xPos, y);
+  let xPos = x + cellPadding;
+  doc.text('Item Name', xPos, y + 3);
   xPos += colWidths.itemName;
-  doc.text('Description', xPos, y);
+  doc.text('Description', xPos, y + 3);
   xPos += colWidths.desc;
-  doc.text('Qty', xPos, y);
+  doc.text('Qty', xPos, y + 3);
   xPos += colWidths.qty;
-  doc.text('Unit Price', xPos, y);
+  doc.text('Unit Price', xPos, y + 3);
   xPos += colWidths.unit;
-  doc.text('Extended', xPos, y);
+  doc.text('Extended', xPos, y + 3);
 
   y += rowHeight;
 
@@ -240,15 +246,15 @@ function renderLineItemsTable(
   doc.font('Helvetica');
   lineItems.forEach((item, index) => {
     const rowStartY = y;
-    xPos = x;
+    xPos = x + cellPadding;
 
     // Item Name (was QB Item)
-    doc.text(item.qbItem, xPos, y, { width: colWidths.itemName - 5, lineBreak: false, ellipsis: true });
+    doc.text(item.qbItem, xPos, y, { width: colWidths.itemName - cellPadding * 2, lineBreak: false, ellipsis: true });
     xPos += colWidths.itemName;
 
     // Description (allow wrapping for long descriptions)
-    const descHeight = doc.heightOfString(item.description, { width: colWidths.desc - 5 });
-    doc.text(item.description, xPos, y, { width: colWidths.desc - 5 });
+    const descHeight = doc.heightOfString(item.description, { width: colWidths.desc - cellPadding * 2 });
+    doc.text(item.description, xPos, y, { width: colWidths.desc - cellPadding * 2 });
     xPos += colWidths.desc;
 
     // Qty
@@ -276,6 +282,29 @@ function renderLineItemsTable(
         .stroke();
     }
   });
+
+  const tableEndY = y;
+
+  // Draw internal vertical lines in light gray (draw first so black border is on top)
+  doc.strokeColor(COLORS.DIVIDER_LIGHT).lineWidth(0.5);
+
+  xPos = x + colWidths.itemName;
+  doc.moveTo(xPos, tableStartY).lineTo(xPos, tableEndY).stroke();  // After Item Name
+
+  xPos += colWidths.desc;
+  doc.moveTo(xPos, tableStartY).lineTo(xPos, tableEndY).stroke();  // After Description
+
+  xPos += colWidths.qty;
+  doc.moveTo(xPos, tableStartY).lineTo(xPos, tableEndY).stroke();  // After Qty
+
+  xPos += colWidths.unit;
+  doc.moveTo(xPos, tableStartY).lineTo(xPos, tableEndY).stroke();  // After Unit Price
+
+  // Draw box border around entire table in black (draw last so it's on top)
+  doc.strokeColor(COLORS.BLACK)
+    .lineWidth(1)
+    .rect(x, tableStartY, width, tableEndY - tableStartY)
+    .stroke();
 
   return y;
 }
@@ -351,8 +380,8 @@ function renderTotalsBox(
   const boxWidth = labelWidth + valueWidth + 8;  // Smaller box
   const boxPadding = 4;     // Less padding
 
-  // Position next to the table
-  const boxX = marginLeft + tableWidth + 10;
+  // Position next to the table (minimal gap)
+  const boxX = marginLeft + tableWidth + 5;
   const labelX = boxX + boxPadding;
   const valueX = labelX + labelWidth;
 
@@ -371,10 +400,10 @@ function renderTotalsBox(
   doc.text(`$${pricingData.taxAmount.toFixed(2)}`, valueX, y);
   y += rowHeight;
 
-  // Draw line above total
+  // Draw line above total - extend to left edge
   doc.strokeColor(COLORS.BLACK)
     .lineWidth(1)
-    .moveTo(labelX, y - 3)
+    .moveTo(boxX, y - 3)
     .lineTo(valueX + valueWidth - boxPadding, y - 3)
     .stroke();
 
@@ -386,10 +415,11 @@ function renderTotalsBox(
   doc.text(`$${pricingData.total.toFixed(2)}`, valueX, y);
   y += rowHeight + boxPadding/2;
 
-  // Draw box around totals
+  // Draw left line only for totals box
   doc.strokeColor(COLORS.BLACK)
     .lineWidth(1)
-    .rect(boxX, startY, boxWidth, y - startY)
+    .moveTo(boxX, startY)
+    .lineTo(boxX, y)
     .stroke();
 }
 

@@ -11,7 +11,9 @@ import { AuthRequest } from '../types';
 import * as qbEstimateService from '../services/qbEstimateService';
 import { pdfGenerationService } from '../services/pdf/pdfGenerationService';
 import { orderService } from '../services/orderService';
+import { orderValidationService } from '../services/orderValidationService';
 import * as orderPrepRepo from '../repositories/orderPreparationRepository';
+import { orderRepository } from '../repositories/orderRepository';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 
@@ -47,6 +49,37 @@ export const checkQBEstimateStaleness = async (req: Request, res: Response) => {
 };
 
 /**
+ * GET /api/order-preparation/:orderNumber/pdfs/staleness
+ * Check if order form PDFs are stale (order data changed since PDFs were generated)
+ */
+export const checkPDFStaleness = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const orderNumberNum = parseIntParam(orderNumber, 'order number');
+    if (orderNumberNum === null) {
+      return sendErrorResponse(res, 'Invalid order number', 'VALIDATION_ERROR');
+    }
+
+    // Get order ID
+    const orderId = await orderService.getOrderIdFromOrderNumber(orderNumberNum);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    // Check PDF staleness
+    const stalenessResult = await orderRepository.checkOrderFormStaleness(orderId);
+
+    sendSuccessResponse(res, {
+      staleness: stalenessResult
+    });
+  } catch (error) {
+    console.error('Error checking PDF staleness:', error);
+    const message = error instanceof Error ? error.message : 'Failed to check PDF staleness';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
  * POST /api/order-preparation/:orderNumber/qb-estimate
  * Create or recreate QB estimate for order
  */
@@ -70,7 +103,7 @@ export const createQBEstimate = async (req: Request, res: Response) => {
       return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
     }
 
-    // Create QB estimate
+    // Create QB estimate (auto-downloads PDF to Specs folder)
     const result = await qbEstimateService.createEstimateFromOrder(orderId, userId);
 
     sendSuccessResponse(res, {
@@ -78,7 +111,8 @@ export const createQBEstimate = async (req: Request, res: Response) => {
       estimateNumber: result.estimateNumber,
       dataHash: result.dataHash,
       estimateUrl: result.estimateUrl,
-      message: `QuickBooks estimate ${result.estimateNumber} created successfully`
+      pdfPath: result.pdfPath,
+      message: `QuickBooks estimate ${result.estimateNumber} created and PDF saved to Specs folder`
     });
   } catch (error) {
     console.error('Error creating QB estimate:', error);
@@ -200,7 +234,7 @@ export const savePDFsToFolder = async (req: Request, res: Response) => {
 
 /**
  * GET /api/order-preparation/:orderNumber/validate
- * Validate order for preparation (PLACEHOLDER - always succeeds)
+ * Validate order for preparation
  */
 export const validateForPreparation = async (req: Request, res: Response) => {
   try {
@@ -217,8 +251,15 @@ export const validateForPreparation = async (req: Request, res: Response) => {
       return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
     }
 
-    // TODO: Add actual validation logic in future phase
-    // For now, always return success
+    // Validate order specifications
+    const validationResult = await orderValidationService.validateOrderForPreparation(orderId);
+
+    if (!validationResult.isValid) {
+      // Return validation errors
+      return sendErrorResponse(res, 'Order validation failed', 'VALIDATION_ERROR', {
+        errors: validationResult.errors
+      });
+    }
 
     sendSuccessResponse(res, {
       valid: true,
@@ -227,6 +268,37 @@ export const validateForPreparation = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error validating order:', error);
     const message = error instanceof Error ? error.message : 'Failed to validate order';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * GET /api/order-preparation/:orderNumber/tasks/staleness
+ * Check if production tasks are stale (order data changed since tasks were generated)
+ */
+export const checkTaskStaleness = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const orderNumberNum = parseIntParam(orderNumber, 'order number');
+    if (orderNumberNum === null) {
+      return sendErrorResponse(res, 'Invalid order number', 'VALIDATION_ERROR');
+    }
+
+    // Get order ID
+    const orderId = await orderService.getOrderIdFromOrderNumber(orderNumberNum);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    // Check task staleness (shares same hash as QB/PDFs)
+    const stalenessResult = await orderRepository.checkTaskStaleness(orderId);
+
+    sendSuccessResponse(res, {
+      staleness: stalenessResult
+    });
+  } catch (error) {
+    console.error('Error checking task staleness:', error);
+    const message = error instanceof Error ? error.message : 'Failed to check task staleness';
     sendErrorResponse(res, message, 'INTERNAL_ERROR');
   }
 };

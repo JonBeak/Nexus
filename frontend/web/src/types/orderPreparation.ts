@@ -11,8 +11,6 @@ export type PrepareStepId =
   | 'validation'
   | 'create_qb_estimate'
   | 'generate_pdfs'
-  | 'download_qb_pdf'
-  | 'save_to_folder'
   | 'generate_tasks';
 
 export type StepStatus = 'pending' | 'running' | 'completed' | 'failed';
@@ -77,6 +75,8 @@ export interface PreparationState {
   steps: PrepareStep[];
   pdfs: {
     orderForm: PDFPreview;
+    packingList: PDFPreview;
+    internalEstimate: PDFPreview;
     qbEstimate: PDFPreview;
   };
   qbEstimate: QBEstimateInfo;

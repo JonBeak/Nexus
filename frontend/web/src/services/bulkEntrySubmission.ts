@@ -119,8 +119,9 @@ export const submitBulkEntries = async (
             job_ids: processedEntry.job_ids
           });
 
-          // Check if the API call was successful - standardized format
-          const isSuccess = result && result.success === true;
+          // API client unwraps { success: true, data: T } to just T
+          // So if we get a result without throwing, it was successful
+          const isSuccess = result && typeof result === 'object';
           results.push({
             success: !!isSuccess,
             entryId: entry.id,
@@ -145,8 +146,9 @@ export const submitBulkEntries = async (
 
           const result = await vinylApi.createVinylItem(createData);
 
-          // Check if the API call was successful - standardized format
-          const isSuccess = result && result.success === true;
+          // API client unwraps { success: true, data: T } to just T
+          // So if we get a result without throwing, it was successful
+          const isSuccess = result && typeof result === 'object';
           results.push({
             success: !!isSuccess,
             entryId: entry.id,

@@ -105,6 +105,33 @@ export const getOrderById = async (req: Request, res: Response) => {
 };
 
 /**
+ * Get customer tax from billing address
+ * GET /api/orders/:orderNumber/customer-tax
+ * Permission: orders.view (All roles)
+ * Returns the tax_name for the order's customer based on billing address
+ */
+export const getCustomerTax = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const orderNum = parseIntParam(orderNumber, 'order number');
+
+    if (orderNum === null) {
+      return sendErrorResponse(res, 'Invalid order number', 'VALIDATION_ERROR');
+    }
+
+    const taxName = await orderService.getCustomerTaxFromBillingAddress(orderNum);
+
+    res.json({
+      success: true,
+      data: { tax_name: taxName }
+    });
+  } catch (error) {
+    console.error('Error fetching customer tax:', error);
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to fetch customer tax', 'INTERNAL_ERROR');
+  }
+};
+
+/**
  * Update order
  * PUT /api/orders/:orderId
  * Permission: orders.update (Manager+ only)
@@ -607,6 +634,7 @@ export const updateOrderParts = async (req: Request, res: Response) => {
         product_type: part.product_type,
         part_scope: part.part_scope,
         qb_item_name: part.qb_item_name,
+        qb_description: part.qb_description,
         specifications: part.specifications,
         invoice_description: part.invoice_description,
         quantity: part.quantity,
@@ -973,23 +1001,9 @@ export const updatePartSpecsQty = async (req: Request, res: Response) => {
       return sendErrorResponse(res, 'Part not found', 'NOT_FOUND');
     }
 
-    // Parse existing specifications
-    let specifications: any = {};
-    try {
-      specifications = typeof part.specifications === 'string'
-        ? JSON.parse(part.specifications)
-        : part.specifications || {};
-    } catch (error) {
-      console.error('Error parsing specifications:', error);
-      specifications = {};
-    }
-
-    // Update specs_qty in specifications
-    specifications.specs_qty = qtyNum;
-
-    // Update the order part with new specifications
+    // Update specs_qty column directly (no longer stored in JSON)
     await orderRepository.updateOrderPart(partIdNum, {
-      specifications
+      specs_qty: qtyNum
     });
 
     console.log(`[updatePartSpecsQty] Updated part ${partIdNum} specs_qty to ${qtyNum}`);

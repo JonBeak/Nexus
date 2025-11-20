@@ -234,24 +234,6 @@ export function useOrderPrinting(
     return urls;
   };
 
-  const handleViewForms = () => {
-    const urls = buildFormUrls();
-    if (!urls) return;
-
-    // Open all 4 forms in new tabs
-    Object.values(urls).forEach((url) => {
-      window.open(url, '_blank');
-    });
-  };
-
-  const handleViewSingleForm = (formType: 'master' | 'estimate' | 'shop' | 'customer' | 'packing') => {
-    const urls = buildFormUrls();
-    if (!urls) return;
-
-    window.open(urls[formType], '_blank');
-    setUiState(prev => ({ ...prev, showFormsDropdown: false }));
-  };
-
   // Memoize formUrls to prevent unnecessary re-renders of PDF components
   // refreshKey is incremented when modal opens to ensure fresh timestamp
   const formUrls = useMemo(() => {
@@ -274,8 +256,6 @@ export function useOrderPrinting(
     handlePrintMasterEstimate,
     handlePrintShopPacking,
     handleGenerateForms,
-    handleViewForms,
-    handleViewSingleForm,
     handlePrintMasterForm,
     formUrls
   };

@@ -104,10 +104,8 @@ export class OrderPartCreationService {
       // Generate spec types from specs display name
       const specTypes = mapSpecsDisplayNameToTypes(specsDisplayName, isParentOrRegular);
 
-      // Build specifications object with QB description + spec templates
-      const specificationsData: any = {
-        _qb_description: qbDescription  // Auto-fill QB Description from qb_item_mappings
-      };
+      // Build specifications object with spec templates (no longer storing _qb_description in JSON)
+      const specificationsData: any = {};
 
       // Add spec template rows based on mapped spec types
       specTypes.forEach((specType, index) => {
@@ -155,10 +153,6 @@ export class OrderPartCreationService {
         }
       }
 
-      // Add specs_qty to specifications (manufacturing quantity, separate from invoice quantity)
-      // Default to 0 for non-product rows (null quantity means it's a note/header row)
-      finalSpecifications.specs_qty = item.quantity || 0;
-
       // Create order part data with Phase 1.5 fields
       const partData: CreateOrderPartData = {
         order_id: orderId,
@@ -167,7 +161,9 @@ export class OrderPartCreationService {
         is_parent: item.isParent || false,
         product_type: item.itemName,  // Specific component name: "3\" Front Lit", "LEDs", "Power Supplies", "UL"
         qb_item_name: qbItemName,  // Auto-filled from qb_item_mappings
+        qb_description: qbDescription,  // Auto-filled QB Description from qb_item_mappings
         specs_display_name: specsDisplayName,  // Mapped display name for Specs section
+        specs_qty: item.quantity || 0,  // Manufacturing quantity (dedicated column) - separate from invoice quantity
         product_type_id: productTypeId,
         channel_letter_type_id: undefined,  // Phase 1: NULL (can enhance later)
         base_product_type_id: !isChannelLetter ? productTypeInfo.id : undefined,

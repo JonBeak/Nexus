@@ -14,6 +14,7 @@ import { Order } from '../../../types/orders';
 import { initializeSteps, areRequiredStepsComplete } from '../../../utils/stepOrchestration';
 import { PrepareStepsPanel } from './PrepareStepsPanel';
 import { LivePDFPreviewPanel } from './LivePDFPreviewPanel';
+import { buildPdfUrls } from '../../../utils/pdfUrls';
 
 interface Props {
   isOpen: boolean;
@@ -35,18 +36,28 @@ export const PrepareOrderModal: React.FC<Props> = ({
     phase: 'prepare',
     steps: initializeSteps(),
     pdfs: {
-      orderForm: null,
-      qbEstimate: null
+      orderForm: { url: null, loading: false, error: null },
+      packingList: { url: null, loading: false, error: null },
+      internalEstimate: { url: null, loading: false, error: null },
+      qbEstimate: { url: null, loading: false, error: null }
     },
-    qbEstimate: null,
+    qbEstimate: {
+      exists: false,
+      id: null,
+      number: null,
+      isStale: false,
+      createdAt: null,
+      dataHash: null
+    },
     pointPersons: [],
     canProceedToSend: false,
     errors: []
   });
 
-  // Initialize on mount
+  // Initialize on mount and reset phase when modal opens
   useEffect(() => {
     if (isOpen) {
+      setPhase('prepare');
       initializePreparation();
     }
   }, [isOpen]);
@@ -62,6 +73,32 @@ export const PrepareOrderModal: React.FC<Props> = ({
   }, [preparationState.steps]);
 
   const initializePreparation = async () => {
+    // Build PDF URLs from order metadata (same pattern as Print Forms modal)
+    const pdfUrls = buildPdfUrls(order);
+
+    console.log('[PrepareOrderModal] Built PDF URLs:', pdfUrls);
+    console.log('[PrepareOrderModal] Order data:', {
+      folder_name: order.folder_name,
+      order_number: order.order_number,
+      order_name: order.order_name
+    });
+
+    if (pdfUrls) {
+      // Set PDF URLs immediately - previews will show PDFs if they exist
+      setPreparationState(prev => ({
+        ...prev,
+        pdfs: {
+          orderForm: { url: pdfUrls.master, loading: false, error: null },        // Master Order Form
+          packingList: { url: pdfUrls.packing, loading: false, error: null },     // Packing List
+          internalEstimate: { url: pdfUrls.estimate, loading: false, error: null }, // Internal Estimate
+          qbEstimate: { url: pdfUrls.qbEstimate, loading: false, error: null }    // QB Estimate
+        }
+      }));
+      console.log('[PrepareOrderModal] PDF state updated with URLs');
+    } else {
+      console.warn('[PrepareOrderModal] No PDF URLs built - order data missing?');
+    }
+
     // TODO Phase 1.5.c.6.2: Load QB estimate info
     // TODO Phase 1.5.c.6.2: Check existing preparation state
     // TODO Phase 1.5.c.6.3: Load point persons
@@ -70,7 +107,7 @@ export const PrepareOrderModal: React.FC<Props> = ({
 
   const handleNextToSend = () => {
     if (!preparationState.canProceedToSend) {
-      alert('Please complete required preparation steps first (steps 2-5)');
+      alert('Please complete all preparation steps first (100% progress required)');
       return;
     }
     setPhase('send');
@@ -95,36 +132,45 @@ export const PrepareOrderModal: React.FC<Props> = ({
     onComplete();
   };
 
-  if (!isOpen) return null;
-
+  // Keep modal mounted but hidden to prevent PDF.js worker destruction
+  // Fixes crash when reopening modal (worker reference becomes null)
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl w-[90%] h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">
-              {phase === 'prepare' ? 'Prepare Order' : 'Send to Customer'} #{order.order_number}
-            </h2>
-            <p className="text-sm text-gray-600">{order.order_name}</p>
+    <div
+      className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 ${
+        !isOpen ? 'hidden' : ''
+      }`}
+    >
+      <div className="bg-white rounded-lg shadow-2xl w-[95%] h-[95vh] flex">
+        {/* LEFT PANEL (40%) - Header, Steps, and Footer */}
+        <div className="w-[40%] border-r border-gray-200 flex flex-col">
+          {/* Header Section - Order Info */}
+          <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  {phase === 'prepare' ? 'Prepare Order' : 'Send to Customer'}
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  #{order.order_number} - {order.order_name}
+                </p>
+              </div>
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-600" />
-          </button>
-        </div>
 
-        {/* Main Content: Split View */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* LEFT PANEL (40%) */}
-          <div className="w-[40%] border-r border-gray-200 overflow-y-auto p-6">
+          {/* Steps Content - Scrollable */}
+          <div className="flex-1 overflow-y-auto p-6">
             {phase === 'prepare' ? (
               <PrepareStepsPanel
                 state={preparationState}
                 onStateChange={setPreparationState}
-                orderNumber={order.order_number}
+                order={order}
+                isOpen={isOpen}
               />
             ) : (
               <div>
@@ -144,58 +190,73 @@ export const PrepareOrderModal: React.FC<Props> = ({
             )}
           </div>
 
-          {/* RIGHT PANEL (60%) - PDF Previews */}
-          <div className="w-[60%] overflow-y-auto bg-gray-50 p-6">
-            <LivePDFPreviewPanel state={preparationState} />
-          </div>
-        </div>
+          {/* Footer Actions */}
+          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+            {phase === 'prepare' ? (
+              <div className="grid grid-cols-4 gap-3">
+                {/* 1st Quarter - Cancel */}
+                <button
+                  onClick={onClose}
+                  className="px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
 
-        {/* Footer Actions */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
-          {phase === 'prepare' ? (
-            <>
-              <button
-                onClick={onClose}
-                className="px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleNextToSend}
-                disabled={!preparationState.canProceedToSend}
-                className={`px-6 py-2 rounded-lg font-medium ${
-                  preparationState.canProceedToSend
-                    ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }`}
-              >
-                Next: Send to Customer →
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={handleBackToPrepare}
-                className="px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              >
-                ← Back to Prepare
-              </button>
-              <div className="flex gap-3">
+                {/* 2nd Quarter - Empty */}
+                <div></div>
+
+                {/* 3rd Quarter - Empty */}
+                <div></div>
+
+                {/* 4th Quarter - Next: Send to Customer */}
+                <button
+                  onClick={handleNextToSend}
+                  disabled={!preparationState.canProceedToSend}
+                  className={`px-6 py-2.5 rounded-lg font-medium ${
+                    preparationState.canProceedToSend
+                      ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  Next: Send to Customer →
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 gap-3">
+                {/* 1st Quarter - Back */}
+                <button
+                  onClick={handleBackToPrepare}
+                  className="px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  ← Back
+                </button>
+
+                {/* 2nd Quarter - Empty */}
+                <div></div>
+
+                {/* 3rd Quarter - Skip Email & Finalize */}
                 <button
                   onClick={handleSkipEmail}
                   className="px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
                 >
-                  Skip Email
+                  Skip Email & Finalize
                 </button>
+
+                {/* 4th Quarter - Send Email & Finalize */}
                 <button
                   onClick={handleSendAndFinalize}
-                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+                  className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
                 >
                   Send Email & Finalize
                 </button>
               </div>
-            </>
-          )}
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT PANEL (60%) - PDF Previews - Full Height */}
+        <div className="w-[60%] overflow-y-auto bg-gray-50 p-6">
+          <LivePDFPreviewPanel state={preparationState} />
         </div>
       </div>
     </div>

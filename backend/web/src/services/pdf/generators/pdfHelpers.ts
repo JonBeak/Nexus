@@ -7,7 +7,7 @@
  */
 
 import path from 'path';
-import { FormType, SMB_PATHS } from './pdfConstants';
+import { FormType, SMB_PATHS, STANDARD_LABEL_REFERENCE, SPACING } from './pdfConstants';
 
 // ============================================
 // HELPER FUNCTIONS
@@ -20,6 +20,21 @@ export function debugLog(message: string): void {
   console.log(`======================== PDF DEBUG ========================`);
   console.log(message);
   console.log(`===========================================================`);
+}
+
+/**
+ * Calculate standardized label width for consistent spec label sizing
+ * Uses STANDARD_LABEL_REFERENCE as the longest label to determine width
+ * Includes spacing on both sides of the text for better readability
+ *
+ * @param doc - PDFKit document instance
+ * @returns Standardized label width in points
+ */
+export function getStandardLabelWidth(doc: any): number {
+  doc.fontSize(11).font('Helvetica-Bold');
+  const maxLabelWidth = doc.widthOfString(STANDARD_LABEL_REFERENCE);
+  const spaceWidth = doc.widthOfString(' ');
+  return maxLabelWidth + (SPACING.LABEL_PADDING * 2) + 4 + (spaceWidth * 2);
 }
 
 /**
@@ -134,19 +149,12 @@ export function shouldStartNewColumn(part: any): boolean {
 }
 
 /**
- * Extract specs_qty from part specifications
- * Safely parses specifications JSON and extracts specs_qty with fallbacks
+ * Get specs quantity (manufacturing qty) - fallback to invoice quantity if not set
+ * Now reads from dedicated specs_qty column instead of JSON
  *
- * @param part - Part object with specifications field
+ * @param part - Part object with specs_qty field
  * @returns Quantity value (specs_qty > quantity > 0)
  */
 export function getSpecsQuantity(part: any): number {
-  try {
-    const specs = typeof part.specifications === 'string'
-      ? JSON.parse(part.specifications)
-      : part.specifications;
-    return specs?.specs_qty ?? part.quantity ?? 0;
-  } catch {
-    return part.quantity ?? 0;
-  }
+  return part.specs_qty ?? part.quantity ?? 0;
 }

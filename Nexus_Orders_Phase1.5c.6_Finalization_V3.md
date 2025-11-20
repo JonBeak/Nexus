@@ -15,8 +15,8 @@
 ## Overview
 
 Phase 1.5.c.6 V3 implements a streamlined two-phase finalization workflow:
-1. **Prepare Order** - Create QB estimate, generate PDFs, save to folder, generate tasks
-2. **Send to Customer** - Select recipients, send email (placeholder), update status
+1. **Prepare Order** - Create QB estimate, download QB estimate PDF, generate Order Form PDFs, save to folder, generate tasks
+2. **Send to Customer** - Select recipients, send email (placeholder, optional), update status
 
 **Key Design Principles:**
 - Single modal that transitions between phases
@@ -37,12 +37,12 @@ Phase 1.5.c.6 V3 implements a streamlined two-phase finalization workflow:
 - Modal transition logic (Prepare → Send)
 
 ### **Phase 1.5.c.6.2: Prepare Steps Implementation** (10-12 hours)
-- Validation step (placeholder)
+- ✅ Validation step (COMPLETE - 25 templates, comprehensive rules)
 - QB estimate creation with staleness detection
 - PDF generation (Order Form + QB Estimate)
 - PDF storage to SMB folder
-- Task generation (placeholder)
 - Live PDF preview panel
+- Task generation (placeholder)
 
 ### **Phase 1.5.c.6.3: Send to Customer** (6-10 hours)
 - Point person selection UI
@@ -59,9 +59,9 @@ Phase 1.5.c.6 V3 implements a streamlined two-phase finalization workflow:
 ```
 ┌────────────────────────────────────────────────────────────────────┐
 │  ← Order #200001 - Channel Letters                    Status: ●    │
-│                                                                     │
+│                                                                    │
 │  [Specs & Invoice]  [Job Progress]                                 │
-│                                                                     │
+│                                                                    │
 │  [Generate Order Forms] [Print Forms] [View Forms ▼]               │
 │  [Prepare Order] ← NEW                                             │
 └────────────────────────────────────────────────────────────────────┘
@@ -80,8 +80,8 @@ Phase 1.5.c.6 V3 implements a streamlined two-phase finalization workflow:
 │  │                                     │                           ││
 │  │  Preparation Steps:                │ ┌───────────────────────┐ ││
 │  │                                     │ │ Order Form - Specs    │ ││
-│  │  1. [✓] Validation                  │ │                       │ ││
-│  │     Status: All checks passed       │ │ [PDF Preview]         │ ││
+│  │  1. [✓] Validation (25 templates)  │ │                       │ ││
+│  │     ✓ All specifications validated  │ │ [PDF Preview]         │ ││
 │  │     [Re-run Validation]             │ │ Loading...            │ ││
 │  │                                     │ │                       │ ││
 │  │  2. [ ] Create QuickBooks Estimate │ │                       │ ││
@@ -140,7 +140,7 @@ Phase 1.5.c.6 V3 implements a streamlined two-phase finalization workflow:
 │  │  Subject: Order #200001 Ready       │ ┌───────────────────────┐ ││
 │  │                                     │ │ QB Estimate           │ ││
 │  │  Body:                              │ │                       │ ││
-│  │  ┌─────────────────────────────┐   │ │ [PDF Ready]           │ ││
+│  │  ┌──────────────────────────────┐   │ │ [PDF Ready]           │ ││
 │  │  │ Dear Customer,               │   │ │                       │ ││
 │  │  │                              │   │ │                       │ ││
 │  │  │ Your order is ready for      │   │ └───────────────────────┘ ││
@@ -149,7 +149,7 @@ Phase 1.5.c.6 V3 implements a streamlined two-phase finalization workflow:
 │  │  │ [Attachments]                │   │                           ││
 │  │  │ - Order Form - Specs.pdf     │   │                           ││
 │  │  │ - QB Estimate EST-12345.pdf  │   │                           ││
-│  │  └─────────────────────────────┘   │                           ││
+│  │  └──────────────────────────────┘   │                           ││
 │  │                                     │                           ││
 │  │  ⚠ Note: Email sending is          │                           ││
 │  │  placeholder (Gmail API integration │                           ││
@@ -203,9 +203,9 @@ PrepareOrderModal.tsx (~500 lines) [NEW - PHASE 1.5.c.6.1]
   │   ├── StepList.tsx (~200 lines)
   │   │   ├── ValidationStep.tsx (~60 lines)
   │   │   ├── QBEstimateStep.tsx (~100 lines)
-  │   │   ├── GeneratePDFsStep.tsx (~80 lines)
   │   │   ├── DownloadQBPDFStep.tsx (~60 lines)
-  │   │   ├── SaveToFolderStep.tsx (~60 lines)
+  │   │   ├── SaveToFolderStep.tsx (~60 lines) (can join with downloadQBPDF maybe)
+  │   │   ├── GeneratePDFsStep.tsx (~80 lines)
   │   │   └── GenerateTasksStep.tsx (~60 lines)
   │   │
   │   └── QuickActions.tsx (~100 lines)
@@ -220,7 +220,7 @@ PrepareOrderModal.tsx (~500 lines) [NEW - PHASE 1.5.c.6.1]
   │                                                  │
   ├── Left Panel: SendToCustomerPanel.tsx (~200 lines) [PHASE 1.5.c.6.3]
   │   ├── PointPersonSelector.tsx (~100 lines)
-  │   │   └── Checkbox list of point persons
+  │   │   ├── Checkbox list of point persons
   │   │
   │   └── EmailPreview.tsx (~100 lines)
   │       └── Shows email template with attachments

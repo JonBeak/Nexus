@@ -50,16 +50,13 @@ export class QuickBooksDataResource {
       try {
         const response = await api.get('/quickbooks/items');
 
-        if (response.data.success) {
-          this.cachedData = {
-            items: response.data.items,
-            fetchTime: new Date().toISOString()
-          };
-          this.cacheTimestamp = Date.now();
-          return this.cachedData!;
-        } else {
-          throw new Error('API returned unsuccessful response');
-        }
+        // API interceptor unwraps { success: true, items: [...] } -> { items: [...] } directly
+        this.cachedData = {
+          items: response.data.items || response.data, // Handle both wrapped and direct array
+          fetchTime: new Date().toISOString()
+        };
+        this.cacheTimestamp = Date.now();
+        return this.cachedData!;
       } catch (error) {
         console.error('Error fetching QuickBooks items:', error);
         throw new Error('Failed to fetch QuickBooks items');

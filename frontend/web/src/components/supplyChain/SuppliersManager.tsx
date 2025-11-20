@@ -49,11 +49,10 @@ export const SuppliersManager: React.FC<SuppliersManagerProps> = ({
   const loadSuppliers = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await api.get<Supplier[] | { data?: Supplier[] }>('/suppliers');
-      const suppliersData = Array.isArray(response.data)
-        ? response.data
-        : response.data?.data ?? [];
-      setSuppliers(suppliersData ?? []);
+      const response = await api.get<Supplier[]>('/suppliers');
+      // Backend uses handleServiceResult() which returns ServiceResult<Supplier[]>
+      // Interceptor unwraps { success: true, data: Supplier[] } -> Supplier[] directly
+      setSuppliers(response.data);
     } catch (error) {
       console.error('Error loading suppliers:', error);
       showNotification('Failed to load suppliers', 'error');

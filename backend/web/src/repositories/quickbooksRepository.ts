@@ -225,6 +225,30 @@ export class QuickBooksRepository {
   }
 
   /**
+   * Get default tax code from qb_settings
+   * Used as fallback when tax_name is NULL or not found in mappings
+   * Returns: { id: string, name: string } or null if not configured
+   */
+  async getDefaultTaxCode(): Promise<{ id: string; name: string } | null> {
+    const rows = await query(
+      `SELECT setting_value
+       FROM qb_settings
+       WHERE setting_key IN ('default_tax_code_id', 'default_tax_code_name')
+       ORDER BY setting_key`,
+      []
+    ) as RowDataPacket[];
+
+    if (rows.length < 2) {
+      return null; // Not configured
+    }
+
+    return {
+      id: rows[0].setting_value,    // default_tax_code_id
+      name: rows[1].setting_value   // default_tax_code_name
+    };
+  }
+
+  /**
    * Store tax code mapping for future lookups
    * Updates existing mapping if already exists
    */

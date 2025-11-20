@@ -49,8 +49,8 @@ export const EditableSpecsQty = React.memo<EditableSpecsQtyProps>(({
           console.log('[EditableSpecsQty] Successfully updated specs_qty');
           onUpdate();
         } else {
-          console.error('[EditableSpecsQty] Failed to update:', response.message);
-          alert(`Failed to update QTY: ${response.message || 'Unknown error'}`);
+          console.error('[EditableSpecsQty] Failed to update:', response.error);
+          alert(`Failed to update QTY: ${response.error || 'Unknown error'}`);
           // Revert to previous value
           setLocalValue(currentValue?.toString() ?? '0');
         }

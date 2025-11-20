@@ -31,6 +31,7 @@ import path from 'path';
 import { orderRepository } from '../../repositories/orderRepository';
 import { FormPaths, OrderDataForPDF, OrderPartForPDF } from '../../types/orders';
 import { SMB_ROOT, ORDERS_FOLDER, FINISHED_FOLDER } from '../../config/paths';
+import { calculateOrderDataHash } from '../orderDataHashService';
 
 // =============================================
 // TYPES
@@ -146,14 +147,17 @@ class PDFGenerationService {
     await generateOrderForm(orderData, customerPath, 'customer');  // Customer in subfolder
     await generatePackingList(orderData, packingPath);             // Packing in subfolder
 
-    // 5. Store paths in database
+    // 5. Calculate data hash for staleness detection
+    const dataHash = await calculateOrderDataHash(orderId);
+
+    // 6. Store paths and hash in database
     await this.saveFormPaths(orderId, version, {
       masterForm: masterPath,
       estimateForm: estimatePath,
       shopForm: shopPath,
       customerForm: customerPath,
       packingList: packingPath
-    }, userId);
+    }, dataHash, userId);
 
     return {
       masterForm: masterPath,
@@ -250,9 +254,10 @@ class PDFGenerationService {
     orderId: number,
     version: number,
     paths: FormPaths,
+    dataHash: string,
     userId?: number
   ): Promise<void> {
-    await orderRepository.upsertOrderFormPaths(orderId, version, paths, userId);
+    await orderRepository.upsertOrderFormPaths(orderId, version, paths, dataHash, userId);
   }
 
   /**

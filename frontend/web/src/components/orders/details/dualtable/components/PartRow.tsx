@@ -14,7 +14,7 @@
  * - Quantity, unit price, extended price
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { RefreshCw, GripVertical } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -63,7 +63,13 @@ export const PartRow: React.FC<PartRowProps> = ({
   onUpdate
 }) => {
   const [saving, setSaving] = useState(false);
+  const [localPartScope, setLocalPartScope] = useState(part.part_scope || '');
   const isParent = part.is_parent;
+
+  // Sync local scope state when part changes
+  useEffect(() => {
+    setLocalPartScope(part.part_scope || '');
+  }, [part.part_scope]);
 
   // Setup drag-and-drop sortable
   const {
@@ -82,8 +88,8 @@ export const PartRow: React.FC<PartRowProps> = ({
     opacity: isDragging ? 0.7 : 1,
   };
 
-  // Get QB description from specifications (auto-filled when QB Item changes, but editable)
-  const qbDescription = part.specifications?._qb_description || '';
+  // Get QB description from column (auto-filled when QB Item changes, but editable)
+  const qbDescription = part.qb_description || '';
 
   // Use specs_display_name if available, otherwise fall back to product_type
   const displayName = part.specs_display_name || part.product_type;
@@ -144,16 +150,14 @@ export const PartRow: React.FC<PartRowProps> = ({
         const updatedPart = {
           ...part,
           qb_item_name: value,
-          specifications: {
-            ...part.specifications,
-            _qb_description: qbDescriptionValue
-          }
+          qb_description: qbDescriptionValue
         };
 
         // Save to API immediately
         await ordersApi.updateOrderParts(orderNumber, [{
           part_id: updatedPart.part_id,
           qb_item_name: updatedPart.qb_item_name,
+          qb_description: updatedPart.qb_description,
           part_scope: updatedPart.part_scope,
           specifications: updatedPart.specifications,
           invoice_description: updatedPart.invoice_description,
@@ -252,9 +256,9 @@ export const PartRow: React.FC<PartRowProps> = ({
             {/* Part Scope - inline editable text input (only for parent parts) */}
             <input
               type="text"
-              value={part.part_scope || ''}
+              value={localPartScope}
               onChange={(e) => {
-                // Local update handled by parent component through onFieldSave
+                setLocalPartScope(e.target.value);
               }}
               onBlur={(e) => {
                 // Save to backend on blur
@@ -266,7 +270,7 @@ export const PartRow: React.FC<PartRowProps> = ({
             <EditableSpecsQty
               partId={part.part_id}
               orderNumber={orderNumber}
-              currentValue={part.specifications?.specs_qty ?? 0}
+              currentValue={part.specs_qty ?? 0}
               invoiceQuantity={part.quantity ?? 0}
               onUpdate={onUpdate}
             />

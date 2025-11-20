@@ -456,10 +456,8 @@ export class PricingDataResource {
   static async getPushThruAssemblyPricing(): Promise<PushThruAssemblyPricing> {
     try {
       const response = await api.get('/pricing/push-thru-assembly');
-      if (response.data.success) {
-        return response.data.data;
-      }
-      throw new Error('Failed to fetch Push Thru assembly pricing');
+      // API interceptor unwraps { success: true, data: T } -> T directly
+      return response.data;
     } catch (error) {
       console.error('Error fetching Push Thru assembly pricing:', error);
       // Return defaults if API fails

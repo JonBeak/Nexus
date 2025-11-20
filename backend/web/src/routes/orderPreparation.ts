@@ -35,6 +35,17 @@ router.post(
 );
 
 /**
+ * GET /api/order-preparation/:orderNumber/pdfs/staleness
+ * Check if order form PDFs are stale (order data changed since PDFs were generated)
+ */
+router.get(
+  '/:orderNumber/pdfs/staleness',
+  authenticateToken,
+  requirePermission('orders.prepare'),
+  orderPrepController.checkPDFStaleness
+);
+
+/**
  * POST /api/order-preparation/:orderNumber/pdfs/order-form
  * Generate order form PDF
  */
@@ -76,6 +87,17 @@ router.get(
   authenticateToken,
   requirePermission('orders.prepare'),
   orderPrepController.validateForPreparation
+);
+
+/**
+ * GET /api/order-preparation/:orderNumber/tasks/staleness
+ * Check if production tasks are stale (order data changed since tasks were generated)
+ */
+router.get(
+  '/:orderNumber/tasks/staleness',
+  authenticateToken,
+  requirePermission('orders.prepare'),
+  orderPrepController.checkTaskStaleness
 );
 
 /**

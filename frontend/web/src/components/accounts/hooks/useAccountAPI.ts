@@ -66,15 +66,12 @@ export const useAccountAPI = () => {
   const createUser = useCallback(async (userData: AccountUser): Promise<void> => {
     setApiLoading(true);
     try {
-      const response = await api.post('/accounts/users', userData);
-
-      // api.post already handles errors via interceptor
-      // Just check if we need to throw a specific error
-      if (response.data?.error) {
-        throw new Error(response.data.error);
-      }
+      // Backend returns { success: true, message: string, data: { user_id } }
+      // This format has 3 fields, so interceptor won't unwrap it
+      await api.post('/accounts/users', userData);
+      // Success - no error thrown
     } catch (error: any) {
-      // Re-throw with the original error message if available
+      // Errors are handled by interceptor and thrown
       throw new Error(error.response?.data?.error || error.message || 'Failed to create user');
     } finally {
       setApiLoading(false);
@@ -86,11 +83,10 @@ export const useAccountAPI = () => {
 
     setApiLoading(true);
     try {
-      const response = await api.put(`/accounts/users/${userData.user_id}`, userData);
-
-      if (response.data?.error) {
-        throw new Error(response.data.error);
-      }
+      // Backend uses handleServiceResult() which returns { success: true, data: T }
+      // Interceptor unwraps this to just T directly
+      await api.put(`/accounts/users/${userData.user_id}`, userData);
+      // Success - no error thrown
     } catch (error: any) {
       throw new Error(error.response?.data?.error || error.message || 'Failed to update user');
     } finally {
@@ -101,11 +97,10 @@ export const useAccountAPI = () => {
   const changePassword = useCallback(async (userId: number, newPassword: string): Promise<void> => {
     setApiLoading(true);
     try {
-      const response = await api.put(`/accounts/users/${userId}/password`, { password: newPassword });
-
-      if (response.data?.error) {
-        throw new Error(response.data.error);
-      }
+      // Backend uses handleServiceResult() which returns { success: true, data: T }
+      // Interceptor unwraps this to just T directly
+      await api.put(`/accounts/users/${userId}/password`, { password: newPassword });
+      // Success - no error thrown
     } catch (error: any) {
       throw new Error(error.response?.data?.error || error.message || 'Failed to update password');
     } finally {
@@ -116,11 +111,10 @@ export const useAccountAPI = () => {
   const createVacation = useCallback(async (vacationData: VacationPeriod): Promise<void> => {
     setApiLoading(true);
     try {
-      const response = await api.post('/accounts/vacations', vacationData);
-
-      if (response.data?.error) {
-        throw new Error(response.data.error);
-      }
+      // Backend returns { message: string, vacation_id: number }
+      // This format doesn't have 'success' and 'data' fields, so interceptor won't unwrap it
+      await api.post('/accounts/vacations', vacationData);
+      // Success - no error thrown
     } catch (error: any) {
       throw new Error(error.response?.data?.error || error.message || 'Failed to create vacation period');
     } finally {
@@ -131,11 +125,10 @@ export const useAccountAPI = () => {
   const deleteVacation = useCallback(async (vacationId: number): Promise<void> => {
     setApiLoading(true);
     try {
-      const response = await api.delete(`/accounts/vacations/${vacationId}`);
-
-      if (response.data?.error) {
-        throw new Error(response.data.error);
-      }
+      // Backend returns { message: string }
+      // This format doesn't have 'success' and 'data' fields, so interceptor won't unwrap it
+      await api.delete(`/accounts/vacations/${vacationId}`);
+      // Success - no error thrown
     } catch (error: any) {
       throw new Error(error.response?.data?.error || error.message || 'Failed to delete vacation period');
     } finally {

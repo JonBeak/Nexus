@@ -181,7 +181,6 @@ export function autoFillExtraWire(
 
           // Rebuild LED specs without Wire Length
           const newLedSpecs: any = {
-            _qb_description: prevItem.specifications._qb_description,
             specs_qty: prevItem.specifications.specs_qty
           };
 

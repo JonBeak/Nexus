@@ -49,6 +49,7 @@ export interface Order {
   cash?: boolean;               // Auto-filled from customer cash_yes_or_no
   discount?: number;            // Auto-filled from customer discount
   tax_name?: string;            // Auto-filled from billing address province tax, editable per order
+  original_tax_name?: string;   // Saved tax_name before cash job override - restored when cash job unchecked
   sign_image_path?: string;
   crop_top?: number;            // Pixels to crop from top edge (auto-crop feature)
   crop_right?: number;          // Pixels to crop from right edge (auto-crop feature)
@@ -110,12 +111,14 @@ export interface OrderPart {
   product_type: string;  // Human-readable
   part_scope?: string;  // Text identifier for the part (e.g., "Main Sign", "Logo", "Border")
   qb_item_name?: string;  // QuickBooks item name (for invoice/QB sync)
+  qb_description?: string;  // QuickBooks estimate description (extracted from specifications JSON)
   specs_display_name?: string;  // Mapped display name for Specs section
+  specs_qty?: number;  // Manufacturing quantity (extracted from specifications JSON to dedicated column)
   product_type_id: string;  // Machine-readable
   channel_letter_type_id?: number;
   base_product_type_id?: number;
   quantity: number;
-  specifications: Record<string, any>;  // JSON - Template-based dynamic structure (_template_N, rowN_field, _qb_description, specs_qty)
+  specifications: Record<string, any>;  // JSON - Template-based dynamic structure (_template_N, rowN_field) - specs_qty moved to column
   production_notes?: string;
   // Phase 1.5: Invoice data (nullable = determines row "type")
   invoice_description?: string;
@@ -131,12 +134,14 @@ export interface CreateOrderPartData {
   product_type: string;
   part_scope?: string;  // Text identifier for the part
   qb_item_name?: string;  // QuickBooks item name (for invoice/QB sync)
+  qb_description?: string;  // QuickBooks estimate description
   specs_display_name?: string;  // Mapped display name for Specs section
+  specs_qty?: number;  // Manufacturing quantity (dedicated column)
   product_type_id: string;
   channel_letter_type_id?: number;
   base_product_type_id?: number;
   quantity: number | null;
-  specifications: Record<string, any>;  // JSON - Template-based dynamic structure (_template_N, rowN_field, _qb_description, specs_qty)
+  specifications: Record<string, any>;  // JSON - Template-based dynamic structure (_template_N, rowN_field) - specs_qty moved to column
   production_notes?: string;
   // Phase 1.5: Invoice fields
   invoice_description?: string;
@@ -338,6 +343,7 @@ export interface UpdateOrderData {
   cash?: boolean;
   discount?: number;
   tax_name?: string;
+  original_tax_name?: string;
   shipping_required?: boolean;
 }
 

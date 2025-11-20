@@ -109,4 +109,13 @@ export const ordersApi = {
       parts: response.data.parts || []
     };
   },
+
+  /**
+   * Get customer tax from billing address
+   * Returns the tax_name for the order's customer based on billing address province
+   */
+  async getCustomerTax(orderNumber: number): Promise<string> {
+    const response = await api.get(`/orders/${orderNumber}/customer-tax`);
+    return response.data.tax_name;
+  },
 };

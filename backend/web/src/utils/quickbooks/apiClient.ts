@@ -334,8 +334,22 @@ export async function createEstimate(
 }
 
 /**
- * Get estimate PDF URL
+ * Get estimate web interface URL
+ * Returns the QuickBooks web UI URL that users can open directly in their browser
+ * Use this for: Frontend links, user-facing URLs, "Open in QuickBooks" buttons
  */
-export function getEstimatePdfUrl(estimateId: string, realmId: string): string {
+export function getEstimateWebUrl(estimateId: string): string {
+  // QuickBooks web interface URL (works for both sandbox and production)
   return `https://qbo.intuit.com/app/estimate?txnId=${estimateId}`;
+}
+
+/**
+ * Get estimate PDF API URL
+ * Returns the QuickBooks API endpoint for server-to-server PDF downloads
+ * Use this ONLY for: Backend PDF downloads with Bearer token authentication
+ * ⚠️ DO NOT use for user-facing links (will cause 401 authentication errors)
+ */
+export function getEstimatePdfApiUrl(estimateId: string, realmId: string): string {
+  // QuickBooks API endpoint for PDF download
+  return `${QB_API_BASE_URL}/${realmId}/estimate/${estimateId}/pdf`;
 }

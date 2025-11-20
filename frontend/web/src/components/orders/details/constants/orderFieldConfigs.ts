@@ -72,7 +72,7 @@ export const orderFieldConfigs = {
   },
   cash: {
     type: 'checkbox' as const,
-    label: 'Cash Customer',
+    label: 'Cash Job',
     section: 'invoice',
     valueTransform: (val: string) => val === 'true'
   },

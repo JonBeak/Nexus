@@ -183,11 +183,11 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
         onImageSelected(filename);
         onClose();
       } else {
-        setError(response.message || 'Failed to set image');
+        setError(response.error || 'Failed to set image');
       }
     } catch (err: any) {
       console.error('Error setting image:', err);
-      const errorMessage = err.response?.data?.message || err.message || 'Failed to set image';
+      const errorMessage = err.response?.data?.error || err.message || 'Failed to set image';
       setError(errorMessage);
     } finally {
       setSelecting(null);

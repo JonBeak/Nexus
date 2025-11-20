@@ -22,7 +22,7 @@ export const BulkEntryHeader: React.FC = () => {
         <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
           Location
         </th>
-        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '200px' }}>
+        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
           Jobs
         </th>
         <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">

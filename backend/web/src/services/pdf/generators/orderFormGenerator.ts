@@ -51,6 +51,7 @@ import {
   TemplateRow
 } from '../renderers/specRenderers';
 import { buildPartColumns, PartColumn } from '../utils/partColumnBuilder';
+import { standardizeOrderParts, PartColumnStandardized } from '../../orderSpecificationStandardizationService';
 
 // ============================================
 // HELPER FUNCTIONS - Header Rendering
@@ -83,10 +84,10 @@ function renderCompactHeader(
 
   // Render header rows first to get the total height
   if (formType === 'shop') {
-    currentY = renderShopInfoRows(doc, orderData, col1X, col2X, col3X, currentY);
+    currentY = renderShopInfoRows(doc, orderData, col1X, col2X, col3X, currentY, pageWidth, marginRight);
   } else {
     const showDueDate = formType !== 'customer';
-    currentY = renderMasterCustomerInfoRows(doc, orderData, col1X, col2X, col3X, currentY, showDueDate);
+    currentY = renderMasterCustomerInfoRows(doc, orderData, col1X, col2X, col3X, currentY, showDueDate, undefined, pageWidth, marginRight);
   }
 
   currentY += SPACING.BEFORE_DIVIDER;
@@ -138,7 +139,7 @@ function renderCompactHeader(
  */
 function renderSpecsInTwoColumns(
   doc: any,
-  column: { parent: any; subItems: any[] },
+  column: PartColumnStandardized,
   marginLeft: number,
   contentWidth: number,
   contentStartY: number,
@@ -147,7 +148,7 @@ function renderSpecsInTwoColumns(
   formType: FormType
 ): number {
   const parent = column.parent;
-  const allParts = [parent, ...column.subItems];
+  const allParts = column.allParts;
 
   // Get specs_qty from specifications (using shared utility)
   const specsQty = getSpecsQuantity(parent);
@@ -159,25 +160,31 @@ function renderSpecsInTwoColumns(
   doc.fontSize(FONT_SIZES.TITLE).font('Helvetica-Bold');
   const titleLineHeight = doc.currentLineHeight();
 
-  doc.text(displayName, marginLeft, currentY, {
+  // Render product name + colon in bold
+  const titleText = parent.part_scope ? `${displayName}: ` : displayName;
+  doc.text(titleText, marginLeft, currentY, {
     width: contentWidth * LAYOUT.PART_NAME_WIDTH_PERCENT,
     lineBreak: false,
-    ellipsis: true
+    continued: false
   });
 
-  currentY += titleLineHeight + 2; // Title height + small gap
-
-  // Add Scope text below Product Type (if it exists)
+  // Append scope inline with smaller, non-bold font, bottom-aligned
   if (parent.part_scope) {
-    doc.fontSize(FONT_SIZES.SCOPE).font('Helvetica');
+    // Calculate X position after product type + colon
+    const titleTextWidth = doc.widthOfString(titleText, { kerning: true });
+    const scopeX = marginLeft + titleTextWidth;
+
+    // Calculate Y offset to bottom-align (move scope text DOWN)
+    doc.fontSize(12).font('Helvetica'); // 12pt, not bold
     const scopeLineHeight = doc.currentLineHeight();
-    doc.text(`Scope: ${parent.part_scope}`, marginLeft, currentY, {
-      width: contentWidth,
-      lineBreak: false,
-      ellipsis: true
+    const scopeY = currentY + (titleLineHeight - scopeLineHeight);
+
+    doc.text(parent.part_scope, scopeX, scopeY, {
+      lineBreak: false
     });
-    currentY += scopeLineHeight + 3; // Scope height + small gap
   }
+
+  currentY += titleLineHeight + 2; // Title height + small gap
 
   // Draw FULL-WIDTH horizontal separator line (not split)
   doc.strokeColor(COLORS.DIVIDER_LIGHT)
@@ -189,8 +196,8 @@ function renderSpecsInTwoColumns(
 
   currentY += SPACING.AFTER_SEPARATOR;
 
-  // Build sorted template rows
-  const sortedTemplateRows = buildSortedTemplateRows(allParts, formType);
+  // Use pre-computed sorted specs from standardization service
+  const sortedTemplateRows = column.allSpecs;
 
   // Determine split point for 2-column layout
   let splitIndex = calculateOptimalSplitIndex(sortedTemplateRows);
@@ -203,10 +210,10 @@ function renderSpecsInTwoColumns(
   const rightColumnX = marginLeft + contentWidth / 2 + LAYOUT.PART_COLUMN_INNER_PADDING;
   const columnWidth = contentWidth / 2 - (LAYOUT.PART_COLUMN_INNER_PADDING * 2);
 
-  // Render left column specs
+  // Render left column specs (pass pre-computed specs to avoid rebuilding)
   let leftY = renderSpecifications(doc, allParts, leftColumnX, currentY, columnWidth, formType, leftSpecs);
 
-  // Render right column specs
+  // Render right column specs (pass pre-computed specs to avoid rebuilding)
   let rightY = renderSpecifications(doc, allParts, rightColumnX, currentY, columnWidth, formType, rightSpecs);
 
   // Determine where to place quantity box (under the taller column)
@@ -224,7 +231,7 @@ function renderSpecsInTwoColumns(
  */
 function renderPartColumns(
   doc: any,
-  partColumns: Array<{ parent: any; subItems: any[] }>,
+  partColumns: PartColumnStandardized[],
   marginLeft: number,
   contentWidth: number,
   contentStartY: number,
@@ -235,8 +242,8 @@ function renderPartColumns(
   // Check if this is a single-part order with 9+ specs (use 2-column layout)
   if (partColumns.length === 1) {
     const singleColumn = partColumns[0];
-    const allParts = [singleColumn.parent, ...singleColumn.subItems];
-    const sortedSpecs = buildSortedTemplateRows(allParts, formType);
+    // Use pre-computed specs from standardization service
+    const sortedSpecs = singleColumn.allSpecs;
 
     if (sortedSpecs.length >= 9) {
       console.log(`[SINGLE PART 2-COLUMN] Order has ${sortedSpecs.length} specs - using 2-column layout`);
@@ -269,28 +276,32 @@ function renderPartColumns(
     doc.fontSize(FONT_SIZES.TITLE).font('Helvetica-Bold');
     const titleLineHeight = doc.currentLineHeight();
 
-    // Product name
-    doc.text(displayName, partX, partY, {
+    // Product name + colon in bold
+    const titleText = parent.part_scope ? `${displayName}: ` : displayName;
+    doc.text(titleText, partX, partY, {
       width: partColumnWidth * LAYOUT.PART_NAME_WIDTH_PERCENT,
       lineBreak: false,
-      ellipsis: true
+      continued: false
     });
+
+    // Append scope inline with smaller, non-bold font, bottom-aligned
+    if (parent.part_scope) {
+      // Calculate X position after product type + colon
+      const titleTextWidth = doc.widthOfString(titleText, { kerning: true });
+      const scopeX = partX + titleTextWidth;
+
+      // Calculate Y offset to bottom-align (move scope text DOWN)
+      doc.fontSize(12).font('Helvetica'); // 12pt, not bold
+      const scopeLineHeight = doc.currentLineHeight();
+      const scopeY = partY + (titleLineHeight - scopeLineHeight);
+
+      doc.text(parent.part_scope, scopeX, scopeY, {
+        lineBreak: false
+      });
+    }
 
     // Update partY manually (don't use doc.y in multi-column layout)
     partY += titleLineHeight + 2; // Title height + small gap
-
-    // Add Scope text below Product Type (if it exists)
-    if (parent.part_scope) {
-      doc.fontSize(FONT_SIZES.SCOPE).font('Helvetica');
-      const scopeLineHeight = doc.currentLineHeight();
-      doc.text(`Scope: ${parent.part_scope}`, partX, partY, {
-        width: partColumnWidth,
-        lineBreak: false,
-        ellipsis: true
-      });
-      // Update partY manually
-      partY += scopeLineHeight + 3; // Scope height + small gap
-    }
 
     // Draw horizontal separator line (split for multi-part, full-width for single with <9)
     doc.strokeColor(COLORS.DIVIDER_LIGHT)
@@ -302,12 +313,12 @@ function renderPartColumns(
 
     partY += SPACING.AFTER_SEPARATOR;
 
-    // Collect all parts (parent + sub-items) for combined rendering
-    const allParts = [parent, ...column.subItems];
+    // Use pre-computed parts and specs from standardization service
+    const allParts = column.allParts;
     debugLog(`[CALL RENDER] Calling renderSpecifications for column with ${allParts.length} parts`);
 
-    // Render all specifications together
-    partY = renderSpecifications(doc, allParts, partX, partY, partColumnWidth, formType);
+    // Render all specifications using pre-computed sorted specs
+    partY = renderSpecifications(doc, allParts, partX, partY, partColumnWidth, formType, column.allSpecs);
 
     // Add gap before quantity box
     partY += 5;
@@ -322,6 +333,23 @@ function renderPartColumns(
   });
 
   debugLog(`[LAYOUT] Actual parts ended at Y: ${maxPartY}`);
+
+  // Draw vertical dividers between columns (only if multiple parts)
+  if (numColumns > 1) {
+    for (let i = 0; i < numColumns - 1; i++) {
+      // Calculate divider X position (between columns)
+      const dividerX = marginLeft + ((i + 1) * columnWidth);
+
+      // Draw vertical line from top to bottom of parts section
+      doc.strokeColor(COLORS.DIVIDER_LIGHT)
+        .lineWidth(LINE_WIDTHS.DIVIDER_LIGHT)
+        .moveTo(dividerX, contentStartY)
+        .lineTo(dividerX, maxPartY)
+        .stroke();
+    }
+    // Reset stroke color
+    doc.strokeColor(COLORS.BLACK);
+  }
 
   return maxPartY;
 }
@@ -381,9 +409,13 @@ export async function generateOrderForm(
       debugLog(`[LAYOUT] Page dimensions: ${pageWidth} x ${pageHeight}`);
       debugLog(`[LAYOUT] contentStartY: ${contentStartY}, availableHeight: ${availableHeight}`);
 
-      // Build and render part columns
-      const partColumns = buildPartColumns(orderData.parts, formType, shouldIncludePart, shouldStartNewColumn);
-      const maxPartY = renderPartColumns(doc, partColumns, marginLeft, contentWidth, contentStartY, pageWidth, marginRight, formType);
+      // Standardize specifications upfront (single call, reused throughout rendering)
+      console.log(`[STANDARDIZATION] Calling standardizeOrderParts for ${formType} form`);
+      const standardizedSpecs = standardizeOrderParts(orderData.parts, formType);
+      console.log(`[STANDARDIZATION] Generated ${standardizedSpecs.partColumns.length} columns with ${standardizedSpecs.flattenedSpecs.length} total specs`);
+
+      // Render part columns using pre-computed standardized specs
+      const maxPartY = renderPartColumns(doc, standardizedSpecs.partColumns, marginLeft, contentWidth, contentStartY, pageWidth, marginRight, formType);
 
       // Render notes and image section
       await renderNotesAndImage(doc, orderData, maxPartY, marginLeft, contentWidth, pageWidth, marginRight, pageHeight, {

@@ -13,7 +13,8 @@
 import sharp from 'sharp';
 import fs from 'fs';
 import { COLORS, FONT_SIZES, SPACING, LAYOUT } from '../generators/pdfConstants';
-import { getImageFullPath } from '../generators/pdfHelpers';
+import { getImageFullPath, getStandardLabelWidth } from '../generators/pdfHelpers';
+import { calculateAccurateTextHeight } from '../renderers/specRenderers';
 import type { OrderDataForPDF } from '../../../types/orders';
 
 /**
@@ -111,38 +112,203 @@ export async function renderNotesAndImage(
     let notesY = actualImageStartY;
 
     // Two-column layout for notes
-    const notesLeftX = marginLeft;
-    const notesRightX = marginLeft + contentWidth * LAYOUT.NOTES_RIGHT_START_PERCENT;
+    // Align left side with first column parts (includes inner padding)
+    const notesLeftX = marginLeft + LAYOUT.PART_COLUMN_INNER_PADDING;
+
+    // Align right side at 50% of content width (right half)
+    const notesRightX = marginLeft + (contentWidth / 2) + LAYOUT.PART_COLUMN_INNER_PADDING;
 
     // Calculate notes column width
     const notesColumnWidth = contentWidth * LAYOUT.NOTES_LEFT_WIDTH_PERCENT;
 
-    // Special Instructions (left side) - manufacturing_note
+    // Order Notes (left side) - manufacturing_note with spec-row styling
+    let orderNotesHeight = 0;
     if (orderData.manufacturing_note) {
-      doc.fontSize(FONT_SIZES.SPEC_BODY).font('Helvetica').fillColor(COLORS.BLACK);
-      doc.text(orderData.manufacturing_note, notesLeftX, notesY, {
-        width: notesColumnWidth,
-        lineBreak: true
-      });
+      const labelText = 'Order Notes';
+      const noteText = orderData.manufacturing_note.trim();
+
+      // === STEP 1: Calculate all dimensions ===
+
+      // Label dimensions (11pt font)
+      doc.fontSize(11).font('Helvetica-Bold');
+      const labelHeight = doc.currentLineHeight();
+
+      // Get standardized label width
+      const standardLabelWidth = getStandardLabelWidth(doc);
+
+      // Calculate actual text width for horizontal centering
+      const actualTextWidth = doc.widthOfString(labelText);
+      const textLeftPadding = (standardLabelWidth - actualTextWidth) / 2;
+
+      // Calculate value position and width (to the RIGHT of label)
+      const valueX = notesLeftX - SPACING.LABEL_PADDING + standardLabelWidth + doc.widthOfString('  ');
+      const availableValueWidth = notesColumnWidth - (standardLabelWidth + doc.widthOfString('  '));
+
+      // Calculate value height based on wrapped text
+      const valueHeight = calculateAccurateTextHeight(doc, noteText, availableValueWidth, 12, 'Helvetica');
+      doc.fontSize(12).font('Helvetica');
+      const valueLineHeight = doc.currentLineHeight();
+      const effectiveValueHeight = Math.max(valueHeight, valueLineHeight);
+
+      // Add padding above and below the value height
+      const valuePadding = 1;
+      const paddedValueHeight = effectiveValueHeight + (valuePadding * 2);
+
+      // Calculate label box height with padding
+      const topTextPadding = 3;
+      const bottomTextPadding = 1;
+      const maxContentHeight = Math.max(labelHeight, paddedValueHeight);
+      const labelBoxHeight = maxContentHeight + topTextPadding + bottomTextPadding;
+
+      // === STEP 2: Draw label box ===
+
+      const labelBoxStartY = notesY;
+      doc.fillColor(COLORS.LABEL_BG_DEFAULT)
+        .rect(
+          notesLeftX - SPACING.LABEL_PADDING,
+          labelBoxStartY,
+          standardLabelWidth,
+          labelBoxHeight
+        )
+        .fill();
+
+      // === STEP 3: Render label text (centered in box) ===
+
+      const labelTextY = labelBoxStartY + (labelBoxHeight - labelHeight) / 2;
+      const centeredX = notesLeftX - SPACING.LABEL_PADDING + textLeftPadding;
+
+      doc.fillColor(COLORS.BLACK)
+        .fontSize(11)
+        .font('Helvetica-Bold')
+        .text(labelText, centeredX, labelTextY, {
+          continued: false,
+          width: standardLabelWidth,
+          lineBreak: false
+        });
+
+      // === STEP 4: Render value text (to the right of label) ===
+
+      const valueY = labelBoxStartY + topTextPadding + valuePadding;
+
+      doc.fillColor(COLORS.BLACK)
+        .fontSize(12)
+        .font('Helvetica')
+        .text(noteText, valueX, valueY, {
+          width: availableValueWidth,
+          lineBreak: true
+        });
+
+      // === STEP 5: Draw horizontal line at bottom ===
+
+      const lineY = labelBoxStartY + labelBoxHeight;
+      doc.fillColor(COLORS.LABEL_BG_DEFAULT)
+        .rect(
+          notesLeftX - SPACING.LABEL_PADDING,
+          lineY - 1,
+          notesColumnWidth,
+          1
+        )
+        .fill();
+
+      // Track the height used by Order Notes row
+      orderNotesHeight = labelBoxHeight + SPACING.SPEC_ROW_GAP;
     }
 
     // Internal Notes (right side) - ONLY if includeInternalNote option is true
+    let internalNoteHeight = 0;
     if (includeInternalNote && orderData.internal_note) {
-      doc.fontSize(FONT_SIZES.INTERNAL_NOTE_LABEL).font('Helvetica-Bold');
-      const labelWidth = doc.widthOfString('[Internal Note]  ');
-      doc.text('[Internal Note]  ', notesRightX, notesY);
-      doc.fontSize(FONT_SIZES.INTERNAL_NOTE).font('Helvetica');
-      doc.text(orderData.internal_note, notesRightX + labelWidth, notesY, {
-        width: notesColumnWidth - labelWidth,
-        lineBreak: true
-      });
+      const labelText = 'Internal Note';
+      const noteText = orderData.internal_note.trim();
+
+      // === STEP 1: Calculate all dimensions ===
+
+      // Label dimensions (11pt font)
+      doc.fontSize(11).font('Helvetica-Bold');
+      const labelHeight = doc.currentLineHeight();
+
+      // Get standardized label width
+      const standardLabelWidth = getStandardLabelWidth(doc);
+
+      // Calculate actual text width for horizontal centering
+      const actualTextWidth = doc.widthOfString(labelText);
+      const textLeftPadding = (standardLabelWidth - actualTextWidth) / 2;
+
+      // Calculate value position and width (to the RIGHT of label)
+      const valueX = notesRightX - SPACING.LABEL_PADDING + standardLabelWidth + doc.widthOfString('  ');
+      const availableValueWidth = notesColumnWidth - (standardLabelWidth + doc.widthOfString('  '));
+
+      // Calculate value height based on wrapped text
+      const valueHeight = calculateAccurateTextHeight(doc, noteText, availableValueWidth, 12, 'Helvetica');
+      doc.fontSize(12).font('Helvetica');
+      const valueLineHeight = doc.currentLineHeight();
+      const effectiveValueHeight = Math.max(valueHeight, valueLineHeight);
+
+      // Add padding above and below the value height
+      const valuePadding = 1;
+      const paddedValueHeight = effectiveValueHeight + (valuePadding * 2);
+
+      // Calculate label box height with padding
+      const topTextPadding = 3;
+      const bottomTextPadding = 1;
+      const maxContentHeight = Math.max(labelHeight, paddedValueHeight);
+      const labelBoxHeight = maxContentHeight + topTextPadding + bottomTextPadding;
+
+      // === STEP 2: Draw label box ===
+
+      const labelBoxStartY = notesY;
+      doc.fillColor(COLORS.LABEL_BG_DEFAULT)
+        .rect(
+          notesRightX - SPACING.LABEL_PADDING,
+          labelBoxStartY,
+          standardLabelWidth,
+          labelBoxHeight
+        )
+        .fill();
+
+      // === STEP 3: Render label text (centered in box) ===
+
+      const labelTextY = labelBoxStartY + (labelBoxHeight - labelHeight) / 2;
+      const centeredX = notesRightX - SPACING.LABEL_PADDING + textLeftPadding;
+
+      doc.fillColor(COLORS.BLACK)
+        .fontSize(11)
+        .font('Helvetica-Bold')
+        .text(labelText, centeredX, labelTextY, {
+          continued: false,
+          width: standardLabelWidth,
+          lineBreak: false
+        });
+
+      // === STEP 4: Render value text (to the right of label) ===
+
+      const valueY = labelBoxStartY + topTextPadding + valuePadding;
+
+      doc.fillColor(COLORS.BLACK)
+        .fontSize(12)
+        .font('Helvetica')
+        .text(noteText, valueX, valueY, {
+          width: availableValueWidth,
+          lineBreak: true
+        });
+
+      // === STEP 5: Draw horizontal line at bottom ===
+
+      const lineY = labelBoxStartY + labelBoxHeight;
+      doc.fillColor(COLORS.LABEL_BG_DEFAULT)
+        .rect(
+          notesRightX - SPACING.LABEL_PADDING,
+          lineY - 1,
+          notesColumnWidth,
+          1
+        )
+        .fill();
+
+      // Track the height used by Internal Note row
+      internalNoteHeight = labelBoxHeight + SPACING.SPEC_ROW_GAP;
     }
 
     // Calculate space used by notes
-    const notesHeight = Math.max(
-      orderData.manufacturing_note ? doc.heightOfString(orderData.manufacturing_note, { width: notesColumnWidth }) + 15 : 0,
-      (includeInternalNote && orderData.internal_note) ? doc.heightOfString(orderData.internal_note, { width: notesColumnWidth }) + 15 : 0
-    );
+    const notesHeight = Math.max(orderNotesHeight, internalNoteHeight);
 
     // Center the image below the notes
     const imageWidth = contentWidth * LAYOUT.IMAGE_WIDTH_PERCENT;

@@ -36,7 +36,8 @@
       "Bash(split:*)",
       "Bash(lsof:*)",
       "Bash(echo:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": [],

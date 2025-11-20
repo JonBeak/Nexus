@@ -33,7 +33,8 @@ import {
   getImageFullPath,
   shouldIncludePart,
   shouldStartNewColumn,
-  getSpecsQuantity
+  getSpecsQuantity,
+  getStandardLabelWidth
 } from './pdfHelpers';
 import {
   renderHeaderLabel,
@@ -128,7 +129,7 @@ export async function generatePackingList(
 
       partColumns.forEach((column, colIndex) => {
         const part = column.parent;
-        const partX = marginLeft + (colIndex * columnWidth);
+        const partX = marginLeft + (colIndex * columnWidth) + LAYOUT.PART_COLUMN_INNER_PADDING;
         let partY = contentStartY;
 
         // Get specs_qty from specifications (using shared utility)
@@ -184,43 +185,41 @@ export async function generatePackingList(
         // Get packing items using combined specs - show only relevant items
         const packingItems = getPackingItemsForProduct(productTypeForPacking, combinedSpecs, customerPrefs);
 
-        // Draw packing items with checkboxes and labels - styled like Master Form spec labels
+        // Draw packing items with checkboxes and labels - styled like Order Form spec labels
         const checkboxWidth = 120;  // Longer checkbox
         const checkboxHeight = 18;  // Higher checkbox
-        const labelFontSize = 11;  // Match Master Form spec labels
+        const labelFontSize = 11;  // Match Order Form spec labels
 
-        // First pass: find the longest label width
-        let maxLabelWidth = 0;
-        packingItems.forEach((item) => {
-          doc.fontSize(labelFontSize).font('Helvetica-Bold');
-          const labelWidth = doc.widthOfString(item.name);
-          if (labelWidth > maxLabelWidth) {
-            maxLabelWidth = labelWidth;
-          }
-        });
+        // Calculate standardized label width (same as spec labels and Quantity)
+        const standardLabelWidth = getStandardLabelWidth(doc);
 
-        // Calculate checkbox X position (15 pixels right of longest label)
-        const checkboxX = partX + maxLabelWidth + 15;
+        // Calculate checkbox X position (right after standard label width + small gap)
+        const checkboxX = partX - SPACING.LABEL_PADDING + standardLabelWidth + 10;
 
         packingItems.forEach((item) => {
-          // Item label with black background (like Master Form spec labels)
+          // Item label with light gray background and centered black text (like Order Form spec labels)
           doc.fontSize(labelFontSize).font('Helvetica-Bold');
-          const labelWidth = doc.widthOfString(item.name);
           const labelHeight = doc.currentLineHeight();
 
-          // Draw black background behind label
-          doc.fillColor(COLORS.LABEL_BACKGROUND)
+          // Calculate actual text width for centering
+          const actualTextWidth = doc.widthOfString(item.name);
+          const textLeftPadding = (standardLabelWidth - actualTextWidth) / 2;
+
+          // Draw light gray background behind label (standardized width, matching checkbox height)
+          doc.fillColor(COLORS.LABEL_BG_DEFAULT)
             .rect(
               partX - SPACING.LABEL_PADDING,
               partY - 2,
-              labelWidth + (SPACING.LABEL_PADDING * 2),
-              labelHeight + 3
+              standardLabelWidth,
+              checkboxHeight  // Match checkbox height
             )
             .fill();
 
-          // Render label text in white
-          doc.fillColor(COLORS.WHITE)
-            .text(item.name, partX, partY, { lineBreak: false });
+          // Render label text in black, centered (vertically centered in box)
+          const centeredX = partX - SPACING.LABEL_PADDING + textLeftPadding;
+          const textY = partY - 2 + (checkboxHeight - labelHeight) / 2;
+          doc.fillColor(COLORS.BLACK)
+            .text(item.name, centeredX, textY, { lineBreak: false });
 
           // Draw checkbox AFTER label - aligned right of longest label
           if (item.required) {

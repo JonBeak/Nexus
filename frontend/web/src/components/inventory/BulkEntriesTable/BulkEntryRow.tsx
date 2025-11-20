@@ -154,14 +154,14 @@ export const BulkEntryRow: React.FC<BulkEntryRowProps> = ({
       </td>
 
       {/* Jobs Field */}
-      <td className="px-2 py-1" style={{ minWidth: '200px' }}>
+      <td className="px-2 py-1" style={{ minWidth: '120px' }}>
         <div className="space-y-1">
           {entry.job_ids.map((jobId, jobIndex) => (
             <div key={jobIndex} className="flex items-center gap-1">
               <select
                 value={jobId || ''}
                 onChange={(e) => onJobChange(jobIndex, e.target.value)}
-                className="flex-1 min-w-0 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-500"
+                className="flex-1 min-w-0 max-w-[250px] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-500 truncate"
               >
                 <option value="">Select job...</option>
                 {availableJobs.map(availableJob => (

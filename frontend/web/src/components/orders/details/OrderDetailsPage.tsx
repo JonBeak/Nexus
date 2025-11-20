@@ -10,6 +10,9 @@ import { useEditableFields } from './hooks/useEditableFields';
 import { useOrderPrinting } from './hooks/useOrderPrinting';
 import { useOrderCalculations } from './hooks/useOrderCalculations';
 
+// Import API
+import { ordersApi } from '../../../services/api';
+
 // Import field configuration
 import { FIELD_CONFIGS, getFieldConfig } from './constants/orderFieldConfigs';
 
@@ -28,9 +31,6 @@ export const OrderDetailsPage: React.FC = () => {
 
   // Ref for scroll container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  // Ref for dropdown container
-  const formsDropdownRef = useRef<HTMLDivElement>(null);
 
   // Phase 1.5.c.6.1: Prepare Order Modal State
   const [isPrepareModalOpen, setIsPrepareModalOpen] = useState(false);
@@ -75,8 +75,6 @@ export const OrderDetailsPage: React.FC = () => {
     handlePrintMasterEstimate,
     handlePrintShopPacking,
     handleGenerateForms,
-    handleViewForms,
-    handleViewSingleForm,
     handlePrintMasterForm,
     formUrls
   } = useOrderPrinting(orderData, setUiState);
@@ -121,19 +119,96 @@ export const OrderDetailsPage: React.FC = () => {
     refetch(); // Reload order data to get updated status
   };
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (formsDropdownRef.current && !formsDropdownRef.current.contains(event.target as Node)) {
-        setUiState(prev => ({ ...prev, showFormsDropdown: false }));
-      }
-    };
+  // Handle opening order folder in Windows Explorer
+  const handleOpenFolder = () => {
+    console.log('Order data:', {
+      folder_name: orderData.order.folder_name,
+      folder_location: orderData.order.folder_location,
+      folder_exists: orderData.order.folder_exists
+    });
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
+    if (!orderData.order.folder_name || orderData.order.folder_location === 'none') {
+      alert('No folder exists for this order');
+      return;
+    }
+
+    // Construct UNC path based on folder location
+    let folderPath = '\\\\192.168.2.85\\Channel Letter\\Orders\\';
+    if (orderData.order.folder_location === 'finished') {
+      folderPath += '1Finished\\';
+    }
+    folderPath += orderData.order.folder_name;
+
+    console.log('Opening folder:', folderPath);
+    console.log('Nexus URL:', `nexus://open?path=${encodeURIComponent(folderPath)}`);
+
+    // Open folder using nexus:// protocol
+    const nexusUrl = `nexus://open?path=${encodeURIComponent(folderPath)}`;
+    window.location.href = nexusUrl;
+  };
+
+  // Handle Cash Job checkbox change with tax override logic
+  const handleCashJobChange = async (newCashValue: boolean) => {
+    if (!orderData.order) return;
+
+    try {
+      setUiState(prev => ({ ...prev, saving: true }));
+
+      if (newCashValue) {
+        // Checking Cash Job: Always save current tax, then set to "Out of Scope"
+        const updatesData: any = {
+          cash: true,
+          tax_name: 'Out of Scope'
+        };
+
+        // Always save current tax as original (preserves manual changes)
+        if (orderData.order.tax_name) {
+          updatesData.original_tax_name = orderData.order.tax_name;
+        }
+
+        await ordersApi.updateOrder(orderData.order.order_number, updatesData);
+
+        // Update local state
+        setOrderData(prev => ({
+          ...prev,
+          order: {
+            ...prev.order!,
+            cash: true,
+            tax_name: 'Out of Scope',
+            original_tax_name: updatesData.original_tax_name
+          }
+        }));
+      } else {
+        // Unchecking Cash Job: Restore original tax
+        let restoredTax = orderData.order.original_tax_name;
+
+        // If no saved original tax, fetch from billing address
+        if (!restoredTax) {
+          restoredTax = await ordersApi.getCustomerTax(orderData.order.order_number);
+        }
+
+        await ordersApi.updateOrder(orderData.order.order_number, {
+          cash: false,
+          tax_name: restoredTax
+        });
+
+        // Update local state
+        setOrderData(prev => ({
+          ...prev,
+          order: {
+            ...prev.order!,
+            cash: false,
+            tax_name: restoredTax!
+          }
+        }));
+      }
+    } catch (err) {
+      console.error('Error updating cash job:', err);
+      alert('Failed to update cash job. Please try again.');
+    } finally {
+      setUiState(prev => ({ ...prev, saving: false }));
+    }
+  };
 
   if (uiState.initialLoad) {
     return <LoadingState />;
@@ -152,14 +227,10 @@ export const OrderDetailsPage: React.FC = () => {
         onTabChange={(tab) => setUiState(prev => ({ ...prev, activeTab: tab }))}
         onGenerateForms={handleGenerateForms}
         onOpenPrint={handleOpenPrintModal}
-        onViewForms={handleViewForms}
+        onOpenFolder={handleOpenFolder}
         onPrepareOrder={handlePrepareOrder}
         generatingForms={uiState.generatingForms}
         printingForm={uiState.printingForm}
-        showFormsDropdown={uiState.showFormsDropdown}
-        setShowFormsDropdown={(show) => setUiState(prev => ({ ...prev, showFormsDropdown: show }))}
-        onViewSingleForm={handleViewSingleForm}
-        formsDropdownRef={formsDropdownRef}
       />
 
       {/* Main Content: Tabbed Layout */}
@@ -424,9 +495,9 @@ export const OrderDetailsPage: React.FC = () => {
                         />
                       </div>
 
-                      {/* Cash Customer - Checkbox (from Customer) */}
+                      {/* Cash Job - Checkbox (from Customer) - Custom handler for tax override */}
                       <div className="flex-1">
-                        <span className="text-gray-500 text-sm">Cash Customer:</span>
+                        <span className="text-gray-500 text-sm">Cash Job:</span>
                         <EditableField
                           field="cash"
                           value={orderData.order.cash}
@@ -434,8 +505,8 @@ export const OrderDetailsPage: React.FC = () => {
                           isEditing={false}
                           isSaving={uiState.saving}
                           onEdit={(field, value) => {
-                            setEditState(prev => ({ ...prev, editingField: field }));
-                            saveEdit(field, value);
+                            // Use custom handler that manages tax override
+                            handleCashJobChange(value === 'true');
                           }}
                           onSave={saveEdit}
                           onCancel={cancelEdit}

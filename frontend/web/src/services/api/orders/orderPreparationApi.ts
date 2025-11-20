@@ -13,7 +13,7 @@ export const orderPreparationApi = {
    */
   checkQBEstimateStaleness: async (orderNumber: number) => {
     const response = await api.get(
-      `/api/order-preparation/${orderNumber}/qb-estimate/staleness`
+      `/order-preparation/${orderNumber}/qb-estimate/staleness`
     );
     return response.data;
   },
@@ -23,7 +23,17 @@ export const orderPreparationApi = {
    */
   createQBEstimate: async (orderNumber: number) => {
     const response = await api.post(
-      `/api/order-preparation/${orderNumber}/qb-estimate`
+      `/order-preparation/${orderNumber}/qb-estimate`
+    );
+    return response.data;
+  },
+
+  /**
+   * Check if order form PDFs are stale (order data changed)
+   */
+  checkPDFStaleness: async (orderNumber: number) => {
+    const response = await api.get(
+      `/order-preparation/${orderNumber}/pdfs/staleness`
     );
     return response.data;
   },
@@ -33,7 +43,7 @@ export const orderPreparationApi = {
    */
   generateOrderFormPDF: async (orderNumber: number) => {
     const response = await api.post(
-      `/api/order-preparation/${orderNumber}/pdfs/order-form`
+      `/order-preparation/${orderNumber}/pdfs/order-form`
     );
     return response.data;
   },
@@ -43,7 +53,7 @@ export const orderPreparationApi = {
    */
   downloadQBEstimatePDF: async (orderNumber: number, qbEstimateId?: string) => {
     const response = await api.post(
-      `/api/order-preparation/${orderNumber}/pdfs/qb-estimate`,
+      `/order-preparation/${orderNumber}/pdfs/qb-estimate`,
       { qbEstimateId }
     );
     return response.data;
@@ -54,7 +64,7 @@ export const orderPreparationApi = {
    */
   savePDFsToFolder: async (orderNumber: number) => {
     const response = await api.post(
-      `/api/order-preparation/${orderNumber}/pdfs/save-to-folder`
+      `/order-preparation/${orderNumber}/pdfs/save-to-folder`
     );
     return response.data;
   },
@@ -65,7 +75,18 @@ export const orderPreparationApi = {
    */
   validateForPreparation: async (orderNumber: number) => {
     const response = await api.get(
-      `/api/order-preparation/${orderNumber}/validate`
+      `/order-preparation/${orderNumber}/validate`
+    );
+    return response.data;
+  },
+
+  /**
+   * Check if production tasks are stale (order data changed)
+   * Uses same hash as QB estimates and PDFs - shared staleness
+   */
+  checkTaskStaleness: async (orderNumber: number) => {
+    const response = await api.get(
+      `/order-preparation/${orderNumber}/tasks/staleness`
     );
     return response.data;
   },
@@ -76,7 +97,7 @@ export const orderPreparationApi = {
    */
   generateProductionTasks: async (orderNumber: number) => {
     const response = await api.post(
-      `/api/order-preparation/${orderNumber}/tasks`
+      `/order-preparation/${orderNumber}/tasks`
     );
     return response.data;
   },
@@ -87,7 +108,7 @@ export const orderPreparationApi = {
    */
   getPointPersons: async (orderNumber: number) => {
     const response = await api.get(
-      `/api/order-preparation/${orderNumber}/point-persons`
+      `/order-preparation/${orderNumber}/point-persons`
     );
     return response.data;
   }

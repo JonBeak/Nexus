@@ -1,8 +1,17 @@
 <SignHouseInstructions>
   <PrimaryDirective>
-    We're building a production sign manufacturing system together. 
+    We're building a production sign manufacturing system together.
     You handle implementation while I guide architecture and business requirements.
   </PrimaryDirective>
+
+  <KeyDocumentation>
+    <Document name="BUILD_MANAGEMENT.md">
+      <Path>/home/jon/Nexus/BUILD_MANAGEMENT.md</Path>
+      <Purpose>Streamlined guide for build management, backup operations, server control, and troubleshooting. References BUILD_MANAGEMENT_DETAILED.md for advanced scenarios.</Purpose>
+      <WhenToReference>Before any build/deployment operations, backup/restore operations, or server management tasks</WhenToReference>
+      <Note>Context-optimized - detailed version only referenced when needed</Note>
+    </Document>
+  </KeyDocumentation>
 
   <ProductionSafetyRules>
     <Critical>THIS IS PRODUCTION - Every change affects live business operations</Critical>
@@ -153,11 +162,9 @@
 
   <FuturePriorities>
     <Priority order="4"><Feature name="SupplyChain">Supply chain management with suppliers, orders, cost tracking, low stock alerts</Feature></Priority>
-    <Priority order="5">Estimation PDF export integration with persisted grid data</Priority>
-    <Priority order="6">Material requirements calculation from grid data for order conversion</Priority>
-    <Priority order="7">Supply chain integration for real-time material costs in pricing</Priority>
-    <Priority order="8">Job tracking dashboard enhancement (Quote → Production → Shipped workflow)</Priority>
-    <Priority order="9">QuickBooks integration for accounting sync</Priority>
+    <Priority order="5">Material requirements calculation from grid data for order conversion</Priority>
+    <Priority order="6">Supply chain integration for real-time material costs in pricing</Priority>
+    <Priority order="7">Job tracking dashboard enhancement (Quote → Production → Shipped workflow)</Priority>
   </FuturePriorities>
 
 
@@ -305,39 +312,39 @@ export const ExampleComponent = ({ }: Props) => {
       </Deprecated>
     </ServerManagement>
 
-    <BuildManagement>
-      <DualBuildSystem>
-        The backend supports simultaneous production and development builds for safe testing.
-        PM2 runs whichever build the 'dist' symlink points to.
-      </DualBuildSystem>
+    <BuildAndBackupManagement>
+      <FullDocumentation>See /home/jon/Nexus/BUILD_MANAGEMENT.md for complete build and backup management guide</FullDocumentation>
 
-      <BuildStructure>
-        /backend/web/
-        ├── dist-production/  (stable production build from commit 8c2a637)
-        ├── dist-dev/        (development build with latest changes)
-        └── dist -> [symlink] (points to active build)
-      </BuildStructure>
+      <QuickReference>
+        <DualBuildSystem>
+          System supports simultaneous production and development builds for safe testing.
+          PM2 runs whichever build the 'dist' symlink points to.
+        </DualBuildSystem>
 
-      <RebuildScripts>
-        <Production>/home/jon/Nexus/infrastructure/scripts/backend-rebuild-production.sh</Production>
-        <Development>/home/jon/Nexus/infrastructure/scripts/backend-rebuild-dev.sh</Development>
-        <Note>Scripts automatically remove symlink, build, move to target, recreate symlink</Note>
-      </RebuildScripts>
+        <MostUsedCommands>
+          <ServerControl>
+            <Start>start-production.sh or start-dev.sh</Start>
+            <Stop>stop-servers.sh</Stop>
+            <Status>status-servers.sh</Status>
+          </ServerControl>
 
-      <SwitchScripts>
-        <ToProduction>/home/jon/Nexus/infrastructure/scripts/backend-switch-to-production.sh</ToProduction>
-        <ToDevelopment>/home/jon/Nexus/infrastructure/scripts/backend-switch-to-dev.sh</ToDevelopment>
-        <Note>Scripts update symlink and restart PM2 automatically</Note>
-      </SwitchScripts>
+          <BuildControl>
+            <Rebuild>rebuild-dev.sh or rebuild-production.sh</Rebuild>
+            <Switch>switch-to-dev.sh or switch-to-production.sh</Switch>
+            <Check>build-status.sh</Check>
+          </BuildControl>
 
-      <CheckActiveBuild>readlink /home/jon/Nexus/backend/web/dist</CheckActiveBuild>
+          <BackupControl>
+            <Create>backup-builds.sh</Create>
+            <List>list-backups.sh</List>
+            <Restore>restore-backup.sh &lt;filename&gt;</Restore>
+            <Cleanup>cleanup-backups.sh [count]</Cleanup>
+          </BackupControl>
+        </MostUsedCommands>
 
-      <Backups>
-        <Location>/home/jon/Nexus/infrastructure/backups/backend-builds/</Location>
-        <Format>dist-production-YYYYMMDD-HHMMSS-commit-8c2a637.tar.gz</Format>
-        <Restore>tar -xzf [backup-file]</Restore>
-      </Backups>
-    </BuildManagement>
+        <ScriptLocation>/home/jon/Nexus/infrastructure/scripts/</ScriptLocation>
+      </QuickReference>
+    </BuildAndBackupManagement>
 
     <DatabaseAccess>
       <CheckStatus>systemctl status mysql</CheckStatus>
@@ -477,6 +484,15 @@ const [rows] = await pool.execute(...);  // ❌ NEVER DO THIS
   </DatabaseGuidelines>
 
   <QuickReference>
+    <BuildAndBackupCommands>
+      <FullReference>See /home/jon/Nexus/BUILD_MANAGEMENT.md for complete command reference, workflows, and troubleshooting</FullReference>
+      <MostCommon>
+        <Build>rebuild-dev.sh, rebuild-production.sh, switch-to-dev.sh, switch-to-production.sh</Build>
+        <Backup>backup-builds.sh, list-backups.sh, restore-backup.sh, cleanup-backups.sh</Backup>
+        <Server>start-production.sh, start-dev.sh, stop-servers.sh, status-servers.sh</Server>
+      </MostCommon>
+    </BuildAndBackupCommands>
+
     <CriticalPaths>
       <Path name="DatabaseConfig">/backend/web/src/config/database.ts</Path>
       <Path name="APIClient">/frontend/web/src/services/api.ts</Path>

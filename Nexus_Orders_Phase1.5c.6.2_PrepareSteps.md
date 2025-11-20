@@ -181,83 +181,142 @@ export default StepList;
 
 ### Task 2.3: Individual Step Components
 
-#### Step 1: ValidationStep (Placeholder)
+#### Step 1: ValidationStep (✅ Fully Implemented)
 
-**File:** `/frontend/web/src/components/orders/preparation/steps/ValidationStep.tsx` (NEW)
+**Status:** ✅ COMPLETE - 2025-11-20
+**Documentation:** See `/VALIDATION_RULES_SPECIFICATION.md` for comprehensive validation rules
+
+**File:** `/frontend/web/src/components/orders/preparation/steps/ValidationStep.tsx` (IMPLEMENTED)
+
+**Features:**
+- Validates all 25 specification templates with comprehensive rules
+- Supports simple required fields, conditional fields, and OR logic
+- Displays detailed error messages with part number and template name
+- Auto-runs when PrepareOrderModal opens
+- Blocks progression to Step 2 if validation fails
+
+**Validation Coverage:**
+- Construction Specs (7 templates): Face, Back, Material, Neon Base, Box Material, Return, Trim
+- Fabrication Specs (3 templates): Extr. Colour, Cutting, Acrylic
+- Graphics/Finishing Specs (3 templates): Vinyl, Digital Print, Painting
+- Assembly Specs (6 templates): D-Tape, Pins, Cut, Peel, Mask, Assembly
+- Electrical Specs (5 templates): LEDs, Neon LED, Power Supply, Wire Length, UL
+- Other (2 templates): Drain Holes (conditional), Notes (optional)
+
+**Implementation:**
 
 ```typescript
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { PrepareStep, PreparationState } from '@/types/orderPreparation';
-import { StepCard } from '../common/StepCard';
-import { StepButton } from '../common/StepButton';
+import { CompactStepRow } from '../common/CompactStepRow';
+import { CompactStepButton } from '../common/CompactStepButton';
 import { ordersApi } from '@/services/api';
-import { updateStepStatus } from '@/utils/stepOrchestration';
+import { updateStepStatus, canRunStep } from '@/utils/stepOrchestration';
+import { AlertCircle } from 'lucide-react';
 
-interface Props {
-  step: PrepareStep;
-  orderId: number;
-  orderNumber: number;
-  preparationState: PreparationState;
-  onStateChange: (state: PreparationState) => void;
+interface ValidationError {
+  field: string;
+  message: string;
+  partNumber?: number;
+  templateName?: string;
 }
 
 export const ValidationStep: React.FC<Props> = ({
   step,
-  orderId,
-  orderNumber,
-  preparationState,
-  onStateChange
+  steps,
+  state,
+  onStateChange,
+  order,
+  isOpen
 }) => {
-  const handleRun = async () => {
+  const orderNumber = order.order_number;
+  const [message, setMessage] = useState<string>('');
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+
+  const handleValidate = async () => {
     try {
-      // Update to running
-      onStateChange({
-        ...preparationState,
-        steps: updateStepStatus(preparationState.steps, 'validation', 'running')
-      });
+      onStateChange(prev => ({
+        ...prev,
+        steps: updateStepStatus(prev.steps, step.id, 'running')
+      }));
+      setMessage('Validating order data...');
+      setValidationErrors([]);
 
-      // PLACEHOLDER: Call validation API
-      // const result = await ordersApi.validateForPreparation(orderNumber);
+      await ordersApi.validateForPreparation(orderNumber);
 
-      // For now, always pass
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      onStateChange(prev => ({
+        ...prev,
+        steps: updateStepStatus(prev.steps, step.id, 'completed')
+      }));
+      setMessage('✓ Order validation successful');
+    } catch (error: any) {
+      const errors = error?.response?.data?.details?.errors || [];
+      setValidationErrors(errors);
 
-      // Update to completed
-      onStateChange({
-        ...preparationState,
-        steps: updateStepStatus(preparationState.steps, 'validation', 'completed')
-      });
-    } catch (error) {
-      onStateChange({
-        ...preparationState,
-        steps: updateStepStatus(
-          preparationState.steps,
-          'validation',
-          'failed',
-          (error as Error).message
-        )
-      });
+      onStateChange(prev => ({
+        ...prev,
+        steps: updateStepStatus(prev.steps, step.id, 'failed', undefined)
+      }));
+      setMessage('');
     }
   };
 
+  // Auto-run validation when modal opens
+  useEffect(() => {
+    if (isOpen && !prevIsOpenRef.current) {
+      handleValidate();
+    }
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen]);
+
   return (
-    <StepCard
-      step={step}
-      stepNumber={1}
-      title="Validation"
-      description="Validate order data before processing (Placeholder)"
-    >
-      <div className="mt-3 space-y-2">
-        <p className="text-sm text-gray-600">
-          ⚠️ Placeholder: Validation rules will be implemented later
-        </p>
-        <StepButton
-          step={step}
-          onClick={handleRun}
-          label="Run Validation"
-        />
-      </div>
-    </StepCard>
+    <div className="border-b border-gray-200">
+      <CompactStepRow
+        stepNumber={step.order}
+        name={step.name}
+        description={step.description}
+        status={step.status}
+        message={message}
+        error={step.error}
+        disabled={!canRunStep(step, steps)}
+        button={
+          <CompactStepButton
+            status={step.status}
+            onClick={handleValidate}
+            disabled={!canRunStep(step, steps)}
+            label="Run Validation"
+          />
+        }
+      />
+
+      {/* Detailed validation errors */}
+      {validationErrors.length > 0 && (
+        <div className="px-4 pb-3">
+          <div className="ml-9 bg-red-50 border border-red-200 rounded-md p-3">
+            <div className="flex items-start gap-2 mb-2">
+              <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm font-medium text-red-900">
+                Found {validationErrors.length} validation error{validationErrors.length > 1 ? 's' : ''}
+              </div>
+            </div>
+            <div className="ml-6 space-y-1.5">
+              {validationErrors.map((error, index) => (
+                <div key={index} className="text-xs text-red-800">
+                  <span className="font-medium">
+                    Part {error.partNumber}
+                    {error.templateName && ` - ${error.templateName}`}:
+                  </span>{' '}
+                  <span>{error.message}</span>
+                </div>
+              ))}
+            </div>
+            <div className="ml-6 mt-3 pt-2 border-t border-red-200 text-xs text-red-700 italic">
+              Please fix these issues in the order details before proceeding with preparation.
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 ```

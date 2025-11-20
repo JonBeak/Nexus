@@ -4,8 +4,8 @@
  *
  * Auto-fills specifications for Push Thru and Knockout Box products:
  * - Box Material (1mm Aluminum or 3mm ACM based on calculation display)
- * - Push Thru Acrylic thickness (default 12mm)
- * - Push Thru Acrylic colour (default 2447 White)
+ * - Acrylic thickness (default 12mm)
+ * - Acrylic colour (default 2447 White)
  */
 
 import { AutoFillInput, ParsedData } from '../types';
@@ -24,14 +24,14 @@ export function autoFillPushThru(
 
   // Find template positions
   let boxMaterialRow: number | null = null;
-  let pushThruAcrylicRow: number | null = null;
+  let acrylicRow: number | null = null;
 
   for (let i = 1; i <= 10; i++) {
     const templateName = specs[`_template_${i}`];
     if (!templateName) break;
 
     if (templateName === 'Box Material') boxMaterialRow = i;
-    if (templateName === 'Push Thru Acrylic') pushThruAcrylicRow = i;
+    if (templateName === 'Acrylic') acrylicRow = i;
   }
 
   // Auto-fill Box Material based on calculationDisplay
@@ -51,10 +51,10 @@ export function autoFillPushThru(
     }
   }
 
-  // Auto-fill Push Thru Acrylic defaults
-  if (pushThruAcrylicRow) {
-    const thicknessField = `row${pushThruAcrylicRow}_thickness`;
-    const colourField = `row${pushThruAcrylicRow}_colour`;
+  // Auto-fill Acrylic defaults
+  if (acrylicRow) {
+    const thicknessField = `row${acrylicRow}_thickness`;
+    const colourField = `row${acrylicRow}_colour`;
 
     specs[thicknessField] = '12mm';
     specs[colourField] = '2447 White';

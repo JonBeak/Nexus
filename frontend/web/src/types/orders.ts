@@ -26,6 +26,7 @@ export interface Order {
   cash?: boolean;                // Auto-filled from customer cash_yes_or_no, editable per order
   discount?: number;             // Auto-filled from customer discount, editable per order
   tax_name?: string;             // Auto-filled from billing address province tax, editable per order
+  original_tax_name?: string;    // Saved tax_name before cash job override - restored when cash job unchecked
   sign_image_path?: string;
   crop_top?: number;             // Pixels to crop from top edge (auto-crop feature)
   crop_right?: number;           // Pixels to crop from right edge (auto-crop feature)
@@ -131,7 +132,9 @@ export interface OrderPart {
   product_type: string;
   part_scope?: string;  // Text identifier for the part (e.g., "Main Sign", "Logo", "Border")
   qb_item_name?: string;  // QuickBooks item name (for invoice/QB sync)
+  qb_description?: string;  // QuickBooks estimate description (extracted from specifications JSON)
   specs_display_name?: string;  // Mapped display name for Specs section
+  specs_qty?: number;  // Manufacturing quantity (dedicated column)
   product_type_id: string;
   channel_letter_type_id?: number;
   base_product_type_id?: number;

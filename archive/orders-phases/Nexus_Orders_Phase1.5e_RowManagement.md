@@ -1,48 +1,30 @@
-# Phase 1.5.e: Separator Rows & Row Management
+# Phase 1.5.e: Row Management
 
-**Status:** 📋 Ready to Implement
+**Status:** ✅ Complete
 **Priority:** MEDIUM
-**Duration:** 2 days
-**Last Updated:** 2025-11-06
+**Last Updated:** 2025-11-20
 
 ---
 
-## ⚠️ Architecture Update (2025-11-06)
+## Implementation Status
 
-**Row Type Changes:**
-- **NO `row_type` column** in database - row "type" is now implicit
-- **Type determined by which columns are populated:**
-  - **Both:** `specifications` + invoice fields both populated
-  - **Specs only:** `specifications` populated, invoice fields NULL
-  - **Invoice only:** `specifications` NULL, invoice fields populated
-  - **Separator:** Both `specifications` and invoice fields NULL
+### ✅ Completed: Row Operations
+1. ✅ Add Row modal with position selection
+2. ✅ Delete row functionality with confirmation
+3. ✅ Duplicate row operation (copies all data)
+4. ✅ Reorder rows (drag-and-drop or arrows)
+5. ✅ Part numbering auto-update on reorder
 
-**UI Workflow Changes:**
-- Add Row Modal can still let users select intended type (for UX guidance)
-- After row creation, type is determined by what data gets filled in
-- Row Type Indicator component computes type on-the-fly from part data
-- UI can guide users (e.g., "This row will appear in Specs table only" based on current data)
-
-**Code Examples Below:**
-- Many code examples reference `row_type` field - treat as legacy examples
-- When implementing, use implicit type detection (check if fields are NULL)
-- Modal selection is for UX only - doesn't set a database field
+### 🚫 Removed from Scope
+1. 🚫 Separator rows - Not needed
+2. 🚫 Row type toggle - Not needed
+3. 🚫 Empty cell styling for cross-table visibility - Not needed
 
 ---
 
 ## Overview
 
-Phase 1.5.e implements visual organization and comprehensive row manipulation capabilities for the dual-table order interface. This phase enables users to organize complex orders with separator rows, change row visibility across tables, and perform common operations like add, delete, duplicate, and reorder.
-
-**Key Deliverables:**
-1. Separator row system with auto-insertion and manual creation
-2. Row type toggle (both → specs_only → invoice_only → separator)
-3. Add Row modal with type and position selection
-4. Delete row functionality with confirmation
-5. Duplicate row operation (copies all data)
-6. Reorder rows (drag-and-drop or arrows)
-7. Empty cell styling for cross-table visibility
-8. Part numbering auto-update on reorder
+Phase 1.5.e implements comprehensive row manipulation capabilities for the dual-table order interface. This phase enables users to perform common operations like add, delete, duplicate, and reorder rows in the order parts system.
 
 ---
 

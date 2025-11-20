@@ -7,25 +7,26 @@
 
 import React from 'react';
 import { PrepareStep, PreparationState } from '@/types/orderPreparation';
+import { Order } from '@/types/orders';
 import { ValidationStep } from './steps/ValidationStep';
 import { QBEstimateStep } from './steps/QBEstimateStep';
 import { GeneratePDFsStep } from './steps/GeneratePDFsStep';
-import { DownloadQBPDFStep } from './steps/DownloadQBPDFStep';
-import { SaveToFolderStep } from './steps/SaveToFolderStep';
 import { GenerateTasksStep } from './steps/GenerateTasksStep';
 
 interface StepListProps {
   steps: PrepareStep[];
   state: PreparationState;
   onStateChange: (state: PreparationState) => void;
-  orderNumber: number;
+  order: Order;
+  isOpen: boolean;
 }
 
 export const StepList: React.FC<StepListProps> = ({
   steps,
   state,
   onStateChange,
-  orderNumber
+  order,
+  isOpen
 }) => {
   const getStepComponent = (step: PrepareStep) => {
     const commonProps = {
@@ -33,7 +34,8 @@ export const StepList: React.FC<StepListProps> = ({
       steps,
       state,
       onStateChange,
-      orderNumber
+      order,
+      isOpen
     };
 
     switch (step.id) {
@@ -46,12 +48,6 @@ export const StepList: React.FC<StepListProps> = ({
       case 'generate_pdfs':
         return <GeneratePDFsStep key={step.id} {...commonProps} />;
 
-      case 'download_qb_pdf':
-        return <DownloadQBPDFStep key={step.id} {...commonProps} />;
-
-      case 'save_to_folder':
-        return <SaveToFolderStep key={step.id} {...commonProps} />;
-
       case 'generate_tasks':
         return <GenerateTasksStep key={step.id} {...commonProps} />;
 
@@ -62,7 +58,7 @@ export const StepList: React.FC<StepListProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
       {steps.map(step => getStepComponent(step))}
     </div>
   );

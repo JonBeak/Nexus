@@ -42,7 +42,6 @@ interface UIState {
   saving: boolean;
   generatingForms: boolean;
   printingForm: boolean;
-  showFormsDropdown: boolean;
   showPrintModal: boolean;
 }
 
@@ -73,7 +72,6 @@ export function useOrderDetails(orderNumber: string | undefined) {
     saving: false,
     generatingForms: false,
     printingForm: false,
-    showFormsDropdown: false,
     showPrintModal: false
   });
 

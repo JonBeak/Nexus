@@ -29,7 +29,7 @@ import {
   createEstimate,
   getCustomerIdByName,
   getItemIdByName,
-  getEstimatePdfUrl,
+  getEstimateWebUrl,
 } from '../utils/quickbooks/apiClient';
 
 /**
@@ -300,7 +300,7 @@ export class QuickBooksService {
     console.log(`📤 Creating estimate in QB with ${lines.length} line items...`);
 
     const result = await createEstimate(qbPayload, realmId);
-    const qbEstimateUrl = getEstimatePdfUrl(result.estimateId, realmId);
+    const qbEstimateUrl = getEstimateWebUrl(result.estimateId);
 
     console.log(`✅ QB Estimate created: ID=${result.estimateId}, Doc#=${result.docNumber}`);
 
@@ -360,8 +360,7 @@ export class QuickBooksService {
 
     // Validate: Not already sent
     if (estimateDetails.qb_estimate_id) {
-      const realmId = await quickbooksRepository.getDefaultRealmId();
-      const qbEstimateUrl = getEstimatePdfUrl(estimateDetails.qb_estimate_id, realmId || '');
+      const qbEstimateUrl = getEstimateWebUrl(estimateDetails.qb_estimate_id);
       throw new Error(`Estimate already sent to QuickBooks. URL: ${qbEstimateUrl}`);
     }
 
@@ -430,15 +429,24 @@ export class QuickBooksService {
 
     console.log(`Province ${customerProvince} mapped to tax: "${taxName}"`);
 
-    // Get QB tax code ID
-    const qbTaxCodeId = await quickbooksRepository.getTaxCodeIdByName(taxName);
+    // Get QB tax code ID (with fallback to default if not found)
+    let qbTaxCodeId = await quickbooksRepository.getTaxCodeIdByName(taxName);
+    let finalTaxName = taxName;
+
     if (!qbTaxCodeId) {
-      throw new Error(`No QuickBooks tax code mapping found for "${taxName}". Please configure the mapping in qb_tax_code_mappings.`);
+      // Tax name not found in mappings - use default from qb_settings
+      const defaultTaxCode = await quickbooksRepository.getDefaultTaxCode();
+      if (!defaultTaxCode) {
+        throw new Error(`No QuickBooks tax code mapping found for "${taxName}" and no default tax code configured in qb_settings. Please configure the mapping in qb_tax_code_mappings or set a default in qb_settings.`);
+      }
+      qbTaxCodeId = defaultTaxCode.id;
+      finalTaxName = defaultTaxCode.name;
+      console.warn(`⚠️  Tax code "${taxName}" not found - using default: "${finalTaxName}" (QB ID ${qbTaxCodeId})`);
+    } else {
+      console.log(`✅ Using tax code: "${taxName}" → QB ID: ${qbTaxCodeId}`);
     }
 
-    console.log(`✅ Using tax code: "${taxName}" → QB ID: ${qbTaxCodeId}`);
-
-    return { taxCodeId: qbTaxCodeId, taxName };
+    return { taxCodeId: qbTaxCodeId, taxName: finalTaxName };
   }
 
   /**

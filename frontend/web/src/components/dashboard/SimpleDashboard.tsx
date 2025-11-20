@@ -31,7 +31,9 @@ function SimpleDashboard({ user, onLogout }: SimpleDashboardProps) {
         debugMode: true
       });
 
-      if (response.data.success) {
+      // Interceptor unwraps { success: true, data: T } to just T
+      // So response.data directly contains { qbEstimateId, qbDocNumber, linesCreated }
+      if (response.data.qbEstimateId) {
         const { qbEstimateId, qbDocNumber, linesCreated } = response.data;
         setTestResult(`✅ SUCCESS!
 

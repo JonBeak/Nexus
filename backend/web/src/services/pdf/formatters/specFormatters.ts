@@ -21,15 +21,15 @@ export const SPEC_ORDER = [
   'Return',
   'Trim',
   'Face',
-  'Vinyl',
-  'Digital Print',
+  'Back',
   'Material',
-  'Cutting',
+  'Neon Base',
   'Box Material',
   'Extr. Colour',
-  'Push Thru Acrylic',
-  'Neon Base',
-  'Neon LED',
+  'Cutting',
+  'Acrylic',
+  'Vinyl',
+  'Digital Print',
   'Painting',
   'D-Tape',
   'Pins',
@@ -37,13 +37,13 @@ export const SPEC_ORDER = [
   'Cut',
   'Peel',
   'Mask',
-  'Back',
+  'Assembly',
   'LEDs',
+  'Neon LED',
   'Power Supply',
   'Wire Length',
   'UL',
   'Drain Holes',
-  'Assembly',
   'Notes'
 ] as const;
 
@@ -255,7 +255,7 @@ export function formatSpecValues(templateName: string, specs: Record<string, any
       }
       return [boxColour, boxMaterial].filter(v => v).join(' ');
 
-    case 'Push Thru Acrylic':
+    case 'Acrylic':
       // Template stores: thickness, colour
       // Format as {thickness} - {colour}
       const ptThickness = specs.thickness || '';
