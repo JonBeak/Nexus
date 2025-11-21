@@ -128,19 +128,25 @@ Route (authenticateToken + requirePermission) → Service (business logic only) 
 
 | Route | Method | Permission | Line | Notes |
 |-------|--------|------------|------|-------|
-| `/status` | GET | `time_tracking.list` | 34 | Clock status (in/out) |
-| `/clock-in` | POST | `time_tracking.create` | 36 | Clock in |
-| `/clock-out` | POST | `time_tracking.create` | 38 | Clock out |
-| `/weekly-summary` | GET | `time_tracking.list` | 43 | User weekly summary |
-| `/edit-request` | POST | `time_tracking.create` | 45 | Request time entry edit |
-| `/delete-request` | POST | `time_tracking.create` | 47 | Request entry deletion |
-| `/pending-requests` | GET | `time.approve` | 49 | View pending edit requests |
-| `/process-request` | POST | `time.approve` | 51 | Approve/reject request |
-| `/scheduled-breaks` | GET | `time_management.update` | 53 | **CORRECTED** - View break schedule settings |
-| `/scheduled-breaks/:id` | PUT | `time_management.update` | 55 | **CORRECTED** - Update break schedule |
-| `/notifications` | GET | *(own data)* | 59 | User's own notifications - no permission needed |
+| `/status` | GET | `time.create` | 43 | Clock status (own data - staff can see their own) |
+| `/clock-in` | POST | `time.create` | 45 | Clock in (staff has this permission) |
+| `/clock-out` | POST | `time.create` | 47 | Clock out (staff has this permission) |
+| `/weekly-summary` | GET | `time.read` | 49 | User weekly summary (own data) |
+| `/edit-request` | POST | `time.update` | 51 | Request time entry edit |
+| `/delete-request` | POST | `time.update` | 53 | Request entry deletion |
+| `/pending-requests` | GET | `time.approve` | 55 | View pending edit requests (managers) |
+| `/process-request` | POST | `time.approve` | 57 | Approve/reject request (managers) |
+| `/scheduled-breaks` | GET | `time_management.update` | 59 | View break schedule settings |
+| `/scheduled-breaks/:id` | PUT | `time_management.update` | 61 | Update break schedule |
+| `/notifications` | GET | *(auth only)* | 65 | User's own notifications - no permission needed |
 
-**Note:** `/notifications` routes may not need permissions since users can only see their own notifications
+**⚠️ IMPORTANT Permission Distinction:**
+- `time.*` permissions (time.create, time.read, time.update) - For staff **own** clock operations
+- `time_tracking.*` permissions (time_tracking.list, time_tracking.create) - For managers viewing **all** entries
+- Staff role has: `time.create`, `time.read`, `time.update`
+- Manager role has: All `time_tracking.*` and `time.*` permissions
+
+**Note:** `/notifications` routes only need authentication since users can only see their own notifications
 
 ---
 

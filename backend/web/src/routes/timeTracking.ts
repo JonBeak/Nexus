@@ -39,18 +39,18 @@ import {
 
 const router = Router();
 
-// Clock Operations
-router.get('/status', authenticateToken, requirePermission('time_tracking.list'), getClockStatus);
+// Clock Operations (staff has time.create permission)
+router.get('/status', authenticateToken, requirePermission('time.create'), getClockStatus);
 
-router.post('/clock-in', authenticateToken, requirePermission('time_tracking.create'), clockIn);
+router.post('/clock-in', authenticateToken, requirePermission('time.create'), clockIn);
 
-router.post('/clock-out', authenticateToken, requirePermission('time_tracking.create'), clockOut);
+router.post('/clock-out', authenticateToken, requirePermission('time.create'), clockOut);
 
-router.get('/weekly-summary', authenticateToken, requirePermission('time_tracking.list'), getWeeklySummary);
+router.get('/weekly-summary', authenticateToken, requirePermission('time.read'), getWeeklySummary);
 
-router.post('/edit-request', authenticateToken, requirePermission('time_tracking.create'), submitEditRequest);
+router.post('/edit-request', authenticateToken, requirePermission('time.update'), submitEditRequest);
 
-router.post('/delete-request', authenticateToken, requirePermission('time_tracking.create'), submitDeleteRequest);
+router.post('/delete-request', authenticateToken, requirePermission('time.update'), submitDeleteRequest);
 
 router.get('/pending-requests', authenticateToken, requirePermission('time.approve'), getPendingRequests);
 
