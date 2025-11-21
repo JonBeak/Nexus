@@ -1,9 +1,7 @@
-// File Clean up Finished: Nov 14, 2025
+// File Clean up Finished: Nov 21, 2025
 // Changes:
-//   - Removed 6 legacy CRUD methods (getEstimates, getEstimateById, createEstimate, updateEstimate, deleteEstimate, bulkCreateEstimate)
-//   - Removed bulkEstimateService import (service archived)
-//   - Kept only: getAllFieldPrompts, getFieldPrompts, getProductTypes (still needed by frontend)
-//   - Reduced from 264 lines to ~70 lines (73% reduction)
+//   - Nov 14, 2025: Removed 6 legacy CRUD methods
+//   - Nov 21, 2025: Added getProductTemplate (moved from estimateController.ts)
 //
 // Remaining methods support template/field prompt system used by dynamic form generation
 
@@ -77,4 +75,34 @@ export const getProductTypes = async (req: Request, res: Response) => {
   }
 };
 
+// =============================================
+// DYNAMIC TEMPLATE ENDPOINTS
+// Moved from estimateController.ts - Nov 21, 2025
+// =============================================
 
+/**
+ * Get product template by product type ID
+ * @route GET /product-types/:id/template
+ */
+export const getProductTemplate = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const productTypeId = parseInt(id);
+
+    if (isNaN(productTypeId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid product type ID'
+      });
+    }
+
+    const template = await dynamicTemplateService.getProductTemplate(productTypeId);
+    res.json({ success: true, data: template });
+  } catch (error) {
+    console.error('Controller error getting product template:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to get product template'
+    });
+  }
+};

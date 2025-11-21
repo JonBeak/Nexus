@@ -26,7 +26,8 @@
  * @created 2025-11-14
  */
 
-import { orderRepository } from '../repositories/orderRepository';
+import { orderPartRepository } from '../repositories/orderPartRepository';
+import { orderConversionRepository } from '../repositories/orderConversionRepository';
 import { customerRepository } from '../repositories/customerRepository';
 import { quickbooksRepository } from '../repositories/quickbooksRepository';
 import { OrderPart, CreateOrderPartData, EstimatePreviewData } from '../types/orders';
@@ -79,7 +80,7 @@ export class OrderPartCreationService {
       const productTypeId = this.generateProductTypeId(item.productTypeName);
 
       // Get product type info from database (for channel letter detection)
-      const productTypeInfo = await orderRepository.getProductTypeInfo(item.productTypeId, connection);
+      const productTypeInfo = await orderConversionRepository.getProductTypeInfo(item.productTypeId, connection);
 
       if (!productTypeInfo) {
         throw new Error(`Product type ${item.productTypeId} not found`);
@@ -176,7 +177,7 @@ export class OrderPartCreationService {
       };
 
       // Create the order part
-      const partId = await orderRepository.createOrderPart(partData, connection);
+      const partId = await orderPartRepository.createOrderPart(partData, connection);
 
       // Add this item to processedItems for subsequent items to reference
       // IMPORTANT: Must be AFTER creating the part so we have the partId
@@ -213,7 +214,7 @@ export class OrderPartCreationService {
     if (partsToUpdate.size > 0) {
       for (const [partId, specifications] of partsToUpdate) {
         try {
-          await orderRepository.updateOrderPart(
+          await orderPartRepository.updateOrderPart(
             partId,
             { specifications },
             connection

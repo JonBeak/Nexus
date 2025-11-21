@@ -1,5 +1,8 @@
 // File Clean up Finished: Nov 14, 2025
 // File Clean up Finished: Nov 14, 2025 (removed 4 unused methods: findLEDByProductCode, getDefaultLED, getLEDStatistics, isValidLED)
+// File Clean up Finished: 2025-11-21
+// Changes:
+// - Replaced 2 manual .trim() patterns with getTrimmedString() utility
 /**
  * LED Service
  *
@@ -10,6 +13,7 @@
 
 import { LEDRepository, LED } from '../repositories/ledRepository';
 import { ServiceResult } from '../types/serviceResults';
+import { getTrimmedString } from '../utils/validation';
 
 export class LEDService {
   private repository: LEDRepository;
@@ -49,12 +53,13 @@ export class LEDService {
    * @returns Matched LED full name or null if no match
    */
   async findLEDByFuzzyMatch(extractedType: string): Promise<string | null> {
-    if (!extractedType || extractedType.trim() === '') {
+    const trimmedType = getTrimmedString(extractedType);
+    if (!trimmedType) {
       return null;
     }
 
     // Build search pattern: "Interone 9K" becomes "Interone 9K - %"
-    const searchPattern = `${extractedType.trim()} - %`;
+    const searchPattern = `${trimmedType} - %`;
     const matches = await this.repository.findByFuzzyMatch(searchPattern);
 
     return matches.length > 0 ? matches[0].full_name : null;

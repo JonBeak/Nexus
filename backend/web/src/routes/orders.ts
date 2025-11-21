@@ -14,7 +14,7 @@
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
-import * as orderController from '../controllers/orderController';
+import * as orderController from '../controllers/orders';
 import * as orderConversionController from '../controllers/orderConversionController';
 import * as orderFormController from '../controllers/orderFormController';
 import * as orderImageController from '../controllers/orderImageController';

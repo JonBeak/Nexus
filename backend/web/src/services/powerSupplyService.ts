@@ -1,4 +1,8 @@
 // File Clean up Finished: Nov 14, 2025
+// File Clean up Finished: 2025-11-21
+// Changes:
+// - Replaced 4 manual .trim() patterns with getTrimmedString() utility
+// - Cleaner validation in findPowerSupplyByType() and findPowerSupplyByFuzzyMatch()
 /**
  * Power Supply Service
  *
@@ -9,6 +13,7 @@
 
 import { PowerSupplyRepository, PowerSupply } from '../repositories/powerSupplyRepository';
 import { ServiceResult } from '../types/serviceResults';
+import { getTrimmedString } from '../utils/validation';
 
 export class PowerSupplyService {
   private repository: PowerSupplyRepository;
@@ -45,11 +50,12 @@ export class PowerSupplyService {
    * Used for validation and lookups
    */
   async findPowerSupplyByType(transformerType: string): Promise<PowerSupply | null> {
-    if (!transformerType || transformerType.trim() === '') {
+    const trimmedType = getTrimmedString(transformerType);
+    if (!trimmedType) {
       throw new Error('Transformer type is required');
     }
 
-    return await this.repository.findByTransformerType(transformerType.trim());
+    return await this.repository.findByTransformerType(trimmedType);
   }
 
   /**
@@ -60,12 +66,13 @@ export class PowerSupplyService {
    * @returns Matched power supply full name or null if no match
    */
   async findPowerSupplyByFuzzyMatch(extractedType: string): Promise<string | null> {
-    if (!extractedType || extractedType.trim() === '') {
+    const trimmedType = getTrimmedString(extractedType);
+    if (!trimmedType) {
       return null;
     }
 
     // Build search pattern: "Speedbox 60W" becomes "Speedbox 60W (%"
-    const searchPattern = `${extractedType.trim()} (%`;
+    const searchPattern = `${trimmedType} (%`;
     const matches = await this.repository.findByFuzzyMatch(searchPattern);
 
     return matches.length > 0 ? matches[0].full_name : null;

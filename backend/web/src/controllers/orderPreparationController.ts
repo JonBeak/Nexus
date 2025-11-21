@@ -26,7 +26,8 @@ import * as qbEstimateService from '../services/qbEstimateService';
 import { pdfGenerationService } from '../services/pdf/pdfGenerationService';
 import { orderValidationService } from '../services/orderValidationService';
 import * as orderPrepRepo from '../repositories/orderPreparationRepository';
-import { orderRepository } from '../repositories/orderRepository';
+import { orderFormRepository } from '../repositories/orderFormRepository';
+import { orderPartRepository } from '../repositories/orderPartRepository';
 import { validateOrderAndGetId } from './helpers/orderHelpers';
 
 /**
@@ -63,7 +64,7 @@ export const checkPDFStaleness = async (req: Request, res: Response) => {
     if (!orderId) return;
 
     // Check PDF staleness
-    const stalenessResult = await orderRepository.checkOrderFormStaleness(orderId);
+    const stalenessResult = await orderFormRepository.checkOrderFormStaleness(orderId);
 
     sendSuccessResponse(res, {
       staleness: stalenessResult
@@ -215,7 +216,7 @@ export const checkTaskStaleness = async (req: Request, res: Response) => {
     if (!orderId) return;
 
     // Check task staleness (shares same hash as QB/PDFs)
-    const stalenessResult = await orderRepository.checkTaskStaleness(orderId);
+    const stalenessResult = await orderPartRepository.checkTaskStaleness(orderId);
 
     sendSuccessResponse(res, {
       staleness: stalenessResult

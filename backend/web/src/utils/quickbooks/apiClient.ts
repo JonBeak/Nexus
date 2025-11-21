@@ -19,7 +19,7 @@
  */
 
 import axios from 'axios';
-import { quickbooksRepository } from '../../repositories/quickbooksRepository';
+import { quickbooksOAuthRepository } from '../../repositories/quickbooksOAuthRepository';
 import { refreshAccessToken } from './oauthClient';
 
 // =============================================
@@ -70,14 +70,14 @@ export async function makeQBApiCall(
   }
 
   // Get active access token
-  let tokenData = await quickbooksRepository.getActiveTokens(realmId);
+  let tokenData = await quickbooksOAuthRepository.getActiveTokens(realmId);
 
   // If no active token and refresh is allowed, try to refresh
   if (!tokenData && attemptRefresh) {
     console.log(`⚠️  No active access token for Realm ${realmId}. Attempting refresh...`);
     try {
       await refreshAccessToken(realmId);
-      tokenData = await quickbooksRepository.getActiveTokens(realmId);
+      tokenData = await quickbooksOAuthRepository.getActiveTokens(realmId);
       console.log('✅ Token refreshed, retrying API call');
     } catch (error) {
       throw new APIError(`Token refresh failed: ${error instanceof Error ? error.message : 'Unknown error'}`);

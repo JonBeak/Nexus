@@ -3,18 +3,19 @@
  *
  * Step 2: Create QuickBooks estimate from order.
  * Features:
+ * - QB connection status check with inline connect button
  * - Staleness detection (checks if order data changed since estimate created)
  * - Create/Recreate estimate functionality
  * - Auto-downloads PDF to SMB order folder
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CompactStepRow } from '../common/CompactStepRow';
 import { CompactStepButton } from '../common/CompactStepButton';
 import { PrepareStep, PreparationState, QBEstimateInfo } from '@/types/orderPreparation';
 import { Order } from '@/types/orders';
 import { updateStepStatus, canRunStep } from '@/utils/stepOrchestration';
-import { ordersApi } from '@/services/api';
+import { ordersApi, quickbooksApi } from '@/services/api';
 import { buildPdfUrls } from '@/utils/pdfUrls';
 
 interface QBEstimateStepProps {
@@ -39,12 +40,83 @@ export const QBEstimateStep: React.FC<QBEstimateStepProps> = ({
   const [message, setMessage] = useState<string>('');
   const [isChecking, setIsChecking] = useState(false);
 
-  // Check staleness when modal opens or reopens
+  // QB Connection state
+  const [qbConnected, setQbConnected] = useState<boolean | null>(null); // null = checking
+  const [isConnecting, setIsConnecting] = useState(false);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Check QB connection and staleness when modal opens
   useEffect(() => {
     if (isOpen) {
+      checkQBConnection();
       checkStaleness();
     }
+
+    // Cleanup polling on unmount
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
   }, [isOpen]);
+
+  const checkQBConnection = async () => {
+    try {
+      const status = await quickbooksApi.getStatus();
+      setQbConnected(status.connected);
+    } catch (error) {
+      console.error('Error checking QB connection:', error);
+      setQbConnected(false);
+    }
+  };
+
+  const handleConnectToQuickBooks = async () => {
+    try {
+      setIsConnecting(true);
+
+      // Check if credentials are configured
+      const configStatus = await quickbooksApi.getConfigStatus();
+      if (!configStatus.configured) {
+        alert('QuickBooks credentials not configured. Please contact administrator.');
+        setIsConnecting(false);
+        return;
+      }
+
+      // Open OAuth window
+      await quickbooksApi.startAuth();
+
+      // Poll for connection status (OAuth happens in popup)
+      pollIntervalRef.current = setInterval(async () => {
+        try {
+          const status = await quickbooksApi.getStatus();
+          if (status.connected) {
+            setQbConnected(true);
+            setIsConnecting(false);
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+            }
+          }
+        } catch (error) {
+          console.error('Error polling QB status:', error);
+        }
+      }, 2000);
+
+      // Stop polling after 2 minutes
+      setTimeout(() => {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+          setIsConnecting(false);
+        }
+      }, 120000);
+
+    } catch (error) {
+      console.error('Error connecting to QuickBooks:', error);
+      alert('Failed to connect to QuickBooks. Please try again.');
+      setIsConnecting(false);
+    }
+  };
 
   const checkStaleness = async () => {
     try {
@@ -160,24 +232,76 @@ export const QBEstimateStep: React.FC<QBEstimateStepProps> = ({
   const canRun = canRunStep(step, steps);
   const buttonLabel = qbEstimate?.exists ? 'Recreate Estimate' : 'Create Estimate';
 
+  // Determine what to show based on QB connection status
+  const getStatusMessage = () => {
+    if (qbConnected === null) return 'Checking QuickBooks connection...';
+    if (isChecking) return 'Checking QB estimate status...';
+    if (!qbConnected) return 'QuickBooks not connected';
+    return message;
+  };
+
+  const renderButton = () => {
+    // Still checking connection
+    if (qbConnected === null) {
+      return (
+        <button
+          disabled
+          className="px-3 py-1.5 text-sm bg-gray-100 text-gray-400 rounded cursor-not-allowed"
+        >
+          Checking...
+        </button>
+      );
+    }
+
+    // Not connected - show connect button
+    if (!qbConnected) {
+      return (
+        <button
+          onClick={handleConnectToQuickBooks}
+          disabled={isConnecting}
+          className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center gap-1.5"
+        >
+          {isConnecting ? (
+            <>
+              <span className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"></span>
+              Connecting...
+            </>
+          ) : (
+            'Connect to QB'
+          )}
+        </button>
+      );
+    }
+
+    // Connected - show normal create/recreate button
+    return (
+      <CompactStepButton
+        status={step.status}
+        onClick={handleCreateEstimate}
+        disabled={!canRun}
+        label={buttonLabel}
+      />
+    );
+  };
+
+  // Only disable row if prerequisites not met AND we're connected
+  // Don't disable when not connected - we want the Connect button to be prominent
+  const rowDisabled = qbConnected === true && !canRun;
+
   return (
     <div className="border-b border-gray-200">
       <CompactStepRow
         stepNumber={step.order}
         name={step.name}
-        description="Create estimate in QuickBooks (auto-downloads PDF to SMB order folder)"
-        status={step.status}
-        message={isChecking ? 'Checking QB estimate status...' : message}
-        error={step.error}
-        disabled={!canRun}
-        button={
-          <CompactStepButton
-            status={step.status}
-            onClick={handleCreateEstimate}
-            disabled={!canRun}
-            label={buttonLabel}
-          />
+        description={qbConnected === false
+          ? "Connect to QuickBooks to create estimates"
+          : "Create estimate in QuickBooks (auto-downloads PDF to SMB order folder)"
         }
+        status={qbConnected === false ? 'pending' : step.status}
+        message={getStatusMessage()}
+        error={step.error}
+        disabled={rowDisabled}
+        button={renderButton()}
       />
     </div>
   );

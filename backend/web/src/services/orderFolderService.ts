@@ -19,7 +19,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { orderRepository } from '../repositories/orderRepository';
+import { orderFormRepository } from '../repositories/orderFormRepository';
 import { SMB_ROOT, ORDERS_FOLDER, FINISHED_FOLDER } from '../config/paths';
 
 // Path helpers
@@ -92,7 +92,7 @@ export class OrderFolderService {
     };
   }> {
     // Get order details from repository
-    const order = await orderRepository.getOrderFolderDetails(orderNumber);
+    const order = await orderFormRepository.getOrderFolderDetails(orderNumber);
 
     if (!order) {
       throw new Error(`Order ${orderNumber} not found`);
@@ -223,7 +223,7 @@ export class OrderFolderService {
    */
   async checkDatabaseConflict(folderName: string): Promise<boolean> {
     try {
-      return await orderRepository.checkFolderNameConflict(folderName);
+      return await orderFormRepository.checkFolderNameConflict(folderName);
     } catch (error) {
       console.error('[OrderFolderService] Error checking database conflict:', error);
       throw new Error('Failed to check database conflict');
@@ -388,7 +388,7 @@ export class OrderFolderService {
    */
   async getFolderLocation(orderId: number): Promise<'active' | 'finished' | 'none'> {
     try {
-      return await orderRepository.getOrderFolderLocation(orderId);
+      return await orderFormRepository.getOrderFolderLocation(orderId);
     } catch (error) {
       console.error('[OrderFolderService] Error getting folder location:', error);
       throw error;
@@ -407,7 +407,7 @@ export class OrderFolderService {
     connection?: any
   ): Promise<void> {
     try {
-      await orderRepository.updateFolderTracking(
+      await orderFormRepository.updateFolderTracking(
         orderId,
         folderName,
         folderExists,

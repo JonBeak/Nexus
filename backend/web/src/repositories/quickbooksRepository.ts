@@ -1,59 +1,28 @@
-// File Clean up Finished: Nov 15, 2025 (Third cleanup - Complete dbManager.ts Deprecation)
-// Latest Cleanup Changes (Nov 15, 2025):
-// - DEPRECATED dbManager.ts completely (450 lines eliminated)
-// - Updated 4 files to use quickbooksRepository.getDefaultRealmId() instead of dbManager
-// - Deleted utils/quickbooks/dbManager.ts (all methods either duplicated or dead code)
-// - Architecture compliance: Repository is now single source of truth for QB database access
+// Refactored: Nov 21, 2025 (OAuth Split + Dead Code Removal)
+// Changes:
+// - Extracted OAuth methods to quickbooksOAuthRepository.ts (7 methods, ~235 lines)
+// - Removed dead code: getEstimateByQBId(), storeTaxCodeMapping() (unused methods)
+// - Reduced from 662 → 393 lines (41% reduction)
+// - OAuth-related database operations now in quickbooksOAuthRepository.ts
+// - This file now focuses on: Estimates, Customer/Tax/Item Resolution, Settings
 //
-// Previous Cleanup (Nov 14, 2025 - Token Management Migration):
-// - Added token management methods from dbManager.ts (architectural consolidation)
-// - Added storeTokens() with AES-256-GCM encryption (migrated from dbManager)
-// - Added getActiveTokens() with automatic decryption (migrated from dbManager)
-// - Added getRefreshTokenDetails() for OAuth refresh flow (migrated from dbManager)
-// - All token methods use query() helper instead of pool.execute() (standardization)
-// - Added QBTokenData interface export for type safety
-// - File grew from 415 → 621 lines (token management consolidation)
-// - Repository now handles ALL QuickBooks database operations (single source of truth)
-//
-// Previous Cleanup (Nov 14, 2025):
-// - Migrated all 20 pool.execute() calls to query() helper (standardization)
-// - Updated import from pool to query
-// - Reduced from 434 → 415 lines (4% reduction)
-// - Kept pool import for getBatchQBItemMappings() transaction support
-// - No dead code found - all 19 methods actively used
-//
-// Previous Enhancement (Nov 14, 2025):
-//   - Added getBatchQBItemMappings() method for batch fetching QB items (architecture fix)
-//   - Used by orderPartCreationService to replace direct database query
-//   - Supports transaction connections for atomic operations
+// Previous: Nov 15, 2025 - Complete dbManager.ts deprecation
+// Previous: Nov 14, 2025 - Token management migration, query() standardization
 /**
  * QuickBooks Repository
- * Data Access Layer for QuickBooks Integration
+ * Data Access Layer for QuickBooks Integration (Non-OAuth Operations)
  *
  * Handles all direct database operations for:
  * - Estimate data access
  * - Customer/tax/item ID resolution and caching (single + batch)
- * - OAuth token management (encrypted storage with AES-256-GCM)
- * - OAuth state management (CSRF protection)
  * - Settings and configuration
+ *
+ * OAuth operations (token storage, CSRF state) are in quickbooksOAuthRepository.ts
  */
 
 import { query } from '../config/database';
 import { pool } from '../config/database';
-import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
-import { encryptionService } from '../services/encryptionService';
-
-/**
- * QuickBooks Token Data Interface
- */
-export interface QBTokenData {
-  realm_id: string;
-  access_token: string;
-  refresh_token: string;
-  access_token_expires_at: Date;
-  refresh_token_expires_at: Date;
-  id_token?: string;
-}
+import { RowDataPacket } from 'mysql2/promise';
 
 /**
  * QuickBooks Repository Class
@@ -119,19 +88,6 @@ export class QuickBooksRepository {
        WHERE id = ? AND is_draft = TRUE`,
       [userId, qbEstimateId, amounts.subtotal, amounts.taxAmount, amounts.total, estimateId]
     );
-  }
-
-  /**
-   * Check if estimate exists by QB estimate ID
-   * Used for duplicate detection
-   */
-  async getEstimateByQBId(qbEstimateId: string): Promise<{ id: number } | null> {
-    const rows = await query(
-      `SELECT id FROM job_estimates WHERE qb_estimate_id = ?`,
-      [qbEstimateId]
-    ) as RowDataPacket[];
-
-    return rows.length > 0 ? { id: rows[0].id } : null;
   }
 
   // =============================================
@@ -246,27 +202,6 @@ export class QuickBooksRepository {
       id: rows[0].setting_value,    // default_tax_code_id
       name: rows[1].setting_value   // default_tax_code_name
     };
-  }
-
-  /**
-   * Store tax code mapping for future lookups
-   * Updates existing mapping if already exists
-   */
-  async storeTaxCodeMapping(mapping: {
-    tax_name: string;
-    qb_tax_code_id: string;
-    tax_rate?: number;
-  }): Promise<void> {
-    await query(
-      `INSERT INTO qb_tax_code_mappings
-        (tax_name, qb_tax_code_id, tax_rate, last_synced_at)
-       VALUES (?, ?, ?, NOW())
-       ON DUPLICATE KEY UPDATE
-        qb_tax_code_id = VALUES(qb_tax_code_id),
-        tax_rate = VALUES(tax_rate),
-        last_synced_at = NOW()`,
-      [mapping.tax_name, mapping.qb_tax_code_id, mapping.tax_rate || null]
-    );
   }
 
   // =============================================
@@ -420,241 +355,6 @@ export class QuickBooksRepository {
     );
   }
 
-  // =============================================
-  // OAUTH STATE MANAGEMENT (CSRF PROTECTION)
-  // =============================================
-
-  /**
-   * Store OAuth state token for CSRF validation
-   * Token expires after specified seconds (default: 600 = 10 minutes)
-   */
-  async storeOAuthState(stateToken: string, expiresInSeconds: number = 600): Promise<void> {
-    const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
-
-    await query(
-      `INSERT INTO qb_oauth_states (state_token, expires_at)
-       VALUES (?, ?)`,
-      [stateToken, expiresAt]
-    );
-  }
-
-  /**
-   * Validate and consume OAuth state token
-   * Returns true if valid and not expired, false otherwise
-   * Deletes token after validation (one-time use)
-   */
-  async validateAndConsumeOAuthState(stateToken: string): Promise<boolean> {
-    // Check if exists and not expired
-    const rows = await query(
-      `SELECT id FROM qb_oauth_states
-       WHERE state_token = ? AND expires_at > NOW()`,
-      [stateToken]
-    ) as RowDataPacket[];
-
-    if (rows.length === 0) {
-      return false;
-    }
-
-    // Delete token (one-time use)
-    await query(
-      `DELETE FROM qb_oauth_states WHERE state_token = ?`,
-      [stateToken]
-    );
-
-    return true;
-  }
-
-  /**
-   * Clean up expired OAuth state tokens
-   * Returns count of deleted tokens
-   * Should be called by scheduled job
-   */
-  async cleanupExpiredOAuthStates(): Promise<number> {
-    const result = await query(
-      `DELETE FROM qb_oauth_states WHERE expires_at < NOW()`
-    ) as ResultSetHeader;
-
-    return result.affectedRows;
-  }
-
-  // =============================================
-  // TOKEN MANAGEMENT
-  // =============================================
-
-  /**
-   * Store or update OAuth tokens for a realm
-   * Encrypts tokens using AES-256-GCM before storage
-   */
-  async storeTokens(
-    realmId: string,
-    tokenData: {
-      access_token: string;
-      refresh_token: string;
-      expires_in?: number;
-      x_refresh_token_expires_in?: number;
-      id_token?: string;
-    }
-  ): Promise<void> {
-    const now = new Date();
-    const accessExpiresIn = tokenData.expires_in || 3600; // Default 1 hour
-    const refreshExpiresIn = tokenData.x_refresh_token_expires_in || 8726400; // Default 101 days
-
-    const accessTokenExpiresAt = new Date(now.getTime() + accessExpiresIn * 1000);
-    const refreshTokenExpiresAt = new Date(now.getTime() + refreshExpiresIn * 1000);
-
-    // Encrypt the tokens
-    const encryptedAccessToken = encryptionService.encrypt(tokenData.access_token);
-    const encryptedRefreshToken = encryptionService.encrypt(tokenData.refresh_token);
-    const encryptedIdToken = tokenData.id_token ? encryptionService.encrypt(tokenData.id_token) : null;
-
-    await query(
-      `INSERT INTO qb_oauth_tokens
-        (realm_id,
-         access_token, refresh_token,
-         access_token_encrypted, access_token_iv, access_token_tag,
-         refresh_token_encrypted, refresh_token_iv, refresh_token_tag,
-         access_token_expires_at, refresh_token_expires_at,
-         id_token, encryption_version)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-       ON DUPLICATE KEY UPDATE
-        access_token = '',
-        refresh_token = '',
-        access_token_encrypted = VALUES(access_token_encrypted),
-        access_token_iv = VALUES(access_token_iv),
-        access_token_tag = VALUES(access_token_tag),
-        refresh_token_encrypted = VALUES(refresh_token_encrypted),
-        refresh_token_iv = VALUES(refresh_token_iv),
-        refresh_token_tag = VALUES(refresh_token_tag),
-        access_token_expires_at = VALUES(access_token_expires_at),
-        refresh_token_expires_at = VALUES(refresh_token_expires_at),
-        id_token = VALUES(id_token),
-        encryption_version = 1,
-        updated_at = CURRENT_TIMESTAMP`,
-      [
-        realmId,
-        '', // Empty string for access_token (using encrypted version)
-        '', // Empty string for refresh_token (using encrypted version)
-        encryptedAccessToken.encrypted,
-        encryptedAccessToken.iv,
-        encryptedAccessToken.authTag,
-        encryptedRefreshToken.encrypted,
-        encryptedRefreshToken.iv,
-        encryptedRefreshToken.authTag,
-        accessTokenExpiresAt,
-        refreshTokenExpiresAt,
-        encryptedIdToken ? encryptedIdToken.encrypted : null,
-      ]
-    );
-
-    console.log(`✅ Tokens stored/updated (encrypted) for Realm ID: ${realmId}`);
-  }
-
-  /**
-   * Get active (non-expired) access token for a realm
-   * Decrypts tokens if they are encrypted
-   */
-  async getActiveTokens(realmId: string): Promise<QBTokenData | null> {
-    const rows = await query(
-      `SELECT realm_id,
-              access_token, access_token_encrypted, access_token_iv, access_token_tag,
-              refresh_token, refresh_token_encrypted, refresh_token_iv, refresh_token_tag,
-              access_token_expires_at, refresh_token_expires_at, id_token,
-              encryption_version
-       FROM qb_oauth_tokens
-       WHERE realm_id = ? AND access_token_expires_at > NOW()`,
-      [realmId]
-    ) as RowDataPacket[];
-
-    if (rows.length === 0) {
-      return null;
-    }
-
-    const row = rows[0];
-    let accessToken: string;
-    let refreshToken: string;
-
-    // Check if tokens are encrypted
-    if (row.encryption_version === 1) {
-      // Decrypt tokens
-      accessToken = encryptionService.decrypt(
-        row.access_token_encrypted,
-        row.access_token_iv,
-        row.access_token_tag
-      );
-      refreshToken = encryptionService.decrypt(
-        row.refresh_token_encrypted,
-        row.refresh_token_iv,
-        row.refresh_token_tag
-      );
-    } else {
-      // Use plaintext tokens (during migration)
-      accessToken = row.access_token;
-      refreshToken = row.refresh_token;
-    }
-
-    return {
-      realm_id: row.realm_id,
-      access_token: accessToken,
-      refresh_token: refreshToken,
-      access_token_expires_at: row.access_token_expires_at,
-      refresh_token_expires_at: row.refresh_token_expires_at,
-      id_token: row.id_token,
-    };
-  }
-
-  /**
-   * Get refresh token details (even if access token is expired)
-   * Decrypts refresh token if encrypted
-   */
-  async getRefreshTokenDetails(realmId: string): Promise<QBTokenData | null> {
-    const rows = await query(
-      `SELECT realm_id,
-              refresh_token, refresh_token_encrypted, refresh_token_iv, refresh_token_tag,
-              refresh_token_expires_at, encryption_version
-       FROM qb_oauth_tokens
-       WHERE realm_id = ? AND refresh_token_expires_at > NOW()`,
-      [realmId]
-    ) as RowDataPacket[];
-
-    if (rows.length === 0) {
-      return null;
-    }
-
-    const row = rows[0];
-    let refreshToken: string;
-
-    // Check if token is encrypted
-    if (row.encryption_version === 1) {
-      // Decrypt token
-      refreshToken = encryptionService.decrypt(
-        row.refresh_token_encrypted,
-        row.refresh_token_iv,
-        row.refresh_token_tag
-      );
-    } else {
-      // Use plaintext token (during migration)
-      refreshToken = row.refresh_token;
-    }
-
-    return {
-      realm_id: row.realm_id,
-      access_token: '', // Not needed for refresh
-      refresh_token: refreshToken,
-      refresh_token_expires_at: row.refresh_token_expires_at,
-      access_token_expires_at: new Date(), // Placeholder
-    };
-  }
-
-  /**
-   * Delete OAuth tokens for a realm (disconnect)
-   * Used when user disconnects from QuickBooks
-   */
-  async deleteTokens(realmId: string): Promise<void> {
-    await query(
-      'DELETE FROM qb_oauth_tokens WHERE realm_id = ?',
-      [realmId]
-    );
-  }
 }
 
 // Export singleton instance

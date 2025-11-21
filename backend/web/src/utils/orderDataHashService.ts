@@ -87,6 +87,7 @@ export async function calculateOrderDataHash(orderId: number): Promise<string> {
       qb_item_name: part.qb_item_name ?? null,
       quantity: part.quantity ?? null,
       specs_display_name: part.specs_display_name ?? null,
+      specs_qty: part.specs_qty ?? 0,
       // Handle JSON specifications field - parse and normalize
       specifications: part.specifications ? JSON.parse(JSON.stringify(part.specifications)) : null,
       unit_price: part.unit_price ?? null

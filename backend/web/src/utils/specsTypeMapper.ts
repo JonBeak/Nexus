@@ -39,7 +39,7 @@ export function mapSpecsDisplayNameToTypes(
   const specsMap: Record<string, string[]> = {
     // Channel Letters
     'Front Lit': ['Return', 'Trim', 'Face', 'Drain Holes'],
-    'Halo Lit': ['Return', 'Face', 'Pins', 'Drain Holes'],
+    'Halo Lit': ['Return', 'Face', 'Mounting', 'Drain Holes'],
     'Front Lit Acrylic Face': ['Return', 'Face', 'Drain Holes'],
     'Dual Lit - Single Layer': ['Return', 'Trim', 'Face', 'Drain Holes'],
     'Dual Lit - Double Layer': ['Return', 'Trim', 'Face', 'Drain Holes'],
@@ -53,7 +53,7 @@ export function mapSpecsDisplayNameToTypes(
     'UL': ['UL'],
 
     // Specialized Products
-    '3D print': ['Return', 'Face', 'Pins'],
+    '3D print': ['Return', 'Face', 'Mounting'],
     'Blade Sign': ['Return', 'Trim', 'Face'],
     'Marquee Bulb': ['Return', 'Face'],
     'Neon LED': ['Neon Base', 'Neon LED', 'Mounting'],
@@ -71,7 +71,7 @@ export function mapSpecsDisplayNameToTypes(
     'Knockout Box': ['Box Material', 'Acrylic'],
 
     // Other Products
-    'Substrate Cut': ['Material', 'Cutting', 'Mounting'],
+    'Substrate Cut': ['Material', 'Cutting', 'Mounting', 'D-Tape'],
     'Painting': ['Painting'],
   };
 

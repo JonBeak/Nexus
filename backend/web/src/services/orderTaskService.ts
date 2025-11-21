@@ -1,25 +1,29 @@
-// File Clean up Finished: 2025-11-15
-// Status: UNIMPLEMENTED FEATURE - NOT YET INTEGRATED
-// Notes:
-//   - Service contains task auto-generation logic for production workflows
-//   - Hard-coded task templates for 5 product types (channel_letters, dimensional_letters, acm_panel, vinyl, substrate_cut)
-//   - Task-to-role mappings (42 assignments: designer, vinyl_cnc, painting, cut_bend, leds, packing)
-//   - Currently NOT called anywhere in codebase (tasks are created manually via controller)
-//   - Future integration: Import and use in orderConversionService to auto-generate tasks when creating orders
-//   - No cleanup needed: Code is clean, well-structured, ready for future integration
+// File Clean up Finished: 2025-11-21
+// Changes:
+//   - Migrated 8 task methods from orderService.ts (architectural consolidation)
+//   - Methods moved: updateTaskCompletion, getOrderTasks, getTasksByPart, getTasksByRole,
+//                    batchUpdateTasks, addTaskToOrderPart, removeTask, getTaskTemplates
+//   - Service now handles ALL task-related operations (generation + CRUD)
 //   - Phase 3 plan: Migrate hard-coded templates to database-driven system
 
 /**
  * Order Task Service
  * Business Logic for Task Generation and Management
  *
+ * Handles:
+ * - Task CRUD operations (create, read, update, delete)
+ * - Task templates and auto-generation
+ * - Tasks by role/part grouping
+ * - Batch task updates
+ *
  * Phase 1: Hard-coded task templates
  * Phase 3: Will migrate to database-driven templates
  */
 
 import { PoolConnection } from 'mysql2/promise';
+import { orderPartRepository } from '../repositories/orderPartRepository';
 import { orderRepository } from '../repositories/orderRepository';
-import { OrderPart, TaskTemplate } from '../types/orders';
+import { OrderPart, TaskTemplate, OrderTask } from '../types/orders';
 
 /**
  * Production role types
@@ -143,7 +147,7 @@ export class OrderTaskService {
         const taskName = template[i];
         const assignedRole = this.getTaskRole(taskName);
 
-        await orderRepository.createOrderTask(
+        await orderPartRepository.createOrderTask(
           {
             order_id: orderId,
             part_id: part.part_id,
@@ -191,6 +195,135 @@ export class OrderTaskService {
     return tasks.map((task_name) => ({
       task_name
     }));
+  }
+
+  // =====================================================
+  // TASK CRUD OPERATIONS (Migrated from orderService.ts - 2025-11-21)
+  // =====================================================
+
+  /**
+   * Update task completion status
+   */
+  async updateTaskCompletion(
+    taskId: number,
+    completed: boolean,
+    userId: number
+  ): Promise<void> {
+    await orderPartRepository.updateTaskCompletion(taskId, completed, userId);
+  }
+
+  /**
+   * Get all tasks for an order (flat list)
+   */
+  async getOrderTasks(orderId: number): Promise<OrderTask[]> {
+    // Validate order exists
+    const order = await orderRepository.getOrderById(orderId);
+
+    if (!order) {
+      throw new Error('Order not found');
+    }
+
+    return await orderPartRepository.getOrderTasks(orderId);
+  }
+
+  /**
+   * Get tasks grouped by part with part details
+   */
+  async getTasksByPart(orderId: number): Promise<any[]> {
+    // Validate order exists
+    const order = await orderRepository.getOrderById(orderId);
+
+    if (!order) {
+      throw new Error('Order not found');
+    }
+
+    const parts = await orderPartRepository.getOrderParts(orderId);
+    const tasks = await orderPartRepository.getOrderTasks(orderId);
+
+    // Group tasks by part
+    return parts.map(part => {
+      const partTasks = tasks.filter(t => t.part_id === part.part_id);
+      const completedCount = partTasks.filter(t => t.completed).length;
+
+      return {
+        part_id: part.part_id,
+        part_number: part.part_number,
+        product_type: part.product_type,
+        product_type_id: part.product_type_id,
+        quantity: part.quantity,
+        specifications: part.specifications,
+        production_notes: part.production_notes,
+        total_tasks: partTasks.length,
+        completed_tasks: completedCount,
+        progress_percent: partTasks.length > 0
+          ? Math.round((completedCount / partTasks.length) * 100)
+          : 0,
+        tasks: partTasks
+      };
+    });
+  }
+
+  /**
+   * Get all tasks grouped by production role
+   */
+  async getTasksByRole(includeCompleted: boolean = false, hoursBack: number = 24) {
+    const roles = ['designer', 'vinyl_cnc', 'painting', 'cut_bend', 'leds', 'packing'];
+    const result: any = {};
+
+    for (const role of roles) {
+      const tasks = await orderPartRepository.getTasksByRole(role, includeCompleted, hoursBack);
+      result[role] = tasks;
+    }
+
+    return result;
+  }
+
+  /**
+   * Batch update tasks (start/complete)
+   */
+  async batchUpdateTasks(updates: any[], userId: number) {
+    for (const update of updates) {
+      const { task_id, started, completed } = update;
+
+      if (started !== undefined) {
+        await orderPartRepository.updateTaskStarted(task_id, started, userId);
+      }
+
+      if (completed !== undefined) {
+        await orderPartRepository.updateTaskCompletion(task_id, completed, userId);
+      }
+    }
+  }
+
+  /**
+   * Add a task to an order part
+   */
+  async addTaskToOrderPart(
+    orderId: number,
+    partId: number,
+    taskName: string,
+    assignedRole?: 'designer' | 'vinyl_cnc' | 'painting' | 'cut_bend' | 'leds' | 'packing' | null
+  ): Promise<number> {
+    return await orderPartRepository.createOrderTask({
+      order_id: orderId,
+      part_id: partId,
+      task_name: taskName,
+      assigned_role: assignedRole || null
+    });
+  }
+
+  /**
+   * Remove a task by ID
+   */
+  async removeTask(taskId: number): Promise<void> {
+    await orderPartRepository.deleteTask(taskId);
+  }
+
+  /**
+   * Get available task templates from database
+   */
+  async getTaskTemplates(): Promise<{ task_name: string; assigned_role: string | null }[]> {
+    return await orderPartRepository.getAvailableTasks();
   }
 }
 

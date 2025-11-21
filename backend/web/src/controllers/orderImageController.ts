@@ -24,6 +24,7 @@
 
 import { Request, Response } from 'express';
 import { orderRepository } from '../repositories/orderRepository';
+import { orderFormRepository } from '../repositories/orderFormRepository';
 import { orderFolderService } from '../services/orderFolderService';
 import { parseIntParam, sendErrorResponse } from '../utils/controllerHelpers';
 
@@ -43,7 +44,7 @@ export const getAvailableImages = async (req: Request, res: Response) => {
     }
 
     // Get order details from repository
-    const order = await orderRepository.getOrderFolderDetails(orderNumber);
+    const order = await orderFormRepository.getOrderFolderDetails(orderNumber);
 
     if (!order) {
       return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
@@ -115,7 +116,7 @@ export const setJobImage = async (req: Request, res: Response) => {
     }
 
     // Get order details from repository
-    const order = await orderRepository.getOrderFolderDetails(orderNumber);
+    const order = await orderFormRepository.getOrderFolderDetails(orderNumber);
 
     if (!order) {
       return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');

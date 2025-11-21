@@ -58,7 +58,8 @@ export const SPECS_EXEMPT_FROM_CRITICAL = [
   'Custom',
   'Aluminum Raceway',
   'Extrusion Raceway',
-  'Material Cut'
+  'Material Cut',
+  'Painting'
 ] as const;
 
 // ============================================

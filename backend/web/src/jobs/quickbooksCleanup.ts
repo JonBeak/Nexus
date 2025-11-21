@@ -17,7 +17,7 @@
  */
 
 import cron from 'node-cron';
-import { quickbooksRepository } from '../repositories/quickbooksRepository';
+import { quickbooksOAuthRepository } from '../repositories/quickbooksOAuthRepository';
 
 /**
  * Start QuickBooks cleanup job
@@ -29,7 +29,7 @@ export function startQuickBooksCleanupJob(): void {
     try {
       console.log('🧹 Starting QuickBooks OAuth state cleanup...');
 
-      const deletedCount = await quickbooksRepository.cleanupExpiredOAuthStates();
+      const deletedCount = await quickbooksOAuthRepository.cleanupExpiredOAuthStates();
 
       if (deletedCount > 0) {
         console.log(`✅ Cleaned up ${deletedCount} expired OAuth state token(s) [${new Date().toISOString()}]`);

@@ -27,7 +27,7 @@ import vinylRoutes from './routes/vinyl';
 import vinylProductsRoutes from './routes/vinylProducts';
 import suppliersRoutes from './routes/suppliers';
 import jobsRoutes from './routes/jobs';
-import supplyChainRoutes from './routes/supplyChainSimple';
+// supplyChainSimple routes removed Nov 21, 2025 - dead code, ideas preserved in docs/ideas/SUPPLY_CHAIN_ROUTES_IDEAS.md
 import jobEstimationRoutes from './routes/jobEstimation';
 import pricingCalculationRoutes from './routes/pricingCalculation';
 import locksRoutes from './routes/locks';
@@ -41,7 +41,7 @@ import powerSuppliesRoutes from './routes/powerSupplies';
 import printRoutes from './routes/print';
 
 // QuickBooks utilities for startup
-import { quickbooksRepository } from './repositories/quickbooksRepository';
+import { quickbooksOAuthRepository } from './repositories/quickbooksOAuthRepository';
 import { startQuickBooksCleanupJob } from './jobs/quickbooksCleanup';
 
 // SMB path configuration
@@ -102,7 +102,7 @@ app.use('/api/vinyl', vinylRoutes);
 app.use('/api/vinyl-products', vinylProductsRoutes);
 app.use('/api/suppliers', suppliersRoutes);
 app.use('/api/jobs', jobsRoutes);
-app.use('/api/supply-chain', supplyChainRoutes);
+// /api/supply-chain routes removed Nov 21, 2025 - see docs/ideas/SUPPLY_CHAIN_ROUTES_IDEAS.md
 app.use('/api/job-estimation', jobEstimationRoutes);
 app.use('/api/pricing', pricingCalculationRoutes);
 app.use('/api/locks', locksRoutes);
@@ -212,7 +212,7 @@ const startServer = async () => {
     startPoolHealthMonitoring();
 
     // Clean up expired OAuth state tokens on startup
-    await quickbooksRepository.cleanupExpiredOAuthStates();
+    await quickbooksOAuthRepository.cleanupExpiredOAuthStates();
 
     // Start QuickBooks cleanup job (runs daily at 2 AM)
     startQuickBooksCleanupJob();

@@ -1,5 +1,7 @@
-// File Clean up Finished: Nov 14, 2025
-// Changes:
+// File Clean up Finished: 2025-11-21
+// Changes (2025-11-21):
+//   - Replaced direct customer query with customerRepository.getCustomerById()
+// Changes (Nov 14, 2025):
 //   - Fixed architecture violation: CustomerContactRepository → CustomerContactService (line 202)
 //   - Removed excessive debug logging (14 console statements removed)
 //   - Removed PII logging (customer data, contact info)
@@ -14,13 +16,6 @@
 //   - Cannot use query() helper because transactions require dedicated connection
 //   - This is the CORRECT and ONLY valid use case for pool in services
 //   - connection.execute() calls within transaction are intentional and required
-//
-// TODO - FUTURE REFACTORING (Nov 14, 2025):
-//   - Replace direct customer table query (line ~110) with customerRepository.getCustomerById()
-//   - CustomerRepository created during orderPartCreationService cleanup
-//   - Refactor when this file requires changes again
-//   - Added early check for already-converted estimates with specific error message
-//   - Improved error messages for invalid estimate statuses (ordered, retracted, etc.)
 
 /**
  * Order Conversion Service
@@ -39,6 +34,8 @@
 
 import { pool } from '../config/database';
 import { orderRepository } from '../repositories/orderRepository';
+import { orderConversionRepository } from '../repositories/orderConversionRepository';
+import { customerRepository } from '../repositories/customerRepository';
 import {
   ConvertEstimateRequest,
   ConvertEstimateResponse,
@@ -86,7 +83,7 @@ export class OrderConversionService {
       console.timeEnd('[Order Conversion] Begin transaction');
 
       // 1. Fetch and validate estimate
-      const estimate = await orderRepository.getEstimateForConversion(request.estimateId, connection);
+      const estimate = await orderConversionRepository.getEstimateForConversion(request.estimateId, connection);
 
       if (!estimate) {
         throw new Error(`Estimate ${request.estimateId} not found`);
@@ -106,22 +103,10 @@ export class OrderConversionService {
       }
 
       // 3. Fetch customer data to auto-fill notes and invoice fields
-      const [customerRows] = await connection.execute<any[]>(
-        `SELECT
-          company_name,
-          special_instructions,
-          comments,
-          payment_terms,
-          invoice_email,
-          deposit_required,
-          invoice_email_preference,
-          cash_yes_or_no,
-          discount
-        FROM customers
-        WHERE customer_id = ?`,
-        [estimate.customer_id]
-      );
-      const customer = customerRows[0];
+      const customer = await customerRepository.getCustomerById(estimate.customer_id, connection);
+      if (!customer) {
+        throw new Error('Customer not found');
+      }
 
       // 4. Check for folder name conflicts (case-insensitive, all orders)
       const folderName = orderFolderService.buildFolderName(request.orderName, customer.company_name);
@@ -214,7 +199,7 @@ export class OrderConversionService {
             contactId = result.data;
           }
 
-          await orderRepository.createOrderPointPerson(
+          await orderConversionRepository.createOrderPointPerson(
             {
               order_id: orderId,
               contact_id: contactId,
@@ -245,7 +230,7 @@ export class OrderConversionService {
       console.timeEnd('[Order Conversion] Create order parts');
 
       // 10. Mark estimate as approved (order existence is tracked via orders.estimate_id foreign key)
-      await orderRepository.updateEstimateStatusAndApproval(request.estimateId, 'approved', true, connection);
+      await orderConversionRepository.updateEstimateStatusAndApproval(request.estimateId, 'approved', true, connection);
 
       // 11. Create initial status history entry
       await orderRepository.createStatusHistory(

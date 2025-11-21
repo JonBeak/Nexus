@@ -96,6 +96,9 @@ export function mapErrorCodeToStatus(errorCode?: string): number {
     'ALREADY_EXISTS': 409,
     'CONFLICT': 409,
 
+    // Timeout errors
+    'TIMEOUT_ERROR': 408,
+
     // Database errors
     'DATABASE_ERROR': 500,
     'INTERNAL_ERROR': 500,

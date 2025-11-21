@@ -1,0 +1,172 @@
+// Created: Nov 21, 2025
+// Refactored from estimateController.ts - Estimate version management endpoints
+/**
+ * Estimate Version Controller
+ *
+ * Handles estimate versioning operations:
+ * - Get estimate versions for a job
+ * - Create new estimate versions
+ * - Duplicate estimates as new versions
+ */
+
+import { Response } from 'express';
+import { AuthRequest } from '../../types';
+import { EstimateVersioningService, EstimateVersionData } from '../../services/estimateVersioningService';
+import { validateEstimateId, validateJobId, validateEstimateRequest, validateJobRequest } from '../../utils/estimateValidation';
+
+const versioningService = new EstimateVersioningService();
+
+// =============================================
+// ESTIMATE VERSION ENDPOINTS
+// =============================================
+
+/**
+ * Get all estimate versions for a job
+ * @route GET /jobs/:jobId/estimates
+ */
+export const getEstimateVersionsByJob = async (req: AuthRequest, res: Response) => {
+  try {
+    const { jobId } = req.params;
+
+    const validation = validateJobId(jobId, res);
+    if (!validation.isValid) return;
+    const jobIdNum = validation.value!;
+
+    const versions = await versioningService.getEstimateVersionsByJob(jobIdNum);
+    res.json({ success: true, data: versions });
+  } catch (error) {
+    console.error('Controller error fetching estimate versions:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch estimate versions'
+    });
+  }
+};
+
+/**
+ * Create a new estimate version for a job
+ * @route POST /jobs/:jobId/estimates
+ */
+export const createNewEstimateVersion = async (req: AuthRequest, res: Response) => {
+  try {
+    const validated = validateJobRequest(req, res);
+    if (!validated) return;
+
+    const { parent_estimate_id, notes } = req.body;
+
+    // Validate job exists and user has access
+    const hasAccess = await versioningService.validateJobAccess(validated.jobId);
+    if (!hasAccess) {
+      return res.status(404).json({
+        success: false,
+        message: 'Job not found'
+      });
+    }
+
+    // Validate parent estimate if provided
+    if (parent_estimate_id) {
+      const parentId = parseInt(parent_estimate_id);
+      if (!isNaN(parentId)) {
+        const parentExists = await versioningService.validateEstimateAccess(parentId);
+        if (!parentExists) {
+          return res.status(400).json({
+            success: false,
+            message: 'Parent estimate not found'
+          });
+        }
+
+        const isValidParent = await versioningService.validateParentChain(parentId);
+        if (!isValidParent) {
+          return res.status(400).json({
+            success: false,
+            message: 'Cannot use this estimate as parent: circular reference detected'
+          });
+        }
+      }
+    }
+
+    const versionData: EstimateVersionData = {
+      job_id: validated.jobId,
+      parent_estimate_id: parent_estimate_id ? parseInt(parent_estimate_id) : undefined,
+      notes
+    };
+
+    const estimateId = await versioningService.createNewEstimateVersion(versionData, validated.userId);
+
+    res.json({
+      success: true,
+      data: { estimate_id: estimateId }
+    });
+  } catch (error) {
+    console.error('Controller error creating estimate version:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to create estimate version'
+    });
+  }
+};
+
+// =============================================
+// DUPLICATE ESTIMATE (CREATE NEW VERSION FROM EXISTING)
+// =============================================
+
+/**
+ * Duplicate an estimate as a new version (optionally to a different job)
+ * @route POST /estimates/:estimateId/duplicate
+ */
+export const duplicateEstimateAsNewVersion = async (req: AuthRequest, res: Response) => {
+  try {
+    const validated = validateEstimateRequest(req, res);
+    if (!validated) return;
+
+    const { target_job_id, notes } = req.body;
+    const targetJobIdNum = target_job_id ? parseInt(target_job_id) : undefined;
+
+    // Validate source estimate exists
+    const sourceExists = await versioningService.validateEstimateAccess(validated.estimateId);
+    if (!sourceExists) {
+      return res.status(404).json({
+        success: false,
+        message: 'Source estimate not found'
+      });
+    }
+
+    // Validate source estimate's parent chain doesn't have cycles
+    const isValidSource = await versioningService.validateParentChain(validated.estimateId);
+    if (!isValidSource) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot duplicate from this estimate: circular reference detected in parent chain'
+      });
+    }
+
+    // If no target job specified, get job from source estimate via service layer
+    let jobId = targetJobIdNum;
+    if (!jobId) {
+      jobId = await versioningService.getJobIdByEstimateId(validated.estimateId);
+    }
+
+    const versionData: EstimateVersionData = {
+      job_id: jobId,
+      parent_estimate_id: validated.estimateId,
+      notes
+    };
+
+    const newEstimateId = await versioningService.createNewEstimateVersion(versionData, validated.userId);
+
+    res.json({
+      success: true,
+      data: {
+        estimate_id: newEstimateId,
+        job_id: jobId
+      },
+      message: 'New version created successfully'
+    });
+  } catch (error) {
+    console.error('Controller error duplicating estimate:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to duplicate estimate'
+    });
+  }
+};

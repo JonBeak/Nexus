@@ -6,6 +6,11 @@
 // - Enhanced changeVinylStatus() to properly set status_change_date for ALL disposition changes
 // - Added usage_date and return_date setting for respective disposition changes
 // - Maintains backward compatibility while adding proper audit trail
+//
+// File Clean up Finished: 2025-11-21
+// Changes:
+// - Replaced 7 manual .trim() validation patterns with getTrimmedString() utility
+// - Cleaner validation in validateVinylItemData() and validateVinylItemUpdateData()
 /**
  * Vinyl Inventory Service
  * Business logic layer for vinyl inventory management
@@ -16,6 +21,7 @@ import { User } from '../../types';
 import { VinylInventoryRepository } from '../../repositories/vinyl/vinylInventoryRepository';
 import { VinylInventoryJobLinksRepository } from '../../repositories/vinyl/vinylInventoryJobLinksRepository';
 import { VinylInventoryStatsRepository } from '../../repositories/vinyl/vinylInventoryStatsRepository';
+import { getTrimmedString } from '../../utils/validation';
 import {
   VinylItem,
   VinylInventoryFilters,
@@ -417,11 +423,11 @@ export class VinylInventoryService {
   } {
     const errors: string[] = [];
 
-    if (!data.brand || data.brand.trim() === '') {
+    if (!getTrimmedString(data.brand)) {
       errors.push('Brand is required');
     }
 
-    if (!data.series || data.series.trim() === '') {
+    if (!getTrimmedString(data.series)) {
       errors.push('Series is required');
     }
 
@@ -434,15 +440,18 @@ export class VinylInventoryService {
     }
 
     // Validate dates if provided (non-empty strings)
-    if (typeof data.purchase_date === 'string' && data.purchase_date.trim() !== '' && isNaN(new Date(data.purchase_date).getTime())) {
+    const trimmedPurchaseDate = getTrimmedString(data.purchase_date);
+    if (trimmedPurchaseDate && isNaN(new Date(trimmedPurchaseDate).getTime())) {
       errors.push('Invalid purchase date');
     }
 
-    if (typeof data.storage_date === 'string' && data.storage_date.trim() !== '' && isNaN(new Date(data.storage_date).getTime())) {
+    const trimmedStorageDate = getTrimmedString(data.storage_date);
+    if (trimmedStorageDate && isNaN(new Date(trimmedStorageDate).getTime())) {
       errors.push('Invalid storage date');
     }
 
-    if (typeof data.expiration_date === 'string' && data.expiration_date.trim() !== '' && isNaN(new Date(data.expiration_date).getTime())) {
+    const trimmedExpirationDate = getTrimmedString(data.expiration_date);
+    if (trimmedExpirationDate && isNaN(new Date(trimmedExpirationDate).getTime())) {
       errors.push('Invalid expiration date');
     }
 
@@ -461,11 +470,11 @@ export class VinylInventoryService {
   } {
     const errors: string[] = [];
 
-    if (data.brand !== undefined && (!data.brand || data.brand.trim() === '')) {
+    if (data.brand !== undefined && !getTrimmedString(data.brand)) {
       errors.push('Brand cannot be empty');
     }
 
-    if (data.series !== undefined && (!data.series || data.series.trim() === '')) {
+    if (data.series !== undefined && !getTrimmedString(data.series)) {
       errors.push('Series cannot be empty');
     }
 

@@ -21,7 +21,7 @@
  * - Standardized specifications (sorted, grouped, ready for PDF/tasks)
  */
 
-import { orderRepository } from '../repositories/orderRepository';
+import { orderPartRepository } from '../repositories/orderPartRepository';
 import { standardizeOrderSpecifications, StandardizedOrderSpecs } from './orderSpecificationStandardizationService';
 import { SPEC_VALIDATION_RULES, SpecValidationRule } from './orderValidationRules';
 
@@ -62,7 +62,7 @@ export class OrderValidationService {
     const errors: ValidationError[] = [];
 
     // Get all order parts (raw data)
-    const parts = await orderRepository.getOrderParts(orderId);
+    const parts = await orderPartRepository.getOrderParts(orderId);
 
     if (!parts || parts.length === 0) {
       errors.push({

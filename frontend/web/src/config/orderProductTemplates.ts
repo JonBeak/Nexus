@@ -18,9 +18,6 @@ import {
   CUTTING_METHODS,
   PAINTING_COMPONENTS,
   PAINTING_TIMINGS,
-  MOUNTING_TYPES,
-  PIN_LENGTHS,
-  SPACER_LENGTHS,
   MATERIAL_COLOURS,
   BOX_MATERIALS,
   BOX_COLOURS,
@@ -386,36 +383,9 @@ export const PAINTING_TEMPLATE: SpecificationTemplate = {
   }
 };
 
-/**
- * Template: Mounting
- * Spec 1: Type (combobox: Pins, Pins + Spacers, etc.)
- * Spec 2: Pin Length (combobox: 2", 4", 6")
- * Spec 3: Spacer Length (combobox: 0.5", 1", 1.5")
- */
-export const MOUNTING_TEMPLATE: SpecificationTemplate = {
-  templateName: 'Mounting',
-  spec1: {
-    key: 'type',
-    label: 'Type',
-    type: 'combobox',
-    options: MOUNTING_TYPES,
-    placeholder: 'Type'
-  },
-  spec2: {
-    key: 'pin_length',
-    label: 'Pin Length',
-    type: 'combobox',
-    options: PIN_LENGTHS,
-    placeholder: 'Pin Length'
-  },
-  spec3: {
-    key: 'spacer_length',
-    label: 'Spacer Length',
-    type: 'combobox',
-    options: SPACER_LENGTHS,
-    placeholder: 'Spacer Length'
-  }
-};
+// OLD MOUNTING_TEMPLATE REMOVED - replaced by MOUNTING_NEW_TEMPLATE (formerly PINS_TEMPLATE)
+// The old template had Type/Pin Length/Spacer Length fields
+// The new template has Count/Pins/Spacers fields which provides better detail
 
 /**
  * Template: Material
@@ -586,13 +556,13 @@ export const D_TAPE_TEMPLATE: SpecificationTemplate = {
 };
 
 /**
- * Template: Pins
+ * Template: Mounting (renamed from Pins)
  * Spec 1: Count (textbox)
  * Spec 2: Pins (combobox: pin types including nylon and SS variants)
  * Spec 3: Spacers (combobox: spacer types with inserts, rivnuts, stand off)
  */
-export const PINS_TEMPLATE: SpecificationTemplate = {
-  templateName: 'Pins',
+export const MOUNTING_TEMPLATE: SpecificationTemplate = {
+  templateName: 'Mounting',
   spec1: {
     key: 'count',
     label: 'Count',
@@ -699,7 +669,7 @@ export const BACK_TEMPLATE: SpecificationTemplate = {
 
 /**
  * Template registry - maps template names to templates
- * Note: Mounting template kept for backward compatibility with legacy orders but removed from registry
+ * Note: 'Pins' was renamed to 'Mounting' - backward compatibility handled in getSpecificationTemplate()
  */
 const TEMPLATE_REGISTRY: Record<string, SpecificationTemplate> = {
   'Return': RETURN_TEMPLATE,
@@ -715,7 +685,7 @@ const TEMPLATE_REGISTRY: Record<string, SpecificationTemplate> = {
   'Notes': NOTES_TEMPLATE,
   'Cutting': CUTTING_TEMPLATE,
   'Painting': PAINTING_TEMPLATE,
-  // 'Mounting': MOUNTING_TEMPLATE,  // DEPRECATED - Removed from dropdown, kept for legacy order compatibility
+  'Mounting': MOUNTING_TEMPLATE,
   'Material': MATERIAL_TEMPLATE,
   'Box Material': BOX_MATERIAL_TEMPLATE,
   'Acrylic': ACRYLIC_TEMPLATE,
@@ -723,7 +693,6 @@ const TEMPLATE_REGISTRY: Record<string, SpecificationTemplate> = {
   'Neon LED': NEON_LED_TEMPLATE,
   'Assembly': ASSEMBLY_TEMPLATE,
   'D-Tape': D_TAPE_TEMPLATE,
-  'Pins': PINS_TEMPLATE,
   'Cut': CUT_TEMPLATE,
   'Peel': PEEL_TEMPLATE,
   'Mask': MASK_TEMPLATE,
@@ -755,7 +724,8 @@ export function getSpecificationTemplate(templateName: string): SpecificationTem
   }
 
   // Handle deprecated templates (not in registry but needed for legacy orders)
-  if (templateName === 'Mounting') {
+  if (templateName === 'Pins') {
+    // 'Pins' was renamed to 'Mounting' - redirect to new template
     return MOUNTING_TEMPLATE;
   }
 

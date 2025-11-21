@@ -1,5 +1,9 @@
 // File Clean up Finished: Nov 14, 2025
 // File Clean up Finished: 2025-11-19 (Removed redundant VinylPermissions - permissions enforced at route level)
+// File Clean up Finished: 2025-11-21
+// Changes:
+// - Replaced 4 manual .trim() patterns with getTrimmedString() utility
+// - Cleaner validation in validateVinylProductData() and validateVinylProductUpdateData()
 
 /**
  * Vinyl Products Service
@@ -11,6 +15,7 @@
 
 import { User } from '../../types';
 import { VinylProductsRepository } from '../../repositories/vinyl/vinylProductsRepository';
+import { getTrimmedString } from '../../utils/validation';
 import {
   VinylProduct,
   VinylProductsFilters,
@@ -416,11 +421,11 @@ export class VinylProductsService {
   } {
     const errors: string[] = [];
 
-    if (!data.brand || data.brand.trim() === '') {
+    if (!getTrimmedString(data.brand)) {
       errors.push('Brand is required');
     }
 
-    if (!data.series || data.series.trim() === '') {
+    if (!getTrimmedString(data.series)) {
       errors.push('Series is required');
     }
 
@@ -448,11 +453,11 @@ export class VinylProductsService {
   } {
     const errors: string[] = [];
 
-    if (data.brand !== undefined && (!data.brand || data.brand.trim() === '')) {
+    if (data.brand !== undefined && !getTrimmedString(data.brand)) {
       errors.push('Brand cannot be empty');
     }
 
-    if (data.series !== undefined && (!data.series || data.series.trim() === '')) {
+    if (data.series !== undefined && !getTrimmedString(data.series)) {
       errors.push('Series cannot be empty');
     }
 

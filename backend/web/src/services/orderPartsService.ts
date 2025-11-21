@@ -1,0 +1,348 @@
+// File Clean up Finished: 2025-11-21
+// Created from extraction of part management methods from orderService.ts
+// Methods: recalculatePartDisplayNumbers, getOrderPartById, updateSpecsDisplayName,
+//          toggleIsParent, updatePartSpecsQty, reorderParts, addPartRow,
+//          removePartRow, updateOrderParts
+
+/**
+ * Order Parts Service
+ * Business Logic for Order Part Management
+ *
+ * Handles:
+ * - Part CRUD operations (add, remove, update)
+ * - Part reordering and display number calculation
+ * - Specifications management (display name, qty)
+ * - Parent/child hierarchy (is_parent toggle)
+ * - Batch part updates
+ *
+ * Phase 2.1 - 5.1
+ */
+
+import { orderPartRepository } from '../repositories/orderPartRepository';
+import { mapSpecsDisplayNameToTypes } from '../utils/specsTypeMapper';
+
+export class OrderPartsService {
+
+  // =====================================================
+  // PART DISPLAY NUMBER MANAGEMENT (Phase 2.1)
+  // =====================================================
+
+  /**
+   * Recalculate display_number for all parts in an order
+   * Also recalculates is_parent based on position (first part is always parent)
+   *
+   * Display number logic:
+   * - Parents get numeric display_number (1, 2, 3...)
+   * - Children get parent number + letter (1a, 1b, 2a...)
+   * - First part is always a parent
+   */
+  async recalculatePartDisplayNumbers(orderId: number): Promise<void> {
+    // Get all parts for this order, ordered by part_number
+    const parts = await orderPartRepository.getOrderParts(orderId);
+
+    if (parts.length === 0) return;
+
+    // Sort by part_number to ensure correct ordering
+    parts.sort((a, b) => a.part_number - b.part_number);
+
+    // First part is always a parent
+    let currentParentNumber = 1;
+    let currentChildLetter = 'a';
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      let newIsParent = part.is_parent;
+      let newDisplayNumber = '';
+
+      // First part is always a parent
+      if (i === 0) {
+        newIsParent = true;
+        newDisplayNumber = String(currentParentNumber);
+        currentParentNumber++;
+        currentChildLetter = 'a';
+      } else if (part.is_parent) {
+        // This part is marked as a parent
+        newDisplayNumber = String(currentParentNumber);
+        currentParentNumber++;
+        currentChildLetter = 'a';
+      } else {
+        // This part is a child - assign parent number + letter
+        newDisplayNumber = `${currentParentNumber - 1}${currentChildLetter}`;
+        // Increment letter for next child
+        currentChildLetter = String.fromCharCode(currentChildLetter.charCodeAt(0) + 1);
+      }
+
+      // Update part if display_number or is_parent changed
+      if (part.display_number !== newDisplayNumber || part.is_parent !== newIsParent) {
+        await orderPartRepository.updateOrderPart(part.part_id, {
+          display_number: newDisplayNumber,
+          is_parent: newIsParent
+        });
+      }
+    }
+  }
+
+  // =====================================================
+  // PART SPECIFICATIONS MANAGEMENT (Phase 3.1-3.3)
+  // =====================================================
+
+  /**
+   * Get order part by ID
+   * Helper method for other service methods
+   */
+  async getOrderPartById(partId: number): Promise<any | null> {
+    return await orderPartRepository.getOrderPartById(partId);
+  }
+
+  /**
+   * Update specs display name and regenerate specifications
+   * Phase 3.1
+   *
+   * This method:
+   * 1. Gets the part to determine if parent or regular row
+   * 2. Maps specs_display_name to spec types
+   * 3. Regenerates the SPECIFICATIONS column (clears existing templates)
+   * 4. Auto-demotes to sub-item if specs_display_name is cleared
+   */
+  async updateSpecsDisplayName(
+    partId: number,
+    specsDisplayName: string | null
+  ): Promise<any> {
+    // Get the part to check if it's parent or regular row
+    const part = await orderPartRepository.getOrderPartById(partId);
+    if (!part) {
+      throw new Error('Part not found');
+    }
+
+    // Determine if this is a parent or regular row
+    const displayNumber = part.display_number || '';
+    const isSubItem = /[a-zA-Z]/.test(displayNumber);
+    const isParentOrRegular = part.is_parent || !isSubItem;
+
+    // Call mapper to get spec types
+    const specTypes = mapSpecsDisplayNameToTypes(specsDisplayName, isParentOrRegular);
+
+    // Build new specifications object
+    // Clear all existing template fields and create new ones based on mapper
+    const newSpecifications: any = {};
+
+    // Populate template fields based on mapped spec types
+    specTypes.forEach((specType, index) => {
+      const rowNum = index + 1;
+      newSpecifications[`_template_${rowNum}`] = specType.name;
+      // spec1, spec2, spec3 values are empty for now (manual entry)
+    });
+
+    // Prepare update data
+    const updateData: any = {
+      specs_display_name: specsDisplayName,
+      specifications: newSpecifications
+    };
+
+    // Auto-demote to sub-item if specs_display_name is being cleared
+    if (!specsDisplayName && part.is_parent) {
+      updateData.is_parent = false;
+    }
+
+    // Update the order part
+    await orderPartRepository.updateOrderPart(partId, updateData);
+
+    // Fetch and return updated part
+    const updatedPart = await orderPartRepository.getOrderPartById(partId);
+    if (!updatedPart) {
+      throw new Error('Failed to fetch updated part');
+    }
+
+    return updatedPart;
+  }
+
+  /**
+   * Toggle is_parent status for an order part
+   * Phase 3.2
+   *
+   * Validation: Cannot promote to parent without specs_display_name
+   */
+  async toggleIsParent(partId: number): Promise<any> {
+    const part = await orderPartRepository.getOrderPartById(partId);
+    if (!part) {
+      throw new Error('Part not found');
+    }
+
+    const newIsParent = !part.is_parent;
+
+    // Validation: Cannot set as parent if no specs_display_name
+    if (newIsParent && !part.specs_display_name) {
+      throw new Error('Cannot promote to Base Item: Please select an Item Name first.');
+    }
+
+    await orderPartRepository.updateOrderPart(partId, { is_parent: newIsParent });
+
+    const updatedPart = await orderPartRepository.getOrderPartById(partId);
+    if (!updatedPart) {
+      throw new Error('Failed to fetch updated part');
+    }
+
+    return updatedPart;
+  }
+
+  /**
+   * Update specs_qty for an order part
+   * Phase 3.3
+   *
+   * Validates specs_qty is a non-negative number
+   */
+  async updatePartSpecsQty(partId: number, specsQty: number): Promise<any> {
+    if (specsQty < 0) {
+      throw new Error('specs_qty must be a non-negative number');
+    }
+
+    const part = await orderPartRepository.getOrderPartById(partId);
+    if (!part) {
+      throw new Error('Part not found');
+    }
+
+    await orderPartRepository.updateOrderPart(partId, { specs_qty: specsQty });
+
+    const updatedPart = await orderPartRepository.getOrderPartById(partId);
+    if (!updatedPart) {
+      throw new Error('Failed to fetch updated part');
+    }
+
+    return updatedPart;
+  }
+
+  // =====================================================
+  // PART MANAGEMENT (Phase 4.1-4.3)
+  // =====================================================
+
+  /**
+   * Reorder parts in bulk (for drag-and-drop)
+   * Phase 4.1
+   *
+   * Validates all partIds belong to order and all parts included
+   */
+  async reorderParts(orderId: number, partIds: number[]): Promise<void> {
+    const allParts = await orderPartRepository.getOrderParts(orderId);
+
+    // Validate all partIds belong to this order
+    const validPartIds = new Set(allParts.map(p => p.part_id));
+    const invalidParts = partIds.filter(id => !validPartIds.has(id));
+
+    if (invalidParts.length > 0) {
+      throw new Error(`Invalid part IDs: ${invalidParts.join(', ')}`);
+    }
+
+    // Validate all parts included
+    if (partIds.length !== allParts.length) {
+      throw new Error('All parts must be included in the reorder');
+    }
+
+    // Update part_number for each part based on new order (1-indexed)
+    for (let i = 0; i < partIds.length; i++) {
+      await orderPartRepository.updateOrderPart(partIds[i], { part_number: i + 1 });
+    }
+
+    // Recalculate display numbers and is_parent for all parts
+    await this.recalculatePartDisplayNumbers(orderId);
+  }
+
+  /**
+   * Add a new part row to the order
+   * Phase 4.2
+   *
+   * Creates new part with default values and recalculates display numbers
+   */
+  async addPartRow(orderId: number): Promise<number> {
+    // Get all existing parts to determine next part_number
+    const allParts = await orderPartRepository.getOrderParts(orderId);
+    const maxPartNumber = allParts.length > 0
+      ? Math.max(...allParts.map(p => p.part_number))
+      : 0;
+
+    // Create new part with default values
+    const partId = await orderPartRepository.createOrderPart({
+      order_id: orderId,
+      part_number: maxPartNumber + 1,
+      product_type: 'New Part',
+      product_type_id: 'custom',
+      is_parent: false,
+      quantity: null,
+      specifications: {}
+    });
+
+    // Recalculate display numbers for all parts
+    await this.recalculatePartDisplayNumbers(orderId);
+
+    return partId;
+  }
+
+  /**
+   * Remove a part row from the order
+   * Phase 4.3
+   *
+   * Validates ownership, deletes part, and renumbers remaining parts
+   */
+  async removePartRow(orderId: number, partId: number): Promise<void> {
+    // Get the part to verify it exists and belongs to this order
+    const part = await orderPartRepository.getOrderPartById(partId);
+    if (!part) {
+      throw new Error('Part not found');
+    }
+    if (part.order_id !== orderId) {
+      throw new Error('Part does not belong to this order');
+    }
+
+    // Delete the part (cascade will handle related tasks)
+    await orderPartRepository.deleteOrderPart(partId);
+
+    // Get remaining parts and renumber them sequentially
+    const remainingParts = await orderPartRepository.getOrderParts(orderId);
+    remainingParts.sort((a, b) => a.part_number - b.part_number);
+
+    // Renumber parts sequentially
+    for (let i = 0; i < remainingParts.length; i++) {
+      const expectedPartNumber = i + 1;
+      if (remainingParts[i].part_number !== expectedPartNumber) {
+        await orderPartRepository.updateOrderPart(remainingParts[i].part_id, {
+          part_number: expectedPartNumber
+        });
+      }
+    }
+
+    // Recalculate display numbers for all remaining parts
+    await this.recalculatePartDisplayNumbers(orderId);
+  }
+
+  // =====================================================
+  // BATCH OPERATIONS (Phase 5.1)
+  // =====================================================
+
+  /**
+   * Update order parts in bulk
+   * Phase 5.1
+   *
+   * Updates multiple parts at once (for grid editing)
+   */
+  async updateOrderParts(orderId: number, parts: any[]): Promise<void> {
+    for (const part of parts) {
+      if (!part.part_id) {
+        continue;
+      }
+
+      await orderPartRepository.updateOrderPart(part.part_id, {
+        product_type: part.product_type,
+        part_scope: part.part_scope,
+        qb_item_name: part.qb_item_name,
+        qb_description: part.qb_description,
+        specifications: part.specifications,
+        invoice_description: part.invoice_description,
+        quantity: part.quantity,
+        unit_price: part.unit_price,
+        extended_price: part.extended_price,
+        production_notes: part.production_notes
+      });
+    }
+  }
+}
+
+export const orderPartsService = new OrderPartsService();

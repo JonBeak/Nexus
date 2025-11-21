@@ -1,10 +1,7 @@
-// File Clean up Finished: Nov 14, 2025
+// File Clean up Finished: Nov 21, 2025
 // Changes:
-//   - Removed 6 legacy CRUD endpoints (getEstimates, createEstimate, updateEstimate, deleteEstimate, bulkCreateEstimate, getEstimateById)
-//   - Removed test route
-//   - Removed inline debug logging middleware
-//   - Organized routes into clear functional sections
-//   - Added architecture documentation
+//   - Nov 14, 2025: Removed 6 legacy CRUD endpoints, organized routes
+//   - Nov 21, 2025: Updated imports for refactored estimate controllers
 //
 // Architecture: This file implements the NEW versioning-based job estimation system
 // Old endpoints removed - system now uses: Jobs → Estimates (versions) → Grid Data
@@ -15,7 +12,10 @@ import { authenticateToken } from '../middleware/auth';
 import * as jobEstimationController from '../controllers/jobEstimationController';
 // New architecture controllers (versioning system)
 import * as jobController from '../controllers/jobController';
-import * as estimateController from '../controllers/estimateController';
+import * as estimateVersionController from '../controllers/estimates/estimateVersionController';
+import * as estimateWorkflowController from '../controllers/estimates/estimateWorkflowController';
+import * as estimateItemsController from '../controllers/estimates/estimateItemsController';
+import * as estimateGridDataController from '../controllers/estimates/estimateGridDataController';
 import * as estimateStatusController from '../controllers/estimateStatusController';
 
 const router = Router();
@@ -44,26 +44,26 @@ router.post('/jobs', authenticateToken, jobController.createJob);
 router.put('/jobs/:jobId', authenticateToken, jobController.updateJob);
 router.get('/jobs/:jobId', authenticateToken, jobController.getJobById);
 
-// Estimate Version Management - Using EstimateController
-router.get('/jobs/:jobId/estimates', authenticateToken, estimateController.getEstimateVersionsByJob);
-router.post('/jobs/:jobId/estimates', authenticateToken, estimateController.createNewEstimateVersion);
+// Estimate Version Management - Using EstimateVersionController
+router.get('/jobs/:jobId/estimates', authenticateToken, estimateVersionController.getEstimateVersionsByJob);
+router.post('/jobs/:jobId/estimates', authenticateToken, estimateVersionController.createNewEstimateVersion);
 
-// Draft/Final Workflow - Using EstimateController
-router.post('/estimates/:estimateId/save-draft', authenticateToken, estimateController.saveDraft);
-router.post('/estimates/:estimateId/finalize', authenticateToken, estimateController.finalizeEstimate);
-router.get('/estimates/:estimateId/can-edit', authenticateToken, estimateController.checkEditPermission);
+// Draft/Final Workflow - Using EstimateWorkflowController
+router.post('/estimates/:estimateId/save-draft', authenticateToken, estimateWorkflowController.saveDraft);
+router.post('/estimates/:estimateId/finalize', authenticateToken, estimateWorkflowController.finalizeEstimate);
+router.get('/estimates/:estimateId/can-edit', authenticateToken, estimateWorkflowController.checkEditPermission);
 
-// Duplicate Estimate as New Version - Using EstimateController
-router.post('/estimates/:estimateId/duplicate', authenticateToken, estimateController.duplicateEstimateAsNewVersion);
+// Duplicate Estimate as New Version - Using EstimateVersionController
+router.post('/estimates/:estimateId/duplicate', authenticateToken, estimateVersionController.duplicateEstimateAsNewVersion);
 
-// Update Estimate Notes - Using EstimateController
-router.patch('/estimates/:estimateId/notes', authenticateToken, estimateController.updateEstimateNotes);
+// Update Estimate Notes - Using EstimateItemsController
+router.patch('/estimates/:estimateId/notes', authenticateToken, estimateItemsController.updateEstimateNotes);
 
-// Clear Actions - Using EstimateController
-router.post('/estimates/:estimateId/reset', authenticateToken, estimateController.resetEstimateItems);
-router.post('/estimates/:estimateId/clear-all', authenticateToken, estimateController.clearAllEstimateItems);
-router.post('/estimates/:estimateId/clear-empty', authenticateToken, estimateController.clearEmptyItems);
-router.post('/estimates/:estimateId/add-section', authenticateToken, estimateController.addTemplateSection);
+// Clear Actions - Using EstimateItemsController
+router.post('/estimates/:estimateId/reset', authenticateToken, estimateItemsController.resetEstimateItems);
+router.post('/estimates/:estimateId/clear-all', authenticateToken, estimateItemsController.clearAllEstimateItems);
+router.post('/estimates/:estimateId/clear-empty', authenticateToken, estimateItemsController.clearEmptyItems);
+router.post('/estimates/:estimateId/add-section', authenticateToken, estimateItemsController.addTemplateSection);
 
 // Edit Lock System - REMOVED Nov 14, 2025 (Phase 1 Cleanup)
 // Legacy estimate-specific locks removed (never used - 0 locks in job_estimates columns)
@@ -71,9 +71,9 @@ router.post('/estimates/:estimateId/add-section', authenticateToken, estimateCon
 // Frontend: lockService.ts + useEditLock hook in GridJobBuilderRefactored.tsx
 // Frontend: lockService.ts + useVersionLocking hook in VersionManager.tsx
 
-// Phase 4: Grid Data Persistence - Using EstimateController (moved from editLockController Nov 14, 2025)
-router.post('/estimates/:estimateId/grid-data', authenticateToken, estimateController.saveGridData);
-router.get('/estimates/:estimateId/grid-data', authenticateToken, estimateController.loadGridData);
+// Phase 4: Grid Data Persistence - Using EstimateGridDataController
+router.post('/estimates/:estimateId/grid-data', authenticateToken, estimateGridDataController.saveGridData);
+router.get('/estimates/:estimateId/grid-data', authenticateToken, estimateGridDataController.loadGridData);
 
 // Enhanced Status System - Using EstimateStatusController
 router.post('/estimates/:estimateId/send', authenticateToken, estimateStatusController.sendEstimate);
@@ -86,7 +86,7 @@ router.get('/jobs/:jobId/check-existing-orders', authenticateToken, jobControlle
 router.post('/jobs/create-additional-for-order', authenticateToken, jobController.createAdditionalJobForOrder);
 router.post('/jobs/:jobId/suggest-name-suffix', authenticateToken, jobController.suggestJobNameSuffix);
 
-// Dynamic template endpoints - Using EstimateController
-router.get('/product-types/:id/template', authenticateToken, estimateController.getProductTemplate);
+// Dynamic template endpoints - Using JobEstimationController
+router.get('/product-types/:id/template', authenticateToken, jobEstimationController.getProductTemplate);
 
 export default router;

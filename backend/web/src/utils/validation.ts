@@ -1,12 +1,9 @@
 // File Clean up Finished: 2025-11-15
-// Changes:
-// - ✅ Removed dead code: isValidPhone() function (unused across entire backend)
-// - ✅ Extracted isValidUrl() from supplierService.ts to centralize URL validation
-// - ✅ Added comprehensive JSDoc for all validation functions
-// - 📋 TODO: Broader refactoring opportunity - many files use .trim().length checks
-//   that could benefit from getTrimmedString(). Consider refactoring during future
-//   cleanup passes for: orderService, estimateTemplateService, vinylInventoryService,
-//   supplierService, gridDataService, orderController, and others (15+ files identified)
+// - Removed dead code: isValidPhone() (unused)
+// - Extracted isValidUrl() from supplierService.ts
+//
+// File Clean up Finished: 2025-11-21
+// - Added getTrimmedStringOrEmpty() helper
 
 /**
  * Validation Utilities
@@ -87,6 +84,25 @@ export function getTrimmedString(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
+ * Sanitize and trim string value, returning empty string as fallback
+ *
+ * Like getTrimmedString but returns '' instead of undefined for empty/invalid inputs.
+ * Useful when empty string is a valid default value.
+ *
+ * @param value - Value to sanitize
+ * @returns Trimmed string or empty string
+ *
+ * @example
+ * getTrimmedStringOrEmpty('  hello  ') // 'hello'
+ * getTrimmedStringOrEmpty('') // ''
+ * getTrimmedStringOrEmpty(null) // ''
+ * getTrimmedStringOrEmpty(123) // ''
+ */
+export function getTrimmedStringOrEmpty(value: unknown): string {
+  return getTrimmedString(value) ?? '';
 }
 
 /**

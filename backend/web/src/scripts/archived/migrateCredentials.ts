@@ -1,3 +1,4 @@
+// File Clean up Finished: 2025-11-21 - Archived (migration completed 2025-11-03)
 #!/usr/bin/env node
 /**
  * Migration Script: Migrate QuickBooks credentials to encrypted storage

@@ -105,6 +105,9 @@ export class CustomerRepository {
         discount,
         default_turnaround,
         payment_terms,
+        deposit_required,
+        special_instructions,
+        comments,
         active
       FROM customers
       WHERE customer_id = ?`,

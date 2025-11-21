@@ -13,12 +13,18 @@
 //   - Added new getJobs() handler for /api/jobs endpoint
 //   - Migrated from direct pool.execute() to use JobService/JobRepository pattern
 //   - Removed pool import, now uses JobService exclusively
+//
+// File Clean up Finished: 2025-11-21
+// Changes:
+// - Replaced 4 manual .trim() patterns with getTrimmedString() utility
+// - Improved validation in validateJobName(), updateJob(), and createJob()
 
 import { Request, Response } from 'express';
 import { AuthRequest } from '../types';
 import { EstimateVersioningService, JobData } from '../services/estimateVersioningService';
 import { JobService } from '../services/jobService';
 import { parseIntParam, sendErrorResponse } from '../utils/controllerHelpers';
+import { getTrimmedString } from '../utils/validation';
 
 const versioningService = new EstimateVersioningService();
 const jobService = new JobService();
@@ -91,12 +97,16 @@ export const validateJobName = async (req: Request, res: Response) => {
     }
 
     const customerIdNum = parseIntParam(customer_id.toString(), 'customer ID');
-    const trimmedJobName = job_name.trim();
+    const trimmedJobName = getTrimmedString(job_name);
 
     if (customerIdNum === null) {
       return sendErrorResponse(res, 'Invalid customer ID', 'VALIDATION_ERROR');
     }
-    
+
+    if (!trimmedJobName) {
+      return sendErrorResponse(res, 'Job name cannot be empty', 'VALIDATION_ERROR');
+    }
+
     try {
       const isValid = await versioningService.validateJobName(customerIdNum, trimmedJobName);
       
@@ -139,11 +149,12 @@ export const updateJob = async (req: Request, res: Response) => {
       return sendErrorResponse(res, 'Invalid job ID', 'VALIDATION_ERROR');
     }
 
-    if (!job_name || !job_name.trim()) {
+    const trimmedJobName = getTrimmedString(job_name);
+    if (!trimmedJobName) {
       return sendErrorResponse(res, 'Job name is required', 'VALIDATION_ERROR');
     }
 
-    await versioningService.updateJobName(jobIdNum, job_name.trim(), user?.user_id!);
+    await versioningService.updateJobName(jobIdNum, trimmedJobName, user?.user_id!);
 
     res.json({
       success: true,
@@ -164,9 +175,14 @@ export const createJob = async (req: Request, res: Response) => {
       return sendErrorResponse(res, 'Customer ID and job name are required', 'VALIDATION_ERROR');
     }
 
+    const trimmedJobName = getTrimmedString(job_name);
+    if (!trimmedJobName) {
+      return sendErrorResponse(res, 'Job name cannot be empty', 'VALIDATION_ERROR');
+    }
+
     const jobData: JobData = {
       customer_id: parseInt(customer_id),
-      job_name: job_name.trim()
+      job_name: trimmedJobName
     };
 
     const jobId = await versioningService.createJob(jobData);

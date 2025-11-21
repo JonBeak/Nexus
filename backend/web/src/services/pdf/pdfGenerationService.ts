@@ -29,6 +29,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { orderRepository } from '../../repositories/orderRepository';
+import { orderFormRepository } from '../../repositories/orderFormRepository';
 import { FormPaths, OrderDataForPDF, OrderPartForPDF } from '../../types/orders';
 import { SMB_ROOT, ORDERS_FOLDER, FINISHED_FOLDER } from '../../config/paths';
 import { calculateOrderDataHash } from '../../utils/orderDataHashService';
@@ -172,7 +173,7 @@ class PDFGenerationService {
    * Fetch complete order data with customer and parts
    */
   private async fetchOrderData(orderId: number): Promise<OrderDataForPDF> {
-    const orderData = await orderRepository.getOrderWithCustomerForPDF(orderId);
+    const orderData = await orderFormRepository.getOrderWithCustomerForPDF(orderId);
 
     if (!orderData) {
       throw new Error(`Order ${orderId} not found`);
@@ -244,7 +245,7 @@ class PDFGenerationService {
    * Update order version number
    */
   private async updateOrderVersion(orderId: number, version: number): Promise<void> {
-    await orderRepository.updateOrderFormVersion(orderId, version);
+    await orderFormRepository.updateOrderFormVersion(orderId, version);
   }
 
   /**
@@ -257,21 +258,21 @@ class PDFGenerationService {
     dataHash: string,
     userId?: number
   ): Promise<void> {
-    await orderRepository.upsertOrderFormPaths(orderId, version, paths, dataHash, userId);
+    await orderFormRepository.upsertOrderFormPaths(orderId, version, paths, dataHash, userId);
   }
 
   /**
    * Get form paths for an order
    */
   async getFormPaths(orderId: number, version?: number): Promise<FormPaths | null> {
-    return await orderRepository.getOrderFormPaths(orderId, version);
+    return await orderFormRepository.getOrderFormPaths(orderId, version);
   }
 
   /**
    * Check if forms exist for an order
    */
   async formsExist(orderId: number): Promise<boolean> {
-    return await orderRepository.orderFormsExist(orderId);
+    return await orderFormRepository.orderFormsExist(orderId);
   }
 }
 

@@ -12,7 +12,7 @@
 
 import axios from 'axios';
 import crypto from 'crypto';
-import { quickbooksRepository } from '../../repositories/quickbooksRepository';
+import { quickbooksOAuthRepository } from '../../repositories/quickbooksOAuthRepository';
 import { credentialService } from '../../services/credentialService';
 
 // =============================================
@@ -194,7 +194,7 @@ export async function refreshAccessToken(realmId: string): Promise<{
   console.log(`🔄 Refreshing access token for Realm ID: ${realmId}...`);
 
   // Get refresh token from database
-  const tokenDetails = await quickbooksRepository.getRefreshTokenDetails(realmId);
+  const tokenDetails = await quickbooksOAuthRepository.getRefreshTokenDetails(realmId);
   if (!tokenDetails || !tokenDetails.refresh_token) {
     throw new OAuthError(`No valid refresh token found for realm ${realmId}`);
   }
@@ -229,7 +229,7 @@ export async function refreshAccessToken(realmId: string): Promise<{
     };
 
     // Store the new tokens
-    await quickbooksRepository.storeTokens(realmId, tokenData);
+    await quickbooksOAuthRepository.storeTokens(realmId, tokenData);
 
     return tokenData;
   } catch (error: any) {

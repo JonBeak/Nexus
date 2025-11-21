@@ -1,18 +1,13 @@
-// File Clean up Finished: 2025-11-21
-// Analysis: Service layer for QB estimate creation and management
-// Status: CLEAN - Feature IS in production (33 estimates, actively used since Nov 18)
-// Changes made:
-//   1. Removed getOrderData() - moved to orderPrepRepo.getOrderDataForQBEstimate()
-//   2. Removed getOrderParts() - moved to orderPrepRepo.getOrderPartsForQBEstimate()
-//   3. Added proper TypeScript types (OrderDataForQBEstimate, OrderPartForQBEstimate)
-//   4. Removed direct database queries from service layer (architecture violation fixed)
-//   5. Removed unused imports (query, RowDataPacket)
-// Findings:
-//   - All functions are properly used in production
-//   - Business logic properly orchestrates repository calls
-//   - No more direct database access in service layer ✅
-//   - Proper 3-layer architecture maintained
-// Decision: File is now architecturally sound and type-safe
+// Refactored: 2025-11-21
+// Changes:
+//   - Now uses shared entityResolver for customer and tax code resolution
+//   - Removed duplicate resolveCustomerIdForOrder() function (now in entityResolver.ts)
+//   - Simplified tax resolution using resolveTaxCodeWithFallback()
+// Previous cleanup (2025-11-21):
+//   - Removed getOrderData() - moved to orderPrepRepo.getOrderDataForQBEstimate()
+//   - Removed getOrderParts() - moved to orderPrepRepo.getOrderPartsForQBEstimate()
+//   - Added proper TypeScript types (OrderDataForQBEstimate, OrderPartForQBEstimate)
+//   - Removed direct database queries from service layer (architecture violation fixed)
 
 /**
  * QuickBooks Estimate Service for Orders
@@ -21,16 +16,17 @@
  * Handles staleness detection, data mapping, and PDF download.
  */
 
-import crypto from 'crypto';
 import axios from 'axios';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { createEstimate, getEstimateWebUrl, getEstimatePdfApiUrl } from '../utils/quickbooks/apiClient';
 import * as orderPrepRepo from '../repositories/orderPreparationRepository';
 import { quickbooksRepository } from '../repositories/quickbooksRepository';
+import { quickbooksOAuthRepository } from '../repositories/quickbooksOAuthRepository';
 import { StalenessCheckResult, OrderDataForQBEstimate, OrderPartForQBEstimate } from '../types/orderPreparation';
 import { calculateOrderDataHash } from '../utils/orderDataHashService';
 import { SMB_ROOT, ORDERS_FOLDER, FINISHED_FOLDER } from '../config/paths';
+import { resolveCustomerId, resolveTaxCodeWithFallback } from '../utils/quickbooks/entityResolver';
 
 /**
  * Check if the current QB estimate is stale (order data changed since estimate created)
@@ -116,7 +112,7 @@ export async function createEstimateFromOrder(
     }
 
     // 6. Resolve QB customer ID (with caching and validation)
-    const qbCustomerId = await resolveCustomerIdForOrder(
+    const qbCustomerId = await resolveCustomerId(
       orderData.customer_id,
       orderData.quickbooks_name,
       realmId
@@ -195,7 +191,7 @@ export async function downloadEstimatePDF(
     }
 
     // 2. Get access token for QB API
-    const tokenData = await quickbooksRepository.getActiveTokens(realmId);
+    const tokenData = await quickbooksOAuthRepository.getActiveTokens(realmId);
     if (!tokenData) {
       throw new Error('No active QuickBooks access token');
     }
@@ -253,41 +249,12 @@ async function mapOrderToQBEstimate(
   orderParts: OrderPartForQBEstimate[],
   qbCustomerId: string
 ): Promise<any> {
-  // Get product type to QB item mappings
-  const productTypes = [...new Set(orderParts.map(p => p.product_type).filter(Boolean))] as string[];
-  const itemMappings = await quickbooksRepository.getBatchQBItemMappings(productTypes);
+  // Get QB item name to QB item mappings (use qb_item_name, not product_type)
+  const qbItemNames = [...new Set(orderParts.map(p => p.qb_item_name).filter(Boolean))] as string[];
+  const itemMappings = await quickbooksRepository.getBatchQBItemMappings(qbItemNames);
 
   // Resolve tax code (with database fallback for unmapped taxes)
-  let taxCodeId: string;
-  let taxName: string;
-
-  if (orderData.tax_name) {
-    // Try to map the order's tax_name to a QB tax code
-    const taxCodeIdResult = await quickbooksRepository.getTaxCodeIdByName(orderData.tax_name);
-    if (taxCodeIdResult) {
-      taxCodeId = taxCodeIdResult;
-      taxName = orderData.tax_name;
-      console.log(`✓ Tax code mapped: "${orderData.tax_name}" → QB ID ${taxCodeId}`);
-    } else {
-      // Tax name not found in mappings - use default from qb_settings
-      const defaultTaxCode = await quickbooksRepository.getDefaultTaxCode();
-      if (!defaultTaxCode) {
-        throw new Error(`Tax code "${orderData.tax_name}" not found in qb_tax_code_mappings and no default tax code configured in qb_settings.`);
-      }
-      taxCodeId = defaultTaxCode.id;
-      taxName = defaultTaxCode.name;
-      console.warn(`⚠️  Tax code "${orderData.tax_name}" not found - using default: "${taxName}" (QB ID ${taxCodeId})`);
-    }
-  } else {
-    // No tax_name specified - use default from qb_settings
-    const defaultTaxCode = await quickbooksRepository.getDefaultTaxCode();
-    if (!defaultTaxCode) {
-      throw new Error('No tax_name specified and no default tax code configured in qb_settings.');
-    }
-    taxCodeId = defaultTaxCode.id;
-    taxName = defaultTaxCode.name;
-    console.log(`ℹ️  No tax_name specified - using default: "${taxName}" (QB ID ${taxCodeId})`);
-  }
+  const { taxCodeId, taxName } = await resolveTaxCodeWithFallback(orderData.tax_name);
 
   // Build memo text for DescriptionOnly line item #1
   let memoText = `Order #${orderData.order_number} - ${orderData.order_name}`;
@@ -314,8 +281,8 @@ async function mapOrderToQBEstimate(
 
   // Order parts (invoice items) - QB will auto-number based on array order
   for (const part of orderParts) {
-    // Get QB item ID for product type (using Map.get for case-insensitive lookup)
-    const mapping = itemMappings.get(part.product_type?.toLowerCase() || '');
+    // Get QB item ID using qb_item_name (case-insensitive lookup)
+    const mapping = itemMappings.get(part.qb_item_name?.toLowerCase() || '');
     const qbItemId = mapping?.qb_item_id || '1'; // Default to first item if no mapping
 
     // Use qb_description directly (no fallback logic)
@@ -324,7 +291,7 @@ async function mapOrderToQBEstimate(
     const salesItemDetail: any = {
       ItemRef: {
         value: qbItemId,
-        name: part.product_type || 'General Item'
+        name: part.qb_item_name || part.product_type || 'General Item'
       },
       Qty: parseFloat(String(part.quantity || 1)),
       UnitPrice: parseFloat(String(part.unit_price || 0)),
@@ -362,43 +329,4 @@ async function mapOrderToQBEstimate(
   };
 
   return estimatePayload;
-}
-
-/**
- * Resolve customer ID with caching and validation
- * Matches the pattern from Job Estimation (quickbooksService.ts)
- */
-async function resolveCustomerIdForOrder(
-  customerId: number,
-  quickbooksName: string,
-  realmId: string
-): Promise<string> {
-  // Check cache first
-  let qbCustomerId = await quickbooksRepository.getCachedCustomerId(customerId);
-
-  if (!qbCustomerId) {
-    // Not cached - lookup in QuickBooks
-    console.log(`Looking up customer in QB: "${quickbooksName}"`);
-    const { getCustomerIdByName } = await import('../utils/quickbooks/apiClient');
-    qbCustomerId = await getCustomerIdByName(quickbooksName, realmId);
-
-    if (!qbCustomerId) {
-      throw new Error(
-        `Customer "${quickbooksName}" not found in QuickBooks. ` +
-        `Please create this customer in QuickBooks first, or update the QuickBooks name in customer settings.`
-      );
-    }
-
-    // Store in cache
-    await quickbooksRepository.storeCustomerMapping({
-      customer_id: customerId,
-      qb_customer_id: qbCustomerId,
-      qb_customer_name: quickbooksName,
-    });
-    console.log(`✅ Cached customer mapping: ${customerId} → ${qbCustomerId}`);
-  } else {
-    console.log(`✅ Using cached customer ID: ${qbCustomerId}`);
-  }
-
-  return qbCustomerId;
 }

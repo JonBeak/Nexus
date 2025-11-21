@@ -138,6 +138,7 @@ export async function getOrderPartsForHash(orderId: number): Promise<OrderPartFo
       qb_item_name,
       qb_description,
       specs_display_name,
+      specs_qty,
       product_type_id,
       channel_letter_type_id,
       base_product_type_id,

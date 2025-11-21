@@ -5,6 +5,11 @@
 // - All methods follow best practices with proper validation and error handling
 // - Two unused methods kept as future interfaces: getContactByEmail, getContactCount
 // - Note: orderConversionService.ts:190 violates 3-layer by calling repository directly
+//
+// File Clean up Finished: 2025-11-21
+// Changes:
+// - Replaced 10 manual .trim() patterns with getTrimmedString/getTrimmedStringOrEmpty utilities
+// - Consistent sanitization across createContact() and updateContact() methods
 /**
  * Customer Contact Service
  *
@@ -25,7 +30,7 @@
 
 import { CustomerContactRepository } from '../repositories/customerContactRepository';
 import { CustomerContact, CreateCustomerContactData, UpdateCustomerContactData } from '../types/customerContacts';
-import { isValidEmail } from '../utils/validation';
+import { isValidEmail, getTrimmedString, getTrimmedStringOrEmpty } from '../utils/validation';
 import { ServiceResult } from '../types/serviceResults';
 
 export class CustomerContactService {
@@ -189,8 +194,8 @@ export class CustomerContactService {
       }
 
       // Validate required fields
-      const trimmedName = data.contact_name?.trim() || '';
-      const trimmedEmail = data.contact_email?.trim() || '';
+      const trimmedName = getTrimmedStringOrEmpty(data.contact_name);
+      const trimmedEmail = getTrimmedStringOrEmpty(data.contact_email);
 
       if (!trimmedName || trimmedName.length === 0) {
         return {
@@ -236,9 +241,9 @@ export class CustomerContactService {
         customer_id: data.customer_id,
         contact_name: trimmedName,
         contact_email: trimmedEmail,
-        contact_phone: data.contact_phone?.trim() || undefined,
-        contact_role: data.contact_role?.trim() || undefined,
-        notes: data.notes?.trim() || undefined
+        contact_phone: getTrimmedString(data.contact_phone),
+        contact_role: getTrimmedString(data.contact_role),
+        notes: getTrimmedString(data.notes)
       };
 
       const contactId = await CustomerContactRepository.createContact(contactData, userId);
@@ -290,9 +295,9 @@ export class CustomerContactService {
 
       // Validate email if being updated
       if (data.contact_email !== undefined) {
-        const trimmedEmail = data.contact_email.trim();
+        const trimmedEmail = getTrimmedStringOrEmpty(data.contact_email);
 
-        if (trimmedEmail.length === 0) {
+        if (!trimmedEmail) {
           return {
             success: false,
             error: 'Contact email cannot be empty',
@@ -329,12 +334,12 @@ export class CustomerContactService {
 
       // Trim string fields
       const updateData: UpdateCustomerContactData = {
-        contact_name: data.contact_name?.trim(),
+        contact_name: getTrimmedString(data.contact_name),
         contact_email: data.contact_email,
-        contact_phone: data.contact_phone?.trim(),
-        contact_role: data.contact_role?.trim(),
+        contact_phone: getTrimmedString(data.contact_phone),
+        contact_role: getTrimmedString(data.contact_role),
         is_active: data.is_active,
-        notes: data.notes?.trim()
+        notes: getTrimmedString(data.notes)
       };
 
       const updated = await CustomerContactRepository.updateContact(contactId, updateData, userId);

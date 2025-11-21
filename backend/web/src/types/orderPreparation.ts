@@ -1,17 +1,8 @@
-// File Clean up Finished: 2025-11-18
-// Analysis: Types defined for future "Order Finalization - Prepare & Send Workflow" feature
-// Status: NOT CURRENTLY USED - Zero imports found in codebase
-// Findings:
-//   - OrderPointPerson: DUPLICATED in orders.ts (better version with more fields)
-//   - QBEstimateRecord: References non-existent database table structure
-//   - StalenessCheckResult, StepResult, FinalizationOptions, FinalizationResult: Not used
-//   - Phase 1.5.c.6 workflow: Never implemented
-//
-// TODO: Decide whether to implement this feature or delete these unused types
-//       If implementing: Use OrderPointPerson from orders.ts, verify QBEstimateRecord schema
-//       If not implementing: Delete this file to reduce dead code
-//
-// Preserved for potential future implementation - no changes made
+// File Clean up Finished: 2025-11-21
+// Status: ACTIVE - Types used by orderPreparationRepository.ts and qbEstimateService.ts
+// Used types: QBEstimateRecord, StalenessCheckResult, OrderPointPerson, OrderPartForHash,
+//             OrderDataForHash, OrderDataForQBEstimate, OrderPartForQBEstimate, BasicOrderInfo
+// Future types (Phase 1.5.c.6): StepResult, FinalizationOptions, FinalizationResult
 
 /**
  * Order Preparation Type Definitions
@@ -126,6 +117,7 @@ export interface OrderPartForHash {
   qb_item_name: string | null;
   qb_description: string | null;
   specs_display_name: string | null;
+  specs_qty: number;
   product_type_id: number | null;
   channel_letter_type_id: number | null;
   base_product_type_id: number | null;

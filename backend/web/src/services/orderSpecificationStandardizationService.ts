@@ -27,7 +27,7 @@ import { FormType } from './pdf/generators/pdfConstants';
 import { buildPartColumns, PartColumn } from './pdf/utils/partColumnBuilder';
 import { buildSortedTemplateRows } from './pdf/renderers/specRenderers';
 import { shouldIncludePart, shouldStartNewColumn } from './pdf/generators/pdfHelpers';
-import { orderRepository } from '../repositories/orderRepository';
+import { orderFormRepository } from '../repositories/orderFormRepository';
 
 // ============================================
 // TYPE DEFINITIONS
@@ -183,7 +183,7 @@ export async function standardizeOrderSpecifications(
   console.log(`[STANDARDIZATION] Loading order ${orderId} from database`);
 
   // Load order data (same method used by PDF generation service)
-  const orderData = await orderRepository.getOrderWithCustomerForPDF(orderId);
+  const orderData = await orderFormRepository.getOrderWithCustomerForPDF(orderId);
 
   if (!orderData) {
     throw new Error(`Order ${orderId} not found`);
