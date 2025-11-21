@@ -1,15 +1,26 @@
-// File Clean up Finished: 2025-11-15
-// Created during cleanup to split TimeAnalyticsService (was 612 lines)
-// Contains missing entries logic + all private helper methods
+// File Clean up Started: 2025-11-21
+// File Clean up Finished: 2025-11-21
+// Phase 2 Changes:
+// - Removed TimeTrackingPermissions import (redundant with route-level RBAC)
+// - Removed 1 service-level permission check block
+// - Permissions now enforced at route level via requirePermission() middleware
+//
+// Previous cleanup: 2025-11-15
+// - Created during cleanup to split TimeAnalyticsService (was 612 lines)
+// - Contains missing entries logic + all private helper methods
 
 /**
  * Missing Entries Service
  * Handles complex business logic for identifying missing time entries
  * Extracted from TimeAnalyticsService to maintain 500-line file limit
+ *
+ * ARCHITECTURAL STATUS:
+ * ✅ 3-layer architecture (Route → Service → Repository)
+ * ✅ Route-level RBAC protection (requirePermission middleware)
+ * ✅ No redundant service-level permission checks
  */
 
 import { User } from '../../types';
-import { TimeTrackingPermissions } from '../../utils/timeTracking/permissions';
 import { TimeAnalyticsRepository } from '../../repositories/timeManagement/TimeAnalyticsRepository';
 import {
   ServiceResponse,
@@ -40,17 +51,7 @@ export class MissingEntriesService {
     const timeout = options.timeout || 8000; // 8 second timeout
 
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        const canView = await TimeTrackingPermissions.canViewTimeAnalyticsHybrid(user);
-        if (!canView) {
-          return {
-            success: false,
-            error: 'You do not have permission to view time analytics',
-            code: 'PERMISSION_DENIED'
-          };
-        }
-      }
+      // Permissions enforced at route level via requirePermission('time_management.view_reports') middleware
 
       // Validate date range
       const validation = this._validateDateRange(dateRange);

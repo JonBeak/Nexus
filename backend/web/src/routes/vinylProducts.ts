@@ -1,7 +1,11 @@
+// File Clean up Finished: 2025-11-21
+// Changes: Removed "New" suffix from filename (vinylProductsNew.ts → vinylProducts.ts)
+//          Updated server.ts import accordingly
+//          No functional changes - purely organizational cleanup
 /**
- * Vinyl Products Routes (New Architecture)
+ * Vinyl Products Routes
  * Clean routes that delegate to controllers
- * Now with RBAC permission middleware
+ * RBAC permission middleware
  */
 
 import { Router } from 'express';

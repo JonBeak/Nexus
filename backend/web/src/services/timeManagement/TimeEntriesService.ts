@@ -1,9 +1,14 @@
-// File Clean up Finished: 2025-11-15
-// Changes:
+// File Clean up Started: 2025-11-21
+// File Clean up Finished: 2025-11-21
+// Phase 2 Changes:
+// - Removed TimeTrackingPermissions import (redundant with route-level RBAC)
+// - Removed 7 service-level permission check blocks
+// - Permissions now enforced at route level via requirePermission() middleware
+//
+// Previous cleanup: 2025-11-15
 // - Removed unused import: query() from database config (never used - Service uses Repository pattern)
 // - Removed unused method: clearCache() (never called, cache auto-expires after 1 hour)
 // - Verified architecture compliance: Service → Repository pattern correctly implemented
-// - File size: 463 lines (within 500-line limit)
 
 /**
  * Time Entries Service
@@ -15,11 +20,11 @@
  * ✅ Uses TimeEntryRepository for all database operations
  * ✅ Uses auditRepository for audit logging
  * ✅ No direct database access
- * ✅ Consistent error handling and permission checks
+ * ✅ Route-level RBAC protection (requirePermission middleware)
+ * ✅ No redundant service-level permission checks
  */
 
 import { User } from '../../types';
-import { TimeTrackingPermissions } from '../../utils/timeTracking/permissions';
 import { TimeEntryRepository } from '../../repositories/timeTracking/TimeEntryRepository';
 import { auditRepository } from '../../repositories/auditRepository';
 import {
@@ -51,17 +56,7 @@ export class TimeEntriesService {
     options: ServiceOptions = {}
   ): Promise<ServiceResponse<TimeEntry[]>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        const canView = await TimeTrackingPermissions.canViewTimeEntriesHybrid(user);
-        if (!canView) {
-          return {
-            success: false,
-            error: 'You do not have permission to view time entries',
-            code: 'PERMISSION_DENIED'
-          };
-        }
-      }
+      // Permissions enforced at route level via requirePermission('time_tracking.list') middleware
 
       // Fetch entries
       const entries = await TimeEntryRepository.findEntries(filters);
@@ -91,17 +86,7 @@ export class TimeEntriesService {
     options: ServiceOptions = {}
   ): Promise<ServiceResponse<{ entry_id: number }>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        const canCreate = await TimeTrackingPermissions.canCreateTimeEntriesHybrid(user);
-        if (!canCreate) {
-          return {
-            success: false,
-            error: 'You do not have permission to create time entries',
-            code: 'PERMISSION_DENIED'
-          };
-        }
-      }
+      // Permissions enforced at route level via requirePermission('time_tracking.create') middleware
 
       // Validate required fields
       if (!data.user_id || !data.clock_in) {
@@ -170,17 +155,7 @@ export class TimeEntriesService {
     options: ServiceOptions = {}
   ): Promise<ServiceResponse<void>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        const canUpdate = await TimeTrackingPermissions.canUpdateTimeEntriesHybrid(user);
-        if (!canUpdate) {
-          return {
-            success: false,
-            error: 'You do not have permission to update time entries',
-            code: 'PERMISSION_DENIED'
-          };
-        }
-      }
+      // Permissions enforced at route level via requirePermission('time_tracking.update') middleware
 
       // Validate entry exists
       const existingEntry = await TimeEntryRepository.getEntryById(entryId);
@@ -238,17 +213,7 @@ export class TimeEntriesService {
     options: ServiceOptions = {}
   ): Promise<ServiceResponse<void>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        const canDelete = await TimeTrackingPermissions.canDeleteTimeEntriesHybrid(user);
-        if (!canDelete) {
-          return {
-            success: false,
-            error: 'You do not have permission to delete time entries',
-            code: 'PERMISSION_DENIED'
-          };
-        }
-      }
+      // Permissions enforced at route level via requirePermission('time_tracking.update') middleware
 
       // Validate entry ID
       if (!entryId || isNaN(entryId)) {
@@ -298,17 +263,7 @@ export class TimeEntriesService {
     options: ServiceOptions = {}
   ): Promise<ServiceResponse<void>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        const canUpdate = await TimeTrackingPermissions.canUpdateTimeEntriesHybrid(user);
-        if (!canUpdate) {
-          return {
-            success: false,
-            error: 'You do not have permission to update time entries',
-            code: 'PERMISSION_DENIED'
-          };
-        }
-      }
+      // Permissions enforced at route level via requirePermission('time_tracking.update') middleware
 
       // Validate entry IDs
       if (!entryIds || !Array.isArray(entryIds) || entryIds.length === 0) {
@@ -365,17 +320,7 @@ export class TimeEntriesService {
     options: ServiceOptions = {}
   ): Promise<ServiceResponse<{ count: number }>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        const canDelete = await TimeTrackingPermissions.canDeleteTimeEntriesHybrid(user);
-        if (!canDelete) {
-          return {
-            success: false,
-            error: 'You do not have permission to delete time entries',
-            code: 'PERMISSION_DENIED'
-          };
-        }
-      }
+      // Permissions enforced at route level via requirePermission('time_tracking.update') middleware
 
       // Validate entry IDs
       if (!entryIds || !Array.isArray(entryIds) || entryIds.length === 0) {
@@ -422,17 +367,7 @@ export class TimeEntriesService {
     options: ServiceOptions = {}
   ): Promise<ServiceResponse<SimpleUser[]>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        const canView = await TimeTrackingPermissions.canViewTimeEntriesHybrid(user);
-        if (!canView) {
-          return {
-            success: false,
-            error: 'You do not have permission to view users',
-            code: 'PERMISSION_DENIED'
-          };
-        }
-      }
+      // Permissions enforced at route level via requirePermission('time_tracking.list') middleware
 
       // Check cache
       const cacheKey = 'active_users';

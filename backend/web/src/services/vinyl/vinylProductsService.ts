@@ -1,11 +1,14 @@
 // File Clean up Finished: Nov 14, 2025
+// File Clean up Finished: 2025-11-19 (Removed redundant VinylPermissions - permissions enforced at route level)
 
 /**
  * Vinyl Products Service
  * Business logic layer for vinyl products catalog management
+ *
+ * NOTE: Permission checks are enforced at route level via RBAC middleware (requirePermission)
+ * Service layer focuses on business logic only
  */
 
-import { VinylPermissions } from '../../utils/vinyl/permissions';
 import { User } from '../../types';
 import { VinylProductsRepository } from '../../repositories/vinyl/vinylProductsRepository';
 import {
@@ -28,15 +31,7 @@ export class VinylProductsService {
     options: VinylProductServiceOptions = {}
   ): Promise<VinylResponse<VinylProduct[]>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        VinylPermissions.requirePermission(
-          user,
-          VinylPermissions.canViewVinylProducts,
-          'view vinyl products'
-        );
-      }
-
+      // Permissions enforced at route level via requirePermission('vinyl.read') middleware
       const products = await VinylProductsRepository.getVinylProducts(filters);
       return { success: true, data: products };
     } catch (error: any) {
@@ -57,15 +52,7 @@ export class VinylProductsService {
     options: VinylProductServiceOptions = {}
   ): Promise<VinylResponse<VinylProduct>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        VinylPermissions.requirePermission(
-          user,
-          VinylPermissions.canViewVinylProducts,
-          'view vinyl products'
-        );
-      }
-
+      // Permissions enforced at route level via requirePermission('vinyl.read') middleware
       const product = await VinylProductsRepository.getVinylProductById(productId);
 
       if (!product) {
@@ -95,14 +82,7 @@ export class VinylProductsService {
     options: VinylProductServiceOptions = {}
   ): Promise<VinylResponse<{ product_id: number }>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        VinylPermissions.requirePermission(
-          user,
-          VinylPermissions.canManageVinylProducts,
-          'create vinyl products'
-        );
-      }
+      // Permissions enforced at route level via requirePermission('vinyl.create') middleware
 
       // Validate required fields
       const validation = this.validateVinylProductData(data);
@@ -176,14 +156,8 @@ export class VinylProductsService {
     options: VinylProductServiceOptions = {}
   ): Promise<VinylResponse<{ updated: boolean }>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        VinylPermissions.requirePermission(
-          user,
-          VinylPermissions.canManageVinylProducts,
-          'update vinyl products'
-        );
-      }
+      // Permissions enforced at route level via requirePermission('vinyl.update') middleware
+      // Note: Can be skipped via options.validatePermissions=false for internal calls (e.g., bulk operations)
 
       // Check if product exists
       const exists = await VinylProductsRepository.vinylProductExists(productId);
@@ -283,12 +257,7 @@ export class VinylProductsService {
     productId: number
   ): Promise<VinylResponse<{ deleted: boolean }>> {
     try {
-      // Check permissions
-      VinylPermissions.requirePermission(
-        user,
-        VinylPermissions.canManageVinylProducts,
-        'delete vinyl products'
-      );
+      // Permissions enforced at route level via requirePermission('vinyl.delete') middleware
 
       // Check if product exists
       const exists = await VinylProductsRepository.vinylProductExists(productId);
@@ -331,13 +300,7 @@ export class VinylProductsService {
    */
   static async getVinylProductStats(user: User): Promise<VinylResponse<any>> {
     try {
-      // Check permissions
-      VinylPermissions.requirePermission(
-        user,
-        VinylPermissions.canViewVinylProducts,
-        'view vinyl product statistics'
-      );
-
+      // Permissions enforced at route level via requirePermission('vinyl.read') middleware
       const stats = await VinylProductsRepository.getVinylProductStats();
       return { success: true, data: stats };
     } catch (error: any) {
@@ -354,13 +317,7 @@ export class VinylProductsService {
    */
   static async getAutofillSuggestions(user: User): Promise<VinylResponse<any>> {
     try {
-      // Check permissions
-      VinylPermissions.requirePermission(
-        user,
-        VinylPermissions.canViewVinylProducts,
-        'view vinyl products'
-      );
-
+      // Permissions enforced at route level via requirePermission('vinyl.read') middleware
       const suggestions = await VinylProductsRepository.getAutofillSuggestions();
       return { success: true, data: suggestions };
     } catch (error: any) {
@@ -517,12 +474,7 @@ export class VinylProductsService {
     updates: { product_id: number; data: UpdateVinylProductRequest }[]
   ): Promise<VinylResponse<{ updated: number; errors: any[] }>> {
     try {
-      // Check permissions
-      VinylPermissions.requirePermission(
-        user,
-        VinylPermissions.canManageVinylProducts,
-        'bulk update vinyl products'
-      );
+      // Permissions enforced at route level via requirePermission('vinyl.update') middleware
 
       let updatedCount = 0;
       const errors: any[] = [];
@@ -532,8 +484,7 @@ export class VinylProductsService {
           const result = await this.updateVinylProduct(
             user,
             update.product_id,
-            update.data,
-            { validatePermissions: false } // Already checked above
+            update.data
           );
 
           if (result.success) {

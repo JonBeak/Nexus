@@ -1,14 +1,17 @@
-// File Clean up Finished: 2025-11-18
+// File Clean up Finished: 2025-11-21
 // Analysis: Repository for QB estimate and order preparation workflow
-// Status: FUNCTIONAL but feature not fully implemented (0 QB estimates in production)
+// Status: CLEAN - Feature IS in production (33 estimates, actively used since Nov 18)
+// Changes made:
+//   1. Added proper TypeScript types to all functions
+//   2. Created new interfaces: OrderPartForHash, OrderDataForHash, OrderDataForQBEstimate, OrderPartForQBEstimate, BasicOrderInfo
+//   3. Added getOrderDataForQBEstimate() - moved from qbEstimateService
+//   4. Added getOrderPartsForQBEstimate() - moved from qbEstimateService
+//   5. Updated OrderPointPerson interface to match database schema
 // Findings:
-//   - All 6 functions are used by qbEstimateService and orderPrepController
-//   - Routes are registered and exposed (/api/order-preparation/*)
-//   - Minor type safety issues (Promise<any[]>, Promise<any | null>)
-//   - Some code duplication with qbEstimateService (getOrderParts)
-//   - Type imports could use orders.ts version of OrderPointPerson
-// Decision: Skip detailed cleanup until feature is actively used in production
-//   Will revisit when QB estimate feature has actual usage (currently 0 records)
+//   - All 8 functions are properly used in production
+//   - Already uses query() helper ✅
+//   - Proper 3-layer architecture (repository handles all DB access)
+// Decision: File is now type-safe and architecturally sound
 
 /**
  * Order Preparation Repository
@@ -21,7 +24,15 @@
 
 import { query } from '../config/database';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
-import { QBEstimateRecord, OrderPointPerson } from '../types/orderPreparation';
+import {
+  QBEstimateRecord,
+  OrderPointPerson,
+  OrderPartForHash,
+  OrderDataForHash,
+  OrderDataForQBEstimate,
+  OrderPartForQBEstimate,
+  BasicOrderInfo
+} from '../types/orderPreparation';
 
 /**
  * Get the current (most recent) QB estimate for an order
@@ -115,7 +126,7 @@ export async function markPreviousEstimatesNotCurrent(orderId: number): Promise<
  * Get order parts data for hash calculation (staleness detection)
  * Returns ALL parts with ALL fields that affect PDFs and QB estimates
  */
-export async function getOrderPartsForHash(orderId: number): Promise<any[]> {
+export async function getOrderPartsForHash(orderId: number): Promise<OrderPartForHash[]> {
   const rows = await query(
     `SELECT
       part_id,
@@ -142,14 +153,14 @@ export async function getOrderPartsForHash(orderId: number): Promise<any[]> {
     [orderId]
   ) as RowDataPacket[];
 
-  return rows;
+  return rows as unknown as OrderPartForHash[];
 }
 
 /**
  * Get order-level data for hash calculation (staleness detection)
  * Returns all order fields that affect PDFs and QB estimates
  */
-export async function getOrderDataForHash(orderId: number): Promise<any> {
+export async function getOrderDataForHash(orderId: number): Promise<OrderDataForHash | null> {
   const rows = await query(
     `SELECT
       order_name,
@@ -178,7 +189,7 @@ export async function getOrderDataForHash(orderId: number): Promise<any> {
     return null;
   }
 
-  return rows[0];
+  return rows[0] as unknown as OrderDataForHash;
 }
 
 /**
@@ -220,7 +231,7 @@ export async function getOrderPointPersons(orderNumber: number): Promise<OrderPo
  * Get basic order info by order number
  * Used for validation and data retrieval
  */
-export async function getOrderByOrderNumber(orderNumber: number): Promise<any | null> {
+export async function getOrderByOrderNumber(orderNumber: number): Promise<BasicOrderInfo | null> {
   const rows = await query(
     `SELECT
       order_id,
@@ -235,5 +246,71 @@ export async function getOrderByOrderNumber(orderNumber: number): Promise<any | 
     [orderNumber]
   ) as RowDataPacket[];
 
-  return rows.length > 0 ? rows[0] : null;
+  return rows.length > 0 ? (rows[0] as unknown as BasicOrderInfo) : null;
+}
+
+/**
+ * Get order data for QB estimate creation
+ * Includes customer info needed for QB API
+ */
+export async function getOrderDataForQBEstimate(orderId: number): Promise<OrderDataForQBEstimate | null> {
+  const rows = await query(
+    `SELECT
+      o.order_id,
+      o.order_number,
+      o.customer_id,
+      o.order_name,
+      o.tax_name,
+      o.folder_location,
+      o.customer_po,
+      o.customer_job_number,
+      c.company_name as customer_name,
+      c.quickbooks_name
+    FROM orders o
+    JOIN customers c ON c.customer_id = o.customer_id
+    WHERE o.order_id = ?`,
+    [orderId]
+  ) as RowDataPacket[];
+
+  return rows.length > 0 ? (rows[0] as unknown as OrderDataForQBEstimate) : null;
+}
+
+/**
+ * Get order parts for QB estimate creation (invoice items only)
+ * Filters for parts with pricing information
+ */
+export async function getOrderPartsForQBEstimate(orderId: number): Promise<OrderPartForQBEstimate[]> {
+  const rows = await query(
+    `SELECT
+      part_id,
+      part_number,
+      invoice_description,
+      qb_item_name,
+      qb_description,
+      specs_display_name,
+      quantity,
+      unit_price,
+      extended_price,
+      product_type,
+      (unit_price IS NOT NULL AND unit_price > 0) as is_taxable
+    FROM order_parts
+    WHERE order_id = ?
+      AND (invoice_description IS NOT NULL OR unit_price IS NOT NULL)
+    ORDER BY part_number`,
+    [orderId]
+  ) as RowDataPacket[];
+
+  return rows.map(row => ({
+    part_id: row.part_id,
+    part_number: row.part_number,
+    invoice_description: row.invoice_description,
+    qb_item_name: row.qb_item_name,
+    qb_description: row.qb_description,
+    specs_display_name: row.specs_display_name,
+    quantity: row.quantity,
+    unit_price: row.unit_price,
+    extended_price: row.extended_price,
+    product_type: row.product_type,
+    is_taxable: row.is_taxable === 1
+  }));
 }

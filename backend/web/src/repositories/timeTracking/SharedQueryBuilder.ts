@@ -1,3 +1,5 @@
+// File Clean up Finished: 2025-11-20
+// Moved from utils/timeTracking/ to repositories/timeTracking/ (query building is data access logic)
 /**
  * Shared Query Builder for Time Entries
  * Eliminates duplicate query building logic between timeEntries and timeExporting routes

@@ -1,3 +1,10 @@
+// File Clean up Finished: 2025-11-18
+// Cleanup Summary:
+// - ✅ Removed savePDFsToFolder route (endpoint removed from controller)
+// - ✅ 8 active routes remain (all used by frontend orderPreparationApi)
+// - ✅ All routes use proper middleware chain: authenticateToken + requirePermission
+// - ✅ File size: 126 lines (reduced from 135 lines)
+
 /**
  * Order Preparation Routes
  *
@@ -65,17 +72,6 @@ router.post(
   authenticateToken,
   requirePermission('orders.prepare'),
   orderPrepController.downloadQBEstimatePDF
-);
-
-/**
- * POST /api/order-preparation/:orderNumber/pdfs/save-to-folder
- * Save all PDFs to order folder (coordination step)
- */
-router.post(
-  '/:orderNumber/pdfs/save-to-folder',
-  authenticateToken,
-  requirePermission('orders.prepare'),
-  orderPrepController.savePDFsToFolder
 );
 
 /**

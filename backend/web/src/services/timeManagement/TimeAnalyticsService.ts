@@ -1,15 +1,26 @@
-// File Clean up Finished: 2025-11-15
-// Changes: Split 612-line file into TimeAnalyticsService (255 lines) + MissingEntriesService (424 lines)
-// Repository refactored: pool.execute() → query(), duplicate filter logic extracted, legacy support removed
+// File Clean up Started: 2025-11-21
+// File Clean up Finished: 2025-11-21
+// Phase 2 Changes:
+// - Removed TimeTrackingPermissions import (redundant with route-level RBAC)
+// - Removed 3 service-level permission check blocks
+// - Permissions now enforced at route level via requirePermission() middleware
+//
+// Previous cleanup: 2025-11-15
+// - Split 612-line file into TimeAnalyticsService (255 lines) + MissingEntriesService (424 lines)
+// - Repository refactored: pool.execute() → query(), duplicate filter logic extracted, legacy support removed
 
 /**
  * Time Analytics Service
  * Business logic layer for time analytics operations
  * Split from original 612-line file - missing entries logic moved to MissingEntriesService
+ *
+ * ARCHITECTURAL STATUS:
+ * ✅ 3-layer architecture (Route → Service → Repository)
+ * ✅ Route-level RBAC protection (requirePermission middleware)
+ * ✅ No redundant service-level permission checks
  */
 
 import { User } from '../../types';
-import { TimeTrackingPermissions } from '../../utils/timeTracking/permissions';
 import { TimeAnalyticsRepository } from '../../repositories/timeManagement/TimeAnalyticsRepository';
 import { MissingEntriesService } from './MissingEntriesService';
 import {
@@ -38,17 +49,7 @@ export class TimeAnalyticsService {
     options: ServiceOptions = {}
   ): Promise<ServiceResponse<WeeklySummaryData[]>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        const canView = await TimeTrackingPermissions.canViewTimeAnalyticsHybrid(user);
-        if (!canView) {
-          return {
-            success: false,
-            error: 'You do not have permission to view time analytics',
-            code: 'PERMISSION_DENIED'
-          };
-        }
-      }
+      // Permissions enforced at route level via requirePermission('time_management.view_reports') middleware
 
       // Check cache
       const cacheKey = `summary_${user.user_id}_${dateRange.startDate}_${dateRange.endDate}_${filters.group || 'all'}`;
@@ -92,17 +93,7 @@ export class TimeAnalyticsService {
     options: ServiceOptions = {}
   ): Promise<ServiceResponse<AnalyticsOverviewData>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        const canView = await TimeTrackingPermissions.canViewTimeAnalyticsHybrid(user);
-        if (!canView) {
-          return {
-            success: false,
-            error: 'You do not have permission to view time analytics',
-            code: 'PERMISSION_DENIED'
-          };
-        }
-      }
+      // Permissions enforced at route level via requirePermission('time_management.view_reports') middleware
 
       // Check cache
       const cacheKey = `analytics_${user.user_id}_${dateRange.startDate}_${dateRange.endDate}_${filters.group || 'all'}`;
@@ -170,17 +161,7 @@ export class TimeAnalyticsService {
     options: ServiceOptions = {}
   ): Promise<ServiceResponse<UserAnalyticsData>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        const canView = await TimeTrackingPermissions.canViewTimeAnalyticsHybrid(user);
-        if (!canView) {
-          return {
-            success: false,
-            error: 'You do not have permission to view time analytics',
-            code: 'PERMISSION_DENIED'
-          };
-        }
-      }
+      // Permissions enforced at route level via requirePermission('time_management.view_reports') middleware
 
       // Check cache
       const cacheKey = `user_analytics_${userId}_${dateRange.startDate}_${dateRange.endDate}`;

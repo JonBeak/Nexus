@@ -9,6 +9,15 @@
  * - Added permission checks for all 6 address operations
  * - Routes now consistent with modern pattern (see customer contacts routes)
  * - Permissions: .read, .update, .delete (no .create - uses .update for add operations)
+ *
+ * File Clean up Finished: 2025-11-20
+ * Changes:
+ * - COMPLETED customer route middleware migration (started Nov 15)
+ * - Added requirePermission() middleware to all 7 customer CRUD routes
+ * - Added requirePermission('customers.read') to all 6 lookup data routes
+ * - All 13+ customer routes now consistently protected at route level
+ * - Enabled deletion of CustomerPermissions file (84 lines removed)
+ * - Permissions: customers.read, customers.update, customers.deactivate
  */
 
 import { Router } from 'express';
@@ -25,21 +34,60 @@ const router = Router();
 router.use(authenticateToken);
 
 // Lookup Data Routes (must come before parameterized routes)
-router.get('/led-types', LookupController.getLedTypes);
-router.get('/power-supply-types', LookupController.getPowerSupplyTypes);
-router.get('/tax-info/:province', LookupController.getTaxInfoByProvince);
-router.get('/provinces-tax', LookupController.getAllProvincesTaxInfo);
-router.get('/provinces-states', LookupController.getProvincesStates);
-router.get('/tax-rules', LookupController.getAllTaxRules);
+router.get('/led-types',
+  requirePermission('customers.read'),
+  LookupController.getLedTypes
+);
+router.get('/power-supply-types',
+  requirePermission('customers.read'),
+  LookupController.getPowerSupplyTypes
+);
+router.get('/tax-info/:province',
+  requirePermission('customers.read'),
+  LookupController.getTaxInfoByProvince
+);
+router.get('/provinces-tax',
+  requirePermission('customers.read'),
+  LookupController.getAllProvincesTaxInfo
+);
+router.get('/provinces-states',
+  requirePermission('customers.read'),
+  LookupController.getProvincesStates
+);
+router.get('/tax-rules',
+  requirePermission('customers.read'),
+  LookupController.getAllTaxRules
+);
 
 // Customer Routes
-router.get('/', CustomerController.getCustomers);
-router.get('/:id', CustomerController.getCustomerById);
-router.get('/:id/manufacturing-preferences', CustomerController.getManufacturingPreferences);
-router.put('/:id', CustomerController.updateCustomer);
-router.post('/', CustomerController.createCustomer);
-router.post('/:id/deactivate', CustomerController.deactivateCustomer);
-router.post('/:id/reactivate', CustomerController.reactivateCustomer);
+router.get('/',
+  requirePermission('customers.read'),
+  CustomerController.getCustomers
+);
+router.get('/:id',
+  requirePermission('customers.read'),
+  CustomerController.getCustomerById
+);
+router.get('/:id/manufacturing-preferences',
+  requirePermission('customers.read'),
+  CustomerController.getManufacturingPreferences
+);
+router.put('/:id',
+  requirePermission('customers.update'),
+  CustomerController.updateCustomer
+);
+router.post('/',
+  requirePermission('customers.update'),
+  CustomerController.createCustomer
+);
+router.post('/:id/deactivate',
+  requirePermission('customers.deactivate'),
+  CustomerController.deactivateCustomer
+);
+router.post('/:id/reactivate',
+  requirePermission('customers.update'),
+  CustomerController.reactivateCustomer
+);
 
 // Address Routes
 router.get('/:id/addresses',

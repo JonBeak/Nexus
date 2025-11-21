@@ -9,30 +9,96 @@ Order folders are created on a Windows SMB share using the naming pattern:
 
 **Current Issues:**
 1. Customer names ending in periods (e.g., "Sign House Inc.") create invalid Windows folder names
-2. Customer names with invalid filesystem characters (e.g., "20/20 Signs" with `/`) are not validated at input
-3. The `buildFolderName()` function sanitizes some characters but doesn't handle trailing periods
+2. Customer names ending in spaces cause inconsistent folder access behavior
+3. Customer names with invalid filesystem characters (e.g., "20/20 Signs" with `/`) are not validated at input
+4. The `buildFolderName()` function sanitizes some characters but doesn't handle trailing periods/spaces
 
 **Example Failure:**
 ```
 Opening folder: \\192.168.2.85\Channel Letter\Orders\TEST JOB 123 ----- Sign House Inc.
 ```
-Windows rejects folder names ending in periods, causing folder operations to fail.
+Windows Win32 API automatically strips trailing periods and spaces, causing folder operations to fail or behave inconsistently.
+
+**Root Cause:**
+- NTFS filesystem CAN store trailing spaces and periods
+- Windows Win32 API automatically strips them during file operations (for DOS 8.3 filename compatibility)
+- This creates folders that exist but cannot be reliably accessed via standard Windows tools
 
 ---
 
 ## Windows Folder Name Restrictions
 
-### Prohibited Characters
-The following characters cannot be used in Windows file/folder names:
-```
-< > : " / \ | ? *
+### Validation Approach: Allowlist (Recommended)
+
+**Security Best Practice:** Use an allowlist (only allow specific safe characters) rather than a blocklist (ban specific bad characters).
+
+**Benefits:**
+- More secure - prevents unknown attack vectors
+- Prevents unicode edge cases
+- Easier to maintain and test
+- Predictable behavior across all systems
+
+### Allowed Characters
+
+```regex
+/^[a-zA-Z0-9\u00C0-\u017F \-_.,&'()]+$/
 ```
 
-### Prohibited Patterns
-- **Trailing periods** (`.`) - Windows automatically strips these
-- **Trailing spaces** - Windows automatically strips these
-- **Leading periods** - Creates hidden folders on Unix systems
-- **Leading spaces** - Poor UX and causes path issues
+**Breakdown:**
+- `a-z A-Z` - English letters (upper and lower case)
+- `0-9` - Numbers
+- `\u00C0-\u017F` - Latin Extended-A (European accents: é, ñ, ü, ç, etc.)
+- ` ` - Space (but not trailing)
+- `-` - Hyphen
+- `_` - Underscore
+- `.,` - Period and comma (but period not trailing)
+- `&` - Ampersand
+- `'` - Apostrophe
+- `()` - Parentheses
+
+**Examples that PASS:**
+- "O'Brien Signs" ✓
+- "Smith & Co." ✓ (period in middle is fine)
+- "Café-Enseigne" ✓
+- "Müller GmbH" ✓
+- "ABC Company (Ontario)" ✓
+- "José's Signs, Inc" ✓
+
+**Examples that FAIL:**
+- "20/20 Signs" ✗ (slash not allowed)
+- "Signs<Corp>" ✗ (angle brackets not allowed)
+- "Test|Pipe" ✗ (pipe not allowed)
+- "Company Inc." ✗ (ends in period - see trailing rules)
+- "Company " ✗ (ends in space - see trailing rules)
+
+### Prohibited Trailing Characters
+
+**Windows automatically strips these from folder names:**
+- **Trailing periods** (`.`)
+- **Trailing spaces** (` `)
+
+**Why:** Backwards compatibility with DOS 8.3 filenames. The Win32 API strips these during path normalization, but NTFS can store them, creating inconsistent access behavior.
+
+**Validation Pattern:**
+```regex
+/[\s.]+$/
+```
+
+**User-friendly error message:**
+```
+Company name cannot end with spaces or periods
+```
+
+### Prohibited Leading Characters
+
+- **Leading periods** (`.`) - Creates hidden folders on Unix systems
+- **Leading spaces** (` `) - Poor UX and causes path issues
+
+**User-friendly error messages:**
+```
+Company name cannot start with a period
+Company name cannot start with a space
+```
 
 ### Reserved Names (Case-Insensitive)
 These names cannot be used as folder names in Windows:
@@ -43,6 +109,8 @@ LPT1, LPT2, LPT3, LPT4, LPT5, LPT6, LPT7, LPT8, LPT9
 ```
 
 Also prohibited with extensions (e.g., `CON.txt`, `NUL.xlsx`)
+
+**Why:** These are reserved device names from DOS/Windows legacy systems.
 
 ### Length Restrictions
 - **Maximum path length**: 260 characters (Windows MAX_PATH)
@@ -58,29 +126,40 @@ Also prohibited with extensions (e.g., `CON.txt`, `NUL.xlsx`)
 - Company name cannot be empty or only whitespace
 - Must contain at least one non-whitespace character
 
-### Rule 2: Character Restrictions
-Reject names containing any of these characters:
+### Rule 2: Allowed Characters Only (Allowlist)
+Only allow characters matching the pattern:
 ```javascript
-/[<>:"\/\\|?*]/
+/^[a-zA-Z0-9\u00C0-\u017F \-_.,&'()]+$/
 ```
 
 **User-friendly error message:**
 ```
-Company name cannot contain: < > : " / \ | ? *
+Company name contains invalid characters. Only letters, numbers, spaces, and these symbols are allowed: - _ . , & ' ( )
 ```
 
-### Rule 3: Trailing/Leading Whitespace and Periods
-- Automatically trim leading/trailing spaces
-- Reject names that end in periods after trimming
-- Reject names that start with periods
-
-**User-friendly error messages:**
+### Rule 3: No Trailing Spaces or Periods
+After trimming, reject names that end with periods or spaces:
+```javascript
+/[\s.]+$/
 ```
-Company name cannot end in a period
+
+**User-friendly error message:**
+```
+Company name cannot end with spaces or periods
+```
+
+### Rule 4: No Leading Periods or Spaces
+Reject names that start with periods (after trimming spaces):
+```javascript
+/^\./
+```
+
+**User-friendly error message:**
+```
 Company name cannot start with a period
 ```
 
-### Rule 4: Reserved Names
+### Rule 5: Reserved Names
 Reject if the trimmed, uppercase name matches:
 ```
 CON, PRN, AUX, NUL, COM1-9, LPT1-9
@@ -96,7 +175,7 @@ Or if it matches the pattern:
 Company name cannot be a Windows reserved name (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
 ```
 
-### Rule 5: Length Limit
+### Rule 6: Length Limit
 - Maximum length: 200 characters (after trimming)
 
 **User-friendly error message:**
@@ -119,8 +198,15 @@ export interface CustomerNameValidationResult {
 }
 
 export class CustomerNameValidator {
-  // Windows reserved characters for filenames
-  private static readonly INVALID_CHARS = /[<>:"\/\\|?*]/;
+  // Allowlist: Only allow safe characters for Windows folder names
+  // Includes: letters, numbers, Latin Extended-A (accents), space, and common business punctuation
+  private static readonly VALID_CHARS = /^[a-zA-Z0-9\u00C0-\u017F \-_.,&'()]+$/;
+
+  // Trailing characters that Windows strips (causes access issues)
+  private static readonly INVALID_TRAILING = /[\s.]+$/;
+
+  // Leading period check
+  private static readonly INVALID_LEADING = /^\./;
 
   // Windows reserved names (case-insensitive)
   private static readonly RESERVED_NAMES = [
@@ -162,17 +248,17 @@ export class CustomerNameValidator {
       };
     }
 
-    // Check invalid characters
-    if (this.INVALID_CHARS.test(sanitized)) {
+    // Check allowed characters only (allowlist approach)
+    if (!this.VALID_CHARS.test(sanitized)) {
       return {
         isValid: false,
-        error: 'Company name cannot contain: < > : " / \\ | ? *',
+        error: 'Company name contains invalid characters. Only letters, numbers, spaces, and these symbols are allowed: - _ . , & \' ( )',
         sanitized
       };
     }
 
     // Check leading period
-    if (sanitized.startsWith('.')) {
+    if (this.INVALID_LEADING.test(sanitized)) {
       return {
         isValid: false,
         error: 'Company name cannot start with a period',
@@ -180,11 +266,11 @@ export class CustomerNameValidator {
       };
     }
 
-    // Check trailing period
-    if (sanitized.endsWith('.')) {
+    // Check trailing periods or spaces (Windows strips these)
+    if (this.INVALID_TRAILING.test(sanitized)) {
       return {
         isValid: false,
-        error: 'Company name cannot end with a period',
+        error: 'Company name cannot end with spaces or periods',
         sanitized
       };
     }
@@ -257,7 +343,15 @@ export interface CustomerNameValidationResult {
   error: string | null;
 }
 
-const INVALID_CHARS = /[<>:"\/\\|?*]/;
+// Allowlist: Only allow safe characters for Windows folder names
+const VALID_CHARS = /^[a-zA-Z0-9\u00C0-\u017F \-_.,&'()]+$/;
+
+// Trailing characters that Windows strips (causes access issues)
+const INVALID_TRAILING = /[\s.]+$/;
+
+// Leading period check
+const INVALID_LEADING = /^\./;
+
 const RESERVED_NAMES = [
   'CON', 'PRN', 'AUX', 'NUL',
   'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
@@ -276,16 +370,21 @@ export function validateCustomerName(name: string | null | undefined): CustomerN
     return { isValid: false, error: `Company name must be ${MAX_LENGTH} characters or less` };
   }
 
-  if (INVALID_CHARS.test(sanitized)) {
-    return { isValid: false, error: 'Company name cannot contain: < > : " / \\ | ? *' };
+  // Check allowed characters only (allowlist approach)
+  if (!VALID_CHARS.test(sanitized)) {
+    return {
+      isValid: false,
+      error: 'Company name contains invalid characters. Only letters, numbers, spaces, and these symbols are allowed: - _ . , & \' ( )'
+    };
   }
 
-  if (sanitized.startsWith('.')) {
+  if (INVALID_LEADING.test(sanitized)) {
     return { isValid: false, error: 'Company name cannot start with a period' };
   }
 
-  if (sanitized.endsWith('.')) {
-    return { isValid: false, error: 'Company name cannot end with a period' };
+  // Check trailing periods or spaces (Windows strips these)
+  if (INVALID_TRAILING.test(sanitized)) {
+    return { isValid: false, error: 'Company name cannot end with spaces or periods' };
   }
 
   const upperName = sanitized.toUpperCase();
@@ -321,12 +420,12 @@ buildFolderName(orderName: string, customerName: string): string {
 ```typescript
 buildFolderName(orderName: string, customerName: string): string {
   // Sanitize: replace invalid filesystem characters with underscore
-  // Also strip trailing periods and spaces (Windows incompatible)
+  // Strip trailing periods and spaces (Windows Win32 API strips these, causing access issues)
   const sanitize = (str: string) => {
     return str
-      .replace(/[\/\\:*?"<>|]/g, '_')  // Replace invalid chars
+      .replace(/[\/\\:*?"<>|]/g, '_')  // Replace invalid chars with underscore
       .trim()                            // Remove leading/trailing spaces
-      .replace(/\.+$/, '');              // Remove trailing periods
+      .replace(/[\s.]+$/, '');           // Remove any remaining trailing spaces and periods
   };
 
   const sanitizedOrderName = sanitize(orderName);

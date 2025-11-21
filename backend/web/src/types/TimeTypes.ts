@@ -489,7 +489,6 @@ export const CACHE_TTL = {
 } as const;
 
 export interface ServiceOptions {
-  validatePermissions?: boolean;  // Default: true
   useCache?: boolean;             // Default: true
   timeout?: number;               // Request timeout in ms
 }

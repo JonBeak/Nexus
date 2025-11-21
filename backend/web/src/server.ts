@@ -13,14 +13,18 @@ import { testConnection, startPoolHealthMonitoring } from './config/database';
 import authRoutes from './routes/auth';
 import customersRoutes from './routes/customers';
 import timeTrackingRoutes from './routes/timeTracking';
-import timeManagementRoutes from './routes/timeManagement';
+// Time management sub-routers (mounted directly instead of via aggregator)
+import timeEntriesRoutes from './routes/timeEntries';
+import timeAnalyticsRoutes from './routes/timeAnalytics';
+import timeSchedulingRoutes from './routes/timeScheduling';
+import timeExportingRoutes from './routes/timeExporting';
 import wagesRoutes from './routes/wages';
 import accountsRoutes from './routes/accounts';
 import usersRoutes from './routes/users';  // New properly-architected users endpoint
 import loginLogsRoutes from './routes/loginLogs';  // New properly-architected login logs endpoint (Nov 13, 2025)
 import vacationsRoutes from './routes/vacations';  // New properly-architected vacations endpoint (Nov 13, 2025)
-import vinylRoutes from './routes/vinylNew';
-import vinylProductsRoutes from './routes/vinylProductsNew';
+import vinylRoutes from './routes/vinyl';
+import vinylProductsRoutes from './routes/vinylProducts';
 import suppliersRoutes from './routes/suppliers';
 import jobsRoutes from './routes/jobs';
 import supplyChainRoutes from './routes/supplyChainSimple';
@@ -83,7 +87,11 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/customers', customersRoutes);
 app.use('/api/time', timeTrackingRoutes);
-app.use('/api/time-management', timeManagementRoutes);
+// Time management - 4 routers mounted at same base path (replaced aggregator)
+app.use('/api/time-management', timeEntriesRoutes);
+app.use('/api/time-management', timeAnalyticsRoutes);
+app.use('/api/time-management', timeSchedulingRoutes);
+app.use('/api/time-management', timeExportingRoutes);
 app.use('/api/wages', wagesRoutes);
 app.use('/api/accounts', accountsRoutes);
 app.use('/api/users', usersRoutes);  // New properly-architected users endpoint (Nov 13, 2025)
@@ -226,4 +234,10 @@ const startServer = async () => {
   }
 };
 
-startServer();
+// Export app for testing
+export { app };
+
+// Only start server if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+  startServer();
+}

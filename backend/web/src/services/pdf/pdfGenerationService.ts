@@ -31,7 +31,7 @@ import path from 'path';
 import { orderRepository } from '../../repositories/orderRepository';
 import { FormPaths, OrderDataForPDF, OrderPartForPDF } from '../../types/orders';
 import { SMB_ROOT, ORDERS_FOLDER, FINISHED_FOLDER } from '../../config/paths';
-import { calculateOrderDataHash } from '../orderDataHashService';
+import { calculateOrderDataHash } from '../../utils/orderDataHashService';
 
 // =============================================
 // TYPES

@@ -2,6 +2,10 @@
 // Changes:
 // - Migrated all pool.execute() calls to query() helper (15 instances)
 // - All methods now use centralized error logging and performance monitoring
+//
+// Updated: 2025-11-20
+// - Added forExport parameter to findEntries() method
+// - Updated import path for SharedQueryBuilder (moved from utils to repositories)
 import { query } from '../../config/database';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import {
@@ -13,7 +17,7 @@ import {
   TimeEntryUpdateData,
   SimpleUser
 } from '../../types/TimeTypes';
-import { SharedQueryBuilder } from '../../utils/timeTracking/SharedQueryBuilder';
+import { SharedQueryBuilder } from './SharedQueryBuilder';
 
 /**
  * Time Entry Repository
@@ -180,10 +184,11 @@ export class TimeEntryRepository {
    * Find time entries with filters
    * Uses SharedQueryBuilder for consistent query logic
    * @param filters - Query filters
+   * @param forExport - If true, returns export-optimized columns
    * @returns Array of time entries
    */
-  static async findEntries(filters: TimeEntryFilters): Promise<TimeEntryDTO[]> {
-    const { sql, params } = SharedQueryBuilder.buildTimeEntriesQuery(filters, false);
+  static async findEntries(filters: TimeEntryFilters, forExport: boolean = false): Promise<TimeEntryDTO[]> {
+    const { sql, params } = SharedQueryBuilder.buildTimeEntriesQuery(filters, forExport);
     const rows = await query(sql, params) as RowDataPacket[];
     return rows as TimeEntryDTO[];
   }

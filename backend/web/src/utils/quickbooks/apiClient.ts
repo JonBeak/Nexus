@@ -1,3 +1,18 @@
+// File Clean up Finished: 2025-11-21
+// Analysis: QuickBooks API client utility - Infrastructure layer
+// Status: CLEAN - All functions in active use (production + test endpoints)
+// Changes made:
+//   1. Removed unused import: OAuthError (was imported but never used)
+//   2. Fixed constant usage: Use QB_ENVIRONMENT instead of process.env.QB_ENVIRONMENT directly
+//   3. Added documentation: queryQB() - clarified internal/test usage
+//   4. Added documentation: getTaxCodeIdByName() - noted production uses repository version
+// Findings:
+//   - All exported functions actively used in production or test endpoints ✅
+//   - No pool.execute() usage (correct - this is API client, not database layer) ✅
+//   - Proper architecture: Utility layer used by services ✅
+//   - No breaking changes - internal cleanup only
+// Decision: File is clean, well-documented, and architecturally sound
+
 /**
  * QuickBooks API Client
  * Handles authenticated API calls to QuickBooks with automatic token refresh
@@ -5,7 +20,7 @@
 
 import axios from 'axios';
 import { quickbooksRepository } from '../../repositories/quickbooksRepository';
-import { refreshAccessToken, OAuthError } from './oauthClient';
+import { refreshAccessToken } from './oauthClient';
 
 // =============================================
 // CONFIGURATION
@@ -152,6 +167,10 @@ export async function makeQBApiCall(
 
 /**
  * Query QuickBooks using SQL-like syntax
+ *
+ * NOTE: This function is primarily used internally by lookup functions (getCustomerIdByName,
+ * getTaxCodeIdByName, getItemIdByName) and in test/debug endpoints. For production features,
+ * prefer using the repository layer methods which query the local database cache.
  */
 export async function queryQB(query: string, realmId: string): Promise<any> {
   return makeQBApiCall('GET', 'query', realmId, {
@@ -191,7 +210,11 @@ export async function getCustomerIdByName(customerName: string, realmId: string)
 }
 
 /**
- * Get tax code ID by name
+ * Get tax code ID by name (via QuickBooks API)
+ *
+ * NOTE: This function makes a live API call to QuickBooks and is primarily used in test/debug
+ * endpoints. For production features, use quickbooksRepository.getTaxCodeIdByName() instead,
+ * which queries the local qb_tax_code_mappings table (faster, no API rate limits).
  */
 export async function getTaxCodeIdByName(taxName: string, realmId: string): Promise<string | null> {
   if (!taxName || !taxName.trim()) {
@@ -290,7 +313,7 @@ export async function createEstimate(
   console.log('\n🌐 QUICKBOOKS API CALL:');
   console.log('=======================');
   console.log(`Endpoint: POST /v3/company/${realmId}/estimate`);
-  console.log(`Environment: ${process.env.QB_ENVIRONMENT || 'sandbox'}`);
+  console.log(`Environment: ${QB_ENVIRONMENT}`);
   console.log(`Line Items Count: ${estimatePayload.Line.length}`);
   console.log('\nLine Items Summary:');
   estimatePayload.Line.forEach((line, idx) => {

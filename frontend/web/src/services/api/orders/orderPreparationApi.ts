@@ -1,3 +1,10 @@
+// File Clean up Finished: 2025-11-18
+// Cleanup Summary:
+// - ✅ Removed savePDFsToFolder method (backend endpoint removed - redundant functionality)
+// - ✅ 8 API methods remain (matching backend routes)
+// - ✅ All methods use api client from apiClient.ts
+// - ✅ File size: 116 lines (reduced from 126 lines)
+
 /**
  * Order Preparation API Client
  *
@@ -55,16 +62,6 @@ export const orderPreparationApi = {
     const response = await api.post(
       `/order-preparation/${orderNumber}/pdfs/qb-estimate`,
       { qbEstimateId }
-    );
-    return response.data;
-  },
-
-  /**
-   * Save all PDFs to order folder
-   */
-  savePDFsToFolder: async (orderNumber: number) => {
-    const response = await api.post(
-      `/order-preparation/${orderNumber}/pdfs/save-to-folder`
     );
     return response.data;
   },

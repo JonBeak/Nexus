@@ -6,6 +6,7 @@
 
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth';
+import { requirePermission } from '../middleware/rbac';
 import { TimeEntriesService } from '../services/timeManagement/TimeEntriesService';
 
 const router = Router();
@@ -14,7 +15,10 @@ const router = Router();
  * Get time entries with filters
  * GET /time-management/entries
  */
-router.get('/entries', authenticateToken, async (req, res) => {
+router.get('/entries',
+  authenticateToken,
+  requirePermission('time_tracking.list'),
+  async (req, res) => {
   try {
     const user = (req as any).user;
     const { startDate, endDate, status, users, group, search, quickFilter } = req.query;
@@ -56,7 +60,10 @@ router.get('/entries', authenticateToken, async (req, res) => {
  * Create new time entry
  * POST /time-management/entries
  */
-router.post('/entries', authenticateToken, async (req, res) => {
+router.post('/entries',
+  authenticateToken,
+  requirePermission('time_tracking.create'),
+  async (req, res) => {
   try {
     const user = (req as any).user;
     const { user_id, clock_in, clock_out, break_minutes, notes, status } = req.body;
@@ -100,7 +107,10 @@ router.post('/entries', authenticateToken, async (req, res) => {
  * Update single time entry
  * PUT /time-management/entries/:entryId
  */
-router.put('/entries/:entryId', authenticateToken, async (req, res) => {
+router.put('/entries/:entryId',
+  authenticateToken,
+  requirePermission('time_tracking.update'),
+  async (req, res) => {
   try {
     const user = (req as any).user;
     const { entryId } = req.params;
@@ -140,7 +150,10 @@ router.put('/entries/:entryId', authenticateToken, async (req, res) => {
  * Delete individual time entry
  * DELETE /time-management/entries/:entryId
  */
-router.delete('/entries/:entryId', authenticateToken, async (req, res) => {
+router.delete('/entries/:entryId',
+  authenticateToken,
+  requirePermission('time_tracking.update'),
+  async (req, res) => {
   try {
     const user = (req as any).user;
     const { entryId } = req.params;
@@ -174,7 +187,10 @@ router.delete('/entries/:entryId', authenticateToken, async (req, res) => {
  * Bulk edit time entries
  * PUT /time-management/bulk-edit
  */
-router.put('/bulk-edit', authenticateToken, async (req, res) => {
+router.put('/bulk-edit',
+  authenticateToken,
+  requirePermission('time_tracking.update'),
+  async (req, res) => {
   try {
     const user = (req as any).user;
     const { entryIds, updates } = req.body;
@@ -209,7 +225,10 @@ router.put('/bulk-edit', authenticateToken, async (req, res) => {
  * Bulk delete time entries
  * DELETE /time-management/bulk-delete
  */
-router.delete('/bulk-delete', authenticateToken, async (req, res) => {
+router.delete('/bulk-delete',
+  authenticateToken,
+  requirePermission('time_tracking.update'),
+  async (req, res) => {
   try {
     const user = (req as any).user;
     const { entryIds } = req.body;
@@ -243,7 +262,10 @@ router.delete('/bulk-delete', authenticateToken, async (req, res) => {
  * Get users list
  * GET /time-management/users
  */
-router.get('/users', authenticateToken, async (req, res) => {
+router.get('/users',
+  authenticateToken,
+  requirePermission('time_tracking.list'),
+  async (req, res) => {
   try {
     const user = (req as any).user;
 

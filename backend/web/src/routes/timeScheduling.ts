@@ -6,6 +6,7 @@
 
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth';
+import { requirePermission } from '../middleware/rbac';
 import { SchedulingService } from '../services/timeManagement/SchedulingService';
 
 const router = Router();
@@ -25,7 +26,10 @@ const statusMap: Record<string, number> = {
  * Get work schedules for a user
  * GET /time-management/schedules/:userId
  */
-router.get('/schedules/:userId', authenticateToken, async (req, res) => {
+router.get('/schedules/:userId',
+  authenticateToken,
+  requirePermission('time_management.update'),
+  async (req, res) => {
   try {
     const user = (req as any).user;
     const userId = parseInt(req.params.userId);
@@ -47,7 +51,10 @@ router.get('/schedules/:userId', authenticateToken, async (req, res) => {
  * Update work schedules for a user
  * PUT /time-management/schedules/:userId
  */
-router.put('/schedules/:userId', authenticateToken, async (req, res) => {
+router.put('/schedules/:userId',
+  authenticateToken,
+  requirePermission('time_management.update'),
+  async (req, res) => {
   try {
     const user = (req as any).user;
     const userId = parseInt(req.params.userId);
@@ -70,7 +77,10 @@ router.put('/schedules/:userId', authenticateToken, async (req, res) => {
  * Get all active company holidays
  * GET /time-management/holidays
  */
-router.get('/holidays', authenticateToken, async (req, res) => {
+router.get('/holidays',
+  authenticateToken,
+  requirePermission('time_management.update'),
+  async (req, res) => {
   try {
     const user = (req as any).user;
 
@@ -91,7 +101,10 @@ router.get('/holidays', authenticateToken, async (req, res) => {
  * Create a new holiday
  * POST /time-management/holidays
  */
-router.post('/holidays', authenticateToken, async (req, res) => {
+router.post('/holidays',
+  authenticateToken,
+  requirePermission('time_management.update'),
+  async (req, res) => {
   try {
     const user = (req as any).user;
     const { holiday_name, holiday_date, overwrite = false } = req.body;
@@ -122,7 +135,10 @@ router.post('/holidays', authenticateToken, async (req, res) => {
  * Delete a holiday (soft delete)
  * DELETE /time-management/holidays/:holidayId
  */
-router.delete('/holidays/:holidayId', authenticateToken, async (req, res) => {
+router.delete('/holidays/:holidayId',
+  authenticateToken,
+  requirePermission('time_management.update'),
+  async (req, res) => {
   try {
     const user = (req as any).user;
     const holidayId = parseInt(req.params.holidayId);
@@ -144,7 +160,10 @@ router.delete('/holidays/:holidayId', authenticateToken, async (req, res) => {
  * Export holidays as CSV
  * GET /time-management/holidays/export
  */
-router.get('/holidays/export', authenticateToken, async (req, res) => {
+router.get('/holidays/export',
+  authenticateToken,
+  requirePermission('time_management.update'),
+  async (req, res) => {
   try {
     const user = (req as any).user;
 
@@ -168,7 +187,10 @@ router.get('/holidays/export', authenticateToken, async (req, res) => {
  * Import holidays from CSV
  * POST /time-management/holidays/import
  */
-router.post('/holidays/import', authenticateToken, async (req, res) => {
+router.post('/holidays/import',
+  authenticateToken,
+  requirePermission('time_management.update'),
+  async (req, res) => {
   try {
     const user = (req as any).user;
     const { csvData, overwriteAll = false } = req.body;

@@ -1,3 +1,18 @@
+// File Clean up Finished: 2025-11-18
+// Analysis: Pure utility for calculating SHA256 hash of order data
+// Status: CLEAN - Moved from /services/ to /utils/ (architectural improvement)
+// Changes:
+//   - Moved from services/ to utils/ to resolve architecture violation
+//   - Repository layer was calling service layer (circular dependency risk)
+//   - Now both services and repositories can safely import this utility
+//   - Updated 4 import locations: qbEstimateService, pdfGenerationService, orderRepository (2x)
+// Findings:
+//   - Single responsibility: hash calculation only
+//   - Well-documented, deterministic hashing
+//   - Properly separated from database access
+//   - Dependencies on orderPreparationRepository (getOrderDataForHash, getOrderPartsForHash)
+// Decision: File is architecturally sound and follows best practices
+
 /**
  * Order Data Hash Service
  *

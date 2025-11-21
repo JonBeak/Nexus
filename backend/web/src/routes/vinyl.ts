@@ -1,7 +1,11 @@
+// File Clean up Finished: 2025-11-21
+// Changes: Removed "New" suffix from filename (vinylNew.ts → vinyl.ts)
+//          Updated server.ts import accordingly
+//          No functional changes - purely organizational cleanup
 /**
- * Vinyl Inventory Routes (New Architecture)
+ * Vinyl Inventory Routes
  * Clean routes that delegate to controllers
- * Now with RBAC permission middleware
+ * RBAC permission middleware
  */
 
 import { Router } from 'express';

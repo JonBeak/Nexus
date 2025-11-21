@@ -1198,7 +1198,7 @@ export class OrderRepository {
     const taskCount = taskCountRows[0].count;
 
     // Calculate current hash from order data (shared with QB/PDFs)
-    const { calculateOrderDataHash } = await import('../services/orderDataHashService');
+    const { calculateOrderDataHash } = await import('../utils/orderDataHashService');
     const currentHash = await calculateOrderDataHash(orderId);
 
     // Check if stale: current data hash differs from stored hash
@@ -1260,7 +1260,7 @@ export class OrderRepository {
     const storedHash = formRow.data_hash;
 
     // Calculate current hash from order data
-    const { calculateOrderDataHash } = await import('../services/orderDataHashService');
+    const { calculateOrderDataHash } = await import('../utils/orderDataHashService');
     const currentHash = await calculateOrderDataHash(orderId);
 
     // Check if stale: current data hash differs from stored hash

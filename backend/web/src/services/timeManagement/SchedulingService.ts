@@ -1,5 +1,11 @@
-// File Clean up Finished: 2025-11-15
-// Changes:
+// File Clean up Started: 2025-11-21
+// File Clean up Finished: 2025-11-21
+// Phase 2 Changes:
+// - Removed TimeTrackingPermissions import (redundant with route-level RBAC)
+// - Removed 7 service-level permission check blocks
+// - Permissions now enforced at route level via requirePermission() middleware
+//
+// Previous cleanup: 2025-11-15
 // - Removed unused import: query from '../../config/database' (dead code)
 // - File already follows proper 3-layer architecture (no direct DB queries)
 // - Audit trail already migrated to auditRepository (Nov 15, 2025)
@@ -10,15 +16,14 @@
  * Business logic layer for work schedules and company holidays operations
  * Extracted from timeScheduling.ts (290 → 100 lines, 65% reduction)
  *
- * ARCHITECTURAL FIX (Nov 15, 2025):
- * - Migrated 4 direct INSERT INTO audit_trail queries to use auditRepository
- * - Fixed architectural violation: Services no longer query database directly
- * - Added import for centralized auditRepository
- * - Part of Phase 2: Centralized Audit Repository implementation
+ * ARCHITECTURAL STATUS:
+ * ✅ 3-layer architecture (Route → Service → Repository)
+ * ✅ Route-level RBAC protection (requirePermission middleware)
+ * ✅ No redundant service-level permission checks
+ * ✅ Centralized audit repository (Nov 15, 2025)
  */
 
 import { User } from '../../types';
-import { TimeTrackingPermissions } from '../../utils/timeTracking/permissions';
 import { SchedulingRepository } from '../../repositories/timeManagement/SchedulingRepository';
 import { auditRepository } from '../../repositories/auditRepository';
 import {
@@ -53,17 +58,7 @@ export class SchedulingService {
     options: ServiceOptions = {}
   ): Promise<ServiceResponse<WorkSchedule[]>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        const canManage = await TimeTrackingPermissions.canManageTimeSchedulesHybrid(user);
-        if (!canManage) {
-          return {
-            success: false,
-            error: 'Unauthorized',
-            code: 'PERMISSION_DENIED'
-          };
-        }
-      }
+      // Permissions enforced at route level via requirePermission('time_management.update') middleware
 
       // Fetch schedules
       const schedules = await SchedulingRepository.getWorkSchedulesByUserId(userId);
@@ -90,17 +85,7 @@ export class SchedulingService {
     options: ServiceOptions = {}
   ): Promise<ServiceResponse<{ message: string }>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        const canManage = await TimeTrackingPermissions.canManageTimeSchedulesHybrid(user);
-        if (!canManage) {
-          return {
-            success: false,
-            error: 'Unauthorized',
-            code: 'PERMISSION_DENIED'
-          };
-        }
-      }
+      // Permissions enforced at route level via requirePermission('time_management.update') middleware
 
       // Validate input
       if (!schedules || !Array.isArray(schedules)) {
@@ -153,17 +138,7 @@ export class SchedulingService {
     options: ServiceOptions = {}
   ): Promise<ServiceResponse<HolidayData[]>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        const canManage = await TimeTrackingPermissions.canManageTimeSchedulesHybrid(user);
-        if (!canManage) {
-          return {
-            success: false,
-            error: 'Unauthorized',
-            code: 'PERMISSION_DENIED'
-          };
-        }
-      }
+      // Permissions enforced at route level via requirePermission('time_management.update') middleware
 
       // Check cache
       const cacheKey = 'holidays_active';
@@ -214,17 +189,7 @@ export class SchedulingService {
     options: ServiceOptions = {}
   ): Promise<ServiceResponse<{ message: string } | { error: string; existing_holiday: HolidayData; requires_overwrite: boolean }>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        const canManage = await TimeTrackingPermissions.canManageTimeSchedulesHybrid(user);
-        if (!canManage) {
-          return {
-            success: false,
-            error: 'Unauthorized',
-            code: 'PERMISSION_DENIED'
-          };
-        }
-      }
+      // Permissions enforced at route level via requirePermission('time_management.update') middleware
 
       const { holiday_name, holiday_date, overwrite = false } = data;
 
@@ -299,17 +264,7 @@ export class SchedulingService {
     options: ServiceOptions = {}
   ): Promise<ServiceResponse<{ message: string }>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        const canManage = await TimeTrackingPermissions.canManageTimeSchedulesHybrid(user);
-        if (!canManage) {
-          return {
-            success: false,
-            error: 'Unauthorized',
-            code: 'PERMISSION_DENIED'
-          };
-        }
-      }
+      // Permissions enforced at route level via requirePermission('time_management.update') middleware
 
       // Soft delete holiday
       await SchedulingRepository.softDeleteHoliday(holidayId);
@@ -353,17 +308,7 @@ export class SchedulingService {
     options: ServiceOptions = {}
   ): Promise<ServiceResponse<string>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        const canManage = await TimeTrackingPermissions.canManageTimeSchedulesHybrid(user);
-        if (!canManage) {
-          return {
-            success: false,
-            error: 'Unauthorized',
-            code: 'PERMISSION_DENIED'
-          };
-        }
-      }
+      // Permissions enforced at route level via requirePermission('time_management.update') middleware
 
       // Fetch holidays for export
       const holidays = await SchedulingRepository.getActiveHolidaysForExport();
@@ -398,17 +343,7 @@ export class SchedulingService {
     options: ServiceOptions = {}
   ): Promise<ServiceResponse<HolidayImportResult | { error: string; conflicts: HolidayConflict[]; requires_overwrite: boolean }>> {
     try {
-      // Check permissions
-      if (options.validatePermissions !== false) {
-        const canManage = await TimeTrackingPermissions.canManageTimeSchedulesHybrid(user);
-        if (!canManage) {
-          return {
-            success: false,
-            error: 'Unauthorized',
-            code: 'PERMISSION_DENIED'
-          };
-        }
-      }
+      // Permissions enforced at route level via requirePermission('time_management.update') middleware
 
       const { csvData, overwriteAll = false } = request;
 

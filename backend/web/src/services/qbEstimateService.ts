@@ -1,13 +1,18 @@
-// File Clean up Finished: 2025-11-18
+// File Clean up Finished: 2025-11-21
 // Analysis: Service layer for QB estimate creation and management
-// Status: FUNCTIONAL but feature not used in production (0 QB estimates)
+// Status: CLEAN - Feature IS in production (33 estimates, actively used since Nov 18)
+// Changes made:
+//   1. Removed getOrderData() - moved to orderPrepRepo.getOrderDataForQBEstimate()
+//   2. Removed getOrderParts() - moved to orderPrepRepo.getOrderPartsForQBEstimate()
+//   3. Added proper TypeScript types (OrderDataForQBEstimate, OrderPartForQBEstimate)
+//   4. Removed direct database queries from service layer (architecture violation fixed)
+//   5. Removed unused imports (query, RowDataPacket)
 // Findings:
-//   - Line 219-236: getOrderData() - Direct DB query in service (should be in repository)
-//   - Line 241-260: getOrderParts() - EXACT DUPLICATE of orderPrepRepo.getOrderPartsForHash()
-//   - Multiple any types: line 219, 241, 266, 267, 269
-//   - Already uses query() helper (good)
-// Decision: Skip cleanup until feature is actively used in production
-//   Will revisit when QB estimate feature has actual usage (currently 0 records)
+//   - All functions are properly used in production
+//   - Business logic properly orchestrates repository calls
+//   - No more direct database access in service layer ✅
+//   - Proper 3-layer architecture maintained
+// Decision: File is now architecturally sound and type-safe
 
 /**
  * QuickBooks Estimate Service for Orders
@@ -23,10 +28,8 @@ import * as path from 'path';
 import { createEstimate, getEstimateWebUrl, getEstimatePdfApiUrl } from '../utils/quickbooks/apiClient';
 import * as orderPrepRepo from '../repositories/orderPreparationRepository';
 import { quickbooksRepository } from '../repositories/quickbooksRepository';
-import { StalenessCheckResult } from '../types/orderPreparation';
-import { query } from '../config/database';
-import { RowDataPacket } from 'mysql2';
-import { calculateOrderDataHash } from './orderDataHashService';
+import { StalenessCheckResult, OrderDataForQBEstimate, OrderPartForQBEstimate } from '../types/orderPreparation';
+import { calculateOrderDataHash } from '../utils/orderDataHashService';
 import { SMB_ROOT, ORDERS_FOLDER, FINISHED_FOLDER } from '../config/paths';
 
 /**
@@ -84,13 +87,13 @@ export async function createEstimateFromOrder(
 }> {
   try {
     // 1. Get order data
-    const orderData = await getOrderData(orderId);
+    const orderData = await orderPrepRepo.getOrderDataForQBEstimate(orderId);
     if (!orderData) {
       throw new Error('Order not found');
     }
 
     // 2. Get order parts (invoice items only)
-    const orderParts = await getOrderParts(orderId);
+    const orderParts = await orderPrepRepo.getOrderPartsForQBEstimate(orderId);
     if (orderParts.length === 0) {
       throw new Error('No invoice parts found for order');
     }
@@ -243,67 +246,15 @@ export async function downloadEstimatePDF(
 }
 
 /**
- * Get order data for QB estimate creation
- */
-async function getOrderData(orderId: number): Promise<any> {
-  const rows = await query(
-    `SELECT
-      o.order_id,
-      o.order_number,
-      o.customer_id,
-      o.order_name,
-      o.tax_name,
-      o.folder_location,
-      o.customer_po,
-      o.customer_job_number,
-      c.company_name as customer_name,
-      c.quickbooks_name
-    FROM orders o
-    JOIN customers c ON c.customer_id = o.customer_id
-    WHERE o.order_id = ?`,
-    [orderId]
-  ) as RowDataPacket[];
-
-  return rows.length > 0 ? rows[0] : null;
-}
-
-/**
- * Get order parts (invoice items only)
- */
-async function getOrderParts(orderId: number): Promise<any[]> {
-  const rows = await query(
-    `SELECT
-      part_id,
-      part_number,
-      invoice_description,
-      qb_item_name,
-      qb_description,
-      specs_display_name,
-      quantity,
-      unit_price,
-      extended_price,
-      product_type,
-      (unit_price IS NOT NULL AND unit_price > 0) as is_taxable
-    FROM order_parts
-    WHERE order_id = ?
-      AND (invoice_description IS NOT NULL OR unit_price IS NOT NULL)
-    ORDER BY part_number`,
-    [orderId]
-  ) as RowDataPacket[];
-
-  return rows;
-}
-
-/**
  * Map order data to QuickBooks estimate format
  */
 async function mapOrderToQBEstimate(
-  orderData: any,
-  orderParts: any[],
+  orderData: OrderDataForQBEstimate,
+  orderParts: OrderPartForQBEstimate[],
   qbCustomerId: string
 ): Promise<any> {
   // Get product type to QB item mappings
-  const productTypes = [...new Set(orderParts.map(p => p.product_type).filter(Boolean))];
+  const productTypes = [...new Set(orderParts.map(p => p.product_type).filter(Boolean))] as string[];
   const itemMappings = await quickbooksRepository.getBatchQBItemMappings(productTypes);
 
   // Resolve tax code (with database fallback for unmapped taxes)
@@ -364,7 +315,7 @@ async function mapOrderToQBEstimate(
   // Order parts (invoice items) - QB will auto-number based on array order
   for (const part of orderParts) {
     // Get QB item ID for product type (using Map.get for case-insensitive lookup)
-    const mapping = itemMappings.get(part.product_type?.toLowerCase());
+    const mapping = itemMappings.get(part.product_type?.toLowerCase() || '');
     const qbItemId = mapping?.qb_item_id || '1'; // Default to first item if no mapping
 
     // Use qb_description directly (no fallback logic)
@@ -375,8 +326,8 @@ async function mapOrderToQBEstimate(
         value: qbItemId,
         name: part.product_type || 'General Item'
       },
-      Qty: parseFloat(part.quantity || 1),
-      UnitPrice: parseFloat(part.unit_price || 0),
+      Qty: parseFloat(String(part.quantity || 1)),
+      UnitPrice: parseFloat(String(part.unit_price || 0)),
       // ALWAYS send tax code (even for 0% taxes like "Out of Scope" or "Exempt")
       TaxCodeRef: {
         value: taxCodeId,
@@ -387,7 +338,7 @@ async function mapOrderToQBEstimate(
     lineItems.push({
       DetailType: 'SalesItemLineDetail',
       Description: description,
-      Amount: parseFloat(part.extended_price || 0),
+      Amount: parseFloat(String(part.extended_price || 0)),
       SalesItemLineDetail: salesItemDetail
     });
   }

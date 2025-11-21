@@ -1,14 +1,20 @@
-// File Clean up Finished: 2025-11-15
-// Changes:
+// File Clean up Started: 2025-11-21
+// File Clean up Finished: 2025-11-21
+// Phase 2 Changes:
+// - Removed TimeTrackingPermissions import (redundant with route-level RBAC)
+// - Removed 2 service-level permission check blocks
+// - Permissions now enforced at route level via requirePermission() middleware
+//
+// Previous cleanup: 2025-11-15
 // - Removed excessive debug logging (console.log statements with emojis)
 // - Removed redundant actionPastTense variable (used status directly)
 // - Cleaned up code from 215 → 192 lines (11% reduction)
 // - Dependent repositories migrated to query() helper
+
 import { TimeEntryRepository } from '../../repositories/timeTracking/TimeEntryRepository';
 import { EditRequestRepository } from '../../repositories/timeTracking/EditRequestRepository';
 import { TimeCalculationService } from './TimeCalculationService';
 import { NotificationService } from './NotificationService';
-import { TimeTrackingPermissions } from '../../utils/timeTracking/permissions';
 import { convertLocalToUTC } from '../../utils/timeTracking/DateTimeUtils';
 import { User } from '../../types';
 import {
@@ -22,6 +28,11 @@ import {
 /**
  * Edit Request Service
  * Handles edit request workflows, approval logic, and business rules
+ *
+ * ARCHITECTURAL STATUS:
+ * ✅ 3-layer architecture (Route → Service → Repository)
+ * ✅ Route-level RBAC protection (requirePermission middleware)
+ * ✅ No redundant service-level permission checks
  */
 export class EditRequestService {
   /**
@@ -95,14 +106,9 @@ export class EditRequestService {
    * Get pending edit requests (managers only)
    * @param user - User object
    * @returns Pending requests with user details
-   * @throws Error if insufficient permissions
    */
   static async getPendingRequests(user: User): Promise<PendingEditRequest[]> {
-    // Check time tracking view permission using hybrid RBAC/legacy system
-    const canView = await TimeTrackingPermissions.canViewTimeEntriesHybrid(user);
-    if (!canView) {
-      throw new Error('Insufficient permissions to view requests');
-    }
+    // Permissions enforced at route level via requirePermission('time.approve') middleware
 
     return await EditRequestRepository.getPendingRequests();
   }
@@ -112,14 +118,10 @@ export class EditRequestService {
    * @param user - User object
    * @param data - Process request data
    * @returns Success response
-   * @throws Error if request not found or insufficient permissions
+   * @throws Error if request not found
    */
   static async processRequest(user: User, data: ProcessRequestBody): Promise<ApiResponse> {
-    // Check permissions
-    const canView = await TimeTrackingPermissions.canViewTimeEntriesHybrid(user);
-    if (!canView) {
-      throw new Error('Insufficient permissions to process requests');
-    }
+    // Permissions enforced at route level via requirePermission('time.approve') middleware
 
     // Get the request details
     const request = await EditRequestRepository.getRequestById(data.request_id);

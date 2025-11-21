@@ -1,3 +1,9 @@
+// File Clean up Finished: 2025-11-21
+// Changes:
+// - Removed dead code: revokeToken() function (35 lines, never used anywhere)
+// - Security fix: Replaced Math.random() with crypto.randomBytes() for CSRF token generation
+// - Added crypto import for cryptographically secure random number generation
+// - File reduced from 309 lines to 274 lines (11% reduction)
 /**
  * QuickBooks OAuth2 Client
  * Handles authorization URL generation, token exchange, and token refresh
@@ -5,6 +11,7 @@
  */
 
 import axios from 'axios';
+import crypto from 'crypto';
 import { quickbooksRepository } from '../../repositories/quickbooksRepository';
 import { credentialService } from '../../services/credentialService';
 
@@ -240,52 +247,15 @@ export async function refreshAccessToken(realmId: string): Promise<{
   }
 }
 
-/**
- * Revoke QuickBooks access (disconnect)
- */
-export async function revokeToken(token: string): Promise<void> {
-  // Load credentials from encrypted storage
-  await loadCredentials();
-
-  if (!QB_CLIENT_ID || !QB_CLIENT_SECRET) {
-    throw new OAuthError('QB_CLIENT_ID or QB_CLIENT_SECRET not configured');
-  }
-
-  const REVOKE_URL = 'https://developer.api.intuit.com/v2/oauth2/tokens/revoke';
-
-  try {
-    await axios.post(
-      REVOKE_URL,
-      new URLSearchParams({ token }),
-      {
-        auth: {
-          username: QB_CLIENT_ID,
-          password: QB_CLIENT_SECRET,
-        },
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Accept: 'application/json',
-        },
-      }
-    );
-
-    console.log('✅ Token revoked successfully');
-  } catch (error: any) {
-    const errorMsg = error.response?.data?.error_description || error.message;
-    console.error('❌ Error revoking token:', errorMsg);
-    throw new OAuthError(`Failed to revoke token: ${errorMsg}`);
-  }
-}
-
 // =============================================
 // HELPER FUNCTIONS
 // =============================================
 
 /**
- * Generate random state for CSRF protection
+ * Generate cryptographically secure random state for CSRF protection
  */
 function generateRandomState(): string {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  return crypto.randomBytes(16).toString('hex');
 }
 
 /**
