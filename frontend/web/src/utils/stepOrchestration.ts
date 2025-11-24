@@ -120,7 +120,7 @@ export function initializeSteps(): PrepareStep[] {
     {
       id: 'generate_tasks',
       name: 'Generate Production Tasks',
-      description: 'Auto-generate production tasks (Phase 1.5.d)',
+      description: 'Auto-generate production tasks from order specifications',
       status: 'pending',
       canRun: true,
       dependencies: ['validation'],

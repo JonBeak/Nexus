@@ -8,3 +8,4 @@ export { getDefaultPinLength } from './pinDefaults';
 export { getDefaultSpacerLength } from './spacerDefaults';
 export { getDefaultFaceMaterial, getDefaultFaceColor } from './materialDefaults';
 export { getDefaultDrainHoles } from './drainHoleDefaults';
+export { getDefaultBackMaterial } from './backDefaults';

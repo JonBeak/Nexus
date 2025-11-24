@@ -16,6 +16,14 @@ import { formatBooleanValue } from '../generators/pdfHelpers';
 
 /**
  * Define spec ordering - templates will be rendered in this order
+ *
+ * NOTE: Box Material and Box Type are aliases (Box Type is the preferred name).
+ * Both are included for backward compatibility. During sorting, Box Material is
+ * normalized to Box Type. They share the same sort position.
+ *
+ * PAIRING BEHAVIOR: When Box Type/Material + Cutting or Material + Cutting appear
+ * consecutively in the raw input (rowNum N and N+1), they are kept together as pairs
+ * and sorted by the first element's position (Box Type/Material, NOT Cutting).
  */
 export const SPEC_ORDER = [
   'Return',
@@ -25,6 +33,7 @@ export const SPEC_ORDER = [
   'Material',
   'Neon Base',
   'Box Material',
+  'Box Type',       // Alias for Box Material (preferred name)
   'Extr. Colour',
   'Cutting',
   'Acrylic',

@@ -38,11 +38,11 @@ export function mapSpecsDisplayNameToTypes(
   // Mapping table based on specs_display_name
   const specsMap: Record<string, string[]> = {
     // Channel Letters
-    'Front Lit': ['Return', 'Trim', 'Face', 'Drain Holes'],
-    'Halo Lit': ['Return', 'Face', 'Mounting', 'Drain Holes'],
-    'Front Lit Acrylic Face': ['Return', 'Face', 'Drain Holes'],
-    'Dual Lit - Single Layer': ['Return', 'Trim', 'Face', 'Drain Holes'],
-    'Dual Lit - Double Layer': ['Return', 'Trim', 'Face', 'Drain Holes'],
+    'Front Lit': ['Return', 'Trim', 'Face', 'Back', 'Drain Holes'],
+    'Halo Lit': ['Return', 'Face', 'Back', 'Mounting', 'Drain Holes'],
+    'Front Lit Acrylic Face': ['Return', 'Face', 'Back', 'Drain Holes'],
+    'Dual Lit - Single Layer': ['Return', 'Trim', 'Face', 'Back', 'Drain Holes'],
+    'Dual Lit - Double Layer': ['Return', 'Trim', 'Face', 'Back', 'Drain Holes'],
 
     // Components
     // Note: Vinyl gets Cut/Peel/Mask added below for parent items only
@@ -54,21 +54,25 @@ export function mapSpecsDisplayNameToTypes(
 
     // Specialized Products
     '3D print': ['Return', 'Face', 'Mounting'],
-    'Blade Sign': ['Return', 'Trim', 'Face'],
-    'Marquee Bulb': ['Return', 'Face'],
+    'Blade Sign': ['Return', 'Trim', 'Face', 'Back'],
+    'Marquee Bulb': ['Return', 'Face', 'Back'],
     'Neon LED': ['Neon Base', 'Neon LED', 'Mounting'],
     'Vinyl Cut': ['Cut', 'Peel', 'Mask'],
     'Material Cut': ['Return', 'Trim', 'Face', 'Back'],
 
+    // Standalone Components
+    'Return': ['Return', 'Back', 'Drain Holes'],
+    'Trim Cap': ['Trim', 'Face'],
+
     // Structural/Mounting
-    'Backer': ['Material', 'Cutting', 'Assembly'],
+    'Backer': ['Box Type', 'Cutting', 'Assembly'],
     'Frame': ['Material', 'Assembly'],
     'Aluminum Raceway': ['Material', 'Assembly'],
     'Extrusion Raceway': ['Extr. Colour', 'Assembly'],
 
     // Push Thru Products
-    'Push Thru': ['Box Material', 'Acrylic'],
-    'Knockout Box': ['Box Material', 'Acrylic'],
+    'Push Thru': ['Box Type', 'Acrylic'],
+    'Knockout Box': ['Box Type', 'Acrylic'],
 
     // Other Products
     'Substrate Cut': ['Material', 'Cutting', 'Mounting', 'D-Tape'],
@@ -122,7 +126,7 @@ export function mapSpecsDisplayNameToTypes(
  */
 export function getAllSpecsDisplayNames(): string[] {
   return [
-    // ===== MAPPED ITEMS (12) =====
+    // ===== MAPPED ITEMS (26) =====
     'Front Lit',
     'Halo Lit',
     'Front Lit Acrylic Face',
@@ -133,38 +137,38 @@ export function getAllSpecsDisplayNames(): string[] {
     'Power Supplies',
     'Extra Wire',
     'UL',
+    '3D print',
+    'Blade Sign',
+    'Marquee Bulb',
+    'Neon LED',
+    'Vinyl Cut',
+    'Material Cut',
+    'Return',
+    'Trim Cap',
+    'Backer',
+    'Frame',
+    'Aluminum Raceway',
+    'Extrusion Raceway',
+    'Push Thru',
+    'Knockout Box',
     'Substrate Cut',
     'Painting',
 
-    // ===== UNMAPPED ITEMS (28) - To be mapped incrementally =====
+    // ===== UNMAPPED ITEMS (14) - To be mapped incrementally =====
     'Dual Lit',
     'Trimless Front Lit',
     'Trimless Halo Lit',
     'Trimless Dual Lit',
-    '3D print',
-    'Blade Sign',
-    'Marquee Bulb',
     'Epoxy',
-    'Push Thru',
-    'Neon LED',
     'Stainless Steel Sign',
-    'Return',
-    'Trim Cap',
     'Front Lit Push Thru',
     'Acrylic MINI',
     'Halo Acrylic',
-    'Vinyl Cut',
-    'Backer',
-    'Frame',
     'Custom',
-    'Aluminum Raceway',
-    'Extrusion Raceway',
     'Dual Lit Acrylic Face (Discontinued)',
-    'Material Cut',
     'Channel Letter',
     'Reverse Channel',
     'Trimless Channel',
-    'Knockout Box',
   ];
 }
 
@@ -189,6 +193,8 @@ export function getMappedSpecsDisplayNames(): string[] {
     'Neon LED',
     'Vinyl Cut',
     'Material Cut',
+    'Return',
+    'Trim Cap',
     'Backer',
     'Frame',
     'Aluminum Raceway',

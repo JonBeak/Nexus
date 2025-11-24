@@ -194,6 +194,26 @@ export async function getOrderDataForHash(orderId: number): Promise<OrderDataFor
 }
 
 /**
+ * Get point persons for hash calculation (only contact_name and contact_email)
+ */
+export async function getPointPersonsForHash(orderId: number): Promise<Array<{contact_name: string | null; contact_email: string}>> {
+  const rows = await query(
+    `SELECT
+      contact_name,
+      contact_email
+    FROM order_point_persons
+    WHERE order_id = ?
+    ORDER BY display_order ASC, contact_email ASC`,
+    [orderId]
+  ) as RowDataPacket[];
+
+  return rows.map(row => ({
+    contact_name: row.contact_name,
+    contact_email: row.contact_email
+  }));
+}
+
+/**
  * Get point persons for an order (for Phase 1.5.c.6.3 - Send to Customer)
  */
 export async function getOrderPointPersons(orderNumber: number): Promise<OrderPointPerson[]> {

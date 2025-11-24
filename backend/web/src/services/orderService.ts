@@ -319,6 +319,76 @@ export class OrderService {
     return await orderRepository.getOrderByEstimateId(estimateId);
   }
 
+  // =====================================================
+  // POINT PERSONS MANAGEMENT
+  // =====================================================
+
+  /**
+   * Update order point persons
+   * Deletes existing and creates new point persons
+   * Optionally saves new contacts to customer_contacts table
+   */
+  async updateOrderPointPersons(
+    orderId: number,
+    customerId: number,
+    pointPersons: Array<{
+      contact_id?: number;
+      contact_email: string;
+      contact_name?: string;
+      contact_phone?: string;
+      contact_role?: string;
+      saveToDatabase?: boolean;
+    }>,
+    userId?: number
+  ): Promise<void> {
+    // Import CustomerContactService class dynamically to avoid circular dependency
+    const { CustomerContactService } = await import('./customerContactService');
+    const customerContactService = new CustomerContactService();
+
+    // Delete existing point persons
+    await orderConversionRepository.deleteOrderPointPersons(orderId);
+
+    // Create new point persons
+    for (let i = 0; i < pointPersons.length; i++) {
+      const person = pointPersons[i];
+      let contactId = person.contact_id;
+
+      // If this is a custom contact with saveToDatabase flag, create it first
+      if (person.saveToDatabase && !person.contact_id && person.contact_email) {
+        try {
+          const result = await customerContactService.createContact({
+            customer_id: customerId,
+            contact_email: person.contact_email,
+            contact_name: person.contact_name || person.contact_email, // Use email as fallback name
+            contact_phone: person.contact_phone || undefined,
+            contact_role: person.contact_role || undefined
+          }, userId || 0);
+
+          if (result.success && result.data) {
+            contactId = result.data;
+            console.log(`✅ Contact saved to database: ${person.contact_email} (ID: ${contactId})`);
+          } else if (!result.success) {
+            console.warn(`⚠️ Failed to save contact: ${result.error}`);
+          }
+        } catch (err) {
+          console.error('Failed to save contact to database:', err);
+          // Continue without saving to database - still create point person entry
+        }
+      }
+
+      // Create order point person entry
+      await orderConversionRepository.createOrderPointPerson({
+        order_id: orderId,
+        contact_id: contactId,
+        contact_email: person.contact_email,
+        contact_name: person.contact_name,
+        contact_phone: person.contact_phone,
+        contact_role: person.contact_role,
+        display_order: i
+      });
+    }
+  }
+
 }
 
 export const orderService = new OrderService();

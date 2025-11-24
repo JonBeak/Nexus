@@ -3,6 +3,7 @@ import { Search, Plus, Calendar, AlertCircle, CheckCircle2, Edit3, Check, X } fr
 import { jobVersioningApi } from '../../services/api';
 import { JobSummary, JobValidationResponse } from './types';
 import { User } from '../../types';
+import { validateJobOrOrderName } from '../../utils/folderNameValidation';
 
 interface JobPanelProps {
   selectedCustomerId: number | null;

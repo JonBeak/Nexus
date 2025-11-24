@@ -3,7 +3,7 @@
  * Push Thru Product Handler
  *
  * Auto-fills specifications for Push Thru and Knockout Box products:
- * - Box Material (1mm Aluminum or 3mm ACM based on calculation display)
+ * - Box Type (1mm Aluminum or 3mm ACM based on calculation display)
  * - Acrylic thickness (default 12mm)
  * - Acrylic colour (default 2447 White)
  */
@@ -23,28 +23,28 @@ export function autoFillPushThru(
   console.log('[Specs Auto-Fill] Processing Push Thru');
 
   // Find template positions
-  let boxMaterialRow: number | null = null;
+  let boxTypeRow: number | null = null;
   let acrylicRow: number | null = null;
 
   for (let i = 1; i <= 10; i++) {
     const templateName = specs[`_template_${i}`];
     if (!templateName) break;
 
-    if (templateName === 'Box Material') boxMaterialRow = i;
+    if (templateName === 'Box Type') boxTypeRow = i;
     if (templateName === 'Acrylic') acrylicRow = i;
   }
 
-  // Auto-fill Box Material based on calculationDisplay
-  if (boxMaterialRow && input.calculationDisplay) {
+  // Auto-fill Box Type based on calculationDisplay
+  if (boxTypeRow && input.calculationDisplay) {
     const calcDisplay = input.calculationDisplay;
 
     if (calcDisplay.includes('Aluminum')) {
-      const materialField = `row${boxMaterialRow}_material`;
+      const materialField = `row${boxTypeRow}_material`;
       specs[materialField] = '1mm Aluminum';
       filledFields.push(materialField);
       console.log(`[Specs Auto-Fill] ✓ Filled ${materialField} = "1mm Aluminum"`);
     } else if (calcDisplay.includes('ACM')) {
-      const materialField = `row${boxMaterialRow}_material`;
+      const materialField = `row${boxTypeRow}_material`;
       specs[materialField] = '3mm ACM';
       filledFields.push(materialField);
       console.log(`[Specs Auto-Fill] ✓ Filled ${materialField} = "3mm ACM"`);

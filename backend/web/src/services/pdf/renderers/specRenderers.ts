@@ -17,6 +17,50 @@ import {
 } from '../formatters/specFormatters';
 
 // ============================================
+// DEFAULT VALUE SKIP RULES
+// ============================================
+
+/**
+ * Default back materials by product type
+ * When Back spec matches the default, it should be skipped (redundant info)
+ */
+const DEFAULT_BACK_MATERIALS: Record<string, string> = {
+  // 2mm ACM back
+  'Front Lit': '2mm ACM',
+  'Front Lit Acrylic Face': '2mm ACM',
+  'Blade Sign': '2mm ACM',
+  'Marquee Bulb': '2mm ACM',
+  'Return': '2mm ACM',
+  // Note: Material Cut intentionally excluded - always show Back spec
+
+  // 2mm White PC back
+  'Halo Lit': '2mm White PC',
+  'Dual Lit - Single Layer': '2mm White PC',
+  'Dual Lit - Double Layer': '2mm White PC',
+  '3D print': '2mm White PC',
+};
+
+/**
+ * Check if the Back spec should be skipped because it matches the default value
+ *
+ * @param specsDisplayName - The product type (e.g., "Front Lit", "Halo Lit")
+ * @param backSpecs - The Back spec values (contains 'material' field)
+ * @returns true if the spec should be skipped, false otherwise
+ */
+function shouldSkipBackSpec(specsDisplayName: string | null, backSpecs: Record<string, any>): boolean {
+  if (!specsDisplayName || !backSpecs) return false;
+
+  const defaultBack = DEFAULT_BACK_MATERIALS[specsDisplayName];
+  if (!defaultBack) return false;
+
+  // Get the material value from the Back spec
+  const backMaterial = backSpecs.material || '';
+
+  // Skip if the Back material matches the default for this product type
+  return backMaterial === defaultBack;
+}
+
+// ============================================
 // TYPE DEFINITIONS
 // ============================================
 
@@ -31,7 +75,71 @@ export interface TemplateRow {
 // ============================================
 
 /**
+ * Pair information for keeping Box Type/Material + Cutting together
+ */
+interface SpecPair {
+  firstIndex: number;
+  secondIndex: number;
+  firstTemplate: string;
+  secondTemplate: string;
+}
+
+/**
+ * Normalize Box Material to Box Type for consistent pairing and sorting
+ */
+function normalizeTemplateName(templateName: string): string {
+  return templateName === 'Box Material' ? 'Box Type' : templateName;
+}
+
+/**
+ * Detect adjacent pairs in the raw input (consecutive rowNum where second element is Cutting)
+ */
+function detectAdjacentPairs(
+  templateRows: Array<{ template: string; rowNum: string; specs: Record<string, any> }>
+): SpecPair[] {
+  const pairs: SpecPair[] = [];
+
+  for (let i = 0; i < templateRows.length - 1; i++) {
+    const current = templateRows[i];
+    const next = templateRows[i + 1];
+
+    // Check if row numbers are strictly consecutive (N and N+1)
+    const currentRowNum = parseInt(current.rowNum);
+    const nextRowNum = parseInt(next.rowNum);
+
+    if (nextRowNum === currentRowNum + 1) {
+      // Normalize template names for comparison
+      const normalizedCurrent = normalizeTemplateName(current.template);
+      const normalizedNext = normalizeTemplateName(next.template);
+
+      // Check if this is a valid pair: (Box Type OR Material) + Cutting
+      if (
+        (normalizedCurrent === 'Box Type' || normalizedCurrent === 'Material') &&
+        normalizedNext === 'Cutting'
+      ) {
+        pairs.push({
+          firstIndex: i,
+          secondIndex: i + 1,
+          firstTemplate: normalizedCurrent,
+          secondTemplate: normalizedNext
+        });
+
+        debugLog(`[PAIR DETECTION] Found pair: ${normalizedCurrent} (row${current.rowNum}) + Cutting (row${next.rowNum})`);
+      }
+    }
+  }
+
+  return pairs;
+}
+
+/**
  * Build sorted template rows from parts (extracted for reuse in 2-column layout)
+ *
+ * PAIRING BEHAVIOR:
+ * - Detects Box Type/Material + Cutting pairs based on consecutive rowNum (N and N+1)
+ * - Keeps pairs together during sorting
+ * - Sorts pairs by first element's position (Box Type or Material, NOT Cutting)
+ * - Unpaired specs sort independently at their normal positions
  */
 export function buildSortedTemplateRows(
   parts: any[],
@@ -99,31 +207,86 @@ export function buildSortedTemplateRows(
     }
   });
 
-  // Sort template rows by SPEC_ORDER, then by row number
+  // Normalize Box Material → Box Type in all template rows
+  allTemplateRows.forEach(row => {
+    row.template = normalizeTemplateName(row.template);
+  });
+
+  // Detect adjacent pairs based on consecutive rowNum
+  const pairs = detectAdjacentPairs(allTemplateRows);
+
+  // Track which rows are part of pairs and which have been processed
+  const pairedIndices = new Set<number>();
+  pairs.forEach(pair => {
+    pairedIndices.add(pair.firstIndex);
+    pairedIndices.add(pair.secondIndex);
+  });
+
+  const processedIndices = new Set<number>();
   const sortedTemplateRows: Array<{ template: string; rowNum: string; specs: Record<string, any> }> = [];
 
-  // First, add rows in SPEC_ORDER
+  // Sort with pair awareness: process rows in SPEC_ORDER, keeping pairs together
   for (const templateName of SPEC_ORDER) {
-    const matchingRows = allTemplateRows.filter(row => row.template === templateName);
-    matchingRows.forEach(row => sortedTemplateRows.push(row));
+    // Normalize the template name from SPEC_ORDER for comparison
+    const normalizedTemplateName = normalizeTemplateName(templateName);
+
+    for (let i = 0; i < allTemplateRows.length; i++) {
+      if (processedIndices.has(i)) continue;
+
+      const row = allTemplateRows[i];
+
+      if (row.template === normalizedTemplateName) {
+        // Check if this row is the FIRST element of a pair
+        const pair = pairs.find(p => p.firstIndex === i);
+
+        if (pair) {
+          // Add both rows together (pair stays intact)
+          sortedTemplateRows.push(allTemplateRows[pair.firstIndex]);
+          sortedTemplateRows.push(allTemplateRows[pair.secondIndex]);
+          processedIndices.add(pair.firstIndex);
+          processedIndices.add(pair.secondIndex);
+
+          debugLog(`[PAIR SORTING] Added pair: ${pair.firstTemplate} + ${pair.secondTemplate} at position for ${normalizedTemplateName}`);
+        } else if (!pairedIndices.has(i)) {
+          // Single row (not part of any pair) - add it alone
+          sortedTemplateRows.push(row);
+          processedIndices.add(i);
+
+          debugLog(`[SORTING] Added unpaired spec: ${row.template} (row${row.rowNum})`);
+        }
+        // If it's the second element of a pair (Cutting), skip it here - it was already added with its pair
+      }
+    }
 
     // Add critical specs even if not in data (unless this part is exempt)
-    const isCritical = CRITICAL_SPECS.includes(templateName as any);
-    if (matchingRows.length === 0 && isCritical && !isExemptFromCritical) {
+    const isCritical = CRITICAL_SPECS.includes(normalizedTemplateName as any);
+    const hasMatchingRows = sortedTemplateRows.some(row => row.template === normalizedTemplateName);
+
+    if (!hasMatchingRows && isCritical && !isExemptFromCritical) {
       sortedTemplateRows.push({
-        template: templateName,
+        template: normalizedTemplateName,
         rowNum: '0',
         specs: {}
       });
     }
   }
 
-  // Add any templates not in SPEC_ORDER at the end
-  allTemplateRows.forEach(row => {
-    if (!SPEC_ORDER.includes(row.template as any)) {
+  // Add any templates not in SPEC_ORDER at the end (unpaired only)
+  for (let i = 0; i < allTemplateRows.length; i++) {
+    if (processedIndices.has(i)) continue;
+
+    const row = allTemplateRows[i];
+    const normalizedTemplate = normalizeTemplateName(row.template);
+
+    if (!SPEC_ORDER.includes(normalizedTemplate as any)) {
       sortedTemplateRows.push(row);
+      processedIndices.add(i);
+
+      debugLog(`[SORTING] Added non-standard spec: ${row.template} (row${row.rowNum})`);
     }
-  });
+  }
+
+  debugLog(`[SORTING COMPLETE] Total specs: ${sortedTemplateRows.length}, Pairs detected: ${pairs.length}`);
 
   return sortedTemplateRows;
 }
@@ -255,6 +418,12 @@ export function renderSpecifications(
   doc.fontSize(FONT_SIZES.SPEC_BODY);
   sortedTemplateRows.forEach(row => {
     const isCriticalSpec = CRITICAL_SPECS.includes(row.template as any) && !isExemptFromCritical;
+
+    // Skip Back spec if it matches the default value for this product type
+    if (row.template === 'Back' && shouldSkipBackSpec(specsDisplayName, row.specs)) {
+      debugLog(`[PDF RENDER] Skipping Back spec - matches default value for ${specsDisplayName}`);
+      return; // Skip to next row
+    }
 
     // Critical specs: always show them (unless exempt)
     if (isCriticalSpec) {

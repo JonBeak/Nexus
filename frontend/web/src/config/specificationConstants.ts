@@ -37,7 +37,8 @@ export const FACE_MATERIALS = [
   '3mm ACM',
   '1mm Aluminum',
   '12mm Acrylic',
-  '9mm Acrylic'
+  '9mm Acrylic',
+  '4.5mm Acrylic'
 ] as const;
 
 /**
@@ -121,8 +122,7 @@ export const WIRE_GAUGES = [
  */
 export const CUTTING_METHODS = [
   'Router',
-  'Laser',
-  'Router & Laser'
+  'Laser'
 ] as const;
 
 /**
@@ -209,7 +209,8 @@ export const EXTRUSION_COLOURS = [
 export const BACK_MATERIALS = [
   '2mm ACM',
   '2mm White PC',
-  '2mm Clear PC'
+  '2mm Clear PC',
+  '3mm White PC'
 ] as const;
 
 /**
@@ -227,6 +228,14 @@ export const BOX_COLOURS = [
   'Matte Black',
   'White',
   'Red'
+] as const;
+
+/**
+ * Box fabrication options
+ */
+export const BOX_FABRICATION = [
+  '2" Angle Return',
+  'Folded'
 ] as const;
 
 /**

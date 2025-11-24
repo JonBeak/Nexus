@@ -19,7 +19,11 @@
  */
 
 import { orderPartRepository } from '../repositories/orderPartRepository';
+import { orderRepository } from '../repositories/orderRepository';
+import { customerRepository } from '../repositories/customerRepository';
 import { mapSpecsDisplayNameToTypes } from '../utils/specsTypeMapper';
+import { mapQBItemNameToSpecsDisplayName } from '../utils/qbItemNameMapper';
+import { autoFillSpecifications } from './specsAutoFill';
 
 export class OrderPartsService {
 
@@ -102,7 +106,8 @@ export class OrderPartsService {
    * 1. Gets the part to determine if parent or regular row
    * 2. Maps specs_display_name to spec types
    * 3. Regenerates the SPECIFICATIONS column (clears existing templates)
-   * 4. Auto-demotes to sub-item if specs_display_name is cleared
+   * 4. Auto-fills static defaults (always) and dynamic values (if qb_item_name matches)
+   * 5. Auto-demotes to sub-item if specs_display_name is cleared
    */
   async updateSpecsDisplayName(
     partId: number,
@@ -130,13 +135,64 @@ export class OrderPartsService {
     specTypes.forEach((specType, index) => {
       const rowNum = index + 1;
       newSpecifications[`_template_${rowNum}`] = specType.name;
-      // spec1, spec2, spec3 values are empty for now (manual entry)
     });
+
+    // Auto-fill specifications if we have a specs display name
+    let finalSpecifications = newSpecifications;
+    if (specsDisplayName) {
+      try {
+        // Check if qb_item_name maps to the selected specsDisplayName
+        // If match → run both static defaults AND dynamic parsing
+        // If no match → run static defaults only (by passing empty qbItemName/calculationDisplay)
+        const mappedFromQB = mapQBItemNameToSpecsDisplayName(part.qb_item_name);
+        const qbMatchesSelection = mappedFromQB === specsDisplayName;
+
+        // Get customer preferences for drain holes default
+        let customerPreferences: { drain_holes_yes_or_no?: boolean } | undefined;
+        try {
+          const order = await orderRepository.getOrderById(part.order_id);
+          if (order?.customer_id) {
+            const customer = await customerRepository.getCustomerById(order.customer_id);
+            if (customer) {
+              customerPreferences = {
+                drain_holes_yes_or_no: customer.drain_holes_yes_or_no === 1
+              };
+            }
+          }
+        } catch (e) {
+          console.warn('[updateSpecsDisplayName] Could not fetch customer preferences:', e);
+        }
+
+        // Call auto-fill with appropriate data
+        const autoFillResult = await autoFillSpecifications({
+          // Only pass QB data if it maps to the selected Item Name
+          qbItemName: qbMatchesSelection ? (part.qb_item_name || '') : '',
+          specsDisplayName: specsDisplayName,
+          // invoice_description contains the calculationDisplay from estimate
+          calculationDisplay: qbMatchesSelection ? (part.invoice_description || '') : '',
+          currentSpecifications: newSpecifications,
+          isParentOrRegular,
+          customerPreferences
+        });
+
+        finalSpecifications = autoFillResult.specifications;
+        console.log('[updateSpecsDisplayName] Auto-fill result:', {
+          qbMatchesSelection,
+          mappedFromQB,
+          specsDisplayName,
+          filledFields: autoFillResult.autoFilledFields,
+          warnings: autoFillResult.warnings
+        });
+      } catch (autoFillError) {
+        console.error('[updateSpecsDisplayName] Auto-fill error:', autoFillError);
+        // Continue with empty specs if auto-fill fails
+      }
+    }
 
     // Prepare update data
     const updateData: any = {
       specs_display_name: specsDisplayName,
-      specifications: newSpecifications
+      specifications: finalSpecifications
     };
 
     // Auto-demote to sub-item if specs_display_name is being cleared
@@ -161,6 +217,7 @@ export class OrderPartsService {
    * Phase 3.2
    *
    * Validation: Cannot promote to parent without specs_display_name
+   * When converting to parent for the first time, sets quantity to 1 if currently 0/null
    */
   async toggleIsParent(partId: number): Promise<any> {
     const part = await orderPartRepository.getOrderPartById(partId);
@@ -175,7 +232,13 @@ export class OrderPartsService {
       throw new Error('Cannot promote to Base Item: Please select an Item Name first.');
     }
 
-    await orderPartRepository.updateOrderPart(partId, { is_parent: newIsParent });
+    // When promoting to parent, default quantity to 1 if currently 0 or null
+    const updates: any = { is_parent: newIsParent };
+    if (newIsParent && (!part.quantity || part.quantity === 0)) {
+      updates.quantity = 1;
+    }
+
+    await orderPartRepository.updateOrderPart(partId, updates);
 
     const updatedPart = await orderPartRepository.getOrderPartById(partId);
     if (!updatedPart) {

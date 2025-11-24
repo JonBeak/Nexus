@@ -23,6 +23,7 @@ import PrintFormsWithPreview from './components/PrintFormsWithPreview';
 import LoadingState from './components/LoadingState';
 import ErrorState from './components/ErrorState';
 import TaxDropdown from './components/TaxDropdown';
+import PointPersonsEditor from './components/PointPersonsEditor';
 import PrepareOrderModal from '../preparation/PrepareOrderModal';
 
 export const OrderDetailsPage: React.FC = () => {
@@ -210,6 +211,35 @@ export const OrderDetailsPage: React.FC = () => {
     }
   };
 
+  // Handler for saving point persons
+  const handlePointPersonsSave = async (pointPersons: any[]) => {
+    if (!orderData.order) return;
+
+    try {
+      setUiState(prev => ({ ...prev, saving: true }));
+
+      // Transform point persons to API format
+      const apiPointPersons = pointPersons.map(pp => ({
+        contact_id: pp.contact_id,
+        contact_email: pp.contact_email,
+        contact_name: pp.contact_name,
+        contact_phone: pp.contact_phone,
+        contact_role: pp.contact_role,
+        saveToDatabase: pp.saveToDatabase
+      }));
+
+      await ordersApi.updateOrderPointPersons(orderData.order.order_number, apiPointPersons);
+
+      // Refresh order data after save
+      await refetch();
+    } catch (err) {
+      console.error('Error updating point persons:', err);
+      alert('Failed to update point persons. Please try again.');
+    } finally {
+      setUiState(prev => ({ ...prev, saving: false }));
+    }
+  };
+
   if (uiState.initialLoad) {
     return <LoadingState />;
   }
@@ -239,12 +269,10 @@ export const OrderDetailsPage: React.FC = () => {
           {/* TAB 1: Specs & Invoice - Full Width */}
           {uiState.activeTab === 'specs' && (
             <div className="flex flex-col gap-4 h-full">
-              {/* Top Row: Order Info (Left) and Invoice Info (Right) */}
+              {/* Top Row: 4 Horizontal Panels - Image | Order Details | Notes | Contact/Invoice */}
               <div className="flex gap-4">
-                {/* Left: Order Info Panel - Narrower */}
-                <div className="flex-shrink-0 bg-white rounded-lg shadow p-4 flex gap-6" style={{ width: '1123px', minHeight: '240px', maxHeight: '250px' }}>
-                {/* Left: Order Image - 32% of panel width */}
-                <div style={{ width: '32%' }}>
+                {/* Panel 1: Order Image (no panel styling, just the image) */}
+                <div className="flex-shrink-0" style={{ width: '420px', height: '280px' }}>
                   <OrderImage
                     orderNumber={orderData.order.order_number}
                     signImagePath={orderData.order.sign_image_path}
@@ -259,20 +287,19 @@ export const OrderDetailsPage: React.FC = () => {
                   />
                 </div>
 
-                {/* Right: Order Details - 68% of panel width */}
-                <div className="flex flex-col gap-4" style={{ width: '68%' }}>
-                  {/* Row 1: Order Date, Customer PO, Customer Job #, Shipping Method */}
-                  <div className="flex gap-4">
-                    <div className="flex-1">
-                      <span className="text-gray-500 text-sm">Order Date:</span>
-                      <p className="font-medium text-gray-900 text-base">
+                {/* Panel 2: General Order Details */}
+                <div className="flex-shrink-0 bg-white rounded-lg shadow p-4" style={{ width: '320px', height: '280px' }}>
+                  <div className="divide-y divide-gray-100">
+                    {/* Order Date */}
+                    <div className="flex justify-between items-center py-1 px-1 bg-gray-50">
+                      <span className="text-gray-500 text-xs">Order Date</span>
+                      <span className="italic text-gray-900 text-sm pr-6">
                         {FIELD_CONFIGS.due_date.displayFormatter(orderData.order.order_date)}
-                      </p>
+                      </span>
                     </div>
-
-                    {/* Customer PO - Editable */}
-                    <div className="flex-1">
-                      <span className="text-gray-500 text-sm">{FIELD_CONFIGS.customer_po.label}:</span>
+                    {/* PO # */}
+                    <div className="flex justify-between items-center py-1 px-1">
+                      <span className="text-gray-500 text-xs">PO #</span>
                       <EditableField
                         field="customer_po"
                         value={orderData.order.customer_po}
@@ -284,12 +311,12 @@ export const OrderDetailsPage: React.FC = () => {
                         onCancel={cancelEdit}
                         editValue={editState.editValue}
                         onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
+                        valueSize="sm"
                       />
                     </div>
-
-                    {/* Customer Job # - Editable */}
-                    <div className="flex-1">
-                      <span className="text-gray-500 text-sm">Customer Job #:</span>
+                    {/* Job # */}
+                    <div className="flex justify-between items-center py-1 px-1 bg-gray-50">
+                      <span className="text-gray-500 text-xs">Job #</span>
                       <EditableField
                         field="customer_job_number"
                         value={orderData.order.customer_job_number}
@@ -301,34 +328,12 @@ export const OrderDetailsPage: React.FC = () => {
                         onCancel={cancelEdit}
                         editValue={editState.editValue}
                         onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
+                        valueSize="sm"
                       />
                     </div>
-
-                    {/* Shipping Method - Dropdown (uses shipping_required boolean) */}
-                    <div className="flex-1">
-                      <span className="text-gray-500 text-sm">{FIELD_CONFIGS.shipping_required.label}:</span>
-                      <EditableField
-                        field="shipping_required"
-                        value={orderData.order.shipping_required}
-                        type={FIELD_CONFIGS.shipping_required.type}
-                        options={FIELD_CONFIGS.shipping_required.options}
-                        isEditing={editState.editingField === 'shipping_required'}
-                        isSaving={uiState.saving}
-                        onEdit={startEdit}
-                        onSave={saveEdit}
-                        onCancel={cancelEdit}
-                        editValue={editState.editValue}
-                        onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
-                        displayFormatter={FIELD_CONFIGS.shipping_required.displayFormatter}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Row 2: Due Date, Hard Due Time, Turnaround Time, Due In */}
-                  <div className="flex gap-4 items-end">
-                    {/* Due Date - Editable */}
-                    <div className="flex-1">
-                      <span className="text-gray-500 text-sm">{FIELD_CONFIGS.due_date.label}:</span>
+                    {/* Due Date */}
+                    <div className="flex justify-between items-center py-1 px-1">
+                      <span className="text-gray-500 text-xs">Due Date</span>
                       <EditableField
                         field="due_date"
                         value={orderData.order.due_date}
@@ -341,12 +346,12 @@ export const OrderDetailsPage: React.FC = () => {
                         editValue={editState.editValue}
                         onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
                         displayFormatter={FIELD_CONFIGS.due_date.displayFormatter}
+                        valueSize="sm"
                       />
                     </div>
-
-                    {/* Hard Due Time - Editable */}
-                    <div className="flex-1">
-                      <span className="text-gray-500 text-sm">{FIELD_CONFIGS.hard_due_date_time.label}:</span>
+                    {/* Hard Due Time */}
+                    <div className="flex justify-between items-center py-1 px-1 bg-gray-50">
+                      <span className="text-gray-500 text-xs">Hard Due Time</span>
                       <EditableField
                         field="hard_due_date_time"
                         value={orderData.order.hard_due_date_time}
@@ -359,36 +364,56 @@ export const OrderDetailsPage: React.FC = () => {
                         editValue={editState.editValue}
                         onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
                         displayFormatter={FIELD_CONFIGS.hard_due_date_time.displayFormatter}
+                        valueSize="sm"
                       />
                     </div>
-
-                    {/* Turnaround Time */}
-                    <div className="flex-1">
-                      <span className="text-gray-500 text-sm">Turnaround Time:</span>
-                      <p className="font-medium text-gray-900 text-base h-6 flex items-center">
-                        {calculatedValues.turnaroundDays !== null ? `${calculatedValues.turnaroundDays} days` : 'Calculating...'}
-                      </p>
+                    {/* Turnaround Time (calculated) */}
+                    <div className="flex justify-between items-center py-1 px-1">
+                      <span className="text-gray-500 text-xs">Turnaround</span>
+                      <span className="italic text-gray-900 text-sm pr-6">
+                        {calculatedValues.turnaroundDays !== null ? `${calculatedValues.turnaroundDays} days` : '-'}
+                      </span>
                     </div>
-
-                    {/* Due In */}
-                    <div className="flex-1">
-                      <span className="text-gray-500 text-sm">Due in:</span>
-                      <p className="font-medium text-gray-900 text-base h-6 flex items-center">
-                        {calculatedValues.daysUntilDue !== null ? `${calculatedValues.daysUntilDue} days` : 'Calculating...'}
-                      </p>
+                    {/* Due In (calculated) */}
+                    <div className="flex justify-between items-center py-1 px-1 bg-gray-50">
+                      <span className="text-gray-500 text-xs">Due In</span>
+                      <span className="italic text-gray-900 text-sm pr-6">
+                        {calculatedValues.daysUntilDue !== null ? `${calculatedValues.daysUntilDue} days left` : '-'}
+                      </span>
+                    </div>
+                    {/* Shipping */}
+                    <div className="flex justify-between items-center py-1 px-1">
+                      <span className="text-gray-500 text-xs">Shipping Method</span>
+                      <EditableField
+                        field="shipping_required"
+                        value={orderData.order.shipping_required}
+                        type={FIELD_CONFIGS.shipping_required.type}
+                        options={[...FIELD_CONFIGS.shipping_required.options]}
+                        isEditing={editState.editingField === 'shipping_required'}
+                        isSaving={uiState.saving}
+                        onEdit={startEdit}
+                        onSave={saveEdit}
+                        onCancel={cancelEdit}
+                        editValue={editState.editValue}
+                        onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
+                        displayFormatter={FIELD_CONFIGS.shipping_required.displayFormatter}
+                        valueSize="sm"
+                      />
                     </div>
                   </div>
+                </div>
 
-                  {/* Row 3: Special Instructions & Internal Notes - Side by Side */}
-                  <div className="mt-2 flex gap-4">
+                {/* Panel 3: Notes */}
+                <div className="flex-shrink-0 bg-white rounded-lg shadow p-4" style={{ width: '380px', height: '280px' }}>
+                  <div className="h-full flex flex-col gap-1">
                     {/* Special Instructions */}
                     <div className="flex-1">
-                      <h3 className="text-sm font-semibold text-gray-700 mb-1">Special Instructions</h3>
+                      <h3 className="text-xs font-semibold text-gray-700 mb-1">Special Instructions</h3>
                       <EditableField
                         field="manufacturing_note"
                         value={orderData.order.manufacturing_note}
                         type="textarea"
-                        height="60px"
+                        height="55px"
                         placeholder="Enter special manufacturing instructions..."
                         isEditing={editState.editingField === 'manufacturing_note'}
                         isSaving={uiState.saving}
@@ -397,17 +422,18 @@ export const OrderDetailsPage: React.FC = () => {
                         onCancel={cancelEdit}
                         editValue={editState.editValue}
                         onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
+                        autoSave={true}
+                        valueSize="sm"
                       />
                     </div>
-
                     {/* Internal Notes */}
                     <div className="flex-1">
-                      <h3 className="text-sm font-semibold text-gray-700 mb-1">Internal Notes</h3>
+                      <h3 className="text-xs font-semibold text-gray-700 mb-1">Internal Notes (Hidden)</h3>
                       <EditableField
                         field="internal_note"
                         value={orderData.order.internal_note}
                         type="textarea"
-                        height="60px"
+                        height="55px"
                         placeholder="Enter internal notes..."
                         isEditing={editState.editingField === 'internal_note'}
                         isSaving={uiState.saving}
@@ -416,30 +442,41 @@ export const OrderDetailsPage: React.FC = () => {
                         onCancel={cancelEdit}
                         editValue={editState.editValue}
                         onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
+                        autoSave={true}
+                        valueSize="sm"
+                      />
+                    </div>
+                    {/* Invoice Notes */}
+                    <div className="flex-1">
+                      <h3 className="text-xs font-semibold text-gray-700 mb-1">Invoice Notes</h3>
+                      <EditableField
+                        field="invoice_notes"
+                        value={orderData.order.invoice_notes}
+                        type="textarea"
+                        height="55px"
+                        placeholder="Enter invoice notes..."
+                        isEditing={editState.editingField === 'invoice_notes'}
+                        isSaving={uiState.saving}
+                        onEdit={startEdit}
+                        onSave={saveEdit}
+                        onCancel={cancelEdit}
+                        editValue={editState.editValue}
+                        onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
+                        autoSave={true}
+                        valueSize="sm"
                       />
                     </div>
                   </div>
                 </div>
-              </div>
 
-                {/* Right: Contact & Invoice Details Panel */}
-                <div className="flex-shrink-0 bg-white rounded-lg shadow p-4" style={{ width: '749px', minHeight: '240px', maxHeight: '250px' }}>
-                  <div className="h-full flex flex-col gap-4">
-                    {/* Top Section: Point Persons, Accounting Email, Terms */}
-                    <div className="flex gap-4">
-                      {/* Point Persons - Display only, flex-2 (managed via order_point_persons table) */}
-                      <div className="flex-[2]">
-                        <span className="text-gray-500 text-sm">Point Person(s):</span>
-                        <p className="font-medium text-gray-900 text-base">
-                          {orderData.order.point_persons && orderData.order.point_persons.length > 0
-                            ? orderData.order.point_persons.map(person => person.contact_email).join(', ')
-                            : '-'}
-                        </p>
-                      </div>
-
-                      {/* Accounting Email - Editable (from Customer) */}
-                      <div className="flex-1">
-                        <span className="text-gray-500 text-sm">Accounting Email:</span>
+                {/* Panel 4: Contact & Invoice Settings */}
+                <div className="flex-shrink-0 bg-white rounded-lg shadow p-4" style={{ width: '700px', height: '280px' }}>
+                  <div className="h-full flex gap-4">
+                    {/* Left Column: Accounting Email & Point Persons */}
+                    <div className="overflow-y-auto" style={{ width: '430px' }}>
+                      {/* Accounting Email */}
+                      <div className="flex justify-between items-center py-1 px-1 mb-2">
+                        <span className="text-gray-500 text-xs">Accounting Email</span>
                         <EditableField
                           field="invoice_email"
                           value={orderData.order.invoice_email}
@@ -451,16 +488,31 @@ export const OrderDetailsPage: React.FC = () => {
                           onCancel={cancelEdit}
                           editValue={editState.editValue}
                           onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
+                          valueSize="sm"
                         />
                       </div>
-
-                      {/* Terms - Editable (from Customer) */}
-                      <div className="flex-1">
-                        <span className="text-gray-500 text-sm">Terms:</span>
+                      <h3 className="text-xs font-semibold text-gray-700 mb-2 border-t border-gray-100 pt-2">Point Persons</h3>
+                      <PointPersonsEditor
+                        customerId={orderData.order.customer_id}
+                        orderId={orderData.order.order_id}
+                        initialPointPersons={orderData.order.point_persons || []}
+                        onSave={handlePointPersonsSave}
+                        disabled={uiState.saving}
+                      />
+                    </div>
+                    {/* Right Column: Invoice Settings */}
+                    <div className="divide-y divide-gray-100" style={{ width: '222px' }}>
+                      {/* Terms */}
+                      <div className="flex justify-between items-center py-1 px-1 bg-gray-50">
+                        <span className="text-gray-500 text-xs">Terms</span>
                         <EditableField
                           field="terms"
                           value={orderData.order.terms}
-                          type="text"
+                          type="select"
+                          options={[
+                            { value: 'Due on Receipt', label: 'Due on Receipt' },
+                            { value: 'Net 30', label: 'Net 30' }
+                          ]}
                           isEditing={editState.editingField === 'terms'}
                           isSaving={uiState.saving}
                           onEdit={startEdit}
@@ -468,68 +520,63 @@ export const OrderDetailsPage: React.FC = () => {
                           onCancel={cancelEdit}
                           editValue={editState.editValue}
                           onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
+                          valueSize="sm"
                         />
                       </div>
-                    </div>
-
-                    {/* Middle Section: Deposit Required, Cash, Discount, Tax */}
-                    <div className="flex gap-4">
-
-                      {/* Deposit Required - Checkbox (from Customer) */}
-                      <div className="flex-1">
-                        <span className="text-gray-500 text-sm">Deposit Required:</span>
+                      {/* Deposit Required - Yes/No Dropdown */}
+                      <div className="flex justify-between items-center py-1 px-1">
+                        <span className="text-gray-500 text-xs">Deposit</span>
                         <EditableField
                           field="deposit_required"
-                          value={orderData.order.deposit_required}
-                          type="checkbox"
-                          isEditing={false}
+                          value={orderData.order.deposit_required ? 'Yes' : 'No'}
+                          type="select"
+                          options={[
+                            { value: 'Yes', label: 'Yes' },
+                            { value: 'No', label: 'No' }
+                          ]}
+                          isEditing={editState.editingField === 'deposit_required'}
                           isSaving={uiState.saving}
-                          onEdit={(field, value) => {
-                            setEditState(prev => ({ ...prev, editingField: field }));
-                            saveEdit(field, value);
-                          }}
-                          onSave={saveEdit}
+                          onEdit={startEdit}
+                          onSave={(field, value) => saveEdit(field, value === 'Yes' ? 'true' : 'false')}
                           onCancel={cancelEdit}
                           editValue={editState.editValue}
                           onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
+                          valueSize="sm"
                         />
                       </div>
-
-                      {/* Cash Job - Checkbox (from Customer) - Custom handler for tax override */}
-                      <div className="flex-1">
-                        <span className="text-gray-500 text-sm">Cash Job:</span>
+                      {/* Cash Job - Yes/No Dropdown */}
+                      <div className="flex justify-between items-center py-1 px-1 bg-gray-50">
+                        <span className="text-gray-500 text-xs">Cash Job</span>
                         <EditableField
                           field="cash"
-                          value={orderData.order.cash}
-                          type="checkbox"
-                          isEditing={false}
+                          value={orderData.order.cash ? 'Yes' : 'No'}
+                          type="select"
+                          options={[
+                            { value: 'Yes', label: 'Yes' },
+                            { value: 'No', label: 'No' }
+                          ]}
+                          isEditing={editState.editingField === 'cash'}
                           isSaving={uiState.saving}
-                          onEdit={(field, value) => {
-                            // Use custom handler that manages tax override
-                            handleCashJobChange(value === 'true');
-                          }}
-                          onSave={saveEdit}
+                          onEdit={startEdit}
+                          onSave={(field, value) => handleCashJobChange(value === 'Yes')}
                           onCancel={cancelEdit}
                           editValue={editState.editValue}
                           onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
+                          valueSize="sm"
                         />
                       </div>
-
-                      {/* Discount - Display Only (from Customer) */}
-                      <div className="flex-1">
-                        <span className="text-gray-500 text-sm">Discount:</span>
-                        <div className="flex items-center h-6">
-                          <p className="font-medium text-gray-900 text-base">
-                            {orderData.customerDiscount && parseFloat(String(orderData.customerDiscount)) > 0
-                              ? `${parseFloat(String(orderData.customerDiscount))}%`
-                              : '-'}
-                          </p>
-                        </div>
+                      {/* Discount */}
+                      <div className="flex justify-between items-center py-1 px-1">
+                        <span className="text-gray-500 text-xs">Discount</span>
+                        <span className="italic text-gray-900 text-sm pr-6">
+                          {orderData.customerDiscount && parseFloat(String(orderData.customerDiscount)) > 0
+                            ? `${parseFloat(String(orderData.customerDiscount))}%`
+                            : '-'}
+                        </span>
                       </div>
-
-                      {/* Tax - Editable Dropdown (from billing address) */}
-                      <div className="flex-1">
-                        <span className="text-gray-500 text-sm">Tax:</span>
+                      {/* Tax */}
+                      <div className="flex justify-between items-center py-1 px-1 bg-gray-50">
+                        <span className="text-gray-500 text-xs">Tax</span>
                         <TaxDropdown
                           currentTaxName={orderData.order.tax_name}
                           taxRules={orderData.taxRules}
@@ -543,25 +590,6 @@ export const OrderDetailsPage: React.FC = () => {
                           isSaving={uiState.saving}
                         />
                       </div>
-                    </div>
-
-                    {/* Bottom Section: Invoice Notes - Editable (from Customer) */}
-                    <div className="mt-2">
-                      <h3 className="text-sm font-semibold text-gray-700 mb-1">Invoice Notes</h3>
-                      <EditableField
-                        field="invoice_notes"
-                        value={orderData.order.invoice_notes}
-                        type="textarea"
-                        height="60px"
-                        placeholder="Enter invoice notes..."
-                        isEditing={editState.editingField === 'invoice_notes'}
-                        isSaving={uiState.saving}
-                        onEdit={startEdit}
-                        onSave={saveEdit}
-                        onCancel={cancelEdit}
-                        editValue={editState.editValue}
-                        onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
-                      />
                     </div>
                   </div>
                 </div>

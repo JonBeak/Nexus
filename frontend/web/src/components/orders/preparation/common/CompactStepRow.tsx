@@ -16,6 +16,7 @@ interface CompactStepRowProps {
   status: StepStatus;
   button: ReactNode;
   message?: string;
+  messageType?: 'success' | 'info' | 'warning'; // 'success' = green, 'info' = gray, 'warning' = red
   error?: string;
   disabled?: boolean;
 }
@@ -27,6 +28,7 @@ export const CompactStepRow: React.FC<CompactStepRowProps> = ({
   status,
   button,
   message,
+  messageType = 'success',
   error,
   disabled = false
 }) => {
@@ -66,9 +68,15 @@ export const CompactStepRow: React.FC<CompactStepRowProps> = ({
         </div>
       </div>
 
-      {/* Success/Info message */}
+      {/* Success/Info/Warning message */}
       {message && !error && (
-        <div className="mt-2 ml-9 text-xs text-green-700 bg-green-50 px-2 py-1.5 rounded border border-green-200">
+        <div className={`mt-2 ml-9 text-xs px-2 py-1.5 rounded border ${
+          messageType === 'info'
+            ? 'text-gray-700 bg-gray-50 border-gray-200'
+            : messageType === 'warning'
+            ? 'text-red-700 bg-red-50 border-red-200'
+            : 'text-green-700 bg-green-50 border-green-200'
+        }`}>
           {message}
         </div>
       )}

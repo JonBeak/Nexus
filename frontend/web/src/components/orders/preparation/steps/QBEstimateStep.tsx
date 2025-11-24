@@ -240,6 +240,13 @@ export const QBEstimateStep: React.FC<QBEstimateStepProps> = ({
     return message;
   };
 
+  // Determine message type based on state
+  const getMessageType = (): 'success' | 'info' | 'warning' => {
+    if (qbConnected === false) return 'info'; // Not connected = gray
+    if (qbEstimate?.isStale) return 'warning'; // Stale = red
+    return 'success'; // Everything else = green
+  };
+
   const renderButton = () => {
     // Still checking connection
     if (qbConnected === null) {
@@ -299,6 +306,7 @@ export const QBEstimateStep: React.FC<QBEstimateStepProps> = ({
         }
         status={qbConnected === false ? 'pending' : step.status}
         message={getStatusMessage()}
+        messageType={getMessageType()}
         error={step.error}
         disabled={rowDisabled}
         button={renderButton()}

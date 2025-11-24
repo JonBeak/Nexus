@@ -1,6 +1,7 @@
 import React from 'react';
 import { Package } from 'lucide-react';
 import TaskChecklistItem from './TaskChecklistItem';
+import type { UserRole } from '../../../types/user';
 
 interface TaskUpdate {
   task_id: number;
@@ -13,8 +14,10 @@ interface Props {
   label: string;
   tasks: any[];
   stagedUpdates: Map<number, TaskUpdate>;
-  onTaskUpdate: (taskId: number, field: 'started' | 'completed', value: boolean) => void;
+  onTaskUpdate: (taskId: number, field: 'started' | 'completed', value: boolean, originalStarted: boolean, originalCompleted: boolean) => void;
+  onTaskNotesUpdate: () => void;
   showCompleted: boolean;
+  userRole: UserRole;
 }
 
 export const RoleCard: React.FC<Props> = ({
@@ -23,7 +26,9 @@ export const RoleCard: React.FC<Props> = ({
   tasks,
   stagedUpdates,
   onTaskUpdate,
-  showCompleted
+  onTaskNotesUpdate,
+  showCompleted,
+  userRole
 }) => {
   const incompleteTasks = tasks.filter(t => !t.completed);
   const completedTasks = tasks.filter(t => t.completed);
@@ -59,7 +64,9 @@ export const RoleCard: React.FC<Props> = ({
                 task={task}
                 stagedUpdate={stagedUpdates.get(task.task_id)}
                 onUpdate={onTaskUpdate}
+                onNotesUpdate={onTaskNotesUpdate}
                 showCompleted={showCompleted}
+                userRole={userRole}
               />
             ))}
           </div>

@@ -26,6 +26,16 @@ interface GenerateTasksStepProps {
   isOpen: boolean;
 }
 
+interface PaintingWarning {
+  partId: number;
+  partName: string;
+  itemType: string;
+  component: string;
+  timing: string;
+  colour: string;
+  message: string;
+}
+
 export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
   step,
   steps,
@@ -39,6 +49,7 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
   const [isChecking, setIsChecking] = useState(false);
   const [taskIsStale, setTaskIsStale] = useState(false);
   const [taskCount, setTaskCount] = useState(0);
+  const [paintingWarnings, setPaintingWarnings] = useState<PaintingWarning[]>([]);
 
   // Check staleness when modal opens or reopens
   useEffect(() => {
@@ -86,15 +97,21 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
         steps: updateStepStatus(prev.steps, step.id, 'running')
       }));
       setMessage('Generating production tasks...');
+      setPaintingWarnings([]); // Clear previous warnings
 
-      await ordersApi.generateProductionTasks(orderNumber);
+      const result = await ordersApi.generateProductionTasks(orderNumber);
+
+      // Capture painting warnings if present
+      if (result.paintingWarnings && result.paintingWarnings.length > 0) {
+        setPaintingWarnings(result.paintingWarnings);
+      }
 
       // Use functional update to preserve other state (e.g., PDF URLs)
       onStateChange(prev => ({
         ...prev,
         steps: updateStepStatus(prev.steps, step.id, 'completed')
       }));
-      setMessage('✓ Production tasks generated (Phase 1.5.d placeholder)');
+      setMessage('✓ Production tasks generated successfully');
     } catch (error) {
       console.error('Error generating tasks:', error);
       // Use functional update to preserve other state (e.g., PDF URLs)
@@ -108,6 +125,7 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
         )
       }));
       setMessage('');
+      setPaintingWarnings([]); // Clear warnings on error
     }
   };
 
@@ -121,7 +139,7 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
       <CompactStepRow
         stepNumber={step.order}
         name={step.name}
-        description="Generate production tasks from order data (Phase 1.5.d)"
+        description="Generate production tasks from order specifications"
         status={step.status}
         message={isChecking ? 'Checking task status...' : message}
         error={step.error}
@@ -135,6 +153,37 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
           />
         }
       />
+
+      {/* Painting Warnings - Orange Alert */}
+      {paintingWarnings.length > 0 && (
+        <div className="px-4 pb-3">
+          <div className="bg-orange-50 border-l-4 border-orange-400 p-3 rounded-r">
+            <div className="flex items-start">
+              <span className="text-orange-600 text-lg mr-2">⚠️</span>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-orange-800 mb-2">
+                  Painting Tasks Require Manual Input
+                </p>
+                <ul className="space-y-1.5 text-sm text-orange-700">
+                  {paintingWarnings.map((warning, idx) => (
+                    <li key={idx} className="flex flex-col">
+                      <div className="font-medium">
+                        Part {warning.partName} ({warning.itemType})
+                      </div>
+                      <div className="text-xs text-orange-600 ml-4">
+                        • Component: {warning.component}, Timing: {warning.timing}, Colour: {warning.colour}
+                      </div>
+                      <div className="text-xs text-orange-600 ml-4">
+                        • Action: Add painting tasks manually in <span className="font-semibold">Progress</span> view
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

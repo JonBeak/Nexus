@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, X, Pencil } from 'lucide-react';
+import { Pencil } from 'lucide-react';
 
 interface TaxRule {
   tax_rule_id: number;
@@ -14,7 +14,7 @@ interface TaxDropdownProps {
   isEditing: boolean;
   editValue: string;
   onEdit: (field: string, value: string) => void;
-  onSave: (field: string) => void;
+  onSave: (field: string, newValue?: string) => void;
   onCancel: () => void;
   onEditValueChange: (value: string) => void;
   onKeyDown: (e: React.KeyboardEvent, field: string) => void;
@@ -33,42 +33,49 @@ const TaxDropdown: React.FC<TaxDropdownProps> = ({
   onKeyDown,
   isSaving
 }) => {
+  const originalValue = currentTaxName || '';
+
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newValue = e.target.value;
+    onEditValueChange(newValue);
+    // Auto-save immediately if changed
+    if (newValue !== originalValue) {
+      setTimeout(() => onSave('tax_name', newValue), 0);
+    }
+  };
+
+  const handleBlur = () => {
+    // Auto-cancel if unchanged
+    if (editValue === originalValue) {
+      onCancel();
+    }
+  };
+
   if (isEditing) {
     return (
-      <div className="flex items-center space-x-1 h-6">
+      <div className="flex items-center h-6">
         <select
-          value={editValue}
-          onChange={(e) => onEditValueChange(e.target.value)}
+          value=""
+          onChange={handleSelectChange}
+          onBlur={handleBlur}
           onKeyDown={(e) => onKeyDown(e, 'tax_name')}
-          className="font-medium text-gray-900 border border-indigo-300 rounded px-1 text-base w-full h-full"
+          className="font-medium text-gray-900 border border-indigo-300 rounded px-1 text-sm w-full h-full focus:outline-none focus:ring-1 focus:ring-indigo-500"
           autoFocus
         >
+          <option value="" disabled>Select...</option>
           {taxRules.map((rule) => (
             <option key={rule.tax_rule_id} value={rule.tax_name}>
               {rule.tax_name} ({(rule.tax_percent * 100).toFixed(1)}%)
             </option>
           ))}
         </select>
-        <button
-          onClick={() => onSave('tax_name')}
-          disabled={isSaving}
-          className="text-green-600 hover:text-green-700 flex-shrink-0"
-        >
-          <Check className="w-4 h-4" />
-        </button>
-        <button
-          onClick={onCancel}
-          className="text-gray-500 hover:text-gray-700 flex-shrink-0"
-        >
-          <X className="w-4 h-4" />
-        </button>
       </div>
     );
   }
 
   return (
     <div className="flex items-center space-x-2 group h-6">
-      <p className="font-medium text-gray-900 text-base">
+      <p className="font-medium text-gray-900 text-sm">
         {currentTaxName ? (
           <>
             {currentTaxName} ({((taxRules.find(r => r.tax_name === currentTaxName)?.tax_percent || 0) * 100).toFixed(1)}%)

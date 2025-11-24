@@ -253,3 +253,33 @@ export const getTaskTemplates = async (req: Request, res: Response) => {
     return sendErrorResponse(res, 'Failed to fetch task templates', 'INTERNAL_ERROR');
   }
 };
+
+/**
+ * Update task notes
+ * PUT /api/orders/tasks/:taskId/notes
+ * Permission: orders.update (Manager+ only)
+ */
+export const updateTaskNotes = async (req: Request, res: Response) => {
+  try {
+    const { taskId } = req.params;
+    const { notes } = req.body;
+    const taskIdNum = parseIntParam(taskId, 'task ID');
+
+    if (taskIdNum === null) {
+      return sendErrorResponse(res, 'Invalid task ID', 'VALIDATION_ERROR');
+    }
+
+    // Allow null/empty to clear notes
+    const notesValue = notes === '' || notes === undefined ? null : notes;
+
+    await orderTaskService.updateTaskNotes(taskIdNum, notesValue);
+
+    res.json({
+      success: true,
+      message: 'Task notes updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating task notes:', error);
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to update task notes', 'INTERNAL_ERROR');
+  }
+};

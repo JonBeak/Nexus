@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pencil, Check, X } from 'lucide-react';
+import { Pencil } from 'lucide-react';
 
 // Reusable EditableField component to reduce repetition
 export interface EditableFieldProps {
@@ -11,7 +11,7 @@ export interface EditableFieldProps {
   isEditing: boolean;
   isSaving: boolean;
   onEdit: (field: string, currentValue: string) => void;
-  onSave: (field: string) => void;
+  onSave: (field: string, newValue?: string) => void;
   onCancel: () => void;
   editValue?: string;
   onEditValueChange?: (value: string) => void;
@@ -19,6 +19,9 @@ export interface EditableFieldProps {
   className?: string;
   height?: string; // For textarea height
   placeholder?: string; // For textarea placeholder
+  autoSave?: boolean; // Auto-save on blur, auto-cancel on Escape (no Save/Cancel buttons)
+  layout?: 'vertical' | 'horizontal'; // Layout direction for label/value
+  valueSize?: 'sm' | 'base'; // Value text size (sm = text-sm, base = text-base)
 }
 
 const EditableField: React.FC<EditableFieldProps> = ({
@@ -36,8 +39,15 @@ const EditableField: React.FC<EditableFieldProps> = ({
   displayFormatter,
   className = '',
   height = '60px',
-  placeholder = ''
+  placeholder = '',
+  autoSave = false,
+  layout = 'vertical',
+  valueSize = 'base'
 }) => {
+  // Compute text size class based on valueSize prop
+  const textSizeClass = valueSize === 'sm' ? 'text-sm' : 'text-base';
+  const originalValue = String(value || '');
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // For textarea, don't trigger save on Enter (allow multiline)
     if (type === 'textarea') {
@@ -46,10 +56,35 @@ const EditableField: React.FC<EditableFieldProps> = ({
       }
     } else {
       if (e.key === 'Enter') {
-        onSave(field);
+        // Save if changed, cancel if not
+        if (editValue !== originalValue) {
+          onSave(field);
+        } else {
+          onCancel();
+        }
       } else if (e.key === 'Escape') {
         onCancel();
       }
+    }
+  };
+
+  // Auto-confirm on blur if changed, auto-cancel if not
+  const handleBlur = () => {
+    if (editValue !== originalValue) {
+      onSave(field);
+    } else {
+      onCancel();
+    }
+  };
+
+  // For select: auto-save immediately on change
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newValue = e.target.value;
+    onEditValueChange?.(newValue);
+    // Auto-save immediately for select
+    if (newValue !== originalValue) {
+      // Use setTimeout to allow state to update first
+      setTimeout(() => onSave(field, newValue), 0);
     }
   };
 
@@ -68,7 +103,7 @@ const EditableField: React.FC<EditableFieldProps> = ({
           }}
           className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
         />
-        <p className="font-medium text-gray-900 text-base">
+        <p className={`font-medium text-gray-900 ${textSizeClass}`}>
           {value ? 'Yes' : 'No'}
         </p>
       </div>
@@ -78,6 +113,38 @@ const EditableField: React.FC<EditableFieldProps> = ({
   // Handle textarea type
   if (type === 'textarea') {
     if (isEditing) {
+      // Auto-save mode: save on blur, cancel on Escape
+      if (autoSave) {
+        return (
+          <div className="relative" style={{ height }}>
+            <div className="h-full">
+              <textarea
+                value={editValue}
+                onChange={(e) => onEditValueChange?.(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    onCancel();
+                  }
+                }}
+                onBlur={() => {
+                  // Auto-save on blur if value changed
+                  if (editValue !== originalValue) {
+                    onSave(field);
+                  } else {
+                    onCancel();
+                  }
+                }}
+                placeholder={placeholder}
+                className="w-full text-sm text-gray-900 border border-indigo-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none box-border"
+                style={{ height }}
+                autoFocus
+              />
+            </div>
+          </div>
+        );
+      }
+
+      // Manual save mode: show Save/Cancel buttons
       return (
         <div className="relative" style={{ height }}>
           <div className="h-full">
@@ -113,7 +180,7 @@ const EditableField: React.FC<EditableFieldProps> = ({
     // Display mode for textarea
     return (
       <div className="relative group" style={{ height }}>
-        <p className="text-base text-gray-600 whitespace-pre-wrap h-full overflow-y-auto border border-gray-300 rounded px-2 py-1">
+        <p className={`${textSizeClass} text-gray-600 whitespace-pre-wrap h-full overflow-y-auto border border-gray-300 rounded px-2 py-1`}>
           {displayValue}
         </p>
         <button
@@ -129,15 +196,17 @@ const EditableField: React.FC<EditableFieldProps> = ({
   // Default behavior for non-textarea types
   if (isEditing) {
     return (
-      <div className="flex items-center space-x-1 h-6">
+      <div className="flex items-center h-6">
         {type === 'select' ? (
           <select
-            value={editValue}
-            onChange={(e) => onEditValueChange?.(e.target.value)}
+            value=""
+            onChange={handleSelectChange}
+            onBlur={handleBlur}
             onKeyDown={handleKeyDown}
-            className="font-medium text-gray-900 border border-indigo-300 rounded px-1 text-base w-full h-full"
+            className={`font-medium text-gray-900 border border-indigo-300 rounded px-1 ${textSizeClass} w-full h-full focus:outline-none focus:ring-1 focus:ring-indigo-500`}
             autoFocus
           >
+            <option value="" disabled>Select...</option>
             {options.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -149,31 +218,19 @@ const EditableField: React.FC<EditableFieldProps> = ({
             type={type}
             value={editValue}
             onChange={(e) => onEditValueChange?.(e.target.value)}
+            onBlur={handleBlur}
             onKeyDown={handleKeyDown}
-            className={`font-medium text-gray-900 border border-indigo-300 rounded px-1 text-base w-full h-full ${className}`}
+            className={`font-medium text-gray-900 border border-indigo-300 rounded px-1 ${textSizeClass} w-full h-full focus:outline-none focus:ring-1 focus:ring-indigo-500 ${className}`}
             autoFocus
           />
         )}
-        <button
-          onClick={() => onSave(field)}
-          disabled={isSaving}
-          className="text-green-600 hover:text-green-700 flex-shrink-0"
-        >
-          <Check className="w-4 h-4" />
-        </button>
-        <button
-          onClick={onCancel}
-          className="text-gray-500 hover:text-gray-700 flex-shrink-0"
-        >
-          <X className="w-4 h-4" />
-        </button>
       </div>
     );
   }
 
   return (
     <div className="flex items-center space-x-2 group h-6">
-      <p className="font-medium text-gray-900 text-base">
+      <p className={`font-medium text-gray-900 ${textSizeClass}`}>
         {displayValue}
       </p>
       <button

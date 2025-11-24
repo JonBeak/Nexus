@@ -32,7 +32,8 @@ export const orderFieldConfigs = {
       if (!val) return '-';
       const [year, month, day] = val.split('T')[0].split('-');
       const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-      return date.toLocaleDateString();
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
     },
     recalculateDays: true // Triggers turnaround/days until recalculation
   },

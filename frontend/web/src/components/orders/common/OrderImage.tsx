@@ -120,12 +120,6 @@ export const OrderImage: React.FC<OrderImageProps> = ({
       return;
     }
 
-    console.log('[OrderImage] Canvas Crop:', {
-      original: { w: img.naturalWidth, h: img.naturalHeight },
-      cropPx: { top: cropTop, right: cropRight, bottom: cropBottom, left: cropLeft },
-      cropped: { w: croppedWidth, h: croppedHeight }
-    });
-
     // Draw the cropped portion of the image
     ctx.drawImage(
       img,
@@ -159,7 +153,6 @@ export const OrderImage: React.FC<OrderImageProps> = ({
 
     // Only crop if we're loading the original image, not the already-cropped blob
     if (img.src === imageUrl && hasCrop) {
-      console.log('[OrderImage] Cropping image on load');
       cropImageWithCanvas(img);
     }
   };

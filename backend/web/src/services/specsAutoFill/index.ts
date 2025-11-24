@@ -20,6 +20,7 @@
 import { AutoFillInput, AutoFillOutput } from './types';
 import { parseSourceData } from './parsers';
 import {
+  autoFillBacker,
   autoFillChannelLetters,
   autoFillLeds,
   autoFillPowerSupplies,
@@ -57,11 +58,22 @@ export async function autoFillSpecifications(input: AutoFillInput): Promise<Auto
 
   // Apply product-specific rules
   switch (input.specsDisplayName) {
+    // Channel Letters and similar products (have Return, Face, Back, etc.)
     case 'Front Lit':
     case 'Halo Lit':
     case 'Front Lit Acrylic Face':
     case 'Dual Lit - Single Layer':
     case 'Dual Lit - Double Layer':
+    case '3D print':
+    case 'Blade Sign':
+    case 'Marquee Bulb':
+    case 'Return':
+    case 'Material Cut':
+      autoFillChannelLetters(input, parsed, specs, warnings, filledFields);
+      break;
+
+    // Trim Cap - uses channel letters handler for Face defaults
+    case 'Trim Cap':
       autoFillChannelLetters(input, parsed, specs, warnings, filledFields);
       break;
 
@@ -71,11 +83,6 @@ export async function autoFillSpecifications(input: AutoFillInput): Promise<Auto
 
     case 'Power Supplies':
       await autoFillPowerSupplies(input, parsed, specs, warnings, filledFields, input.connection);
-      break;
-
-    case '3D print':
-      // 3D print uses same logic as channel letters but with different defaults
-      autoFillChannelLetters(input, parsed, specs, warnings, filledFields);
       break;
 
     case 'Push Thru':
@@ -94,6 +101,10 @@ export async function autoFillSpecifications(input: AutoFillInput): Promise<Auto
 
     case 'Extra Wire':
       autoFillExtraWire(input, specs, warnings, filledFields);
+      break;
+
+    case 'Backer':
+      autoFillBacker(input, parsed, specs, warnings, filledFields);
       break;
 
     default:

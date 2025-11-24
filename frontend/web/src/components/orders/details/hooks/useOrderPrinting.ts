@@ -70,7 +70,6 @@ export function useOrderPrinting(
     // Increment refresh key to force formUrls regeneration with new timestamp
     setRefreshKey(prev => {
       const newKey = prev + 1;
-      console.log('[Print Modal] Opening modal - incrementing refreshKey:', prev, '->', newKey);
       return newKey;
     });
 
@@ -219,7 +218,6 @@ export function useOrderPrinting(
 
     // Add cache buster using current timestamp to ensure browser fetches latest PDF
     const cacheBuster = `?v=${Date.now()}`;
-    console.log('[Print Modal] Building form URLs with cache buster:', cacheBuster);
 
     // Build URLs using actual folder structure and new file names
     const urls = {
@@ -230,14 +228,12 @@ export function useOrderPrinting(
       packing: `${apiUrl}/order-images/Orders/${folderName}/Specs/${orderNum} - ${jobName} - Packing List.pdf${cacheBuster}`
     };
 
-    console.log('[Print Modal] Generated URLs:', urls);
     return urls;
   };
 
   // Memoize formUrls to prevent unnecessary re-renders of PDF components
   // refreshKey is incremented when modal opens to ensure fresh timestamp
   const formUrls = useMemo(() => {
-    console.log('[Print Modal] useMemo triggered - regenerating formUrls with refreshKey:', refreshKey);
     return buildFormUrls();
   }, [
     orderData.order?.folder_name,

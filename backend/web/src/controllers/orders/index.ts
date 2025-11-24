@@ -23,7 +23,8 @@ export {
   updateOrder,
   deleteOrder,
   validateOrderName,
-  getOrderByEstimate
+  getOrderByEstimate,
+  updateOrderPointPersons
 } from './OrderCrudController';
 
 // Status Management
@@ -42,7 +43,8 @@ export {
   batchUpdateTasks,
   addTaskToOrderPart,
   removeTask,
-  getTaskTemplates
+  getTaskTemplates,
+  updateTaskNotes
 } from './OrderTasksController';
 
 // Part Operations

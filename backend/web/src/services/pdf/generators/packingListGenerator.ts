@@ -127,9 +127,13 @@ export async function generatePackingList(
       // Draw main parts in columns with packing items
       let maxPartY = contentStartY;
 
-      partColumns.forEach((column, colIndex) => {
+      // Only render first 3 parts to prevent overflow
+      const partsToRender = partColumns.slice(0, 3);
+
+      partsToRender.forEach((column, colIndex) => {
         const part = column.parent;
         const partX = marginLeft + (colIndex * columnWidth) + LAYOUT.PART_COLUMN_INNER_PADDING;
+        const partColumnWidth = columnWidth - (LAYOUT.PART_COLUMN_INNER_PADDING * 2);
         let partY = contentStartY;
 
         // Get specs_qty from specifications (using shared utility)
@@ -138,31 +142,39 @@ export async function generatePackingList(
         // Part header - use specs_display_name instead of product_type
         const displayName = part.specs_display_name || part.product_type;
         doc.fontSize(14).font('Helvetica-Bold');
-        const textWidth = doc.widthOfString(displayName);
+        const titleLineHeight = doc.currentLineHeight();
 
-        doc.text(displayName, partX, partY, {
-          width: columnWidth * 0.6,
+        // Product name + colon in bold (if scope exists)
+        const titleText = part.part_scope ? `${displayName}: ` : displayName;
+        doc.text(titleText, partX, partY, {
+          width: partColumnWidth * 0.6,
           lineBreak: false,
-          ellipsis: true
+          continued: false
         });
 
-        partY += 16;
-
-        // Scope (if present) - same formatting as Master Form
+        // Append scope inline with smaller, non-bold font, bottom-aligned
         if (part.part_scope) {
-          doc.fontSize(FONT_SIZES.SCOPE).font('Helvetica').fillColor(COLORS.BLACK);
-          doc.text(`Scope: ${part.part_scope}`, partX, partY, {
-            width: columnWidth - 10,
-            lineBreak: false,
-            ellipsis: true
+          // Calculate X position after product type + colon
+          const titleTextWidth = doc.widthOfString(titleText);
+          const scopeX = partX + titleTextWidth;
+
+          // Calculate Y offset to bottom-align (move scope text DOWN)
+          doc.fontSize(12).font('Helvetica'); // 12pt, not bold
+          const scopeLineHeight = doc.currentLineHeight();
+          const scopeY = partY + (titleLineHeight - scopeLineHeight);
+
+          doc.text(part.part_scope, scopeX, scopeY, {
+            lineBreak: false
           });
-          partY += 14;
         }
+
+        // Update partY manually
+        partY += titleLineHeight + 2; // Title height + small gap
 
         // Draw horizontal separator line between header and checklist (same as Master Form)
         doc.strokeColor('#cccccc').lineWidth(0.5)
           .moveTo(partX, partY)
-          .lineTo(partX + columnWidth - 10, partY)
+          .lineTo(partX + partColumnWidth, partY)
           .stroke();
         doc.strokeColor('#000000'); // Reset stroke color
         partY += 8;
@@ -249,7 +261,7 @@ export async function generatePackingList(
         });
 
         // Render quantity box (shared utility function)
-        partY = renderQuantityBox(doc, specsQty, partX, partY, columnWidth);
+        partY = renderQuantityBox(doc, specsQty, partX, partY, partColumnWidth);
 
         // Track max Y position
         if (partY > maxPartY) {

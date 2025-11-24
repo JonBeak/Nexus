@@ -230,22 +230,35 @@ export const checkTaskStaleness = async (req: Request, res: Response) => {
 
 /**
  * POST /api/order-preparation/:orderNumber/tasks
- * Generate production tasks (PLACEHOLDER - always succeeds)
+ * Generate production tasks from order specifications
  */
 export const generateProductionTasks = async (req: Request, res: Response) => {
   try {
     const { orderNumber } = req.params;
-    const userId = (req as AuthRequest).user?.user_id;
 
     const orderId = await validateOrderAndGetId(orderNumber, res);
     if (!orderId) return;
 
-    // TODO: Add actual task generation logic in Phase 1.5.d
-    // For now, always return success
+    // Import task generation service
+    const { generateTasksForOrder } = await import('../services/taskGeneration');
+
+    // Generate tasks based on specs
+    const result = await generateTasksForOrder(orderId);
 
     sendSuccessResponse(res, {
-      tasksCreated: 0,
-      message: 'Production tasks will be generated in Phase 1.5.d'
+      tasksCreated: result.tasksCreated,
+      tasksByPart: result.tasksByPart.map(p => ({
+        partId: p.partId,
+        displayNumber: p.displayNumber,
+        taskCount: p.tasks.length
+      })),
+      requiresManualInput: result.requiresManualInput,
+      manualInputReasons: result.manualInputReasons,
+      warnings: result.warnings,
+      paintingWarnings: result.paintingWarnings,
+      message: result.tasksCreated > 0
+        ? `Generated ${result.tasksCreated} production tasks`
+        : 'No tasks generated (check order specifications)'
     });
   } catch (error) {
     console.error('Error generating production tasks:', error);

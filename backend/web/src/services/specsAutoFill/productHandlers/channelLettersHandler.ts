@@ -10,7 +10,8 @@ import {
   getDefaultSpacerLength,
   getDefaultFaceMaterial,
   getDefaultFaceColor,
-  getDefaultDrainHoles
+  getDefaultDrainHoles,
+  getDefaultBackMaterial
 } from '../defaults';
 
 /**
@@ -28,7 +29,8 @@ export function autoFillChannelLetters(
   // Find template positions
   let returnRow: number | null = null;
   let faceRow: number | null = null;
-  let pinsRow: number | null = null;
+  let backRow: number | null = null;
+  let mountingRow: number | null = null;
   let drainHolesRow: number | null = null;
 
   for (let i = 1; i <= 10; i++) {
@@ -37,7 +39,8 @@ export function autoFillChannelLetters(
 
     if (templateName === 'Return') returnRow = i;
     if (templateName === 'Face') faceRow = i;
-    if (templateName === 'Pins') pinsRow = i;
+    if (templateName === 'Back') backRow = i;
+    if (templateName === 'Mounting') mountingRow = i;
     if (templateName === 'Drain Holes') drainHolesRow = i;
   }
 
@@ -72,23 +75,35 @@ export function autoFillChannelLetters(
     }
   }
 
-  // Auto-fill Pins count and defaults
-  if (pinsRow && parsed.hasPins) {
+  // Auto-fill Back material
+  if (backRow) {
+    const backMaterial = getDefaultBackMaterial(input.specsDisplayName);
+
+    if (backMaterial) {
+      const backMaterialField = `row${backRow}_material`;
+      specs[backMaterialField] = backMaterial;
+      filledFields.push(backMaterialField);
+      console.log(`[Specs Auto-Fill] ✓ Filled ${backMaterialField} = "${backMaterial}"`);
+    }
+  }
+
+  // Auto-fill Mounting count and defaults
+  if (mountingRow && parsed.hasPins) {
     // Fill count if detected
     if (parsed.count) {
-      const countField = `row${pinsRow}_count`;
+      const countField = `row${mountingRow}_count`;
       specs[countField] = parsed.count.toString();
       filledFields.push(countField);
       console.log(`[Specs Auto-Fill] ✓ Filled ${countField} = "${parsed.count}"`);
     } else {
-      warnings.push('Pins detected in calculation but could not extract count');
-      console.warn('[Specs Auto-Fill] ⚠ Pins detected but count extraction failed');
+      warnings.push('Mounting hardware detected in calculation but could not extract count');
+      console.warn('[Specs Auto-Fill] ⚠ Mounting detected but count extraction failed');
     }
 
     // Fill default pin length (e.g., "6\" Pins")
     const defaultPinLength = getDefaultPinLength(input.specsDisplayName);
     const pinOption = `${defaultPinLength} Pins`;
-    const pinsField = `row${pinsRow}_pins`;
+    const pinsField = `row${mountingRow}_pins`;
     specs[pinsField] = pinOption;
     filledFields.push(pinsField);
     console.log(`[Specs Auto-Fill] ✓ Filled ${pinsField} = "${pinOption}"`);
@@ -109,7 +124,7 @@ export function autoFillChannelLetters(
         console.log(`[Specs Auto-Fill] No Rivnut detected, using "${spacerOption}"`);
       }
 
-      const spacersField = `row${pinsRow}_spacers`;
+      const spacersField = `row${mountingRow}_spacers`;
       specs[spacersField] = spacerOption;
       filledFields.push(spacersField);
       console.log(`[Specs Auto-Fill] ✓ Filled ${spacersField} = "${spacerOption}"`);

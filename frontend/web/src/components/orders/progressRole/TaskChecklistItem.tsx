@@ -1,5 +1,7 @@
-import React from 'react';
-import { Play, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Play, Check } from 'lucide-react';
+import { ordersApi } from '../../../services/api';
+import type { UserRole } from '../../../types/user';
 
 interface TaskUpdate {
   task_id: number;
@@ -10,36 +12,84 @@ interface TaskUpdate {
 interface Props {
   task: any;
   stagedUpdate?: TaskUpdate;
-  onUpdate: (taskId: number, field: 'started' | 'completed', value: boolean) => void;
+  onUpdate: (taskId: number, field: 'started' | 'completed', value: boolean, originalStarted: boolean, originalCompleted: boolean) => void;
+  onNotesUpdate: () => void;
   showCompleted: boolean;
+  userRole: UserRole;
 }
+
+// Roles that can see customer name (Designer and up)
+const ROLES_WITH_CUSTOMER_VIEW: UserRole[] = ['designer', 'manager', 'owner'];
 
 export const TaskChecklistItem: React.FC<Props> = ({
   task,
   stagedUpdate,
   onUpdate,
-  showCompleted
+  onNotesUpdate,
+  showCompleted,
+  userRole
 }) => {
+  const [notes, setNotes] = useState(task.task_notes || '');
+  const [savingNotes, setSavingNotes] = useState(false);
+
+  // Sync local notes state when task data updates from parent
+  useEffect(() => {
+    setNotes(task.task_notes || '');
+  }, [task.task_notes]);
+
+  // Original database values
+  const originalStarted = !!task.started_at;
+  const originalCompleted = !!task.completed;
+
   // Determine current state (staged changes override database values)
   const isStarted = stagedUpdate?.started !== undefined
     ? stagedUpdate.started
-    : !!task.started_at;
+    : originalStarted;
 
   const isCompleted = stagedUpdate?.completed !== undefined
     ? stagedUpdate.completed
-    : task.completed;
+    : originalCompleted;
 
   const hasChanges = stagedUpdate !== undefined;
+  const canViewCustomer = ROLES_WITH_CUSTOMER_VIEW.includes(userRole);
 
   const handleStartToggle = () => {
-    if (showCompleted) return; // Don't allow changes in completed view
-    onUpdate(task.task_id, 'started', !isStarted);
+    if (showCompleted) return;
+    onUpdate(task.task_id, 'started', !isStarted, originalStarted, originalCompleted);
   };
 
   const handleCompleteToggle = () => {
-    if (showCompleted) return; // Don't allow changes in completed view except uncheck
-    onUpdate(task.task_id, 'completed', !isCompleted);
+    if (showCompleted) return;
+    onUpdate(task.task_id, 'completed', !isCompleted, originalStarted, originalCompleted);
   };
+
+  const handleNotesBlur = async () => {
+    // Only save if notes have changed
+    if (notes === (task.task_notes || '')) return;
+
+    try {
+      setSavingNotes(true);
+      await ordersApi.updateTaskNotes(task.task_id, notes);
+      onNotesUpdate();
+    } catch (error) {
+      console.error('Error saving notes:', error);
+      // Revert to original notes on error
+      setNotes(task.task_notes || '');
+    } finally {
+      setSavingNotes(false);
+    }
+  };
+
+  // Build order display: "Order Name - Customer Name" (customer visible to Designer+)
+  const orderDisplay = canViewCustomer && task.customer_name
+    ? `${task.order_name} - ${task.customer_name}`
+    : task.order_name;
+
+  // Build product display: "Specs Display Name {Scope}"
+  const productName = task.specs_display_name || 'Unknown';
+  const productDisplay = task.part_scope
+    ? `${productName} [${task.part_scope}]`
+    : productName;
 
   return (
     <div
@@ -49,79 +99,71 @@ export const TaskChecklistItem: React.FC<Props> = ({
           : 'border-gray-200 bg-white hover:bg-gray-50'
       }`}
     >
-      {/* Task info */}
-      <div className="mb-2">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="font-medium text-gray-900">
-              Order #{task.order_number}: {task.order_name}
-            </div>
-            <div className="text-sm text-gray-600 mt-0.5">
-              {task.customer_name} • {task.product_type}
-              {task.part_number && ` • Part ${task.part_number}`}
-            </div>
+      {/* Top row: Order info + Start/Complete buttons */}
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-gray-900 truncate" title={orderDisplay}>
+            {orderDisplay}
           </div>
         </div>
-      </div>
 
-      {/* Task name */}
-      <div className="mb-3 text-sm font-medium text-gray-800 bg-gray-100 px-2 py-1 rounded">
-        {task.task_name}
-      </div>
-
-      {/* Dual checkbox controls */}
-      <div className="flex items-center space-x-4">
-        {/* Start checkbox */}
-        <button
-          onClick={handleStartToggle}
-          disabled={showCompleted && isCompleted}
-          className={`flex items-center space-x-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-            isStarted
-              ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          } ${showCompleted && isCompleted ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          <div
-            className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+        {/* Small icon-only buttons (top-right) */}
+        <div className="flex items-center space-x-1 flex-shrink-0">
+          {/* Start button */}
+          <button
+            onClick={handleStartToggle}
+            disabled={showCompleted && isCompleted}
+            title={isStarted ? 'Mark as not started' : 'Mark as started'}
+            className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
               isStarted
-                ? 'bg-blue-600 border-blue-600'
-                : 'bg-white border-gray-300'
-            }`}
+                ? 'bg-blue-600 text-white'
+                : 'bg-white border-2 border-blue-400 text-blue-400 hover:bg-blue-50'
+            } ${showCompleted && isCompleted ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            {isStarted && <Play className="w-2.5 h-2.5 text-white fill-white" />}
-          </div>
-          <span>Start</span>
-        </button>
+            <Play className="w-3 h-3" style={{ marginLeft: '1px' }} />
+          </button>
 
-        {/* Complete checkbox */}
-        <button
-          onClick={handleCompleteToggle}
-          disabled={false} // Always allow toggling complete
-          className={`flex items-center space-x-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-            isCompleted
-              ? 'bg-green-100 text-green-700 hover:bg-green-200'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          <div
-            className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+          {/* Complete button */}
+          <button
+            onClick={handleCompleteToggle}
+            disabled={false}
+            title={isCompleted ? 'Mark as incomplete' : 'Mark as complete'}
+            className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
               isCompleted
-                ? 'bg-green-600 border-green-600'
-                : 'bg-white border-gray-300'
+                ? 'bg-green-600 text-white'
+                : 'bg-white border-2 border-green-400 text-green-400 hover:bg-green-50'
             }`}
           >
-            {isCompleted && <CheckCircle className="w-3 h-3 text-white" />}
-          </div>
-          <span>Complete</span>
-        </button>
+            <Check className="w-3 h-3" />
+          </button>
+        </div>
       </div>
 
-      {/* Show if staged changes exist */}
-      {hasChanges && (
-        <div className="mt-2 text-xs text-indigo-600 font-medium">
-          ✓ Staged for recording
-        </div>
-      )}
+      {/* Task name + Item Name/Scope */}
+      <div className="text-sm font-medium text-gray-800 bg-gray-100 px-2 py-1 rounded mb-2 flex items-center justify-between gap-2">
+        <span>{task.task_name}</span>
+        <span className="text-gray-600 truncate" title={productDisplay}>{productDisplay}</span>
+      </div>
+
+      {/* Editable task notes */}
+      <div className="relative">
+        <input
+          type="text"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          onBlur={handleNotesBlur}
+          placeholder="Add note..."
+          disabled={savingNotes}
+          className={`w-full text-xs px-2 py-1 border border-gray-200 rounded
+            focus:outline-none focus:ring-1 focus:ring-indigo-400 focus:border-indigo-400
+            placeholder:text-gray-400 ${savingNotes ? 'bg-gray-100' : 'bg-white'}`}
+        />
+        {savingNotes && (
+          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+            Saving...
+          </span>
+        )}
+      </div>
 
       {/* Show timestamps if completed */}
       {showCompleted && task.completed_at && (

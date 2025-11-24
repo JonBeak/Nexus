@@ -173,6 +173,7 @@ export class OrderFormRepository {
         specs_display_name,
         product_type_id,
         quantity,
+        specs_qty,
         specifications,
         production_notes,
         qb_item_name,

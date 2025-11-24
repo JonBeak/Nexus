@@ -57,15 +57,30 @@ export class OrderFolderService {
   /**
    * Build standardized folder name: "{order_name} ----- {customer_name}"
    * Sanitizes special characters for filesystem safety
+   *
+   * Important:
+   * - Trailing periods are OK for orderName (middle of folder path)
+   * - Trailing periods are stripped from customerName (end of folder path - Windows issue)
+   * - Trailing spaces are stripped from both (Windows strips them, causing access issues)
    */
   buildFolderName(orderName: string, customerName: string): string {
     // Sanitize: replace invalid filesystem characters with underscore
-    const sanitize = (str: string) => {
-      return str.replace(/[\/\\:*?"<>|]/g, '_');
+    // Strip trailing spaces and periods as needed based on position in folder path
+    const sanitize = (str: string, stripTrailingPeriods: boolean = false) => {
+      let result = str
+        .replace(/[\/\\:*?"<>|]/g, '_')  // Replace invalid chars with underscore
+        .trim()                          // Remove leading/trailing spaces
+        .replace(/\s+$/, '');            // Ensure no trailing spaces (Windows strips these)
+
+      if (stripTrailingPeriods) {
+        result = result.replace(/\.+$/, '');  // Remove trailing periods
+      }
+
+      return result;
     };
 
-    const sanitizedOrderName = sanitize(orderName.trim());
-    const sanitizedCustomerName = sanitize(customerName.trim());
+    const sanitizedOrderName = sanitize(orderName, false);       // Keep trailing periods (middle of path)
+    const sanitizedCustomerName = sanitize(customerName, true);  // Strip trailing periods (end of path)
 
     return `${sanitizedOrderName} ----- ${sanitizedCustomerName}`;
   }

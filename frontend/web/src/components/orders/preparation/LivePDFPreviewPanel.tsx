@@ -42,13 +42,7 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ url, label, emptyMessage, ori
   const pageWidth = orientation === 'landscape' ? 950 : 825;
   const minHeight = orientation === 'landscape' ? 'min-h-[700px]' : 'min-h-[1200px]';
 
-  // Debug logging
-  React.useEffect(() => {
-    console.log(`[PDFDocument ${label}] URL:`, url);
-  }, [url, label]);
-
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
-    console.log(`[PDFDocument ${label}] Load success, pages:`, numPages);
     setNumPages(numPages);
     setLoading(false);
   };
@@ -59,7 +53,6 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ url, label, emptyMessage, ori
     // Treat 404 errors (file not found) as "not generated yet" instead of errors
     // This happens when PDFs haven't been generated yet (e.g., QB Estimate before Step 2)
     if (error.status === 404 || error.missing) {
-      console.log(`[PDFDocument ${label}] File not found (404) - treating as not generated yet`);
       setFileNotFound(true);
       setError(null);
       setLoading(false);
@@ -68,7 +61,6 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ url, label, emptyMessage, ori
 
     // Handle worker null errors (modal reopen issues)
     if (error.message?.includes('sendWithPromise') || error.message?.includes('worker')) {
-      console.log(`[PDFDocument ${label}] Worker error - component will remount with fresh worker`);
       setError(null);
       setFileNotFound(true);
       setLoading(false);
@@ -88,8 +80,6 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ url, label, emptyMessage, ori
   }, [url]);
 
   if (!url || fileNotFound) {
-    console.log(`[PDFDocument ${label}] ${!url ? 'No URL provided' : 'File not found'}, showing empty state`);
-
     return (
       <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
         <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
@@ -162,11 +152,6 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ url, label, emptyMessage, ori
 export const LivePDFPreviewPanel: React.FC<LivePDFPreviewPanelProps> = ({
   state
 }) => {
-  // Debug logging
-  React.useEffect(() => {
-    console.log('[LivePDFPreviewPanel] State.pdfs:', state.pdfs);
-  }, [state.pdfs]);
-
   const pdfs = [
     {
       url: state.pdfs.orderForm?.url || null,
@@ -193,8 +178,6 @@ export const LivePDFPreviewPanel: React.FC<LivePDFPreviewPanelProps> = ({
       orientation: 'portrait' as const
     }
   ];
-
-  console.log('[LivePDFPreviewPanel] PDF array:', pdfs);
 
   return (
     <div className="h-full overflow-y-auto space-y-4">

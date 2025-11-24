@@ -229,3 +229,42 @@ export const getOrderByEstimate = async (req: Request, res: Response) => {
     return sendErrorResponse(res, 'Failed to get order', 'INTERNAL_ERROR');
   }
 };
+
+/**
+ * Update order point persons
+ * PUT /api/orders/:orderNumber/point-persons
+ * Permission: orders.update (Manager+ only)
+ */
+export const updateOrderPointPersons = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const { pointPersons } = req.body;
+    const userId = (req as any).user?.user_id;
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    if (!Array.isArray(pointPersons)) {
+      return sendErrorResponse(res, 'pointPersons must be an array', 'VALIDATION_ERROR');
+    }
+
+    // Get the order to get customer_id for saving new contacts
+    const order = await orderService.getOrderById(orderId);
+    if (!order) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    await orderService.updateOrderPointPersons(orderId, order.customer_id, pointPersons, userId);
+
+    res.json({
+      success: true,
+      message: 'Point persons updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating order point persons:', error);
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to update point persons', 'INTERNAL_ERROR');
+  }
+};

@@ -98,7 +98,7 @@ router.get(
 
 /**
  * POST /api/order-preparation/:orderNumber/tasks
- * Generate production tasks (placeholder for Phase 1.5.d)
+ * Generate production tasks from order specifications
  */
 router.post(
   '/:orderNumber/tasks',

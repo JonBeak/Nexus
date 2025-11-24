@@ -14,7 +14,7 @@ interface Tab {
 
 const TABS: Tab[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
-  { id: 'progress', label: 'Progress', icon: <ListChecks className="w-5 h-5" /> },
+  { id: 'progress', label: 'Role-based Tasks', icon: <ListChecks className="w-5 h-5" /> },
   { id: 'table', label: 'Jobs Table', icon: <Table className="w-5 h-5" /> }
 ];
 

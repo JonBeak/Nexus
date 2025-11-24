@@ -17,35 +17,38 @@ When an Item Name is selected (either manually or during order conversion):
 
 ## Mapping Table
 
-### ✅ MAPPED (23 items)
+### ✅ MAPPED (26 items)
 
-| Item Name | Specification Types | Status |
-|-----------|-------------------|--------|
-| Front Lit | Return, Trim, Face, Drain Holes | ✅ Mapped |
-| Halo Lit | Return, Face, Pins, Drain Holes | ✅ Mapped |
-| Front Lit Acrylic Face | Return, Face, Drain Holes | ✅ Mapped |
-| Dual Lit - Single Layer | Return, Trim, Face, Drain Holes | ✅ Mapped |
-| Dual Lit - Double Layer | Return, Trim, Face, Drain Holes | ✅ Mapped |
-| Vinyl | Vinyl | ✅ Mapped |
-| LEDs | LEDs, Wire Length | ✅ Mapped |
-| Power Supplies | Power Supply | ✅ Mapped |
-| UL | UL | ✅ Mapped |
-| 3D print | Return, Face, Pins | ✅ Mapped |
-| Blade Sign | Return, Trim, Face | ✅ Mapped |
-| Marquee Bulb | Return, Face | ✅ Mapped |
-| Neon LED | Neon Base, Neon LED, Mounting | ✅ Mapped |
-| Vinyl Cut | Cut, Peel, Mask | ✅ Mapped |
-| Material Cut | Return, Trim, Face, Back | ✅ Mapped |
-| Backer | Material, Cutting, Assembly | ✅ Mapped |
-| Frame | Material, Assembly | ✅ Mapped |
-| Aluminum Raceway | Material, Assembly | ✅ Mapped |
-| Extrusion Raceway | Extr. Colour, Assembly | ✅ Mapped |
-| Push Thru | Box Material, Push Thru Acrylic | ✅ Mapped |
-| Knockout Box | Box Material, Push Thru Acrylic | ✅ Mapped |
-| Substrate Cut | Material, Cutting, Mounting | ✅ Mapped |
-| Painting | Painting | ✅ Mapped |
+| Item Name | Specification Types | Default Values | Status |
+|-----------|-------------------|----------------|--------|
+| Front Lit | Return, Trim, Face, Back, Drain Holes | Back: 2mm ACM, Face: 2mm PC White | ✅ Mapped |
+| Halo Lit | Return, Face, Back, Mounting, Drain Holes | Back: 2mm White PC, Face: 1mm Aluminum | ✅ Mapped |
+| Front Lit Acrylic Face | Return, Face, Back, Drain Holes | Back: 2mm ACM | ✅ Mapped |
+| Dual Lit - Single Layer | Return, Trim, Face, Back, Drain Holes | Back: 2mm White PC, Face: 2mm PC White | ✅ Mapped |
+| Dual Lit - Double Layer | Return, Trim, Face, Back, Drain Holes | Back: 2mm White PC, Face: 2mm PC White | ✅ Mapped |
+| Vinyl | Vinyl | - | ✅ Mapped |
+| LEDs | LEDs, Wire Length | - | ✅ Mapped |
+| Power Supplies | Power Supply | - | ✅ Mapped |
+| Extra Wire | Wire Length | - | ✅ Mapped |
+| UL | UL | - | ✅ Mapped |
+| 3D print | Return, Face, Mounting | - | ✅ Mapped |
+| Blade Sign | Return, Trim, Face, Back | Back: 2mm ACM | ✅ Mapped |
+| Marquee Bulb | Return, Face, Back | Back: 2mm ACM | ✅ Mapped |
+| Neon LED | Neon Base, Neon LED, Mounting | - | ✅ Mapped |
+| Vinyl Cut | Cut, Peel, Mask | - | ✅ Mapped |
+| Material Cut | Return, Trim, Face, Back | Back: 2mm ACM | ✅ Mapped |
+| Return | Return, Back, Drain Holes | Back: 2mm ACM | ✅ Mapped |
+| Trim Cap | Trim, Face | Face: 2mm PC White | ✅ Mapped |
+| Backer | Material, Cutting, Assembly | - | ✅ Mapped |
+| Frame | Material, Assembly | - | ✅ Mapped |
+| Aluminum Raceway | Material, Assembly | - | ✅ Mapped |
+| Extrusion Raceway | Extr. Colour, Assembly | - | ✅ Mapped |
+| Push Thru | Box Material, Acrylic | - | ✅ Mapped |
+| Knockout Box | Box Material, Acrylic | - | ✅ Mapped |
+| Substrate Cut | Material, Cutting, Mounting, D-Tape | - | ✅ Mapped |
+| Painting | Painting | - | ✅ Mapped |
 
-### 🔲 UNMAPPED (16 items - To Be Defined)
+### 🔲 UNMAPPED (14 items - To Be Defined)
 
 | Item Name | Specification Types | Status | Notes |
 |-----------|-------------------|--------|-------|
@@ -55,8 +58,6 @@ When an Item Name is selected (either manually or during order conversion):
 | Trimless Dual Lit | ? | 🔲 Pending | |
 | Epoxy | ? | 🔲 Pending | |
 | Stainless Steel Sign | ? | 🔲 Pending | |
-| Return | ? | 🔲 Pending | Standalone product or component? |
-| Trim Cap | ? | 🔲 Pending | |
 | Front Lit Push Thru | ? | 🔲 Pending | |
 | Acrylic MINI | ? | 🔲 Pending | |
 | Halo Acrylic | ? | 🔲 Pending | |

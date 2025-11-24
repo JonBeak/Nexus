@@ -4,6 +4,7 @@
  * Central export point for all product-specific auto-fill handlers
  */
 
+export { autoFillBacker } from './backerHandler';
 export { autoFillChannelLetters } from './channelLettersHandler';
 export { autoFillLeds } from './ledsHandler';
 export { autoFillPowerSupplies } from './powerSuppliesHandler';

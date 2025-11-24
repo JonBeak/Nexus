@@ -234,7 +234,7 @@ export class OrderPartRepository {
    */
   async getOrderTasks(orderId: number): Promise<OrderTask[]> {
     const rows = await query(
-      `SELECT * FROM order_tasks WHERE order_id = ? ORDER BY task_id`,
+      `SELECT * FROM order_tasks WHERE order_id = ? ORDER BY sort_order, task_id`,
       [orderId]
     ) as RowDataPacket[];
 
@@ -271,6 +271,16 @@ export class OrderPartRepository {
   }
 
   /**
+   * Update task notes
+   */
+  async updateTaskNotes(taskId: number, notes: string | null): Promise<void> {
+    await query(
+      'UPDATE order_tasks SET notes = ? WHERE task_id = ?',
+      [notes, taskId]
+    );
+  }
+
+  /**
    * Get tasks by role with order/customer info
    */
   async getTasksByRole(
@@ -291,11 +301,13 @@ export class OrderPartRepository {
         ot.completed,
         ot.completed_at,
         ot.started_at,
+        ot.notes as task_notes,
         o.order_id,
         o.order_number,
         o.order_name,
         c.company_name as customer_name,
-        op.product_type,
+        op.specs_display_name,
+        op.part_scope,
         op.part_number
        FROM order_tasks ot
        JOIN orders o ON ot.order_id = o.order_id
@@ -328,22 +340,28 @@ export class OrderPartRepository {
 
   /**
    * Get available task templates (Phase 1.5.c)
-   * Returns normalized task list grouped by role
+   * Returns all defined tasks from TASK_ROLE_MAP, sorted by TASK_ORDER
    */
   async getAvailableTasks(): Promise<{
     task_name: string;
     assigned_role: string | null;
   }[]> {
-    const rows = await query(
-      `SELECT DISTINCT task_name, assigned_role
-       FROM order_tasks
-       ORDER BY assigned_role, task_name`
-    ) as RowDataPacket[];
+    const { TASK_ROLE_MAP, TASK_ORDER } = await import('../services/taskGeneration/taskRules');
 
-    return rows as {
-      task_name: string;
-      assigned_role: string | null;
-    }[];
+    // Build list from static TASK_ROLE_MAP, sorted by TASK_ORDER
+    const tasks = Object.entries(TASK_ROLE_MAP).map(([task_name, assigned_role]) => ({
+      task_name,
+      assigned_role
+    }));
+
+    // Sort by TASK_ORDER position
+    tasks.sort((a, b) => {
+      const orderA = TASK_ORDER.indexOf(a.task_name);
+      const orderB = TASK_ORDER.indexOf(b.task_name);
+      return (orderA === -1 ? 999 : orderA) - (orderB === -1 ? 999 : orderB);
+    });
+
+    return tasks;
   }
 
   /**

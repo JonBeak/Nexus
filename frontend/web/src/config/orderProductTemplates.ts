@@ -21,6 +21,7 @@ import {
   MATERIAL_COLOURS,
   BOX_MATERIALS,
   BOX_COLOURS,
+  BOX_FABRICATION,
   PUSH_THRU_THICKNESSES,
   PUSH_THRU_COLOURS,
   NEON_BASE_THICKNESSES,
@@ -414,13 +415,13 @@ export const MATERIAL_TEMPLATE: SpecificationTemplate = {
 };
 
 /**
- * Template: Box Material
+ * Template: Box Type
  * Spec 1: Material (combobox: 3mm ACM, 1mm Aluminum)
  * Spec 2: Colour (combobox: Matte Black, White, Red)
- * Spec 3: -
+ * Spec 3: Fabrication (combobox: 2" Angle Return, Folded)
  */
-export const BOX_MATERIAL_TEMPLATE: SpecificationTemplate = {
-  templateName: 'Box Material',
+export const BOX_TYPE_TEMPLATE: SpecificationTemplate = {
+  templateName: 'Box Type',
   spec1: {
     key: 'material',
     label: 'Material',
@@ -434,6 +435,13 @@ export const BOX_MATERIAL_TEMPLATE: SpecificationTemplate = {
     type: 'combobox',
     options: BOX_COLOURS,
     placeholder: 'Colour'
+  },
+  spec3: {
+    key: 'fabrication',
+    label: 'Fabrication',
+    type: 'combobox',
+    options: BOX_FABRICATION,
+    placeholder: 'Fabrication'
   }
 };
 
@@ -670,6 +678,7 @@ export const BACK_TEMPLATE: SpecificationTemplate = {
 /**
  * Template registry - maps template names to templates
  * Note: 'Pins' was renamed to 'Mounting' - backward compatibility handled in getSpecificationTemplate()
+ * Note: 'Box Material' was renamed to 'Box Type' - backward compatibility handled in getSpecificationTemplate()
  */
 const TEMPLATE_REGISTRY: Record<string, SpecificationTemplate> = {
   'Return': RETURN_TEMPLATE,
@@ -687,7 +696,7 @@ const TEMPLATE_REGISTRY: Record<string, SpecificationTemplate> = {
   'Painting': PAINTING_TEMPLATE,
   'Mounting': MOUNTING_TEMPLATE,
   'Material': MATERIAL_TEMPLATE,
-  'Box Material': BOX_MATERIAL_TEMPLATE,
+  'Box Type': BOX_TYPE_TEMPLATE,
   'Acrylic': ACRYLIC_TEMPLATE,
   'Neon Base': NEON_BASE_TEMPLATE,
   'Neon LED': NEON_LED_TEMPLATE,
@@ -727,6 +736,11 @@ export function getSpecificationTemplate(templateName: string): SpecificationTem
   if (templateName === 'Pins') {
     // 'Pins' was renamed to 'Mounting' - redirect to new template
     return MOUNTING_TEMPLATE;
+  }
+
+  if (templateName === 'Box Material') {
+    // 'Box Material' was renamed to 'Box Type' - redirect to new template
+    return BOX_TYPE_TEMPLATE;
   }
 
   return undefined;

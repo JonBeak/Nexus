@@ -70,10 +70,10 @@ export const SPEC_VALIDATION_RULES: SpecValidationRule[] = [
       `Neon Base specification requires thickness, material, and colour. Missing: ${missing.join(', ')}`
   },
   {
-    templateName: 'Box Material',
-    requiredFields: ['material', 'colour'],
+    templateName: 'Box Type',
+    requiredFields: ['material', 'colour', 'fabrication'],
     errorMessage: (missing) =>
-      `Box Material specification requires both material and colour. Missing: ${missing.join(', ')}`
+      `Box Type specification requires material, colour, and fabrication. Missing: ${missing.join(', ')}`
   },
   {
     templateName: 'Return',

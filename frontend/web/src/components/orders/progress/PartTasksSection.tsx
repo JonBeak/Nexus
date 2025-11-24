@@ -5,12 +5,13 @@ import TaskTemplateDropdown from './TaskTemplateDropdown';
 
 interface Props {
   part: any;
+  partIndex: number;
   orderNumber: number;
   orderStatus: string;
   onTaskUpdated: () => void;
 }
 
-export const PartTasksSection: React.FC<Props> = ({ part, orderNumber, orderStatus, onTaskUpdated }) => {
+export const PartTasksSection: React.FC<Props> = ({ part, partIndex, orderNumber, orderStatus, onTaskUpdated }) => {
   const [showAddDropdown, setShowAddDropdown] = useState(false);
   const completedTasks = part.completed_tasks || 0;
   const totalTasks = part.total_tasks || 0;
@@ -25,9 +26,9 @@ export const PartTasksSection: React.FC<Props> = ({ part, orderNumber, orderStat
   };
 
   return (
-    <div className="bg-white rounded-lg shadow flex-shrink-0 w-[240px] flex flex-col relative">
+    <div className="bg-white rounded-lg shadow flex-shrink-0 w-[384px] flex flex-col relative">
       {/* Placeholder Image */}
-      <div className="w-full h-32 bg-gray-200 rounded-t-lg flex items-center justify-center">
+      <div className="w-full h-[166px] bg-gray-200 rounded-t-lg flex items-center justify-center">
         <div className="text-center">
           <div className="text-gray-400 text-sm font-medium">Part Image</div>
           <div className="text-gray-400 text-xs mt-1">Placeholder</div>
@@ -38,7 +39,7 @@ export const PartTasksSection: React.FC<Props> = ({ part, orderNumber, orderStat
       <div className="px-2 py-1.5 border-b border-gray-200">
         <div className="flex items-center justify-between mb-2">
           <h3 className="font-semibold text-base text-gray-900 truncate">
-            Part {part.part_number}: {part.product_type}
+            Part {partIndex}: {part.specs_display_name}
           </h3>
 
           {/* Add Task Button */}
@@ -53,7 +54,7 @@ export const PartTasksSection: React.FC<Props> = ({ part, orderNumber, orderStat
           )}
         </div>
         <div className="flex items-center justify-between text-base text-gray-500 mb-1.5">
-          <span>Qty: {part.quantity}</span>
+          <span>Qty: {part.specs_qty}</span>
           <span className="font-medium">{completedTasks}/{totalTasks}</span>
         </div>
         {/* Progress Bar */}
@@ -77,7 +78,7 @@ export const PartTasksSection: React.FC<Props> = ({ part, orderNumber, orderStat
       )}
 
       {/* Task List - Always Visible */}
-      <div className="px-2 py-1.5 flex-1 overflow-y-auto max-h-96">
+      <div className="px-2 py-1.5 flex-1 overflow-y-auto max-h-[500px]">
         <TaskList
           tasks={part.tasks || []}
           orderNumber={orderNumber}

@@ -122,7 +122,8 @@ export function flattenCombinedSpecs(templateRowsMap: Map<string, string[]>): an
         }
         break;
 
-      case 'Pins':
+      case 'Mounting':
+      case 'Pins': // Legacy - renamed to Mounting
         if (values.length > 0) {
           flatSpecs[`row${rowIndex}_count`] = values[0];
         }

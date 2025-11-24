@@ -167,6 +167,18 @@ router.put(
 );
 
 /**
+ * Update order point persons
+ * PUT /api/orders/:orderNumber/point-persons
+ * Body: { pointPersons: Array<{ contact_id?, contact_email, contact_name?, saveToDatabase? }> }
+ */
+router.put(
+  '/:orderNumber/point-persons',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.updateOrderPointPersons
+);
+
+/**
  * Update specs display name and regenerate specifications (Manager+ only)
  * PUT /api/orders/:orderNumber/parts/:partId/specs-display-name
  * Body: { specs_display_name: string }
@@ -256,6 +268,17 @@ router.delete(
   authenticateToken,
   requirePermission('orders.update'),
   orderController.removeTask
+);
+
+/**
+ * Update task notes
+ * PUT /api/orders/tasks/:taskId/notes
+ */
+router.put(
+  '/tasks/:taskId/notes',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.updateTaskNotes
 );
 
 // =============================================

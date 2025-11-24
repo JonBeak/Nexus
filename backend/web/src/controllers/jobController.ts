@@ -25,6 +25,7 @@ import { EstimateVersioningService, JobData } from '../services/estimateVersioni
 import { JobService } from '../services/jobService';
 import { parseIntParam, sendErrorResponse } from '../utils/controllerHelpers';
 import { getTrimmedString } from '../utils/validation';
+import { validateJobOrOrderName } from '../utils/folderNameValidation';
 
 const versioningService = new EstimateVersioningService();
 const jobService = new JobService();
@@ -107,28 +108,39 @@ export const validateJobName = async (req: Request, res: Response) => {
       return sendErrorResponse(res, 'Job name cannot be empty', 'VALIDATION_ERROR');
     }
 
+    // Validate Windows folder name compatibility
+    const nameValidation = validateJobOrOrderName(trimmedJobName);
+    if (!nameValidation.isValid) {
+      return res.json({
+        success: true,
+        valid: false,
+        message: nameValidation.error,
+        suggestion: null
+      });
+    }
+
     try {
       const isValid = await versioningService.validateJobName(customerIdNum, trimmedJobName);
-      
+
       if (isValid) {
-        res.json({ 
+        res.json({
           success: true,
-          valid: true 
+          valid: true
         });
       } else {
-        res.json({ 
+        res.json({
           success: true,
-          valid: false, 
+          valid: false,
           message: 'A job with this name already exists for this customer',
           suggestion: `Try: ${trimmedJobName} - Location or ${trimmedJobName} - ${new Date().getFullYear()}`
         });
       }
     } catch (error) {
       console.error('Error validating job name:', error);
-      res.json({ 
+      res.json({
         success: true,
-        valid: false, 
-        message: 'Unable to validate job name at this time' 
+        valid: false,
+        message: 'Unable to validate job name at this time'
       });
     }
   } catch (error) {
@@ -152,6 +164,12 @@ export const updateJob = async (req: Request, res: Response) => {
     const trimmedJobName = getTrimmedString(job_name);
     if (!trimmedJobName) {
       return sendErrorResponse(res, 'Job name is required', 'VALIDATION_ERROR');
+    }
+
+    // Validate Windows folder name compatibility
+    const nameValidation = validateJobOrOrderName(trimmedJobName);
+    if (!nameValidation.isValid) {
+      return sendErrorResponse(res, nameValidation.error!, 'VALIDATION_ERROR');
     }
 
     await versioningService.updateJobName(jobIdNum, trimmedJobName, user?.user_id!);
@@ -178,6 +196,12 @@ export const createJob = async (req: Request, res: Response) => {
     const trimmedJobName = getTrimmedString(job_name);
     if (!trimmedJobName) {
       return sendErrorResponse(res, 'Job name cannot be empty', 'VALIDATION_ERROR');
+    }
+
+    // Validate Windows folder name compatibility
+    const nameValidation = validateJobOrOrderName(trimmedJobName);
+    if (!nameValidation.isValid) {
+      return sendErrorResponse(res, nameValidation.error!, 'VALIDATION_ERROR');
     }
 
     const jobData: JobData = {

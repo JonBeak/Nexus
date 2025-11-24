@@ -153,6 +153,26 @@ export interface CreateOrderPartData {
 // ORDER TASK TYPES
 // =============================================
 
+/**
+ * Production role types for task assignment
+ */
+export type ProductionRole =
+  | 'designer'
+  | 'manager'
+  | 'vinyl_applicator'
+  | 'cnc_router_operator'
+  | 'cut_bender_operator'
+  | 'return_fabricator'
+  | 'trim_fabricator'
+  | 'painter'
+  | 'return_gluer'
+  | 'mounting_assembler'
+  | 'face_assembler'
+  | 'led_installer'
+  | 'backer_raceway_fabricator'
+  | 'backer_raceway_assembler'
+  | 'qc_packer';
+
 export interface OrderTask {
   task_id: number;
   order_id: number;
@@ -161,13 +181,19 @@ export interface OrderTask {
   completed: boolean;
   completed_at?: Date;
   completed_by?: number;
+  assigned_role?: ProductionRole | null;
+  notes?: string | null;
+  depends_on_task_id?: number | null;
+  started_at?: Date;
+  started_by?: number;
 }
 
 export interface CreateOrderTaskData {
   order_id: number;
   part_id?: number;
   task_name: string;
-  assigned_role?: 'designer' | 'vinyl_cnc' | 'painting' | 'cut_bend' | 'leds' | 'packing' | null;
+  assigned_role?: ProductionRole | null;
+  notes?: string | null;
 }
 
 // =============================================

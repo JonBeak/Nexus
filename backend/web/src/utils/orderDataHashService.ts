@@ -36,6 +36,7 @@ import * as orderPrepRepo from '../repositories/orderPreparationRepository';
  * Includes:
  * - Order-level fields (name, PO, dates, notes, financial settings)
  * - Part-level fields (specs, invoice, QB fields, production notes)
+ * - Point persons (contact_name, contact_email)
  *
  * @param orderId - The order ID to hash
  * @returns SHA256 hex string
@@ -46,6 +47,9 @@ export async function calculateOrderDataHash(orderId: number): Promise<string> {
 
   // Get all order parts data
   const orderParts = await orderPrepRepo.getOrderPartsForHash(orderId);
+
+  // Get point persons data (only name and email for hash)
+  const pointPersons = await orderPrepRepo.getPointPersonsForHash(orderId);
 
   // Create normalized data structure for hashing
   const hashData = {
@@ -69,6 +73,12 @@ export async function calculateOrderDataHash(orderId: number): Promise<string> {
       tax_name: orderData?.tax_name ?? null,
       terms: orderData?.terms ?? null
     },
+
+    // Point persons (only name and email, sorted by email for determinism)
+    pointPersons: pointPersons.map(pp => ({
+      contact_name: pp.contact_name ?? null,
+      contact_email: pp.contact_email ?? null
+    })),
 
     // Part-level fields (all fields that affect PDFs/QB estimates)
     parts: orderParts.map(part => ({

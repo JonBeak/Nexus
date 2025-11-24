@@ -94,4 +94,11 @@ export const orderTasksApi = {
   async removeTask(taskId: number): Promise<void> {
     await api.delete(`/orders/tasks/${taskId}`);
   },
+
+  /**
+   * Update task notes
+   */
+  async updateTaskNotes(taskId: number, notes: string): Promise<void> {
+    await api.put(`/orders/tasks/${taskId}/notes`, { notes });
+  },
 };

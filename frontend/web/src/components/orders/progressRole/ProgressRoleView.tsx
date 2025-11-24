@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Clock } from 'lucide-react';
-import { ordersApi } from '../../../services/api';
+import { CheckCircle, Clock, RotateCcw } from 'lucide-react';
+import { ordersApi, authApi } from '../../../services/api';
 import RoleCard from './RoleCard';
+import type { UserRole } from '../../../types/user';
 
 interface TaskUpdate {
   task_id: number;
@@ -9,14 +10,40 @@ interface TaskUpdate {
   completed?: boolean;
 }
 
-const ROLE_LABELS = {
-  designer: 'Designer',
-  vinyl_cnc: 'Vinyl CNC',
-  painting: 'Painting',
-  cut_bend: 'Cut/Bend',
-  leds: 'LEDs',
-  packing: 'Packing/QC'
-};
+// Production roles organized by workflow rows (4 cards per row)
+// Row layout matches production floor workflow
+const ROLE_ROWS: { role: string; label: string }[][] = [
+  // Row 1: Design & Management
+  [
+    { role: 'designer', label: 'Designer' },
+    { role: 'manager', label: 'Manager' },
+    { role: 'painter', label: 'Painter' },
+  ],
+  // Row 2: Material Prep
+  [
+    { role: 'vinyl_applicator', label: 'Vinyl Applicator' },
+    { role: 'cnc_router_operator', label: 'CNC Router Operator' },
+  ],
+  // Row 3: Fabrication
+  [
+    { role: 'cut_bender_operator', label: 'Cut & Bend Operator' },
+    { role: 'return_fabricator', label: 'Return Fabricator' },
+    { role: 'trim_fabricator', label: 'Trim Fabricator' },
+    { role: 'return_gluer', label: 'Return Gluer' },
+  ],
+  // Row 4: Assembly
+  [
+    { role: 'mounting_assembler', label: 'Mounting Assembler' },
+    { role: 'face_assembler', label: 'Face Assembler' },
+    { role: 'led_installer', label: 'LED Installer' },
+  ],
+  // Row 5: Final Assembly & QC
+  [
+    { role: 'backer_raceway_fabricator', label: 'Backer/Raceway Fabricator' },
+    { role: 'backer_raceway_assembler', label: 'Backer/Raceway Assembler' },
+    { role: 'qc_packer', label: 'QC/Packer' },
+  ],
+];
 
 export const ProgressRoleView: React.FC = () => {
   const [tasksByRole, setTasksByRole] = useState<any>({});
@@ -24,10 +51,26 @@ export const ProgressRoleView: React.FC = () => {
   const [showCompleted, setShowCompleted] = useState(false);
   const [stagedUpdates, setStagedUpdates] = useState<Map<number, TaskUpdate>>(new Map());
   const [saving, setSaving] = useState(false);
+  const [userRole, setUserRole] = useState<UserRole>('production_staff');
+
+  useEffect(() => {
+    fetchInitialData();
+  }, []);
 
   useEffect(() => {
     fetchTasks();
   }, [showCompleted]);
+
+  const fetchInitialData = async () => {
+    try {
+      const userData = await authApi.getCurrentUser();
+      if (userData.user?.role) {
+        setUserRole(userData.user.role as UserRole);
+      }
+    } catch (error) {
+      console.error('Error fetching user:', error);
+    }
+  };
 
   const fetchTasks = async () => {
     try {
@@ -41,11 +84,29 @@ export const ProgressRoleView: React.FC = () => {
     }
   };
 
-  const handleTaskUpdate = (taskId: number, field: 'started' | 'completed', value: boolean) => {
+  const handleTaskUpdate = (
+    taskId: number,
+    field: 'started' | 'completed',
+    value: boolean,
+    originalStarted: boolean,
+    originalCompleted: boolean
+  ) => {
     setStagedUpdates(prev => {
       const newUpdates = new Map(prev);
       const existing = newUpdates.get(taskId) || { task_id: taskId };
-      newUpdates.set(taskId, { ...existing, [field]: value });
+      const updated = { ...existing, [field]: value };
+
+      // Determine what the new staged state would be
+      const newStarted = updated.started !== undefined ? updated.started : originalStarted;
+      const newCompleted = updated.completed !== undefined ? updated.completed : originalCompleted;
+
+      // If both values match original, remove from staged updates (unstage)
+      if (newStarted === originalStarted && newCompleted === originalCompleted) {
+        newUpdates.delete(taskId);
+      } else {
+        newUpdates.set(taskId, updated);
+      }
+
       return newUpdates;
     });
   };
@@ -71,6 +132,13 @@ export const ProgressRoleView: React.FC = () => {
     }
   };
 
+  const handleReset = () => {
+    if (stagedUpdates.size === 0) return;
+    if (confirm(`Reset ${stagedUpdates.size} staged changes?`)) {
+      setStagedUpdates(new Map());
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -82,59 +150,70 @@ export const ProgressRoleView: React.FC = () => {
   const hasUpdates = stagedUpdates.size > 0;
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
-      {/* Header with actions */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">Production Progress</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              Track task progress across all production roles
-            </p>
-          </div>
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => setShowCompleted(!showCompleted)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                showCompleted
-                  ? 'bg-indigo-100 text-indigo-700'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <Clock className="w-4 h-4 inline mr-2" />
-              {showCompleted ? 'Hide' : 'Show'} Recently Completed
-            </button>
-            <button
-              onClick={handleRecordProgress}
-              disabled={!hasUpdates || saving}
-              className={`px-6 py-2 rounded-lg text-sm font-medium transition-colors ${
-                hasUpdates && !saving
-                  ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              }`}
-            >
-              <CheckCircle className="w-4 h-4 inline mr-2" />
-              {saving ? 'Recording...' : `Record Progress${hasUpdates ? ` (${stagedUpdates.size})` : ''}`}
-            </button>
-          </div>
+    <div className="h-full flex flex-col bg-gray-50 relative">
+      {/* Role cards - organized by workflow rows */}
+      <div className="flex-1 overflow-auto p-6">
+        <div className="space-y-4">
+          {ROLE_ROWS.map((row, rowIndex) => (
+            <div key={rowIndex} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {row.map(({ role, label }) => (
+                <RoleCard
+                  key={role}
+                  role={role}
+                  label={label}
+                  tasks={tasksByRole[role] || []}
+                  stagedUpdates={stagedUpdates}
+                  onTaskUpdate={handleTaskUpdate}
+                  onTaskNotesUpdate={fetchTasks}
+                  showCompleted={showCompleted}
+                  userRole={userRole}
+                />
+              ))}
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Role cards grid */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {Object.entries(ROLE_LABELS).map(([role, label]) => (
-            <RoleCard
-              key={role}
-              role={role}
-              label={label}
-              tasks={tasksByRole[role] || []}
-              stagedUpdates={stagedUpdates}
-              onTaskUpdate={handleTaskUpdate}
-              showCompleted={showCompleted}
-            />
-          ))}
-        </div>
+      {/* Floating action buttons - bottom right, stacked */}
+      <div className="fixed bottom-6 right-6 flex flex-col space-y-3 z-10">
+        <button
+          onClick={() => setShowCompleted(!showCompleted)}
+          className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+            showCompleted
+              ? 'bg-gray-700 text-white hover:bg-gray-600'
+              : 'bg-gray-500 text-white hover:bg-gray-400'
+          }`}
+          style={{ boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)' }}
+        >
+          <Clock className="w-4 h-4 inline mr-2" />
+          {showCompleted ? 'Hide' : 'Show'} Recently Completed
+        </button>
+        <button
+          onClick={handleReset}
+          disabled={!hasUpdates}
+          className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+            hasUpdates
+              ? 'bg-red-600 text-white hover:bg-red-700'
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          }`}
+          style={{ boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)' }}
+        >
+          <RotateCcw className="w-4 h-4 inline mr-2" />
+          Reset Changes
+        </button>
+        <button
+          onClick={handleRecordProgress}
+          disabled={!hasUpdates || saving}
+          className={`px-6 py-3 rounded-lg text-sm font-medium transition-colors ${
+            hasUpdates && !saving
+              ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          }`}
+          style={{ boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)' }}
+        >
+          <CheckCircle className="w-4 h-4 inline mr-2" />
+          {saving ? 'Recording...' : `Record Progress${hasUpdates ? ` (${stagedUpdates.size})` : ''}`}
+        </button>
       </div>
     </div>
   );

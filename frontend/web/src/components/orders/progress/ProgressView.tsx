@@ -84,16 +84,20 @@ export const ProgressView: React.FC<Props> = ({ orderNumber, currentStatus, prod
       <ProductionNotes notes={productionNotes} />
 
       {/* Task Cards by Part - Horizontal Layout */}
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {tasksByPart.map((part) => (
-          <PartTasksSection
-            key={part.part_id}
-            part={part}
-            orderNumber={orderNumber}
-            orderStatus={currentStatus || ''}
-            onTaskUpdated={handleTaskUpdated}
-          />
-        ))}
+      {/* Outer container handles scrolling, inner container centers content */}
+      <div className="overflow-x-auto pb-4">
+        <div className="flex gap-4 justify-center min-w-min">
+          {tasksByPart.map((part, index) => (
+            <PartTasksSection
+              key={part.part_id}
+              part={part}
+              partIndex={index + 1}
+              orderNumber={orderNumber}
+              orderStatus={currentStatus || ''}
+              onTaskUpdated={handleTaskUpdated}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Timeline */}

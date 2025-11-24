@@ -17,6 +17,7 @@ import { AuthRequest } from '../types';
 import { orderConversionService } from '../services/orderConversionService';
 import { ConvertEstimateRequest } from '../types/orders';
 import { sendErrorResponse } from '../utils/controllerHelpers';
+import { validateJobOrOrderName } from '../utils/folderNameValidation';
 
 /**
  * Convert approved estimate to order
@@ -38,11 +39,18 @@ export const convertEstimateToOrder = async (req: AuthRequest, res: Response) =>
       return sendErrorResponse(res, 'estimateId must be a valid number', 'VALIDATION_ERROR');
     }
 
+    // Validate Windows folder name compatibility for order name
+    const nameValidation = validateJobOrOrderName(conversionRequest.orderName);
+    if (!nameValidation.isValid) {
+      return sendErrorResponse(res, nameValidation.error!, 'VALIDATION_ERROR');
+    }
+
     // Convert estimate to order
     const result = await orderConversionService.convertEstimateToOrder(
       {
         ...conversionRequest,
-        estimateId
+        estimateId,
+        orderName: nameValidation.sanitized  // Use sanitized (trimmed) name
       },
       req.user!.user_id
     );

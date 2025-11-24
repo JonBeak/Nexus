@@ -12,10 +12,14 @@ export function getDefaultFaceMaterial(specsDisplayName: string): string | null 
     case 'Front Lit':
     case 'Dual Lit - Single Layer':
     case 'Dual Lit - Double Layer':
+    case 'Trim Cap':
       return '2mm PC';
 
     case 'Halo Lit':
       return '1mm Aluminum';
+
+    case '3D print':
+      return '4.5mm Acrylic';
 
     default:
       return null;
@@ -30,6 +34,8 @@ export function getDefaultFaceColor(specsDisplayName: string): string | null {
     case 'Front Lit':
     case 'Dual Lit - Single Layer':
     case 'Dual Lit - Double Layer':
+    case 'Trim Cap':
+    case '3D print':
       return 'White';
 
     case 'Halo Lit':

@@ -87,6 +87,20 @@ export const ordersApi = {
   },
 
   /**
+   * Update order point persons
+   */
+  async updateOrderPointPersons(orderNumber: number, pointPersons: Array<{
+    contact_id?: number;
+    contact_email: string;
+    contact_name?: string;
+    contact_phone?: string;
+    contact_role?: string;
+    saveToDatabase?: boolean;
+  }>): Promise<void> {
+    await api.put(`/orders/${orderNumber}/point-persons`, { pointPersons });
+  },
+
+  /**
    * Get order by estimate ID
    */
   async getOrderByEstimate(estimateId: number): Promise<{ order_id: number; order_number: number } | null> {

@@ -108,7 +108,8 @@ export class CustomerRepository {
         deposit_required,
         special_instructions,
         comments,
-        active
+        active,
+        drain_holes_yes_or_no
       FROM customers
       WHERE customer_id = ?`,
       [customerId]
