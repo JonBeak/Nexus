@@ -1,5 +1,5 @@
 import React from 'react';
-import PrintFormsContent from './PrintFormsContent';
+import PrintFormsContent, { PrintMode } from './PrintFormsContent';
 
 interface PrintConfig {
   master: number;
@@ -17,6 +17,9 @@ interface PrintFormsModalProps {
   onPrintMasterEstimate: () => void;
   onPrintShopPacking: () => void;
   printing: boolean;
+  mode?: PrintMode;
+  onPrintAndMoveToProduction?: () => void;
+  onMoveToProductionWithoutPrinting?: () => void;
 }
 
 const PrintFormsModal: React.FC<PrintFormsModalProps> = ({
@@ -27,7 +30,10 @@ const PrintFormsModal: React.FC<PrintFormsModalProps> = ({
   onPrint,
   onPrintMasterEstimate,
   onPrintShopPacking,
-  printing
+  printing,
+  mode = 'full',
+  onPrintAndMoveToProduction,
+  onMoveToProductionWithoutPrinting
 }) => {
   if (!isOpen) return null;
 
@@ -43,6 +49,9 @@ const PrintFormsModal: React.FC<PrintFormsModalProps> = ({
           onClose={onClose}
           printing={printing}
           showCloseButton={true}
+          mode={mode}
+          onPrintAndMoveToProduction={onPrintAndMoveToProduction}
+          onMoveToProductionWithoutPrinting={onMoveToProductionWithoutPrinting}
         />
       </div>
     </div>

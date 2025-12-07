@@ -34,7 +34,7 @@ export const TableHeader: React.FC = () => {
         Spec 3
       </div>
       <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider text-center">
-        Spec +/-
+        Actions
       </div>
       <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider border-l-2 border-gray-400 pl-2">
         QB Item

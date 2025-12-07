@@ -20,6 +20,7 @@ interface SpecFieldInputProps {
   onSave: (partId: number, specKey: string, value: string) => Promise<void>;
   hasValue: boolean;
   isEmpty?: boolean;
+  removeRightBorder?: boolean;
 }
 
 export const SpecFieldInput = React.memo<SpecFieldInputProps>(({
@@ -30,7 +31,8 @@ export const SpecFieldInput = React.memo<SpecFieldInputProps>(({
   currentValue,
   onSave,
   hasValue,
-  isEmpty = false
+  isEmpty = false,
+  removeRightBorder = false
 }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [localValue, setLocalValue] = useState(currentValue);
@@ -63,10 +65,10 @@ export const SpecFieldInput = React.memo<SpecFieldInputProps>(({
     }
   };
 
-  const baseClass = INPUT_STYLES.specField({ hasValue, isEmpty });
+  const baseClass = INPUT_STYLES.specField({ hasValue, isEmpty, removeRightBorder });
 
   return (
-    <div className="h-[26px] flex items-center py-1">
+    <div className="h-[26px] flex items-center">
       {field.type === 'dropdown' && field.options ? (
         <select
           value={currentValue}

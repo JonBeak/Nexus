@@ -132,12 +132,12 @@ export function renderQuantityBox(
   const qtyValue = Number(specsQty);
   const isStandard = qtyValue === 1 || qtyValue === 1.0;
 
-  // Style based on quantity
+  // Style based on quantity - same size for both, only color differs
   const labelBgColor = isStandard ? COLORS.QTY_STANDARD_BG : COLORS.QTY_NONSTANDARD_BG;
-  const labelTextColor = isStandard ? COLORS.QTY_STANDARD_TEXT : COLORS.QTY_NONSTANDARD_TEXT;
-  const fontSize = isStandard ? FONT_SIZES.QTY_STANDARD : FONT_SIZES.QTY_NONSTANDARD;
-  const boxHeight = isStandard ? 18 : 22;
-  const bottomLineHeight = isStandard ? 2 : 3;
+  const labelTextColor = COLORS.BLACK; // Always black text on label
+  const fontSize = FONT_SIZES.QTY_STANDARD; // Same size for both (14pt)
+  const boxHeight = 18; // Same height for both
+  const bottomLineHeight = 2; // Same line thickness for both
 
   // === STEP 1: Calculate label box width (same as spec labels) ===
 
@@ -152,7 +152,9 @@ export function renderQuantityBox(
   // === STEP 2: Calculate value position and text ===
 
   const qtyUnit = qtyValue <= 1 ? 'set' : 'sets';
-  const valueText = `${specsQty} ${qtyUnit}`;
+  // Format as integer unless decimal is present
+  const formattedQty = Number.isInteger(qtyValue) ? qtyValue.toString() : specsQty.toString();
+  const valueText = `${formattedQty} ${qtyUnit}`;
   const valueX = partX - SPACING.LABEL_PADDING + standardLabelWidth + doc.widthOfString('  ');
 
   // === STEP 3: Draw label background box ===

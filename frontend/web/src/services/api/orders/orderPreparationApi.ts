@@ -108,5 +108,41 @@ export const orderPreparationApi = {
       `/order-preparation/${orderNumber}/point-persons`
     );
     return response.data;
+  },
+
+  /**
+   * Get email preview HTML
+   * (Phase 1.5.c.6.3 - Send to Customer)
+   */
+  getEmailPreview: async (orderNumber: number, recipients: string[]) => {
+    const response = await api.get(
+      `/order-preparation/${orderNumber}/email-preview`,
+      {
+        params: {
+          recipients: recipients.join(',')
+        }
+      }
+    );
+    return response.data;
+  },
+
+  /**
+   * Finalize order and optionally send to customer
+   * (Phase 1.5.c.6.3 - Send to Customer)
+   */
+  finalizeOrder: async (orderNumber: number, data: {
+    sendEmail: boolean;
+    recipients: string[];
+    orderName?: string;
+    pdfUrls?: {
+      orderForm: string | null;
+      qbEstimate: string | null;
+    };
+  }) => {
+    const response = await api.post(
+      `/order-preparation/${orderNumber}/finalize`,
+      data
+    );
+    return response.data;
   }
 };

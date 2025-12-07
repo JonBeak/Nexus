@@ -1,3 +1,5 @@
+// File Clean up Finished: 2025-11-25
+
 // =====================================================
 // QUICKBOOKS DATA RESOURCE - Session Caching for QB Data
 // =====================================================
@@ -18,7 +20,6 @@ export interface QuickBooksItem {
 
 export interface AllQuickBooksData {
   items: QuickBooksItem[];
-  fetchTime: string;
 }
 
 // =====================================================
@@ -52,8 +53,7 @@ export class QuickBooksDataResource {
 
         // API interceptor unwraps { success: true, items: [...] } -> { items: [...] } directly
         this.cachedData = {
-          items: response.data.items || response.data, // Handle both wrapped and direct array
-          fetchTime: new Date().toISOString()
+          items: response.data.items || response.data // Handle both wrapped and direct array
         };
         this.cacheTimestamp = Date.now();
         return this.cachedData!;
@@ -77,22 +77,6 @@ export class QuickBooksDataResource {
   }
 
   /**
-   * Get QuickBooks item by name
-   */
-  static async getItemByName(name: string): Promise<QuickBooksItem | null> {
-    const qbData = await this.getAllQuickBooksData();
-    return qbData.items.find(item => item.name === name) || null;
-  }
-
-  /**
-   * Get QuickBooks item by QB Item ID
-   */
-  static async getItemByQBId(qbItemId: string): Promise<QuickBooksItem | null> {
-    const qbData = await this.getAllQuickBooksData();
-    return qbData.items.find(item => item.qbItemId === qbItemId) || null;
-  }
-
-  /**
    * Clear cached data (force refresh)
    */
   static clearCache(): void {
@@ -111,29 +95,6 @@ export class QuickBooksDataResource {
     const now = Date.now();
     const cacheAge = now - this.cacheTimestamp;
     return cacheAge < this.CACHE_DURATION_MS;
-  }
-
-  /**
-   * Get cache status for debugging
-   */
-  static getCacheStatus(): {
-    isCached: boolean,
-    ageMinutes?: number,
-    fetchTime?: string,
-    itemCount?: number
-  } {
-    if (!this.cachedData || !this.cacheTimestamp) {
-      return { isCached: false };
-    }
-
-    const ageMinutes = Math.floor((Date.now() - this.cacheTimestamp) / (1000 * 60));
-
-    return {
-      isCached: true,
-      ageMinutes,
-      fetchTime: this.cachedData.fetchTime,
-      itemCount: this.cachedData.items.length
-    };
   }
 }
 

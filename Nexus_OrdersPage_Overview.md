@@ -280,21 +280,21 @@ See `Nexus_Orders_JobStructure.md` for detailed breakdown of nested objects.
 
 ## Development Phases (Updated)
 
-### Phase 1: Core Foundation (4-6 weeks) - 85% COMPLETE
-- [x] Database schema (orders, parts, tasks, form_versions, status_history, customer_contacts)
+### Phase 1: Core Foundation (4-6 weeks) - ✅ 100% COMPLETE
+- [x] Database schema (8 order tables including qb_estimates, point_persons)
 - [x] Order Landing/Conversion wizard (estimate → order) + ApproveEstimateModal
-- [x] Order Details CRUD + view (OrderDetailsPage)
-- [x] Progress Tracking (task management by role)
+- [x] Order Details CRUD + view (OrderDetailsPage with dual-table interface)
+- [x] Progress Tracking (task management by role with 15 production roles)
 - [x] Dashboard (priorities & alerts) - SimpleDashboard + OrderDashboard
   - Overdue jobs count + list
   - Today's tasks by role
-  - Jobs needing attention (no stats yet)
-- [~] All Order Forms + Packing List (4 PDFs - NEEDS VERIFICATION)
-- [~] Basic Invoice (DEFERRED to Phase 2 - Using QuickBooks directly)
-- [x] Production roles in employees table (JSON column) - DEFERRED to Phase 3
+  - Jobs needing attention
+- [x] All Order Forms + Packing List (4 PDFs with live preview)
+- [x] QuickBooks Integration (estimate creation with staleness detection)
 - [x] Full timeline/audit trail tracking (order_status_history)
+- [x] Production roles in order_tasks table (15 role enum values)
 
-### Phase 1.5: Job Details Setup Interface (2-3 weeks) - 35% COMPLETE
+### Phase 1.5: Job Details Setup Interface (2-3 weeks) - ✅ 90% COMPLETE
 - [x] Phase 1.5.a: Numbering fix + order creation enhancements
 - [x] Phase 1.5.a.5: ApproveEstimateModal enhancements
   - Business days calculation with holiday awareness
@@ -303,10 +303,20 @@ See `Nexus_Orders_JobStructure.md` for detailed breakdown of nested objects.
   - Auto-calculated due dates from customer defaults
   - Manual override detection with warnings
 - [x] Phase 1.5.b: Database schema updates (customer_job_number, hard_due_date_time, point_person_email, finalized fields, display_number, is_parent)
-- [ ] Phase 1.5.c: Dual-Table UI (Job Specs | Invoice separation)
-- [ ] Phase 1.5.d: Dynamic Specs & Tasks creation
-- [ ] Phase 1.5.e: Row Management (add/edit/delete rows)
-- [ ] Phase 1.5.f: Finalization Workflow (lock specs/invoice after finalization)
+- [x] Phase 1.5.c.1-c.6: Dual-Table UI + Order Preparation Workflow
+  - Frontend API Layer, Order Templates, Snapshots, Task Management UI
+  - Dual-Table Core UI (Job Specs | Invoice separation)
+  - **PrepareOrderModal with 4-step workflow (Validation, QB Estimate, PDFs, Task Generation)**
+- [x] **Phase 1.5.c.6.3: Send to Customer (Gmail Integration) ✅**
+  - Point person selection with email preview
+  - Gmail API integration (fully functional)
+  - Order finalization with status updates
+- [x] **Phase 1.5.d: Intelligent Task Generation System**
+  - Spec-driven task generation with 25+ product rules
+  - Painting task matrix with substrate/finish combinations
+  - Automatic task sorting, role assignment, deduplication
+- [x] Phase 1.5.g: Order Folder & Image Management
+- [ ] Phase 1.5.e: Enhanced Row Management UI (optional enhancement)
 
 ### Phase 2: Essential Features (3-4 weeks)
 - [ ] Jobs Table (searchable/filterable list)
@@ -413,12 +423,24 @@ LIMIT ?  -- Fails with correlated subqueries
 
 ---
 
-**Document Status**: Phase 1 85% Complete, Phase 1.5 35% Complete (1.5.a-b done, 1.5.c-f pending)
-**Last Updated**: 2025-11-06
+**Document Status**: Phase 1 100% Complete ✅, Phase 1.5 90% Complete (major features done)
+**Last Updated**: 2025-11-25
 **Owner**: Jon (with Claude Code assistance)
-**Recent Updates**:
-- Phase 1.5.a & 1.5.a.5: ApproveEstimateModal fully functional with business days, contacts, hard due dates
-- Phase 1.5.b: Database schema updates applied (customer_job_number, hard_due_date_time, etc.)
-- Phase 1: Core order management operational (conversion, progress tracking, dashboard, table views)
-- Status enum uses 'job_details_setup' (not 'initiated') as first status
-- Only ApproveEstimateModal exists (no edit/delete/clone modals - using inline editing)
+
+**Recent Major Updates (Nov 2025)**:
+- **Phase 1.5.c.6**: Complete order preparation workflow (Validation, QB, PDFs, Tasks) - 2025-11-18 to 2025-11-20
+- **Phase 1.5.c.6.3**: Gmail integration and send to customer workflow - 2025-11-25
+- **Phase 1.5.d**: Intelligent task generation system with 25+ product rules - 2025-11-21 to 2025-11-24
+  - 6 new backend services in `/backend/web/src/services/taskGeneration/`
+  - Painting task matrix, spec parser, automatic role assignment
+  - Part grouping and task deduplication
+- **Production Stats**: 2,064 orders processed, 86 in job_details_setup, 1,923 completed
+- **Build System**: Dual dev/production build management implemented
+- **Code Size**: 68 frontend components, 28 backend services
+
+**Architecture Notes**:
+- Following 3-layer pattern (Route → Controller → Service → Repository)
+- 8 order-related database tables with comprehensive relationships
+- 15 production roles for task assignment
+- Order data hash service for staleness detection
+- Full audit trail and version history tracking

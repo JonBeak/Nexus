@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+// File Clean up Finished: 2025-11-25
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 
 // Eager imports (needed immediately)
@@ -100,11 +101,11 @@ function AppContent() {
         } />
 
         <Route path="/time-management" element={
-          user && (user.role === 'manager' || user.role === 'owner') ? <TimeManagement user={user as any} /> : <Navigate to="/dashboard" />
+          user && (user.role === 'manager' || user.role === 'owner') ? <TimeManagement user={user} /> : <Navigate to="/dashboard" />
         } />
 
         <Route path="/vinyl-inventory" element={
-          user ? <VinylInventory user={user as any} /> : <Navigate to="/login" />
+          user ? <VinylInventory user={user} /> : <Navigate to="/login" />
         } />
 
         <Route path="/wages" element={

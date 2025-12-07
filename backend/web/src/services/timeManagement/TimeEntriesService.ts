@@ -224,6 +224,18 @@ export class TimeEntriesService {
         };
       }
 
+      // Check if entry exists
+      const entry = await TimeEntryRepository.getEntryById(entryId);
+      if (!entry) {
+        return {
+          success: false,
+          error: 'Time entry not found',
+          code: 'NOT_FOUND'
+        };
+      }
+
+      // Note: All entries can be deleted (soft delete preserves data for audit)
+
       // Soft delete entry
       await TimeEntryRepository.deleteEntry(entryId);
 

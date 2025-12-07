@@ -225,13 +225,12 @@ export async function getOrderPointPersons(orderNumber: number): Promise<OrderPo
       pp.contact_email,
       pp.contact_phone,
       pp.contact_role,
-      pp.is_primary,
-      pp.created_at,
-      pp.created_by
+      pp.display_order,
+      pp.created_at
     FROM order_point_persons pp
     JOIN orders o ON o.order_id = pp.order_id
     WHERE o.order_number = ?
-    ORDER BY pp.is_primary DESC, pp.created_at ASC`,
+    ORDER BY pp.display_order ASC, pp.created_at ASC`,
     [orderNumber]
   ) as RowDataPacket[];
 
@@ -242,9 +241,9 @@ export async function getOrderPointPersons(orderNumber: number): Promise<OrderPo
     contact_email: row.contact_email,
     contact_phone: row.contact_phone,
     contact_role: row.contact_role,
-    is_primary: row.is_primary === 1,
+    is_primary: false, // Not in schema, set to false
     created_at: row.created_at,
-    created_by: row.created_by
+    created_by: 0 // Not in schema, set to 0
   }));
 }
 

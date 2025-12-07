@@ -308,6 +308,7 @@ export interface SimpleUser {
   last_name: string;
   email: string;
   role: string;
+  show_in_time_calendar: boolean;
 }
 
 // ============================================================================

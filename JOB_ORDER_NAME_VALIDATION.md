@@ -169,7 +169,7 @@ But if job name has a trailing period, it's in the middle of the folder path and
 
 **File:** `/home/jon/Nexus/backend/web/src/utils/folderNameValidation.ts`
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 ```typescript
 export interface FolderNameValidationResult {
@@ -201,7 +201,7 @@ export function validateCustomerName(name: string | null | undefined): FolderNam
 
 **File:** `/home/jon/Nexus/frontend/web/src/utils/folderNameValidation.ts`
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 Mirror of backend validation for client-side validation on form submit.
 
@@ -211,27 +211,27 @@ Mirror of backend validation for client-side validation on form submit.
 
 **File:** `/home/jon/Nexus/backend/web/src/controllers/jobController.ts`
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 **Changes:**
 
-| Method | Line | Change |
-|--------|------|--------|
-| `validateJobName()` | 91-138 | Add character validation, return errors in response |
-| `updateJob()` | 140-167 | Add validation before update |
-| `createJob()` | 169-197 | Add validation before create |
+| Method | Line | Change | Status |
+|--------|------|--------|--------|
+| `validateJobName()` | 91-150 | Add character validation, return errors in response | ✓ |
+| `updateJob()` | 152-185 | Add validation before update | ✓ |
+| `createJob()` | 187-222 | Add validation before create | ✓ |
 
 #### orderConversionController.ts
 
 **File:** `/home/jon/Nexus/backend/web/src/controllers/orderConversionController.ts`
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 **Changes:**
 
-| Method | Line | Change |
-|--------|------|--------|
-| `convertEstimateToOrder()` | 26-75 | Add validation for `orderName` field |
+| Method | Line | Change | Status |
+|--------|------|--------|--------|
+| `convertEstimateToOrder()` | 27-83 | Add validation for `orderName` field | ✓ |
 
 ### 4. Frontend Component Updates
 
@@ -239,36 +239,36 @@ Mirror of backend validation for client-side validation on form submit.
 
 **File:** `/home/jon/Nexus/frontend/web/src/components/jobEstimation/JobPanel.tsx`
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 **Changes:**
 
-| Function | Line | Change |
-|----------|------|--------|
-| `handleCreateJob()` | 163-178 | Add validation before API call |
-| `handleSaveEdit()` | 116-142 | Add validation before API call |
+| Function | Line | Change | Status |
+|----------|------|--------|--------|
+| `handleCreateJob()` | 164-187 | Add validation before API call | ✓ |
+| `handleSaveEdit()` | 117-152 | Add validation before API call | ✓ |
 
 **Validation Behavior:**
-- Validate on form submit only (not real-time)
-- Show error message in modal/inline
-- Block submission if invalid
+- Validate on form submit only (not real-time) ✓
+- Show error message in modal/inline ✓
+- Block submission if invalid ✓
 
 #### ApproveEstimateModal.tsx
 
 **File:** `/home/jon/Nexus/frontend/web/src/components/orders/modals/ApproveEstimateModal.tsx`
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 **Changes:**
-- Add validation for `orderName` before calling convert API
-- Show validation error near order name input
-- Block submission if invalid
+- Add validation for `orderName` before calling convert API ✓
+- Show validation error near order name input ✓
+- Block submission if invalid ✓
 
 ### 5. buildFolderName() Update
 
 **File:** `/home/jon/Nexus/backend/web/src/services/orderFolderService.ts`
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 **Current (line 61-71):**
 ```typescript
@@ -330,25 +330,25 @@ buildFolderName(orderName: string, customerName: string): string {
 
 ### Checklist
 
-- [ ] **Phase 1: Create Validation Utilities**
-  - [ ] Backend: `folderNameValidation.ts`
-  - [ ] Frontend: `folderNameValidation.ts`
+- [x] **Phase 1: Create Validation Utilities** ✓ COMPLETED
+  - [x] Backend: `folderNameValidation.ts`
+  - [x] Frontend: `folderNameValidation.ts`
 
-- [ ] **Phase 2: Backend Integration**
-  - [ ] Update `jobController.ts` - validateJobName()
-  - [ ] Update `jobController.ts` - createJob()
-  - [ ] Update `jobController.ts` - updateJob()
-  - [ ] Update `orderConversionController.ts` - convertEstimateToOrder()
+- [x] **Phase 2: Backend Integration** ✓ COMPLETED
+  - [x] Update `jobController.ts` - validateJobName()
+  - [x] Update `jobController.ts` - createJob()
+  - [x] Update `jobController.ts` - updateJob()
+  - [x] Update `orderConversionController.ts` - convertEstimateToOrder()
 
-- [ ] **Phase 3: Frontend Integration**
-  - [ ] Update `JobPanel.tsx` - handleCreateJob()
-  - [ ] Update `JobPanel.tsx` - handleSaveEdit()
-  - [ ] Update `ApproveEstimateModal.tsx` - order name validation
+- [x] **Phase 3: Frontend Integration** ✓ COMPLETED
+  - [x] Update `JobPanel.tsx` - handleCreateJob()
+  - [x] Update `JobPanel.tsx` - handleSaveEdit()
+  - [x] Update `ApproveEstimateModal.tsx` - order name validation
 
-- [ ] **Phase 4: Sanitization Update**
-  - [ ] Update `orderFolderService.ts` - buildFolderName()
+- [x] **Phase 4: Sanitization Update** ✓ COMPLETED
+  - [x] Update `orderFolderService.ts` - buildFolderName()
 
-- [ ] **Phase 5: Testing**
+- [ ] **Phase 5: Testing** (READY FOR TESTING)
   - [ ] Test job creation with valid names
   - [ ] Test job creation with invalid characters
   - [ ] Test job edit with valid names
@@ -361,29 +361,42 @@ buildFolderName(orderName: string, customerName: string): string {
 
 ## Testing Checklist
 
-### Backend API Tests
+### Manual UI Testing Guide
 
-```bash
-# Test job creation with invalid characters
-curl -X POST /api/job-versioning/jobs \
-  -d '{"customer_id": 1, "job_name": "Test/Project"}' \
-  # Expected: 400 error with validation message
+**URL:** https://nexuswebapp.duckdns.org
 
-# Test job creation with trailing space
-curl -X POST /api/job-versioning/jobs \
-  -d '{"customer_id": 1, "job_name": "Test Project "}' \
-  # Expected: 400 error
+#### Test 1: Job Creation with Invalid Characters
+1. Navigate to Job Estimation
+2. Select a customer
+3. Click "+ New Job"
+4. Try these job names and observe errors:
 
-# Test job creation with trailing period (should succeed)
-curl -X POST /api/job-versioning/jobs \
-  -d '{"customer_id": 1, "job_name": "Test Project Inc."}' \
-  # Expected: 200 success
+| Input | Expected Result | Error Message |
+|-------|----------------|---------------|
+| `Test/Project` | ❌ Blocked | "Job name contains invalid characters..." |
+| `Test<Project>` | ❌ Blocked | "Job name contains invalid characters..." |
+| `Test Project ` (trailing space) | ❌ Blocked | "Job name cannot end with a space" |
+| `.Hidden` | ❌ Blocked | "Job name cannot start with a period" |
+| `CON` | ❌ Blocked | "Job name cannot be a Windows reserved name" |
+| `Test Project Inc.` (trailing period) | ✅ Success | (none - trailing periods allowed) |
+| `O'Brien Signs` | ✅ Success | (none - apostrophes allowed) |
 
-# Test order conversion with invalid name
-curl -X POST /api/orders/convert-estimate \
-  -d '{"estimateId": 1, "orderName": "Order<Test>"}' \
-  # Expected: 400 error
-```
+#### Test 2: Job Inline Edit
+1. Find an existing job in the job panel
+2. Click the edit icon (pencil)
+3. Try changing the name to invalid inputs above
+4. Should see alert() popup with error message
+
+#### Test 3: Order Conversion
+1. Navigate to an approved estimate
+2. Click "Convert to Order"
+3. Try these order names:
+
+| Input | Expected Result |
+|-------|----------------|
+| `Order/Test` | ❌ Blocked with error |
+| `Order Name ` (trailing space) | ❌ Blocked with error |
+| `Order Name Inc.` (trailing period) | ✅ Success |
 
 ### Frontend UI Tests
 

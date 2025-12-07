@@ -1,3 +1,5 @@
+// File Clean up Finished: 2025-11-25
+// Note: Future feature scaffolding - backend routes not yet implemented
 import api from './api';
 
 export interface MaterialCategory {

@@ -46,6 +46,8 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
     handleSpecFieldSave,
     addSpecRow,
     removeSpecRow,
+    insertSpecRowAfter,
+    deleteSpecRow,
     toggleIsParent,
     addPartRow,
     removePartRow,
@@ -145,8 +147,8 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
                     onFieldSave={handleFieldSave}
                     onTemplateSave={handleTemplateSave}
                     onSpecFieldSave={handleSpecFieldSave}
-                    onAddRow={addSpecRow}
-                    onRemoveRow={removeSpecRow}
+                    onInsertAfter={insertSpecRowAfter}
+                    onDelete={deleteSpecRow}
                     onToggleParent={toggleIsParent}
                     onRemovePartRow={removePartRow}
                     onUpdate={handleRefreshParts}

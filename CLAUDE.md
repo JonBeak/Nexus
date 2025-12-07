@@ -175,6 +175,7 @@
     <Rule name="TimeTracking">Employee time entries require manager approval, with edit request workflow</Rule>
     <Rule name="InventoryControl">Vinyl inventory with low stock alerts, supplier cost tracking, and reservation system</Rule>
     <Rule name="RoleBasedAccess">Comprehensive RBAC system with granular permissions and audit logging</Rule>
+    <Rule name="FrontendRBAC">Frontend uses simple role checks (owner/manager/staff) for UI visibility; backend enforces granular permissions on API calls. No frontend permission API needed - decided 2025-11-25 during cleanup.</Rule>
   </BusinessDomainRules>
 
   <CodeStandards>

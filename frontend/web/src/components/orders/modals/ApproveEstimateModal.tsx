@@ -10,6 +10,7 @@ import { CheckCircle, AlertTriangle, X, Plus, Trash2 } from 'lucide-react';
 import { apiClient, ordersApi, customerApi, customerContactsApi } from '../../../services/api';
 import type { EstimatePreviewData } from '../../jobEstimation/core/layers/CalculationLayer';
 import type { PointPersonInput } from '../../../types/orders';
+import { validateJobOrOrderName } from '../../../utils/folderNameValidation';
 
 interface ApproveEstimateModalProps {
   isOpen: boolean;
@@ -353,6 +354,13 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
   const handleApprove = async () => {
     if (!orderName.trim()) {
       setError('Order name is required');
+      return;
+    }
+
+    // Validate Windows folder name compatibility
+    const nameValidation = validateJobOrOrderName(orderName);
+    if (!nameValidation.isValid) {
+      setError(nameValidation.error);
       return;
     }
 

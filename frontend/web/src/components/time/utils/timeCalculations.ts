@@ -1,18 +1,8 @@
 import type { TimeEntry } from '../../../types/time';
+import { formatTimeForDisplay } from '../../../lib/timeUtils';
 
-export const formatTime = (dateString: string | null) => {
-  if (!dateString) return '-';
-  
-  // MySQL returns datetime as 'YYYY-MM-DD HH:MM:SS' which JavaScript interprets as local time
-  // But if it includes 'T' it might be interpreted as UTC, causing timezone issues
-  const date = new Date(dateString.replace('T', ' ').replace('Z', ''));
-  
-  return date.toLocaleTimeString('en-US', { 
-    hour: '2-digit', 
-    minute: '2-digit',
-    hour12: true 
-  });
-};
+// Re-export for backwards compatibility
+export const formatTime = formatTimeForDisplay;
 
 export const formatDate = (dateString: string) => {
   if (!dateString) return '-';

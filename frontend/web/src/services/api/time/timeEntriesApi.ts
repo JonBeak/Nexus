@@ -108,4 +108,12 @@ export const timeEntriesApi = {
     });
     return response.data;
   },
+
+  /**
+   * Get all active users
+   */
+  getUsers: async () => {
+    const response = await api.get('/time-management/users');
+    return response.data;
+  },
 };

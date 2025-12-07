@@ -152,7 +152,7 @@ async function calculatePricingData(orderData: OrderDataForPDF): Promise<Pricing
   const lineItems: LineItem[] = invoiceParts
     .map((part) => ({
       qbItem: part.qb_item_name || '',
-      description: part.invoice_description || part.product_type,
+      description: part.invoice_description || '',  // Price Calculation column only, no fallback
       quantity: Number(part.quantity) || 0,
       unitPrice: Number(part.unit_price) || 0,
       extended: Number(part.extended_price) || 0

@@ -1,6 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
-import PrintFormsContent from './PrintFormsContent';
+import PrintFormsContent, { PrintMode } from './PrintFormsContent';
 import PDFPreviewPanel from './PDFPreviewPanel';
 
 interface PrintConfig {
@@ -28,6 +28,9 @@ interface PrintFormsWithPreviewProps {
   onPrintShopPacking: () => void;
   printing: boolean;
   formUrls: FormUrls | null;
+  mode?: PrintMode;
+  onPrintAndMoveToProduction?: () => void;
+  onMoveToProductionWithoutPrinting?: () => void;
 }
 
 const PrintFormsWithPreview: React.FC<PrintFormsWithPreviewProps> = ({
@@ -39,7 +42,10 @@ const PrintFormsWithPreview: React.FC<PrintFormsWithPreviewProps> = ({
   onPrintMasterEstimate,
   onPrintShopPacking,
   printing,
-  formUrls
+  formUrls,
+  mode = 'full',
+  onPrintAndMoveToProduction,
+  onMoveToProductionWithoutPrinting
 }) => {
   if (!isOpen) return null;
 
@@ -71,6 +77,9 @@ const PrintFormsWithPreview: React.FC<PrintFormsWithPreviewProps> = ({
               onClose={onClose}
               printing={printing}
               showCloseButton={false}
+              mode={mode}
+              onPrintAndMoveToProduction={onPrintAndMoveToProduction}
+              onMoveToProductionWithoutPrinting={onMoveToProductionWithoutPrinting}
             />
           </div>
 

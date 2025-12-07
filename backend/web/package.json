@@ -11,7 +11,9 @@
     "test:watch": "NODE_ENV=test jest --watch",
     "test:coverage": "NODE_ENV=test jest --coverage",
     "migrate:credentials": "tsx src/scripts/migrateCredentials.ts",
-    "update:qb-credentials": "node update-qb-credentials.js"
+    "update:qb-credentials": "node update-qb-credentials.js",
+    "setup:gmail-credentials": "tsx src/scripts/setup-gmail-credentials.ts",
+    "test:gmail-auth": "tsx src/scripts/test-gmail-auth.ts"
   },
   "keywords": [],
   "author": "",
@@ -26,6 +28,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
+    "googleapis": "^166.0.0",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.14.3",
     "node-cron": "^4.2.1",

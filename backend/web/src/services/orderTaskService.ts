@@ -20,6 +20,8 @@
 import { orderPartRepository } from '../repositories/orderPartRepository';
 import { orderRepository } from '../repositories/orderRepository';
 import { OrderTask, ProductionRole } from '../types/orders';
+import { query } from '../config/database';
+import { RowDataPacket } from 'mysql2';
 
 /**
  * Interface for batch task update operations
@@ -37,14 +39,81 @@ export class OrderTaskService {
   // =====================================================
 
   /**
+   * Check if all tasks for an order are completed
+   */
+  private async areAllTasksCompleted(orderId: number): Promise<boolean> {
+    const rows = await query(
+      `SELECT COUNT(*) as total_tasks,
+              SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed_tasks
+       FROM order_tasks
+       WHERE order_id = ?`,
+      [orderId]
+    ) as RowDataPacket[];
+
+    if (rows.length === 0 || rows[0].total_tasks === 0) {
+      return false; // No tasks means not all completed
+    }
+
+    const total = Number(rows[0].total_tasks);
+    const completed = Number(rows[0].completed_tasks || 0);
+
+    return total === completed;
+  }
+
+  /**
    * Update task completion status
+   * Priority Logic:
+   * 1. If all tasks completed AND order in (production_queue, in_production, overdue) → move to qc_packing
+   * 2. Else if order in production_queue → move to in_production
    */
   async updateTaskCompletion(
     taskId: number,
     completed: boolean,
     userId: number
   ): Promise<void> {
+    // Get the order_id from the task
+    const taskRows = await query(
+      'SELECT order_id FROM order_tasks WHERE task_id = ?',
+      [taskId]
+    ) as RowDataPacket[];
+
+    if (taskRows.length === 0) {
+      throw new Error('Task not found');
+    }
+
+    const orderId = taskRows[0].order_id;
+
+    // Update the task completion
     await orderPartRepository.updateTaskCompletion(taskId, completed, userId);
+
+    // If task was just completed (not uncompleted), check order status transitions
+    if (completed) {
+      const order = await orderRepository.getOrderById(orderId);
+
+      if (!order) {
+        return;
+      }
+
+      // PRIORITY 1: Check if all tasks are completed
+      const allTasksCompleted = await this.areAllTasksCompleted(orderId);
+
+      if (allTasksCompleted &&
+          (order.status === 'production_queue' ||
+           order.status === 'in_production' ||
+           order.status === 'overdue')) {
+        // Move to QC & Packing
+        await orderRepository.updateOrderStatus(
+          order.order_id,
+          'qc_packing'
+        );
+      } else if (order.status === 'production_queue') {
+        // PRIORITY 2: Move from Production Queue to In Production
+        await orderRepository.updateOrderStatus(
+          order.order_id,
+          'in_production'
+        );
+      }
+    }
   }
 
   /**
@@ -139,8 +208,14 @@ export class OrderTaskService {
 
   /**
    * Batch update tasks (start/complete)
+   * Priority Logic:
+   * 1. If all tasks completed AND order in (production_queue, in_production, overdue) → move to qc_packing
+   * 2. Else if order in production_queue → move to in_production
    */
   async batchUpdateTasks(updates: TaskUpdate[], userId: number): Promise<void> {
+    // Track which orders had tasks completed
+    const ordersWithCompletedTasks = new Set<number>();
+
     for (const update of updates) {
       const { task_id, started, completed } = update;
 
@@ -149,7 +224,46 @@ export class OrderTaskService {
       }
 
       if (completed !== undefined) {
+        // Get the order_id from the task
+        const taskRows = await query(
+          'SELECT order_id FROM order_tasks WHERE task_id = ?',
+          [task_id]
+        ) as RowDataPacket[];
+
+        if (taskRows.length > 0 && completed) {
+          ordersWithCompletedTasks.add(taskRows[0].order_id);
+        }
+
         await orderPartRepository.updateTaskCompletion(task_id, completed, userId);
+      }
+    }
+
+    // For each order that had tasks completed, check if it needs status transition
+    for (const orderId of ordersWithCompletedTasks) {
+      const order = await orderRepository.getOrderById(orderId);
+
+      if (!order) {
+        continue;
+      }
+
+      // PRIORITY 1: Check if all tasks are completed
+      const allTasksCompleted = await this.areAllTasksCompleted(orderId);
+
+      if (allTasksCompleted &&
+          (order.status === 'production_queue' ||
+           order.status === 'in_production' ||
+           order.status === 'overdue')) {
+        // Move to QC & Packing
+        await orderRepository.updateOrderStatus(
+          order.order_id,
+          'qc_packing'
+        );
+      } else if (order.status === 'production_queue') {
+        // PRIORITY 2: Move from Production Queue to In Production
+        await orderRepository.updateOrderStatus(
+          order.order_id,
+          'in_production'
+        );
       }
     }
   }

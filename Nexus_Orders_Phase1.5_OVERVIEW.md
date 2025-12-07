@@ -1,9 +1,9 @@
 # Phase 1.5: Order Building System - Overview
 
-**Status:** 🚧 IN PROGRESS - Phases 1.5.a through 1.5.c.5 + Phase 1.5.g COMPLETE ✅
+**Status:** 🚧 IN PROGRESS - 90% COMPLETE (Major phases done: a, b, c.1-c.6.3, d, g ✅)
 **Priority:** CRITICAL - Fills gap between Phase 1 and Phase 2
 **Total Duration:** 3-4 weeks (Phase 1.5.g added in parallel)
-**Last Updated:** 2025-11-12
+**Last Updated:** 2025-11-25
 
 ---
 
@@ -65,6 +65,29 @@
   - ✅ Parent/child row styling
   - ✅ 572 lines of new UI components
 
+- ✅ **Phase 1.5.c.6 - Order Preparation Workflow - COMPLETE** (2025-11-18 to 2025-11-20)
+  - ✅ PrepareOrderModal with 4-step workflow
+  - ✅ Step 1: Validation (25 specification templates)
+  - ✅ Step 2: QB Estimate creation with staleness detection
+  - ✅ Step 3: PDF Generation (Order Form, Packing List, Internal Estimate, QB Estimate)
+  - ✅ Step 4: Task Generation (intelligent rules-based system)
+  - ✅ Live PDF preview panel
+  - ✅ Compact step UI with real-time status updates
+  - ✅ order_qb_estimates table for QB estimate tracking
+  - ✅ Build management system (dual dev/production builds)
+
+### Phase 1.5.d - Task Generation System
+- ✅ **Phase 1.5.d - COMPLETE** (2025-11-21 to 2025-11-24)
+  - ✅ Intelligent task generation engine (`/backend/web/src/services/taskGeneration/`)
+  - ✅ Spec-driven task generation with 25+ product rules
+  - ✅ Painting task matrix with substrate/finish combinations
+  - ✅ Automatic task sorting and role assignment (15 production roles)
+  - ✅ Part grouping (parent + sub-parts processed together)
+  - ✅ Task deduplication and dependency management
+  - ✅ Spec parser for extracting paint specifications
+  - ✅ Backer product support in specs autofill
+  - ✅ Point person management endpoints
+
 ### Phase 1.5.g - Order Folder & Image Management
 - ✅ **Phase 1.5.g - COMPLETE** (2025-11-12)
   - ✅ Database migrations for folder tracking (1,978 orders migrated from SMB)
@@ -76,11 +99,17 @@
   - ✅ Image crop coordinate storage and management
   - ✅ Order folder service for folder operations
 
+- ✅ **Phase 1.5.c.6.3 - Send to Customer - COMPLETE** (2025-11-25)
+  - ✅ SendToCustomerPanel with point person selection
+  - ✅ Email preview with template and attachments
+  - ✅ Gmail API integration (fully functional)
+  - ✅ Order finalization service with status updates
+  - ✅ Status change to pending_confirmation
+  - ✅ 9 test scripts for Gmail functionality verification
+
 ### Pending
-- ⏳ Phase 1.5.c.6 - Finalization Panel (READY - next task)
-- ⏳ Phase 1.5.d - Dynamic specs & tasks (deferred - may not be needed)
-- ⏳ Phase 1.5.e - Separator rows & row management (deferred - may merge with future phases)
-- ⏳ Phase 1.5.f - Order finalization workflow (covered by c.6)
+- ⏳ Phase 1.5.e - Separator rows & row management (basic exists, comprehensive UI incomplete)
+- ⏳ Phase 1.5.f - Order finalization workflow (COMPLETE - merged with c.6.3)
 
 ---
 
@@ -1024,19 +1053,30 @@ Phase 1.5 is COMPLETE when:
 
 ---
 
-**Document Status:** 110% Complete - Phases 1.5.a through 1.5.c.5 + Phase 1.5.g DONE ✅
-**Last Updated:** 2025-11-12
+**Document Status:** 90% Complete - Major phases DONE (a, b, c.1-c.6.3, d, g ✅), Minor phase pending (e)
+**Last Updated:** 2025-11-25
 **Completed Phases:**
-- Phase 1.5.a: Numbering fix + order creation ✅
-- Phase 1.5.a.5: ApproveEstimateModal enhancements ✅
-- Phase 1.5.b: Database schema updates ✅
-- Phase 1.5.c.1: Frontend API Layer ✅
-- Phase 1.5.c.2: Order Template System ✅
-- Phase 1.5.c.3: Snapshot & Versioning (unlimited history) ✅
-- Phase 1.5.c.4: Task Management UI ✅
-- Phase 1.5.c.5: Dual-Table Core UI ✅
-- **Phase 1.5.g: Order Folder & Image Management (2025-11-12) ✅**
-**Next Step:** Begin Phase 1.5.c.6 (Finalization Panel - ~4 hours remaining) OR Phase 1.5.f (Order Finalization Workflow)
+- Phase 1.5.a: Numbering fix + order creation ✅ (2025-11-06)
+- Phase 1.5.a.5: ApproveEstimateModal enhancements ✅ (2025-11-06)
+- Phase 1.5.b: Database schema updates ✅ (2025-11-06)
+- Phase 1.5.c.1: Frontend API Layer ✅ (2025-11-07)
+- Phase 1.5.c.2: Order Template System ✅ (2025-11-07)
+- Phase 1.5.c.3: Snapshot & Versioning (unlimited history) ✅ (2025-11-06)
+- Phase 1.5.c.4: Task Management UI ✅ (2025-11-07)
+- Phase 1.5.c.5: Dual-Table Core UI ✅ (2025-11-07)
+- **Phase 1.5.c.6: Order Preparation Workflow ✅ (2025-11-18 to 2025-11-20)**
+- **Phase 1.5.c.6.3: Send to Customer (Gmail Integration) ✅ (2025-11-25)**
+- **Phase 1.5.d: Task Generation System ✅ (2025-11-21 to 2025-11-24)**
+- **Phase 1.5.g: Order Folder & Image Management ✅ (2025-11-12)**
 
-**Phase 1.5.g Status:** COMPLETE - Full folder tracking, image management, and printing services implemented (2025-11-12)
-**Phase 1.h Status:** DEFERRED - Manual testing completed informally, formal E2E testing deferred
+**Production Stats (as of 2025-11-24):**
+- 2,064 orders in database
+- 86 orders in job_details_setup status
+- 55 orders in production
+- 1,923 orders completed
+- 68 frontend components, 28 backend services
+
+**Next Steps:**
+1. Phase 1.5.e - Enhanced row management UI (add/edit/delete comprehensive UI) - Optional enhancement
+2. Phase 2 - Essential features (Jobs Table, Calendar, QB automation, completed jobs archive)
+3. Gmail API production configuration and testing

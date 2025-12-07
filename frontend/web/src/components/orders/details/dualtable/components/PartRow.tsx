@@ -40,8 +40,8 @@ interface PartRowProps {
   onFieldSave: (partId: number, field: string, value: string) => Promise<void>;
   onTemplateSave: (partId: number, rowNum: number, value: string) => Promise<void>;
   onSpecFieldSave: (partId: number, specKey: string, value: string) => Promise<void>;
-  onAddRow: (partId: number) => void;
-  onRemoveRow: (partId: number) => void;
+  onInsertAfter: (partId: number, afterRowNum: number) => void;
+  onDelete: (partId: number, rowNum: number) => void;
   onToggleParent: (partId: number) => void;
   onRemovePartRow: (partId: number) => void;
   onUpdate: () => void;
@@ -56,8 +56,8 @@ export const PartRow: React.FC<PartRowProps> = ({
   onFieldSave,
   onTemplateSave,
   onSpecFieldSave,
-  onAddRow,
-  onRemoveRow,
+  onInsertAfter,
+  onDelete,
   onToggleParent,
   onRemovePartRow,
   onUpdate
@@ -278,7 +278,7 @@ export const PartRow: React.FC<PartRowProps> = ({
         )}
       </div>
 
-      {/* Specification Rows - contains template dropdown + spec 1-3 fields */}
+      {/* Specification Rows - contains template dropdown + spec 1-3 fields + per-row actions */}
       <SpecificationRows
         part={part}
         rowCount={rowCount}
@@ -286,27 +286,9 @@ export const PartRow: React.FC<PartRowProps> = ({
         emptySpecRows={emptySpecRows}
         onTemplateSave={onTemplateSave}
         onSpecFieldSave={onSpecFieldSave}
+        onInsertAfter={onInsertAfter}
+        onDelete={onDelete}
       />
-
-      {/* Actions: Add/Remove Spec Row Buttons */}
-      <div className="flex flex-row items-start justify-center pt-1 space-x-1 h-full">
-        <button
-          onClick={() => onAddRow(part.part_id)}
-          disabled={rowCount >= 20}
-          className="w-5 h-5 flex items-center justify-center text-xs font-bold text-gray-700 bg-white hover:bg-gray-100 border-2 border-gray-500 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed rounded"
-          title="Add spec row"
-        >
-          +
-        </button>
-        <button
-          onClick={() => onRemoveRow(part.part_id)}
-          disabled={rowCount <= 1}
-          className="w-5 h-5 flex items-center justify-center text-xs font-bold text-white bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed rounded"
-          title="Remove spec row"
-        >
-          −
-        </button>
-      </div>
 
       {/* QB Item Name - spans full height (with divider) */}
       <div className="flex items-start border-l-2 border-gray-400 pl-2 h-full">

@@ -15,9 +15,9 @@ import { EMPTY_FIELD_BG_CLASS } from './highlightStyles';
  * Core Style Constants
  * Edit these to change styling across ALL inputs
  */
-export const BORDER_RADIUS = 'rounded'; // Change to 'rounded-none', 'rounded-sm', 'rounded-md', etc.
+export const BORDER_RADIUS = 'rounded-none'; // Change to 'rounded-none', 'rounded-sm', 'rounded-md', etc.
 export const FOCUS_OUTLINE = 'focus:outline-none';
-export const FOCUS_RING = 'focus:ring-1';
+export const FOCUS_RING = 'focus:ring-1 focus:ring-inset';
 export const FOCUS_RING_COLOR = 'focus:ring-indigo-500';
 export const FOCUS_BORDER_COLOR = 'focus:border-indigo-500';
 
@@ -25,7 +25,7 @@ export const FOCUS_BORDER_COLOR = 'focus:border-indigo-500';
  * Shared property groups
  */
 const FOCUS_STYLES = `${FOCUS_OUTLINE} ${FOCUS_RING} ${FOCUS_RING_COLOR} ${FOCUS_BORDER_COLOR}`;
-const BORDER_STYLES = `border ${BORDER_RADIUS}`;
+const BORDER_STYLES = `border border-black ${BORDER_RADIUS}`;
 
 /**
  * Text color utilities
@@ -105,14 +105,16 @@ export const INPUT_STYLES = {
   specField: (options?: {
     hasValue?: boolean;
     isEmpty?: boolean;
+    removeRightBorder?: boolean;
   }) => {
-    const { hasValue = false, isEmpty = false } = options || {};
+    const { hasValue = false, isEmpty = false, removeRightBorder = false } = options || {};
 
     return [
       'w-full h-[26px]',
       'px-1.5',
       'text-xs',
       BORDER_STYLES,
+      removeRightBorder ? 'border-r-0' : '',
       FOCUS_STYLES,
       hasValue ? TEXT_COLORS.filled : TEXT_COLORS.empty,
       isEmpty ? EMPTY_FIELD_BG_CLASS : '',

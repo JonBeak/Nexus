@@ -118,4 +118,27 @@ router.get(
   orderPrepController.getPointPersons
 );
 
+/**
+ * GET /api/order-preparation/:orderNumber/email-preview
+ * Get email preview HTML for Send to Customer step
+ */
+router.get(
+  '/:orderNumber/email-preview',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderPrepController.getEmailPreview
+);
+
+/**
+ * POST /api/order-preparation/:orderNumber/finalize
+ * Finalize order and optionally send to customer
+ * (Phase 1.5.c.6.3 - Send to Customer)
+ */
+router.post(
+  '/:orderNumber/finalize',
+  authenticateToken,
+  requirePermission('orders.prepare'),
+  orderPrepController.finalizeOrder
+);
+
 export default router;

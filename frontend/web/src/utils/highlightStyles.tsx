@@ -226,25 +226,25 @@ export function getValidSpecTemplateClass(
   baseClass: string = ''
 ): string {
   if (hasValue) {
-    return `${baseClass} border-gray-800 ring-1 ring-gray-800 bg-gray-200`;
+    return `${baseClass} border-gray-800 bg-gray-200`;
   }
   return baseClass;
 }
 
 /**
- * Get className for valid specification fields (darker black outline, no background)
+ * Get className for valid specification fields (light blue background)
  * Used in spec 1-3 fields to highlight when they have valid data
  *
  * @param hasValue - Whether the field has a valid value
  * @param baseClass - Base CSS classes to apply
- * @returns Combined className string with dark outline if valid
+ * @returns Combined className string with blue background if valid
  */
 export function getValidSpecFieldClass(
   hasValue: boolean,
   baseClass: string = ''
 ): string {
   if (hasValue) {
-    return `${baseClass} border-gray-800`;
+    return `${baseClass} bg-blue-200`;
   }
   return baseClass;
 }

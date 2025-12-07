@@ -1,3 +1,4 @@
+// File Clean up Finished: 2025-11-25
 import axios from 'axios';
 import { triggerSessionExpired } from '../contexts/SessionContext';
 
@@ -27,30 +28,10 @@ api.interceptors.request.use(
 // Response interceptor to handle auth errors and refresh tokens
 api.interceptors.response.use(
   (response) => {
-    // Log grid-data responses for debugging
-    if (response.config.url?.includes('/grid-data')) {
-      console.log('🔍 [apiClient interceptor] Grid data response:', {
-        url: response.config.url,
-        status: response.status,
-        rawData: response.data,
-        hasSuccessField: response.data && 'success' in response.data,
-        hasDataField: response.data && 'data' in response.data
-      });
-    }
-
     // Unwrap ServiceResult<T> responses from backend
     // Backend returns { success: true, data: T } or { success: false, error: string, code: string }
     if (response.data && typeof response.data === 'object' && 'success' in response.data && 'data' in response.data) {
-      const unwrappedData = response.data.data;
-      if (response.config.url?.includes('/grid-data')) {
-        console.log('📦 [apiClient interceptor] Unwrapped grid data:', {
-          unwrappedData,
-          type: typeof unwrappedData,
-          isArray: Array.isArray(unwrappedData),
-          length: Array.isArray(unwrappedData) ? unwrappedData.length : 'N/A'
-        });
-      }
-      response.data = unwrappedData;
+      response.data = response.data.data;
     }
     return response;
   },

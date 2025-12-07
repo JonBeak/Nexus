@@ -1,5 +1,6 @@
 import React from 'react';
 import type { WeeklyData, WeeklyEntry } from '../../types/time';
+import { formatTimeForDisplay } from '../../lib/timeUtils';
 
 interface WeeklySummaryProps {
   weeklyData: WeeklyData | null;
@@ -40,18 +41,6 @@ function WeeklySummary({
     }
     
     return num.toFixed(2);
-  };
-  const formatTime = (dateString: string | null) => {
-    if (!dateString) return '-';
-
-    // Parse datetime string directly without timezone conversion
-    const cleanDateString = dateString.replace(' ', 'T').replace('.000Z', '');
-    const hour = parseInt(cleanDateString.substring(11, 13) || '0');
-    const minute = parseInt(cleanDateString.substring(14, 16) || '0');
-    
-    // Format time manually to avoid timezone conversion
-    const localDate = new Date(2000, 0, 1, hour, minute); // Use arbitrary date, just for time formatting
-    return localDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   };
 
   const formatDate = (dateString: string) => {
@@ -109,7 +98,7 @@ function WeeklySummary({
                   <div>
                     <div className="font-semibold text-gray-800">{formatDate(entry.clock_in)}</div>
                     <div className="text-sm text-gray-600">
-                      {formatTime(entry.clock_in)} - {formatTime(entry.clock_out)}
+                      {formatTimeForDisplay(entry.clock_in)} - {formatTimeForDisplay(entry.clock_out)}
                     </div>
                   </div>
                   <div className="text-right">
@@ -170,8 +159,8 @@ function WeeklySummary({
                 {weeklyData.entries.map((entry: WeeklyEntry) => (
                   <tr key={entry.entry_id} className="border-b hover:bg-gray-50">
                     <td className="py-3 px-2">{formatDate(entry.clock_in)}</td>
-                    <td className="py-3 px-2">{formatTime(entry.clock_in)}</td>
-                    <td className="py-3 px-2">{formatTime(entry.clock_out)}</td>
+                    <td className="py-3 px-2">{formatTimeForDisplay(entry.clock_in)}</td>
+                    <td className="py-3 px-2">{formatTimeForDisplay(entry.clock_out)}</td>
                     <td className="py-3 px-2">{entry.break_minutes || 0}</td>
                     <td className="py-3 px-2 font-semibold">{formatHours(entry.total_hours)}</td>
                     <td className="py-3 px-2">

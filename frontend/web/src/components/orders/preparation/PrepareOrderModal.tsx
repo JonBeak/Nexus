@@ -7,14 +7,16 @@
  * 2. Send - Select recipients and send to customer
  */
 
-import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Loader2 } from 'lucide-react';
 import { PreparationState, PreparationPhase } from '../../../types/orderPreparation';
 import { Order } from '../../../types/orders';
 import { initializeSteps, areRequiredStepsComplete } from '../../../utils/stepOrchestration';
 import { PrepareStepsPanel } from './PrepareStepsPanel';
 import { LivePDFPreviewPanel } from './LivePDFPreviewPanel';
+import { SendToCustomerPanel, SendToCustomerPanelRef } from './send/SendToCustomerPanel';
 import { buildPdfUrls } from '../../../utils/pdfUrls';
+import { orderPreparationApi } from '../../../services/api/orders/orderPreparationApi';
 
 interface Props {
   isOpen: boolean;
@@ -30,6 +32,7 @@ export const PrepareOrderModal: React.FC<Props> = ({
   onComplete
 }) => {
   const [phase, setPhase] = useState<PreparationPhase>('prepare');
+  const [isSending, setIsSending] = useState(false);
   const [preparationState, setPreparationState] = useState<PreparationState>({
     orderId: order.order_id,
     orderNumber: order.order_number,
@@ -91,7 +94,8 @@ export const PrepareOrderModal: React.FC<Props> = ({
           orderForm: { url: pdfUrls.master, loading: false, error: null },        // Master Order Form
           packingList: { url: pdfUrls.packing, loading: false, error: null },     // Packing List
           internalEstimate: { url: pdfUrls.estimate, loading: false, error: null }, // Internal Estimate
-          qbEstimate: { url: pdfUrls.qbEstimate, loading: false, error: null }    // QB Estimate
+          qbEstimate: { url: pdfUrls.qbEstimate, loading: false, error: null },    // QB Estimate
+          specsOrderForm: { url: pdfUrls.customer, loading: false, error: null }   // Specs Order Form (customer PDF)
         }
       }));
       console.log('[PrepareOrderModal] PDF state updated with URLs');
@@ -119,17 +123,84 @@ export const PrepareOrderModal: React.FC<Props> = ({
     setPreparationState(prev => ({ ...prev, phase: 'prepare' }));
   };
 
+  const sendPanelRef = useRef<SendToCustomerPanelRef>(null);
+
   const handleSendAndFinalize = async () => {
-    // TODO Phase 1.5.c.6.3: Send email (placeholder)
-    // TODO Phase 1.5.c.6.3: Update status to pending_confirmation
-    console.log('PrepareOrderModal: Send and finalize (placeholder)');
-    onComplete();
+    // Prevent duplicate submissions
+    if (isSending) return;
+
+    try {
+      setIsSending(true);
+
+      // Get selected recipients from SendToCustomerPanel
+      const selectedRecipients = sendPanelRef.current?.getSelectedRecipients() || [];
+
+      if (selectedRecipients.length === 0) {
+        alert('Please select at least one recipient or use "Skip Email & Finalize" button.');
+        return;
+      }
+
+      // Finalize with email
+      const result = await orderPreparationApi.finalizeOrder(order.order_number, {
+        sendEmail: true,
+        recipients: selectedRecipients,
+        orderName: order.order_name,
+        pdfUrls: {
+          orderForm: preparationState.pdfs.specsOrderForm?.url || null,
+          qbEstimate: preparationState.pdfs.qbEstimate.url
+        }
+      });
+
+      // API client unwraps the response, so result is the data object directly
+      if (result.emailSent !== undefined && result.statusUpdated) {
+        alert(result.message || 'Order finalized successfully');
+        onComplete(); // Close modal and refresh order page
+      } else {
+        alert(`Failed to finalize order: ${result.message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error sending and finalizing:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to finalize order. Please try again.';
+      alert(errorMessage);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleSkipEmail = async () => {
-    // TODO Phase 1.5.c.6.3: Skip email, just update status
-    console.log('PrepareOrderModal: Skip email (placeholder)');
-    onComplete();
+    // Prevent duplicate submissions
+    if (isSending) return;
+
+    try {
+      const confirmed = confirm(
+        'Skip sending email and finalize order?\n\n' +
+        'The order status will be updated to "Pending Confirmation" without sending any notification emails.'
+      );
+
+      if (!confirmed) return;
+
+      setIsSending(true);
+
+      // Finalize without email
+      const result = await orderPreparationApi.finalizeOrder(order.order_number, {
+        sendEmail: false,
+        recipients: [],
+        orderName: order.order_name
+      });
+
+      // API client unwraps the response, so result is the data object directly
+      if (result.statusUpdated !== undefined) {
+        alert(result.message || 'Order finalized successfully');
+        onComplete(); // Close modal and refresh order page
+      } else {
+        alert(`Failed to finalize order: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error skipping email and finalizing:', error);
+      alert('Failed to finalize order. Please try again.');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   // Keep modal mounted but hidden to prevent PDF.js worker destruction
@@ -173,20 +244,16 @@ export const PrepareOrderModal: React.FC<Props> = ({
                 isOpen={isOpen}
               />
             ) : (
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Send to Customer
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Phase 1.5.c.6.3: Point person selection and email preview will be implemented here
-                </p>
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    🚧 Phase 1.5.c.6.3 components (point person selector, email preview)
-                    will be implemented next.
-                  </p>
-                </div>
-              </div>
+              <SendToCustomerPanel
+                ref={sendPanelRef}
+                orderNumber={order.order_number}
+                orderName={order.order_name}
+                pdfUrls={{
+                  specsOrderForm: preparationState.pdfs.specsOrderForm?.url || null,
+                  qbEstimate: preparationState.pdfs.qbEstimate.url
+                }}
+                qbEstimateNumber={preparationState.qbEstimate.number}
+              />
             )}
           </div>
 
@@ -237,17 +304,41 @@ export const PrepareOrderModal: React.FC<Props> = ({
                 {/* 3rd Quarter - Skip Email & Finalize */}
                 <button
                   onClick={handleSkipEmail}
-                  className="px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  disabled={isSending}
+                  className={`px-6 py-2 bg-white border border-gray-300 rounded-lg transition-colors ${
+                    isSending
+                      ? 'text-gray-400 cursor-not-allowed opacity-50'
+                      : 'text-gray-700 hover:bg-gray-50'
+                  }`}
                 >
-                  Skip Email & Finalize
+                  {isSending ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Processing...
+                    </span>
+                  ) : (
+                    'Skip Email & Finalize'
+                  )}
                 </button>
 
                 {/* 4th Quarter - Send Email & Finalize */}
                 <button
                   onClick={handleSendAndFinalize}
-                  className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+                  disabled={isSending}
+                  className={`px-6 py-2.5 rounded-lg font-medium transition-colors ${
+                    isSending
+                      ? 'bg-gray-400 cursor-not-allowed opacity-50 text-white'
+                      : 'bg-green-600 text-white hover:bg-green-700'
+                  }`}
                 >
-                  Send Email & Finalize
+                  {isSending ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Sending Email...
+                    </span>
+                  ) : (
+                    'Send Email & Finalize'
+                  )}
                 </button>
               </div>
             )}

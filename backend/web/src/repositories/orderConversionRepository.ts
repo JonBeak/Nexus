@@ -35,9 +35,9 @@ export class OrderConversionRepository {
     const conn = connection || pool;
 
     const [rows] = await conn.execute<RowDataPacket[]>(
-      `SELECT estimate_id, customer_id, status, version_number
-       FROM estimates
-       WHERE estimate_id = ?`,
+      `SELECT id as estimate_id, customer_id, status, version_number
+       FROM job_estimates
+       WHERE id = ?`,
       [estimateId]
     );
 
@@ -64,9 +64,9 @@ export class OrderConversionRepository {
 
     const [rows] = await conn.execute<RowDataPacket[]>(
       `SELECT *
-       FROM estimate_line_items
+       FROM job_estimate_items
        WHERE estimate_id = ?
-       ORDER BY item_number`,
+       ORDER BY item_order`,
       [estimateId]
     );
 
@@ -84,7 +84,7 @@ export class OrderConversionRepository {
     const conn = connection || pool;
 
     await conn.execute(
-      `UPDATE estimates SET status = ? WHERE estimate_id = ?`,
+      `UPDATE job_estimates SET status = ? WHERE id = ?`,
       [status, estimateId]
     );
   }
@@ -102,14 +102,14 @@ export class OrderConversionRepository {
     const conn = connection || pool;
 
     await conn.execute(
-      `UPDATE estimates SET status = ?, approved = ? WHERE estimate_id = ?`,
+      `UPDATE job_estimates SET status = ?, is_approved = ? WHERE id = ?`,
       [status, approved, estimateId]
     );
   }
 
   /**
    * Get product type info for part creation
-   * Returns product type details including channel letter flag
+   * Returns product type details including channel letter flag (derived from name)
    */
   async getProductTypeInfo(
     productTypeId: number,
@@ -123,7 +123,7 @@ export class OrderConversionRepository {
     const conn = connection || pool;
 
     const [rows] = await conn.execute<RowDataPacket[]>(
-      `SELECT id, name, category, is_channel_letter
+      `SELECT id, name, category
        FROM product_types
        WHERE id = ?`,
       [productTypeId]
@@ -133,11 +133,13 @@ export class OrderConversionRepository {
       return null;
     }
 
-    return rows[0] as {
-      id: number;
-      name: string;
-      category: string | null;
-      is_channel_letter: boolean;
+    const row = rows[0];
+    return {
+      id: row.id,
+      name: row.name,
+      category: row.category,
+      // Derive is_channel_letter from product type name (id=1 is "Channel Letters")
+      is_channel_letter: row.name.toLowerCase().includes('channel letter')
     };
   }
 

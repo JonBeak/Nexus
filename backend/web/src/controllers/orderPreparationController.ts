@@ -29,6 +29,8 @@ import * as orderPrepRepo from '../repositories/orderPreparationRepository';
 import { orderFormRepository } from '../repositories/orderFormRepository';
 import { orderPartRepository } from '../repositories/orderPartRepository';
 import { validateOrderAndGetId } from './helpers/orderHelpers';
+import * as orderFinalizationService from '../services/orderFinalizationService';
+import { getEmailPreviewHtml } from '../services/gmailService';
 
 /**
  * GET /api/order-preparation/:orderNumber/qb-estimate/staleness
@@ -283,12 +285,125 @@ export const getPointPersons = async (req: Request, res: Response) => {
     // Get point persons
     const pointPersons = await orderPrepRepo.getOrderPointPersons(orderNumberNum);
 
+    console.log(`[Point Persons] Order ${orderNumberNum}: Found ${pointPersons.length} point persons`, pointPersons);
+
     sendSuccessResponse(res, {
       pointPersons
     });
   } catch (error) {
     console.error('Error getting point persons:', error);
     const message = error instanceof Error ? error.message : 'Failed to get point persons';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * GET /api/order-preparation/:orderNumber/email-preview
+ * Get email preview HTML for Send to Customer step
+ */
+export const getEmailPreview = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const { recipients } = req.query;
+
+    const orderNumberNum = parseIntParam(orderNumber, 'order number');
+    if (orderNumberNum === null) {
+      return sendErrorResponse(res, 'Invalid order number', 'VALIDATION_ERROR');
+    }
+
+    // Get order info
+    const order = await orderPrepRepo.getOrderByOrderNumber(orderNumberNum);
+    if (!order) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    // Get customer name
+    const orderData = await orderPrepRepo.getOrderDataForQBEstimate(order.order_id);
+
+    // Build email preview with actual customer name
+    const recipientList = recipients ? String(recipients).split(',') : [];
+    const preview = getEmailPreviewHtml({
+      recipients: recipientList,
+      orderNumber: orderNumberNum,
+      orderName: order.order_name,
+      customerName: orderData?.customer_name || undefined,
+      pdfUrls: { orderForm: null, qbEstimate: null }
+    });
+
+    sendSuccessResponse(res, {
+      subject: preview.subject,
+      html: preview.html
+    });
+  } catch (error) {
+    console.error('Error generating email preview:', error);
+    const message = error instanceof Error ? error.message : 'Failed to generate email preview';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * POST /api/order-preparation/:orderNumber/finalize
+ * Finalize order and optionally send to customer
+ * (Phase 1.5.c.6.3 - Send to Customer)
+ */
+export const finalizeOrder = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const { sendEmail, recipients, orderName, pdfUrls } = req.body;
+    const user = (req as AuthRequest).user;
+
+    if (!user) {
+      return sendErrorResponse(res, 'User not authenticated', 'UNAUTHORIZED');
+    }
+
+    const orderNumberNum = parseIntParam(orderNumber, 'order number');
+    if (orderNumberNum === null) {
+      return sendErrorResponse(res, 'Invalid order number', 'VALIDATION_ERROR');
+    }
+
+    // Validate sendEmail flag
+    if (typeof sendEmail !== 'boolean') {
+      return sendErrorResponse(res, 'sendEmail flag is required', 'VALIDATION_ERROR');
+    }
+
+    // Validate recipients if sending email
+    if (sendEmail) {
+      if (!Array.isArray(recipients) || recipients.length === 0) {
+        return sendErrorResponse(res, 'At least one recipient is required when sending email', 'VALIDATION_ERROR');
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const invalidEmails = recipients.filter((email: string) => !emailRegex.test(email));
+      if (invalidEmails.length > 0) {
+        return sendErrorResponse(res, `Invalid email addresses: ${invalidEmails.join(', ')}`, 'VALIDATION_ERROR');
+      }
+    }
+
+    // Finalize order
+    const result = await orderFinalizationService.finalizeOrderToCustomer({
+      orderNumber: orderNumberNum,
+      sendEmail,
+      recipients: recipients || [],
+      userId: user.user_id,
+      orderName,
+      pdfUrls
+    });
+
+    if (!result.success) {
+      return sendErrorResponse(res, result.message, 'INTERNAL_ERROR', {
+        error: result.error
+      });
+    }
+
+    sendSuccessResponse(res, {
+      emailSent: result.emailSent,
+      statusUpdated: result.statusUpdated,
+      message: result.message
+    });
+  } catch (error) {
+    console.error('Error finalizing order:', error);
+    const message = error instanceof Error ? error.message : 'Failed to finalize order';
     sendErrorResponse(res, message, 'INTERNAL_ERROR');
   }
 };

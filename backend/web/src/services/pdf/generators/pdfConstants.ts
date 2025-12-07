@@ -26,14 +26,14 @@ export const COLORS = {
   DIVIDER_DARK: '#666666',
   QTY_STANDARD_BG: '#c0c0c0',      // Light gray background for qty=1
   QTY_STANDARD_TEXT: '#000000',    // Black text for qty=1
-  QTY_NONSTANDARD_BG: '#cc0000',   // Red background for qty≠1
+  QTY_NONSTANDARD_BG: '#f08080',   // Light red background for qty≠1 (black text readable)
   QTY_NONSTANDARD_TEXT: '#ffffff', // White text for qty≠1
   // Label background colors
-  LABEL_BG_DEFAULT: '#d0d0d0',     // Default label background (light gray)
+  LABEL_BG_DEFAULT: '#e0e0e0',     // Default label background (light gray)
   LABEL_BG_ELECTRICAL: '#f3da80',  // Electrical/LED specs (yellow)
   LABEL_BG_VINYL: '#eabcbf',       // Vinyl specs (pink)
-  LABEL_BG_PAINTING: '#b6b0cc',    // Painting specs (purple)
-  NO_BG: '#ff0000',                 // Pure red background for "No" values
+  LABEL_BG_PAINTING: '#c9b8e8',    // Painting specs (purple)
+  NO_BG: '#9e9e9e',                 // Medium gray background for "No" values
 };
 
 // ============================================

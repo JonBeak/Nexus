@@ -22,6 +22,18 @@ export default defineConfig({
       "@": resolve(import.meta.dirname || "", "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-pdf': ['pdfjs-dist', 'react-pdf'],
+          'vendor-dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
+          'vendor-query': ['@tanstack/react-query'],
+        }
+      }
+    }
+  },
   test: {
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',

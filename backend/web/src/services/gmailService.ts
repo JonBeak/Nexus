@@ -1,0 +1,759 @@
+/**
+ * Gmail Service - PRODUCTION IMPLEMENTATION
+ * Phase 2: Gmail API Integration
+ *
+ * Sends real emails via Gmail API using service account authentication.
+ * Fetches PDFs from URLs and attaches them to emails.
+ *
+ * Features:
+ * - Real Gmail API integration with service account auth
+ * - PDF attachment handling (fetch from URLs, embed as base64)
+ * - Customer name personalization
+ * - HTML + plain text email versions
+ * - Retry logic with exponential backoff
+ * - Comprehensive error handling
+ * - Feature flag for gradual rollout (GMAIL_ENABLED)
+ */
+
+import { createGmailClient } from './gmailAuthService';
+import axios from 'axios';
+
+export interface EmailData {
+  recipients: string[];
+  orderNumber: number;
+  orderName: string;
+  customerName?: string;
+  pdfUrls: {
+    orderForm: string | null;
+    qbEstimate: string | null;
+  };
+}
+
+export interface EmailResult {
+  success: boolean;
+  message: string;
+  messageId?: string;
+  error?: string;
+}
+
+// Gmail API Configuration
+const GMAIL_ENABLED = process.env.GMAIL_ENABLED === 'true';
+const SENDER_EMAIL = process.env.GMAIL_SENDER_EMAIL || 'info@signhouse.ca';
+const SENDER_NAME = process.env.GMAIL_SENDER_NAME || 'Sign House';
+// BCC Email - Automatically BCC on all sent emails
+// To disable: Remove GMAIL_BCC_EMAIL from .env or set to empty string
+// Future enhancement: Support multiple BCC emails (comma-separated)
+const BCC_EMAIL = process.env.GMAIL_BCC_EMAIL || '';
+
+// Company Contact Information (Email Footer)
+const COMPANY_NAME = process.env.COMPANY_NAME;
+const COMPANY_PHONE = process.env.COMPANY_PHONE;
+const COMPANY_EMAIL = process.env.COMPANY_EMAIL;
+const COMPANY_WEBSITE = process.env.COMPANY_WEBSITE;
+const COMPANY_ADDRESS = process.env.COMPANY_ADDRESS;
+const COMPANY_BUSINESS_HOURS = process.env.COMPANY_BUSINESS_HOURS;
+
+/**
+ * Build email template for order finalization
+ *
+ * Uses SINGLE SOURCE OF TRUTH for content - HTML and plain text are generated
+ * from the same content structure to ensure they always stay in sync.
+ *
+ * @param data - Email data including order info and attachments
+ * @returns HTML email template with subject and plain text version
+ */
+function buildEmailTemplate(data: EmailData): { subject: string; html: string; text: string } {
+  // ============================================================================
+  // SINGLE SOURCE OF TRUTH - All email content defined here
+  // ============================================================================
+ 
+  const content = {
+    subject: `${data.orderName} - #${data.orderNumber} Requires Confirmation`,
+    title: 'Order Ready for Review',
+    greeting: data.customerName ? `Dear ${data.customerName},` : 'Dear Valued Customer,',
+
+    paragraphs: [
+      `The details for your order #${data.orderNumber} - ${data.orderName} have been prepared and are ready for your review and confirmation.`,
+      `Please review the attached documents carefully. If everything looks correct, please confirm the order so we can proceed with production.`
+    ],
+
+    attachmentsTitle: 'Attached Documents:',
+    attachments: [
+      data.pdfUrls.orderForm ? 'Specifications Order Form' : null,
+      data.pdfUrls.qbEstimate ? 'QuickBooks Estimate' : null
+    ].filter(Boolean) as string[],
+
+    urgencyBox: {
+      title: '⚠ Action Required:',
+      message: 'Please review and confirm your order promptly so we can begin production.'
+    },
+
+    closingParagraphs: [
+      `If you have any questions or need changes, please reply to this email or contact us directly.`,
+      `Thank you for your business!`
+    ],
+
+    signature: {
+      line1: 'Best regards,',
+      line2: 'The Sign House Team'
+    },
+
+    footer: {
+      companyName: COMPANY_NAME,
+      phone: COMPANY_PHONE,
+      email: COMPANY_EMAIL,
+      website: COMPANY_WEBSITE,
+      address: COMPANY_ADDRESS,
+      businessHours: COMPANY_BUSINESS_HOURS
+    }
+  };
+
+  // ============================================================================
+  // HTML Version - Generated from content structure
+  // ============================================================================
+
+  const html = `
+  <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>${content.subject}</title>
+
+<style>
+  /* ------------------------------ */
+  /* Base Styles – Light Mode */
+  /* ------------------------------ */
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: #f5f6f8;
+    color: #333;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+  }
+
+  a { color: #4F46E5; text-decoration: none; }
+
+  .container {
+    max-width: 600px;
+    margin: 0 auto;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #ffffff;
+  }
+
+  .header {
+    background: #334155;
+    padding: 28px;
+    text-align: center;
+    color: #ffffff;
+  }
+
+  .header h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .content {
+    padding: 28px 24px;
+    background: #fafafa;
+  }
+
+  .greeting {
+    margin: 0 0 18px 0;
+    font-size: 16px;
+    font-weight: normal;
+  }
+
+  .urgency-box {
+    background: #fff5f5;
+    border-left: 4px solid #dc2626;
+    padding: 16px 18px;
+    margin: 24px 0;
+    border-radius: 4px;
+    font-size: 15px;
+  }
+
+  .attachments {
+    background: #ffffff;
+    border-left: 4px solid #4F46E5;
+    padding: 16px 18px;
+    margin: 24px 0;
+    border-radius: 4px;
+    font-size: 15px;
+  }
+
+  .attachments h3 {
+    margin: 0 0 10px 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  /* Paragraph styling */
+  p {
+    margin: 0 0 18px 0;
+    font-size: 15px;
+  }
+
+  /* Signature */
+  .signature {
+    margin-top: 28px;
+    font-size: 15px;
+  }
+
+  /* Footer */
+  .footer {
+    margin-top: 40px;
+    padding-top: 24px;
+    border-top: 2px solid #e5e7eb;
+    font-size: 13px;
+    color: #6b7280;
+    line-height: 1.8;
+  }
+
+  .footer a {
+    color: #4F46E5;
+    text-decoration: none;
+  }
+
+  .footer a:hover {
+    text-decoration: underline;
+  }
+
+  .footer-company {
+    font-weight: 600;
+    font-size: 14px;
+    color: #374151;
+    margin-bottom: 8px;
+  }
+
+  .footer-item {
+    margin: 4px 0;
+  }
+
+  /* ------------------------------ */
+  /* Dark Mode */
+  /* ------------------------------ */
+  @media (prefers-color-scheme: dark) {
+    body {
+      background-color: #0f172a !important;
+      color: #e2e8f0 !important;
+    }
+
+    .container {
+      background: #1e293b !important;
+      color: #e2e8f0 !important;
+      border: 1px solid #334155;
+    }
+
+    .header {
+      background: #1e293b !important;
+      color: #f8fafc !important; 
+      border-bottom: 1px solid #334155;
+    }
+
+    .content {
+      background: #1e293b !important;
+      color: #e2e8f0 !important;
+    }
+
+    .urgency-box {
+      background: #2b2e36 !important;
+      border-left-color: #f87171 !important;
+      color: #fca5a5 !important;
+    }
+
+    .attachments {
+      background: #2b2e36 !important;
+      border-left-color: #818cf8 !important;
+      color: #e2e8f0 !important;
+    }
+
+    a {
+      color: #818cf8 !important;
+    }
+
+    .footer {
+      border-top-color: #334155 !important;
+      color: #9ca3af !important;
+    }
+
+    .footer-company {
+      color: #e2e8f0 !important;
+    }
+
+    .footer a {
+      color: #818cf8 !important;
+    }
+  }
+</style>
+</head>
+
+<body>
+
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding: 24px 0;">
+  <tr>
+    <td align="center">
+
+      <table class="container" role="presentation" width="100%" cellspacing="0" cellpadding="0">
+
+        <!-- HEADER -->
+        <tr>
+          <td class="header">
+            <h1>${content.title}</h1>
+          </td>
+        </tr>
+
+        <!-- CONTENT -->
+        <tr>
+          <td class="content">
+
+            <!-- Greeting -->
+            <p class="greeting">${content.greeting}</p>
+
+            <!-- Urgency Box -->
+            <div class="urgency-box">
+              <strong>${content.urgencyBox.title}</strong><br>
+              ${content.urgencyBox.message}
+            </div>
+
+            <!-- Main Paragraphs -->
+            ${content.paragraphs
+              .map(
+                p => `<p>${p}</p>`
+              )
+              .join("")}
+
+            <!-- Attachments -->
+            <div class="attachments">
+              <h3>📎 ${content.attachmentsTitle}</h3>
+              <ul style="margin:0; padding-left:20px; line-height:1.6;">
+                ${content.attachments.map(a => `<li>${a}</li>`).join("")}
+              </ul>
+            </div>
+
+            <!-- Closing Paragraphs -->
+            ${content.closingParagraphs
+              .map(
+                p => `<p>${p}</p>`
+              )
+              .join("")}
+
+            <!-- Signature -->
+            <p class="signature">
+              ${content.signature.line1}<br>
+              ${content.signature.line2}
+            </p>
+
+            <!-- Footer -->
+            <div class="footer">
+              <div class="footer-company">${content.footer.companyName}</div>
+              ${content.footer.phone ? `<div class="footer-item">📞 ${content.footer.phone}</div>` : ''}
+              ${content.footer.email ? `<div class="footer-item">📧 <a href="mailto:${content.footer.email}">${content.footer.email}</a></div>` : ''}
+              ${content.footer.website ? `<div class="footer-item">🌐 <a href="${content.footer.website}">${content.footer.website.replace('https://', '')}</a></div>` : ''}
+              ${content.footer.address ? `<div class="footer-item">📍 ${content.footer.address}</div>` : ''}
+              ${content.footer.businessHours ? `<div class="footer-item">🕒 ${content.footer.businessHours}</div>` : ''}
+            </div>
+
+          </td>
+        </tr>
+
+      </table>
+
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>
+  `;
+
+
+  // ============================================================================
+  // Plain Text Version - Generated from same content structure
+  // ============================================================================
+
+  const text = `
+${content.title}
+
+${content.greeting}
+
+${content.urgencyBox.title}
+${content.urgencyBox.message}
+
+${content.paragraphs.join('\n\n')}
+
+${content.attachmentsTitle}
+${content.attachments.map(a => `- ${a}`).join('\n')}
+
+${content.closingParagraphs.join('\n\n')}
+
+${content.signature.line1}
+${content.signature.line2}
+
+${'─'.repeat(50)}
+${content.footer.companyName}
+${content.footer.phone ? `Phone: ${content.footer.phone}` : ''}
+${content.footer.email ? `Email: ${content.footer.email}` : ''}
+${content.footer.website ? `Website: ${content.footer.website}` : ''}
+${content.footer.address ? `Address: ${content.footer.address}` : ''}
+${content.footer.businessHours ? `Hours: ${content.footer.businessHours}` : ''}
+  `.trim();
+
+  return {
+    subject: content.subject,
+    html,
+    text
+  };
+}
+
+/**
+ * Get email preview HTML for frontend display
+ * Uses same template as actual email sending - guaranteed consistency
+ *
+ * @param data - Email data
+ * @returns HTML preview with subject and body
+ */
+export function getEmailPreviewHtml(data: EmailData): { subject: string; html: string } {
+  const template = buildEmailTemplate(data);
+  return {
+    subject: template.subject,
+    html: template.html
+  };
+}
+
+/**
+ * Fetch PDF from URL and convert to base64
+ *
+ * @param url - URL to fetch PDF from
+ * @returns Base64 encoded PDF data
+ */
+async function fetchPDFAsBase64(url: string): Promise<string | null> {
+  try {
+    console.log(`[Gmail] Fetching PDF from: ${url}`);
+
+    const response = await axios.get<ArrayBuffer>(url, {
+      responseType: 'arraybuffer',
+      timeout: 30000 // 30 second timeout
+    });
+
+    const base64 = Buffer.from(response.data as ArrayBuffer).toString('base64');
+    console.log(`✅ [Gmail] PDF fetched successfully (${Math.round(base64.length / 1024)}KB)`);
+
+    return base64;
+  } catch (error) {
+    console.error(`❌ [Gmail] Failed to fetch PDF from ${url}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Extract filename from URL
+ */
+function getFilenameFromUrl(url: string): string {
+  const parts = url.split('/');
+  const filenameWithQuery = parts[parts.length - 1];
+  const filename = filenameWithQuery.split('?')[0];
+  return decodeURIComponent(filename);
+}
+
+/**
+ * Create RFC 2822 compliant multipart email with attachments
+ *
+ * Uses nested MIME structure for proper HTML/text alternative handling:
+ * - multipart/mixed (outer) - for attachments
+ *   - multipart/alternative (inner) - email clients pick ONE
+ *     - text/plain (fallback for old clients)
+ *     - text/html (modern clients display this)
+ *   - application/pdf (attachments)
+ *
+ * This ensures only the formatted HTML version displays in modern clients,
+ * while maintaining compatibility with text-only clients.
+ *
+ * @param data - Email data
+ * @param template - Email template (subject, html, text)
+ * @returns Base64url encoded email message for Gmail API
+ */
+async function createEmailMessage(
+  data: EmailData,
+  template: { subject: string; html: string; text: string }
+): Promise<string> {
+  // Two boundaries: one for mixed (outer), one for alternative (inner)
+  const mixedBoundary = '----=_Part_Mixed_' + Date.now() + '_' + Math.random().toString(36).substring(7);
+  const altBoundary = '----=_Part_Alt_' + Date.now() + '_' + Math.random().toString(36).substring(7);
+
+  // Email headers
+  const headers = [
+    `From: ${SENDER_NAME} <${SENDER_EMAIL}>`,
+    `To: ${data.recipients.join(', ')}`,
+    `Subject: ${template.subject}`,
+    `MIME-Version: 1.0`,
+    `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`
+  ];
+
+  // Add BCC header if configured
+  if (BCC_EMAIL && BCC_EMAIL.trim() !== '') {
+    headers.splice(3, 0, `Bcc: ${BCC_EMAIL}`); // Insert after "To" header
+  }
+
+  // Email body parts
+  const bodyParts: string[] = [];
+
+  // Part 1: multipart/alternative section (HTML + plain text)
+  bodyParts.push(
+    `--${mixedBoundary}`,
+    `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+    ``
+  );
+
+  // Part 1a: Plain text version (fallback for text-only clients)
+  bodyParts.push(
+    `--${altBoundary}`,
+    `Content-Type: text/plain; charset=UTF-8`,
+    `Content-Transfer-Encoding: 7bit`,
+    ``,
+    template.text
+  );
+
+  // Part 1b: HTML version (modern clients prefer this)
+  bodyParts.push(
+    `--${altBoundary}`,
+    `Content-Type: text/html; charset=UTF-8`,
+    `Content-Transfer-Encoding: 7bit`,
+    ``,
+    template.html
+  );
+
+  // Close alternative boundary
+  bodyParts.push(`--${altBoundary}--`);
+
+  // Part 3 & 4: PDF attachments
+  const attachments: Array<{ url: string; name: string }> = [];
+
+  if (data.pdfUrls.orderForm) {
+    attachments.push({
+      url: data.pdfUrls.orderForm,
+      name: getFilenameFromUrl(data.pdfUrls.orderForm)
+    });
+  }
+
+  if (data.pdfUrls.qbEstimate) {
+    attachments.push({
+      url: data.pdfUrls.qbEstimate,
+      name: getFilenameFromUrl(data.pdfUrls.qbEstimate)
+    });
+  }
+
+  // Part 2+: PDF attachments (in the outer mixed section)
+  for (const attachment of attachments) {
+    const pdfBase64 = await fetchPDFAsBase64(attachment.url);
+
+    if (pdfBase64) {
+      bodyParts.push(
+        `--${mixedBoundary}`,
+        `Content-Type: application/pdf; name="${attachment.name}"`,
+        `Content-Disposition: attachment; filename="${attachment.name}"`,
+        `Content-Transfer-Encoding: base64`,
+        ``,
+        pdfBase64
+      );
+    } else {
+      console.warn(`⚠️ [Gmail] Skipping attachment: ${attachment.name} (fetch failed)`);
+    }
+  }
+
+  // Close mixed boundary
+  bodyParts.push(`--${mixedBoundary}--`);
+
+  // Combine everything
+  const email = headers.concat([''], bodyParts).join('\r\n');
+
+  // Base64url encode for Gmail API (RFC 4648)
+  return Buffer.from(email)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+/**
+ * Send email with retry logic (exponential backoff)
+ *
+ * @param gmail - Authenticated Gmail client
+ * @param encodedMessage - Base64url encoded email message
+ * @param maxRetries - Maximum number of retry attempts
+ * @returns Gmail API response
+ */
+async function sendWithRetry(
+  gmail: any,
+  encodedMessage: string,
+  maxRetries: number = 3
+): Promise<any> {
+  let lastError: any;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await gmail.users.messages.send({
+        userId: 'me',
+        requestBody: {
+          raw: encodedMessage
+        }
+      });
+    } catch (error: any) {
+      lastError = error;
+
+      // Don't retry on permanent failures
+      if (error.code === 400 || error.code === 403 || error.code === 404) {
+        throw error;
+      }
+
+      // Retry on transient failures (500, 503, network errors)
+      if (attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+        console.log(`⚠️ [Gmail] Send failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+/**
+ * Send finalization email to customer point persons
+ *
+ * @param data - Email data including recipients and order info
+ * @returns Email result with success status and message ID
+ */
+export async function sendFinalizationEmail(data: EmailData): Promise<EmailResult> {
+  // Check if Gmail is enabled
+  if (!GMAIL_ENABLED) {
+    console.log('\n' + '='.repeat(80));
+    console.log('[GMAIL DISABLED] Email would be sent with the following details:');
+    console.log('='.repeat(80));
+
+    const template = buildEmailTemplate(data);
+
+    console.log('\n📧 EMAIL DETAILS:');
+    console.log(`  From: ${SENDER_NAME} <${SENDER_EMAIL}>`);
+    console.log(`  To: ${data.recipients.join(', ')}`);
+    if (BCC_EMAIL && BCC_EMAIL.trim() !== '') {
+      console.log(`  Bcc: ${BCC_EMAIL}`);
+    }
+    console.log(`  Subject: ${template.subject}`);
+
+    console.log('\n📎 ATTACHMENTS:');
+    if (data.pdfUrls.orderForm) {
+      console.log(`  - Specifications Order Form: ${data.pdfUrls.orderForm}`);
+    }
+    if (data.pdfUrls.qbEstimate) {
+      console.log(`  - QuickBooks Estimate: ${data.pdfUrls.qbEstimate}`);
+    }
+    if (!data.pdfUrls.orderForm && !data.pdfUrls.qbEstimate) {
+      console.log('  (No attachments)');
+    }
+
+    console.log('\n📄 EMAIL BODY (Plain Text):');
+    console.log('-'.repeat(80));
+    console.log(template.text);
+    console.log('-'.repeat(80));
+
+    console.log('\n✅ Email would be sent successfully');
+    console.log('   (Actual sending disabled - set GMAIL_ENABLED=true to enable)');
+    console.log('='.repeat(80) + '\n');
+
+    return {
+      success: true,
+      message: 'Email logged to console (Gmail disabled)',
+      messageId: `disabled_${Date.now()}`
+    };
+  }
+
+  // Validate configuration
+  if (!SENDER_EMAIL) {
+    return {
+      success: false,
+      message: 'Gmail sender email not configured',
+      error: 'GMAIL_SENDER_EMAIL not set in environment'
+    };
+  }
+
+  // Validate recipients
+  if (!data.recipients || data.recipients.length === 0) {
+    return {
+      success: false,
+      message: 'No recipients specified',
+      error: 'Recipients array is empty'
+    };
+  }
+
+  try {
+    // Build email template
+    const template = buildEmailTemplate(data);
+
+    console.log('\n📧 [Gmail] Preparing to send email...');
+    console.log(`   From: ${SENDER_NAME} <${SENDER_EMAIL}>`);
+    console.log(`   To: ${data.recipients.join(', ')}`);
+    if (BCC_EMAIL && BCC_EMAIL.trim() !== '') {
+      console.log(`   Bcc: ${BCC_EMAIL}`);
+    }
+    console.log(`   Subject: ${template.subject}`);
+    console.log(`   Attachments: ${[data.pdfUrls.orderForm, data.pdfUrls.qbEstimate].filter(Boolean).length}`);
+
+    // Create Gmail client
+    const gmail = await createGmailClient();
+
+    // Create email message with attachments
+    const encodedMessage = await createEmailMessage(data, template);
+
+    console.log('📤 [Gmail] Sending email via Gmail API...');
+
+    // Send email via Gmail API with retry logic
+    const response = await sendWithRetry(gmail, encodedMessage);
+
+    console.log('\n✅ [Gmail API] Email sent successfully');
+    console.log(`   Message ID: ${response.data.id}`);
+    console.log(`   To: ${data.recipients.join(', ')}`);
+    console.log(`   Subject: ${template.subject}\n`);
+
+    return {
+      success: true,
+      message: 'Email sent successfully',
+      messageId: response.data.id || undefined
+    };
+
+  } catch (error: any) {
+    console.error('\n❌ [Gmail API] Email send failed:', error);
+
+    // Log detailed error for debugging
+    if (error.response?.data) {
+      console.error('   Error details:', JSON.stringify(error.response.data, null, 2));
+    }
+
+    // User-friendly error messages
+    let errorMessage = 'Failed to send email via Gmail API';
+    let errorDetail = error.message || 'Unknown error';
+
+    if (error.code === 403) {
+      errorMessage = 'Gmail API access denied';
+      errorDetail = 'Check domain-wide delegation and service account permissions';
+    } else if (error.code === 429) {
+      errorMessage = 'Gmail API rate limit exceeded';
+      errorDetail = 'Too many emails sent. Try again later.';
+    } else if (error.code === 400) {
+      errorMessage = 'Invalid email format';
+      errorDetail = error.message || 'Check email addresses and content';
+    } else if (error.name === 'GmailAuthError') {
+      errorMessage = 'Gmail authentication failed';
+      errorDetail = error.message;
+    }
+
+    return {
+      success: false,
+      message: errorMessage,
+      error: errorDetail
+    };
+  }
+}

@@ -78,6 +78,7 @@ export interface PreparationState {
     packingList: PDFPreview;
     internalEstimate: PDFPreview;
     qbEstimate: PDFPreview;
+    specsOrderForm?: PDFPreview; // Customer-facing specs PDF
   };
   qbEstimate: QBEstimateInfo;
   pointPersons: PointPerson[];

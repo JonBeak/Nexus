@@ -66,6 +66,10 @@ backups/
 *.zip
 *.rar
 
+# Gmail Service Account (CRITICAL - NEVER COMMIT)
+backend/web/config/
+**/gmail-service-account.json
+
 # Claude specific
 .claude/.env
 backend/web/.env

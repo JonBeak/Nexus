@@ -15,6 +15,7 @@ export interface User {
   first_name: string;
   last_name: string;
   is_active: boolean;
+  show_in_time_calendar: boolean;
   refresh_token?: string;
   refresh_token_expires_at?: Date;
   created_at: Date;

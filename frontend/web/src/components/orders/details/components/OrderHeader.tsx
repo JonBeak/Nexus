@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, Printer, FolderOpen, Settings } from 'lucide-react';
+import { ArrowLeft, FileText, Printer, FolderOpen, Settings, CheckCircle, FileCheck } from 'lucide-react';
 import { Order } from '../../../../types/orders';
 import StatusBadge from '../../common/StatusBadge';
 
@@ -10,8 +10,12 @@ interface OrderHeaderProps {
   onTabChange: (tab: 'specs' | 'progress') => void;
   onGenerateForms: () => void;
   onOpenPrint: () => void;
+  onOpenPrintMasterEstimate: () => void;  // NEW: Print Master/Estimate only
   onOpenFolder: () => void;
-  onPrepareOrder: () => void;  // NEW: Phase 1.5.c.6.1
+  onPrepareOrder: () => void;
+  onCustomerApproved: () => void;  // NEW: Customer approved transition
+  onFilesCreated: () => void;  // NEW: Files created transition
+  onApproveFilesAndPrint: () => void;  // NEW: Approve files and print
   generatingForms: boolean;
   printingForm: boolean;
 }
@@ -22,8 +26,12 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
   onTabChange,
   onGenerateForms,
   onOpenPrint,
+  onOpenPrintMasterEstimate,
   onOpenFolder,
-  onPrepareOrder,  // NEW: Phase 1.5.c.6.1
+  onPrepareOrder,
+  onCustomerApproved,
+  onFilesCreated,
+  onApproveFilesAndPrint,
   generatingForms,
   printingForm
 }) => {
@@ -83,27 +91,7 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
 
           {/* Right: Quick Actions */}
           <div className="flex items-center space-x-3 flex-1 justify-end">
-            {/* Hide Generate Forms and Print Forms when status is Job Details Setup */}
-            {order.status !== 'job_details_setup' && (
-              <>
-                <button
-                  onClick={onGenerateForms}
-                  disabled={generatingForms}
-                  className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium"
-                >
-                  <FileText className="w-4 h-4" />
-                  <span>{generatingForms ? 'Generating...' : 'Generate Order Forms'}</span>
-                </button>
-                <button
-                  onClick={onOpenPrint}
-                  disabled={printingForm}
-                  className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>{printingForm ? 'Printing...' : 'Print Forms'}</span>
-                </button>
-              </>
-            )}
+            {/* Open Folder - Always visible */}
             <button
               onClick={onOpenFolder}
               className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-700"
@@ -112,7 +100,8 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
               <span>Open Folder</span>
             </button>
 
-            {/* Prepare Order Button - Phase 1.5.c.6.1 */}
+            {/* Phase-Specific Actions */}
+            {/* Job Details Setup - Prepare Order */}
             {order.status === 'job_details_setup' && (
               <button
                 onClick={onPrepareOrder}
@@ -120,6 +109,62 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
               >
                 <Settings className="w-4 h-4" />
                 <span>Prepare Order</span>
+              </button>
+            )}
+
+            {/* Pending Confirmation - Customer Approved */}
+            {order.status === 'pending_confirmation' && (
+              <button
+                onClick={onCustomerApproved}
+                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
+              >
+                <CheckCircle className="w-4 h-4" />
+                <span>Customer Approved</span>
+              </button>
+            )}
+
+            {/* Pending Files Creation - Print Master/Estimate + Files Created */}
+            {order.status === 'pending_production_files_creation' && (
+              <>
+                <button
+                  onClick={onOpenPrintMasterEstimate}
+                  disabled={printingForm}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>{printingForm ? 'Printing...' : 'Print Master/Estimate Forms'}</span>
+                </button>
+                <button
+                  onClick={onFilesCreated}
+                  className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium"
+                >
+                  <FileCheck className="w-4 h-4" />
+                  <span>Files Created</span>
+                </button>
+              </>
+            )}
+
+            {/* Pending Files Approval - Approve Files and Print Forms */}
+            {order.status === 'pending_production_files_approval' && (
+              <button
+                onClick={onApproveFilesAndPrint}
+                disabled={printingForm}
+                className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                <Printer className="w-4 h-4" />
+                <span>{printingForm ? 'Printing...' : 'Approve Files and Print Forms'}</span>
+              </button>
+            )}
+
+            {/* All Other Statuses - Print Forms */}
+            {!['job_details_setup', 'pending_confirmation', 'pending_production_files_creation', 'pending_production_files_approval'].includes(order.status) && (
+              <button
+                onClick={onOpenPrint}
+                disabled={printingForm}
+                className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                <Printer className="w-4 h-4" />
+                <span>{printingForm ? 'Printing...' : 'Print Forms'}</span>
               </button>
             )}
           </div>

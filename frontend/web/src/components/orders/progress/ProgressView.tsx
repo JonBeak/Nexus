@@ -41,6 +41,10 @@ export const ProgressView: React.FC<Props> = ({ orderNumber, currentStatus, prod
 
   const handleTaskUpdated = () => {
     setRefreshTrigger(prev => prev + 1);
+    // Notify parent to refetch order data (status may have changed)
+    if (onOrderUpdated) {
+      onOrderUpdated();
+    }
   };
 
   const handleStatusUpdated = () => {

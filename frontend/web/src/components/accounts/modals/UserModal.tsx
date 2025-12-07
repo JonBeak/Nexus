@@ -28,6 +28,7 @@ export const UserModal: React.FC<UserModalProps> = ({
     user_group: '',
     hourly_wage: undefined,
     is_active: true,
+    show_in_time_calendar: true,
     auto_clock_in: '',
     auto_clock_out: ''
   });
@@ -51,6 +52,7 @@ export const UserModal: React.FC<UserModalProps> = ({
         ...user,
         user_group: userGroup,
         hourly_wage: user.hourly_wage || undefined,
+        show_in_time_calendar: user.show_in_time_calendar,
         auto_clock_in: user.auto_clock_in || '',
         auto_clock_out: user.auto_clock_out || ''
       });
@@ -76,6 +78,7 @@ export const UserModal: React.FC<UserModalProps> = ({
         user_group: '',
         hourly_wage: undefined,
         is_active: true,
+        show_in_time_calendar: true,
         auto_clock_in: '',
         auto_clock_out: ''
       });
@@ -300,6 +303,26 @@ export const UserModal: React.FC<UserModalProps> = ({
               </p>
             )}
           </div>
+        </div>
+
+        {/* Time Calendar Visibility */}
+        <div className="col-span-2">
+          <label className="flex items-center space-x-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={formData.show_in_time_calendar}
+              onChange={(e) => handleInputChange('show_in_time_calendar', e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <div>
+              <span className="text-sm font-medium text-gray-700">
+                Show in Time Tracking Calendar
+              </span>
+              <p className="text-xs text-gray-500">
+                When enabled, this user will appear in the Bi-Weekly Time Calendar for managers
+              </p>
+            </div>
+          </label>
         </div>
 
         {/* Group */}

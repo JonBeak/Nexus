@@ -12,6 +12,7 @@ import { useOrderCalculations } from './hooks/useOrderCalculations';
 
 // Import API
 import { ordersApi } from '../../../services/api';
+import { orderStatusApi } from '../../../services/api/orders/orderStatusApi';
 
 // Import field configuration
 import { FIELD_CONFIGS, getFieldConfig } from './constants/orderFieldConfigs';
@@ -25,6 +26,7 @@ import ErrorState from './components/ErrorState';
 import TaxDropdown from './components/TaxDropdown';
 import PointPersonsEditor from './components/PointPersonsEditor';
 import PrepareOrderModal from '../preparation/PrepareOrderModal';
+import ConfirmationModal from './components/ConfirmationModal';
 
 export const OrderDetailsPage: React.FC = () => {
   const { orderNumber } = useParams<{ orderNumber: string }>();
@@ -35,6 +37,10 @@ export const OrderDetailsPage: React.FC = () => {
 
   // Phase 1.5.c.6.1: Prepare Order Modal State
   const [isPrepareModalOpen, setIsPrepareModalOpen] = useState(false);
+
+  // Confirmation Modal States for Phase Transitions
+  const [showCustomerApprovedModal, setShowCustomerApprovedModal] = useState(false);
+  const [showFilesCreatedModal, setShowFilesCreatedModal] = useState(false);
 
   // Use the custom hooks
   const {
@@ -70,15 +76,18 @@ export const OrderDetailsPage: React.FC = () => {
   const {
     printConfig,
     setPrintConfig,
+    printMode,
     handleOpenPrintModal,
     handleClosePrintModal,
     handlePrintForms,
     handlePrintMasterEstimate,
     handlePrintShopPacking,
+    handlePrintAndMoveToProduction,
+    handleMoveToProductionWithoutPrinting,
     handleGenerateForms,
     handlePrintMasterForm,
     formUrls
-  } = useOrderPrinting(orderData, setUiState);
+  } = useOrderPrinting(orderData, setUiState, refetch);
 
   const {
     recalculate
@@ -118,6 +127,66 @@ export const OrderDetailsPage: React.FC = () => {
   const handlePreparationComplete = () => {
     setIsPrepareModalOpen(false);
     refetch(); // Reload order data to get updated status
+  };
+
+  // Phase Transition Handlers
+  const handleCustomerApproved = () => {
+    setShowCustomerApprovedModal(true);
+  };
+
+  const handleConfirmCustomerApproved = async () => {
+    if (!orderData.order) return;
+
+    try {
+      setUiState(prev => ({ ...prev, saving: true }));
+      await orderStatusApi.updateOrderStatus(
+        orderData.order.order_number,
+        'pending_production_files_creation',
+        'Customer approved the estimate'
+      );
+      setShowCustomerApprovedModal(false);
+      alert('Order status updated to Pending Files Creation');
+      refetch();
+    } catch (err) {
+      console.error('Error updating order status:', err);
+      alert('Failed to update order status. Please try again.');
+    } finally {
+      setUiState(prev => ({ ...prev, saving: false }));
+    }
+  };
+
+  const handleFilesCreated = () => {
+    setShowFilesCreatedModal(true);
+  };
+
+  const handleConfirmFilesCreated = async () => {
+    if (!orderData.order) return;
+
+    try {
+      setUiState(prev => ({ ...prev, saving: true }));
+      // TODO: Add validation to check if expected files exist based on specs
+      await orderStatusApi.updateOrderStatus(
+        orderData.order.order_number,
+        'pending_production_files_approval',
+        'Production files created and ready for approval'
+      );
+      setShowFilesCreatedModal(false);
+      alert('Order status updated to Pending Files Approval');
+      refetch();
+    } catch (err) {
+      console.error('Error updating order status:', err);
+      alert('Failed to update order status. Please try again.');
+    } finally {
+      setUiState(prev => ({ ...prev, saving: false }));
+    }
+  };
+
+  const handleOpenPrintMasterEstimate = () => {
+    handleOpenPrintModal('master_estimate');
+  };
+
+  const handleApproveFilesAndPrint = () => {
+    handleOpenPrintModal('shop_packing_production');
   };
 
   // Handle opening order folder in Windows Explorer
@@ -256,9 +325,13 @@ export const OrderDetailsPage: React.FC = () => {
         activeTab={uiState.activeTab}
         onTabChange={(tab) => setUiState(prev => ({ ...prev, activeTab: tab }))}
         onGenerateForms={handleGenerateForms}
-        onOpenPrint={handleOpenPrintModal}
+        onOpenPrint={() => handleOpenPrintModal()}
+        onOpenPrintMasterEstimate={handleOpenPrintMasterEstimate}
         onOpenFolder={handleOpenFolder}
         onPrepareOrder={handlePrepareOrder}
+        onCustomerApproved={handleCustomerApproved}
+        onFilesCreated={handleFilesCreated}
+        onApproveFilesAndPrint={handleApproveFilesAndPrint}
         generatingForms={uiState.generatingForms}
         printingForm={uiState.printingForm}
       />
@@ -634,6 +707,9 @@ export const OrderDetailsPage: React.FC = () => {
         onPrintShopPacking={handlePrintShopPacking}
         printing={uiState.printingForm}
         formUrls={formUrls}
+        mode={printMode}
+        onPrintAndMoveToProduction={handlePrintAndMoveToProduction}
+        onMoveToProductionWithoutPrinting={handleMoveToProductionWithoutPrinting}
       />
 
       {/* Prepare Order Modal - Phase 1.5.c.6.1 */}
@@ -642,6 +718,28 @@ export const OrderDetailsPage: React.FC = () => {
         onClose={handleClosePrepareModal}
         order={orderData.order}
         onComplete={handlePreparationComplete}
+      />
+
+      {/* Confirmation Modals for Phase Transitions */}
+      <ConfirmationModal
+        isOpen={showCustomerApprovedModal}
+        onClose={() => setShowCustomerApprovedModal(false)}
+        onConfirm={handleConfirmCustomerApproved}
+        title="Confirm Customer Approval"
+        message="Are you sure the customer has approved this estimate? This will move the order to Pending Files Creation status."
+        confirmText="Confirm Approval"
+        confirmColor="green"
+      />
+
+      <ConfirmationModal
+        isOpen={showFilesCreatedModal}
+        onClose={() => setShowFilesCreatedModal(false)}
+        onConfirm={handleConfirmFilesCreated}
+        title="Confirm Files Created"
+        message="Have all production files been created for this order? This will move the order to Pending Files Approval status."
+        confirmText="Confirm Files Created"
+        confirmColor="purple"
+        warningNote="TODO: Add validation to check if expected files exist based on specs (AI files, vector files, etc.)"
       />
     </div>
   );

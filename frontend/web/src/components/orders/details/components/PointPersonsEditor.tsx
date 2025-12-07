@@ -266,7 +266,7 @@ const PointPersonsEditor: React.FC<PointPersonsEditorProps> = ({
             </div>
 
             {/* Middle: Content */}
-            <div className="min-w-0 ml-8" style={{ width: '340px' }}>
+            <div className="min-w-0" style={{ width: '340px', marginLeft: '22px' }}>
               {/* Existing Contact Mode */}
               {person.mode === 'existing' && (
                 <select

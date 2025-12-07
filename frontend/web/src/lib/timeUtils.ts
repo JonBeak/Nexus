@@ -21,20 +21,146 @@ export const getStatusColor = (entry: TimeEntry): string => {
 };
 
 /**
- * Format MySQL datetime string to readable time
+ * Format MySQL/ISO datetime string to human-readable time (12-hour format with AM/PM)
+ * Use this for displaying time to users in tables, cards, etc.
+ *
+ * @param dateString - MySQL datetime ('YYYY-MM-DD HH:MM:SS') or ISO datetime
+ * @returns Formatted time string (e.g., "5:55 PM") or "-" if null
+ *
+ * @example
+ * formatTimeForDisplay('2025-08-26 17:55:00') // "5:55 PM"
+ * formatTimeForDisplay('2025-08-26T17:55:00.000Z') // "5:55 PM"
  */
-export const formatTime = (dateString: string | null): string => {
+export const formatTimeForDisplay = (dateString: string | null): string => {
   if (!dateString) return '-';
-  
+
   // MySQL returns datetime as 'YYYY-MM-DD HH:MM:SS' which JavaScript interprets as local time
   // But if it includes 'T' it might be interpreted as UTC, causing timezone issues
   const date = new Date(dateString.replace('T', ' ').replace('Z', ''));
-  
-  return date.toLocaleTimeString('en-US', { 
-    hour: '2-digit', 
+
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
     minute: '2-digit',
-    hour12: true 
+    hour12: true
   });
+};
+
+/**
+ * Format MySQL/ISO datetime to HH:MM format for HTML time input fields
+ * Use this for setting the value attribute of <input type="time">
+ *
+ * @param dateString - MySQL datetime or ISO datetime string
+ * @returns Time in HH:MM format (e.g., "17:55") or empty string if null
+ *
+ * @example
+ * formatTimeForInput('2025-08-26 17:55:00') // "17:55"
+ * formatTimeForInput('2025-08-26T17:55:00.000Z') // "17:55"
+ */
+export const formatTimeForInput = (dateString: string | null): string => {
+  if (!dateString) return '';
+
+  // Extract time portion from datetime string
+  // Works with both MySQL format (YYYY-MM-DD HH:MM:SS) and ISO format (YYYY-MM-DDTHH:MM:SS.000Z)
+  const normalized = dateString.replace(' ', 'T');
+  return normalized.split('T')[1]?.substring(0, 5) || '';
+};
+
+/**
+ * Alias for formatTimeForDisplay for backwards compatibility
+ * @deprecated Use formatTimeForDisplay instead for clarity
+ */
+export const formatTime = formatTimeForDisplay;
+
+/**
+ * Convert 12-hour time components to 24-hour HH:MM format
+ * Used by time picker components to convert user input to storage format
+ *
+ * @param hour - Hour in 12-hour format (1-12)
+ * @param minute - Minute (0-59)
+ * @param period - 'AM' or 'PM'
+ * @returns Time in HH:MM format (24-hour, e.g., "17:30")
+ *
+ * @example
+ * convert12To24Hour(5, 30, 'PM')  // "17:30"
+ * convert12To24Hour(12, 0, 'AM')  // "00:00" (midnight)
+ * convert12To24Hour(12, 0, 'PM')  // "12:00" (noon)
+ * convert12To24Hour(9, 15, 'AM')  // "09:15"
+ */
+export const convert12To24Hour = (hour: number, minute: number, period: 'AM' | 'PM'): string => {
+  let hour24 = hour;
+
+  if (period === 'AM') {
+    if (hour === 12) hour24 = 0;  // 12 AM = 00:xx (midnight)
+  } else {
+    if (hour !== 12) hour24 = hour + 12;  // PM hours (except 12)
+  }
+
+  return `${String(hour24).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+};
+
+/**
+ * Parse MySQL datetime or HH:MM string to 12-hour time components
+ * Used by time picker components to display current value
+ *
+ * @param timeString - MySQL datetime ('YYYY-MM-DD HH:MM:SS'), ISO datetime, or null
+ * @returns Object with hour (1-12), minute (0-59), and period ('AM' | 'PM')
+ *
+ * @example
+ * parse24HourTime('2025-12-06 17:30:00')  // { hour: 5, minute: 30, period: 'PM' }
+ * parse24HourTime('2025-12-06T00:00:00.000Z')  // { hour: 12, minute: 0, period: 'AM' }
+ * parse24HourTime(null)  // { hour: 9, minute: 0, period: 'AM' } (default)
+ */
+export const parse24HourTime = (
+  timeString: string | null
+): { hour: number; minute: number; period: 'AM' | 'PM' } => {
+  if (!timeString) {
+    return { hour: 9, minute: 0, period: 'AM' };  // Default to 9:00 AM
+  }
+
+  try {
+    // Extract HH:MM from datetime string
+    const hhMm = formatTimeForInput(timeString);  // Reuse existing function
+
+    if (!hhMm) {
+      return { hour: 9, minute: 0, period: 'AM' };
+    }
+
+    const [hourStr, minuteStr] = hhMm.split(':');
+    const hour24 = parseInt(hourStr);
+    const minute = parseInt(minuteStr);
+
+    if (isNaN(hour24) || isNaN(minute)) {
+      console.warn('Invalid time format:', timeString);
+      return { hour: 9, minute: 0, period: 'AM' };
+    }
+
+    // Convert 24-hour to 12-hour
+    let hour12 = hour24;
+    let period: 'AM' | 'PM' = 'AM';
+
+    if (hour24 === 0) {
+      hour12 = 12;
+      period = 'AM';
+    } else if (hour24 === 12) {
+      hour12 = 12;
+      period = 'PM';
+    } else if (hour24 > 12) {
+      hour12 = hour24 - 12;
+      period = 'PM';
+    } else {
+      hour12 = hour24;
+      period = 'AM';
+    }
+
+    return {
+      hour: Math.max(1, Math.min(12, hour12)),
+      minute: Math.max(0, Math.min(59, minute)),
+      period
+    };
+  } catch (error) {
+    console.error('Error parsing time:', error);
+    return { hour: 9, minute: 0, period: 'AM' };
+  }
 };
 
 /**
@@ -57,13 +183,32 @@ export const toDateTimeLocal = (dateString: string | null): string => {
 };
 
 /**
+ * Create a Date object at noon (12:00:00) from a date string
+ * This avoids timezone issues by anchoring to midday
+ * @param dateStr - Date string in YYYY-MM-DD format
+ * @returns Date object set to 12:00:00
+ */
+export const createNoonDate = (dateStr: string): Date => {
+  return new Date(dateStr + 'T12:00:00');
+};
+
+/**
+ * Convert a Date object to YYYY-MM-DD string format
+ * @param date - Date object to convert
+ * @returns Date string in YYYY-MM-DD format
+ */
+export const toDateString = (date: Date): string => {
+  return date.toISOString().split('T')[0];
+};
+
+/**
  * Get the Saturday that starts the work week for a given date
  * Work weeks run Saturday-Friday
  */
 export const getSaturdayOfWeek = (dateStr: string): string => {
-  const date = new Date(dateStr + 'T12:00:00');
+  const date = createNoonDate(dateStr);
   const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, etc., 6 = Saturday
-  
+
   // Find the most recent Saturday (same logic as CalendarView)
   let daysBack: number;
   if (dayOfWeek === 6) {
@@ -73,11 +218,11 @@ export const getSaturdayOfWeek = (dateStr: string): string => {
   } else {
     daysBack = dayOfWeek + 1; // Monday=2, Tuesday=3, etc.
   }
-  
+
   const saturday = new Date(date);
   saturday.setDate(date.getDate() - daysBack);
   saturday.setHours(12, 0, 0, 0);
-  return saturday.toISOString().split('T')[0];
+  return toDateString(saturday);
 };
 
 /**
@@ -86,9 +231,22 @@ export const getSaturdayOfWeek = (dateStr: string): string => {
  */
 export const getFridayOfWeek = (dateStr: string): string => {
   const saturday = getSaturdayOfWeek(dateStr);
-  const fridayDate = new Date(saturday + 'T12:00:00');
+  const fridayDate = createNoonDate(saturday);
   fridayDate.setDate(fridayDate.getDate() + 6); // Saturday + 6 days = Friday
-  return fridayDate.toISOString().split('T')[0];
+  return toDateString(fridayDate);
+};
+
+/**
+ * Get the Saturday from the PREVIOUS week (7 days before current week's Saturday)
+ * Used for bi-weekly calendars showing "previous week + current week"
+ * @param dateStr - Date string in YYYY-MM-DD format
+ * @returns YYYY-MM-DD string for previous week's Saturday
+ */
+export const getPreviousSaturdayOfWeek = (dateStr: string): string => {
+  const currentSaturday = getSaturdayOfWeek(dateStr);
+  const previousSaturday = createNoonDate(currentSaturday);
+  previousSaturday.setDate(previousSaturday.getDate() - 7);
+  return toDateString(previousSaturday);
 };
 
 /**

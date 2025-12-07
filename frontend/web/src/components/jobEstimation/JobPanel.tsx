@@ -120,23 +120,32 @@ export const JobPanel: React.FC<JobPanelProps> = ({
       return;
     }
 
+    // Client-side validation for Windows folder name compatibility
+    const clientValidation = validateJobOrOrderName(editingJobName);
+    if (!clientValidation.isValid) {
+      alert(clientValidation.error);  // Show error inline
+      return;  // Don't cancel editing so user can fix
+    }
+
     setEditingLoading(true);
     try {
       await jobVersioningApi.updateJob(editingJobId, editingJobName.trim());
-      
+
       // Update the local state
-      setAllJobs(jobs => 
-        jobs.map(job => 
-          job.job_id === editingJobId 
+      setAllJobs(jobs =>
+        jobs.map(job =>
+          job.job_id === editingJobId
             ? { ...job, job_name: editingJobName.trim() }
             : job
         )
       );
-      
+
       handleCancelEdit();
     } catch (error) {
       console.error('Error updating job name:', error);
       // Show error but don't cancel editing so user can try again
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update job name';
+      alert(errorMessage);
     } finally {
       setEditingLoading(false);
     }
@@ -163,10 +172,18 @@ export const JobPanel: React.FC<JobPanelProps> = ({
 
   const handleCreateJob = async () => {
     if (!selectedCustomerId || !newJobName.trim()) return;
-    
+
+    // Client-side validation for Windows folder name compatibility
+    const clientValidation = validateJobOrOrderName(newJobName);
+    if (!clientValidation.isValid) {
+      setValidationError(clientValidation.error);
+      return;
+    }
+
+    // Server-side validation (duplicate check + final validation)
     const isValid = await validateJobName(newJobName);
     if (!isValid) return;
-    
+
     try {
       await onCreateNewJob(newJobName.trim());
       setShowNewJobModal(false);

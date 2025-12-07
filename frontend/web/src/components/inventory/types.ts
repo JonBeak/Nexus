@@ -1,10 +1,12 @@
+import type { UserRole } from '../../types/user';
+
 export type InventoryDisposition = 'in_stock' | 'used' | 'waste' | 'returned' | 'damaged';
 export type InventoryFilterType = InventoryDisposition | 'all';
 export type ProductFilterType = 'all' | 'active' | 'inactive';
 
 export interface InventoryUser {
   user_id: number;
-  role: string;
+  role: UserRole;
   first_name: string;
   last_name: string;
 }

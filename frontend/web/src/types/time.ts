@@ -3,12 +3,14 @@
  * Extracted from TimeManagement.tsx for reusability across components
  */
 
+import type { UserRole } from './user';
+
 export interface TimeUser {
   user_id: number;
   username?: string;
   first_name?: string;
   last_name?: string;
-  role: 'manager' | 'designer' | 'production_staff' | 'owner' | string;
+  role: UserRole;
   user_group?: string;
 }
 

@@ -10,7 +10,8 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { quickbooksApi, provincesApi } from '@/services/api';
+import { provincesApi } from '@/services/api';
+import { QuickBooksDataResource } from '@/services/quickbooksDataResource';
 import { OrderPart } from '@/types/orders';
 import { QBItem, TaxRule } from '../constants/tableConstants';
 
@@ -29,10 +30,8 @@ export const useTableData = (
   useEffect(() => {
     const fetchQBItems = async () => {
       try {
-        const response = await quickbooksApi.getItems();
-        if (response.success) {
-          setQbItems(response.items);
-        }
+        const items = await QuickBooksDataResource.getItems();
+        setQbItems(items);
       } catch (error) {
         console.error('Error fetching QB items:', error);
       }

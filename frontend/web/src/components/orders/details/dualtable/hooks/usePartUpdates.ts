@@ -313,6 +313,156 @@ export const usePartUpdates = ({
     }
   }, [orderNumber, parts, specRowCounts, setParts, setSpecRowCounts]);
 
+  // Insert blank specification row AFTER specified row
+  const insertSpecRowAfter = useCallback(async (partId: number, afterRowNum: number) => {
+    const part = parts.find(p => p.part_id === partId);
+    if (!part) return;
+
+    // Calculate current row count
+    const templateCount = part.specifications
+      ? Object.keys(part.specifications).filter(key => key.startsWith('_template_')).length
+      : 0;
+    const currentCount = specRowCounts[partId] ?? (templateCount || 1);
+
+    // Max 20 rows
+    if (currentCount >= 20) {
+      alert('Maximum 20 specification rows allowed.');
+      return;
+    }
+
+    const newCount = currentCount + 1;
+
+    // Build new specifications object with rows shifted
+    const newSpecs: Record<string, any> = {};
+
+    // Copy rows 1 to afterRowNum (unchanged)
+    for (let i = 1; i <= afterRowNum; i++) {
+      copySpecRow(part.specifications, newSpecs, i, i);
+    }
+
+    // Insert blank row at afterRowNum + 1
+    newSpecs[`_template_${afterRowNum + 1}`] = '';
+
+    // Shift rows afterRowNum+1 onwards to afterRowNum+2 onwards
+    for (let i = afterRowNum + 1; i <= currentCount; i++) {
+      copySpecRow(part.specifications, newSpecs, i, i + 1);
+    }
+
+    newSpecs._row_count = newCount;
+
+    try {
+      setSaving(true);
+      const updatedPart = {
+        ...part,
+        specifications: newSpecs
+      };
+
+      await ordersApi.updateOrderParts(orderNumber, [{
+        part_id: updatedPart.part_id,
+        qb_item_name: updatedPart.qb_item_name,
+        part_scope: updatedPart.part_scope,
+        specifications: updatedPart.specifications,
+        invoice_description: updatedPart.invoice_description,
+        quantity: updatedPart.quantity,
+        unit_price: updatedPart.unit_price,
+        extended_price: updatedPart.extended_price,
+        production_notes: updatedPart.production_notes
+      }]);
+
+      setParts(prevParts =>
+        prevParts.map(p => p.part_id === partId ? updatedPart : p)
+      );
+
+      setSpecRowCounts(prev => ({
+        ...prev,
+        [partId]: newCount
+      }));
+    } catch (error) {
+      console.error('Error inserting spec row:', error);
+      alert('Failed to insert row. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }, [orderNumber, parts, specRowCounts, setParts, setSpecRowCounts]);
+
+  // Delete specific specification row with renumbering
+  const deleteSpecRow = useCallback(async (partId: number, rowNum: number) => {
+    const part = parts.find(p => p.part_id === partId);
+    if (!part) return;
+
+    // Calculate current row count
+    const templateCount = part.specifications
+      ? Object.keys(part.specifications).filter(key => key.startsWith('_template_')).length
+      : 0;
+    const currentCount = specRowCounts[partId] ?? (templateCount || 1);
+
+    // Minimum 1 row
+    if (currentCount <= 1) {
+      alert('Cannot delete the last specification row.');
+      return;
+    }
+
+    // Check if row has data
+    const hasData = checkSpecRowHasData(part.specifications, rowNum);
+
+    // Confirm deletion if has data
+    if (hasData) {
+      const confirmed = confirm(
+        `Delete specification row ${rowNum}? This will remove all data in this row and cannot be undone.`
+      );
+      if (!confirmed) return;
+    }
+
+    const newCount = currentCount - 1;
+    const newSpecs: Record<string, any> = {};
+
+    // Copy rows 1 to rowNum-1 (unchanged)
+    for (let i = 1; i < rowNum; i++) {
+      copySpecRow(part.specifications, newSpecs, i, i);
+    }
+
+    // Shift rows rowNum+1 onwards to rowNum onwards (skip deleted row)
+    for (let i = rowNum + 1; i <= currentCount; i++) {
+      copySpecRow(part.specifications, newSpecs, i, i - 1);
+    }
+
+    newSpecs._row_count = newCount;
+
+    try {
+      setSaving(true);
+      const updatedPart = {
+        ...part,
+        specifications: newSpecs
+      };
+
+      await ordersApi.updateOrderParts(orderNumber, [{
+        part_id: updatedPart.part_id,
+        qb_item_name: updatedPart.qb_item_name,
+        part_scope: updatedPart.part_scope,
+        specifications: updatedPart.specifications,
+        invoice_description: updatedPart.invoice_description,
+        quantity: updatedPart.quantity,
+        unit_price: updatedPart.unit_price,
+        extended_price: updatedPart.extended_price,
+        production_notes: updatedPart.production_notes
+      }]);
+
+      setParts(prevParts =>
+        prevParts.map(p => p.part_id === partId ? updatedPart : p)
+      );
+
+      setSpecRowCounts(prev => ({
+        ...prev,
+        [partId]: newCount
+      }));
+    } catch (error) {
+      console.error('Error deleting spec row:', error);
+      alert('Failed to delete row. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }, [orderNumber, parts, specRowCounts, setParts, setSpecRowCounts]);
+
   // Toggle is_parent status
   const toggleIsParent = useCallback(async (partId: number) => {
     const part = parts.find(p => p.part_id === partId);
@@ -433,6 +583,8 @@ export const usePartUpdates = ({
     handleSpecFieldSave,
     addSpecRow,
     removeSpecRow,
+    insertSpecRowAfter,
+    deleteSpecRow,
     toggleIsParent,
     addPartRow,
     removePartRow,
@@ -440,3 +592,40 @@ export const usePartUpdates = ({
     handleRefreshParts
   };
 };
+
+// Helper function: Copy a specification row from source to target
+function copySpecRow(
+  fromSpecs: Record<string, any> | null | undefined,
+  toSpecs: Record<string, any>,
+  fromRow: number,
+  toRow: number
+): void {
+  if (!fromSpecs) return;
+
+  // Copy template
+  toSpecs[`_template_${toRow}`] = fromSpecs[`_template_${fromRow}`] || '';
+
+  // Copy all spec fields (row{N}_*)
+  Object.keys(fromSpecs).forEach(key => {
+    if (key.startsWith(`row${fromRow}_`)) {
+      const fieldName = key.substring(`row${fromRow}_`.length);
+      toSpecs[`row${toRow}_${fieldName}`] = fromSpecs[key];
+    }
+  });
+}
+
+// Helper function: Check if a specification row has any data
+function checkSpecRowHasData(
+  specs: Record<string, any> | null | undefined,
+  rowNum: number
+): boolean {
+  if (!specs) return false;
+
+  // Check if template is selected
+  if (specs[`_template_${rowNum}`]) return true;
+
+  // Check if any spec fields have values
+  return Object.keys(specs).some(key =>
+    key.startsWith(`row${rowNum}_`) && specs[key]
+  );
+}

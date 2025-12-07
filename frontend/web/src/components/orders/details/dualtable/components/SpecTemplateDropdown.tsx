@@ -48,7 +48,7 @@ export const SpecTemplateDropdown = React.memo<SpecTemplateDropdownProps>(({
   });
 
   return (
-    <div className="h-[26px] flex items-center py-1">
+    <div className="h-[26px] flex items-center">
       <select
         value={currentValue}
         onChange={(e) => handleChange(e.target.value)}
