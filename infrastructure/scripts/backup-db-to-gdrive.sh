@@ -81,10 +81,12 @@ create_backup() {
     local timestamp=$(date '+%Y%m%d_%H%M%S')
     local filename="sign_manufacturing_${timestamp}.sql.gz"
     local filepath="${BACKUP_DIR}/${filename}"
+    local sql_filepath="${BACKUP_DIR}/sign_manufacturing_${timestamp}.sql"
 
     log "Creating database backup: $filename"
 
-    mysqldump \
+    # Step 1: Dump to uncompressed SQL file first (safer than piping)
+    if ! mysqldump \
         --host="$DB_HOST" \
         --user="$DB_USER" \
         --password="$DB_PASSWORD" \
@@ -92,7 +94,35 @@ create_backup() {
         --routines \
         --triggers \
         --events \
-        "$DB_NAME" 2>/dev/null | gzip > "$filepath"
+        "$DB_NAME" > "$sql_filepath" 2>&1; then
+        rm -f "$sql_filepath"
+        error_exit "mysqldump failed"
+    fi
+
+    # Step 2: Verify backup is complete by checking for key tables
+    if ! grep -q "CREATE TABLE \`users\`" "$sql_filepath"; then
+        rm -f "$sql_filepath"
+        error_exit "Backup incomplete - missing users table"
+    fi
+
+    if ! grep -q "CREATE TABLE \`customers\`" "$sql_filepath"; then
+        rm -f "$sql_filepath"
+        error_exit "Backup incomplete - missing customers table"
+    fi
+
+    # Step 3: Count tables and verify reasonable number
+    local table_count=$(grep -c "CREATE TABLE" "$sql_filepath" || echo 0)
+    if [[ $table_count -lt 30 ]]; then
+        rm -f "$sql_filepath"
+        error_exit "Backup incomplete - only $table_count tables found (expected 30+)"
+    fi
+    log "Backup contains $table_count tables"
+
+    # Step 4: Compress the verified SQL file
+    if ! gzip "$sql_filepath"; then
+        rm -f "$sql_filepath" "$filepath"
+        error_exit "gzip compression failed"
+    fi
 
     if [[ ! -s "$filepath" ]]; then
         rm -f "$filepath"

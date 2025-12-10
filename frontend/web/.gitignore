@@ -1,3 +1,9 @@
+# Environment files (machine-specific, may contain secrets)
+.env
+.env.development
+.env.production
+.env.local
+
 # Logs
 logs
 *.log
