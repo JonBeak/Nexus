@@ -294,7 +294,7 @@ See `Nexus_Orders_JobStructure.md` for detailed breakdown of nested objects.
 - [x] Full timeline/audit trail tracking (order_status_history)
 - [x] Production roles in order_tasks table (15 role enum values)
 
-### Phase 1.5: Job Details Setup Interface (2-3 weeks) - ✅ 90% COMPLETE
+### Phase 1.5: Job Details Setup Interface (2-3 weeks) - ✅ 100% COMPLETE
 - [x] Phase 1.5.a: Numbering fix + order creation enhancements
 - [x] Phase 1.5.a.5: ApproveEstimateModal enhancements
   - Business days calculation with holiday awareness
@@ -316,7 +316,23 @@ See `Nexus_Orders_JobStructure.md` for detailed breakdown of nested objects.
   - Painting task matrix with substrate/finish combinations
   - Automatic task sorting, role assignment, deduplication
 - [x] Phase 1.5.g: Order Folder & Image Management
-- [ ] Phase 1.5.e: Enhanced Row Management UI (optional enhancement)
+- [x] **Phase 1.5.e: Row Operations Polish ✅** (2025-12-09)
+  - DuplicateRowModal with 3 options (Specs Only, Invoice Only, Both)
+  - Full backend API (controller, service, route)
+  - Integrated into PartRow with duplicate button
+
+### Phase 1.6: QB Estimate Integration During Order Conversion ✅ (2025-12-10)
+- [x] **QB Estimate Comparison Service**
+  - Fetches QB Estimate line items from QuickBooks API during order conversion
+  - Compares structure: name + order + qty + price (ignoring non-product rows)
+  - Uses QB values if structure matches (captures description edits made in QB)
+  - Graceful fallback to app's estimate data on mismatch or error
+- [x] **Files Created/Modified:**
+  - NEW: `qbEstimateComparisonService.ts` - Core comparison logic (~200 lines)
+  - MODIFIED: `orderConversionService.ts` - QB check integration
+  - MODIFIED: `orderPartCreationService.ts` - Apply QB values
+  - MODIFIED: `orderConversionRepository.ts` - `getEstimateQBId()` method
+  - MODIFIED: `types/orders.ts` - `QBEstimateLineItem`, `QBComparisonResult` types
 
 ### Phase 2: Essential Features (3-4 weeks)
 - [ ] Jobs Table (searchable/filterable list)
@@ -423,8 +439,8 @@ LIMIT ?  -- Fails with correlated subqueries
 
 ---
 
-**Document Status**: Phase 1 100% Complete ✅, Phase 1.5 90% Complete (major features done)
-**Last Updated**: 2025-11-25
+**Document Status**: Phase 1 100% Complete ✅, Phase 1.5 100% Complete ✅, Phase 1.6 100% Complete ✅
+**Last Updated**: 2025-12-10
 **Owner**: Jon (with Claude Code assistance)
 
 **Recent Major Updates (Nov 2025)**:

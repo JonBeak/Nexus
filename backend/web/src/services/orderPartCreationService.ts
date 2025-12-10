@@ -30,21 +30,28 @@ import { orderPartRepository } from '../repositories/orderPartRepository';
 import { orderConversionRepository } from '../repositories/orderConversionRepository';
 import { customerRepository } from '../repositories/customerRepository';
 import { quickbooksRepository } from '../repositories/quickbooksRepository';
-import { OrderPart, CreateOrderPartData, EstimatePreviewData } from '../types/orders';
+import { OrderPart, CreateOrderPartData, EstimatePreviewData, QBEstimateLineItem } from '../types/orders';
 import { mapQBItemNameToSpecsDisplayName } from '../utils/qbItemNameMapper';
 import { mapSpecsDisplayNameToTypes } from '../utils/specsTypeMapper';
 import { autoFillSpecifications } from './specsAutoFill';
+
+// Product type IDs to exclude from QB line matching (non-product rows)
+const NON_PRODUCT_TYPE_IDS = [21, 25, 27]; // Subtotal, Divider, Empty Row
 
 export class OrderPartCreationService {
   /**
    * Phase 1.5: Create order parts from EstimatePreviewData
    * Uses the calculated preview data with display numbers, pricing, and item details
+   *
+   * Phase 1.6: Optionally accepts QB line items to override invoice values
+   * When qbLineItems provided, QB values are used for: qb_item_name, qb_description, quantity, unit_price
    */
   async createOrderPartsFromPreviewData(
     previewData: EstimatePreviewData,
     orderId: number,
     connection: any,
-    customerId?: number
+    customerId?: number,
+    qbLineItems?: QBEstimateLineItem[]  // Phase 1.6: Optional QB Estimate line items
   ): Promise<OrderPart[]> {
     const parts: OrderPart[] = [];
     console.time('[Order Parts] Loop through items');
@@ -72,9 +79,17 @@ export class OrderPartCreationService {
     // Track parts that were mutated and need database updates
     const partsToUpdate: Map<number, any> = new Map();
 
+    // Phase 1.6: Track filtered index for QB line matching
+    // Only increment for product lines (not descriptionOnly, not special types)
+    let qbFilteredIndex = 0;
+    const filteredQBLines = qbLineItems?.filter(line => line.detailType === 'SalesItemLineDetail') || [];
+
     // Process each estimate line item
     for (let i = 0; i < previewData.items.length; i++) {
       const item = previewData.items[i];
+
+      // Phase 1.6: Determine if this is a product line (for QB matching)
+      const isProductLine = !item.isDescriptionOnly && !NON_PRODUCT_TYPE_IDS.includes(item.productTypeId);
 
       // Generate machine-readable product_type_id from name
       const productTypeId = this.generateProductTypeId(item.productTypeName);
@@ -90,8 +105,27 @@ export class OrderPartCreationService {
 
       // Auto-map QB item name and description (case-insensitive match)
       const qbItemData = qbMap.get(item.itemName.toLowerCase());
-      const qbItemName = qbItemData?.name || undefined;
-      const qbDescription = qbItemData?.description || '';
+      let qbItemName = qbItemData?.name || undefined;
+      let qbDescription = qbItemData?.description || '';
+
+      // Phase 1.6: Override with QB Estimate values if available (for product lines only)
+      // QB values take precedence as they may have been edited in QuickBooks
+      let finalQuantity = item.quantity;
+      let finalUnitPrice = item.unitPrice;
+      let finalExtendedPrice = item.extendedPrice;
+
+      if (isProductLine && filteredQBLines.length > 0 && qbFilteredIndex < filteredQBLines.length) {
+        const qbLine = filteredQBLines[qbFilteredIndex];
+        if (qbLine) {
+          // Use QB values - they may have description edits from QuickBooks
+          qbItemName = qbLine.itemName || qbItemName;
+          qbDescription = qbLine.description || qbDescription;
+          finalQuantity = qbLine.quantity;
+          finalUnitPrice = qbLine.unitPrice;
+          finalExtendedPrice = qbLine.quantity * qbLine.unitPrice;
+          console.log(`[Order Parts] Using QB values for item ${qbFilteredIndex + 1}: ${qbItemName}`);
+        }
+      }
 
       // Map QB item name to specs display name
       const specsDisplayName = mapQBItemNameToSpecsDisplayName(qbItemName);
@@ -154,27 +188,45 @@ export class OrderPartCreationService {
         }
       }
 
+      // Determine if this is a description-only row (for QB DescriptionOnly handling)
+      // - Explicitly marked as description-only by frontend
+      // - Non-product types (Subtotal, Divider, Empty Row)
+      // - Custom type (productTypeId 9) with no price
+      const CUSTOM_PRODUCT_TYPE_ID = 9;
+      const isDescriptionOnlyRow = item.isDescriptionOnly ||
+                                   NON_PRODUCT_TYPE_IDS.includes(item.productTypeId) ||
+                                   (item.productTypeId === CUSTOM_PRODUCT_TYPE_ID && (!item.unitPrice || item.unitPrice === 0));
+
       // Create order part data with Phase 1.5 fields
+      // Phase 1.6: Uses finalQuantity, finalUnitPrice, finalExtendedPrice (may be from QB Estimate)
       const partData: CreateOrderPartData = {
         order_id: orderId,
         part_number: i + 1,
         display_number: item.estimatePreviewDisplayNumber || `${i + 1}`,  // "1", "1a", "1b", "1c"
         is_parent: item.isParent || false,
         product_type: item.itemName,  // Specific component name: "3\" Front Lit", "LEDs", "Power Supplies", "UL"
-        qb_item_name: qbItemName,  // Auto-filled from qb_item_mappings
-        qb_description: qbDescription,  // Auto-filled QB Description from qb_item_mappings
+        qb_item_name: qbItemName,  // Auto-filled from qb_item_mappings (or QB Estimate)
+        // For description-only rows, put calculationDisplay in qb_description (for QB DescriptionOnly row)
+        // For product rows, use the qb_description from mappings/QB Estimate
+        qb_description: isDescriptionOnlyRow ? (item.calculationDisplay || '') : qbDescription,
         specs_display_name: specsDisplayName,  // Mapped display name for Specs section
-        specs_qty: item.quantity || 0,  // Manufacturing quantity (dedicated column) - separate from invoice quantity
+        specs_qty: finalQuantity || 0,  // Manufacturing quantity (dedicated column) - separate from invoice quantity
         product_type_id: productTypeId,
         channel_letter_type_id: undefined,  // Phase 1: NULL (can enhance later)
         base_product_type_id: !isChannelLetter ? productTypeInfo.id : undefined,
-        quantity: item.quantity,
+        quantity: finalQuantity,  // Phase 1.6: May be from QB Estimate
         specifications: finalSpecifications,  // Use auto-filled specifications
-        // Invoice data from preview
-        invoice_description: item.calculationDisplay,
-        unit_price: item.unitPrice,
-        extended_price: item.extendedPrice
+        // Invoice data from preview (Phase 1.6: May be from QB Estimate)
+        // For description-only rows, leave invoice_description empty (description is in qb_description)
+        invoice_description: isDescriptionOnlyRow ? '' : item.calculationDisplay,
+        unit_price: finalUnitPrice,
+        extended_price: finalExtendedPrice
       };
+
+      // Phase 1.6: Increment QB filtered index after processing a product line
+      if (isProductLine) {
+        qbFilteredIndex++;
+      }
 
       // Create the order part
       const partId = await orderPartRepository.createOrderPart(partData, connection);
@@ -189,6 +241,7 @@ export class OrderPartCreationService {
       });
 
       // Add to parts array for task generation
+      // Phase 1.6: Uses final values (may be from QB Estimate)
       parts.push({
         part_id: partId,
         order_id: orderId,
@@ -196,16 +249,17 @@ export class OrderPartCreationService {
         display_number: item.estimatePreviewDisplayNumber || `${i + 1}`,
         is_parent: item.isParent || false,
         product_type: item.itemName,  // Specific component name: "3\" Front Lit", "LEDs", "Power Supplies", "UL"
-        qb_item_name: qbItemName,  // Auto-filled from qb_item_mappings
+        qb_item_name: qbItemName,  // Auto-filled from qb_item_mappings (or QB Estimate)
+        qb_description: isDescriptionOnlyRow ? (item.calculationDisplay || '') : qbDescription,
         specs_display_name: specsDisplayName,  // Mapped display name for Specs section
         product_type_id: productTypeId,
         channel_letter_type_id: undefined,
         base_product_type_id: !isChannelLetter ? productTypeInfo.id : undefined,
-        quantity: item.quantity,
+        quantity: finalQuantity,  // Phase 1.6: May be from QB Estimate
         specifications: finalSpecifications,  // Use auto-filled specifications
-        invoice_description: item.calculationDisplay,
-        unit_price: item.unitPrice,
-        extended_price: item.extendedPrice
+        invoice_description: isDescriptionOnlyRow ? '' : item.calculationDisplay,
+        unit_price: finalUnitPrice,  // Phase 1.6: May be from QB Estimate
+        extended_price: finalExtendedPrice  // Phase 1.6: May be from QB Estimate
       });
     }
 

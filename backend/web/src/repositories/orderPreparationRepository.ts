@@ -296,8 +296,8 @@ export async function getOrderDataForQBEstimate(orderId: number): Promise<OrderD
 }
 
 /**
- * Get order parts for QB estimate creation (invoice items only)
- * Filters for parts with pricing information
+ * Get order parts for QB estimate creation (invoice items and description-only rows)
+ * Includes: parts with pricing OR parts with description text (for DescriptionOnly QB rows)
  */
 export async function getOrderPartsForQBEstimate(orderId: number): Promise<OrderPartForQBEstimate[]> {
   const rows = await query(
@@ -315,7 +315,7 @@ export async function getOrderPartsForQBEstimate(orderId: number): Promise<Order
       (unit_price IS NOT NULL AND unit_price > 0) as is_taxable
     FROM order_parts
     WHERE order_id = ?
-      AND (invoice_description IS NOT NULL OR unit_price IS NOT NULL)
+      AND (invoice_description IS NOT NULL OR qb_description IS NOT NULL OR unit_price IS NOT NULL)
     ORDER BY part_number`,
     [orderId]
   ) as RowDataPacket[];

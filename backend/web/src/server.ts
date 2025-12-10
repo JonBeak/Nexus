@@ -39,6 +39,7 @@ import orderPreparationRoutes from './routes/orderPreparation';
 import ledsRoutes from './routes/leds';
 import powerSuppliesRoutes from './routes/powerSupplies';
 import printRoutes from './routes/print';
+import systemRoutes from './routes/system';
 
 // QuickBooks utilities for startup
 import { quickbooksOAuthRepository } from './repositories/quickbooksOAuthRepository';
@@ -114,6 +115,7 @@ app.use('/api/order-preparation', orderPreparationRoutes);
 app.use('/api/leds', ledsRoutes);
 app.use('/api/power-supplies', powerSuppliesRoutes);
 app.use('/api/print', printRoutes);
+app.use('/api/system', systemRoutes);
 
 // =============================================
 // STATIC FILE SERVING (Phase 1.5.g)

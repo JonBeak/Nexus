@@ -55,7 +55,8 @@ export {
   updatePartSpecsQty,
   reorderParts,
   addPartRow,
-  removePartRow
+  removePartRow,
+  duplicatePart
 } from './OrderPartsController';
 
 // Snapshot/Versioning Operations

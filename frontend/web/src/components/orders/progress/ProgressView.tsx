@@ -16,16 +16,18 @@ interface Props {
 export const ProgressView: React.FC<Props> = ({ orderNumber, currentStatus, productionNotes, onOrderUpdated }) => {
   const [tasksByPart, setTasksByPart] = useState<any[]>([]);
   const [progress, setProgress] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
-    fetchData();
+    fetchData(refreshTrigger === 0);
   }, [orderNumber, refreshTrigger]);
 
-  const fetchData = async () => {
+  const fetchData = async (isInitial: boolean = false) => {
     try {
-      setLoading(true);
+      if (isInitial) {
+        setInitialLoading(true);
+      }
       const [tasksData, progressData] = await Promise.all([
         ordersApi.getTasksByPart(orderNumber),
         ordersApi.getOrderProgress(orderNumber)
@@ -35,7 +37,9 @@ export const ProgressView: React.FC<Props> = ({ orderNumber, currentStatus, prod
     } catch (error) {
       console.error('Error fetching progress data:', error);
     } finally {
-      setLoading(false);
+      if (isInitial) {
+        setInitialLoading(false);
+      }
     }
   };
 
@@ -55,7 +59,7 @@ export const ProgressView: React.FC<Props> = ({ orderNumber, currentStatus, prod
     }
   };
 
-  if (loading) {
+  if (initialLoading) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-gray-500">Loading progress...</div>

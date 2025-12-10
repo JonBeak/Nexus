@@ -397,7 +397,9 @@ export class OrderRepository {
     const rows = await query(
       `SELECT
         h.*,
-        u.username as changed_by_username
+        u.username as changed_by_username,
+        u.first_name as changed_by_first_name,
+        u.last_name as changed_by_last_name
       FROM order_status_history h
       LEFT JOIN users u ON h.changed_by = u.user_id
       WHERE h.order_id = ?

@@ -101,6 +101,28 @@ export const OrderDetailsPage: React.FC = () => {
     setOrderData(prev => ({ ...prev, parts: updatedParts }));
   }, [setOrderData]);
 
+  // Scroll-preserving refetch for progress tab updates
+  const handleProgressRefetch = useCallback(async () => {
+    // Save current scroll position
+    const scrollTop = scrollContainerRef.current?.scrollTop ?? 0;
+
+    // Refetch data and wait for it to complete
+    await refetch();
+
+    // Restore scroll position after React re-renders from state update
+    // Use multiple frames to ensure we catch the render
+    requestAnimationFrame(() => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollTop;
+      }
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollTop;
+        }
+      });
+    });
+  }, [refetch]);
+
   // Scroll preservation: Restore scroll position synchronously before each paint during save operations
   useLayoutEffect(() => {
     if (isSavingRef.current && savedScrollPosition.current !== null && scrollContainerRef.current) {
@@ -337,7 +359,7 @@ export const OrderDetailsPage: React.FC = () => {
       />
 
       {/* Main Content: Tabbed Layout */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-auto">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto overflow-y-overlay">
         <div className="px-4 py-4 h-full">
           {/* TAB 1: Specs & Invoice - Full Width */}
           {uiState.activeTab === 'specs' && (
@@ -669,7 +691,7 @@ export const OrderDetailsPage: React.FC = () => {
               </div>
 
               {/* Bottom Row: Job Details & Invoice (Dual-Table) - Full Width */}
-              <div className="flex-shrink-0" style={{ width: '1888px' }}>
+              <div style={{ width: '1871px' }}>
                 <DualTableLayout
                   orderNumber={orderData.order.order_number}
                   initialParts={orderData.parts}
@@ -688,7 +710,7 @@ export const OrderDetailsPage: React.FC = () => {
                   orderNumber={orderData.order.order_number}
                   currentStatus={orderData.order.status}
                   productionNotes={orderData.order.production_notes}
-                  onOrderUpdated={() => refetch()}
+                  onOrderUpdated={handleProgressRefetch}
                 />
               </div>
             </div>

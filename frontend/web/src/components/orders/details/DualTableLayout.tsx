@@ -52,6 +52,7 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
     addPartRow,
     removePartRow,
     reorderParts,
+    duplicatePart,
     handleRefreshParts
   } = usePartUpdates({
     orderNumber,
@@ -119,8 +120,8 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
   }, [parts, specRowCounts]);
 
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="overflow-x-auto">
+    <div className="bg-white rounded-lg shadow overflow-hidden w-fit max-w-full">
+      <div className="overflow-x-auto w-fit max-w-full">
         {/* Header */}
         <TableHeader />
 
@@ -151,6 +152,7 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
                     onDelete={deleteSpecRow}
                     onToggleParent={toggleIsParent}
                     onRemovePartRow={removePartRow}
+                    onDuplicatePart={duplicatePart}
                     onUpdate={handleRefreshParts}
                   />
                 ))

@@ -22,6 +22,7 @@ import { orderRepository } from '../repositories/orderRepository';
 import { OrderTask, ProductionRole } from '../types/orders';
 import { query } from '../config/database';
 import { RowDataPacket } from 'mysql2';
+import { orderService } from './orderService';
 
 /**
  * Interface for batch task update operations
@@ -101,16 +102,20 @@ export class OrderTaskService {
           (order.status === 'production_queue' ||
            order.status === 'in_production' ||
            order.status === 'overdue')) {
-        // Move to QC & Packing
-        await orderRepository.updateOrderStatus(
+        // Move to QC & Packing with status history
+        await orderService.updateOrderStatus(
           order.order_id,
-          'qc_packing'
+          'qc_packing',
+          userId,
+          'Automatically moved to QC & Packing (all tasks completed)'
         );
       } else if (order.status === 'production_queue') {
-        // PRIORITY 2: Move from Production Queue to In Production
-        await orderRepository.updateOrderStatus(
+        // PRIORITY 2: Move from Production Queue to In Production with status history
+        await orderService.updateOrderStatus(
           order.order_id,
-          'in_production'
+          'in_production',
+          userId,
+          'Automatically moved to In Production (first task started)'
         );
       }
     }
@@ -253,16 +258,20 @@ export class OrderTaskService {
           (order.status === 'production_queue' ||
            order.status === 'in_production' ||
            order.status === 'overdue')) {
-        // Move to QC & Packing
-        await orderRepository.updateOrderStatus(
+        // Move to QC & Packing with status history
+        await orderService.updateOrderStatus(
           order.order_id,
-          'qc_packing'
+          'qc_packing',
+          userId,
+          'Automatically moved to QC & Packing (all tasks completed via batch update)'
         );
       } else if (order.status === 'production_queue') {
-        // PRIORITY 2: Move from Production Queue to In Production
-        await orderRepository.updateOrderStatus(
+        // PRIORITY 2: Move from Production Queue to In Production with status history
+        await orderService.updateOrderStatus(
           order.order_id,
-          'in_production'
+          'in_production',
+          userId,
+          'Automatically moved to In Production (tasks started via batch update)'
         );
       }
     }

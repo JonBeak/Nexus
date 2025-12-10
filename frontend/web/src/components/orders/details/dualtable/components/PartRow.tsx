@@ -14,8 +14,8 @@
  * - Quantity, unit price, extended price
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { RefreshCw, GripVertical } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { GripVertical, MoreVertical, Trash2, ArrowUpCircle, ArrowDownCircle, Copy } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ordersApi } from '@/services/api';
@@ -30,6 +30,7 @@ import { EditableSpecsQty } from './EditableSpecsQty';
 import { SpecificationRows } from './SpecificationRows';
 import { EditableTextarea } from './EditableTextarea';
 import { EditableInput } from './EditableInput';
+import { DuplicateRowModal, DuplicateMode } from '@/components/orders/modals/DuplicateRowModal';
 
 interface PartRowProps {
   part: OrderPart;
@@ -44,6 +45,7 @@ interface PartRowProps {
   onDelete: (partId: number, rowNum: number) => void;
   onToggleParent: (partId: number) => void;
   onRemovePartRow: (partId: number) => void;
+  onDuplicatePart: (partId: number, mode: DuplicateMode) => void;
   onUpdate: () => void;
 }
 
@@ -60,16 +62,39 @@ export const PartRow: React.FC<PartRowProps> = ({
   onDelete,
   onToggleParent,
   onRemovePartRow,
+  onDuplicatePart,
   onUpdate
 }) => {
   const [saving, setSaving] = useState(false);
   const [localPartScope, setLocalPartScope] = useState(part.part_scope || '');
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
+  const [showRowMenu, setShowRowMenu] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const rowMenuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const isParent = part.is_parent;
 
   // Sync local scope state when part changes
   useEffect(() => {
     setLocalPartScope(part.part_scope || '');
   }, [part.part_scope]);
+
+  // Close row menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (rowMenuRef.current && !rowMenuRef.current.contains(event.target as Node)) {
+        setShowRowMenu(false);
+      }
+    };
+
+    if (showRowMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showRowMenu]);
 
   // Setup drag-and-drop sortable
   const {
@@ -207,11 +232,11 @@ export const PartRow: React.FC<PartRowProps> = ({
       className="border-b-2 border-gray-300 grid gap-2 px-2"
       style={{
         ...style,
-        gridTemplateColumns: '75px 165px 120px 110px 110px 110px 60px 140px 380px 270px 55px 75px 85px'
+        gridTemplateColumns:'40px 165px 115px 123px 123px 123px 62px 140px 380px 270px 55px 75px 85px'
       }}
     >
-      {/* Row Controls: Drag Handle, Remove Part, Toggle Parent */}
-      <div className="flex flex-row items-start justify-center pt-1 space-x-1">
+      {/* Row Controls: Drag Handle + Actions Dropdown */}
+      <div className="flex flex-row items-start justify-center pt-1 space-x-1 bg-gray-200 -ml-2 pl-2 -mr-2 pr-2">
         {/* Drag Handle */}
         <button
           {...attributes}
@@ -221,28 +246,80 @@ export const PartRow: React.FC<PartRowProps> = ({
         >
           <GripVertical size={16} />
         </button>
-        <button
-          onClick={() => onRemovePartRow(part.part_id)}
-          className="w-6 h-6 flex items-center justify-center text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded"
-          title="Remove part row"
-        >
-          −
-        </button>
-        <button
-          onClick={() => onToggleParent(part.part_id)}
-          className={`w-6 h-6 flex items-center justify-center text-white rounded ${
-            part.is_parent
-              ? 'bg-blue-600 hover:bg-blue-700'
-              : 'bg-gray-500 hover:bg-gray-600'
-          }`}
-          title={part.is_parent ? 'Convert to Sub-Item' : 'Promote to Base Item'}
-        >
-          <RefreshCw size={14} />
-        </button>
+
+        {/* Actions Dropdown */}
+        <div className="relative" ref={rowMenuRef}>
+          <button
+            ref={menuButtonRef}
+            onClick={(e) => {
+              if (!showRowMenu && menuButtonRef.current) {
+                const rect = menuButtonRef.current.getBoundingClientRect();
+                setMenuPosition({ top: rect.bottom + 2, left: rect.left });
+              }
+              setShowRowMenu(!showRowMenu);
+            }}
+            className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded"
+            title="Row actions"
+          >
+            <MoreVertical size={16} />
+          </button>
+
+          {showRowMenu && menuPosition && (
+            <div
+              className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[180px]"
+              style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px` }}
+            >
+              {/* Delete Row */}
+              <button
+                onClick={() => {
+                  setShowRowMenu(false);
+                  onRemovePartRow(part.part_id);
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 flex items-center space-x-2"
+              >
+                <Trash2 size={14} />
+                <span>Delete Row</span>
+              </button>
+
+              {/* Promote/Demote */}
+              <button
+                onClick={() => {
+                  setShowRowMenu(false);
+                  onToggleParent(part.part_id);
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+              >
+                {part.is_parent ? (
+                  <>
+                    <ArrowDownCircle size={14} />
+                    <span>Demote to Sub-Part</span>
+                  </>
+                ) : (
+                  <>
+                    <ArrowUpCircle size={14} />
+                    <span>Promote to Parent Part</span>
+                  </>
+                )}
+              </button>
+
+              {/* Duplicate */}
+              <button
+                onClick={() => {
+                  setShowRowMenu(false);
+                  setShowDuplicateModal(true);
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+              >
+                <Copy size={14} />
+                <span>Duplicate Row</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Item Name - editable dropdown + Part Scope + QTY field for parent parts */}
-      <div className={`flex flex-col h-full ${isParent ? 'font-semibold text-gray-900 text-sm' : 'text-gray-700 text-sm'}`}>
+      <div className={`flex flex-col h-full border-l-2 border-gray-400 pl-2 ${isParent ? 'font-semibold text-gray-900 text-sm' : 'text-gray-700 text-sm'}`}>
         <ItemNameDropdown
           partId={part.part_id}
           orderNumber={orderNumber}
@@ -355,6 +432,22 @@ export const PartRow: React.FC<PartRowProps> = ({
           {formatCurrency(part.extended_price)}
         </span>
       </div>
+
+      {/* Duplicate Row Modal */}
+      <DuplicateRowModal
+        isOpen={showDuplicateModal}
+        onClose={() => setShowDuplicateModal(false)}
+        onConfirm={async (mode) => {
+          setDuplicating(true);
+          try {
+            await onDuplicatePart(part.part_id, mode);
+            setShowDuplicateModal(false);
+          } finally {
+            setDuplicating(false);
+          }
+        }}
+        loading={duplicating}
+      />
     </div>
   );
 };

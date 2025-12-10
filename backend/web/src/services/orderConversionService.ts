@@ -47,6 +47,8 @@ import {
 import { orderFolderService } from './orderFolderService';
 import { CustomerContactService } from './customerContactService';
 import { orderPartCreationService } from './orderPartCreationService';
+import { qbEstimateComparisonService } from './qbEstimateComparisonService';
+import { QBEstimateLineItem } from '../types/orders';
 
 const customerContactService = new CustomerContactService();
 
@@ -215,7 +217,33 @@ export class OrderConversionService {
         console.log(`✅ Created ${request.pointPersons.length} point person(s) for order`);
       }
 
-      // 9. Create order parts from EstimatePreviewData
+      // 9. Phase 1.6: Check for QB Estimate integration
+      // If the estimate has an associated QB Estimate, fetch and compare structure
+      // Use QB values if structure matches (captures description edits made in QB)
+      let qbLineItems: QBEstimateLineItem[] | undefined;
+
+      const qbEstimateId = await orderConversionRepository.getEstimateQBId(request.estimateId, connection);
+      if (qbEstimateId) {
+        console.log(`[Order Conversion] Found QB Estimate ${qbEstimateId} - checking structure...`);
+        try {
+          const comparison = await qbEstimateComparisonService.fetchAndCompareQBEstimate(
+            qbEstimateId,
+            request.estimatePreviewData!
+          );
+
+          if (comparison.useQBValues && comparison.qbLineItems) {
+            qbLineItems = comparison.qbLineItems;
+            console.log('✅ Using QB Estimate values for order parts');
+          } else {
+            console.log(`ℹ️ QB Estimate not used: ${comparison.reason}`);
+          }
+        } catch (qbError) {
+          // Non-blocking: QB errors should never prevent order creation
+          console.warn(`⚠️ QB comparison failed (continuing with app values):`, qbError);
+        }
+      }
+
+      // 10. Create order parts from EstimatePreviewData
       if (!request.estimatePreviewData) {
         throw new Error('EstimatePreviewData is required for order creation');
       }
@@ -225,14 +253,15 @@ export class OrderConversionService {
         request.estimatePreviewData,
         orderId,
         connection,
-        estimate.customer_id  // Pass customerId for customer preferences
+        estimate.customer_id,  // Pass customerId for customer preferences
+        qbLineItems  // Phase 1.6: Pass QB line items if available
       );
       console.timeEnd('[Order Conversion] Create order parts');
 
-      // 10. Mark estimate as approved (order existence is tracked via orders.estimate_id foreign key)
+      // 11. Mark estimate as approved (order existence is tracked via orders.estimate_id foreign key)
       await orderConversionRepository.updateEstimateStatusAndApproval(request.estimateId, 'approved', true, connection);
 
-      // 11. Create initial status history entry
+      // 12. Create initial status history entry
       await orderRepository.createStatusHistory(
         {
           order_id: orderId,
@@ -243,7 +272,7 @@ export class OrderConversionService {
         connection
       );
 
-      // 12. Create order folder on SMB share
+      // 13. Create order folder on SMB share
       console.time('[Order Conversion] Create order folder');
       try {
         const folderCreated = orderFolderService.createOrderFolder(folderName);

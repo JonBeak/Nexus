@@ -68,13 +68,12 @@ function buildEmailTemplate(data: EmailData): { subject: string; html: string; t
   // ============================================================================
  
   const content = {
-    subject: `${data.orderName} - #${data.orderNumber} Requires Confirmation`,
+    subject: `[Requires Confirmation] ${data.orderName} - #${data.orderNumber}`,
     title: 'Order Ready for Review',
     greeting: data.customerName ? `Dear ${data.customerName},` : 'Dear Valued Customer,',
 
     paragraphs: [
-      `The details for your order #${data.orderNumber} - ${data.orderName} have been prepared and are ready for your review and confirmation.`,
-      `Please review the attached documents carefully. If everything looks correct, please confirm the order so we can proceed with production.`
+      `The details for your order #${data.orderNumber} - ${data.orderName} have been prepared and are ready for your review and confirmation.`
     ],
 
     attachmentsTitle: 'Attached Documents:',
@@ -313,18 +312,18 @@ function buildEmailTemplate(data: EmailData): { subject: string; html: string; t
             <!-- Greeting -->
             <p class="greeting">${content.greeting}</p>
 
-            <!-- Urgency Box -->
-            <div class="urgency-box">
-              <strong>${content.urgencyBox.title}</strong><br>
-              ${content.urgencyBox.message}
-            </div>
-
             <!-- Main Paragraphs -->
             ${content.paragraphs
               .map(
                 p => `<p>${p}</p>`
               )
               .join("")}
+
+            <!-- Urgency Box -->
+            <div class="urgency-box">
+              <strong>${content.urgencyBox.title}</strong><br>
+              ${content.urgencyBox.message}
+            </div>
 
             <!-- Attachments -->
             <div class="attachments">
@@ -380,10 +379,10 @@ ${content.title}
 
 ${content.greeting}
 
+${content.paragraphs.join('\n\n')}
+
 ${content.urgencyBox.title}
 ${content.urgencyBox.message}
-
-${content.paragraphs.join('\n\n')}
 
 ${content.attachmentsTitle}
 ${content.attachments.map(a => `- ${a}`).join('\n')}

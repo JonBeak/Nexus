@@ -108,6 +108,29 @@ export class OrderConversionRepository {
   }
 
   /**
+   * Get QB Estimate ID for an estimate (Phase 1.6)
+   * Used during order conversion to check if estimate has an associated QB Estimate
+   * @returns QB Estimate ID if exists, null otherwise
+   */
+  async getEstimateQBId(
+    estimateId: number,
+    connection?: PoolConnection
+  ): Promise<string | null> {
+    const conn = connection || pool;
+
+    const [rows] = await conn.execute<RowDataPacket[]>(
+      `SELECT qb_estimate_id FROM job_estimates WHERE id = ?`,
+      [estimateId]
+    );
+
+    if (rows.length === 0 || !rows[0].qb_estimate_id) {
+      return null;
+    }
+
+    return rows[0].qb_estimate_id;
+  }
+
+  /**
    * Get product type info for part creation
    * Returns product type details including channel letter flag (derived from name)
    */

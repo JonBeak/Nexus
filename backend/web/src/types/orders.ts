@@ -526,3 +526,41 @@ export interface OrderPartForPDF {
   unit_price?: number;           // Unit price
   extended_price?: number;       // Extended price (unit_price * quantity)
 }
+
+// ============================================================================
+// Phase 1.6: QB Estimate Comparison Types
+// Used for comparing app estimate structure with QB Estimate during order conversion
+// ============================================================================
+
+/**
+ * Represents a line item from a QuickBooks Estimate
+ * Used during estimate-to-order conversion to pull QB values
+ */
+export interface QBEstimateLineItem {
+  /** QB Item name (e.g., "Channel Letters 3\"") */
+  itemName: string;
+  /** QB Description (may have been edited in QB) */
+  description: string;
+  /** Quantity from QB */
+  quantity: number;
+  /** Unit price from QB */
+  unitPrice: number;
+  /** Line detail type - SalesItemLineDetail for products, DescriptionOnly for notes */
+  detailType: 'SalesItemLineDetail' | 'DescriptionOnly';
+  /** Original line ID from QB (for reference) */
+  lineId?: string;
+}
+
+/**
+ * Result of comparing app estimate with QB Estimate structure
+ */
+export interface QBComparisonResult {
+  /** Whether to use QB values for order parts */
+  useQBValues: boolean;
+  /** Reason for the decision (for logging) */
+  reason: string;
+  /** QB line items to use (only populated if useQBValues is true) */
+  qbLineItems?: QBEstimateLineItem[];
+  /** Any warnings encountered during comparison */
+  warnings?: string[];
+}

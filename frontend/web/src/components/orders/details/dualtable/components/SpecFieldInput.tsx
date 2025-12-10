@@ -69,19 +69,7 @@ export const SpecFieldInput = React.memo<SpecFieldInputProps>(({
 
   return (
     <div className="h-[26px] flex items-center">
-      {field.type === 'dropdown' && field.options ? (
-        <select
-          value={currentValue}
-          onChange={(e) => handleDropdownChange(e.target.value)}
-          className={getValidSpecFieldClass(hasValue, baseClass)}
-          disabled={isSaving}
-        >
-          <option value="" className="text-gray-400">{field.placeholder || 'Select...'}</option>
-          {field.options.map(opt => (
-            <option key={opt} value={opt} className="text-gray-900">{opt}</option>
-          ))}
-        </select>
-      ) : field.type === 'combobox' && field.options ? (
+      {(field.type === 'dropdown' || field.type === 'combobox') && field.options ? (
         <>
           <input
             type="text"

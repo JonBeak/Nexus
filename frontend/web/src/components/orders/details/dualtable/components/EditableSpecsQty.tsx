@@ -76,7 +76,8 @@ export const EditableSpecsQty = React.memo<EditableSpecsQtyProps>(({
   };
 
   // Determine styling based on comparison with invoice quantity
-  const isDifferent = currentValue !== invoiceQuantity;
+  // Only show red if invoice quantity is filled (not null/0) AND different from specs qty
+  const isDifferent = invoiceQuantity !== null && invoiceQuantity !== 0 && currentValue !== invoiceQuantity;
   const textColor = isDifferent ? 'text-red-600 font-bold' : 'text-gray-900';
 
   return (

@@ -406,6 +406,86 @@ export class OrderPartsService {
       });
     }
   }
+
+  /**
+   * Duplicate a part row with specified data mode
+   * Phase 1.5.e - Row Operations Polish
+   *
+   * @param orderId - The order ID
+   * @param partId - The source part ID to duplicate
+   * @param mode - 'specs' | 'invoice' | 'both' - which data to copy
+   * @returns The new part ID
+   */
+  async duplicatePart(
+    orderId: number,
+    partId: number,
+    mode: 'specs' | 'invoice' | 'both'
+  ): Promise<number> {
+    // Get the source part
+    const sourcePart = await orderPartRepository.getOrderPartById(partId);
+    if (!sourcePart) {
+      throw new Error('Part not found');
+    }
+    if (sourcePart.order_id !== orderId) {
+      throw new Error('Part does not belong to this order');
+    }
+
+    // Get all parts to determine insertion position
+    const allParts = await orderPartRepository.getOrderParts(orderId);
+    allParts.sort((a, b) => a.part_number - b.part_number);
+
+    // Find the source part's position
+    const sourceIndex = allParts.findIndex(p => p.part_id === partId);
+    if (sourceIndex === -1) {
+      throw new Error('Part not found in order');
+    }
+
+    // Shift all parts after the source part by incrementing their part_number
+    for (let i = sourceIndex + 1; i < allParts.length; i++) {
+      await orderPartRepository.updateOrderPart(allParts[i].part_id, {
+        part_number: allParts[i].part_number + 1
+      });
+    }
+
+    // Build new part data based on mode
+    const newPartData: any = {
+      order_id: orderId,
+      part_number: sourcePart.part_number + 1, // Insert right after source
+      product_type: 'New Part',
+      product_type_id: 'custom',
+      is_parent: false,
+      quantity: null,
+      specifications: {}
+    };
+
+    // Copy specs data if mode is 'specs' or 'both'
+    if (mode === 'specs' || mode === 'both') {
+      newPartData.product_type = sourcePart.product_type;
+      newPartData.part_scope = sourcePart.part_scope;
+      newPartData.specs_display_name = sourcePart.specs_display_name;
+      newPartData.specs_qty = sourcePart.specs_qty;
+      newPartData.specifications = sourcePart.specifications || {};
+      newPartData.is_parent = sourcePart.is_parent;
+    }
+
+    // Copy invoice data if mode is 'invoice' or 'both'
+    if (mode === 'invoice' || mode === 'both') {
+      newPartData.qb_item_name = sourcePart.qb_item_name;
+      newPartData.qb_description = sourcePart.qb_description;
+      newPartData.invoice_description = sourcePart.invoice_description;
+      newPartData.quantity = sourcePart.quantity;
+      newPartData.unit_price = sourcePart.unit_price;
+      newPartData.extended_price = sourcePart.extended_price;
+    }
+
+    // Create the new part
+    const newPartId = await orderPartRepository.createOrderPart(newPartData);
+
+    // Recalculate display numbers for all parts
+    await this.recalculatePartDisplayNumbers(orderId);
+
+    return newPartId;
+  }
 }
 
 export const orderPartsService = new OrderPartsService();

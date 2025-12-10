@@ -1,9 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TimeTracking from '../time/TimeTracking';
 import TimeApprovals from '../time/TimeApprovals';
 import type { AccountUser } from '../../types/user';
 import { apiClient } from '../../services/api';
+
+// Backup Status Types
+interface BackupInfo {
+  name: string;
+  schedule: string;
+  lastBackup: string | null;
+  status: 'healthy' | 'warning' | 'error';
+  message: string;
+  fileCount?: number;
+  latestFile?: string;
+  latestSize?: string;
+}
+
+interface BackupStatusData {
+  backups: BackupInfo[];
+  serverTime: string;
+}
 
 interface SimpleDashboardProps {
   user: AccountUser;
@@ -14,6 +31,30 @@ function SimpleDashboard({ user, onLogout }: SimpleDashboardProps) {
   const navigate = useNavigate();
   const [testResult, setTestResult] = useState<string | null>(null);
   const [testLoading, setTestLoading] = useState(false);
+  const [backupStatus, setBackupStatus] = useState<BackupStatusData | null>(null);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [backupError, setBackupError] = useState<string | null>(null);
+
+  // Fetch backup status for owners
+  useEffect(() => {
+    if (user.role === 'owner') {
+      fetchBackupStatus();
+    }
+  }, [user.role]);
+
+  const fetchBackupStatus = async () => {
+    setBackupLoading(true);
+    setBackupError(null);
+    try {
+      const response = await apiClient.get('/system/backup-status');
+      setBackupStatus(response.data);
+    } catch (error: any) {
+      console.error('Failed to fetch backup status:', error);
+      setBackupError(error.response?.data?.message || 'Failed to load backup status');
+    } finally {
+      setBackupLoading(false);
+    }
+  };
 
   const runTest = async () => {
     setTestLoading(true);
@@ -364,6 +405,86 @@ Check backend logs for detailed comparison!`);
                     <p className="text-red-600 font-semibold text-xs">Not Started</p>
                   </div>
                 </div>
+                </div>
+              )}
+
+              {/* System Backup Status - Only for Owners */}
+              {user.role === 'owner' && (
+                <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-8 mt-8">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="text-2xl font-bold text-gray-800">Database Backup Status</h3>
+                      <p className="text-sm text-gray-500">MySQL database backups only</p>
+                    </div>
+                    <button
+                      onClick={fetchBackupStatus}
+                      disabled={backupLoading}
+                      className="text-sm text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                    >
+                      {backupLoading ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                  </div>
+
+                  {backupError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                      <p className="text-red-700 text-sm">{backupError}</p>
+                    </div>
+                  )}
+
+                  {backupLoading && !backupStatus && (
+                    <div className="text-center py-8">
+                      <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+                      <p className="text-gray-500">Loading backup status...</p>
+                    </div>
+                  )}
+
+                  {backupStatus && (
+                    <div className="space-y-4">
+                      {backupStatus.backups.map((backup, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200"
+                        >
+                          <div className="flex items-center space-x-4">
+                            {/* Status Indicator */}
+                            <div
+                              className={`w-4 h-4 rounded-full ${
+                                backup.status === 'healthy'
+                                  ? 'bg-green-500'
+                                  : backup.status === 'warning'
+                                  ? 'bg-yellow-500'
+                                  : 'bg-red-500'
+                              }`}
+                            ></div>
+
+                            <div>
+                              <p className="font-bold text-gray-800">{backup.name}</p>
+                              <p className="text-sm text-gray-500">{backup.schedule}</p>
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <p
+                              className={`font-semibold ${
+                                backup.status === 'healthy'
+                                  ? 'text-green-600'
+                                  : backup.status === 'warning'
+                                  ? 'text-yellow-600'
+                                  : 'text-red-600'
+                              }`}
+                            >
+                              {backup.lastBackup || backup.message}
+                            </p>
+                            {backup.latestSize && (
+                              <p className="text-xs text-gray-500">
+                                {backup.fileCount} files, latest: {backup.latestSize}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

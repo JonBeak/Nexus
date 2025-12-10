@@ -233,7 +233,7 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
             onMouseEnter={() => setHoveredRow(rowNum)}
             onMouseLeave={() => setHoveredRow(null)}
           >
-            <div style={{ opacity: hoveredRow === rowNum ? 1 : 0 }} className="transition-opacity">
+            <div style={{ opacity: hoveredRow === rowNum ? 1 : 0 }} className="transition-opacity ml-[8px]">
               <SpecRowActions
                 partId={part.part_id}
                 rowNum={rowNum}

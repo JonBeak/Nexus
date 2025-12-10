@@ -42,25 +42,50 @@ export const TimelineView: React.FC<Props> = ({ orderNumber, refreshTrigger = 0 
       ) : (
         <>
           <div className="space-y-4">
-            {displayedEvents.map((event, index) => (
-              <div key={event.history_id || index} className="flex items-start space-x-3">
-                <div className="flex-shrink-0 mt-0.5">
-                  <AlertCircle className="w-5 h-5 text-blue-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-900">
-                    Status changed to <span className="font-semibold">{ORDER_STATUS_LABELS[event.status as keyof typeof ORDER_STATUS_LABELS] || event.status}</span>
-                  </p>
-                  {event.notes && (
-                    <p className="text-sm text-gray-600 mt-1">{event.notes}</p>
-                  )}
-                  <div className="flex items-center space-x-2 mt-1 text-xs text-gray-500">
-                    <Clock className="w-3 h-3" />
-                    <span>{new Date(event.changed_at).toLocaleString()}</span>
+            {displayedEvents.map((event, index) => {
+              // Calculate previous status (next item in chronological order, since sorted DESC)
+              const previousEvent = displayedEvents[index + 1];
+              const previousStatus = previousEvent?.status;
+
+              // Format user's full name
+              const changedByName = event.changed_by_first_name && event.changed_by_last_name
+                ? `${event.changed_by_first_name} ${event.changed_by_last_name}`
+                : event.changed_by_username || 'System';
+
+              return (
+                <div key={event.history_id || index} className="flex items-start space-x-3">
+                  <div className="flex-shrink-0 mt-0.5">
+                    <AlertCircle className="w-5 h-5 text-blue-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-900">
+                      {previousStatus ? (
+                        <>
+                          Changed from <span className="font-medium">{ORDER_STATUS_LABELS[previousStatus as keyof typeof ORDER_STATUS_LABELS] || previousStatus}</span>
+                          {' → '}
+                          <span className="font-semibold">{ORDER_STATUS_LABELS[event.status as keyof typeof ORDER_STATUS_LABELS] || event.status}</span>
+                          {' by '}
+                          <span className="text-gray-700">{changedByName}</span>
+                        </>
+                      ) : (
+                        <>
+                          Status changed to <span className="font-semibold">{ORDER_STATUS_LABELS[event.status as keyof typeof ORDER_STATUS_LABELS] || event.status}</span>
+                          {' by '}
+                          <span className="text-gray-700">{changedByName}</span>
+                        </>
+                      )}
+                    </p>
+                    {event.notes && (
+                      <p className="text-sm text-gray-600 mt-0.5">{event.notes}</p>
+                    )}
+                    <div className="flex items-center space-x-2 mt-0.5 text-xs text-gray-500">
+                      <Clock className="w-3 h-3" />
+                      <span>{new Date(event.changed_at).toLocaleString()}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {events.length > 5 && (

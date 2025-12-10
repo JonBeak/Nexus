@@ -271,3 +271,50 @@ export const removePartRow = async (req: Request, res: Response) => {
     return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
   }
 };
+
+/**
+ * Duplicate a part row with specified data mode
+ * POST /api/orders/:orderNumber/parts/:partId/duplicate
+ * Body: { mode: 'specs' | 'invoice' | 'both' }
+ * Permission: orders.update (Manager+ only)
+ */
+export const duplicatePart = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber, partId } = req.params;
+    const { mode } = req.body;
+
+    // Validate inputs
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    const partIdNum = parseIntParam(partId, 'part ID');
+    if (partIdNum === null) {
+      return sendErrorResponse(res, 'Invalid part ID', 'VALIDATION_ERROR');
+    }
+
+    // Validate mode
+    if (!mode || !['specs', 'invoice', 'both'].includes(mode)) {
+      return sendErrorResponse(res, 'Invalid mode. Must be one of: specs, invoice, both', 'VALIDATION_ERROR');
+    }
+
+    const newPartId = await orderPartsService.duplicatePart(orderId, partIdNum, mode);
+
+    res.json({
+      success: true,
+      part_id: newPartId,
+      message: 'Part duplicated successfully'
+    });
+  } catch (error) {
+    console.error('Error duplicating part:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to duplicate part';
+    if (errorMessage.includes('not found')) {
+      return sendErrorResponse(res, errorMessage, 'NOT_FOUND');
+    }
+    if (errorMessage.includes('does not belong')) {
+      return sendErrorResponse(res, errorMessage, 'VALIDATION_ERROR');
+    }
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
+  }
+};

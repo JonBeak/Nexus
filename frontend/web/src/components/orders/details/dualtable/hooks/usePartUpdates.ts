@@ -14,6 +14,7 @@
 import { useCallback, useState, Dispatch, SetStateAction, MutableRefObject } from 'react';
 import { ordersApi, orderPartsApi } from '@/services/api';
 import { OrderPart } from '@/types/orders';
+import { DuplicateMode } from '@/components/orders/modals/DuplicateRowModal';
 
 interface UsePartUpdatesParams {
   orderNumber: number;
@@ -576,6 +577,22 @@ export const usePartUpdates = ({
     }
   }, [orderNumber, handleRefreshParts]);
 
+  // Duplicate a part row with specified mode (Phase 1.5.e)
+  const duplicatePart = useCallback(async (partId: number, mode: DuplicateMode) => {
+    try {
+      setSaving(true);
+      await orderPartsApi.duplicatePart(orderNumber, partId, mode);
+
+      // Refresh parts to show the new duplicated part
+      await handleRefreshParts();
+    } catch (error) {
+      console.error('Error duplicating part:', error);
+      alert('Failed to duplicate part. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }, [orderNumber, handleRefreshParts]);
+
   return {
     saving,
     handleFieldSave,
@@ -589,6 +606,7 @@ export const usePartUpdates = ({
     addPartRow,
     removePartRow,
     reorderParts,
+    duplicatePart,
     handleRefreshParts
   };
 };

@@ -281,33 +281,50 @@ async function mapOrderToQBEstimate(
 
   // Order parts (invoice items) - QB will auto-number based on array order
   for (const part of orderParts) {
-    // Get QB item ID using qb_item_name (case-insensitive lookup)
-    const mapping = itemMappings.get(part.qb_item_name?.toLowerCase() || '');
-    const qbItemId = mapping?.qb_item_id || '1'; // Default to first item if no mapping
+    // Check if this should be a DescriptionOnly row
+    // Criteria: has qb_description but NO qb_item_name AND NO unit_price (or zero)
+    const hasDescription = part.qb_description && part.qb_description.trim();
+    const hasNoQBItem = !part.qb_item_name || !part.qb_item_name.trim();
+    const hasNoPrice = !part.unit_price || part.unit_price === 0;
+    const isDescriptionOnly = hasDescription && hasNoQBItem && hasNoPrice;
 
-    // Use qb_description directly (no fallback logic)
-    const description = part.qb_description || '';
+    if (isDescriptionOnly) {
+      // DescriptionOnly row - just text, no pricing
+      lineItems.push({
+        DetailType: 'DescriptionOnly',
+        Description: part.qb_description,
+        DescriptionLineDetail: {}
+      });
+    } else {
+      // SalesItemLineDetail row - product with pricing
+      // Get QB item ID using qb_item_name (case-insensitive lookup)
+      const mapping = itemMappings.get(part.qb_item_name?.toLowerCase() || '');
+      const qbItemId = mapping?.qb_item_id || '1'; // Default to first item if no mapping
 
-    const salesItemDetail: any = {
-      ItemRef: {
-        value: qbItemId,
-        name: part.qb_item_name || part.product_type || 'General Item'
-      },
-      Qty: parseFloat(String(part.quantity || 1)),
-      UnitPrice: parseFloat(String(part.unit_price || 0)),
-      // ALWAYS send tax code (even for 0% taxes like "Out of Scope" or "Exempt")
-      TaxCodeRef: {
-        value: taxCodeId,
-        name: taxName
-      }
-    };
+      // Use qb_description directly (no fallback logic)
+      const description = part.qb_description || '';
 
-    lineItems.push({
-      DetailType: 'SalesItemLineDetail',
-      Description: description,
-      Amount: parseFloat(String(part.extended_price || 0)),
-      SalesItemLineDetail: salesItemDetail
-    });
+      const salesItemDetail: any = {
+        ItemRef: {
+          value: qbItemId,
+          name: part.qb_item_name || part.product_type || 'General Item'
+        },
+        Qty: parseFloat(String(part.quantity || 1)),
+        UnitPrice: parseFloat(String(part.unit_price || 0)),
+        // ALWAYS send tax code (even for 0% taxes like "Out of Scope" or "Exempt")
+        TaxCodeRef: {
+          value: taxCodeId,
+          name: taxName
+        }
+      };
+
+      lineItems.push({
+        DetailType: 'SalesItemLineDetail',
+        Description: description,
+        Amount: parseFloat(String(part.extended_price || 0)),
+        SalesItemLineDetail: salesItemDetail
+      });
+    }
   }
 
   // Build QB estimate payload (no CustomerMemo - moved to line #1)

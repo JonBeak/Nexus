@@ -1,9 +1,9 @@
 # Phase 1.5: Order Building System - Overview
 
-**Status:** 🚧 IN PROGRESS - 90% COMPLETE (Major phases done: a, b, c.1-c.6.3, d, g ✅)
+**Status:** ✅ COMPLETE - 100% (All phases done: a, a.5, b, c.1-c.6.3, d, e, g ✅)
 **Priority:** CRITICAL - Fills gap between Phase 1 and Phase 2
 **Total Duration:** 3-4 weeks (Phase 1.5.g added in parallel)
-**Last Updated:** 2025-11-25
+**Last Updated:** 2025-12-09
 
 ---
 
@@ -107,9 +107,9 @@
   - ✅ Status change to pending_confirmation
   - ✅ 9 test scripts for Gmail functionality verification
 
-### Pending
-- ⏳ Phase 1.5.e - Separator rows & row management (basic exists, comprehensive UI incomplete)
-- ⏳ Phase 1.5.f - Order finalization workflow (COMPLETE - merged with c.6.3)
+### All Phases Complete ✅
+- ✅ Phase 1.5.e - Row operations polish (add row, delete row, drag-drop, duplicate row modal) - COMPLETE (2025-12-09)
+- ✅ Phase 1.5.f - Order finalization workflow (merged with c.6.3)
 
 ---
 
@@ -485,12 +485,12 @@ CREATE TABLE order_tasks (
   - Empty cells shown with medium gray background
   - Parent rows: Bold, larger text
   - Sub-part rows: Regular font/size
-  - Separator rows: Visual dividers (auto-inserted + manually editable)
 
 - **Actions:**
-  - Add row button (specs-only, invoice-only, both, separator)
+  - Add row button (creates new row with both specs and invoice data)
   - Delete row button (per row)
   - Reorder rows (drag-and-drop)
+  - Duplicate row button (modal to choose: specs only, invoice only, or both)
   - Edit all fields inline
 
 **Files:**
@@ -543,37 +543,49 @@ CREATE TABLE order_tasks (
 
 ---
 
-### Phase 1.5.e: Separator Rows & Row Management (2 days)
-**Focus:** Visual organization and row manipulation
+### Phase 1.5.e: Row Operations Polish (1-2 days)
+**Focus:** Refine row manipulation controls and UI polish
+
+**Status:** ✅ COMPLETE (2025-12-09)
+- ✅ Add row functionality
+- ✅ Delete row functionality
+- ✅ Drag-and-drop row reordering
+- ✅ Duplicate row modal (DuplicateRowModal.tsx with 3 options: Specs Only, Invoice Only, Both)
 
 **Deliverables:**
-- **Auto-inserted Separators:**
-  - Detect parent item changes (display number changes from "1x" to "2")
-  - Insert separator row automatically
-  - Separator style: Full-width border, optional label
+- **Row Operations (Existing - Keep):**
+  - ✅ Add row - Working
+  - ✅ Delete row with confirmation - Working
+  - ✅ Drag-and-drop reordering - Working
 
-- **Manual Separator Management:**
-  - Add separator button (inserts above current row)
-  - Delete separator (X button)
-  - Edit separator label (inline text edit)
-  - Separator label defaults to: "— Section —"
+- **New: Duplicate Row Modal:**
+  - Duplicate button on each row
+  - Modal with three options:
+    1. Duplicate SPECS ONLY (left table data)
+    2. Duplicate INVOICE ONLY (right table data)
+    3. Duplicate BOTH (specs + invoice data)
+  - Creates new row below current row with selected data
 
-- **Row Type Management:**
-  - Toggle row type: Both → Specs Only → Invoice Only
-  - Visual indicator on each row
-  - Empty cells auto-styled (medium gray bg) based on row type
+- **UI Enhancement: Controls Column Separation:**
+  - Add vertical divider between CONTROLS and ITEM NAME columns
+  - Clarifies that CONTROLS column applies to both SPECS and INVOICE sections
+  - Visual separation improves readability
 
-- **Row Operations:**
-  - Add row (modal: select row type, position)
-  - Delete row (confirmation for non-empty rows)
-  - Duplicate row (copies all data)
-  - Move row up/down (arrows or drag-drop)
+**Design Changes from Original Plan:**
+- ❌ **Removed:** Auto-inserted separators (no longer needed)
+- ❌ **Removed:** Manual separator management (no longer needed)
+- ❌ **Removed:** Explicit row type toggles (Both/Specs Only/Invoice Only)
+  - Row type is now **implicit** based on which side has data
+  - No explicit indicators needed
 
-**Files:**
-- `/frontend/web/src/components/orders/rows/SeparatorRow.tsx` (new, ~80 lines)
-- `/frontend/web/src/components/orders/rows/RowTypeToggle.tsx` (new, ~60 lines)
-- `/frontend/web/src/components/orders/rows/RowActions.tsx` (new, ~120 lines)
-- `/frontend/web/src/components/orders/modals/AddRowModal.tsx` (new, ~100 lines)
+**Files:** ✅ ALL IMPLEMENTED
+- `/frontend/web/src/components/orders/modals/DuplicateRowModal.tsx` (~153 lines) ✅
+- `/frontend/web/src/components/orders/details/dualtable/components/PartRow.tsx` (duplicate button + modal integration) ✅
+- `/frontend/web/src/components/orders/details/dualtable/hooks/usePartUpdates.ts` (duplicatePart hook) ✅
+- `/frontend/web/src/services/api/orders/orderPartsApi.ts` (duplicatePart API call) ✅
+- `/backend/web/src/controllers/orders/OrderPartsController.ts` (duplicatePart controller) ✅
+- `/backend/web/src/services/orderPartsService.ts` (duplicatePart service) ✅
+- `/backend/web/src/routes/orders.ts` (POST /:orderNumber/parts/:partId/duplicate route) ✅
 
 ---
 
@@ -669,8 +681,7 @@ items: [
 | Component 2 | 1a | LEDs (White 5mm) | → | Row 2 | FALSE | both (specs + invoice) |
 | Component 3 | 1b | Power Supply (12V 5A) | → | Row 3 | FALSE | both (specs + invoice) |
 | Component 4 | 1c | Vinyl | → | Row 4 | FALSE | invoice_only (no specs) |
-| [Auto-separator] | - | - | → | Row 5 | FALSE | separator (no data) |
-| Component 5 | 2 | ACM Panel 24x36 | → | Row 6 | TRUE | both (specs + invoice) |
+| Component 5 | 2 | ACM Panel 24x36 | → | Row 5 | TRUE | both (specs + invoice) |
 
 **Database Records:**
 ```sql
@@ -709,15 +720,6 @@ INSERT INTO order_parts (
   NULL,  -- No specs = invoice-only
   'Vinyl application'
 );
-
--- Row 5: Separator (no specs, no invoice)
-INSERT INTO order_parts (
-  order_id, part_number, display_number, is_parent,
-  product_type, specifications, invoice_description
-) VALUES (
-  200001, 5, NULL, FALSE,
-  '— Section —', NULL, NULL  -- Both NULL = separator
-);
 ```
 
 ---
@@ -725,6 +727,14 @@ INSERT INTO order_parts (
 ## Dual-Table Interface Design
 
 ### Visual Layout
+
+**Note on Table Structure:**
+- **CONTROLS Column:** Each row has a controls column (add, delete, drag handle, duplicate) that applies to BOTH the specs and invoice sections
+- **Vertical Divider:** A vertical divider separates CONTROLS from ITEM NAME to clarify that controls affect the entire row (both sides)
+- **Row Type:** Implicit based on data presence - no explicit indicators needed
+  - If specs data exists: row has specs
+  - If invoice data exists: row has invoice data
+  - A row can have both, one, or neither (empty row)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -773,9 +783,7 @@ INSERT INTO order_parts (
 │           ││S2: 5A   ││             │                │      │     │       │
 │           ││S3: Ind. ││             │                │      │     │       │
 │           │└─────────┘│             │                │      │     │       │
-├───────────┴───────────┴─────────────┼────────────────┼──────┼─────┼───────┤
-│ — Section — (Separator)             │ (empty gray)   │      │     │       │
-├───────────┬───────────┬─────────────┼────────────────┼──────┼─────┼───────┤
+├───────────┼───────────┼─────────────┼────────────────┼──────┼─────┼───────┤
 │ ACM Panel │┌─────────┐│ [Collapsed] │ ACM Panel      │24x36 │ 1   │$120.00│
 │ 24x36     ││Name: Mnt││             │                │      │     │       │
 │ (Parent)  ││S1: Stud ││             │                │      │     │       │
@@ -869,7 +877,8 @@ frontend/web/src/components/orders/
 │   └── ChangeWarning.tsx                  [Post-finalization notice]
 ├── modals/
 │   ├── ApproveEstimateModal.tsx           [Confirmation on approve]
-│   └── AddRowModal.tsx                    [Select row type + position]
+│   ├── AddRowModal.tsx                    [Add new row]
+│   └── DuplicateRowModal.tsx              [Duplicate row: specs only, invoice only, or both]
 └── shared/
     ├── ExpandableCell.tsx                 [Generic expand/collapse cell]
     ├── InlineEditInput.tsx                [Auto-expanding text input]
@@ -928,7 +937,6 @@ CREATE TABLE order_parts (
   --   - Both: specifications + invoice fields populated
   --   - Specs only: specifications populated, invoice fields NULL
   --   - Invoice only: specifications NULL, invoice fields populated
-  --   - Separator: both NULL
 
   -- Product info
   product_type VARCHAR(100),
@@ -1053,8 +1061,8 @@ Phase 1.5 is COMPLETE when:
 
 ---
 
-**Document Status:** 90% Complete - Major phases DONE (a, b, c.1-c.6.3, d, g ✅), Minor phase pending (e)
-**Last Updated:** 2025-11-25
+**Document Status:** ✅ 100% COMPLETE - All phases DONE
+**Last Updated:** 2025-12-09
 **Completed Phases:**
 - Phase 1.5.a: Numbering fix + order creation ✅ (2025-11-06)
 - Phase 1.5.a.5: ApproveEstimateModal enhancements ✅ (2025-11-06)
@@ -1067,16 +1075,15 @@ Phase 1.5 is COMPLETE when:
 - **Phase 1.5.c.6: Order Preparation Workflow ✅ (2025-11-18 to 2025-11-20)**
 - **Phase 1.5.c.6.3: Send to Customer (Gmail Integration) ✅ (2025-11-25)**
 - **Phase 1.5.d: Task Generation System ✅ (2025-11-21 to 2025-11-24)**
+- **Phase 1.5.e: Row Operations Polish ✅ (2025-12-09)**
+  - DuplicateRowModal with 3 options (Specs Only, Invoice Only, Both)
+  - Full backend API integration (controller, service, route)
 - **Phase 1.5.g: Order Folder & Image Management ✅ (2025-11-12)**
 
-**Production Stats (as of 2025-11-24):**
-- 2,064 orders in database
-- 86 orders in job_details_setup status
-- 55 orders in production
-- 1,923 orders completed
+**Production Stats (as of 2025-12-09):**
+- 2,064+ orders in database
 - 68 frontend components, 28 backend services
 
 **Next Steps:**
-1. Phase 1.5.e - Enhanced row management UI (add/edit/delete comprehensive UI) - Optional enhancement
-2. Phase 2 - Essential features (Jobs Table, Calendar, QB automation, completed jobs archive)
-3. Gmail API production configuration and testing
+1. Phase 2 - Essential features (Jobs Table, Calendar, QB automation, completed jobs archive)
+2. Gmail API production configuration and testing

@@ -94,4 +94,17 @@ export const orderPartsApi = {
   async removePartRow(orderNumber: number, partId: number): Promise<void> {
     await api.delete(`/orders/${orderNumber}/parts/${partId}/remove`);
   },
+
+  /**
+   * Duplicate a part row with specified data mode (Phase 1.5.e)
+   * @param mode - 'specs' | 'invoice' | 'both' - which data to copy
+   */
+  async duplicatePart(
+    orderNumber: number,
+    partId: number,
+    mode: 'specs' | 'invoice' | 'both'
+  ): Promise<{ part_id: number }> {
+    const response = await api.post(`/orders/${orderNumber}/parts/${partId}/copy`, { mode });
+    return response.data;
+  },
 };

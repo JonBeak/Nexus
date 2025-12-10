@@ -17,8 +17,8 @@ export const PartTasksSection: React.FC<Props> = ({ part, partIndex, orderNumber
   const totalTasks = part.total_tasks || 0;
   const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-  // Can only edit tasks during job_details_setup
-  const canEditTasks = orderStatus === 'job_details_setup';
+  // Tasks can be added/removed at any status
+  const canEditTasks = true;
 
   const handleTaskAdded = () => {
     setShowAddDropdown(false);

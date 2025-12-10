@@ -226,6 +226,18 @@ router.patch(
 );
 
 /**
+ * Duplicate a part row with specified data mode (Phase 1.5.e)
+ * POST /api/orders/:orderNumber/parts/:partId/copy
+ * Body: { mode: 'specs' | 'invoice' | 'both' }
+ */
+router.post(
+  '/:orderNumber/parts/:partId/copy',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.duplicatePart
+);
+
+/**
  * Add a new part row to the order
  * POST /api/orders/:orderNumber/parts/add
  */
@@ -248,7 +260,7 @@ router.delete(
 );
 
 /**
- * Add task to order part (Phase 1.5.c)
+ * Add task to order part (Phase 1.5.e)
  * POST /api/orders/:orderNumber/parts/:partId/tasks
  * Body: { task_name: string, assigned_role?: string }
  */
