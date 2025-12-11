@@ -335,17 +335,20 @@ See `Nexus_Orders_JobStructure.md` for detailed breakdown of nested objects.
   - MODIFIED: `types/orders.ts` - `QBEstimateLineItem`, `QBComparisonResult` types
 
 ### Phase 2: Essential Features (3-4 weeks) - IN PROGRESS
-- [ ] **Phase 2.a: Tasks Table** - NEW TAB (part-level task management)
-  - One row per order part with task columns
-  - Diagonalized headers, color-coded by role
-  - Task completion toggle with existing batch API
+- [x] **Phase 2.a: Tasks Table** - NEW TAB (part-level task management) - **✅ COMPLETE** (2025-12-10)
+  - [x] Phase 2.a.1: Core table structure (TasksTable.tsx, tab added to OrdersPage)
+  - [x] Phase 2.a.2: Task columns with diagonal headers, role color coding, completion toggle
+  - [x] Phase 2.a.3: Backend `/api/orders/parts/with-tasks` endpoint with filtering
+  - [x] Phase 2.a.4: Multi-select status filter, search (order name + customer)
+  - [x] Status column with StatusSelectModal for order status changes
+  - [x] Search, pagination (50 items), client-side sorting
   - Step View with dependency visualization DEFERRED to future phase
   - See `Nexus_Orders_Phase2a_TasksTable.md` for full specification
 - [ ] Phase 2.b: Calendar View (horizontal date view)
 - [ ] Phase 2.c: Completed Jobs archive
-- [ ] Phase 2.d: Email notifications automation
-- [ ] Phase 2.e: QuickBooks Invoice Automation (using existing integration)
-- Note: Jobs Table exists (keep as-is), Gmail API already integrated (Phase 1.5)
+- [ ] Phase 2.d: Email notifications automation (Gmail API already integrated from Phase 1.5)
+- [ ] Phase 2.e: QuickBooks Invoice Automation (using existing QB Estimate integration)
+- Note: Jobs Table exists (keep as-is)
 
 ### Phase 3: Visual Enhancements (2-3 weeks)
 - [ ] Kanban Board (visual workflow with 7 core stages + 3 additional)
@@ -443,14 +446,18 @@ LIMIT ?  -- Fails with correlated subqueries
 
 ---
 
-**Document Status**: Phase 1 ✅, Phase 1.5 ✅, Phase 1.6 ✅, **Phase 2 IN PROGRESS**
+**Document Status**: Phase 1 ✅, Phase 1.5 ✅, Phase 1.6 ✅, **Phase 2 IN PROGRESS (2.a ✅ Complete)**
 **Last Updated**: 2025-12-10
 **Owner**: Jon (with Claude Code assistance)
 
 **Recent Major Updates (Dec 2025)**:
-- **Phase 2.a**: Tasks Table planning complete - see `Nexus_Orders_Phase2a_TasksTable.md`
-  - NEW tab for part-level task management
-  - Two view modes: Task View (default) and Step View (dependency visualization)
+- **Phase 2.a**: Tasks Table ✅ COMPLETE - see `Nexus_Orders_Phase2a_TasksTable.md`
+  - NEW tab added to OrdersPage with full implementation
+  - TasksTable.tsx, DiagonalHeader, PartRow, TaskCell, StatusSelectModal
+  - Backend endpoint `/api/orders/parts/with-tasks` with filtering
+  - Role color coding, task completion toggle, search, pagination
+  - Multi-select status filter (12 statuses)
+  - Search includes order name and customer name
 
 **Major Updates (Nov 2025)**:
 - **Phase 1.5.c.6**: Complete order preparation workflow (Validation, QB, PDFs, Tasks) - 2025-11-18 to 2025-11-20

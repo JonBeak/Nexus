@@ -4,7 +4,7 @@
  * with task completion columns
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { PartWithTasks, TasksTableFilters, TasksTableSortField, SortDirection } from './types';
 import { TASK_ORDER, getTaskRole } from './roleColors';
 
@@ -34,7 +34,8 @@ import PartRow from './PartRow';
 import StatusSelectModal from './StatusSelectModal';
 import Pagination from '../table/Pagination';
 import { orderTasksApi, orderStatusApi, api } from '../../../services/api';
-import { OrderStatus } from '../../../types/orders';
+import { OrderStatus, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../../types/orders';
+import { ChevronDown } from 'lucide-react';
 
 export const TasksTable: React.FC = () => {
   // Data state
@@ -50,12 +51,25 @@ export const TasksTable: React.FC = () => {
     currentStatus: OrderStatus;
   } | null>(null);
 
+  // Default statuses to show (matches backend defaults)
+  const DEFAULT_STATUSES: OrderStatus[] = [
+    'production_queue',
+    'in_production',
+    'overdue',
+    'qc_packing'
+  ];
+
   // Filters state
   const [filters, setFilters] = useState<TasksTableFilters>({
-    status: 'all',
+    statuses: [],  // Empty means use defaults
     hideCompleted: false,
     search: ''
   });
+
+  // Status filter dropdown state
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const statusButtonRef = useRef<HTMLButtonElement>(null);
 
   // Sorting state - default: due date asc, then order number, then display number
   const [sortField, setSortField] = useState<TasksTableSortField>('dueDate');
@@ -72,9 +86,7 @@ export const TasksTable: React.FC = () => {
       setError(null);
 
       const params: Record<string, string> = {};
-      if (filters.status !== 'all') {
-        params.status = filters.status;
-      }
+      // Status filtering is done client-side now
       if (filters.hideCompleted) {
         params.hideCompleted = 'true';
       }
@@ -85,6 +97,12 @@ export const TasksTable: React.FC = () => {
       const response = await api.get('/orders/parts/with-tasks', { params });
       // Interceptor unwraps response, but just in case check for data structure
       const data = response.data?.data || response.data || [];
+
+      // DEBUG: Log what we received from backend
+      const statusCounts: Record<string, number> = {};
+      data.forEach((p: any) => statusCounts[p.orderStatus] = (statusCounts[p.orderStatus] || 0) + 1);
+      console.log('[TasksTable] Fetched parts:', data.length, 'By status:', statusCounts);
+
       setParts(data);
       setCurrentPage(1);
     } catch (err) {
@@ -93,26 +111,35 @@ export const TasksTable: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters.hideCompleted, filters.search]);  // Only refetch when backend params change, not status (client-side filter)
 
   useEffect(() => {
     fetchPartsWithTasks();
   }, [fetchPartsWithTasks]);
 
-  // Apply client-side search filter
+  // Apply client-side filters (status + search)
   const filteredParts = useMemo(() => {
-    if (!filters.search) return parts;
+    let result = parts;
 
-    const searchLower = filters.search.toLowerCase();
-    return parts.filter(part =>
-      part.orderNumber.toString().includes(searchLower) ||
-      part.orderName.toLowerCase().includes(searchLower) ||
-      (part.customerName?.toLowerCase().includes(searchLower)) ||
-      part.productType.toLowerCase().includes(searchLower) ||
-      (part.specsDisplayName?.toLowerCase().includes(searchLower)) ||
-      (part.scope?.toLowerCase().includes(searchLower))
-    );
-  }, [parts, filters.search]);
+    // Filter by status (use selected statuses or defaults)
+    const activeStatuses = filters.statuses.length > 0 ? filters.statuses : DEFAULT_STATUSES;
+    result = result.filter(part => activeStatuses.includes(part.orderStatus));
+
+    // Filter by search
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      result = result.filter(part =>
+        part.orderNumber.toString().includes(searchLower) ||
+        part.orderName.toLowerCase().includes(searchLower) ||
+        (part.customerName?.toLowerCase().includes(searchLower)) ||
+        part.productType.toLowerCase().includes(searchLower) ||
+        (part.specsDisplayName?.toLowerCase().includes(searchLower)) ||
+        (part.scope?.toLowerCase().includes(searchLower))
+      );
+    }
+
+    return result;
+  }, [parts, filters.statuses, filters.search]);
 
   // Sort parts
   const sortedParts = useMemo(() => {
@@ -161,50 +188,51 @@ export const TasksTable: React.FC = () => {
   const getBaseName = (taskKey: string) => (taskKey || '').split('|')[0];
 
   // Calculate visible task columns based on current page data
-  // Only use composite keys (taskName|notes) when a SINGLE PART has multiple tasks of the same type
+  // Always show columns from TASK_ORDER, only hide AUTO_HIDE_COLUMNS when no tasks exist
   const taskColumns = useMemo(() => {
     // Step 1: Find task types that have duplicates within a single part
     const taskTypesNeedingSplit = new Set<string>();
     for (const part of paginatedParts) {
-      // Count occurrences of each task type within this part
       const taskTypeCounts = new Map<string, number>();
       for (const task of part.tasks) {
-        const baseName = task.taskName;
-        taskTypeCounts.set(baseName, (taskTypeCounts.get(baseName) || 0) + 1);
+        taskTypeCounts.set(task.taskName, (taskTypeCounts.get(task.taskName) || 0) + 1);
       }
-      // Mark task types that appear more than once in this part
       for (const [taskType, count] of taskTypeCounts) {
-        if (count > 1) {
-          taskTypesNeedingSplit.add(taskType);
-        }
+        if (count > 1) taskTypesNeedingSplit.add(taskType);
       }
     }
 
-    // Step 2: Build column keys - use taskKey for split types, taskName for others
-    const columnKeys = new Set<string>();
+    // Step 2: Build set of columns that exist in current data
+    const existingColumnKeys = new Set<string>();
     for (const part of paginatedParts) {
       for (const task of part.tasks) {
         const baseName = task.taskName;
         if (taskTypesNeedingSplit.has(baseName)) {
-          // This task type needs splitting - use composite key
           const key = task.taskKey || task.taskName;
-          if (key) columnKeys.add(key);
+          if (key) existingColumnKeys.add(key);
         } else {
-          // This task type doesn't need splitting - use just task name
-          if (baseName) columnKeys.add(baseName);
+          if (baseName) existingColumnKeys.add(baseName);
         }
       }
     }
 
-    // Step 3: Filter and sort columns
-    const allKeys = Array.from(columnKeys);
-    return allKeys
+    // Step 3: Start with ALL columns from TASK_ORDER, plus any composite keys from data
+    const allColumns = new Set<string>(TASK_ORDER);
+    for (const key of existingColumnKeys) {
+      allColumns.add(key); // Add composite keys like "taskName|notes"
+    }
+
+    // Step 4: Filter and sort - only hide AUTO_HIDE columns that have no tasks
+    return Array.from(allColumns)
       .filter(taskKey => {
         const baseName = getBaseName(taskKey);
+        // Keep column if:
+        // 1. It's NOT in AUTO_HIDE_COLUMNS, OR
+        // 2. It exists in the current data
         if (!AUTO_HIDE_COLUMNS.has(baseName)) {
           return true;
         }
-        return columnKeys.has(taskKey);
+        return existingColumnKeys.has(taskKey);
       })
       .sort((a, b) => {
         const nameA = getBaseName(a);
@@ -284,6 +312,36 @@ export const TasksTable: React.FC = () => {
     setFilters(prev => ({ ...prev, hideCompleted: hide }));
   };
 
+  // All available statuses for filtering (excluding completed/cancelled by default)
+  const AVAILABLE_STATUSES: OrderStatus[] = [
+    'production_queue',
+    'in_production',
+    'overdue',
+    'qc_packing',
+    'job_details_setup',
+    'pending_confirmation',
+    'pending_production_files_creation',
+    'pending_production_files_approval',
+    'on_hold',
+    'shipping',
+    'pick_up',
+    'awaiting_payment'
+  ];
+
+  // Toggle a status in the filter
+  const handleStatusToggle = (status: OrderStatus) => {
+    setFilters(prev => {
+      const currentStatuses = prev.statuses.length > 0 ? prev.statuses : [...DEFAULT_STATUSES];
+      const newStatuses = currentStatuses.includes(status)
+        ? currentStatuses.filter(s => s !== status)
+        : [...currentStatuses, status];
+      return { ...prev, statuses: newStatuses };
+    });
+  };
+
+  // Get display statuses (use defaults if empty)
+  const displayStatuses = filters.statuses.length > 0 ? filters.statuses : DEFAULT_STATUSES;
+
   // Handle status click - open modal
   const handleStatusClick = (orderNumber: number, orderName: string, currentStatus: OrderStatus) => {
     setStatusModal({
@@ -342,6 +400,74 @@ export const TasksTable: React.FC = () => {
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-3 pr-10 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-64"
               />
+            </div>
+
+            {/* Status Multi-Select Filter */}
+            <div>
+              <button
+                ref={statusButtonRef}
+                onClick={() => {
+                  if (!statusDropdownOpen && statusButtonRef.current) {
+                    const rect = statusButtonRef.current.getBoundingClientRect();
+                    setDropdownPosition({
+                      top: rect.bottom + 4,
+                      left: rect.left
+                    });
+                  }
+                  setStatusDropdownOpen(!statusDropdownOpen);
+                }}
+                className="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <span className="text-gray-700">
+                  Status ({displayStatuses.length})
+                </span>
+                <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${statusDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {statusDropdownOpen && (
+                <>
+                  {/* Backdrop to close dropdown */}
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setStatusDropdownOpen(false)}
+                  />
+                  {/* Dropdown panel - fixed positioning to escape overflow */}
+                  <div
+                    className="fixed w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-80 overflow-y-auto"
+                    style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
+                  >
+                    <div className="p-2 border-b border-gray-100">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-gray-500 uppercase">Filter by Status</span>
+                        <button
+                          onClick={() => setFilters(prev => ({ ...prev, statuses: [] }))}
+                          className="text-xs text-indigo-600 hover:text-indigo-800"
+                        >
+                          Reset to defaults
+                        </button>
+                      </div>
+                    </div>
+                    <div className="p-2 space-y-1">
+                      {AVAILABLE_STATUSES.map(status => (
+                        <label
+                          key={status}
+                          className="flex items-center space-x-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={displayStatuses.includes(status)}
+                            onChange={() => handleStatusToggle(status)}
+                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                          />
+                          <span className={`text-xs px-2 py-0.5 rounded ${ORDER_STATUS_COLORS[status]}`}>
+                            {ORDER_STATUS_LABELS[status]}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Hide Completed Toggle */}

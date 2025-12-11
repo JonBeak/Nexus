@@ -47,7 +47,7 @@ const STATUS_BASED_TASKS = [
 ];
 
 export interface PartsWithTasksQueryParams {
-  status?: OrderStatus;
+  statuses?: OrderStatus[];  // Multi-select: empty/undefined means use default statuses
   hideCompleted?: boolean;
   search?: string;
 }
@@ -59,29 +59,25 @@ export class OrderPartsTasksRepository {
    */
   async getPartsWithTasks(params: PartsWithTasksQueryParams = {}): Promise<PartWithTaskRow[]> {
     const conditions: string[] = [
-      // Only show orders in production-related statuses
-      "o.status IN ('production_queue', 'in_production', 'overdue', 'qc_packing')",
       // Only show parent parts (child parts don't have tasks)
-      "op.is_parent = 1"
+      "op.is_parent = 1",
+      // Exclude completed and cancelled orders - frontend filter handles the rest
+      "o.status NOT IN ('completed', 'cancelled')"
     ];
     const queryParams: any[] = [];
-
-    // Filter by specific status if provided
-    if (params.status) {
-      conditions.push('o.status = ?');
-      queryParams.push(params.status);
-    }
 
     // Search filter
     if (params.search) {
       conditions.push(`(
         o.order_number LIKE ? OR
+        o.order_name LIKE ? OR
+        c.company_name LIKE ? OR
         op.product_type LIKE ? OR
         op.specs_display_name LIKE ? OR
         op.part_scope LIKE ?
       )`);
       const searchPattern = `%${params.search}%`;
-      queryParams.push(searchPattern, searchPattern, searchPattern, searchPattern);
+      queryParams.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
     }
 
     const whereClause = conditions.length > 0

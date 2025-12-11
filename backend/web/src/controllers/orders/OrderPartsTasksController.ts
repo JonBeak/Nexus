@@ -15,13 +15,23 @@ import { OrderStatus } from '../../types/orders';
 export const getPartsWithTasks = async (req: Request, res: Response) => {
   try {
     const {
-      status,
+      statuses,
       hideCompleted,
       search
     } = req.query;
 
+    // Parse statuses - can be comma-separated string or array
+    let statusesArray: OrderStatus[] | undefined;
+    if (statuses) {
+      if (typeof statuses === 'string') {
+        statusesArray = statuses.split(',').filter(s => s.trim()) as OrderStatus[];
+      } else if (Array.isArray(statuses)) {
+        statusesArray = statuses as OrderStatus[];
+      }
+    }
+
     const params = {
-      status: status as OrderStatus | undefined,
+      statuses: statusesArray,
       hideCompleted: hideCompleted === 'true',
       search: search as string | undefined
     };
