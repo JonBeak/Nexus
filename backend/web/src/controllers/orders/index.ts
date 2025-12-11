@@ -75,3 +75,6 @@ export {
 
 // Parts with Tasks (Phase 2.a - Tasks Table)
 export { getPartsWithTasks } from './OrderPartsTasksController';
+
+// Task Metadata (Single Source of Truth)
+export { getTaskMetadata } from './TaskMetadataController';

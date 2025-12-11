@@ -93,6 +93,19 @@ router.get(
   orderController.getTaskTemplates
 );
 
+/**
+ * Get task metadata - Single Source of Truth (Phase 2.a)
+ * GET /api/orders/metadata/tasks
+ * Returns TASK_ORDER, TASK_ROLE_MAP, and AUTO_HIDE_COLUMNS
+ * Used by frontend TasksTable for column ordering and role colors
+ */
+router.get(
+  '/metadata/tasks',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderController.getTaskMetadata
+);
+
 // =============================================
 // ORDER CRUD
 // =============================================

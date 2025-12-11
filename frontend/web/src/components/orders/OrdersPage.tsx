@@ -1,12 +1,13 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ListChecks, Table, CheckSquare, Home } from 'lucide-react';
+import { LayoutDashboard, ListChecks, Table, CheckSquare, Home, Calendar } from 'lucide-react';
 import OrderDashboard from './dashboard/OrderDashboard';
 import OrdersTable from './table/OrdersTable';
 import ProgressRoleView from './progressRole/ProgressRoleView';
 import TasksTable from './tasksTable/TasksTable';
+import CalendarView from './calendarView/CalendarView';
 
-type TabId = 'dashboard' | 'progress' | 'table' | 'tasksTable';
+type TabId = 'dashboard' | 'progress' | 'table' | 'tasksTable' | 'calendar';
 
 interface Tab {
   id: TabId;
@@ -19,6 +20,7 @@ const TABS: Tab[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" />, path: '/orders' },
   { id: 'table', label: 'Orders Table', icon: <Table className="w-5 h-5" />, path: '/orders/table' },
   { id: 'tasksTable', label: 'Tasks Table', icon: <CheckSquare className="w-5 h-5" />, path: '/orders/tasks' },
+  { id: 'calendar', label: 'Calendar', icon: <Calendar className="w-5 h-5" />, path: '/orders/calendar' },
   { id: 'progress', label: 'Role-based Tasks', icon: <ListChecks className="w-5 h-5" />, path: '/orders/role-tasks' }
 ];
 
@@ -27,6 +29,7 @@ const pathToTab: Record<string, TabId> = {
   '/orders': 'dashboard',
   '/orders/table': 'table',
   '/orders/tasks': 'tasksTable',
+  '/orders/calendar': 'calendar',
   '/orders/role-tasks': 'progress'
 };
 
@@ -92,6 +95,7 @@ export const OrdersPage: React.FC = () => {
         {activeTab === 'progress' && <ProgressRoleView />}
         {activeTab === 'table' && <OrdersTable />}
         {activeTab === 'tasksTable' && <TasksTable />}
+        {activeTab === 'calendar' && <CalendarView />}
       </div>
     </div>
   );

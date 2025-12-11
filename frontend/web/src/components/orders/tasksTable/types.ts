@@ -46,6 +46,7 @@ export interface PartTask {
 export interface TasksTableFilters {
   statuses: OrderStatus[];  // Multi-select: empty array means show default statuses
   hideCompleted: boolean;
+  hideEmptyTasks: boolean;
   search: string;
 }
 

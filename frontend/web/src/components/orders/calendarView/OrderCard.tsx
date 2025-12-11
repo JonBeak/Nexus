@@ -1,0 +1,95 @@
+/**
+ * OrderCard Component
+ * Displays a single order in the calendar view as a clickable card
+ */
+
+import React from 'react';
+import { CalendarOrder, ProgressColor } from './types';
+import { getProgressColor } from './utils';
+
+interface OrderCardProps {
+  order: CalendarOrder;
+  showDaysLate?: boolean;
+  onCardClick: (order: CalendarOrder) => void;
+}
+
+const colorClasses: Record<ProgressColor, { border: string; bg: string; progress: string }> = {
+  red: {
+    border: 'border-l-red-500',
+    bg: 'bg-red-100',
+    progress: 'bg-red-500'
+  },
+  yellow: {
+    border: 'border-l-yellow-500',
+    bg: 'bg-yellow-50',
+    progress: 'bg-yellow-500'
+  },
+  green: {
+    border: 'border-l-green-500',
+    bg: 'bg-white',
+    progress: 'bg-green-500'
+  }
+};
+
+export const OrderCard: React.FC<OrderCardProps> = ({ order, showDaysLate = false, onCardClick }) => {
+  const progressColor = getProgressColor(order.work_days_left);
+  const colors = colorClasses[progressColor];
+
+  const handleClick = () => {
+    onCardClick(order);
+  };
+
+  // Format days late display
+  const daysLateDisplay = order.work_days_left !== null && order.work_days_left < 0
+    ? `${Math.abs(order.work_days_left).toFixed(1)}d late`
+    : null;
+
+  return (
+    <div
+      className={`
+        p-1.5 mb-1 rounded shadow-sm cursor-pointer
+        hover:shadow-md transition-shadow
+        border-l-4 ${colors.border} ${colors.bg}
+      `}
+      onClick={handleClick}
+      title={`Order #${order.order_number} - ${order.customer_name || 'Unknown'}`}
+    >
+      {/* Order Name - Primary */}
+      <div className="text-sm font-bold text-gray-900 break-words">
+        {order.order_name}
+      </div>
+
+      {/* Customer Name */}
+      <div className="text-xs text-gray-600 break-words">
+        {order.customer_name || '-'}
+      </div>
+
+      {/* Order Number */}
+      <div className="text-xs text-gray-500">
+        #{order.order_number}
+      </div>
+
+      {/* Progress Bar */}
+      <div className="mt-1 flex items-center space-x-1">
+        <div className="flex-1 bg-gray-200 rounded-full h-1">
+          <div
+            className={`h-1 rounded-full ${colors.progress}`}
+            style={{ width: `${order.progress_percent}%` }}
+          />
+        </div>
+        <span className="text-xs text-gray-500 w-7 text-right">
+          {order.progress_percent}%
+        </span>
+      </div>
+
+      {/* Days late (for overdue column) */}
+      {showDaysLate && daysLateDisplay && (
+        <div className="text-xs text-red-600 font-medium">
+          {daysLateDisplay}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default OrderCard;

@@ -1,8 +1,26 @@
 # Task System Unification Plan
 
-## Problem Statement
+**Status:** ✅ COMPLETE (Dec 2025)
+**Last Updated:** 2025-12-11
 
-The Nexus Orders system currently has **two disconnected sources of truth** for tasks:
+---
+
+## Summary
+
+This plan addressed the disconnection between task generation rules and database tasks. All critical phases have been completed.
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1: Clean TASK_ROLE_MAP | ✅ COMPLETE | Legacy tasks removed from code |
+| Phase 2: Database Cleanup | ✅ NOT NEEDED | No legacy tasks exist in database |
+| Phase 3: Task Regeneration Tool | ⏸️ DEFERRED | Optional future enhancement |
+| Phase 4: Column Visibility | ✅ COMPLETE | 11 core + 15 auto-hide columns |
+
+---
+
+## Problem Statement (Historical)
+
+The Nexus Orders system had **two disconnected sources of truth** for tasks:
 
 1. **Task Generation Rules** (`/backend/web/src/services/taskGeneration/taskRules.ts`)
    - Defines 26 production tasks in `TASK_ORDER`
@@ -11,245 +29,173 @@ The Nexus Orders system currently has **two disconnected sources of truth** for 
 
 2. **Database Tasks** (`order_tasks` table)
    - Contains only tasks that were actually generated for specific orders
-   - May contain legacy tasks that no longer exist in the rules
-   - May be missing tasks that should exist based on current rules
+   - Could contain legacy tasks that no longer exist in the rules
+   - Could be missing tasks that should exist based on current rules
 
 ---
 
-## Current State Analysis
+## Phase 1: Clean TASK_ROLE_MAP ✅ COMPLETE
 
-### Task Generation System (taskRules.ts)
+**Goal:** Remove status-based tasks from `TASK_ROLE_MAP` since they shouldn't be manually addable.
 
-**TASK_ORDER** (26 production tasks in workflow sequence):
-```
-1.  Vinyl Plotting
-2.  Sanding (320) before cutting
-3.  Scuffing before cutting
-4.  Paint before cutting
-5.  Vinyl Face Before Cutting
-6.  Vinyl Wrap Return/Trim
-7.  CNC Router Cut
-8.  Laser Cut
-9.  Cut & Bend Return
-10. Cut & Bend Trim
-11. Sanding (320) after cutting
-12. Scuffing after cutting
-13. Paint After Cutting
-14. Backer/Raceway Bending
-15. Paint After Bending
-16. Vinyl Face After Cutting
-17. Trim Fabrication
-18. Return Fabrication
-19. Return Gluing
-20. Mounting Hardware
-21. Face Assembling
-22. LEDs
-23. Backer/Raceway Fabrication
-24. Vinyl after Fabrication
-25. Paint after Fabrication
-26. Assembly
+**Implementation:**
+- `TASK_ROLE_MAP` in `taskRules.ts:67-95` contains ONLY the 26 production tasks
+- Legacy tasks (`Design Files`, `Design Approval`, `QC & Packing`) are NOT included
+- Comment at line 64 explicitly documents this decision
+- Deprecated `generateBaseTasks()` and `generateClosingTasks()` functions kept for reference
+
+**Files modified:**
+- `/backend/web/src/services/taskGeneration/taskRules.ts`
+
+---
+
+## Phase 2: Database Cleanup ✅ NOT NEEDED
+
+**Goal:** Clean legacy status-based tasks from `order_tasks` table.
+
+**Verification (Dec 2025):**
+```sql
+SELECT task_name, COUNT(*) FROM order_tasks
+WHERE task_name IN ('Design Files', 'Design Approval', 'Quality Control', 'Packing', 'QC & Packing')
+GROUP BY task_name;
+-- Result: 0 rows - No legacy tasks exist
 ```
 
-**Status-Based Tasks** (NOT in TASK_ORDER - tracked via order.status):
+**Current database state:**
+- 45 total tasks across 3 orders
+- All task names are valid production tasks from `TASK_ORDER`
+- No cleanup required
+
+**Task distribution in database:**
+| Task Name | Count |
+|-----------|-------|
+| CNC Router Cut | 10 |
+| Cut & Bend Return | 5 |
+| Return Fabrication | 5 |
+| Return Gluing | 5 |
+| Cut & Bend Trim | 4 |
+| Trim Fabrication | 4 |
+| LEDs | 4 |
+| Mounting Hardware | 3 |
+| Backer/Raceway Fabrication | 2 |
+| Assembly | 2 |
+| Paint before cutting | 1 |
+
+---
+
+## Phase 3: Task Regeneration Tool ⏸️ DEFERRED
+
+**Goal:** Admin tool to regenerate tasks for existing orders when specs change.
+
+**Status:** Deferred to optional future enhancement.
+
+**Rationale:**
+- Current workflow handles task generation via "Prepare Order" modal
+- Re-running "Prepare Order" achieves same result for individual orders
+- Low frequency use case doesn't justify implementation effort
+- Can revisit if bulk regeneration becomes necessary
+
+**If implemented later:**
+- New endpoint: `POST /api/orders/:orderNumber/regenerate-tasks`
+- Options: `preserveCompleted`, `addMissing`, `removeExtra`
+
+---
+
+## Phase 4: Column Visibility ✅ COMPLETE
+
+**Goal:** Smart column visibility strategy for Tasks Table.
+
+**Implementation:**
+- **11 core task columns** always visible (main production workflow)
+- **15 optional task columns** auto-hide when no data exists
+- Single source of truth via `GET /api/orders/metadata/tasks` API
+- Frontend `TaskMetadataResource.ts` caches metadata for 30 minutes
+
+**Core tasks (always visible):**
+1. CNC Router Cut
+2. Cut & Bend Return
+3. Cut & Bend Trim
+4. Trim Fabrication
+5. Return Fabrication
+6. Return Gluing
+7. Mounting Hardware
+8. Face Assembly
+9. LEDs
+10. Backer/Raceway Fabrication
+11. Assembly
+
+**Auto-hide tasks (shown when data exists):**
+- Vinyl-related: Vinyl Plotting, Vinyl Face Before/After Cutting, Vinyl Wrap Return/Trim, Vinyl after Fabrication
+- Paint-related: All 8 painting tasks (sanding, scuffing, paint before/after cutting/bending/fabrication)
+- Laser Cut, Backer/Raceway Bending
+
+---
+
+## Single Source of Truth API
+
+**Endpoint:** `GET /api/orders/metadata/tasks`
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "taskOrder": ["Vinyl Plotting", "Sanding (320) before cutting", ...],
+    "taskRoleMap": {
+      "Vinyl Plotting": "designer",
+      "CNC Router Cut": "cnc_router_operator",
+      ...
+    },
+    "autoHideColumns": ["Vinyl Plotting", "Sanding (320) before cutting", ...]
+  }
+}
+```
+
+**Files:**
+- Backend: `/backend/web/src/controllers/orders/TaskMetadataController.ts`
+- Frontend: `/frontend/web/src/services/taskMetadataResource.ts`
+- Source: `/backend/web/src/services/taskGeneration/taskRules.ts`
+
+---
+
+## Task Order Reference
+
+The canonical 26-task workflow sequence (from `taskRules.ts`):
+
+| # | Task Name | Role |
+|---|-----------|------|
+| 1 | Vinyl Plotting | designer |
+| 2 | Sanding (320) before cutting | painter |
+| 3 | Scuffing before cutting | painter |
+| 4 | Paint before cutting | painter |
+| 5 | Vinyl Face Before Cutting | vinyl_applicator |
+| 6 | Vinyl Wrap Return/Trim | vinyl_applicator |
+| 7 | CNC Router Cut | cnc_router_operator |
+| 8 | Laser Cut | manager |
+| 9 | Cut & Bend Return | cut_bender_operator |
+| 10 | Cut & Bend Trim | cut_bender_operator |
+| 11 | Sanding (320) after cutting | painter |
+| 12 | Scuffing after cutting | painter |
+| 13 | Paint After Cutting | painter |
+| 14 | Backer/Raceway Bending | backer_raceway_fabricator |
+| 15 | Paint After Bending | painter |
+| 16 | Vinyl Face After Cutting | vinyl_applicator |
+| 17 | Trim Fabrication | trim_fabricator |
+| 18 | Return Fabrication | return_fabricator |
+| 19 | Return Gluing | return_gluer |
+| 20 | Mounting Hardware | mounting_assembler |
+| 21 | Face Assembly | face_assembler |
+| 22 | LEDs | led_installer |
+| 23 | Backer/Raceway Fabrication | backer_raceway_fabricator |
+| 24 | Vinyl after Fabrication | vinyl_applicator |
+| 25 | Paint after Fabrication | painter |
+| 26 | Assembly | backer_raceway_assembler |
+
+**Status-based tasks** (tracked via `order.status`, NOT in task table):
 - Design Files → `pending_production_files_creation` status
 - Design Approval → `pending_production_files_approval` status
 - Quality Control → `qc_packing` status
 - Packing → `qc_packing` status
-
-### Database Reality (order_tasks table)
-
-Current unique task names in database:
-```sql
-SELECT DISTINCT task_name, COUNT(*) FROM order_tasks GROUP BY task_name;
-```
-
-Results show:
-- Some valid production tasks (CNC Router Cut, LEDs, etc.)
-- Legacy status-based tasks still exist (Design Files, Design Approval, Quality Control, Packing)
-- Only 2 painting tasks exist (Paint before cutting, Scuffing before cutting)
-- Many TASK_ORDER tasks have never been generated (no orders with matching specs)
-
----
-
-## Root Causes
-
-### 1. Task Generation is Spec-Driven
-Tasks are only created when an order's parts have specifications that trigger them:
-- Painting specs → Painting tasks
-- Return spec → Cut & Bend Return, Return Fabrication, Return Gluing
-- Face spec → CNC Router Cut
-- etc.
-
-**Problem**: If no orders have Painting specs, no painting tasks exist in the database.
-
-### 2. Legacy Data from Before Status-Based Tracking
-Before the system moved to status-based tracking for design/QC/packing:
-- `Design Files` and `Design Approval` were per-part tasks
-- `Quality Control` and `Packing` were per-part tasks
-
-These still exist in the database for old orders.
-
-### 3. No Task Regeneration on Rule Changes
-When task generation rules are updated:
-- New orders get correct tasks
-- Existing orders are NOT updated
-- No mechanism to "sync" existing orders with current rules
-
-### 4. Manual Task Addition Uses Same Template List
-The "Add Task" dropdown (Job Progress tab) uses `TASK_ROLE_MAP` which includes:
-- All 26 production tasks
-- Plus legacy tasks (Design Files, Design Approval, QC & Packing)
-
----
-
-## Proposed Solution
-
-### Phase 1: Clean Up TASK_ROLE_MAP
-
-Remove status-based tasks from `TASK_ROLE_MAP` since they shouldn't be manually addable:
-
-```typescript
-// REMOVE from TASK_ROLE_MAP:
-// 'Design Files': 'designer',
-// 'Design Approval': 'manager',
-// 'QC & Packing': 'qc_packer',
-```
-
-**Files to modify:**
-- `/backend/web/src/services/taskGeneration/taskRules.ts`
-- `/frontend/web/src/components/orders/tasksTable/roleColors.ts`
-
-### Phase 2: Database Cleanup Script
-
-Create a migration/script to clean legacy tasks:
-
-```sql
--- Option A: Delete status-based tasks (if they're truly obsolete)
-DELETE FROM order_tasks
-WHERE task_name IN ('Design Files', 'Design Approval', 'Quality Control', 'Packing', 'QC & Packing');
-
--- Option B: Archive them to a separate table first (safer)
-CREATE TABLE order_tasks_legacy AS
-SELECT * FROM order_tasks
-WHERE task_name IN ('Design Files', 'Design Approval', 'Quality Control', 'Packing', 'QC & Packing');
-
-DELETE FROM order_tasks
-WHERE task_name IN ('Design Files', 'Design Approval', 'Quality Control', 'Packing', 'QC & Packing');
-```
-
-### Phase 3: Task Regeneration Tool (Optional)
-
-Create an admin tool to regenerate tasks for existing orders:
-
-**Use Cases:**
-1. Order's specs changed → regenerate tasks
-2. Task rules updated → bulk regenerate for affected orders
-3. Manual trigger for specific order
-
-**Implementation:**
-- New endpoint: `POST /api/orders/:orderNumber/regenerate-tasks`
-- Options:
-  - `preserveCompleted: true` - Don't remove completed tasks
-  - `addMissing: true` - Only add tasks that should exist but don't
-  - `removeExtra: true` - Remove tasks that shouldn't exist based on specs
-
-### Phase 4: Tasks Table Column Strategy
-
-**Current approach** (implemented): Show ALL 26 columns from TASK_ORDER
-- Pros: Consistent layout, see all possible tasks
-- Cons: Many empty columns for simple orders
-
-**Alternative approach**: Dynamic columns based on data
-- Pros: Compact view, only relevant columns
-- Cons: Inconsistent layout between page loads
-
-**Recommendation**: Keep current approach (all columns) but add:
-- Column visibility toggle
-- Filter by role to show subset of columns
-
----
-
-## Data Model Considerations
-
-### Current Schema
-```sql
-CREATE TABLE order_tasks (
-  task_id INT PRIMARY KEY AUTO_INCREMENT,
-  order_id INT NOT NULL,
-  part_id INT NOT NULL,
-  task_name VARCHAR(100) NOT NULL,
-  assigned_role VARCHAR(50),
-  sort_order INT,
-  completed BOOLEAN DEFAULT FALSE,
-  completed_at DATETIME,
-  completed_by INT,
-  notes TEXT,
-  FOREIGN KEY (order_id) REFERENCES orders(order_id),
-  FOREIGN KEY (part_id) REFERENCES order_parts(part_id)
-);
-```
-
-### Potential Enhancement: Task Templates Table
-```sql
-CREATE TABLE task_templates (
-  template_id INT PRIMARY KEY AUTO_INCREMENT,
-  task_name VARCHAR(100) NOT NULL UNIQUE,
-  assigned_role VARCHAR(50) NOT NULL,
-  sort_order INT NOT NULL,
-  is_active BOOLEAN DEFAULT TRUE,
-  category VARCHAR(50), -- 'cutting', 'painting', 'fabrication', etc.
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-**Benefits:**
-- Single source of truth for task definitions
-- Easy to add/modify tasks without code changes
-- Can track task history/changes
-- Frontend and backend pull from same source
-
----
-
-## Implementation Priority
-
-| Priority | Task | Effort | Impact |
-|----------|------|--------|--------|
-| HIGH | Phase 1: Clean TASK_ROLE_MAP | Low | Prevents adding obsolete tasks |
-| HIGH | Phase 2: Database cleanup | Low | Removes legacy data |
-| MEDIUM | Phase 4: Column visibility | Medium | Better UX |
-| LOW | Phase 3: Regeneration tool | High | Edge case utility |
-| LOW | Task Templates table | High | Architecture improvement |
-
----
-
-## Questions to Resolve
-
-1. **Should we delete legacy tasks or archive them?**
-   - If orders with legacy tasks are still active, deleting might lose history
-   - Archive table preserves data for reference
-
-2. **What happens to completed legacy tasks?**
-   - If "Design Approval" was marked complete, that info is valuable
-   - Could migrate completion status to order audit log
-
-3. **Should task regeneration be automatic or manual?**
-   - Automatic: When specs change, tasks update
-   - Manual: Admin explicitly triggers regeneration
-   - Hybrid: Notify admin when tasks might be stale
-
-4. **Do we need task versioning?**
-   - Track which version of rules generated a task
-   - Allow rollback if rules change breaks things
-
----
-
-## Next Steps
-
-1. [ ] Review and approve this plan
-2. [ ] Decide on legacy task handling (delete vs archive)
-3. [ ] Implement Phase 1 (clean TASK_ROLE_MAP)
-4. [ ] Create and test Phase 2 database migration
-5. [ ] Update documentation (Nexus_Orders_TaskGeneration.md)
 
 ---
 
@@ -258,3 +204,8 @@ CREATE TABLE task_templates (
 - `/home/jon/Nexus/Nexus_Orders_TaskGeneration.md` - Task generation specification
 - `/home/jon/Nexus/Nexus_Orders_Phase2a_TasksTable.md` - Tasks Table feature spec
 - `/backend/web/src/services/taskGeneration/` - Task generation code
+
+---
+
+**Document Status:** ✅ COMPLETE
+**Completion Date:** 2025-12-11

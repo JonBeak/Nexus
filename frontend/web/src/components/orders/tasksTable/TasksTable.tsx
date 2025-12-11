@@ -6,30 +6,9 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { PartWithTasks, TasksTableFilters, TasksTableSortField, SortDirection } from './types';
-import { TASK_ORDER, getTaskRole } from './roleColors';
-
-/**
- * Columns that should be auto-hidden when all rows on the current page have no task
- * (neither completed nor uncompleted - just "-")
- */
-const AUTO_HIDE_COLUMNS = new Set([
-  'Vinyl Plotting',
-  'Sanding (320) before cutting',
-  'Scuffing before cutting',
-  'Paint before cutting',
-  'Vinyl Face Before Cutting',
-  'Vinyl Wrap Return/Trim',
-  'Sanding (320) after cutting',
-  'Scuffing after cutting',
-  'Paint After Cutting',
-  'Backer / Raceway Bending',
-  'Paint After Bending',
-  'Vinyl Face After Cutting',
-  'Vinyl after Fabrication',
-  'Paint after Fabrication',
-  'Laser Cut'
-]);
-import DiagonalHeader from './DiagonalHeader';
+import { getTaskRoleSync, ProductionRole } from './roleColors';
+import { TaskMetadataResource } from '../../../services/taskMetadataResource';
+import TaskHeader from './TaskHeader';
 import PartRow from './PartRow';
 import StatusSelectModal from './StatusSelectModal';
 import Pagination from '../table/Pagination';
@@ -63,6 +42,7 @@ export const TasksTable: React.FC = () => {
   const [filters, setFilters] = useState<TasksTableFilters>({
     statuses: [],  // Empty means use defaults
     hideCompleted: false,
+    hideEmptyTasks: false,
     search: ''
   });
 
@@ -71,6 +51,12 @@ export const TasksTable: React.FC = () => {
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const statusButtonRef = useRef<HTMLButtonElement>(null);
 
+  // Drag-to-scroll state for task columns
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartX, setDragStartX] = useState(0);
+  const [scrollStartX, setScrollStartX] = useState(0);
+
   // Sorting state - default: due date asc, then order number, then display number
   const [sortField, setSortField] = useState<TasksTableSortField>('dueDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -78,6 +64,36 @@ export const TasksTable: React.FC = () => {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(50);
+
+  // Task metadata state (fetched from API - single source of truth)
+  const [taskMetadata, setTaskMetadata] = useState<{
+    taskOrder: string[];
+    taskRoleMap: Record<string, ProductionRole>;
+    autoHideColumns: Set<string>;
+  } | null>(null);
+
+  // Fetch task metadata on mount
+  useEffect(() => {
+    const fetchMetadata = async () => {
+      try {
+        const metadata = await TaskMetadataResource.getTaskMetadata();
+        setTaskMetadata({
+          taskOrder: metadata.taskOrder,
+          taskRoleMap: metadata.taskRoleMap,
+          autoHideColumns: new Set(metadata.autoHideColumns)
+        });
+      } catch (error) {
+        console.error('[TasksTable] Failed to fetch task metadata:', error);
+        // Set empty defaults - table will still work but columns won't be ordered
+        setTaskMetadata({
+          taskOrder: [],
+          taskRoleMap: {},
+          autoHideColumns: new Set()
+        });
+      }
+    };
+    fetchMetadata();
+  }, []);
 
   // Fetch parts with tasks
   const fetchPartsWithTasks = useCallback(async () => {
@@ -138,8 +154,13 @@ export const TasksTable: React.FC = () => {
       );
     }
 
+    // Filter out parts with no tasks
+    if (filters.hideEmptyTasks) {
+      result = result.filter(part => part.tasks.length > 0);
+    }
+
     return result;
-  }, [parts, filters.statuses, filters.search]);
+  }, [parts, filters.statuses, filters.search, filters.hideEmptyTasks]);
 
   // Sort parts
   const sortedParts = useMemo(() => {
@@ -216,20 +237,27 @@ export const TasksTable: React.FC = () => {
       }
     }
 
-    // Step 3: Start with ALL columns from TASK_ORDER, plus any composite keys from data
-    const allColumns = new Set<string>(TASK_ORDER);
+    // Step 3: Start with ALL columns from taskOrder (fetched from API), plus any composite keys from data
+    const taskOrder = taskMetadata?.taskOrder ?? [];
+    const autoHideColumns = taskMetadata?.autoHideColumns ?? new Set<string>();
+    const allColumns = new Set<string>(taskOrder);
     for (const key of existingColumnKeys) {
       allColumns.add(key); // Add composite keys like "taskName|notes"
     }
 
-    // Step 4: Filter and sort - only hide AUTO_HIDE columns that have no tasks
+    // Step 4: Filter and sort - only show columns that should be visible
     return Array.from(allColumns)
       .filter(taskKey => {
         const baseName = getBaseName(taskKey);
-        // Keep column if:
-        // 1. It's NOT in AUTO_HIDE_COLUMNS, OR
-        // 2. It exists in the current data
-        if (!AUTO_HIDE_COLUMNS.has(baseName)) {
+
+        // If this task type needs splitting, only show if it exists in data
+        // This hides the "no scope" base column when all tasks have scopes
+        if (taskTypesNeedingSplit.has(baseName)) {
+          return existingColumnKeys.has(taskKey);
+        }
+
+        // For non-split types, apply AUTO_HIDE logic as before
+        if (!autoHideColumns.has(baseName)) {
           return true;
         }
         return existingColumnKeys.has(taskKey);
@@ -237,14 +265,14 @@ export const TasksTable: React.FC = () => {
       .sort((a, b) => {
         const nameA = getBaseName(a);
         const nameB = getBaseName(b);
-        const orderA = TASK_ORDER.indexOf(nameA);
-        const orderB = TASK_ORDER.indexOf(nameB);
+        const orderA = taskOrder.indexOf(nameA);
+        const orderB = taskOrder.indexOf(nameB);
         const posA = orderA >= 0 ? orderA : 999;
         const posB = orderB >= 0 ? orderB : 999;
         if (posA !== posB) return posA - posB;
         return a.localeCompare(b);
       });
-  }, [paginatedParts]);
+  }, [paginatedParts, taskMetadata]);
 
   // Memoize which task types need splitting (for PartRow to use correct keys)
   const taskTypesNeedingSplit = useMemo(() => {
@@ -310,6 +338,7 @@ export const TasksTable: React.FC = () => {
   // Handle filter changes
   const handleHideCompletedChange = (hide: boolean) => {
     setFilters(prev => ({ ...prev, hideCompleted: hide }));
+    setCurrentPage(1);
   };
 
   // All available statuses for filtering (excluding completed/cancelled by default)
@@ -384,6 +413,37 @@ export const TasksTable: React.FC = () => {
   const handleSearchChange = (search: string) => {
     setFilters(prev => ({ ...prev, search }));
   };
+
+  // Drag-to-scroll handlers for task columns (only on N/A cells with "-")
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only start drag on N/A task cells (gray cells with "-")
+    const target = e.target as HTMLElement;
+    const cell = target.closest('td[data-task-cell]');
+    if (!cell) return;
+
+    // Check if it's an N/A cell (has bg-gray-200 class)
+    if (!cell.classList.contains('bg-gray-200')) return;
+
+    e.preventDefault();
+    setIsDragging(true);
+    setDragStartX(e.clientX);
+    setScrollStartX(scrollContainerRef.current?.scrollLeft || 0);
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging || !scrollContainerRef.current) return;
+
+    const deltaX = dragStartX - e.clientX;
+    scrollContainerRef.current.scrollLeft = scrollStartX + deltaX;
+  }, [isDragging, dragStartX, scrollStartX]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setIsDragging(false);
+  }, []);
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
@@ -480,11 +540,26 @@ export const TasksTable: React.FC = () => {
               />
               <span className="text-sm text-gray-700">Hide completed</span>
             </label>
+
+            {/* Hide Empty Tasks Toggle */}
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={filters.hideEmptyTasks}
+                onChange={(e) => { setFilters(prev => ({ ...prev, hideEmptyTasks: e.target.checked })); setCurrentPage(1); }}
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+              />
+              <span className="text-sm text-gray-700">Hide empty tasks</span>
+            </label>
           </div>
 
-          <div className="text-sm text-gray-500">
-            {sortedParts.length} parts
-          </div>
+          <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={sortedParts.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+            />
         </div>
       </div>
 
@@ -511,20 +586,32 @@ export const TasksTable: React.FC = () => {
         ) : (
           <>
             <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full" style={{ tableLayout: 'fixed' }}>
-                  {/* Column widths: Order/Part | Status | Due Date | Time | Task columns */}
+              <div
+                ref={scrollContainerRef}
+                className={`overflow-auto max-h-[calc(100vh-120px)] ${isDragging ? 'cursor-grabbing select-none' : ''}`}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseLeave}
+              >
+                <table style={{ width: '100%', minWidth: `${544 + taskColumns.length * 72}px`, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>
+                  {/* Column widths: Left 4 columns FIXED (544px total) | Task columns expand equally (min 72px each) */}
                   <colgroup>
-                    <col style={{ width: '280px' }} /><col style={{ width: '120px' }} /><col style={{ width: '80px' }} /><col style={{ width: '64px' }} />{taskColumns.map((taskKey) => (
-                      <col key={taskKey} />
+                    <col style={{ width: '280px', minWidth: '280px', maxWidth: '280px' }} />
+                    <col style={{ width: '120px', minWidth: '120px', maxWidth: '120px' }} />
+                    <col style={{ width: '80px', minWidth: '80px', maxWidth: '80px' }} />
+                    <col style={{ width: '64px', minWidth: '64px', maxWidth: '64px' }} />
+                    {taskColumns.map((taskKey) => (
+                      <col key={taskKey} style={{ minWidth: '72px' }} />
                     ))}
                   </colgroup>
                   {/* Header */}
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-200 sticky top-0 z-30">
                     <tr>
-                      {/* Order / Part column */}
+                      {/* Order / Part column - sticky, fixed width */}
                       <th
-                        className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-r border-gray-200 bg-gray-50 cursor-pointer hover:bg-gray-100"
+                        className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-r border-gray-300 cursor-pointer hover:bg-gray-100 sticky z-20"
+                        style={{ left: 0, width: '280px', backgroundColor: '#e5e7eb' }}
                         onClick={() => handleSort('orderNumber')}
                       >
                         Order / Part
@@ -533,14 +620,18 @@ export const TasksTable: React.FC = () => {
                         )}
                       </th>
 
-                      {/* Status column */}
-                      <th className="px-1 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-r border-gray-200 bg-gray-50">
+                      {/* Status column - sticky, fixed width */}
+                      <th
+                        className="px-1 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-r border-gray-300 sticky z-20"
+                        style={{ left: '280px', width: '120px', backgroundColor: '#e5e7eb' }}
+                      >
                         Status
                       </th>
 
-                      {/* Due Date column */}
+                      {/* Due Date column - sticky, fixed width */}
                       <th
-                        className="px-1 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-r border-gray-200 bg-gray-50 cursor-pointer hover:bg-gray-100"
+                        className="px-1 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-r border-gray-300 cursor-pointer hover:bg-gray-100 sticky z-20"
+                        style={{ left: '400px', width: '80px', backgroundColor: '#e5e7eb' }}
                         onClick={() => handleSort('dueDate')}
                       >
                         Due
@@ -549,17 +640,20 @@ export const TasksTable: React.FC = () => {
                         )}
                       </th>
 
-                      {/* Hard Due Time column */}
-                      <th className="px-1 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-r border-gray-200 bg-gray-50">
+                      {/* Hard Due Time column - sticky, fixed width */}
+                      <th
+                        className="px-1 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-r border-gray-300 sticky z-20"
+                        style={{ left: '480px', width: '64px', backgroundColor: '#e5e7eb' }}
+                      >
                         Time
                       </th>
 
-                      {/* Task columns - diagonal headers */}
+                      {/* Task columns */}
                       {taskColumns.map((taskKey) => (
-                        <DiagonalHeader
+                        <TaskHeader
                           key={taskKey}
                           taskKey={taskKey}
-                          role={getTaskRole(taskKey)}
+                          role={getTaskRoleSync(taskKey, taskMetadata?.taskRoleMap ?? {})}
                         />
                       ))}
                     </tr>
@@ -581,15 +675,6 @@ export const TasksTable: React.FC = () => {
                 </table>
               </div>
             </div>
-
-            {/* Pagination */}
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={sortedParts.length}
-              itemsPerPage={itemsPerPage}
-              onPageChange={setCurrentPage}
-            />
           </>
         )}
       </div>

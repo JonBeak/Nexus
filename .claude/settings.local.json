@@ -37,7 +37,8 @@
       "Bash(lsof:*)",
       "Bash(echo:*)",
       "Bash(cp:*)",
-      "WebSearch"
+      "WebSearch",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": [],

@@ -163,6 +163,7 @@ export interface OrderTask {
   completed_at?: string;
   completed_by?: number;
   depends_on_task_id?: number;
+  notes?: string;
 }
 
 export interface TaskTemplate {

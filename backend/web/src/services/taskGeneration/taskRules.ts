@@ -41,7 +41,7 @@ export const TASK_ORDER: string[] = [
   'Return Fabrication',
   'Return Gluing',
   'Mounting Hardware',
-  'Face Assembling',
+  'Face Assembly',
   'LEDs',
   'Backer / Raceway Fabrication',
   'Vinyl after Fabrication',
@@ -79,7 +79,7 @@ export const TASK_ROLE_MAP: Record<string, ProductionRole> = {
   'Return Fabrication': 'return_fabricator',
   'Return Gluing': 'return_gluer',
   'Mounting Hardware': 'mounting_assembler',
-  'Face Assembling': 'face_assembler',
+  'Face Assembly': 'face_assembler',
   'LEDs': 'led_installer',
   'Backer / Raceway Fabrication': 'backer_raceway_fabricator',
   'Assembly': 'backer_raceway_assembler',
@@ -415,7 +415,7 @@ export function generateConditionalTasks(
     });
   }
 
-  // Assembly spec → Face Assembling or Backer / Raceway Assembly based on item name
+  // Assembly spec → Face Assembly or Backer / Raceway Assembly based on item name
   if (hasSpec(group, 'Assembly')) {
     // Check the item_name of the part that has the Assembly spec
     const assemblyPart = group.parts.find(part => {
@@ -428,12 +428,12 @@ export function generateConditionalTasks(
     const description = assemblySpec?.values.description || null;
 
     // Determine task based on product type
-    // Backer-type products use "Assembly" task, face-type products use "Face Assembling"
+    // Backer-type products use "Assembly" task, face-type products use "Face Assembly"
     const isBacker = itemName.includes('backer') ||
                      itemName.includes('raceway') ||
                      itemName.includes('push thru') ||
                      itemName.includes('knockout box');
-    const taskName = isBacker ? 'Assembly' : 'Face Assembling';
+    const taskName = isBacker ? 'Assembly' : 'Face Assembly';
 
     tasks.push({
       taskName,

@@ -206,10 +206,11 @@ See `Nexus_Orders_JobStructure.md` for detailed breakdown of nested objects.
    - Red highlighting for orders with hard due times
    - Default sort: Days Left ascending (most urgent first)
 
-5. **Calendar View**
-   - Due dates marked
-   - Color-coded by stage
-   - Click to view job details
+5. **Calendar View** ✅ IMPLEMENTED (2025-12-11)
+   - Week/2-week/month view options
+   - Order cards organized by due date
+   - OrderQuickModal for task management
+   - Color-coded by status
 
 6. **Gantt Chart** (Future)
    - Timeline visualization
@@ -340,17 +341,35 @@ See `Nexus_Orders_JobStructure.md` for detailed breakdown of nested objects.
 ### Phase 2: Essential Features (3-4 weeks) - IN PROGRESS
 - [x] **Phase 2.a: Tasks Table** - NEW TAB (part-level task management) - **✅ COMPLETE** (2025-12-10)
   - [x] Phase 2.a.1: Core table structure (TasksTable.tsx, tab added to OrdersPage)
-  - [x] Phase 2.a.2: Task columns with diagonal headers, role color coding, completion toggle
+  - [x] Phase 2.a.2: Task columns with role-colored headers, completion toggle
   - [x] Phase 2.a.3: Backend `/api/orders/parts/with-tasks` endpoint with filtering
   - [x] Phase 2.a.4: Multi-select status filter, search (order name + customer)
   - [x] Status column with StatusSelectModal for order status changes
   - [x] Search, pagination (50 items), client-side sorting
+  - [x] Sticky columns (Order/Part, Status, Due Date, Hard Due Time)
+  - [x] Drag-to-scroll for task columns region
+  - [x] Task metadata API for dynamic column ordering
   - Step View with dependency visualization DEFERRED to future phase
   - See `Nexus_Orders_Phase2a_TasksTable.md` for full specification
-- [ ] Phase 2.b: Calendar View (horizontal date view)
-- [ ] Phase 2.c: Completed Jobs archive
-- [ ] Phase 2.d: Email notifications automation (Gmail API already integrated from Phase 1.5)
-- [ ] Phase 2.e: QuickBooks Invoice Automation (using existing QB Estimate integration)
+- [x] **Phase 2.b: Calendar View** - NEW TAB - **✅ COMPLETE** (2025-12-11)
+  - [x] Week/2-week/month view options
+  - [x] Order cards organized by due date with drag-and-drop ready structure
+  - [x] OrderQuickModal for quick task management without leaving calendar
+  - [x] Task start/complete/uncomplete with optimistic updates
+  - [x] Inline notes editing with keyboard shortcuts (Enter/Escape)
+  - [x] TaskRow shared component extracted to `common/TaskRow.tsx`
+  - See `frontend/web/src/components/orders/calendarView/` for implementation
+- [x] ~~Phase 2.c: Completed Jobs archive~~ - DEFERRED (need more completed jobs data)
+- [x] ~~Phase 2.d: Email notifications automation~~ - DEFERRED (optional future enhancement)
+- [ ] **Phase 2.e: QuickBooks Invoice Automation** - PLANNED
+  - Create/Update QB Invoice from order data (one invoice per order)
+  - Link existing QB Invoice to order
+  - Record payments to QB (partial payments allowed)
+  - View payment history from QB
+  - Email invoice with scheduling (send now, schedule future, defer)
+  - Status change prompts (deposit request, invoice reminder)
+  - Dynamic Invoice Button with shine animation
+  - See `Nexus_Orders_Phase2e_QBInvoiceAutomation.md` for full specification
 - Note: Jobs Table exists (keep as-is)
 
 ### Phase 3: Visual Enhancements (2-3 weeks)
@@ -449,21 +468,33 @@ LIMIT ?  -- Fails with correlated subqueries
 
 ---
 
-**Document Status**: Phase 1 ✅, Phase 1.5 ✅, Phase 1.6 ✅, **Phase 2 IN PROGRESS (2.a ✅ Complete)**
-**Last Updated**: 2025-12-10
+**Document Status**: Phase 1 ✅, Phase 1.5 ✅, Phase 1.6 ✅, **Phase 2 IN PROGRESS (2.a ✅, 2.b ✅)**
+**Last Updated**: 2025-12-11
 **Owner**: Jon (with Claude Code assistance)
 
 **Recent Major Updates (Dec 2025)**:
+- **Phase 2.b**: Calendar View ✅ COMPLETE (2025-12-11)
+  - NEW Calendar tab added to OrdersPage
+  - Week/2-week/month view options with navigation
+  - Order cards organized by due date columns
+  - OrderQuickModal for quick task management
+  - **TaskRow shared component** extracted to `common/TaskRow.tsx`
+    - Unified task display for TaskItem and OrderQuickModal
+    - Optimistic updates with refetch-on-error pattern
+    - Start/complete/uncomplete with instant UI feedback
+    - Inline notes editing with Enter/Escape keyboard shortcuts
+    - Consistent row sizing with absolute-positioned action buttons
 - **Phase 2.a**: Tasks Table ✅ COMPLETE - see `Nexus_Orders_Phase2a_TasksTable.md`
   - NEW tab added to OrdersPage with full implementation
-  - TasksTable.tsx, DiagonalHeader, PartRow, TaskCell, StatusSelectModal
+  - TasksTable.tsx, TaskHeader, PartRow, TaskCell, StatusSelectModal
   - Backend endpoint `/api/orders/parts/with-tasks` with filtering
   - Role color coding, task completion toggle, search, pagination
   - Multi-select status filter (12 statuses)
   - 11 core task columns always visible, 15 optional auto-hide
+  - Sticky columns and drag-to-scroll for task columns
 - **Phase 2.a+**: Orders Table Enhancements ✅ (2025-12-10)
   - Renamed "Jobs Table" to "Orders Table"
-  - URL-based tab routing (`/orders`, `/orders/table`, `/orders/tasks`, `/orders/role-tasks`)
+  - URL-based tab routing (`/orders`, `/orders/table`, `/orders/tasks`, `/orders/calendar`, `/orders/role-tasks`)
   - Browser back button now works correctly between tabs
   - **"Days Left" column** with work days calculation:
     - 1 work day = 8.5 hours (7:30am - 4pm)

@@ -136,6 +136,9 @@ function AppContent() {
         <Route path="/orders/role-tasks" element={
           user && (user.role === 'manager' || user.role === 'owner') ? <OrdersPage /> : <Navigate to="/dashboard" />
         } />
+        <Route path="/orders/calendar" element={
+          user && (user.role === 'manager' || user.role === 'owner') ? <OrdersPage /> : <Navigate to="/dashboard" />
+        } />
 
         <Route path="/orders/:orderNumber" element={
           user && (user.role === 'manager' || user.role === 'owner') ? <OrderDetailsPage /> : <Navigate to="/dashboard" />

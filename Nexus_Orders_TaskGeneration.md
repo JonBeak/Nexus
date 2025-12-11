@@ -332,7 +332,7 @@ The system prompts for manual input when:
 | Return Fabrication | return_fabricator |
 | Return Gluing | return_gluer |
 | Mounting Hardware | mounting_assembler |
-| Face Assembling | face_assembler |
+| Face Assembly | face_assembler |
 | LEDs | led_installer |
 | Backer/Raceway Fabrication | backer_raceway_fabricator |
 | Vinyl after Fabrication | vinyl_applicator |

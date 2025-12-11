@@ -41,7 +41,7 @@ export const TableHeader: React.FC<Props> = ({
   );
 
   return (
-    <thead className="bg-gray-50">
+    <thead className="bg-gray-200">
       <tr>
         <HeaderCell field="order_number" label="Order #" className="w-24" />
         <HeaderCell field="order_name" label="Order Name" className="w-80" />

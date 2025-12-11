@@ -16,12 +16,12 @@ interface Props {
 }
 
 export const TaskCell: React.FC<Props> = ({ task, onToggle, disabled = false }) => {
-  // N/A state - task doesn't exist for this part (dark gray)
+  // N/A state - task doesn't exist for this part (darker gray, grabbable for scrolling)
   if (!task) {
     return (
-      <td className="px-1 py-1 text-center border-r border-gray-200 bg-gray-100" data-task-cell>
-        <div className="flex items-center justify-center">
-          <Minus className="w-3 h-3 text-gray-400" />
+      <td className="px-1 py-1 text-center border-r border-gray-300 bg-gray-200 cursor-grab" data-task-cell>
+        <div className="flex items-center justify-center pointer-events-none">
+          <Minus className="w-3 h-3 text-gray-500" />
         </div>
       </td>
     );
@@ -36,11 +36,11 @@ export const TaskCell: React.FC<Props> = ({ task, onToggle, disabled = false }) 
     }
   };
 
-  // Completed state - rich green color
+  // Completed state - rich green color with inset ring outline
   if (task.completed) {
     return (
       <td
-        className={`px-1 py-1 text-center border-r border-gray-200 bg-emerald-100 ${isClickable ? 'cursor-pointer hover:bg-emerald-200' : ''}`}
+        className={`px-1 py-1 text-center border-r border-gray-300 bg-emerald-100 ring-2 ring-inset ring-emerald-400 ${isClickable ? 'cursor-pointer hover:bg-emerald-200' : ''}`}
         onClick={handleClick}
         title={task.notes || task.taskName}
         data-task-cell
@@ -54,16 +54,16 @@ export const TaskCell: React.FC<Props> = ({ task, onToggle, disabled = false }) 
     );
   }
 
-  // Pending state - role color with empty checkbox (no circle icon)
+  // Pending state - role color with empty checkbox and inset ring outline
   return (
     <td
-      className={`px-1 py-1 text-center border-r border-gray-200 ${colors.cellBg} ${isClickable ? 'cursor-pointer hover:opacity-80' : ''}`}
+      className={`px-1 py-1 text-center border-r border-gray-300 ${colors.cellBg} ring-2 ring-inset ${colors.ring} ${isClickable ? 'cursor-pointer hover:opacity-80' : ''}`}
       onClick={handleClick}
       title={task.notes || task.taskName}
       data-task-cell
     >
       <div className="flex items-center justify-center">
-        <div className={`w-5 h-5 rounded border-2 ${colors.border} bg-white`} />
+        <div className="w-5 h-5 rounded border-2 border-gray-600 bg-white" />
       </div>
     </td>
   );

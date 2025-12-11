@@ -147,6 +147,7 @@
     <Route path="/account-management">User account and RBAC management (Manager+ only) - See Nexus_AccountsManagement.md</Route>
     <Route path="/supply-chain">Supply chain and supplier management (Manager+ only) - See Nexus_SupplyChain.md</Route>
     <Route path="/job-estimation">Job estimation with complex product forms (Manager+ only) - See Nexus_JobEstimation.md</Route>
+    <Route path="/orders">Orders management with Tasks Table view for production tracking</Route>
   </ImplementedRoutes>
 
   <WorkingFeatures>
@@ -160,6 +161,7 @@
     <Feature name="JobEstimation">Currently in development. Major refactoring going on. Please check ArchitectureReference for more information</Feature>
     <Feature name="AccountManagement">User account system with role management, vacation tracking, schedule management</Feature>
     <Feature name="CompanyOperations">Holiday management, work schedules, company-wide settings</Feature>
+    <Feature name="TasksTable">Production task tracking grid with sticky headers, role-based task columns, hide completed/empty filters, drag-to-scroll, inline task toggling</Feature>
   </WorkingFeatures>
 
   <FuturePriorities>
@@ -506,6 +508,7 @@ const [rows] = await pool.execute(...);  // ❌ NEVER DO THIS
       <Path name="EstimateVersioning">/backend/web/src/controllers/estimateVersioningController.ts</Path>
       <Path name="DynamicTemplates">/backend/web/src/services/dynamicTemplateService.ts</Path>
       <Path name="GridJobBuilder">/frontend/web/src/components/jobEstimation/GridJobBuilderRefactored.tsx</Path>
+      <Path name="TasksTable">/frontend/web/src/components/orders/tasksTable/TasksTable.tsx</Path>
     </CriticalPaths>
 
     <Troubleshooting>
@@ -513,7 +516,8 @@ const [rows] = await pool.execute(...);  // ❌ NEVER DO THIS
       <Step order="2">Review logs: /tmp/signhouse-*.log</Step>
       <Step order="3">Verify database connection: systemctl status mysql</Step>
       <Step order="4">Check for port conflicts: lsof -i :3001 and lsof -i :5173</Step>
-      <Step order="5">Never modify backup files as fallback</Step>
+      <Step order="5">If rebuild/restart doesn't update running server: Check for rogue processes - compare PM2 PID (pm2 list) with port PID (lsof -i :3001). If different, kill the rogue process before restarting PM2.</Step>
+      <Step order="6">Never modify backup files as fallback</Step>
     </Troubleshooting>
 
     <TestingReference>

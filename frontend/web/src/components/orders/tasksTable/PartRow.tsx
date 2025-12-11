@@ -91,9 +91,12 @@ export const PartRow: React.FC<Props> = ({
   }
 
   return (
-    <tr className="hover:bg-gray-50 transition-colors border-b border-gray-100">
-      {/* Order / Part - Three line display: Order#: Name / Part Type: Scope / Customer */}
-      <td className="px-2 py-1 border-r border-gray-100 overflow-hidden">
+    <tr className="border-b border-gray-300 group">
+      {/* Order / Part - Three line display: Order#: Name / Part Type: Scope / Customer - sticky, fixed width */}
+      <td
+        className="px-2 py-1 border-r border-gray-300 overflow-hidden sticky z-10 group-hover:!bg-gray-50"
+        style={{ left: 0, width: '280px', backgroundColor: '#ffffff' }}
+      >
         <div className="truncate">
           <a
             href={`/orders/${part.orderNumber}`}
@@ -113,8 +116,11 @@ export const PartRow: React.FC<Props> = ({
         )}
       </td>
 
-      {/* Status column - clickable to change */}
-      <td className="px-1 py-1 whitespace-nowrap text-center border-r border-gray-100">
+      {/* Status column - clickable to change - sticky, fixed width */}
+      <td
+        className="px-1 py-1 whitespace-nowrap text-center border-r border-gray-300 sticky z-10 group-hover:!bg-gray-50"
+        style={{ left: '280px', width: '120px', backgroundColor: '#ffffff' }}
+      >
         <button
           onClick={() => onStatusClick(part.orderNumber, part.orderName, part.orderStatus)}
           className={`inline-block px-2 py-1 text-xs font-medium rounded cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-gray-400 transition-all ${statusInfo.color}`}
@@ -124,17 +130,23 @@ export const PartRow: React.FC<Props> = ({
         </button>
       </td>
 
-      {/* Due Date (Day, Mon d format) - red background if hard due */}
-      <td className={`px-1 py-1 whitespace-nowrap text-xs border-r border-gray-100 text-center ${
-        isHardDue ? 'bg-red-100 text-red-800 font-semibold' : 'text-gray-600'
-      }`}>
+      {/* Due Date (Day, Mon d format) - red background if hard due - sticky, fixed width */}
+      <td
+        className={`px-1 py-1 whitespace-nowrap text-xs border-r border-gray-300 text-center sticky z-10 ${
+          isHardDue ? 'text-red-800 font-semibold' : 'group-hover:!bg-gray-50 text-gray-600'
+        }`}
+        style={{ left: '400px', width: '80px', backgroundColor: isHardDue ? '#fee2e2' : '#ffffff' }}
+      >
         {formatDate(part.dueDate)}
       </td>
 
-      {/* Hard Due Time - red background if set */}
-      <td className={`px-1 py-1 whitespace-nowrap text-xs border-r border-gray-100 text-center ${
-        isHardDue ? 'bg-red-100 text-red-800 font-semibold' : 'text-gray-400'
-      }`}>
+      {/* Hard Due Time - red background if set - sticky, fixed width */}
+      <td
+        className={`px-1 py-1 whitespace-nowrap text-xs text-center border-r border-gray-300 sticky z-10 ${
+          isHardDue ? 'text-red-800 font-semibold' : 'group-hover:!bg-gray-50 text-gray-400'
+        }`}
+        style={{ left: '480px', width: '64px', backgroundColor: isHardDue ? '#fee2e2' : '#ffffff' }}
+      >
         {isHardDue ? formatTime(part.hardDueTime) : '-'}
       </td>
 

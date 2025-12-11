@@ -12,7 +12,7 @@ interface Props {
   role: ProductionRole | string;
 }
 
-export const DiagonalHeader: React.FC<Props> = ({ taskKey, role }) => {
+export const TaskHeader: React.FC<Props> = ({ taskKey, role }) => {
   const colors = getRoleColors(role);
 
   // Parse taskKey: "TaskName|notes" or just "TaskName"
@@ -68,4 +68,4 @@ export const DiagonalHeader: React.FC<Props> = ({ taskKey, role }) => {
   );
 };
 
-export default DiagonalHeader;
+export default TaskHeader;

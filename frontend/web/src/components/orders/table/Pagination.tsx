@@ -34,7 +34,7 @@ export const Pagination: React.FC<Props> = ({
   if (totalPages <= 1) return null;
 
   return (
-    <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 mt-4 rounded-lg shadow">
+    <div className="flex items-center justify-between">
       <div className="flex-1 flex justify-between sm:hidden">
         <button
           onClick={handlePrevious}
@@ -51,7 +51,7 @@ export const Pagination: React.FC<Props> = ({
           Next
         </button>
       </div>
-      <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+      <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between gap-4">
         <div>
           <p className="text-sm text-gray-700">
             Showing <span className="font-medium">{startItem}</span> to{' '}

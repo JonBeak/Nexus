@@ -38,7 +38,7 @@ OrdersPage Tabs (URL-based routing):
 
 ### Task View Layout
 
-One column per task with diagonalized headers, ordered by the existing `TASK_ORDER`.
+One column per task with role-colored headers, ordered by the existing `TASK_ORDER`.
 
 **Column Strategy:** Consolidate Order+Part#+Scope into single column to maximize task column space.
 
@@ -99,7 +99,7 @@ Uses existing `TASK_ORDER` from `/backend/web/src/services/taskGeneration/taskRu
 | 18 | Return Fabrication | return_fabricator |
 | 19 | Return Gluing | return_gluer |
 | 20 | Mounting Hardware | mounting_assembler |
-| 21 | Face Assembling | face_assembler |
+| 21 | Face Assembly | face_assembler |
 | 22 | LEDs | led_installer |
 | 23 | Backer/Raceway Fabrication | backer_raceway_fabricator |
 | 24 | Vinyl after Fabrication | vinyl_applicator |
@@ -107,7 +107,7 @@ Uses existing `TASK_ORDER` from `/backend/web/src/services/taskGeneration/taskRu
 | 26 | Assembly | backer_raceway_assembler |
 
 **Column Visibility Strategy:**
-- **Always Visible (11 core tasks):** CNC Router Cut, Cut & Bend Return, Cut & Bend Trim, Trim Fabrication, Return Fabrication, Return Gluing, Mounting Hardware, Face Assembling, LEDs, Backer/Raceway Fabrication, Assembly
+- **Always Visible (11 core tasks):** CNC Router Cut, Cut & Bend Return, Cut & Bend Trim, Trim Fabrication, Return Fabrication, Return Gluing, Mounting Hardware, Face Assembly, LEDs, Backer/Raceway Fabrication, Assembly
 - **Auto-Hide (15 optional tasks):** Vinyl/paint-related tasks only appear when tasks exist in current data
 - **Rationale:** Core production tasks should always be visible for consistency, even when filtering to early-stage orders (e.g., Job Details Setup) that don't have tasks yet
 
@@ -201,19 +201,48 @@ ORDER BY o.due_date, o.order_number, op.part_number;
 ```
 frontend/web/src/components/orders/tasksTable/
 ├── TasksTable.tsx           # Main table component (includes filters)
-├── DiagonalHeader.tsx       # Angled column header component
+├── TaskHeader.tsx           # Task column header with role colors
 ├── PartRow.tsx              # Single part row
 ├── TaskCell.tsx             # Task completion cell
 ├── StatusSelectModal.tsx    # Order status change modal
-├── roleColors.ts            # Task-to-role color mapping
+├── roleColors.ts            # Role color configuration (ProductionRole, ROLE_COLORS)
 └── types.ts                 # TypeScript definitions
+
+frontend/web/src/services/
+└── taskMetadataResource.ts  # Session-cached task metadata (fetches from API)
 ```
 
 ---
 
 ## API Endpoints
 
-### GET /api/orders/parts/with-tasks (NEW)
+### GET /api/orders/metadata/tasks (Single Source of Truth)
+
+Returns task configuration metadata used by the Tasks Table. This is the **single source of truth** for task ordering, role mapping, and auto-hide behavior.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "taskOrder": ["Vinyl Plotting", "Sanding (320) before cutting", ...],
+    "taskRoleMap": {
+      "Vinyl Plotting": "designer",
+      "CNC Router Cut": "cnc_router_operator",
+      "Face Assembly": "face_assembler",
+      ...
+    },
+    "autoHideColumns": ["Vinyl Plotting", "Sanding (320) before cutting", ...]
+  }
+}
+```
+
+**Frontend Usage:**
+- `TaskMetadataResource.ts` caches this data for 30 minutes
+- TasksTable fetches metadata on mount, uses it for column ordering and role colors
+- Eliminates duplicate constants across frontend/backend
+
+### GET /api/orders/parts/with-tasks
 
 Returns all parts with their tasks for the Tasks Table.
 
@@ -282,7 +311,7 @@ Returns all parts with their tasks for the Tasks Table.
 - [x] Basic row rendering
 
 ### Phase 2.a.2: Task Columns ✅ COMPLETE
-- [x] Create `DiagonalHeader.tsx` component (45-degree angled text)
+- [x] Create `TaskHeader.tsx` component (role-colored headers)
 - [x] Implement role color coding using TASK_ROLE_MAP
 - [x] Create `TaskCell.tsx` with completion states (✓, ◯, -)
 - [x] Use TASK_ORDER for column sequence
@@ -316,7 +345,7 @@ Returns all parts with their tasks for the Tasks Table.
 ## Testing Checklist
 
 - [ ] Table loads with all parts and tasks
-- [ ] Task View shows correct diagonalized headers
+- [ ] Task View shows correct role-colored headers
 - [ ] Columns ordered by TASK_ORDER
 - [ ] Only columns for existing tasks are shown
 - [ ] Task completion toggle works
@@ -331,7 +360,9 @@ Returns all parts with their tasks for the Tasks Table.
 
 - `Nexus_OrdersPage_Overview.md` - System overview
 - `Nexus_Orders_Phase1.5_OVERVIEW.md` - Phase 1.5 completion
-- `/backend/web/src/services/taskGeneration/taskRules.ts` - TASK_ORDER and TASK_ROLE_MAP
+- `/backend/web/src/services/taskGeneration/taskRules.ts` - TASK_ORDER and TASK_ROLE_MAP (source of truth)
+- `/backend/web/src/controllers/orders/TaskMetadataController.ts` - Task metadata API endpoint
+- `/frontend/web/src/services/taskMetadataResource.ts` - Frontend task metadata caching
 - `/home/jon/.claude/plans/greedy-singing-sloth.md` - Phase 2 plan
 
 ---
@@ -344,9 +375,16 @@ Returns all parts with their tasks for the Tasks Table.
 
 ## Recent Updates (Dec 2025)
 
+### Task Metadata API - Single Source of Truth (Dec 11)
+- New API endpoint: `GET /api/orders/metadata/tasks`
+- Backend serves TASK_ORDER, TASK_ROLE_MAP, AUTO_HIDE_COLUMNS from single source
+- Frontend `TaskMetadataResource.ts` caches data for 30 minutes
+- Removed duplicate TASK_ORDER and TASK_ROLE_MAP constants from frontend `roleColors.ts`
+- Renamed "Face Assembling" → "Face Assembly" throughout system
+
 ### URL-Based Tab Routing
 - OrdersPage now uses URL-based routing for all tabs
-- Routes: `/orders`, `/orders/table`, `/orders/tasks`, `/orders/role-tasks`
+- Routes: `/orders`, `/orders/table`, `/orders/tasks`, `/orders/calendar`, `/orders/role-tasks`
 - Browser back/forward buttons work correctly between tabs
 - Bookmark-able URLs for each view
 
@@ -354,3 +392,11 @@ Returns all parts with their tasks for the Tasks Table.
 - Confirmed 11 always-visible core production tasks
 - 15 auto-hide optional tasks (vinyl/paint related)
 - Core tasks visible even when filtering to early-stage orders with no tasks yet
+
+### Sticky Columns & Drag-to-Scroll (Dec 11)
+- First 4 columns (Order/Part, Status, Due Date, Hard Due Time) are sticky
+- Fixed widths: 280px, 120px, 80px, 64px respectively
+- z-index layering preserves column stacking during horizontal scroll
+- Task columns region supports drag-to-scroll for mouse users
+- Improved cell styling with inset ring outlines for pending/completed states
+- N/A cells use darker gray (`bg-gray-200`) with grabbable cursor

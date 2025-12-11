@@ -96,6 +96,14 @@ export class OrderService {
     const tasks = await orderPartRepository.getOrderTasks(orderId);
     const pointPersons = await orderConversionRepository.getOrderPointPersons(orderId);
 
+    // Nest tasks within their respective parts
+    const partsWithTasks = parts.map(part => ({
+      ...part,
+      tasks: tasks.filter(task => task.part_id === part.part_id),
+      total_tasks: tasks.filter(task => task.part_id === part.part_id).length,
+      completed_tasks: tasks.filter(task => task.part_id === part.part_id && task.completed).length
+    }));
+
     // Calculate progress
     const completedTasksCount = tasks.filter(t => t.completed).length;
     const totalTasksCount = tasks.length;
@@ -105,7 +113,7 @@ export class OrderService {
 
     return {
       ...order,
-      parts,
+      parts: partsWithTasks,
       tasks,
       point_persons: pointPersons,
       completed_tasks_count: completedTasksCount,

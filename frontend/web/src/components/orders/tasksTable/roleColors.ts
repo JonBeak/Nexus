@@ -1,6 +1,10 @@
 /**
  * Role-based color mapping for Tasks Table
  * Maps ProductionRole values to Tailwind CSS classes
+ *
+ * NOTE: TASK_ORDER and TASK_ROLE_MAP are now served from the backend API.
+ * Use TaskMetadataResource to fetch task metadata (ordering, role mapping, auto-hide columns).
+ * This file only contains styling constants (ROLE_COLORS) and helper functions.
  */
 
 export type ProductionRole =
@@ -27,6 +31,7 @@ export interface RoleColorConfig {
   completedBg: string;   // Completed task background
   checkmark: string;     // Checkmark icon color
   border: string;        // Border color
+  ring: string;          // Inset ring color for cell outline
 }
 
 /**
@@ -44,134 +49,149 @@ export const ROLE_COLORS: Record<ProductionRole, RoleColorConfig> = {
   designer: {
     headerBg: 'bg-blue-100',
     headerText: 'text-blue-800',
-    cellBg: 'bg-blue-50',
-    completedBg: 'bg-blue-100',
+    cellBg: 'bg-blue-100',
+    completedBg: 'bg-blue-200',
     checkmark: 'text-blue-600',
-    border: 'border-blue-200'
+    border: 'border-blue-300',
+    ring: 'ring-blue-300'
   },
   vinyl_applicator: {
     headerBg: 'bg-blue-100',
     headerText: 'text-blue-800',
-    cellBg: 'bg-blue-50',
-    completedBg: 'bg-blue-100',
+    cellBg: 'bg-blue-100',
+    completedBg: 'bg-blue-200',
     checkmark: 'text-blue-600',
-    border: 'border-blue-200'
+    border: 'border-blue-300',
+    ring: 'ring-blue-300'
   },
 
   // Painter - Purple
   painter: {
     headerBg: 'bg-purple-100',
     headerText: 'text-purple-800',
-    cellBg: 'bg-purple-50',
-    completedBg: 'bg-purple-100',
+    cellBg: 'bg-purple-100',
+    completedBg: 'bg-purple-200',
     checkmark: 'text-purple-600',
-    border: 'border-purple-200'
+    border: 'border-purple-300',
+    ring: 'ring-purple-300'
   },
 
   // LEDs - Yellow
   led_installer: {
     headerBg: 'bg-yellow-100',
     headerText: 'text-yellow-800',
-    cellBg: 'bg-yellow-50',
-    completedBg: 'bg-yellow-100',
+    cellBg: 'bg-yellow-100',
+    completedBg: 'bg-yellow-200',
     checkmark: 'text-yellow-600',
-    border: 'border-yellow-200'
+    border: 'border-yellow-300',
+    ring: 'ring-yellow-300'
   },
 
   // Cut & Bend - Orange
   cut_bender_operator: {
     headerBg: 'bg-orange-100',
     headerText: 'text-orange-800',
-    cellBg: 'bg-orange-50',
-    completedBg: 'bg-orange-100',
+    cellBg: 'bg-orange-100',
+    completedBg: 'bg-orange-200',
     checkmark: 'text-orange-600',
-    border: 'border-orange-200'
+    border: 'border-orange-300',
+    ring: 'ring-orange-300'
   },
 
   // CNC Router - Red
   cnc_router_operator: {
     headerBg: 'bg-red-100',
     headerText: 'text-red-800',
-    cellBg: 'bg-red-50',
-    completedBg: 'bg-red-100',
+    cellBg: 'bg-red-100',
+    completedBg: 'bg-red-200',
     checkmark: 'text-red-600',
-    border: 'border-red-200'
+    border: 'border-red-300',
+    ring: 'ring-red-300'
   },
 
   // Fabricators - Teal
   trim_fabricator: {
     headerBg: 'bg-teal-100',
     headerText: 'text-teal-800',
-    cellBg: 'bg-teal-50',
-    completedBg: 'bg-teal-100',
+    cellBg: 'bg-teal-100',
+    completedBg: 'bg-teal-200',
     checkmark: 'text-teal-600',
-    border: 'border-teal-200'
+    border: 'border-teal-300',
+    ring: 'ring-teal-300'
   },
   return_fabricator: {
     headerBg: 'bg-teal-100',
     headerText: 'text-teal-800',
-    cellBg: 'bg-teal-50',
-    completedBg: 'bg-teal-100',
+    cellBg: 'bg-teal-100',
+    completedBg: 'bg-teal-200',
     checkmark: 'text-teal-600',
-    border: 'border-teal-200'
+    border: 'border-teal-300',
+    ring: 'ring-teal-300'
   },
   return_gluer: {
     headerBg: 'bg-teal-100',
     headerText: 'text-teal-800',
-    cellBg: 'bg-teal-50',
-    completedBg: 'bg-teal-100',
+    cellBg: 'bg-teal-100',
+    completedBg: 'bg-teal-200',
     checkmark: 'text-teal-600',
-    border: 'border-teal-200'
+    border: 'border-teal-300',
+    ring: 'ring-teal-300'
   },
   mounting_assembler: {
     headerBg: 'bg-sky-100',
     headerText: 'text-sky-800',
-    cellBg: 'bg-sky-50',
-    completedBg: 'bg-sky-100',
+    cellBg: 'bg-sky-100',
+    completedBg: 'bg-sky-200',
     checkmark: 'text-sky-600',
-    border: 'border-sky-200'
+    border: 'border-sky-300',
+    ring: 'ring-sky-300'
   },
   face_assembler: {
     headerBg: 'bg-sky-100',
     headerText: 'text-sky-800',
-    cellBg: 'bg-sky-50',
-    completedBg: 'bg-sky-100',
+    cellBg: 'bg-sky-100',
+    completedBg: 'bg-sky-200',
     checkmark: 'text-sky-600',
-    border: 'border-sky-200'
+    border: 'border-sky-300',
+    ring: 'ring-sky-300'
   },
   backer_raceway_fabricator: {
     headerBg: 'bg-indigo-100',
     headerText: 'text-indigo-800',
-    cellBg: 'bg-indigo-50',
-    completedBg: 'bg-indigo-100',
+    cellBg: 'bg-indigo-100',
+    completedBg: 'bg-indigo-200',
     checkmark: 'text-indigo-600',
-    border: 'border-indigo-200'
+    border: 'border-indigo-300',
+    ring: 'ring-indigo-300'
   },
   backer_raceway_assembler: {
     headerBg: 'bg-indigo-100',
     headerText: 'text-indigo-800',
-    cellBg: 'bg-indigo-50',
-    completedBg: 'bg-indigo-100',
+    cellBg: 'bg-indigo-100',
+    completedBg: 'bg-indigo-200',
     checkmark: 'text-indigo-600',
-    border: 'border-indigo-200'
+    border: 'border-indigo-300',
+    ring: 'ring-indigo-300'
   },
 
   // Manager / QC - Slate
   manager: {
     headerBg: 'bg-slate-100',
     headerText: 'text-slate-700',
-    cellBg: 'bg-slate-50',
-    completedBg: 'bg-slate-100',
+    cellBg: 'bg-slate-100',
+    completedBg: 'bg-slate-200',
     checkmark: 'text-slate-600',
-    border: 'border-slate-200'
+    border: 'border-slate-300',
+    ring: 'ring-slate-300'
   },
   qc_packer: {
     headerBg: 'bg-slate-100',
     headerText: 'text-slate-700',
-    cellBg: 'bg-slate-50',
-    completedBg: 'bg-slate-100',
+    cellBg: 'bg-slate-100',
+    completedBg: 'bg-slate-200',
     checkmark: 'text-slate-600',
-    border: 'border-slate-200'
+    border: 'border-slate-300',
+    ring: 'ring-slate-300'
   }
 };
 
@@ -187,79 +207,18 @@ export function getRoleColors(role: string | null | undefined): RoleColorConfig 
 }
 
 /**
- * Canonical task order (from backend taskRules.ts)
- * Used for column ordering in the Tasks Table
- */
-export const TASK_ORDER: string[] = [
-  'Vinyl Plotting',
-  'Sanding (320) before cutting',
-  'Scuffing before cutting',
-  'Paint before cutting',
-  'Vinyl Face Before Cutting',
-  'Vinyl Wrap Return/Trim',
-  'CNC Router Cut',
-  'Laser Cut',
-  'Cut & Bend Return',
-  'Cut & Bend Trim',
-  'Sanding (320) after cutting',
-  'Scuffing after cutting',
-  'Paint After Cutting',
-  'Backer / Raceway Bending',
-  'Paint After Bending',
-  'Vinyl Face After Cutting',
-  'Trim Fabrication',
-  'Return Fabrication',
-  'Return Gluing',
-  'Mounting Hardware',
-  'Face Assembling',
-  'LEDs',
-  'Backer / Raceway Fabrication',
-  'Vinyl after Fabrication',
-  'Paint after Fabrication',
-  'Assembly'
-];
-
-/**
- * Task name to role mapping
+ * Get role for a task key using pre-fetched role map
+ * For synchronous usage when metadata is already loaded from TaskMetadataResource
  *
- * Note: Status-based tasks (Design Files, Design Approval, QC & Packing) are NOT included here
- * because they are tracked via order.status, not as per-part tasks.
+ * @param taskKey - Task key (handles composite keys like "taskName|notes")
+ * @param taskRoleMap - Pre-fetched role map from TaskMetadataResource
+ * @returns ProductionRole for the task, defaults to 'manager' if not found
  */
-export const TASK_ROLE_MAP: Record<string, ProductionRole> = {
-  'Vinyl Plotting': 'designer',
-  'Vinyl Face Before Cutting': 'vinyl_applicator',
-  'Vinyl Face After Cutting': 'vinyl_applicator',
-  'Vinyl Wrap Return/Trim': 'vinyl_applicator',
-  'Vinyl after Fabrication': 'vinyl_applicator',
-  'CNC Router Cut': 'cnc_router_operator',
-  'Laser Cut': 'manager',
-  'Cut & Bend Return': 'cut_bender_operator',
-  'Cut & Bend Trim': 'cut_bender_operator',
-  'Backer / Raceway Bending': 'backer_raceway_fabricator',
-  'Trim Fabrication': 'trim_fabricator',
-  'Return Fabrication': 'return_fabricator',
-  'Return Gluing': 'return_gluer',
-  'Mounting Hardware': 'mounting_assembler',
-  'Face Assembling': 'face_assembler',
-  'LEDs': 'led_installer',
-  'Backer / Raceway Fabrication': 'backer_raceway_fabricator',
-  'Assembly': 'backer_raceway_assembler',
-  // Painting tasks
-  'Sanding (320) before cutting': 'painter',
-  'Scuffing before cutting': 'painter',
-  'Paint before cutting': 'painter',
-  'Sanding (320) after cutting': 'painter',
-  'Scuffing after cutting': 'painter',
-  'Paint After Cutting': 'painter',
-  'Paint After Bending': 'painter',
-  'Paint after Fabrication': 'painter'
-};
-
-/**
- * Get role for a task key (handles composite keys like "taskName|notes")
- */
-export function getTaskRole(taskKey: string): ProductionRole {
+export function getTaskRoleSync(
+  taskKey: string,
+  taskRoleMap: Record<string, ProductionRole>
+): ProductionRole {
   // Extract base task name from composite key (before |)
   const taskName = taskKey.split('|')[0];
-  return TASK_ROLE_MAP[taskName] || 'manager';
+  return taskRoleMap[taskName] || 'manager';
 }
