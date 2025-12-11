@@ -10,37 +10,30 @@ interface TaskUpdate {
   completed?: boolean;
 }
 
-// Production roles organized by workflow rows (4 cards per row)
-// Row layout matches production floor workflow
+// Production roles organized by workflow rows (5 cards per row)
 const ROLE_ROWS: { role: string; label: string }[][] = [
-  // Row 1: Design & Management
+  // Row 1: Design, Management & Material Prep
   [
     { role: 'designer', label: 'Designer' },
     { role: 'manager', label: 'Manager' },
     { role: 'painter', label: 'Painter' },
-  ],
-  // Row 2: Material Prep
-  [
     { role: 'vinyl_applicator', label: 'Vinyl Applicator' },
     { role: 'cnc_router_operator', label: 'CNC Router Operator' },
   ],
-  // Row 3: Fabrication
+  // Row 2: Fabrication
   [
     { role: 'cut_bender_operator', label: 'Cut & Bend Operator' },
     { role: 'return_fabricator', label: 'Return Fabricator' },
     { role: 'trim_fabricator', label: 'Trim Fabricator' },
     { role: 'return_gluer', label: 'Return Gluer' },
+    { role: 'led_installer', label: 'LED Installer' },
   ],
-  // Row 4: Assembly
+  // Row 3: Assembly & QC
   [
     { role: 'mounting_assembler', label: 'Mounting Assembler' },
     { role: 'face_assembler', label: 'Face Assembler' },
-    { role: 'led_installer', label: 'LED Installer' },
-  ],
-  // Row 5: Final Assembly & QC
-  [
-    { role: 'backer_raceway_fabricator', label: 'Backer/Raceway Fabricator' },
-    { role: 'backer_raceway_assembler', label: 'Backer/Raceway Assembler' },
+    { role: 'backer_raceway_fabricator', label: 'Backer / Raceway Fabricator' },
+    { role: 'backer_raceway_assembler', label: 'Backer / Raceway Assembler' },
     { role: 'qc_packer', label: 'QC/Packer' },
   ],
 ];
@@ -52,7 +45,6 @@ export const ProgressRoleView: React.FC = () => {
   const [stagedUpdates, setStagedUpdates] = useState<Map<number, TaskUpdate>>(new Map());
   const [saving, setSaving] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>('production_staff');
-
   useEffect(() => {
     fetchInitialData();
   }, []);
@@ -151,11 +143,12 @@ export const ProgressRoleView: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col bg-gray-50 relative">
-      {/* Role cards - organized by workflow rows */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="space-y-4">
+      {/* Scrollable content area */}
+      <div className="flex-1 overflow-auto p-3">
+        {/* Role cards - organized by workflow rows */}
+        <div className="space-y-2">
           {ROLE_ROWS.map((row, rowIndex) => (
-            <div key={rowIndex} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div key={rowIndex} className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-2">
               {row.map(({ role, label }) => (
                 <RoleCard
                   key={role}
@@ -172,47 +165,50 @@ export const ProgressRoleView: React.FC = () => {
             </div>
           ))}
         </div>
+
+        {/* Empty space at bottom for floating buttons */}
+        <div className="h-14" />
       </div>
 
-      {/* Floating action buttons - bottom right, stacked */}
-      <div className="fixed bottom-6 right-6 flex flex-col space-y-3 z-10">
+      {/* Floating action buttons - always visible */}
+      <div className="fixed bottom-4 right-4 flex gap-2 z-10">
         <button
           onClick={() => setShowCompleted(!showCompleted)}
-          className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
             showCompleted
               ? 'bg-gray-700 text-white hover:bg-gray-600'
               : 'bg-gray-500 text-white hover:bg-gray-400'
           }`}
-          style={{ boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)' }}
+          style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
         >
-          <Clock className="w-4 h-4 inline mr-2" />
-          {showCompleted ? 'Hide' : 'Show'} Recently Completed
+          <Clock className="w-4 h-4 inline mr-1" />
+          {showCompleted ? 'Hide' : 'Show'} Completed
         </button>
         <button
           onClick={handleReset}
           disabled={!hasUpdates}
-          className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
             hasUpdates
               ? 'bg-red-600 text-white hover:bg-red-700'
               : 'bg-gray-300 text-gray-500 cursor-not-allowed'
           }`}
-          style={{ boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)' }}
+          style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
         >
-          <RotateCcw className="w-4 h-4 inline mr-2" />
-          Reset Changes
+          <RotateCcw className="w-4 h-4 inline mr-1" />
+          Reset
         </button>
         <button
           onClick={handleRecordProgress}
           disabled={!hasUpdates || saving}
-          className={`px-6 py-3 rounded-lg text-sm font-medium transition-colors ${
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             hasUpdates && !saving
               ? 'bg-indigo-600 text-white hover:bg-indigo-700'
               : 'bg-gray-300 text-gray-500 cursor-not-allowed'
           }`}
-          style={{ boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)' }}
+          style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
         >
-          <CheckCircle className="w-4 h-4 inline mr-2" />
-          {saving ? 'Recording...' : `Record Progress${hasUpdates ? ` (${stagedUpdates.size})` : ''}`}
+          <CheckCircle className="w-4 h-4 inline mr-1" />
+          {saving ? 'Saving...' : `Record${hasUpdates ? ` (${stagedUpdates.size})` : ''}`}
         </button>
       </div>
     </div>

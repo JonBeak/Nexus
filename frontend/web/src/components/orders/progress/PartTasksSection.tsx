@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Plus } from 'lucide-react';
 import TaskList from './TaskList';
 import TaskTemplateDropdown from './TaskTemplateDropdown';
@@ -13,6 +13,7 @@ interface Props {
 
 export const PartTasksSection: React.FC<Props> = ({ part, partIndex, orderNumber, orderStatus, onTaskUpdated }) => {
   const [showAddDropdown, setShowAddDropdown] = useState(false);
+  const addButtonRef = useRef<HTMLButtonElement>(null);
   const completedTasks = part.completed_tasks || 0;
   const totalTasks = part.total_tasks || 0;
   const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
@@ -45,6 +46,7 @@ export const PartTasksSection: React.FC<Props> = ({ part, partIndex, orderNumber
           {/* Add Task Button */}
           {canEditTasks && (
             <button
+              ref={addButtonRef}
               onClick={() => setShowAddDropdown(!showAddDropdown)}
               className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
               title="Add task"
@@ -66,7 +68,7 @@ export const PartTasksSection: React.FC<Props> = ({ part, partIndex, orderNumber
         </div>
       </div>
 
-      {/* Task Template Dropdown */}
+      {/* Task Template Dropdown - rendered via portal */}
       {showAddDropdown && (
         <TaskTemplateDropdown
           orderNumber={orderNumber}
@@ -74,6 +76,7 @@ export const PartTasksSection: React.FC<Props> = ({ part, partIndex, orderNumber
           existingTasks={part.tasks || []}
           onTaskAdded={handleTaskAdded}
           onClose={() => setShowAddDropdown(false)}
+          triggerRef={addButtonRef}
         />
       )}
 

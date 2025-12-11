@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Order, OrderFilters, OrderStatus } from '../../../types/orders';
-import { ordersApi } from '../../../services/api';
+import { ordersApi, orderStatusApi } from '../../../services/api';
 import TableHeader from './TableHeader';
 import TableRow from './TableRow';
 import TableFilters from './TableFilters';
-import BatchActions from './BatchActions';
 import Pagination from './Pagination';
+import StatusSelectModal from '../tasksTable/StatusSelectModal';
 
 type SortField = 'order_number' | 'order_name' | 'customer_name' | 'status' | 'due_date' | 'created_at' | 'progress_percent';
 type SortDirection = 'asc' | 'desc';
@@ -18,7 +18,14 @@ export const OrdersTable: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedOrders, setSelectedOrders] = useState<Set<number>>(new Set());
+
+  // Status modal state
+  const [statusModal, setStatusModal] = useState<{
+    isOpen: boolean;
+    orderNumber: number;
+    orderName: string;
+    currentStatus: OrderStatus;
+  } | null>(null);
 
   // Filters
   const [filters, setFilters] = useState<OrderFilters>({
@@ -45,7 +52,6 @@ export const OrdersTable: React.FC = () => {
       setError(null);
       const data = await ordersApi.getOrders(filters);
       setOrders(data);
-      setSelectedOrders(new Set());
       setCurrentPage(1);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch orders');
@@ -114,43 +120,42 @@ export const OrdersTable: React.FC = () => {
     }
   };
 
-  // Handle selection
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedOrders(new Set(paginatedOrders.map(o => o.order_id)));
-    } else {
-      setSelectedOrders(new Set());
-    }
+  // Handle status click - open modal
+  const handleStatusClick = (orderNumber: number, orderName: string, currentStatus: OrderStatus) => {
+    setStatusModal({
+      isOpen: true,
+      orderNumber,
+      orderName,
+      currentStatus
+    });
   };
 
-  const handleSelectOrder = (orderId: number, checked: boolean) => {
-    const newSelected = new Set(selectedOrders);
-    if (checked) {
-      newSelected.add(orderId);
-    } else {
-      newSelected.delete(orderId);
-    }
-    setSelectedOrders(newSelected);
-  };
-
-  const isAllSelected = paginatedOrders.length > 0 &&
-    paginatedOrders.every(o => selectedOrders.has(o.order_id));
-
-  // Handle batch status update
-  const handleBatchStatusUpdate = async (status: OrderStatus) => {
-    if (selectedOrders.size === 0) return;
+  // Handle status change from modal
+  const handleStatusChange = async (newStatus: OrderStatus) => {
+    if (!statusModal) return;
 
     try {
-      await Promise.all(
-        Array.from(selectedOrders).map(orderId =>
-          ordersApi.updateOrderStatus(orderId, status)
+      // Optimistic update
+      setOrders(prevOrders =>
+        prevOrders.map(order =>
+          order.order_number === statusModal.orderNumber
+            ? { ...order, status: newStatus }
+            : order
         )
       );
-      await fetchOrders();
-      setSelectedOrders(new Set());
-    } catch (error) {
-      console.error('Error updating orders:', error);
-      alert('Failed to update some orders. Please try again.');
+
+      // Close modal
+      setStatusModal(null);
+
+      // Call API
+      await orderStatusApi.updateOrderStatus(statusModal.orderNumber, newStatus);
+
+      // Refetch to ensure consistency
+      fetchOrders();
+    } catch (err) {
+      console.error('Error updating status:', err);
+      // Revert on error
+      fetchOrders();
     }
   };
 
@@ -160,17 +165,6 @@ export const OrdersTable: React.FC = () => {
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <TableFilters filters={filters} onFiltersChange={setFilters} />
       </div>
-
-      {/* Toolbar */}
-      {selectedOrders.size > 0 && (
-        <div className="bg-white border-b border-gray-200 px-6 py-3">
-          <BatchActions
-            selectedCount={selectedOrders.size}
-            onStatusUpdate={handleBatchStatusUpdate}
-            onClear={() => setSelectedOrders(new Set())}
-          />
-        </div>
-      )}
 
       {/* Table */}
       <div className="flex-1 overflow-auto px-6 py-4">
@@ -201,16 +195,13 @@ export const OrdersTable: React.FC = () => {
                     sortField={sortField}
                     sortDirection={sortDirection}
                     onSort={handleSort}
-                    isAllSelected={isAllSelected}
-                    onSelectAll={handleSelectAll}
                   />
                   <tbody className="bg-white divide-y divide-gray-200">
                     {paginatedOrders.map((order) => (
                       <TableRow
                         key={order.order_id}
                         order={order}
-                        isSelected={selectedOrders.has(order.order_id)}
-                        onSelect={handleSelectOrder}
+                        onStatusClick={handleStatusClick}
                       />
                     ))}
                   </tbody>
@@ -229,6 +220,18 @@ export const OrdersTable: React.FC = () => {
           </>
         )}
       </div>
+
+      {/* Status Select Modal */}
+      {statusModal && (
+        <StatusSelectModal
+          isOpen={statusModal.isOpen}
+          currentStatus={statusModal.currentStatus}
+          orderNumber={statusModal.orderNumber}
+          orderName={statusModal.orderName}
+          onSelect={handleStatusChange}
+          onClose={() => setStatusModal(null)}
+        />
+      )}
     </div>
   );
 };

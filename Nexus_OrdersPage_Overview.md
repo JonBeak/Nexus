@@ -334,14 +334,18 @@ See `Nexus_Orders_JobStructure.md` for detailed breakdown of nested objects.
   - MODIFIED: `orderConversionRepository.ts` - `getEstimateQBId()` method
   - MODIFIED: `types/orders.ts` - `QBEstimateLineItem`, `QBComparisonResult` types
 
-### Phase 2: Essential Features (3-4 weeks)
-- [ ] Jobs Table (searchable/filterable list)
-- [ ] Calendar View (horizontal date view)
-- [ ] Gmail API Integration (Workspace 2000/day limit sufficient)
-  - Note: If volume exceeds 2,000/day in future, migrate to SendGrid/AWS SES
-- [ ] QuickBooks API Automation (using existing integration)
-- [ ] Completed Jobs archive
-- [ ] Email notifications automation
+### Phase 2: Essential Features (3-4 weeks) - IN PROGRESS
+- [ ] **Phase 2.a: Tasks Table** - NEW TAB (part-level task management)
+  - One row per order part with task columns
+  - Diagonalized headers, color-coded by role
+  - Task completion toggle with existing batch API
+  - Step View with dependency visualization DEFERRED to future phase
+  - See `Nexus_Orders_Phase2a_TasksTable.md` for full specification
+- [ ] Phase 2.b: Calendar View (horizontal date view)
+- [ ] Phase 2.c: Completed Jobs archive
+- [ ] Phase 2.d: Email notifications automation
+- [ ] Phase 2.e: QuickBooks Invoice Automation (using existing integration)
+- Note: Jobs Table exists (keep as-is), Gmail API already integrated (Phase 1.5)
 
 ### Phase 3: Visual Enhancements (2-3 weeks)
 - [ ] Kanban Board (visual workflow with 7 core stages + 3 additional)
@@ -439,11 +443,16 @@ LIMIT ?  -- Fails with correlated subqueries
 
 ---
 
-**Document Status**: Phase 1 100% Complete ✅, Phase 1.5 100% Complete ✅, Phase 1.6 100% Complete ✅
+**Document Status**: Phase 1 ✅, Phase 1.5 ✅, Phase 1.6 ✅, **Phase 2 IN PROGRESS**
 **Last Updated**: 2025-12-10
 **Owner**: Jon (with Claude Code assistance)
 
-**Recent Major Updates (Nov 2025)**:
+**Recent Major Updates (Dec 2025)**:
+- **Phase 2.a**: Tasks Table planning complete - see `Nexus_Orders_Phase2a_TasksTable.md`
+  - NEW tab for part-level task management
+  - Two view modes: Task View (default) and Step View (dependency visualization)
+
+**Major Updates (Nov 2025)**:
 - **Phase 1.5.c.6**: Complete order preparation workflow (Validation, QB, PDFs, Tasks) - 2025-11-18 to 2025-11-20
 - **Phase 1.5.c.6.3**: Gmail integration and send to customer workflow - 2025-11-25
 - **Phase 1.5.d**: Intelligent task generation system with 25+ product rules - 2025-11-21 to 2025-11-24

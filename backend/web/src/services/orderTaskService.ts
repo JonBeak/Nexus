@@ -216,8 +216,11 @@ export class OrderTaskService {
    * Priority Logic:
    * 1. If all tasks completed AND order in (production_queue, in_production, overdue) → move to qc_packing
    * 2. Else if order in production_queue → move to in_production
+   *
+   * Returns: Map of order_id -> new status for orders that changed
    */
-  async batchUpdateTasks(updates: TaskUpdate[], userId: number): Promise<void> {
+  async batchUpdateTasks(updates: TaskUpdate[], userId: number): Promise<Map<number, string>> {
+    const statusChanges = new Map<number, string>();
     // Track which orders had tasks completed
     const ordersWithCompletedTasks = new Set<number>();
 
@@ -265,6 +268,7 @@ export class OrderTaskService {
           userId,
           'Automatically moved to QC & Packing (all tasks completed via batch update)'
         );
+        statusChanges.set(order.order_id, 'qc_packing');
       } else if (order.status === 'production_queue') {
         // PRIORITY 2: Move from Production Queue to In Production with status history
         await orderService.updateOrderStatus(
@@ -273,8 +277,11 @@ export class OrderTaskService {
           userId,
           'Automatically moved to In Production (tasks started via batch update)'
         );
+        statusChanges.set(order.order_id, 'in_production');
       }
     }
+
+    return statusChanges;
   }
 
   /**

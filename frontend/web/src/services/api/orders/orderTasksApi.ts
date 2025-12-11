@@ -52,9 +52,14 @@ export const orderTasksApi = {
 
   /**
    * Batch update tasks (start/complete)
+   * Returns statusUpdates: Record<orderId, newStatus> for orders that changed status
    */
-  async batchUpdateTasks(updates: Array<{ task_id: number; started?: boolean; completed?: boolean }>): Promise<void> {
-    await api.put('/orders/tasks/batch-update', { updates });
+  async batchUpdateTasks(updates: Array<{ task_id: number; started?: boolean; completed?: boolean }>): Promise<{ statusUpdates?: Record<number, string> }> {
+    const response = await api.put('/orders/tasks/batch-update', { updates });
+    // Interceptor unwraps { success: true, data: T } to just T
+    // So response.data is { statusUpdates: {...} }
+    console.log('[batchUpdateTasks] Response:', response.data);
+    return response.data || {};
   },
 
   /**

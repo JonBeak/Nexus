@@ -5,16 +5,12 @@ interface Props {
   sortField: string;
   sortDirection: 'asc' | 'desc';
   onSort: (field: any) => void;
-  isAllSelected: boolean;
-  onSelectAll: (checked: boolean) => void;
 }
 
 export const TableHeader: React.FC<Props> = ({
   sortField,
   sortDirection,
-  onSort,
-  isAllSelected,
-  onSelectAll
+  onSort
 }) => {
   const SortIcon = ({ field }: { field: string }) => {
     if (sortField !== field) {
@@ -25,10 +21,10 @@ export const TableHeader: React.FC<Props> = ({
       <ArrowDown className="w-4 h-4 text-indigo-600" />;
   };
 
-  const HeaderCell = ({ field, label, sortable = true }: { field: string; label: string; sortable?: boolean }) => (
+  const HeaderCell = ({ field, label, sortable = true, className = '' }: { field: string; label: string; sortable?: boolean; className?: string }) => (
     <th
       scope="col"
-      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+      className={`px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${className}`}
     >
       {sortable ? (
         <button
@@ -47,24 +43,14 @@ export const TableHeader: React.FC<Props> = ({
   return (
     <thead className="bg-gray-50">
       <tr>
-        <th scope="col" className="px-6 py-3 w-12">
-          <input
-            type="checkbox"
-            checked={isAllSelected}
-            onChange={(e) => onSelectAll(e.target.checked)}
-            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-          />
-        </th>
-        <HeaderCell field="order_number" label="Order #" />
+        <HeaderCell field="order_number" label="Order #" className="w-24" />
         <HeaderCell field="order_name" label="Order Name" />
         <HeaderCell field="customer_name" label="Customer" />
-        <HeaderCell field="status" label="Status" />
-        <HeaderCell field="due_date" label="Due Date" />
-        <HeaderCell field="progress_percent" label="Progress" />
-        <HeaderCell field="created_at" label="Created" />
-        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-          Actions
-        </th>
+        <HeaderCell field="status" label="Status" className="w-28" />
+        <HeaderCell field="due_date" label="Due Date" className="w-28" />
+        <HeaderCell field="hard_due_date_time" label="Due Time" sortable={false} className="w-24" />
+        <HeaderCell field="progress_percent" label="Progress" className="w-44" />
+        <HeaderCell field="created_at" label="Created" className="w-28" />
       </tr>
     </thead>
   );

@@ -428,6 +428,18 @@ router.get(
 );
 
 /**
+ * Get all parts with tasks for the Tasks Table (Phase 2.a)
+ * GET /api/orders/parts/with-tasks
+ * Query params: status, hideCompleted, search
+ */
+router.get(
+  '/parts/with-tasks',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderController.getPartsWithTasks
+);
+
+/**
  * Batch update tasks (start/complete) (Manager+ only)
  * PUT /api/orders/tasks/batch-update
  * Body: { updates: Array<{ task_id, started?, completed? }> }

@@ -133,7 +133,7 @@ function TimeApprovals() {
 
   return (
     <>
-      <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-8 mt-8">
+      <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-8">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-2xl font-bold text-gray-800">Time Edit Requests</h3>
           <span className={`px-3 py-1 rounded-full font-semibold ${

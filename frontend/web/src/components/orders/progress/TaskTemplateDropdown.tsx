@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { ordersApi } from '../../../services/api';
 
 interface Props {
@@ -7,6 +8,7 @@ interface Props {
   existingTasks: Array<{ task_name: string }>;
   onTaskAdded: () => void;
   onClose: () => void;
+  triggerRef?: React.RefObject<HTMLElement>;
 }
 
 interface TaskTemplate {
@@ -19,11 +21,34 @@ export const TaskTemplateDropdown: React.FC<Props> = ({
   partId,
   existingTasks,
   onTaskAdded,
-  onClose
+  onClose,
+  triggerRef
 }) => {
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+
+  // Position dropdown to the right of trigger element, vertically centered
+  useEffect(() => {
+    if (triggerRef?.current && dropdownRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const dropdownHeight = dropdownRef.current.offsetHeight || 400;
+
+      // Position to the right of button, centered vertically
+      setPosition({
+        top: rect.top + window.scrollY + (rect.height / 2) - (dropdownHeight / 2),
+        left: rect.right + window.scrollX + 8
+      });
+    } else if (triggerRef?.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPosition({
+        top: rect.top + window.scrollY - 200, // Approximate center
+        left: rect.right + window.scrollX + 8
+      });
+    }
+  }, [triggerRef, loading]); // Re-calculate when loading changes (content loaded)
 
   useEffect(() => {
     loadTemplates();
@@ -77,16 +102,20 @@ export const TaskTemplateDropdown: React.FC<Props> = ({
 
   const roles = roleOrder; // Use production order, not alphabetical
 
-  return (
+  const dropdownContent = (
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40"
+        className="fixed inset-0 z-[9998]"
         onClick={onClose}
       />
 
-      {/* Dropdown */}
-      <div className="absolute top-12 left-full right-auto w-72 bg-white border-2 border-gray-300 rounded-lg shadow-xl ring-1 ring-black/5 z-50 max-h-[500px] overflow-y-auto">
+      {/* Dropdown - rendered via portal at document body level */}
+      <div
+        ref={dropdownRef}
+        className="fixed w-72 bg-white border-2 border-gray-300 rounded-lg shadow-xl ring-1 ring-black/5 z-[9999] max-h-[500px] overflow-y-auto"
+        style={triggerRef?.current ? { top: position.top, left: position.left } : { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+      >
         {loading ? (
           <div className="p-4 text-center text-sm text-gray-500">
             Loading tasks...
@@ -119,6 +148,9 @@ export const TaskTemplateDropdown: React.FC<Props> = ({
       </div>
     </>
   );
+
+  // Render via portal to document.body to avoid clipping
+  return createPortal(dropdownContent, document.body);
 };
 
 export default TaskTemplateDropdown;

@@ -1,0 +1,486 @@
+/**
+ * TasksTable Component
+ * Main component for the Tasks Table tab - displays one row per order part
+ * with task completion columns
+ */
+
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { PartWithTasks, TasksTableFilters, TasksTableSortField, SortDirection } from './types';
+import { TASK_ORDER, getTaskRole } from './roleColors';
+
+/**
+ * Columns that should be auto-hidden when all rows on the current page have no task
+ * (neither completed nor uncompleted - just "-")
+ */
+const AUTO_HIDE_COLUMNS = new Set([
+  'Vinyl Plotting',
+  'Sanding (320) before cutting',
+  'Scuffing before cutting',
+  'Paint before cutting',
+  'Vinyl Face Before Cutting',
+  'Vinyl Wrap Return/Trim',
+  'Sanding (320) after cutting',
+  'Scuffing after cutting',
+  'Paint After Cutting',
+  'Backer / Raceway Bending',
+  'Paint After Bending',
+  'Vinyl Face After Cutting',
+  'Vinyl after Fabrication',
+  'Paint after Fabrication',
+  'Laser Cut'
+]);
+import DiagonalHeader from './DiagonalHeader';
+import PartRow from './PartRow';
+import StatusSelectModal from './StatusSelectModal';
+import Pagination from '../table/Pagination';
+import { orderTasksApi, orderStatusApi, api } from '../../../services/api';
+import { OrderStatus } from '../../../types/orders';
+
+export const TasksTable: React.FC = () => {
+  // Data state
+  const [parts, setParts] = useState<PartWithTasks[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Status modal state
+  const [statusModal, setStatusModal] = useState<{
+    isOpen: boolean;
+    orderNumber: number;
+    orderName: string;
+    currentStatus: OrderStatus;
+  } | null>(null);
+
+  // Filters state
+  const [filters, setFilters] = useState<TasksTableFilters>({
+    status: 'all',
+    hideCompleted: false,
+    search: ''
+  });
+
+  // Sorting state - default: due date asc, then order number, then display number
+  const [sortField, setSortField] = useState<TasksTableSortField>('dueDate');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(50);
+
+  // Fetch parts with tasks
+  const fetchPartsWithTasks = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const params: Record<string, string> = {};
+      if (filters.status !== 'all') {
+        params.status = filters.status;
+      }
+      if (filters.hideCompleted) {
+        params.hideCompleted = 'true';
+      }
+      if (filters.search) {
+        params.search = filters.search;
+      }
+
+      const response = await api.get('/orders/parts/with-tasks', { params });
+      // Interceptor unwraps response, but just in case check for data structure
+      const data = response.data?.data || response.data || [];
+      setParts(data);
+      setCurrentPage(1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch parts');
+      console.error('Error fetching parts with tasks:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [filters]);
+
+  useEffect(() => {
+    fetchPartsWithTasks();
+  }, [fetchPartsWithTasks]);
+
+  // Apply client-side search filter
+  const filteredParts = useMemo(() => {
+    if (!filters.search) return parts;
+
+    const searchLower = filters.search.toLowerCase();
+    return parts.filter(part =>
+      part.orderNumber.toString().includes(searchLower) ||
+      part.orderName.toLowerCase().includes(searchLower) ||
+      (part.customerName?.toLowerCase().includes(searchLower)) ||
+      part.productType.toLowerCase().includes(searchLower) ||
+      (part.specsDisplayName?.toLowerCase().includes(searchLower)) ||
+      (part.scope?.toLowerCase().includes(searchLower))
+    );
+  }, [parts, filters.search]);
+
+  // Sort parts
+  const sortedParts = useMemo(() => {
+    const sorted = [...filteredParts].sort((a, b) => {
+      // Primary sort by selected field
+      let comparison = 0;
+
+      if (sortField === 'dueDate') {
+        const dateA = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+        const dateB = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+        comparison = dateA - dateB;
+      } else if (sortField === 'orderNumber') {
+        comparison = a.orderNumber - b.orderNumber;
+      } else if (sortField === 'displayNumber') {
+        comparison = a.displayNumber.localeCompare(b.displayNumber, undefined, { numeric: true });
+      }
+
+      // Apply sort direction
+      if (sortDirection === 'desc') {
+        comparison = -comparison;
+      }
+
+      // Secondary sort: order number (if not primary)
+      if (comparison === 0 && sortField !== 'orderNumber') {
+        comparison = a.orderNumber - b.orderNumber;
+      }
+
+      // Tertiary sort: display number (if not primary)
+      if (comparison === 0 && sortField !== 'displayNumber') {
+        comparison = a.displayNumber.localeCompare(b.displayNumber, undefined, { numeric: true });
+      }
+
+      return comparison;
+    });
+
+    return sorted;
+  }, [filteredParts, sortField, sortDirection]);
+
+  // Paginate parts
+  const paginatedParts = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return sortedParts.slice(startIndex, startIndex + itemsPerPage);
+  }, [sortedParts, currentPage, itemsPerPage]);
+
+  // Helper to extract base task name from composite key (taskName|notes -> taskName)
+  const getBaseName = (taskKey: string) => (taskKey || '').split('|')[0];
+
+  // Calculate visible task columns based on current page data
+  // Only use composite keys (taskName|notes) when a SINGLE PART has multiple tasks of the same type
+  const taskColumns = useMemo(() => {
+    // Step 1: Find task types that have duplicates within a single part
+    const taskTypesNeedingSplit = new Set<string>();
+    for (const part of paginatedParts) {
+      // Count occurrences of each task type within this part
+      const taskTypeCounts = new Map<string, number>();
+      for (const task of part.tasks) {
+        const baseName = task.taskName;
+        taskTypeCounts.set(baseName, (taskTypeCounts.get(baseName) || 0) + 1);
+      }
+      // Mark task types that appear more than once in this part
+      for (const [taskType, count] of taskTypeCounts) {
+        if (count > 1) {
+          taskTypesNeedingSplit.add(taskType);
+        }
+      }
+    }
+
+    // Step 2: Build column keys - use taskKey for split types, taskName for others
+    const columnKeys = new Set<string>();
+    for (const part of paginatedParts) {
+      for (const task of part.tasks) {
+        const baseName = task.taskName;
+        if (taskTypesNeedingSplit.has(baseName)) {
+          // This task type needs splitting - use composite key
+          const key = task.taskKey || task.taskName;
+          if (key) columnKeys.add(key);
+        } else {
+          // This task type doesn't need splitting - use just task name
+          if (baseName) columnKeys.add(baseName);
+        }
+      }
+    }
+
+    // Step 3: Filter and sort columns
+    const allKeys = Array.from(columnKeys);
+    return allKeys
+      .filter(taskKey => {
+        const baseName = getBaseName(taskKey);
+        if (!AUTO_HIDE_COLUMNS.has(baseName)) {
+          return true;
+        }
+        return columnKeys.has(taskKey);
+      })
+      .sort((a, b) => {
+        const nameA = getBaseName(a);
+        const nameB = getBaseName(b);
+        const orderA = TASK_ORDER.indexOf(nameA);
+        const orderB = TASK_ORDER.indexOf(nameB);
+        const posA = orderA >= 0 ? orderA : 999;
+        const posB = orderB >= 0 ? orderB : 999;
+        if (posA !== posB) return posA - posB;
+        return a.localeCompare(b);
+      });
+  }, [paginatedParts]);
+
+  // Memoize which task types need splitting (for PartRow to use correct keys)
+  const taskTypesNeedingSplit = useMemo(() => {
+    const needsSplit = new Set<string>();
+    for (const part of paginatedParts) {
+      const taskTypeCounts = new Map<string, number>();
+      for (const task of part.tasks) {
+        taskTypeCounts.set(task.taskName, (taskTypeCounts.get(task.taskName) || 0) + 1);
+      }
+      for (const [taskType, count] of taskTypeCounts) {
+        if (count > 1) needsSplit.add(taskType);
+      }
+    }
+    return needsSplit;
+  }, [paginatedParts]);
+
+  const totalPages = Math.ceil(sortedParts.length / itemsPerPage);
+
+  // Handle task toggle
+  const handleTaskToggle = async (taskId: number, completed: boolean) => {
+    try {
+      // Optimistic update for task completion
+      setParts(prevParts =>
+        prevParts.map(part => ({
+          ...part,
+          tasks: part.tasks.map(task =>
+            task.taskId === taskId
+              ? { ...task, completed }
+              : task
+          )
+        }))
+      );
+
+      // Call API using existing batch update endpoint
+      await orderTasksApi.batchUpdateTasks([{ task_id: taskId, completed }]);
+
+      // Refetch to get updated statuses
+      const params: Record<string, string> = {};
+      if (filters.status !== 'all') params.status = filters.status;
+      if (filters.hideCompleted) params.hideCompleted = 'true';
+      if (filters.search) params.search = filters.search;
+
+      const response = await api.get('/orders/parts/with-tasks', { params });
+      const data = response.data?.data || response.data || [];
+      setParts(data);
+    } catch (err) {
+      console.error('Error updating task:', err);
+      // Revert on error
+      fetchPartsWithTasks();
+    }
+  };
+
+  // Handle sorting
+  const handleSort = (field: TasksTableSortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Handle filter changes
+  const handleHideCompletedChange = (hide: boolean) => {
+    setFilters(prev => ({ ...prev, hideCompleted: hide }));
+  };
+
+  // Handle status click - open modal
+  const handleStatusClick = (orderNumber: number, orderName: string, currentStatus: OrderStatus) => {
+    setStatusModal({
+      isOpen: true,
+      orderNumber,
+      orderName,
+      currentStatus
+    });
+  };
+
+  // Handle status change from modal
+  const handleStatusChange = async (newStatus: OrderStatus) => {
+    if (!statusModal) return;
+
+    try {
+      // Optimistic update
+      setParts(prevParts =>
+        prevParts.map(part =>
+          part.orderNumber === statusModal.orderNumber
+            ? { ...part, orderStatus: newStatus }
+            : part
+        )
+      );
+
+      // Close modal
+      setStatusModal(null);
+
+      // Call API
+      await orderStatusApi.updateOrderStatus(statusModal.orderNumber, newStatus);
+
+      // Refetch to ensure consistency
+      fetchPartsWithTasks();
+    } catch (err) {
+      console.error('Error updating status:', err);
+      // Revert on error
+      fetchPartsWithTasks();
+    }
+  };
+
+  const handleSearchChange = (search: string) => {
+    setFilters(prev => ({ ...prev, search }));
+  };
+
+  return (
+    <div className="h-full flex flex-col bg-gray-50">
+      {/* Filters Bar */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            {/* Search */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search orders..."
+                value={filters.search}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-3 pr-10 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-64"
+              />
+            </div>
+
+            {/* Hide Completed Toggle */}
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={filters.hideCompleted}
+                onChange={(e) => handleHideCompletedChange(e.target.checked)}
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+              />
+              <span className="text-sm text-gray-700">Hide completed</span>
+            </label>
+          </div>
+
+          <div className="text-sm text-gray-500">
+            {sortedParts.length} parts
+          </div>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="flex-1 overflow-auto px-6 py-4">
+        {loading ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="text-gray-500">Loading parts...</div>
+          </div>
+        ) : error ? (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-800">{error}</p>
+            <button
+              onClick={fetchPartsWithTasks}
+              className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+            >
+              Try again
+            </button>
+          </div>
+        ) : parts.length === 0 ? (
+          <div className="bg-white rounded-lg shadow p-8 text-center">
+            <p className="text-gray-500">No parts found</p>
+          </div>
+        ) : (
+          <>
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full" style={{ tableLayout: 'fixed' }}>
+                  {/* Column widths: Order/Part | Status | Due Date | Time | Task columns */}
+                  <colgroup>
+                    <col style={{ width: '280px' }} /><col style={{ width: '120px' }} /><col style={{ width: '80px' }} /><col style={{ width: '64px' }} />{taskColumns.map((taskKey) => (
+                      <col key={taskKey} />
+                    ))}
+                  </colgroup>
+                  {/* Header */}
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {/* Order / Part column */}
+                      <th
+                        className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-r border-gray-200 bg-gray-50 cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleSort('orderNumber')}
+                      >
+                        Order / Part
+                        {sortField === 'orderNumber' && (
+                          <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </th>
+
+                      {/* Status column */}
+                      <th className="px-1 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-r border-gray-200 bg-gray-50">
+                        Status
+                      </th>
+
+                      {/* Due Date column */}
+                      <th
+                        className="px-1 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-r border-gray-200 bg-gray-50 cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleSort('dueDate')}
+                      >
+                        Due
+                        {sortField === 'dueDate' && (
+                          <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </th>
+
+                      {/* Hard Due Time column */}
+                      <th className="px-1 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-r border-gray-200 bg-gray-50">
+                        Time
+                      </th>
+
+                      {/* Task columns - diagonal headers */}
+                      {taskColumns.map((taskKey) => (
+                        <DiagonalHeader
+                          key={taskKey}
+                          taskKey={taskKey}
+                          role={getTaskRole(taskKey)}
+                        />
+                      ))}
+                    </tr>
+                  </thead>
+
+                  {/* Body */}
+                  <tbody>
+                    {paginatedParts.map((part) => (
+                      <PartRow
+                        key={part.partId}
+                        part={part}
+                        taskColumns={taskColumns}
+                        taskTypesNeedingSplit={taskTypesNeedingSplit}
+                        onTaskToggle={handleTaskToggle}
+                        onStatusClick={handleStatusClick}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Pagination */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={sortedParts.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+            />
+          </>
+        )}
+      </div>
+
+      {/* Status Select Modal */}
+      {statusModal && (
+        <StatusSelectModal
+          isOpen={statusModal.isOpen}
+          currentStatus={statusModal.currentStatus}
+          orderNumber={statusModal.orderNumber}
+          orderName={statusModal.orderName}
+          onSelect={handleStatusChange}
+          onClose={() => setStatusModal(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+export default TasksTable;

@@ -154,11 +154,20 @@ export const batchUpdateTasks = async (req: Request, res: Response) => {
       return sendErrorResponse(res, 'Updates array is required', 'VALIDATION_ERROR');
     }
 
-    await orderTaskService.batchUpdateTasks(updates, user.user_id);
+    const statusChanges = await orderTaskService.batchUpdateTasks(updates, user.user_id);
+
+    // Convert Map to object for JSON response
+    const statusUpdates: Record<number, string> = {};
+    statusChanges.forEach((status, orderId) => {
+      statusUpdates[orderId] = status;
+    });
+
+    console.log('[batchUpdateTasks] Status changes:', statusUpdates);
 
     res.json({
       success: true,
-      message: `Successfully updated ${updates.length} tasks`
+      message: `Successfully updated ${updates.length} tasks`,
+      data: { statusUpdates }  // Wrap in data for interceptor compatibility
     });
   } catch (error) {
     console.error('Error batch updating tasks:', error);

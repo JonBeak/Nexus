@@ -72,3 +72,6 @@ export {
   calculateDueDate,
   calculateBusinessDays
 } from './OrderUtilsController';
+
+// Parts with Tasks (Phase 2.a - Tasks Table)
+export { getPartsWithTasks } from './OrderPartsTasksController';

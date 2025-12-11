@@ -8,9 +8,13 @@ REPO_DIR="/home/jon/Nexus"
 echo "🚀 Starting Sign House (DEV MODE)..."
 echo ""
 
-# Switch backend to dev
-echo "🔧 Switching to development backend..."
-/home/jon/Nexus/infrastructure/scripts/backend-switch-to-dev.sh
+# Rebuild and switch backend to dev
+echo "🔨 Rebuilding development backend..."
+/home/jon/Nexus/infrastructure/scripts/backend-rebuild-dev.sh
+
+echo ""
+echo "🔄 Restarting backend..."
+pm2 restart signhouse-backend
 
 echo ""
 

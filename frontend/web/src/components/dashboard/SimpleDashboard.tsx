@@ -15,6 +15,7 @@ interface BackupInfo {
   fileCount?: number;
   latestFile?: string;
   latestSize?: string;
+  isComplete?: boolean;
 }
 
 interface BackupStatusData {
@@ -182,10 +183,170 @@ Check backend logs for detailed comparison!`);
               <TimeTracking />
             </div>
           </div>
-        ) : (
-          // Manager and Owner Dashboard - 3 column layout
+        ) : user.role === 'owner' ? (
+          // Owner Dashboard - Compact Pages on left, content on right
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Profile Card - Only for manager and owner */}
+            {/* Pages Navigation - Compact sidebar pills */}
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-6">
+                <h3 className="text-xl font-bold text-gray-800 mb-4">Pages</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => navigate('/job-estimation')}
+                    className="px-3 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition-colors text-left"
+                  >
+                    📋 Estimates
+                  </button>
+                  <button
+                    onClick={() => navigate('/orders')}
+                    className="px-3 py-3 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg transition-colors text-left"
+                  >
+                    📦 Orders
+                  </button>
+                  <button
+                    onClick={() => navigate('/supply-chain')}
+                    className="px-3 py-3 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors text-left"
+                  >
+                    🏭 Supply Chain
+                  </button>
+                  <button
+                    className="px-3 py-3 bg-gray-300 text-gray-500 font-medium rounded-lg text-left cursor-not-allowed"
+                    disabled
+                  >
+                    💵 Invoices
+                  </button>
+                  <button
+                    onClick={() => navigate('/customers')}
+                    className="px-3 py-3 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-colors text-left"
+                  >
+                    👥 Customers
+                  </button>
+                  <button
+                    onClick={() => navigate('/vinyl-inventory')}
+                    className="px-3 py-3 bg-purple-500 hover:bg-purple-600 text-white font-medium rounded-lg transition-colors text-left"
+                  >
+                    🎨 Vinyls
+                  </button>
+                  <button
+                    onClick={() => navigate('/time-management')}
+                    className="px-3 py-3 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors text-left"
+                  >
+                    ⏰ Time Tracking
+                  </button>
+                  <button
+                    onClick={() => navigate('/wages')}
+                    className="px-3 py-3 bg-pink-500 hover:bg-pink-600 text-white font-medium rounded-lg transition-colors text-left"
+                  >
+                    💰 Wages
+                  </button>
+                  <button
+                    onClick={() => navigate('/account-management')}
+                    className="px-3 py-3 bg-indigo-500 hover:bg-indigo-600 text-white font-medium rounded-lg transition-colors text-left"
+                  >
+                    🔐 Accounts
+                  </button>
+                  <div></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column - Time Approvals and System Status */}
+            <div className="lg:col-span-2">
+              <TimeApprovals />
+
+              {/* Database Backup Status */}
+              <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-6 mt-8">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-gray-800">Database Backups</h3>
+                  <button
+                    onClick={fetchBackupStatus}
+                    disabled={backupLoading}
+                    className="text-sm text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                  >
+                    {backupLoading ? '...' : 'Refresh'}
+                  </button>
+                </div>
+
+                {backupError && (
+                  <p className="text-red-600 text-sm mb-2">{backupError}</p>
+                )}
+
+                {backupLoading && !backupStatus && (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="animate-spin w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                  </div>
+                )}
+
+                {backupStatus && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {backupStatus.backups.map((backup, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg border border-gray-200"
+                      >
+                        <div
+                          className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                            backup.status === 'healthy'
+                              ? 'bg-green-500'
+                              : backup.status === 'warning'
+                              ? 'bg-yellow-500'
+                              : 'bg-red-500'
+                          }`}
+                        ></div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-gray-800 text-sm truncate">{backup.name}</p>
+                          <p className={`text-xs ${
+                            backup.status === 'healthy'
+                              ? 'text-green-600'
+                              : backup.status === 'warning'
+                              ? 'text-yellow-600'
+                              : 'text-red-600'
+                          }`}>
+                            {backup.lastBackup || backup.message}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* System Development Progress */}
+              <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-6 mt-8">
+                <h3 className="text-lg font-bold text-gray-800 mb-4">Development Progress</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                  <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="w-3 h-3 bg-green-500 rounded-full flex-shrink-0"></div>
+                    <span className="text-sm text-gray-800">Customers</span>
+                  </div>
+                  <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="w-3 h-3 bg-green-500 rounded-full flex-shrink-0"></div>
+                    <span className="text-sm text-gray-800">Estimates</span>
+                  </div>
+                  <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="w-3 h-3 bg-green-500 rounded-full flex-shrink-0"></div>
+                    <span className="text-sm text-gray-800">Vinyl</span>
+                  </div>
+                  <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="w-3 h-3 bg-yellow-500 rounded-full flex-shrink-0"></div>
+                    <span className="text-sm text-gray-800">Job Board</span>
+                  </div>
+                  <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="w-3 h-3 bg-yellow-500 rounded-full flex-shrink-0"></div>
+                    <span className="text-sm text-gray-800">Invoicing</span>
+                  </div>
+                  <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="w-3 h-3 bg-red-500 rounded-full flex-shrink-0"></div>
+                    <span className="text-sm text-gray-800">Inventory</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          // Manager Dashboard - Profile card and Quick Actions
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Profile Card */}
             <div className="lg:col-span-1">
               <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-8">
                 <div className="text-center">
@@ -203,290 +364,131 @@ Check backend logs for detailed comparison!`);
                 <h3 className="text-2xl font-bold text-gray-800 mb-8">Quick Actions</h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Quick Actions - Ordered by workflow */}
-                  <>
-                    {/* 1. Orders - Manager and Owner */}
-                    {(user.role === 'manager' || user.role === 'owner') && (
-                      <button
-                        onClick={() => navigate('/orders')}
-                        className="group p-6 bg-amber-600 hover:bg-amber-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                      >
-                        <div className="flex items-center space-x-4">
-                          <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                            <span className="text-amber-600 text-2xl">📦</span>
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-white text-lg">Orders</h4>
-                            <p className="text-amber-100">Manage production orders</p>
-                          </div>
-                        </div>
-                      </button>
-                    )}
-
-                    {/* 2. Supply Chain - Manager and Owner */}
-                    {(user.role === 'manager' || user.role === 'owner') && (
-                      <button
-                        onClick={() => navigate('/supply-chain')}
-                        className="group p-6 bg-orange-600 hover:bg-orange-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                      >
-                        <div className="flex items-center space-x-4">
-                          <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                            <span className="text-orange-600 text-2xl">🏭</span>
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-white text-lg">Supply Chain</h4>
-                            <p className="text-orange-100">Manage inventory & suppliers</p>
-                          </div>
-                        </div>
-                      </button>
-                    )}
-
-                    {/* 3. Estimates - Manager and Owner */}
-                    {(user.role === 'manager' || user.role === 'owner') && (
-                      <button
-                        onClick={() => navigate('/job-estimation')}
-                        className="group p-6 bg-emerald-600 hover:bg-emerald-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                      >
-                        <div className="flex items-center space-x-4">
-                          <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                            <span className="text-emerald-600 text-2xl">📋</span>
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-white text-lg">Estimates</h4>
-                            <p className="text-emerald-100">Create quotes & job specs</p>
-                          </div>
-                        </div>
-                      </button>
-                    )}
-
-                    {/* 4. Invoices (TBD) - Manager and Owner */}
-                    {(user.role === 'manager' || user.role === 'owner') && (
-                      <button
-                        className="group p-6 bg-gray-400 rounded-2xl transition-all duration-300 text-left shadow-lg cursor-not-allowed"
-                        disabled
-                      >
-                        <div className="flex items-center space-x-4">
-                          <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                            <span className="text-gray-400 text-2xl">💵</span>
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-white text-lg">Invoices</h4>
-                            <p className="text-gray-200">TBD</p>
-                          </div>
-                        </div>
-                      </button>
-                    )}
-
-                    {/* 5. Customers - All roles */}
-                    <button
-                      onClick={() => navigate('/customers')}
-                      className="group p-6 bg-primary-blue hover:bg-primary-blue-dark rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                    >
-                      <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                          <span className="text-primary-blue text-2xl">👥</span>
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-white text-lg">Customers</h4>
-                          <p className="text-blue-100">Manage all customers</p>
-                        </div>
+                  <button
+                    onClick={() => navigate('/orders')}
+                    className="group p-6 bg-amber-600 hover:bg-amber-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
+                        <span className="text-amber-600 text-2xl">📦</span>
                       </div>
-                    </button>
-
-                    {/* 6. Vinyl Inventory - All roles */}
-                    <button
-                      onClick={() => navigate('/vinyl-inventory')}
-                      className="group p-6 bg-purple-600 hover:bg-purple-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                    >
-                      <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                          <span className="text-purple-600 text-2xl">📦</span>
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-white text-lg">Vinyl Inventory</h4>
-                          <p className="text-purple-100">Manage vinyl stock</p>
-                        </div>
+                      <div>
+                        <h4 className="font-bold text-white text-lg">Orders</h4>
+                        <p className="text-amber-100">Manage production orders</p>
                       </div>
-                    </button>
+                    </div>
+                  </button>
 
-                    {/* 7. Time Tracking - All roles */}
-                    <button
-                      onClick={() => navigate('/time-management')}
-                      className="group p-6 bg-green-600 hover:bg-green-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                    >
-                      <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                          <span className="text-green-600 text-2xl">⏰</span>
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-white text-lg">Time Tracking</h4>
-                          <p className="text-green-100">Manage all time entries</p>
-                        </div>
+                  <button
+                    onClick={() => navigate('/supply-chain')}
+                    className="group p-6 bg-orange-600 hover:bg-orange-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
+                        <span className="text-orange-600 text-2xl">🏭</span>
                       </div>
-                    </button>
+                      <div>
+                        <h4 className="font-bold text-white text-lg">Supply Chain</h4>
+                        <p className="text-orange-100">Manage inventory & suppliers</p>
+                      </div>
+                    </div>
+                  </button>
 
-                    {/* 8. Wages - Owner only */}
-                    {user.role === 'owner' && (
-                      <button
-                        onClick={() => navigate('/wages')}
-                        className="group p-6 bg-pink-600 hover:bg-pink-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                      >
-                        <div className="flex items-center space-x-4">
-                          <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                            <span className="text-pink-600 text-2xl">💰</span>
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-white text-lg">Wages</h4>
-                            <p className="text-pink-100">Manage payroll & wages</p>
-                          </div>
-                        </div>
-                      </button>
-                    )}
+                  <button
+                    onClick={() => navigate('/job-estimation')}
+                    className="group p-6 bg-emerald-600 hover:bg-emerald-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
+                        <span className="text-emerald-600 text-2xl">📋</span>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-white text-lg">Estimates</h4>
+                        <p className="text-emerald-100">Create quotes & job specs</p>
+                      </div>
+                    </div>
+                  </button>
 
-                    {/* 9. User Accounts - Manager and Owner */}
-                    {(user.role === 'manager' || user.role === 'owner') && (
-                      <button
-                        onClick={() => navigate('/account-management')}
-                        className="group p-6 bg-indigo-600 hover:bg-indigo-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                      >
-                        <div className="flex items-center space-x-4">
-                          <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                            <span className="text-indigo-600 text-2xl">🔐</span>
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-white text-lg">User Accounts</h4>
-                            <p className="text-indigo-100">Manage user accounts & settings</p>
-                          </div>
-                        </div>
-                      </button>
-                    )}
-                  </>
+                  <button
+                    className="group p-6 bg-gray-400 rounded-2xl transition-all duration-300 text-left shadow-lg cursor-not-allowed"
+                    disabled
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
+                        <span className="text-gray-400 text-2xl">💵</span>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-white text-lg">Invoices</h4>
+                        <p className="text-gray-200">TBD</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => navigate('/customers')}
+                    className="group p-6 bg-primary-blue hover:bg-primary-blue-dark rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
+                        <span className="text-primary-blue text-2xl">👥</span>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-white text-lg">Customers</h4>
+                        <p className="text-blue-100">Manage all customers</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => navigate('/vinyl-inventory')}
+                    className="group p-6 bg-purple-600 hover:bg-purple-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
+                        <span className="text-purple-600 text-2xl">📦</span>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-white text-lg">Vinyl Inventory</h4>
+                        <p className="text-purple-100">Manage vinyl stock</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => navigate('/time-management')}
+                    className="group p-6 bg-green-600 hover:bg-green-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
+                        <span className="text-green-600 text-2xl">⏰</span>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-white text-lg">Time Tracking</h4>
+                        <p className="text-green-100">Manage all time entries</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => navigate('/account-management')}
+                    className="group p-6 bg-indigo-600 hover:bg-indigo-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
+                        <span className="text-indigo-600 text-2xl">🔐</span>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-white text-lg">User Accounts</h4>
+                        <p className="text-indigo-100">Manage user accounts & settings</p>
+                      </div>
+                    </div>
+                  </button>
                 </div>
               </div>
 
-              {/* Time Approvals - For Managers and Owners */}
-              {(user.role === 'manager' || user.role === 'owner') && (
+              <div className="mt-8">
                 <TimeApprovals />
-              )}
-
-              {/* System Status - Only for Owners */}
-              {user.role === 'owner' && (
-                <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-8 mt-8">
-                <h3 className="text-2xl font-bold text-gray-800 mb-6">System Development Progress</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  <div className="text-center">
-                    <div className="w-4 h-4 bg-green-500 rounded-full mx-auto mb-2"></div>
-                    <p className="text-sm font-bold text-gray-800">Customers</p>
-                    <p className="text-green-600 font-semibold text-xs">Completed</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="w-4 h-4 bg-green-500 rounded-full mx-auto mb-2"></div>
-                    <p className="text-sm font-bold text-gray-800">Estimates</p>
-                    <p className="text-green-600 font-semibold text-xs">Completed</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="w-4 h-4 bg-green-500 rounded-full mx-auto mb-2"></div>
-                    <p className="text-sm font-bold text-gray-800">Vinyl Inventory</p>
-                    <p className="text-green-600 font-semibold text-xs">Completed</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="w-4 h-4 bg-yellow-500 rounded-full mx-auto mb-2"></div>
-                    <p className="text-sm font-bold text-gray-800">Job Board</p>
-                    <p className="text-yellow-600 font-semibold text-xs">In Progress</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="w-4 h-4 bg-yellow-500 rounded-full mx-auto mb-2"></div>
-                    <p className="text-sm font-bold text-gray-800">Invoicing</p>
-                    <p className="text-yellow-600 font-semibold text-xs">In Progress</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="w-4 h-4 bg-red-500 rounded-full mx-auto mb-2"></div>
-                    <p className="text-sm font-bold text-gray-800">General Inventory</p>
-                    <p className="text-red-600 font-semibold text-xs">Not Started</p>
-                  </div>
-                </div>
-                </div>
-              )}
-
-              {/* System Backup Status - Only for Owners */}
-              {user.role === 'owner' && (
-                <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-8 mt-8">
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <h3 className="text-2xl font-bold text-gray-800">Database Backup Status</h3>
-                      <p className="text-sm text-gray-500">MySQL database backups only</p>
-                    </div>
-                    <button
-                      onClick={fetchBackupStatus}
-                      disabled={backupLoading}
-                      className="text-sm text-blue-600 hover:text-blue-800 disabled:opacity-50"
-                    >
-                      {backupLoading ? 'Refreshing...' : 'Refresh'}
-                    </button>
-                  </div>
-
-                  {backupError && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                      <p className="text-red-700 text-sm">{backupError}</p>
-                    </div>
-                  )}
-
-                  {backupLoading && !backupStatus && (
-                    <div className="text-center py-8">
-                      <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
-                      <p className="text-gray-500">Loading backup status...</p>
-                    </div>
-                  )}
-
-                  {backupStatus && (
-                    <div className="space-y-4">
-                      {backupStatus.backups.map((backup, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200"
-                        >
-                          <div className="flex items-center space-x-4">
-                            {/* Status Indicator */}
-                            <div
-                              className={`w-4 h-4 rounded-full ${
-                                backup.status === 'healthy'
-                                  ? 'bg-green-500'
-                                  : backup.status === 'warning'
-                                  ? 'bg-yellow-500'
-                                  : 'bg-red-500'
-                              }`}
-                            ></div>
-
-                            <div>
-                              <p className="font-bold text-gray-800">{backup.name}</p>
-                              <p className="text-sm text-gray-500">{backup.schedule}</p>
-                            </div>
-                          </div>
-
-                          <div className="text-right">
-                            <p
-                              className={`font-semibold ${
-                                backup.status === 'healthy'
-                                  ? 'text-green-600'
-                                  : backup.status === 'warning'
-                                  ? 'text-yellow-600'
-                                  : 'text-red-600'
-                              }`}
-                            >
-                              {backup.lastBackup || backup.message}
-                            </p>
-                            {backup.latestSize && (
-                              <p className="text-xs text-gray-500">
-                                {backup.fileCount} files, latest: {backup.latestSize}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+              </div>
             </div>
           </div>
         )}

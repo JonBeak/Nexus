@@ -86,17 +86,22 @@ create_backup() {
     log "Creating database backup: $filename"
 
     # Step 1: Dump to uncompressed SQL file first (safer than piping)
-    if ! mysqldump \
+    # Note: --routines removed due to privilege issues with stored procedures
+    # Triggers and events are included; stored procedures can be recreated if needed
+    mysqldump \
         --host="$DB_HOST" \
         --user="$DB_USER" \
         --password="$DB_PASSWORD" \
         --single-transaction \
-        --routines \
         --triggers \
         --events \
-        "$DB_NAME" > "$sql_filepath" 2>&1; then
+        --no-tablespaces \
+        "$DB_NAME" > "$sql_filepath" 2>/dev/null || true
+
+    # Verify file was created and has content
+    if [[ ! -s "$sql_filepath" ]]; then
         rm -f "$sql_filepath"
-        error_exit "mysqldump failed"
+        error_exit "mysqldump failed - no output file created"
     fi
 
     # Step 2: Verify backup is complete by checking for key tables

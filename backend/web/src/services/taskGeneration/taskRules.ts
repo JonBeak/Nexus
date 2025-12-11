@@ -34,7 +34,7 @@ export const TASK_ORDER: string[] = [
   'Sanding (320) after cutting',
   'Scuffing after cutting',
   'Paint After Cutting',
-  'Backer/Raceway Bending',
+  'Backer / Raceway Bending',
   'Paint After Bending',
   'Vinyl Face After Cutting',
   'Trim Fabrication',
@@ -43,7 +43,7 @@ export const TASK_ORDER: string[] = [
   'Mounting Hardware',
   'Face Assembling',
   'LEDs',
-  'Backer/Raceway Fabrication',
+  'Backer / Raceway Fabrication',
   'Vinyl after Fabrication',
   'Paint after Fabrication',
   'Assembly'
@@ -60,10 +60,11 @@ export function getTaskSortOrder(taskName: string): number {
 
 /**
  * Task name to role mapping (from specification document)
+ *
+ * Note: Status-based tasks (Design Files, Design Approval, QC & Packing) are NOT included here
+ * because they are tracked via order.status, not as per-part tasks.
  */
 export const TASK_ROLE_MAP: Record<string, ProductionRole> = {
-  'Design Files': 'designer',
-  'Design Approval': 'manager',
   'Vinyl Plotting': 'designer',
   'Vinyl Face Before Cutting': 'vinyl_applicator',
   'Vinyl Face After Cutting': 'vinyl_applicator',
@@ -73,16 +74,15 @@ export const TASK_ROLE_MAP: Record<string, ProductionRole> = {
   'Laser Cut': 'manager',
   'Cut & Bend Return': 'cut_bender_operator',
   'Cut & Bend Trim': 'cut_bender_operator',
-  'Backer/Raceway Bending': 'backer_raceway_fabricator',
+  'Backer / Raceway Bending': 'backer_raceway_fabricator',
   'Trim Fabrication': 'trim_fabricator',
   'Return Fabrication': 'return_fabricator',
   'Return Gluing': 'return_gluer',
   'Mounting Hardware': 'mounting_assembler',
   'Face Assembling': 'face_assembler',
   'LEDs': 'led_installer',
-  'Backer/Raceway Fabrication': 'backer_raceway_fabricator',
+  'Backer / Raceway Fabrication': 'backer_raceway_fabricator',
   'Assembly': 'backer_raceway_assembler',
-  'QC & Packing': 'qc_packer',
   // Painting tasks
   'Sanding (320) before cutting': 'painter',
   'Scuffing before cutting': 'painter',
@@ -304,19 +304,19 @@ export function generateComponentTasks(
     }
   }
 
-  // Box Type spec → Backer/Raceway Fabrication task
+  // Box Type spec → Backer / Raceway Fabrication task
   if (hasSpec(group, 'Box Type')) {
     const materialInfo = extractBoxTypeMaterial(group);
     const fabrication = getSpecValue(group, 'Box Type', 'fabrication');
     const fabricationNote = fabrication ? `${materialInfo} - ${fabrication}` : materialInfo;
 
     tasks.push({
-      taskName: 'Backer/Raceway Fabrication',
-      assignedRole: getRole('Backer/Raceway Fabrication'),
+      taskName: 'Backer / Raceway Fabrication',
+      assignedRole: getRole('Backer / Raceway Fabrication'),
       notes: fabricationNote,
       partId,
       orderId,
-      sortOrder: getTaskSortOrder('Backer/Raceway Fabrication')
+      sortOrder: getTaskSortOrder('Backer / Raceway Fabrication')
     });
   }
 
@@ -415,7 +415,7 @@ export function generateConditionalTasks(
     });
   }
 
-  // Assembly spec → Face Assembling or Backer/Raceway Assembly based on item name
+  // Assembly spec → Face Assembling or Backer / Raceway Assembly based on item name
   if (hasSpec(group, 'Assembly')) {
     // Check the item_name of the part that has the Assembly spec
     const assemblyPart = group.parts.find(part => {

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
+import { execSync } from 'child_process';
 
 interface BackupInfo {
   name: string;
@@ -12,6 +13,7 @@ interface BackupInfo {
   fileCount?: number;
   latestFile?: string;
   latestSize?: string;
+  isComplete?: boolean;
 }
 
 interface BackupStatusResponse {
@@ -62,12 +64,34 @@ function parseBackupLog(logPath: string): { lastTime: Date | null; lastMessage: 
 }
 
 /**
+ * Check if a gzipped backup file is complete by looking for "Dump completed" marker
+ */
+function checkBackupIntegrity(filePath: string): boolean {
+  try {
+    if (!fs.existsSync(filePath)) {
+      return false;
+    }
+
+    // Use zcat to read last 500 bytes of the gzipped file and check for completion marker
+    // This is efficient as we don't need to decompress the entire file
+    const result = execSync(
+      `zcat "${filePath}" 2>/dev/null | tail -c 500 | grep -q "Dump completed"`,
+      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
+    );
+    return true;
+  } catch (error) {
+    // grep returns exit code 1 if not found, which throws an error
+    return false;
+  }
+}
+
+/**
  * Get info about local backup files in a directory
  */
-function getLocalBackupInfo(dirPath: string): { count: number; latest: string | null; size: string | null } {
+function getLocalBackupInfo(dirPath: string): { count: number; latest: string | null; size: string | null; isComplete: boolean } {
   try {
     if (!fs.existsSync(dirPath)) {
-      return { count: 0, latest: null, size: null };
+      return { count: 0, latest: null, size: null, isComplete: false };
     }
 
     const files = fs.readdirSync(dirPath)
@@ -79,19 +103,22 @@ function getLocalBackupInfo(dirPath: string): { count: number; latest: string | 
       .sort((a, b) => b.stat.mtime.getTime() - a.stat.mtime.getTime());
 
     if (files.length === 0) {
-      return { count: 0, latest: null, size: null };
+      return { count: 0, latest: null, size: null, isComplete: false };
     }
 
     const latest = files[0];
     const sizeKB = Math.round(latest.stat.size / 1024);
+    const latestPath = path.join(dirPath, latest.name);
+    const isComplete = checkBackupIntegrity(latestPath);
 
     return {
       count: files.length,
       latest: latest.name,
-      size: `${sizeKB}K`
+      size: `${sizeKB}K`,
+      isComplete
     };
   } catch (error) {
-    return { count: 0, latest: null, size: null };
+    return { count: 0, latest: null, size: null, isComplete: false };
   }
 }
 
@@ -141,29 +168,49 @@ export const getBackupStatus = async (req: Request, res: Response) => {
     const gdriveResult = parseBackupLog(gdriveLogPath);
     const localDbInfo = getLocalBackupInfo(path.join(nexusDir, 'infrastructure/backups/database'));
 
+    // Determine status - truncated backup is an error regardless of timing
+    let gdriveStatus = getHealthStatus(gdriveResult.lastTime, 26);
+    let gdriveMessage = gdriveResult.lastMessage;
+
+    if (localDbInfo.latest && !localDbInfo.isComplete) {
+      gdriveStatus = 'error';
+      gdriveMessage = 'Latest backup is TRUNCATED (missing "Dump completed" marker)';
+    }
+
     backups.push({
       name: 'Google Drive',
       schedule: 'Daily at 2:00 AM',
       lastBackup: formatRelativeTime(gdriveResult.lastTime),
       lastBackupTime: gdriveResult.lastTime,
-      status: getHealthStatus(gdriveResult.lastTime, 26), // Allow 26 hours for daily
-      message: gdriveResult.lastMessage,
+      status: gdriveStatus,
+      message: gdriveMessage,
       fileCount: localDbInfo.count,
       latestFile: localDbInfo.latest || undefined,
-      latestSize: localDbInfo.size || undefined
+      latestSize: localDbInfo.size || undefined,
+      isComplete: localDbInfo.isComplete
     });
 
     // 2. Local Database Backup (same as gdrive but shows local file info)
+    let localStatus: 'healthy' | 'warning' | 'error' =
+      localDbInfo.count >= 5 ? 'healthy' : localDbInfo.count >= 3 ? 'warning' : 'error';
+    let localMessage = `${localDbInfo.count} local backups stored`;
+
+    if (localDbInfo.latest && !localDbInfo.isComplete) {
+      localStatus = 'error';
+      localMessage = 'Latest backup is TRUNCATED';
+    }
+
     backups.push({
       name: 'Local Database',
       schedule: 'Daily at 2:00 AM (7 kept)',
       lastBackup: formatRelativeTime(gdriveResult.lastTime),
       lastBackupTime: gdriveResult.lastTime,
-      status: localDbInfo.count >= 5 ? 'healthy' : localDbInfo.count >= 3 ? 'warning' : 'error',
-      message: `${localDbInfo.count} local backups stored`,
+      status: localStatus,
+      message: localMessage,
       fileCount: localDbInfo.count,
       latestFile: localDbInfo.latest || undefined,
-      latestSize: localDbInfo.size || undefined
+      latestSize: localDbInfo.size || undefined,
+      isComplete: localDbInfo.isComplete
     });
 
     // 3. Check cron job status
@@ -171,7 +218,6 @@ export const getBackupStatus = async (req: Request, res: Response) => {
     let cronMessage = 'Cron jobs configured';
 
     try {
-      const { execSync } = require('child_process');
       const crontab = execSync('crontab -l 2>/dev/null', { encoding: 'utf-8' });
       const hasGdriveBackup = crontab.includes('backup-db-to-gdrive.sh');
 

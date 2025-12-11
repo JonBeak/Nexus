@@ -1085,5 +1085,9 @@ Phase 1.5 is COMPLETE when:
 - 68 frontend components, 28 backend services
 
 **Next Steps:**
-1. Phase 2 - Essential features (Jobs Table, Calendar, QB automation, completed jobs archive)
-2. Gmail API production configuration and testing
+1. **Phase 2.a - Tasks Table** (IN PROGRESS) - See `Nexus_Orders_Phase2a_TasksTable.md`
+   - NEW tab for part-level task management with dependency visualization
+2. Phase 2.b - Calendar View
+3. Phase 2.c - Completed Jobs archive
+4. Phase 2.d - Email notifications automation
+5. Phase 2.e - QuickBooks Invoice Automation

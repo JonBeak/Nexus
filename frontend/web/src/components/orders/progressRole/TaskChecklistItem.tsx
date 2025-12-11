@@ -54,12 +54,10 @@ export const TaskChecklistItem: React.FC<Props> = ({
   const canViewCustomer = ROLES_WITH_CUSTOMER_VIEW.includes(userRole);
 
   const handleStartToggle = () => {
-    if (showCompleted) return;
     onUpdate(task.task_id, 'started', !isStarted, originalStarted, originalCompleted);
   };
 
   const handleCompleteToggle = () => {
-    if (showCompleted) return;
     onUpdate(task.task_id, 'completed', !isCompleted, originalStarted, originalCompleted);
   };
 
@@ -93,16 +91,16 @@ export const TaskChecklistItem: React.FC<Props> = ({
 
   return (
     <div
-      className={`border rounded-lg p-3 transition-all ${
+      className={`border rounded p-2 transition-all ${
         hasChanges
           ? 'border-indigo-400 bg-indigo-50'
           : 'border-gray-200 bg-white hover:bg-gray-50'
       }`}
     >
       {/* Top row: Order info + Start/Complete buttons */}
-      <div className="flex items-start justify-between gap-2 mb-1">
+      <div className="flex items-start justify-between gap-1">
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-gray-900 truncate" title={orderDisplay}>
+          <div className="text-sm text-gray-900 truncate" title={orderDisplay}>
             {orderDisplay}
           </div>
         </div>
@@ -112,13 +110,12 @@ export const TaskChecklistItem: React.FC<Props> = ({
           {/* Start button */}
           <button
             onClick={handleStartToggle}
-            disabled={showCompleted && isCompleted}
             title={isStarted ? 'Mark as not started' : 'Mark as started'}
             className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
               isStarted
                 ? 'bg-blue-600 text-white'
                 : 'bg-white border-2 border-blue-400 text-blue-400 hover:bg-blue-50'
-            } ${showCompleted && isCompleted ? 'opacity-50 cursor-not-allowed' : ''}`}
+            }`}
           >
             <Play className="w-3 h-3" style={{ marginLeft: '1px' }} />
           </button>
@@ -140,7 +137,7 @@ export const TaskChecklistItem: React.FC<Props> = ({
       </div>
 
       {/* Task name + Item Name/Scope */}
-      <div className="text-sm font-medium text-gray-800 bg-gray-100 px-2 py-1 rounded mb-2 flex items-center justify-between gap-2">
+      <div className="text-xs text-gray-800 bg-gray-100 px-1.5 py-0.5 rounded mb-1 flex items-center justify-between gap-1">
         <span>{task.task_name}</span>
         <span className="text-gray-600 truncate" title={productDisplay}>{productDisplay}</span>
       </div>
