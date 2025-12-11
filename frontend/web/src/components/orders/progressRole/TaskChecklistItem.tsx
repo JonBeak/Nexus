@@ -136,10 +136,10 @@ export const TaskChecklistItem: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Task name + Item Name/Scope */}
+      {/* Product Type [Scope] + Task name */}
       <div className="text-xs text-gray-800 bg-gray-100 px-1.5 py-0.5 rounded mb-1 flex items-center justify-between gap-1">
-        <span>{task.task_name}</span>
-        <span className="text-gray-600 truncate" title={productDisplay}>{productDisplay}</span>
+        <span className="truncate" title={productDisplay}>{productDisplay}</span>
+        <span className="text-gray-600 flex-shrink-0">{task.task_name}</span>
       </div>
 
       {/* Editable task notes */}

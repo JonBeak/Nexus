@@ -74,7 +74,7 @@ export type OrderStatus =
   | 'cancelled';
 
 export interface OrderFilters {
-  status?: OrderStatus | 'all';
+  statuses: OrderStatus[];  // Multi-select: empty array means use defaults (all except completed/cancelled)
   customer_id?: number;
   search?: string;
 }

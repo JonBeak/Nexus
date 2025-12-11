@@ -198,10 +198,13 @@ See `Nexus_Orders_JobStructure.md` for detailed breakdown of nested objects.
    - Mark tasks complete
    - Shows task dependencies and availability
 
-4. **Jobs Table**
+4. **Orders Table** (renamed from Jobs Table)
    - Searchable, filterable, sortable
-   - Columns: Order #, Customer, Stage, Progress %, Due Date, Days Remaining
-   - Shows each Progress Tracking task detail
+   - Columns: Order #, Order Name, Customer, Status, Due Date (with weekday), Due Time, Days Left, Progress %, Created
+   - Multi-select status filter (defaults to all except completed/cancelled)
+   - "Days Left" column with work days calculation (excludes weekends/holidays)
+   - Red highlighting for orders with hard due times
+   - Default sort: Days Left ascending (most urgent first)
 
 5. **Calendar View**
    - Due dates marked
@@ -457,7 +460,21 @@ LIMIT ?  -- Fails with correlated subqueries
   - Backend endpoint `/api/orders/parts/with-tasks` with filtering
   - Role color coding, task completion toggle, search, pagination
   - Multi-select status filter (12 statuses)
-  - Search includes order name and customer name
+  - 11 core task columns always visible, 15 optional auto-hide
+- **Phase 2.a+**: Orders Table Enhancements ✅ (2025-12-10)
+  - Renamed "Jobs Table" to "Orders Table"
+  - URL-based tab routing (`/orders`, `/orders/table`, `/orders/tasks`, `/orders/role-tasks`)
+  - Browser back button now works correctly between tabs
+  - **"Days Left" column** with work days calculation:
+    - 1 work day = 8.5 hours (7:30am - 4pm)
+    - Excludes weekends and company holidays
+    - Negative values for overdue orders
+    - Color coding: red (<1 day), amber (1-2 days), gray (>2 days)
+  - Due Date format includes weekday ("Monday Dec 4, 2025")
+  - Red highlighting for orders with hard due time
+  - Multi-select status filter (defaults to all except completed/cancelled)
+  - Default sort by Days Left ascending (most urgent first)
+  - Column widths: Order Name w-80, Customer w-44, Progress flexible
 
 **Major Updates (Nov 2025)**:
 - **Phase 1.5.c.6**: Complete order preparation workflow (Validation, QB, PDFs, Tasks) - 2025-11-18 to 2025-11-20

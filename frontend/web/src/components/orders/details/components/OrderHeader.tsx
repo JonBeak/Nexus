@@ -49,9 +49,10 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
           <div className="flex items-center space-x-4 flex-1">
             <button
               onClick={handleBack}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="flex items-center space-x-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md transition-colors text-gray-700"
             >
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
+              <ArrowLeft className="w-4 h-4" />
+              <span className="text-sm font-medium">Orders</span>
             </button>
             <div>
               <div className="flex items-center space-x-3">

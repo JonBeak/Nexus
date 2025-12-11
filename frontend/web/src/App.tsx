@@ -127,6 +127,15 @@ function AppContent() {
         <Route path="/orders" element={
           user && (user.role === 'manager' || user.role === 'owner') ? <OrdersPage /> : <Navigate to="/dashboard" />
         } />
+        <Route path="/orders/table" element={
+          user && (user.role === 'manager' || user.role === 'owner') ? <OrdersPage /> : <Navigate to="/dashboard" />
+        } />
+        <Route path="/orders/tasks" element={
+          user && (user.role === 'manager' || user.role === 'owner') ? <OrdersPage /> : <Navigate to="/dashboard" />
+        } />
+        <Route path="/orders/role-tasks" element={
+          user && (user.role === 'manager' || user.role === 'owner') ? <OrdersPage /> : <Navigate to="/dashboard" />
+        } />
 
         <Route path="/orders/:orderNumber" element={
           user && (user.role === 'manager' || user.role === 'owner') ? <OrderDetailsPage /> : <Navigate to="/dashboard" />

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ListChecks, Table, CheckSquare, ArrowLeft } from 'lucide-react';
+import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { LayoutDashboard, ListChecks, Table, CheckSquare, Home } from 'lucide-react';
 import OrderDashboard from './dashboard/OrderDashboard';
 import OrdersTable from './table/OrdersTable';
 import ProgressRoleView from './progressRole/ProgressRoleView';
@@ -12,18 +12,34 @@ interface Tab {
   id: TabId;
   label: string;
   icon: React.ReactNode;
+  path: string;
 }
 
 const TABS: Tab[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
-  { id: 'progress', label: 'Role-based Tasks', icon: <ListChecks className="w-5 h-5" /> },
-  { id: 'table', label: 'Jobs Table', icon: <Table className="w-5 h-5" /> },
-  { id: 'tasksTable', label: 'Tasks Table', icon: <CheckSquare className="w-5 h-5" /> }
+  { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" />, path: '/orders' },
+  { id: 'table', label: 'Orders Table', icon: <Table className="w-5 h-5" />, path: '/orders/table' },
+  { id: 'tasksTable', label: 'Tasks Table', icon: <CheckSquare className="w-5 h-5" />, path: '/orders/tasks' },
+  { id: 'progress', label: 'Role-based Tasks', icon: <ListChecks className="w-5 h-5" />, path: '/orders/role-tasks' }
 ];
+
+// Map URL paths to tab IDs
+const pathToTab: Record<string, TabId> = {
+  '/orders': 'dashboard',
+  '/orders/table': 'table',
+  '/orders/tasks': 'tasksTable',
+  '/orders/role-tasks': 'progress'
+};
 
 export const OrdersPage: React.FC = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<TabId>('dashboard');
+  const location = useLocation();
+
+  // Determine active tab from URL
+  const activeTab = pathToTab[location.pathname] || 'dashboard';
+
+  const handleTabClick = (tab: Tab) => {
+    navigate(tab.path);
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -36,7 +52,7 @@ export const OrdersPage: React.FC = () => {
               className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               title="Back to Dashboard"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <Home className="w-7 h-7" />
             </button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
@@ -53,7 +69,7 @@ export const OrdersPage: React.FC = () => {
             {TABS.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabClick(tab)}
                 className={`
                   flex items-center space-x-2 px-1 py-4 border-b-2 font-medium text-sm transition-colors
                   ${activeTab === tab.id

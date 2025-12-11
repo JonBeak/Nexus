@@ -27,12 +27,14 @@ The Tasks Table is a NEW tab in the Orders page that provides part-level task ma
 ### Tab Addition
 
 ```
-OrdersPage Tabs:
-┌──────────┬─────────────────┬────────────┬──────────────┐
-│Dashboard │ Role-based Tasks│ Jobs Table │ Tasks Table  │
-└──────────┴─────────────────┴────────────┴──────────────┘
-                                              ↑ NEW
+OrdersPage Tabs (URL-based routing):
+┌──────────┬──────────────┬─────────────┬──────────────────┐
+│Dashboard │ Orders Table │ Tasks Table │ Role-based Tasks │
+│/orders   │ /orders/table│ /orders/tasks│ /orders/role-tasks│
+└──────────┴──────────────┴─────────────┴──────────────────┘
 ```
+
+**Note:** Tab order updated Dec 2025. "Jobs Table" renamed to "Orders Table".
 
 ### Task View Layout
 
@@ -337,3 +339,18 @@ Returns all parts with their tasks for the Tasks Table.
 **Document Status:** ✅ COMPLETE
 **Completed:** All phases (2.a.1, 2.a.2, 2.a.3, 2.a.4)
 **Implementation Date:** 2025-12-10
+
+---
+
+## Recent Updates (Dec 2025)
+
+### URL-Based Tab Routing
+- OrdersPage now uses URL-based routing for all tabs
+- Routes: `/orders`, `/orders/table`, `/orders/tasks`, `/orders/role-tasks`
+- Browser back/forward buttons work correctly between tabs
+- Bookmark-able URLs for each view
+
+### Column Visibility Fix
+- Confirmed 11 always-visible core production tasks
+- 15 auto-hide optional tasks (vinyl/paint related)
+- Core tasks visible even when filtering to early-stage orders with no tasks yet

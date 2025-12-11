@@ -44,12 +44,13 @@ export const TableHeader: React.FC<Props> = ({
     <thead className="bg-gray-50">
       <tr>
         <HeaderCell field="order_number" label="Order #" className="w-24" />
-        <HeaderCell field="order_name" label="Order Name" />
-        <HeaderCell field="customer_name" label="Customer" />
+        <HeaderCell field="order_name" label="Order Name" className="w-80" />
+        <HeaderCell field="customer_name" label="Customer" className="w-44" />
         <HeaderCell field="status" label="Status" className="w-28" />
         <HeaderCell field="due_date" label="Due Date" className="w-28" />
         <HeaderCell field="hard_due_date_time" label="Due Time" sortable={false} className="w-24" />
-        <HeaderCell field="progress_percent" label="Progress" className="w-44" />
+        <HeaderCell field="work_days_left" label="Days Left" className="w-20" />
+        <HeaderCell field="progress_percent" label="Progress" />
         <HeaderCell field="created_at" label="Created" className="w-28" />
       </tr>
     </thead>
