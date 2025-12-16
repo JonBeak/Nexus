@@ -1,6 +1,17 @@
 # Orders Page - Invoice System
 
-> **IMPORTANT: This entire invoice system is deferred to Phase 2+. Phase 1 has NO invoice functionality - all invoicing is done directly in QuickBooks outside the system. Manager manually updates kanban status to track payment status.**
+> **⚠️ SUPERSEDED: See `Nexus_Orders_Phase2e_QBInvoiceAutomation.md` for current implementation**
+>
+> This document contains original planning notes. The actual implementation uses a **Hybrid Approach**:
+> - QuickBooks handles invoice creation, storage, and payments
+> - Nexus sends custom emails with QB invoice links
+> - No local invoice storage beyond linking IDs
+>
+> **Status:** Phase 2.e in progress (2025-12-15)
+
+---
+
+## Original Planning Document (Historical Reference)
 
 ## Purpose
 Define the invoice creation workflow, editing capabilities, QuickBooks integration format, and how invoices sync with the Master Order Object.

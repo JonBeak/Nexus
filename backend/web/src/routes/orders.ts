@@ -18,6 +18,7 @@ import * as orderController from '../controllers/orders';
 import * as orderConversionController from '../controllers/orderConversionController';
 import * as orderFormController from '../controllers/orderFormController';
 import * as orderImageController from '../controllers/orderImageController';
+import * as qbInvoiceController from '../controllers/qbInvoiceController';
 
 const router = Router();
 
@@ -541,6 +542,162 @@ router.patch(
   authenticateToken,
   requirePermission('orders.update'),
   orderImageController.setJobImage
+);
+
+// =============================================
+// QB INVOICE AUTOMATION (Phase 2.e)
+// =============================================
+
+/**
+ * Create QB invoice from order (Manager+ only)
+ * POST /api/orders/:orderNumber/qb-invoice
+ */
+router.post(
+  '/:orderNumber/qb-invoice',
+  authenticateToken,
+  requirePermission('orders.update'),
+  qbInvoiceController.createInvoice
+);
+
+/**
+ * Update QB invoice from order (Manager+ only)
+ * PUT /api/orders/:orderNumber/qb-invoice
+ */
+router.put(
+  '/:orderNumber/qb-invoice',
+  authenticateToken,
+  requirePermission('orders.update'),
+  qbInvoiceController.updateInvoice
+);
+
+/**
+ * Get invoice details
+ * GET /api/orders/:orderNumber/qb-invoice
+ */
+router.get(
+  '/:orderNumber/qb-invoice',
+  authenticateToken,
+  requirePermission('orders.view'),
+  qbInvoiceController.getInvoice
+);
+
+/**
+ * Link existing QB invoice to order (Manager+ only)
+ * POST /api/orders/:orderNumber/qb-invoice/link
+ */
+router.post(
+  '/:orderNumber/qb-invoice/link',
+  authenticateToken,
+  requirePermission('orders.update'),
+  qbInvoiceController.linkInvoice
+);
+
+/**
+ * Check if invoice needs update (staleness check)
+ * GET /api/orders/:orderNumber/qb-invoice/check-updates
+ */
+router.get(
+  '/:orderNumber/qb-invoice/check-updates',
+  authenticateToken,
+  requirePermission('orders.view'),
+  qbInvoiceController.checkInvoiceUpdates
+);
+
+/**
+ * Record payment against invoice (Manager+ only)
+ * POST /api/orders/:orderNumber/qb-payment
+ */
+router.post(
+  '/:orderNumber/qb-payment',
+  authenticateToken,
+  requirePermission('orders.update'),
+  qbInvoiceController.recordPayment
+);
+
+// =============================================
+// INVOICE EMAIL OPERATIONS (Phase 2.e)
+// =============================================
+
+/**
+ * Send invoice email immediately (Manager+ only)
+ * POST /api/orders/:orderNumber/invoice-email/send
+ */
+router.post(
+  '/:orderNumber/invoice-email/send',
+  authenticateToken,
+  requirePermission('orders.update'),
+  qbInvoiceController.sendInvoiceEmail
+);
+
+/**
+ * Schedule invoice email for later (Manager+ only)
+ * POST /api/orders/:orderNumber/invoice-email/schedule
+ */
+router.post(
+  '/:orderNumber/invoice-email/schedule',
+  authenticateToken,
+  requirePermission('orders.update'),
+  qbInvoiceController.scheduleInvoiceEmail
+);
+
+/**
+ * Get scheduled email for order
+ * GET /api/orders/:orderNumber/invoice-email/scheduled
+ */
+router.get(
+  '/:orderNumber/invoice-email/scheduled',
+  authenticateToken,
+  requirePermission('orders.view'),
+  qbInvoiceController.getScheduledEmail
+);
+
+/**
+ * Update scheduled email (Manager+ only)
+ * PUT /api/orders/:orderNumber/invoice-email/scheduled/:id
+ */
+router.put(
+  '/:orderNumber/invoice-email/scheduled/:id',
+  authenticateToken,
+  requirePermission('orders.update'),
+  qbInvoiceController.updateScheduledEmailHandler
+);
+
+/**
+ * Cancel scheduled email (Manager+ only)
+ * DELETE /api/orders/:orderNumber/invoice-email/scheduled/:id
+ */
+router.delete(
+  '/:orderNumber/invoice-email/scheduled/:id',
+  authenticateToken,
+  requirePermission('orders.update'),
+  qbInvoiceController.cancelScheduledEmailHandler
+);
+
+/**
+ * Get email preview with variables substituted
+ * GET /api/orders/:orderNumber/invoice-email/preview/:templateKey
+ */
+router.get(
+  '/:orderNumber/invoice-email/preview/:templateKey',
+  authenticateToken,
+  requirePermission('orders.view'),
+  qbInvoiceController.getEmailPreview
+);
+
+// =============================================
+// EMAIL TEMPLATES (Phase 2.e)
+// =============================================
+
+/**
+ * Get email template by key
+ * GET /api/email-templates/:templateKey
+ * Note: This route is outside the /orders namespace but mounted here for convenience
+ */
+router.get(
+  '/email-templates/:templateKey',
+  authenticateToken,
+  requirePermission('orders.view'),
+  qbInvoiceController.getEmailTemplateHandler
 );
 
 export default router;

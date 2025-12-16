@@ -40,10 +40,12 @@ import ledsRoutes from './routes/leds';
 import powerSuppliesRoutes from './routes/powerSupplies';
 import printRoutes from './routes/print';
 import systemRoutes from './routes/system';
+import settingsRoutes from './routes/settings';  // Phase 3: Settings & Templates UI (Dec 15, 2025)
 
 // QuickBooks utilities for startup
 import { quickbooksOAuthRepository } from './repositories/quickbooksOAuthRepository';
 import { startQuickBooksCleanupJob } from './jobs/quickbooksCleanup';
+import { startScheduledEmailJob } from './jobs/scheduledEmailJob';
 
 // SMB path configuration
 import { SMB_ROOT } from './config/paths';
@@ -116,6 +118,7 @@ app.use('/api/leds', ledsRoutes);
 app.use('/api/power-supplies', powerSuppliesRoutes);
 app.use('/api/print', printRoutes);
 app.use('/api/system', systemRoutes);
+app.use('/api/settings', settingsRoutes);  // Phase 3: Settings & Templates UI (Dec 15, 2025)
 
 // =============================================
 // STATIC FILE SERVING (Phase 1.5.g)
@@ -218,6 +221,9 @@ const startServer = async () => {
 
     // Start QuickBooks cleanup job (runs daily at 2 AM)
     startQuickBooksCleanupJob();
+
+    // Start scheduled email job (runs every 5 minutes)
+    startScheduledEmailJob();
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log('\n' + '='.repeat(60));

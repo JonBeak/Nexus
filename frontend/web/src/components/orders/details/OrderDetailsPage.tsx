@@ -27,6 +27,10 @@ import TaxDropdown from './components/TaxDropdown';
 import PointPersonsEditor from './components/PointPersonsEditor';
 import PrepareOrderModal from '../preparation/PrepareOrderModal';
 import ConfirmationModal from './components/ConfirmationModal';
+import { InvoiceAction } from './components/InvoiceButton';
+import InvoiceActionModal from '../modals/InvoiceActionModal';
+import RecordPaymentModal from '../modals/RecordPaymentModal';
+import LinkInvoiceModal from '../modals/LinkInvoiceModal';
 
 export const OrderDetailsPage: React.FC = () => {
   const { orderNumber } = useParams<{ orderNumber: string }>();
@@ -41,6 +45,14 @@ export const OrderDetailsPage: React.FC = () => {
   // Confirmation Modal States for Phase Transitions
   const [showCustomerApprovedModal, setShowCustomerApprovedModal] = useState(false);
   const [showFilesCreatedModal, setShowFilesCreatedModal] = useState(false);
+
+  // Phase 2.e: Invoice Modal States
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [invoiceModalMode, setInvoiceModalMode] = useState<'create' | 'update' | 'send'>('create');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showLinkInvoiceModal, setShowLinkInvoiceModal] = useState(false);
+  const [invoicePromptType, setInvoicePromptType] = useState<'deposit' | 'full' | 'send' | null>(null);
+  const [pendingStatusChange, setPendingStatusChange] = useState<string | null>(null);
 
   // Use the custom hooks
   const {
@@ -159,14 +171,27 @@ export const OrderDetailsPage: React.FC = () => {
   const handleConfirmCustomerApproved = async () => {
     if (!orderData.order) return;
 
+    const newStatus = 'pending_production_files_creation';
+    setShowCustomerApprovedModal(false);
+
+    // Check if invoice prompt is needed (deposit orders)
+    const promptType = checkInvoicePromptTrigger(newStatus);
+    if (promptType) {
+      setInvoicePromptType(promptType);
+      setPendingStatusChange(newStatus);
+      setInvoiceModalMode(promptType === 'send' ? 'send' : 'create');
+      setShowInvoiceModal(true);
+      return;
+    }
+
+    // No prompt needed, proceed with status change
     try {
       setUiState(prev => ({ ...prev, saving: true }));
       await orderStatusApi.updateOrderStatus(
         orderData.order.order_number,
-        'pending_production_files_creation',
+        newStatus,
         'Customer approved the estimate'
       );
-      setShowCustomerApprovedModal(false);
       alert('Order status updated to Pending Files Creation');
       refetch();
     } catch (err) {
@@ -209,6 +234,107 @@ export const OrderDetailsPage: React.FC = () => {
 
   const handleApproveFilesAndPrint = () => {
     handleOpenPrintModal('shop_packing_production');
+  };
+
+  // Phase 2.e: Invoice Action Handlers
+  const handleInvoiceAction = (action: InvoiceAction) => {
+    if (action === 'view' && orderData.order?.qb_invoice_url) {
+      window.open(orderData.order.qb_invoice_url, '_blank');
+      return;
+    }
+    // For create, update, send - open the modal in appropriate mode
+    setInvoiceModalMode(action as 'create' | 'update' | 'send');
+    setShowInvoiceModal(true);
+  };
+
+  const handleInvoiceSuccess = () => {
+    setShowInvoiceModal(false);
+    refetch();
+  };
+
+  const handlePaymentSuccess = (newBalance: number) => {
+    setShowPaymentModal(false);
+    refetch();
+  };
+
+  const handleLinkInvoiceSuccess = () => {
+    setShowLinkInvoiceModal(false);
+    refetch();
+  };
+
+  // Check if an invoice prompt should be shown during status change
+  const checkInvoicePromptTrigger = (newStatus: string): 'deposit' | 'full' | 'send' | null => {
+    if (!orderData.order) return null;
+
+    const order = orderData.order;
+
+    // Deposit orders moving from pending_confirmation to pending_files_creation
+    if (order.deposit_required &&
+        order.status === 'pending_confirmation' &&
+        newStatus === 'pending_production_files_creation' &&
+        !order.qb_invoice_id) {
+      return 'deposit';
+    }
+
+    // Moving to QC & Packing without an invoice
+    if (newStatus === 'qc_packing' && !order.qb_invoice_id) {
+      return 'full';
+    }
+
+    // Moving to shipping/pickup/awaiting_payment with an unsent invoice
+    if (['shipping', 'pick_up', 'awaiting_payment'].includes(newStatus) &&
+        order.qb_invoice_id &&
+        !order.invoice_sent_at) {
+      return 'send';
+    }
+
+    return null;
+  };
+
+  // Handle skipping invoice during status change prompt
+  const handleSkipInvoiceAndProceed = async () => {
+    setShowInvoiceModal(false);
+    setInvoicePromptType(null);
+
+    if (pendingStatusChange) {
+      // Proceed with the original status change
+      await performStatusChange(pendingStatusChange);
+      setPendingStatusChange(null);
+    }
+  };
+
+  // Perform the actual status change
+  const performStatusChange = async (newStatus: string) => {
+    if (!orderData.order) return;
+
+    try {
+      setUiState(prev => ({ ...prev, saving: true }));
+      await orderStatusApi.updateOrderStatus(
+        orderData.order.order_number,
+        newStatus,
+        `Status updated to ${newStatus}`
+      );
+      refetch();
+    } catch (err) {
+      console.error('Error updating order status:', err);
+      alert('Failed to update order status. Please try again.');
+    } finally {
+      setUiState(prev => ({ ...prev, saving: false }));
+    }
+  };
+
+  // Handle invoice success during status change prompt
+  const handleInvoiceSuccessWithStatusChange = () => {
+    setShowInvoiceModal(false);
+    setInvoicePromptType(null);
+
+    if (pendingStatusChange) {
+      // Proceed with status change after invoice action
+      performStatusChange(pendingStatusChange);
+      setPendingStatusChange(null);
+    } else {
+      refetch();
+    }
   };
 
   // Handle opening order folder in Windows Explorer
@@ -354,6 +480,7 @@ export const OrderDetailsPage: React.FC = () => {
         onCustomerApproved={handleCustomerApproved}
         onFilesCreated={handleFilesCreated}
         onApproveFilesAndPrint={handleApproveFilesAndPrint}
+        onInvoiceAction={handleInvoiceAction}
         generatingForms={uiState.generatingForms}
         printingForm={uiState.printingForm}
       />
@@ -762,6 +889,34 @@ export const OrderDetailsPage: React.FC = () => {
         confirmText="Confirm Files Created"
         confirmColor="purple"
         warningNote="TODO: Add validation to check if expected files exist based on specs (AI files, vector files, etc.)"
+      />
+
+      {/* Phase 2.e: Invoice Modals */}
+      <InvoiceActionModal
+        isOpen={showInvoiceModal}
+        onClose={() => {
+          setShowInvoiceModal(false);
+          setInvoicePromptType(null);
+          setPendingStatusChange(null);
+        }}
+        order={orderData.order}
+        mode={invoiceModalMode}
+        onSuccess={pendingStatusChange ? handleInvoiceSuccessWithStatusChange : handleInvoiceSuccess}
+        onSkip={pendingStatusChange ? handleSkipInvoiceAndProceed : undefined}
+      />
+
+      <RecordPaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        orderNumber={orderData.order.order_number}
+        onSuccess={handlePaymentSuccess}
+      />
+
+      <LinkInvoiceModal
+        isOpen={showLinkInvoiceModal}
+        onClose={() => setShowLinkInvoiceModal(false)}
+        orderNumber={orderData.order.order_number}
+        onSuccess={handleLinkInvoiceSuccess}
       />
     </div>
   );

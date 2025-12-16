@@ -20,6 +20,14 @@ const SupplyChainDashboard = lazy(() => import('./components/supplyChain/SupplyC
 const JobEstimationDashboard = lazy(() => import('./components/jobEstimation/JobEstimationDashboard').then(m => ({ default: m.JobEstimationDashboard })));
 const OrdersPage = lazy(() => import('./components/orders/OrdersPage'));
 const OrderDetailsPage = lazy(() => import('./components/orders/details/OrderDetailsPage'));
+const SettingsPage = lazy(() => import('./components/settings/SettingsPage'));
+const SettingsIndex = lazy(() => import('./components/settings/SettingsIndex').then(m => ({ default: m.SettingsIndex })));
+const SpecificationOptionsManager = lazy(() => import('./components/settings/SpecificationOptionsManager').then(m => ({ default: m.SpecificationOptionsManager })));
+const TasksManager = lazy(() => import('./components/settings/TasksManager').then(m => ({ default: m.TasksManager })));
+const RolesManager = lazy(() => import('./components/settings/RolesManager').then(m => ({ default: m.RolesManager })));
+const AuditLogViewer = lazy(() => import('./components/settings/AuditLogViewer').then(m => ({ default: m.AuditLogViewer })));
+const EmailTemplatesManager = lazy(() => import('./components/settings/EmailTemplatesManager').then(m => ({ default: m.EmailTemplatesManager })));
+const PaintingMatrixManager = lazy(() => import('./components/settings/PaintingMatrixManager').then(m => ({ default: m.PaintingMatrixManager })));
 
 // Loading component for lazy routes
 const RouteLoader = () => (
@@ -143,6 +151,19 @@ function AppContent() {
         <Route path="/orders/:orderNumber" element={
           user && (user.role === 'manager' || user.role === 'owner') ? <OrderDetailsPage /> : <Navigate to="/dashboard" />
         } />
+
+        {/* Settings - Nested Routes */}
+        <Route path="/settings" element={
+          user && (user.role === 'manager' || user.role === 'owner') ? <SettingsPage /> : <Navigate to="/dashboard" />
+        }>
+          <Route index element={<SettingsIndex />} />
+          <Route path="specifications" element={<SpecificationOptionsManager />} />
+          <Route path="tasks" element={<TasksManager />} />
+          <Route path="roles" element={<RolesManager />} />
+          <Route path="painting-matrix" element={<PaintingMatrixManager />} />
+          <Route path="email-templates" element={<EmailTemplatesManager />} />
+          <Route path="audit-log" element={<AuditLogViewer />} />
+        </Route>
 
         <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} />} />
       </Routes>

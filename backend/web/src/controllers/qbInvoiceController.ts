@@ -1,0 +1,483 @@
+/**
+ * QuickBooks Invoice Controller
+ * Phase 2.e: QB Invoice Automation
+ * Created: 2025-12-13
+ *
+ * HTTP Request Handlers for QB Invoice operations
+ */
+
+import { Request, Response } from 'express';
+import { AuthRequest } from '../types';
+import * as qbInvoiceService from '../services/qbInvoiceService';
+import * as invoiceEmailService from '../services/invoiceEmailService';
+import * as qbInvoiceRepo from '../repositories/qbInvoiceRepository';
+import { sendErrorResponse } from '../utils/controllerHelpers';
+import { query } from '../config/database';
+import { RowDataPacket } from 'mysql2';
+import {
+  LinkInvoiceRequest,
+  RecordPaymentRequest,
+  SendEmailRequest,
+  ScheduleEmailRequest,
+  UpdateScheduledEmailRequest
+} from '../types/qbInvoice';
+
+// Helper to get order_id from order_number
+async function getOrderIdFromNumber(orderNumber: string): Promise<number | null> {
+  const rows = await query(
+    'SELECT order_id FROM orders WHERE order_number = ?',
+    [parseInt(orderNumber, 10)]
+  ) as RowDataPacket[];
+  return rows.length > 0 ? rows[0].order_id : null;
+}
+
+// =============================================
+// INVOICE OPERATIONS
+// =============================================
+
+/**
+ * Create QB invoice from order
+ * POST /api/orders/:orderNumber/qb-invoice
+ */
+export const createInvoice = async (req: Request, res: Response) => {
+  try {
+    const user = (req as AuthRequest).user;
+    const { orderNumber } = req.params;
+
+    if (!user) {
+      return sendErrorResponse(res, 'User not authenticated', 'UNAUTHORIZED');
+    }
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    const result = await qbInvoiceService.createInvoiceFromOrder(orderId, user.user_id);
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error creating invoice:', error);
+    const message = error instanceof Error ? error.message : 'Failed to create invoice';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Update QB invoice from order
+ * PUT /api/orders/:orderNumber/qb-invoice
+ */
+export const updateInvoice = async (req: Request, res: Response) => {
+  try {
+    const user = (req as AuthRequest).user;
+    const { orderNumber } = req.params;
+
+    if (!user) {
+      return sendErrorResponse(res, 'User not authenticated', 'UNAUTHORIZED');
+    }
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    const result = await qbInvoiceService.updateInvoiceFromOrder(orderId, user.user_id);
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error updating invoice:', error);
+    const message = error instanceof Error ? error.message : 'Failed to update invoice';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Get invoice details
+ * GET /api/orders/:orderNumber/qb-invoice
+ */
+export const getInvoice = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    const result = await qbInvoiceService.getInvoiceDetails(orderId);
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error getting invoice:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get invoice';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Link existing QB invoice to order
+ * POST /api/orders/:orderNumber/qb-invoice/link
+ */
+export const linkInvoice = async (req: Request, res: Response) => {
+  try {
+    const user = (req as AuthRequest).user;
+    const { orderNumber } = req.params;
+    const { qbInvoiceId, docNumber } = req.body as LinkInvoiceRequest;
+
+    if (!user) {
+      return sendErrorResponse(res, 'User not authenticated', 'UNAUTHORIZED');
+    }
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    const invoiceIdOrDocNumber = qbInvoiceId || docNumber;
+    if (!invoiceIdOrDocNumber) {
+      return sendErrorResponse(res, 'qbInvoiceId or docNumber is required', 'VALIDATION_ERROR');
+    }
+
+    const result = await qbInvoiceService.linkExistingInvoice(
+      orderId,
+      invoiceIdOrDocNumber,
+      user.user_id
+    );
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error linking invoice:', error);
+    const message = error instanceof Error ? error.message : 'Failed to link invoice';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Check if invoice needs update (staleness check)
+ * GET /api/orders/:orderNumber/qb-invoice/check-updates
+ */
+export const checkInvoiceUpdates = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    const result = await qbInvoiceService.checkInvoiceStaleness(orderId);
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error checking invoice updates:', error);
+    const message = error instanceof Error ? error.message : 'Failed to check invoice updates';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+// =============================================
+// PAYMENT OPERATIONS
+// =============================================
+
+/**
+ * Record payment against invoice
+ * POST /api/orders/:orderNumber/qb-payment
+ */
+export const recordPayment = async (req: Request, res: Response) => {
+  try {
+    const user = (req as AuthRequest).user;
+    const { orderNumber } = req.params;
+    const paymentData = req.body as RecordPaymentRequest;
+
+    if (!user) {
+      return sendErrorResponse(res, 'User not authenticated', 'UNAUTHORIZED');
+    }
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    // Validate required fields
+    if (!paymentData.amount || paymentData.amount <= 0) {
+      return sendErrorResponse(res, 'Valid amount is required', 'VALIDATION_ERROR');
+    }
+    if (!paymentData.paymentDate) {
+      return sendErrorResponse(res, 'Payment date is required', 'VALIDATION_ERROR');
+    }
+
+    const result = await qbInvoiceService.recordPayment(
+      orderId,
+      {
+        amount: paymentData.amount,
+        paymentDate: paymentData.paymentDate,
+        paymentMethod: paymentData.paymentMethod,
+        referenceNumber: paymentData.referenceNumber,
+        memo: paymentData.memo
+      },
+      user.user_id
+    );
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error recording payment:', error);
+    const message = error instanceof Error ? error.message : 'Failed to record payment';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+// =============================================
+// EMAIL OPERATIONS
+// =============================================
+
+/**
+ * Send invoice email immediately
+ * POST /api/orders/:orderNumber/invoice-email/send
+ */
+export const sendInvoiceEmail = async (req: Request, res: Response) => {
+  try {
+    const user = (req as AuthRequest).user;
+    const { orderNumber } = req.params;
+    const emailData = req.body as SendEmailRequest;
+
+    if (!user) {
+      return sendErrorResponse(res, 'User not authenticated', 'UNAUTHORIZED');
+    }
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    // Validate required fields
+    if (!emailData.recipientEmails || emailData.recipientEmails.length === 0) {
+      return sendErrorResponse(res, 'At least one recipient is required', 'VALIDATION_ERROR');
+    }
+    if (!emailData.subject) {
+      return sendErrorResponse(res, 'Subject is required', 'VALIDATION_ERROR');
+    }
+    if (!emailData.body) {
+      return sendErrorResponse(res, 'Email body is required', 'VALIDATION_ERROR');
+    }
+
+    const result = await invoiceEmailService.sendInvoiceEmail(
+      orderId,
+      emailData.recipientEmails,
+      emailData.ccEmails || [],
+      emailData.subject,
+      emailData.body,
+      user.user_id
+    );
+
+    res.json({
+      success: result.success,
+      data: result.success ? { messageId: result.messageId } : null,
+      message: result.success ? 'Email sent successfully' : result.error
+    });
+  } catch (error) {
+    console.error('Error sending invoice email:', error);
+    const message = error instanceof Error ? error.message : 'Failed to send email';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Schedule invoice email for later
+ * POST /api/orders/:orderNumber/invoice-email/schedule
+ */
+export const scheduleInvoiceEmail = async (req: Request, res: Response) => {
+  try {
+    const user = (req as AuthRequest).user;
+    const { orderNumber } = req.params;
+    const emailData = req.body as ScheduleEmailRequest;
+
+    if (!user) {
+      return sendErrorResponse(res, 'User not authenticated', 'UNAUTHORIZED');
+    }
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    // Validate required fields
+    if (!emailData.recipientEmails || emailData.recipientEmails.length === 0) {
+      return sendErrorResponse(res, 'At least one recipient is required', 'VALIDATION_ERROR');
+    }
+    if (!emailData.scheduledFor) {
+      return sendErrorResponse(res, 'Scheduled time is required', 'VALIDATION_ERROR');
+    }
+
+    const scheduledFor = new Date(emailData.scheduledFor);
+    if (scheduledFor <= new Date()) {
+      return sendErrorResponse(res, 'Scheduled time must be in the future', 'VALIDATION_ERROR');
+    }
+
+    const result = await invoiceEmailService.scheduleInvoiceEmail(
+      orderId,
+      emailData.recipientEmails,
+      emailData.ccEmails,
+      emailData.subject,
+      emailData.body,
+      scheduledFor,
+      'full_invoice', // Default type
+      user.user_id
+    );
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error scheduling invoice email:', error);
+    const message = error instanceof Error ? error.message : 'Failed to schedule email';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Get scheduled email for order
+ * GET /api/orders/:orderNumber/invoice-email/scheduled
+ */
+export const getScheduledEmail = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    const scheduledEmail = await invoiceEmailService.getScheduledEmailForOrder(orderId);
+
+    res.json({
+      success: true,
+      data: scheduledEmail
+    });
+  } catch (error) {
+    console.error('Error getting scheduled email:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get scheduled email';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Update scheduled email
+ * PUT /api/orders/:orderNumber/invoice-email/scheduled/:id
+ */
+export const updateScheduledEmailHandler = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body as UpdateScheduledEmailRequest;
+
+    const updateData: any = {};
+    if (updates.subject !== undefined) updateData.subject = updates.subject;
+    if (updates.body !== undefined) updateData.body = updates.body;
+    if (updates.scheduledFor !== undefined) updateData.scheduledFor = new Date(updates.scheduledFor);
+    if (updates.recipientEmails !== undefined) updateData.recipientEmails = updates.recipientEmails;
+    if (updates.ccEmails !== undefined) updateData.ccEmails = updates.ccEmails;
+
+    await invoiceEmailService.updateScheduledEmail(parseInt(id, 10), updateData);
+
+    res.json({
+      success: true,
+      message: 'Scheduled email updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating scheduled email:', error);
+    const message = error instanceof Error ? error.message : 'Failed to update scheduled email';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Cancel scheduled email
+ * DELETE /api/orders/:orderNumber/invoice-email/scheduled/:id
+ */
+export const cancelScheduledEmailHandler = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    await invoiceEmailService.cancelScheduledEmail(parseInt(id, 10));
+
+    res.json({
+      success: true,
+      message: 'Scheduled email cancelled'
+    });
+  } catch (error) {
+    console.error('Error cancelling scheduled email:', error);
+    const message = error instanceof Error ? error.message : 'Failed to cancel scheduled email';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Get email template
+ * GET /api/email-templates/:templateKey
+ */
+export const getEmailTemplateHandler = async (req: Request, res: Response) => {
+  try {
+    const { templateKey } = req.params;
+
+    const template = await qbInvoiceRepo.getEmailTemplate(templateKey);
+    if (!template) {
+      return sendErrorResponse(res, 'Template not found', 'NOT_FOUND');
+    }
+
+    res.json({
+      success: true,
+      data: template
+    });
+  } catch (error) {
+    console.error('Error getting email template:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get template';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Get email preview with variables substituted
+ * GET /api/orders/:orderNumber/invoice-email/preview/:templateKey
+ */
+export const getEmailPreview = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber, templateKey } = req.params;
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    const preview = await invoiceEmailService.getEmailPreview(
+      orderId,
+      templateKey as any
+    );
+
+    res.json({
+      success: true,
+      data: preview
+    });
+  } catch (error) {
+    console.error('Error getting email preview:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get preview';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};

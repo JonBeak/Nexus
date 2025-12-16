@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Printer, FolderOpen, Settings, CheckCircle, FileCheck } from 'lucide-react';
 import { Order } from '../../../../types/orders';
 import StatusBadge from '../../common/StatusBadge';
+import InvoiceButton, { InvoiceAction } from './InvoiceButton';
 
 interface OrderHeaderProps {
   order: Order;
@@ -16,6 +17,7 @@ interface OrderHeaderProps {
   onCustomerApproved: () => void;  // NEW: Customer approved transition
   onFilesCreated: () => void;  // NEW: Files created transition
   onApproveFilesAndPrint: () => void;  // NEW: Approve files and print
+  onInvoiceAction: (action: InvoiceAction) => void;  // Phase 2.e: Invoice actions
   generatingForms: boolean;
   printingForm: boolean;
 }
@@ -32,6 +34,7 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
   onCustomerApproved,
   onFilesCreated,
   onApproveFilesAndPrint,
+  onInvoiceAction,
   generatingForms,
   printingForm
 }) => {
@@ -167,6 +170,15 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
                 <Printer className="w-4 h-4" />
                 <span>{printingForm ? 'Printing...' : 'Print Forms'}</span>
               </button>
+            )}
+
+            {/* Invoice Button - Show after customer approval (Phase 2.e) */}
+            {!['job_details_setup', 'pending_confirmation'].includes(order.status) && (
+              <InvoiceButton
+                order={order}
+                onAction={onInvoiceAction}
+                disabled={generatingForms || printingForm}
+              />
             )}
           </div>
         </div>

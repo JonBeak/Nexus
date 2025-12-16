@@ -54,10 +54,21 @@ export const TaskChecklistItem: React.FC<Props> = ({
   const canViewCustomer = ROLES_WITH_CUSTOMER_VIEW.includes(userRole);
 
   const handleStartToggle = () => {
-    onUpdate(task.task_id, 'started', !isStarted, originalStarted, originalCompleted);
+    if (isCompleted) {
+      // Already complete - do nothing (use complete button to uncomplete)
+      return;
+    }
+    if (isStarted) {
+      // Started but not complete -> mark as complete
+      onUpdate(task.task_id, 'completed', true, originalStarted, originalCompleted);
+    } else {
+      // Not started -> mark as started
+      onUpdate(task.task_id, 'started', true, originalStarted, originalCompleted);
+    }
   };
 
   const handleCompleteToggle = () => {
+    // Complete button toggles completion state
     onUpdate(task.task_id, 'completed', !isCompleted, originalStarted, originalCompleted);
   };
 

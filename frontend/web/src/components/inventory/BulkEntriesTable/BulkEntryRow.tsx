@@ -4,6 +4,7 @@ import { BulkEntry } from '../../../hooks/useBulkEntries';
 import { JobSuggestion, VinylItem, VinylAutofillSuggestions } from '../types';
 import { AutofillComboBox } from '../../common/AutofillComboBox';
 import { VinylProductSelector } from './VinylProductSelector';
+import { TypeButtonGroup } from './TypeButtonGroup';
 import {
   USE_AUTOFILL_TYPES,
   getNotePlaceholder,
@@ -66,20 +67,12 @@ export const BulkEntryRow: React.FC<BulkEntryRowProps> = ({
     <tr className={`hover:bg-gray-50 ${rowBgColor}`}>
       {/* Type Field */}
       <td className="px-2 py-1 whitespace-nowrap">
-        <select
-          value={entry.type}
-          onChange={(e) => onUpdateEntry({ type: e.target.value as BulkEntry['type'] })}
-          data-field={`${entry.id}-type`}
-          onKeyDown={(e) => e.key === 'Tab' && !e.shiftKey && (e.preventDefault(), onTabPress('type'))}
-          className={`w-32 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-500 ${!entry.type ? 'text-gray-400' : ''}`}
-        >
-          <option value="">Select</option>
-          <option value="store">Store (In Stock)</option>
-          <option value="use">Use</option>
-          <option value="waste">Waste</option>
-          <option value="returned">Returned</option>
-          <option value="damaged">Damaged</option>
-        </select>
+        <TypeButtonGroup
+          selectedType={entry.type}
+          onTypeChange={(type) => onUpdateEntry({ type })}
+          variant="row"
+          disabled={entry.submissionState === 'submitting'}
+        />
       </td>
 
       {/* Vinyl Product Field */}

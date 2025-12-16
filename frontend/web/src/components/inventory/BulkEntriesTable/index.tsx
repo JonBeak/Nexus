@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { BulkEntry } from '../../../hooks/useBulkEntries';
 import { JobSuggestion, VinylItem, VinylAutofillSuggestions } from '../types';
 import { BulkEntryHeader } from './BulkEntryHeader';
@@ -53,6 +53,15 @@ export const BulkEntriesTable: React.FC<BulkEntriesTableProps> = ({
     addNewBulkEntry
   });
 
+  // Handler to apply type to all non-submitting rows
+  const handleBulkTypeChange = useCallback((type: BulkEntry['type']) => {
+    bulkEntries.forEach(entry => {
+      if (entry.submissionState !== 'submitting' && entry.submissionState !== 'success') {
+        updateBulkEntry(entry.id, { type });
+      }
+    });
+  }, [bulkEntries, updateBulkEntry]);
+
   return (
     <div className="space-y-4">
       {/* Auto-save indicator */}
@@ -73,7 +82,7 @@ export const BulkEntriesTable: React.FC<BulkEntriesTableProps> = ({
         <div className="overflow-x-auto">
           <div className="inline-block min-w-full align-middle">
             <table className="w-full divide-y divide-gray-200 text-sm" style={{ minWidth: '1200px' }}>
-              <BulkEntryHeader />
+              <BulkEntryHeader onBulkTypeChange={handleBulkTypeChange} />
 
               <tbody className="bg-white divide-y divide-gray-200">
                 {bulkEntries.map((entry) => (

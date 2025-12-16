@@ -245,7 +245,12 @@ Check backend logs for detailed comparison!`);
                   >
                     🔐 Accounts
                   </button>
-                  <div></div>
+                  <button
+                    onClick={() => navigate('/settings')}
+                    className="px-3 py-3 bg-gray-500 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors text-left"
+                  >
+                    ⚙️ Settings
+                  </button>
                 </div>
               </div>
             </div>
@@ -480,6 +485,21 @@ Check backend logs for detailed comparison!`);
                       <div>
                         <h4 className="font-bold text-white text-lg">User Accounts</h4>
                         <p className="text-indigo-100">Manage user accounts & settings</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => navigate('/settings')}
+                    className="group p-6 bg-gray-600 hover:bg-gray-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
+                        <span className="text-gray-600 text-2xl">⚙️</span>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-white text-lg">Settings</h4>
+                        <p className="text-gray-100">System configuration</p>
                       </div>
                     </div>
                   </button>

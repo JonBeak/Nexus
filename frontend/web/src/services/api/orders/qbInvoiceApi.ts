@@ -1,0 +1,219 @@
+import { api } from '../../apiClient';
+
+/**
+ * QB Invoice API - QuickBooks Invoice Operations
+ * Handles invoice creation, updates, payments, and email operations
+ */
+
+export interface InvoiceDetails {
+  qbInvoiceId: string;
+  docNumber: string;
+  invoiceUrl: string;
+  total: number;
+  balance: number;
+  customerName: string;
+  txnDate: string;
+  dueDate: string;
+  status: string;
+  syncedAt: string;
+}
+
+export interface InvoiceStalenessResult {
+  exists: boolean;
+  isStale: boolean;
+  currentHash: string | null;
+  storedHash: string | null;
+}
+
+export interface PaymentInput {
+  amount: number;
+  paymentDate: string;
+  paymentMethod: string;
+  referenceNumber?: string;
+  memo?: string;
+}
+
+export interface PaymentResult {
+  paymentId: string;
+  newBalance: number;
+}
+
+export interface EmailInput {
+  recipients: string[];
+  cc?: string[];
+  subject: string;
+  body: string;
+  templateKey: string;
+  attachPdf?: boolean;
+}
+
+export interface ScheduledEmailInput extends EmailInput {
+  scheduledFor: string;
+}
+
+export interface ScheduledEmail {
+  id: number;
+  orderId: number;
+  emailType: string;
+  recipientEmails: string[];
+  ccEmails: string[] | null;
+  subject: string;
+  body: string;
+  scheduledFor: string;
+  status: 'pending' | 'sent' | 'cancelled' | 'failed';
+  sentAt: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
+export interface EmailPreview {
+  subject: string;
+  body: string;
+  variables: Record<string, string>;
+}
+
+export const qbInvoiceApi = {
+  // ========================================
+  // Invoice Operations
+  // ========================================
+
+  /**
+   * Create a new invoice in QuickBooks from order data
+   */
+  async createInvoice(orderNumber: number): Promise<{
+    invoiceId: string;
+    invoiceNumber: string;
+    invoiceUrl: string;
+    dataHash: string;
+  }> {
+    const response = await api.post(`/orders/${orderNumber}/qb-invoice`);
+    return response.data;
+  },
+
+  /**
+   * Update an existing invoice in QuickBooks with current order data
+   */
+  async updateInvoice(orderNumber: number): Promise<{
+    invoiceId: string;
+    invoiceNumber: string;
+    invoiceUrl: string;
+    dataHash: string;
+  }> {
+    const response = await api.put(`/orders/${orderNumber}/qb-invoice`);
+    return response.data;
+  },
+
+  /**
+   * Get invoice details including current balance from QuickBooks
+   */
+  async getInvoice(orderNumber: number): Promise<InvoiceDetails> {
+    const response = await api.get(`/orders/${orderNumber}/qb-invoice`);
+    return response.data;
+  },
+
+  /**
+   * Link an existing QuickBooks invoice to this order
+   */
+  async linkInvoice(orderNumber: number, data: {
+    qbInvoiceId?: string;
+    docNumber?: string;
+  }): Promise<{
+    invoiceId: string;
+    invoiceNumber: string;
+    invoiceUrl: string;
+  }> {
+    const response = await api.post(`/orders/${orderNumber}/qb-invoice/link`, data);
+    return response.data;
+  },
+
+  /**
+   * Check if the invoice is stale (order data changed since last sync)
+   */
+  async checkUpdates(orderNumber: number): Promise<InvoiceStalenessResult> {
+    const response = await api.get(`/orders/${orderNumber}/qb-invoice/check-updates`);
+    return response.data;
+  },
+
+  // ========================================
+  // Payment Operations
+  // ========================================
+
+  /**
+   * Record a payment against the invoice in QuickBooks
+   * Returns the new balance after payment
+   */
+  async recordPayment(orderNumber: number, data: PaymentInput): Promise<PaymentResult> {
+    const response = await api.post(`/orders/${orderNumber}/qb-payment`, data);
+    return response.data;
+  },
+
+  // ========================================
+  // Email Operations
+  // ========================================
+
+  /**
+   * Send invoice email immediately
+   */
+  async sendEmail(orderNumber: number, data: EmailInput): Promise<{ success: boolean }> {
+    const response = await api.post(`/orders/${orderNumber}/invoice-email/send`, data);
+    return response.data;
+  },
+
+  /**
+   * Schedule invoice email for later delivery
+   */
+  async scheduleEmail(orderNumber: number, data: ScheduledEmailInput): Promise<{
+    scheduledEmailId: number;
+  }> {
+    const response = await api.post(`/orders/${orderNumber}/invoice-email/schedule`, data);
+    return response.data;
+  },
+
+  /**
+   * Get pending scheduled email for this order (if any)
+   */
+  async getScheduledEmail(orderNumber: number): Promise<ScheduledEmail | null> {
+    const response = await api.get(`/orders/${orderNumber}/invoice-email/scheduled`);
+    return response.data;
+  },
+
+  /**
+   * Update a scheduled email
+   */
+  async updateScheduledEmail(orderNumber: number, id: number, data: Partial<ScheduledEmailInput>): Promise<void> {
+    await api.put(`/orders/${orderNumber}/invoice-email/scheduled/${id}`, data);
+  },
+
+  /**
+   * Cancel a scheduled email
+   */
+  async cancelScheduledEmail(orderNumber: number, id: number): Promise<void> {
+    await api.delete(`/orders/${orderNumber}/invoice-email/scheduled/${id}`);
+  },
+
+  /**
+   * Get email preview with template variables populated
+   */
+  async getEmailPreview(orderNumber: number, templateKey: string): Promise<EmailPreview> {
+    const response = await api.get(`/orders/${orderNumber}/invoice-email/preview/${templateKey}`);
+    return response.data;
+  },
+
+  // ========================================
+  // Templates
+  // ========================================
+
+  /**
+   * Get email template by key
+   */
+  async getEmailTemplate(templateKey: string): Promise<{
+    templateKey: string;
+    templateName: string;
+    subject: string;
+    body: string;
+    variables: string[];
+  }> {
+    const response = await api.get(`/orders/email-templates/${templateKey}`);
+    return response.data;
+  },
+};

@@ -51,3 +51,13 @@ export {
   timeNotificationsApi,
   timeCalendarApi
 } from './time';
+
+// Phase 3 - Settings & Templates UI
+export { settingsApi } from './settings';
+export type {
+  SpecificationCategory,
+  SpecificationOption,
+  SettingsCategory,
+  TaskDefinition,
+  ProductionRole
+} from './settings';

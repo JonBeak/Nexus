@@ -27,6 +27,15 @@ export interface Order {
   discount?: number;             // Auto-filled from customer discount, editable per order
   tax_name?: string;             // Auto-filled from billing address province tax, editable per order
   original_tax_name?: string;    // Saved tax_name before cash job override - restored when cash job unchecked
+
+  // QB Invoice Fields (Phase 2.e)
+  qb_invoice_id?: string | null;
+  qb_invoice_doc_number?: string | null;
+  qb_invoice_url?: string | null;
+  qb_invoice_synced_at?: string | null;
+  qb_invoice_data_hash?: string | null;
+  invoice_sent_at?: string | null;
+
   sign_image_path?: string;
   crop_top?: number;             // Pixels to crop from top edge (auto-crop feature)
   crop_right?: number;           // Pixels to crop from right edge (auto-crop feature)

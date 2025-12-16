@@ -35,10 +35,12 @@ export const useBulkEntries = () => {
   }, [currentUserId]);
 
   // Helper to create a default entry shell
-  function createDefaultEntry(offset = 0, idOverride?: string): BulkEntry {
+  // First 5 rows default to 'store', last 5 default to 'use'
+  function createDefaultEntry(index = 0, idOverride?: string): BulkEntry {
+    const defaultType = index < 5 ? 'store' : 'use';
     return {
-      id: idOverride ?? (Date.now() + offset).toString(),
-      type: '',
+      id: idOverride ?? (Date.now() + index).toString(),
+      type: defaultType,
       brand: '',
       series: '',
       colour_number: '',
@@ -85,7 +87,7 @@ export const useBulkEntries = () => {
               // Validate entries have required structure
               const validatedEntries = entries.map(entry => ({
                 id: entry.id || Date.now().toString(),
-                type: entry.type || '',
+                type: entry.type || 'use',
                 brand: entry.brand || '',
                 series: entry.series || '',
                 colour_number: entry.colour_number || '',
