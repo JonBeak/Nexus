@@ -165,7 +165,63 @@ export const linkInvoice = async (req: Request, res: Response) => {
 };
 
 /**
- * Check if invoice needs update (staleness check)
+ * Search for a QB invoice (for preview before linking)
+ * GET /api/qb-invoices/search?query=xxx&type=docNumber|id
+ */
+export const searchInvoice = async (req: Request, res: Response) => {
+  try {
+    const { query: searchValue, type: searchType } = req.query;
+
+    if (!searchValue || typeof searchValue !== 'string') {
+      return sendErrorResponse(res, 'Search query is required', 'VALIDATION_ERROR');
+    }
+
+    const validTypes = ['docNumber', 'id'];
+    const resolvedType = validTypes.includes(searchType as string) ? (searchType as 'docNumber' | 'id') : 'docNumber';
+
+    const result = await qbInvoiceService.searchInvoice(searchValue, resolvedType);
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error searching invoice:', error);
+    const message = error instanceof Error ? error.message : 'Failed to search invoice';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * List all QB invoices for the customer associated with an order
+ * GET /api/orders/:orderNumber/customer-invoices?page=1&pageSize=10
+ */
+export const listCustomerInvoices = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const page = parseInt(req.query.page as string) || 1;
+    const pageSize = parseInt(req.query.pageSize as string) || 10;
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    const result = await qbInvoiceService.listCustomerInvoicesForLinking(orderId, page, pageSize);
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error listing customer invoices:', error);
+    const message = error instanceof Error ? error.message : 'Failed to list customer invoices';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Check if invoice needs update (staleness check - local only, fast)
  * GET /api/orders/:orderNumber/qb-invoice/check-updates
  */
 export const checkInvoiceUpdates = async (req: Request, res: Response) => {
@@ -186,6 +242,86 @@ export const checkInvoiceUpdates = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error checking invoice updates:', error);
     const message = error instanceof Error ? error.message : 'Failed to check invoice updates';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+// =============================================
+// PHASE 2: BI-DIRECTIONAL SYNC
+// =============================================
+
+/**
+ * Deep comparison with QuickBooks (fetches current QB invoice)
+ * GET /api/orders/:orderNumber/qb-invoice/compare
+ *
+ * Returns full sync status including QB-side changes
+ */
+export const compareInvoice = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    // Import comparison service
+    const { checkFullSyncStatus } = await import('../services/qbInvoiceComparisonService');
+    const result = await checkFullSyncStatus(orderId);
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error comparing invoice:', error);
+    const message = error instanceof Error ? error.message : 'Failed to compare invoice';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Resolve sync conflict
+ * POST /api/orders/:orderNumber/qb-invoice/resolve-conflict
+ *
+ * Body: { resolution: 'use_local' | 'use_qb' | 'keep_both' }
+ */
+export const resolveInvoiceConflict = async (req: Request, res: Response) => {
+  try {
+    const user = (req as AuthRequest).user;
+    const { orderNumber } = req.params;
+    const { resolution } = req.body;
+
+    if (!user) {
+      return sendErrorResponse(res, 'User not authenticated', 'UNAUTHORIZED');
+    }
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    // Validate resolution type
+    const validResolutions = ['use_local', 'use_qb', 'keep_both'];
+    if (!resolution || !validResolutions.includes(resolution)) {
+      return sendErrorResponse(
+        res,
+        'Invalid resolution. Must be one of: use_local, use_qb, keep_both',
+        'VALIDATION_ERROR'
+      );
+    }
+
+    // Import and call resolution service
+    const { resolveConflict } = await import('../services/qbInvoiceComparisonService');
+    const result = await resolveConflict(orderId, resolution, user.user_id);
+
+    res.json({
+      success: result.success,
+      message: result.message
+    });
+  } catch (error) {
+    console.error('Error resolving invoice conflict:', error);
+    const message = error instanceof Error ? error.message : 'Failed to resolve conflict';
     return sendErrorResponse(res, message, 'INTERNAL_ERROR');
   }
 };

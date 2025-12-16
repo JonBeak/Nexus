@@ -61,3 +61,17 @@ export type {
   TaskDefinition,
   ProductionRole
 } from './settings';
+
+// Invoices Listing Page
+export { invoicesApi } from './invoicesApi';
+export type {
+  InvoiceListingOrder,
+  InvoiceFilters,
+  InvoiceListingResponse,
+  InvoiceAnalytics,
+  BalanceSyncResult,
+  BatchBalanceSyncResult
+} from './invoicesApi';
+
+// Dashboard Panels (Customizable Orders Dashboard)
+export { dashboardPanelsApi } from './dashboardPanelsApi';

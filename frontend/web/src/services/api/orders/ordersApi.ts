@@ -101,6 +101,18 @@ export const ordersApi = {
   },
 
   /**
+   * Update order accounting emails
+   */
+  async updateOrderAccountingEmails(orderNumber: number, accountingEmails: Array<{
+    email: string;
+    email_type: 'to' | 'cc' | 'bcc';
+    label?: string;
+    saveToDatabase?: boolean;
+  }>): Promise<void> {
+    await api.put(`/orders/${orderNumber}/accounting-emails`, { accountingEmails });
+  },
+
+  /**
    * Get order by estimate ID
    */
   async getOrderByEstimate(estimateId: number): Promise<{ order_id: number; order_number: number } | null> {

@@ -25,6 +25,45 @@ export interface InvoiceStalenessResult {
   storedHash: string | null;
 }
 
+// Phase 2: Bi-directional sync types
+export type InvoiceSyncStatus = 'in_sync' | 'local_stale' | 'qb_modified' | 'conflict' | 'not_found' | 'error';
+export type ConflictResolution = 'use_local' | 'use_qb' | 'keep_both';
+
+export interface InvoiceDifference {
+  type: 'added' | 'removed' | 'modified';
+  lineNumber: number;
+  field: 'description' | 'quantity' | 'unitPrice' | 'amount' | 'item';
+  localValue?: string | number;
+  qbValue?: string | number;
+}
+
+export interface InvoiceSyncResult {
+  status: InvoiceSyncStatus;
+  localChanged: boolean;
+  qbChanged: boolean;
+
+  // Timestamps
+  localSyncedAt: string | null;
+  qbLastUpdatedAt: string | null;
+
+  // Hash details
+  localDataHash: string | null;
+  storedDataHash: string | null;
+  qbContentHash: string | null;
+  storedContentHash: string | null;
+
+  // QB invoice info
+  qbInvoiceId: string | null;
+  qbInvoiceNumber: string | null;
+  qbSyncToken: string | null;
+
+  // Differences (if qbChanged or conflict)
+  differences?: InvoiceDifference[];
+
+  // Error info
+  errorMessage?: string;
+}
+
 export interface PaymentInput {
   amount: number;
   paymentDate: string;
@@ -128,9 +167,38 @@ export const qbInvoiceApi = {
 
   /**
    * Check if the invoice is stale (order data changed since last sync)
+   * This is a fast local-only check.
    */
   async checkUpdates(orderNumber: number): Promise<InvoiceStalenessResult> {
     const response = await api.get(`/orders/${orderNumber}/qb-invoice/check-updates`);
+    return response.data;
+  },
+
+  // ========================================
+  // Phase 2: Bi-directional Sync
+  // ========================================
+
+  /**
+   * Deep comparison with QuickBooks (Phase 2)
+   * Fetches current QB invoice and compares with local data.
+   * Detects both local changes AND QB-side modifications.
+   */
+  async compareWithQB(orderNumber: number): Promise<InvoiceSyncResult> {
+    const response = await api.get(`/orders/${orderNumber}/qb-invoice/compare`);
+    return response.data.data;
+  },
+
+  /**
+   * Resolve a sync conflict (Phase 2)
+   * @param resolution - 'use_local' to push local data to QB,
+   *                     'use_qb' to accept QB version,
+   *                     'keep_both' to acknowledge without changes
+   */
+  async resolveConflict(orderNumber: number, resolution: ConflictResolution): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    const response = await api.post(`/orders/${orderNumber}/qb-invoice/resolve-conflict`, { resolution });
     return response.data;
   },
 
@@ -250,4 +318,61 @@ export const qbInvoiceApi = {
     const response = await api.get(`/orders/email-templates/${templateKey}`);
     return response.data;
   },
+
+  // ========================================
+  // Invoice Search (for linking)
+  // ========================================
+
+  /**
+   * Search for a QB invoice by doc number or ID (for preview before linking)
+   */
+  async searchInvoice(searchValue: string, searchType: 'docNumber' | 'id'): Promise<InvoiceSearchResult> {
+    const response = await api.get('/invoices/search', {
+      params: { query: searchValue, type: searchType }
+    });
+    return response.data;
+  },
+
+  /**
+   * List all QB invoices for the customer associated with an order
+   * Returns open invoices first, then closed, excluding already-linked invoices
+   */
+  async listCustomerInvoices(orderNumber: number, page: number = 1, pageSize: number = 10): Promise<CustomerInvoiceListResult> {
+    const response = await api.get(`/orders/${orderNumber}/customer-invoices`, {
+      params: { page, pageSize }
+    });
+    return response.data;
+  },
 };
+
+// Search result interface
+export interface InvoiceSearchResult {
+  found: boolean;
+  invoiceId: string | null;
+  docNumber: string | null;
+  customerName: string | null;
+  total: number | null;
+  balance: number | null;
+  txnDate: string | null;
+  alreadyLinked: boolean;
+  linkedOrderNumber: number | null;
+}
+
+// Customer invoice list interfaces
+export interface CustomerInvoiceListItem {
+  invoiceId: string;
+  docNumber: string;
+  customerName: string | null;
+  total: number;
+  balance: number;
+  txnDate: string | null;
+  isOpen: boolean;
+}
+
+export interface CustomerInvoiceListResult {
+  invoices: CustomerInvoiceListItem[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}

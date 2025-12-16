@@ -226,12 +226,6 @@ export async function getEmailPreview(
   templateKey: EmailType,
   customMessage?: string
 ): Promise<EmailPreview> {
-  // Get template
-  const template = await qbInvoiceRepo.getEmailTemplate(templateKey);
-  if (!template) {
-    throw new Error(`Email template "${templateKey}" not found`);
-  }
-
   // Get order data for variables
   const order = await orderPrepRepo.getOrderDataForQBEstimate(orderId);
   if (!order) {
@@ -240,6 +234,31 @@ export async function getEmailPreview(
 
   // Get invoice data - use fresh data from QB if invoice exists
   const invoiceRecord = await qbInvoiceRepo.getOrderInvoiceRecord(orderId);
+
+  // Determine actual template to use based on deposit payment status
+  let effectiveTemplateKey = templateKey;
+
+  // If deposit_request template requested, verify deposit hasn't been paid
+  if (templateKey === 'deposit_request' && invoiceRecord?.qb_invoice_id) {
+    try {
+      const qbInvoiceService = await import('./qbInvoiceService');
+      const details = await qbInvoiceService.getInvoiceDetails(orderId);
+      // If balance < total, some payment was made - use full_invoice instead
+      if (details.balance !== null && details.total !== null && details.balance < details.total) {
+        effectiveTemplateKey = 'full_invoice';
+        console.log(`Deposit paid for order ${orderId}, switching to full_invoice template`);
+      }
+    } catch (err) {
+      // If we can't check, use the requested template
+      console.warn('Failed to check deposit status, using requested template:', err);
+    }
+  }
+
+  // Get template
+  const template = await qbInvoiceRepo.getEmailTemplate(effectiveTemplateKey);
+  if (!template) {
+    throw new Error(`Email template "${effectiveTemplateKey}" not found`);
+  }
 
   // Try to get fresh payment link and invoice details from QB if invoice exists
   let qbInvoiceUrl = invoiceRecord?.qb_invoice_url || '#';
@@ -313,12 +332,19 @@ export async function getEmailPreview(
   }
   const subjectSuffix = subjectParts.length > 0 ? ` | ${subjectParts.join(' | ')}` : '';
 
+  // Calculate deposit amount (50% of invoice total) for deposit_request template
+  const invoiceTotalNum = parseFloat(invoiceTotal) || 0;
+  const depositAmount = effectiveTemplateKey === 'deposit_request'
+    ? `$${(invoiceTotalNum * 0.5).toFixed(2)}`
+    : undefined;
+
   // Build variables
   const variables: TemplateVariables = {
     orderNumber: String(order.order_number),
     orderName: order.order_name || `Order #${order.order_number}`,
     customerName: order.customer_name,
     invoiceTotal,
+    depositAmount,
     dueDateLine,
     balanceLine,
     qbInvoiceUrl,
@@ -328,8 +354,13 @@ export async function getEmailPreview(
   };
 
   // Replace variables in subject and body
-  const subject = replaceVariables(template.subject, variables);
+  let subject = replaceVariables(template.subject, variables);
   const body = replaceVariables(template.body, variables);
+
+  // Add [Deposit Required] prefix for deposit emails (only if deposit not yet paid)
+  if (effectiveTemplateKey === 'deposit_request' && !subject.startsWith('[Deposit Required]')) {
+    subject = `[Deposit Required] ${subject}`;
+  }
 
   return {
     subject,

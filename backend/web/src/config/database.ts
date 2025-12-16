@@ -35,7 +35,7 @@ const SLOW_QUERY_THRESHOLD_MS = 1000; // Log queries taking longer than 1 second
 const POOL_HEALTH_CHECK_INTERVAL_MS = 60000; // Check pool health every 60 seconds
 
 /**
- * Centralized database query helper function
+ * Centralized database query helper function using prepared statements
  *
  * Benefits:
  * - Automatic destructuring of [rows, fields] tuple
@@ -56,6 +56,62 @@ export const query = async (sql: string, params: any[] = []): Promise<any> => {
 
   try {
     const [rows] = await pool.execute(sql, params);
+    const duration = Date.now() - startTime;
+
+    // Performance monitoring - log slow queries
+    if (duration > SLOW_QUERY_THRESHOLD_MS) {
+      console.warn('⚠️  Slow query detected:', {
+        duration: `${duration}ms`,
+        sql: sql.substring(0, 200),
+        threshold: `${SLOW_QUERY_THRESHOLD_MS}ms`
+      });
+    }
+
+    return rows;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+
+    // Log error with SQL context (sanitize params to avoid logging sensitive data)
+    const sanitizedParams = params.map(param => {
+      // Don't log potential passwords, tokens, or sensitive strings
+      if (typeof param === 'string' && param.length > 20) {
+        return '[REDACTED]';
+      }
+      return param;
+    });
+
+    console.error('❌ Database query error:', {
+      error: error instanceof Error ? error.message : error,
+      sql: sql.substring(0, 200), // Limit SQL length in logs
+      params: sanitizedParams,
+      duration: `${duration}ms`
+    });
+    throw error;
+  }
+};
+
+/**
+ * Query helper for dynamic SQL where prepared statements may not work well
+ *
+ * Use this when the SQL structure varies dynamically (different number of placeholders
+ * based on runtime conditions). Unlike query() which uses pool.execute() with prepared
+ * statements, this uses pool.query() which doesn't have prepared statement caching issues.
+ *
+ * @param sql - SQL query string with ? placeholders
+ * @param params - Array of parameter values to bind to placeholders
+ * @returns Query result rows
+ *
+ * @example
+ * const orders = await queryDynamic(
+ *   `SELECT * FROM orders WHERE status IN (?, ?) LIMIT ?`,
+ *   ['pending', 'active', 10]
+ * ) as RowDataPacket[];
+ */
+export const queryDynamic = async (sql: string, params: any[] = []): Promise<any> => {
+  const startTime = Date.now();
+
+  try {
+    const [rows] = await pool.query(sql, params);
     const duration = Date.now() - startTime;
 
     // Performance monitoring - log slow queries

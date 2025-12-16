@@ -13,7 +13,8 @@ import {
   getQBInvoice,
   queryQBInvoiceByDocNumber,
   createQBPayment,
-  buildPaymentPayload
+  buildPaymentPayload,
+  queryAllInvoicesByCustomer
 } from '../utils/quickbooks/invoiceClient';
 import * as qbInvoiceRepo from '../repositories/qbInvoiceRepository';
 import * as orderPrepRepo from '../repositories/orderPreparationRepository';
@@ -32,6 +33,8 @@ import {
   QBLineItem
 } from '../types/qbInvoice';
 import { OrderDataForQBEstimate, OrderPartForQBEstimate } from '../types/orderPreparation';
+import * as invoiceListingRepo from '../repositories/invoiceListingRepository';
+import { updateQBInvoiceSnapshot } from './qbInvoiceComparisonService';
 
 // =============================================
 // STALENESS DETECTION
@@ -155,6 +158,12 @@ export async function createInvoiceFromOrder(
       qb_invoice_data_hash: dataHash
     });
 
+    // 12. Store QB invoice snapshot for bi-directional sync (Phase 2)
+    await updateQBInvoiceSnapshot(orderId, invoice);
+
+    // 13. Cache invoice balance and total
+    await invoiceListingRepo.updateCachedBalance(orderId, invoice.Balance, invoice.TotalAmt);
+
     console.log(`✅ QB invoice created: ${docNumber} (ID: ${invoiceId})`);
 
     return {
@@ -235,6 +244,13 @@ export async function updateInvoiceFromOrder(
       qb_invoice_data_hash: dataHash
     });
 
+    // 11. Fetch updated invoice to cache balance/total and store snapshot
+    const updatedInvoice = await getQBInvoice(invoiceId, realmId);
+    await invoiceListingRepo.updateCachedBalance(orderId, updatedInvoice.Balance, updatedInvoice.TotalAmt);
+
+    // 12. Store QB invoice snapshot for bi-directional sync (Phase 2)
+    await updateQBInvoiceSnapshot(orderId, updatedInvoice);
+
     console.log(`✅ QB invoice updated: ${docNumber}`);
 
     return {
@@ -294,6 +310,10 @@ export async function getInvoiceDetails(orderId: number): Promise<InvoiceDetails
         console.log(`🔗 Updated stored invoice URL to payment link: ${paymentLink}`);
       }
     }
+
+    // Always update cached balance when fetching fresh data from QB
+    // This keeps the order object as single source of truth for balance
+    await invoiceListingRepo.updateCachedBalance(orderId, qbInvoice.Balance, qbInvoice.TotalAmt);
 
     return {
       exists: true,
@@ -366,6 +386,12 @@ export async function linkExistingInvoice(
       qb_invoice_synced_at: new Date(),
       qb_invoice_data_hash: dataHash
     });
+
+    // 7. Store QB invoice snapshot for bi-directional sync (Phase 2)
+    await updateQBInvoiceSnapshot(orderId, qbInvoice);
+
+    // 8. Cache invoice balance and total
+    await invoiceListingRepo.updateCachedBalance(orderId, qbInvoice.Balance, qbInvoice.TotalAmt);
 
     console.log(`✅ Linked QB invoice ${qbInvoice.DocNumber} to order ${orderId}`);
 
@@ -465,23 +491,12 @@ async function buildInvoicePayload(
   const primaryEmail = pointPersons.length > 0 ? pointPersons[0].contact_email : null;
 
   // Build line items
+  // NOTE: Header row is now stored in order_parts (is_header_row=true, part_number=0)
+  // It's included in orderParts from the query (sorted by part_number), so we iterate all parts
+  // This ensures 1:1 mapping between order_parts and QB invoice lines
   const lineItems: QBLineItem[] = [];
 
-  // First line: Order info
-  let memoText = `Order #${orderData.order_number} - ${orderData.order_name}`;
-  if (orderData.customer_po?.trim()) {
-    memoText += `\nPO #: ${orderData.customer_po}`;
-  }
-  if (orderData.customer_job_number?.trim()) {
-    memoText += `\nJob #: ${orderData.customer_job_number}`;
-  }
-
-  lineItems.push({
-    DetailType: 'DescriptionOnly',
-    Description: memoText
-  });
-
-  // Order parts
+  // Order parts (includes header row as first item)
   for (const part of orderParts) {
     const hasDescription = part.qb_description?.trim();
     const hasNoQBItem = !part.qb_item_name?.trim();
@@ -545,4 +560,185 @@ export async function markInvoiceSent(orderId: number): Promise<void> {
   await qbInvoiceRepo.updateOrderInvoiceRecord(orderId, {
     invoice_sent_at: new Date()
   });
+}
+
+// =============================================
+// INVOICE SEARCH
+// =============================================
+
+export interface InvoiceSearchResult {
+  found: boolean;
+  invoiceId: string | null;
+  docNumber: string | null;
+  customerName: string | null;
+  total: number | null;
+  balance: number | null;
+  txnDate: string | null;
+  alreadyLinked: boolean;
+  linkedOrderNumber: number | null;
+}
+
+/**
+ * Search for a QB invoice by document number or ID (for preview before linking)
+ */
+export async function searchInvoice(
+  searchValue: string,
+  searchType: 'docNumber' | 'id'
+): Promise<InvoiceSearchResult> {
+  try {
+    // 1. Get realm ID
+    const realmId = await quickbooksRepository.getDefaultRealmId();
+    if (!realmId) {
+      throw new Error('QuickBooks realm ID not configured');
+    }
+
+    // 2. Look up invoice in QB
+    let qbInvoice: any = null;
+
+    if (searchType === 'id') {
+      qbInvoice = await getQBInvoice(searchValue, realmId).catch(() => null);
+    } else {
+      // Search by doc number
+      qbInvoice = await queryQBInvoiceByDocNumber(searchValue, realmId).catch(() => null);
+    }
+
+    if (!qbInvoice) {
+      return {
+        found: false,
+        invoiceId: null,
+        docNumber: null,
+        customerName: null,
+        total: null,
+        balance: null,
+        txnDate: null,
+        alreadyLinked: false,
+        linkedOrderNumber: null
+      };
+    }
+
+    // 3. Check if this invoice is already linked to an order
+    const linkedOrder = await qbInvoiceRepo.getOrderByQbInvoiceId(qbInvoice.Id);
+
+    return {
+      found: true,
+      invoiceId: qbInvoice.Id,
+      docNumber: qbInvoice.DocNumber,
+      customerName: qbInvoice.CustomerRef?.name || null,
+      total: qbInvoice.TotalAmt,
+      balance: qbInvoice.Balance,
+      txnDate: qbInvoice.TxnDate || null,
+      alreadyLinked: !!linkedOrder,
+      linkedOrderNumber: linkedOrder?.order_number || null
+    };
+  } catch (error) {
+    console.error('Error searching QB invoice:', error);
+    throw new Error('Failed to search invoice in QuickBooks');
+  }
+}
+
+// =============================================
+// CUSTOMER INVOICE LISTING
+// =============================================
+
+export interface CustomerInvoiceListItem {
+  invoiceId: string;
+  docNumber: string;
+  customerName: string | null;
+  total: number;
+  balance: number;
+  txnDate: string | null;
+  isOpen: boolean;
+}
+
+export interface CustomerInvoiceListResult {
+  invoices: CustomerInvoiceListItem[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+/**
+ * List all QB invoices for the customer associated with an order
+ * Returns open invoices first, then closed, excluding already-linked invoices
+ */
+export async function listCustomerInvoicesForLinking(
+  orderId: number,
+  page: number = 1,
+  pageSize: number = 10
+): Promise<CustomerInvoiceListResult> {
+  try {
+    // 1. Get realm ID
+    const realmId = await quickbooksRepository.getDefaultRealmId();
+    if (!realmId) {
+      throw new Error('QuickBooks realm ID not configured');
+    }
+
+    // 2. Get order data to find customer's QB ID
+    const orderData = await orderPrepRepo.getOrderDataForQBEstimate(orderId);
+    if (!orderData) {
+      throw new Error('Order not found');
+    }
+
+    if (!orderData.quickbooks_name) {
+      throw new Error('Customer does not have a QuickBooks name configured');
+    }
+
+    // 3. Resolve QB customer ID
+    const { resolveCustomerId } = await import('../utils/quickbooks/entityResolver');
+    const qbCustomerId = await resolveCustomerId(
+      orderData.customer_id,
+      orderData.quickbooks_name,
+      realmId
+    );
+
+    // 4. Query all invoices for this customer from QB
+    const qbInvoices = await queryAllInvoicesByCustomer(qbCustomerId, realmId);
+
+    // 5. Get list of invoice IDs already linked to orders (excluding current order)
+    const linkedInvoiceIds = await qbInvoiceRepo.getLinkedInvoiceIds(orderId);
+    const linkedSet = new Set(linkedInvoiceIds);
+
+    // 6. Filter out linked invoices and transform
+    const availableInvoices: CustomerInvoiceListItem[] = qbInvoices
+      .filter(inv => !linkedSet.has(inv.Id))
+      .map(inv => ({
+        invoiceId: inv.Id,
+        docNumber: inv.DocNumber,
+        customerName: inv.CustomerRef?.name || null,
+        total: inv.TotalAmt,
+        balance: inv.Balance,
+        txnDate: inv.TxnDate || null,
+        isOpen: inv.Balance > 0
+      }));
+
+    // 7. Sort: open invoices first (by date desc), then closed (by date desc)
+    availableInvoices.sort((a, b) => {
+      // Open invoices come first
+      if (a.isOpen !== b.isOpen) {
+        return a.isOpen ? -1 : 1;
+      }
+      // Within same status, sort by date descending (newest first)
+      const dateA = a.txnDate || '';
+      const dateB = b.txnDate || '';
+      return dateB.localeCompare(dateA);
+    });
+
+    // 8. Paginate
+    const totalCount = availableInvoices.length;
+    const totalPages = Math.ceil(totalCount / pageSize);
+    const startIndex = (page - 1) * pageSize;
+    const pagedInvoices = availableInvoices.slice(startIndex, startIndex + pageSize);
+
+    return {
+      invoices: pagedInvoices,
+      totalCount,
+      page,
+      pageSize,
+      totalPages
+    };
+  } catch (error) {
+    console.error('Error listing customer invoices:', error);
+    throw error;
+  }
 }

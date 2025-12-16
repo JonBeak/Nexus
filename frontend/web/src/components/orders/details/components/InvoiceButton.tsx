@@ -1,14 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { FileText, Send, Eye, RefreshCw } from 'lucide-react';
-import { Order } from '../../../../types/orders';
-import { qbInvoiceApi } from '../../../../services/api/orders/qbInvoiceApi';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { FileText, Send, Eye, RefreshCw, ChevronDown, Link, AlertTriangle, AlertOctagon } from 'lucide-react';
+import { Order, DEPOSIT_TRACKING_STATUSES } from '../../../../types/orders';
+import { qbInvoiceApi, InvoiceSyncStatus, InvoiceDifference } from '../../../../services/api/orders/qbInvoiceApi';
 
-export type InvoiceAction = 'create' | 'update' | 'send' | 'view';
+export type InvoiceAction = 'create' | 'update' | 'send' | 'view' | 'qb_modified' | 'conflict';
 
 interface InvoiceButtonProps {
   order: Order;
-  onAction: (action: InvoiceAction) => void;
+  onAction: (action: InvoiceAction, differences?: InvoiceDifference[]) => void;
+  onLinkInvoice?: () => void;
   disabled?: boolean;
+  /** If true, performs deep QB comparison (slower but detects QB-side changes) */
+  deepCheck?: boolean;
 }
 
 interface ButtonState {
@@ -19,120 +22,255 @@ interface ButtonState {
   needsShine: boolean;
 }
 
+// Statuses where Create Invoice SHOULD shine (invoice needed but not created yet)
+const INVOICE_NEEDED_STATUSES = ['shipping', 'pick_up', 'awaiting_payment', 'completed'];
+
+
 /**
- * InvoiceButton - Dynamic button with 4 states based on invoice status
+ * InvoiceButton - Dynamic button with 6 states based on invoice status
  *
  * States:
- * - create: No invoice exists -> Green "Create Invoice"
- * - update: Invoice exists but stale -> Orange "Update Invoice" + shine
+ * - create: No invoice exists -> Green "Create Invoice" (+ shine if in late-stage status)
+ *           Also has dropdown with "Link Existing Invoice" option
+ * - update: Invoice exists, local data stale -> Orange "Update Invoice" + shine
+ * - qb_modified: Invoice exists, QB was edited externally -> Purple "Review Changes" + shine
+ * - conflict: Both local and QB changed -> Red "Resolve Conflict" + shine
  * - send: Invoice exists, not sent -> Blue "Send Invoice" + shine
  * - view: Invoice exists, already sent -> Gray "View Invoice"
  */
 const InvoiceButton: React.FC<InvoiceButtonProps> = ({
   order,
   onAction,
-  disabled = false
+  onLinkInvoice,
+  disabled = false,
+  deepCheck = false
 }) => {
-  const [isStale, setIsStale] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<InvoiceSyncStatus>('in_sync');
+  const [differences, setDifferences] = useState<InvoiceDifference[]>([]);
   const [checking, setChecking] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Check invoice staleness on mount and when order data changes
-  const checkStaleness = useCallback(async () => {
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Check invoice sync status on mount and when order data changes
+  const checkSyncStatus = useCallback(async () => {
     if (!order.qb_invoice_id) {
-      setIsStale(false);
+      setSyncStatus('in_sync');
+      setDifferences([]);
       return;
     }
 
     try {
       setChecking(true);
-      const result = await qbInvoiceApi.checkUpdates(order.order_number);
-      setIsStale(result.isStale);
+
+      if (deepCheck) {
+        // Deep comparison with QB API call
+        const result = await qbInvoiceApi.compareWithQB(order.order_number);
+        setSyncStatus(result.status);
+        setDifferences(result.differences || []);
+      } else {
+        // Fast local-only check
+        const result = await qbInvoiceApi.checkUpdates(order.order_number);
+        setSyncStatus(result.isStale ? 'local_stale' : 'in_sync');
+        setDifferences([]);
+      }
     } catch (error) {
-      console.error('Failed to check invoice staleness:', error);
-      setIsStale(false);
+      console.error('Failed to check invoice sync status:', error);
+      setSyncStatus('error');
+      setDifferences([]);
     } finally {
       setChecking(false);
     }
-  }, [order.qb_invoice_id, order.order_number]);
+  }, [order.qb_invoice_id, order.order_number, deepCheck]);
 
   useEffect(() => {
-    checkStaleness();
-  }, [checkStaleness, order.qb_invoice_data_hash]);
+    checkSyncStatus();
+  }, [checkSyncStatus, order.qb_invoice_data_hash]);
 
-  // Determine button state
+  // Determine button state based on sync status
   const getButtonState = (): ButtonState => {
     const hasInvoice = !!order.qb_invoice_id;
     const invoiceSent = !!order.invoice_sent_at;
 
     if (!hasInvoice) {
+      // Shine when order is in late-stage status (invoice should exist by now)
+      // OR for deposit-required orders in deposit statuses (deposit invoice needed early)
+      const needsCreateShine = INVOICE_NEEDED_STATUSES.includes(order.status) ||
+        !!(order.deposit_required && DEPOSIT_TRACKING_STATUSES.includes(order.status));
       return {
         action: 'create',
         label: 'Create Invoice',
         icon: <FileText className="w-4 h-4" />,
         colorClass: 'bg-green-600 hover:bg-green-700 text-white',
-        needsShine: false
+        needsShine: needsCreateShine
       };
     }
 
-    if (isStale) {
-      return {
-        action: 'update',
-        label: 'Update Invoice',
-        icon: <RefreshCw className="w-4 h-4" />,
-        colorClass: 'bg-orange-500 hover:bg-orange-600 text-white',
-        needsShine: true
-      };
-    }
+    // Handle sync statuses
+    switch (syncStatus) {
+      case 'local_stale':
+        return {
+          action: 'update',
+          label: 'Update Invoice',
+          icon: <RefreshCw className="w-4 h-4" />,
+          colorClass: 'bg-orange-500 hover:bg-orange-600 text-white',
+          needsShine: true
+        };
 
-    if (!invoiceSent) {
-      return {
-        action: 'send',
-        label: 'Send Invoice',
-        icon: <Send className="w-4 h-4" />,
-        colorClass: 'bg-blue-600 hover:bg-blue-700 text-white',
-        needsShine: true
-      };
-    }
+      case 'qb_modified':
+        return {
+          action: 'qb_modified',
+          label: 'Review Changes',
+          icon: <AlertTriangle className="w-4 h-4" />,
+          colorClass: 'bg-purple-600 hover:bg-purple-700 text-white',
+          needsShine: true
+        };
 
-    return {
-      action: 'view',
-      label: 'View Invoice',
-      icon: <Eye className="w-4 h-4" />,
-      colorClass: 'bg-gray-500 hover:bg-gray-600 text-white',
-      needsShine: false
-    };
+      case 'conflict':
+        return {
+          action: 'conflict',
+          label: 'Resolve Conflict',
+          icon: <AlertOctagon className="w-4 h-4" />,
+          colorClass: 'bg-red-600 hover:bg-red-700 text-white',
+          needsShine: true
+        };
+
+      case 'not_found':
+        return {
+          action: 'create',
+          label: 'Invoice Deleted',
+          icon: <AlertTriangle className="w-4 h-4" />,
+          colorClass: 'bg-red-500 hover:bg-red-600 text-white',
+          needsShine: true
+        };
+
+      case 'error':
+        return {
+          action: 'view',
+          label: 'Check Failed',
+          icon: <AlertTriangle className="w-4 h-4" />,
+          colorClass: 'bg-gray-400 hover:bg-gray-500 text-white',
+          needsShine: false
+        };
+
+      default:
+        // in_sync or unknown
+        if (!invoiceSent) {
+          return {
+            action: 'send',
+            label: 'Send Invoice',
+            icon: <Send className="w-4 h-4" />,
+            colorClass: 'bg-blue-600 hover:bg-blue-700 text-white',
+            needsShine: true
+          };
+        }
+
+        // Check if deposit order has unpaid deposit
+        // Deposit is paid when balance < total (some payment made)
+        const depositUnpaid = !!(order.deposit_required &&
+          DEPOSIT_TRACKING_STATUSES.includes(order.status) &&
+          (order.cached_balance == null ||
+           order.cached_invoice_total == null ||
+           order.cached_balance >= order.cached_invoice_total));
+
+        return {
+          action: 'view',
+          label: 'View Invoice',
+          icon: <Eye className="w-4 h-4" />,
+          colorClass: 'bg-gray-500 hover:bg-gray-600 text-white',
+          needsShine: depositUnpaid
+        };
+    }
   };
 
   const buttonState = getButtonState();
 
-  const handleClick = () => {
+  const handleMainClick = () => {
     if (!disabled && !checking) {
-      onAction(buttonState.action);
+      onAction(buttonState.action, differences.length > 0 ? differences : undefined);
     }
   };
 
-  return (
-    <button
-      onClick={handleClick}
-      disabled={disabled || checking}
-      className={`
-        flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium
-        transition-colors relative overflow-hidden
-        ${buttonState.colorClass}
-        ${disabled || checking ? 'opacity-50 cursor-not-allowed' : ''}
-        ${buttonState.needsShine ? 'invoice-button-shine' : ''}
-      `}
-    >
-      {checking ? (
-        <RefreshCw className="w-4 h-4 animate-spin" />
-      ) : (
-        buttonState.icon
-      )}
-      <span>{checking ? 'Checking...' : buttonState.label}</span>
+  const handleDropdownToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDropdownOpen(!dropdownOpen);
+  };
 
-      {/* Shine animation overlay */}
-      {buttonState.needsShine && !disabled && !checking && (
-        <span className="absolute inset-0 shine-effect" />
+  const handleLinkInvoice = () => {
+    setDropdownOpen(false);
+    onLinkInvoice?.();
+  };
+
+  // Show dropdown option only for 'create' action and when onLinkInvoice is provided
+  const showDropdown = buttonState.action === 'create' && onLinkInvoice;
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <div className="flex">
+        {/* Main button */}
+        <button
+          onClick={handleMainClick}
+          disabled={disabled || checking}
+          className={`
+            flex items-center space-x-2 px-4 py-2 text-sm font-medium
+            transition-colors relative overflow-hidden
+            ${buttonState.colorClass}
+            ${showDropdown ? 'rounded-l-lg' : 'rounded-lg'}
+            ${disabled || checking ? 'opacity-50 cursor-not-allowed' : ''}
+            ${buttonState.needsShine ? 'invoice-button-shine' : ''}
+          `}
+        >
+          {checking ? (
+            <RefreshCw className="w-4 h-4 animate-spin" />
+          ) : (
+            buttonState.icon
+          )}
+          <span>{checking ? 'Checking...' : buttonState.label}</span>
+
+          {/* Shine animation overlay */}
+          {buttonState.needsShine && !disabled && !checking && (
+            <span className="absolute inset-0 shine-effect" />
+          )}
+        </button>
+
+        {/* Dropdown toggle button (only for 'create' action) */}
+        {showDropdown && (
+          <button
+            onClick={handleDropdownToggle}
+            disabled={disabled || checking}
+            className={`
+              px-2 py-2 text-sm font-medium rounded-r-lg
+              transition-colors border-l border-green-700
+              ${buttonState.colorClass}
+              ${disabled || checking ? 'opacity-50 cursor-not-allowed' : ''}
+            `}
+          >
+            <ChevronDown className={`w-4 h-4 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+        )}
+      </div>
+
+      {/* Dropdown menu */}
+      {showDropdown && dropdownOpen && (
+        <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+          <button
+            onClick={handleLinkInvoice}
+            className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
+          >
+            <Link className="w-4 h-4" />
+            <span>Link Existing Invoice</span>
+          </button>
+        </div>
       )}
 
       {/* Inline styles for shine animation */}
@@ -151,10 +289,10 @@ const InvoiceButton: React.FC<InvoiceButtonProps> = ({
           background: linear-gradient(
             90deg,
             transparent,
-            rgba(255, 255, 255, 0.4),
+            rgba(255, 255, 255, 0.6),
             transparent
           );
-          animation: shine 2s infinite;
+          animation: shine 1s infinite;
           pointer-events: none;
         }
 
@@ -167,7 +305,7 @@ const InvoiceButton: React.FC<InvoiceButtonProps> = ({
           }
         }
       `}</style>
-    </button>
+    </div>
   );
 };
 

@@ -29,6 +29,7 @@ const AuditLogViewer = lazy(() => import('./components/settings/AuditLogViewer')
 const EmailTemplatesManager = lazy(() => import('./components/settings/EmailTemplatesManager').then(m => ({ default: m.EmailTemplatesManager })));
 const PaintingMatrixManager = lazy(() => import('./components/settings/PaintingMatrixManager').then(m => ({ default: m.PaintingMatrixManager })));
 const PaymentsPage = lazy(() => import('./pages/PaymentsPage'));
+const InvoicesPage = lazy(() => import('./components/invoices/InvoicesPage'));
 
 // Loading component for lazy routes
 const RouteLoader = () => (
@@ -168,6 +169,14 @@ function AppContent() {
 
         <Route path="/payments" element={
           user && (user.role === 'manager' || user.role === 'owner') ? <PaymentsPage /> : <Navigate to="/dashboard" />
+        } />
+
+        {/* Invoices Page with tabs */}
+        <Route path="/invoices" element={
+          user && (user.role === 'manager' || user.role === 'owner') ? <InvoicesPage /> : <Navigate to="/dashboard" />
+        } />
+        <Route path="/invoices/payments" element={
+          user && (user.role === 'manager' || user.role === 'owner') ? <InvoicesPage /> : <Navigate to="/dashboard" />
         } />
 
         <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} />} />

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Building, DollarSign, Calendar, CreditCard, FileText, CheckCircle, AlertCircle, Loader2, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Building, DollarSign, Calendar, CreditCard, FileText, CheckCircle, AlertCircle, Loader2, X, Home } from 'lucide-react';
 import { customerApi } from '../services/api';
 import { paymentsApi, OpenInvoice, MultiPaymentInput } from '../services/api/paymentsApi';
 
@@ -15,6 +16,8 @@ interface InvoiceAllocation {
 }
 
 export const PaymentsPage: React.FC = () => {
+  const navigate = useNavigate();
+
   // Customer selection state
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerSearch, setCustomerSearch] = useState('');
@@ -205,12 +208,21 @@ export const PaymentsPage: React.FC = () => {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <DollarSign className="w-7 h-7 text-green-600" />
-            Record Payment
-          </h1>
-          <p className="text-gray-600 mt-1">Record a payment against multiple QuickBooks invoices</p>
+        <div className="mb-6 flex items-center space-x-4">
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Back to Dashboard"
+          >
+            <Home className="w-7 h-7" />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <DollarSign className="w-7 h-7 text-green-600" />
+              Record Payment
+            </h1>
+            <p className="text-gray-600 mt-1">Record a payment against multiple QuickBooks invoices</p>
+          </div>
         </div>
 
         <div className="grid grid-cols-12 gap-6">

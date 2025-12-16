@@ -193,6 +193,18 @@ router.put(
 );
 
 /**
+ * Update order accounting emails
+ * PUT /api/orders/:orderNumber/accounting-emails
+ * Body: { accountingEmails: Array<{ email, email_type, label?, saveToDatabase? }> }
+ */
+router.put(
+  '/:orderNumber/accounting-emails',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.updateOrderAccountingEmails
+);
+
+/**
  * Update specs display name and regenerate specifications (Manager+ only)
  * PUT /api/orders/:orderNumber/parts/:partId/specs-display-name
  * Body: { specs_display_name: string }
@@ -593,7 +605,18 @@ router.post(
 );
 
 /**
- * Check if invoice needs update (staleness check)
+ * List customer's QB invoices available for linking
+ * GET /api/orders/:orderNumber/customer-invoices?page=1&pageSize=10
+ */
+router.get(
+  '/:orderNumber/customer-invoices',
+  authenticateToken,
+  requirePermission('orders.view'),
+  qbInvoiceController.listCustomerInvoices
+);
+
+/**
+ * Check if invoice needs update (staleness check - local only, fast)
  * GET /api/orders/:orderNumber/qb-invoice/check-updates
  */
 router.get(
@@ -601,6 +624,30 @@ router.get(
   authenticateToken,
   requirePermission('orders.view'),
   qbInvoiceController.checkInvoiceUpdates
+);
+
+/**
+ * Deep comparison with QuickBooks (Phase 2 bi-directional sync)
+ * GET /api/orders/:orderNumber/qb-invoice/compare
+ * Fetches current QB invoice and compares with local data
+ */
+router.get(
+  '/:orderNumber/qb-invoice/compare',
+  authenticateToken,
+  requirePermission('orders.view'),
+  qbInvoiceController.compareInvoice
+);
+
+/**
+ * Resolve sync conflict (Phase 2 bi-directional sync)
+ * POST /api/orders/:orderNumber/qb-invoice/resolve-conflict
+ * Body: { resolution: 'use_local' | 'use_qb' | 'keep_both' }
+ */
+router.post(
+  '/:orderNumber/qb-invoice/resolve-conflict',
+  authenticateToken,
+  requirePermission('orders.update'),
+  qbInvoiceController.resolveInvoiceConflict
 );
 
 /**

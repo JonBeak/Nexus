@@ -65,6 +65,56 @@ export const PartRow: React.FC<PartRowProps> = ({
   onDuplicatePart,
   onUpdate
 }) => {
+  // Handle header row separately (visible but disabled, gray styling)
+  if (part.is_header_row) {
+    return (
+      <div
+        className="border-b-2 border-gray-300 grid gap-2 px-2 bg-gray-100"
+        style={{
+          gridTemplateColumns:'40px 165px 115px 123px 123px 123px 62px 140px 380px 270px 55px 75px 85px'
+        }}
+      >
+        {/* Row Controls placeholder - grayed out */}
+        <div className="flex flex-row items-start justify-center pt-1 space-x-1 bg-gray-200 -ml-2 pl-2 -mr-2 pr-2">
+          <span className="text-xs text-gray-400 font-medium pt-1">HDR</span>
+        </div>
+
+        {/* Item Name - shows "Header" */}
+        <div className="flex flex-col h-full border-l-2 border-gray-300 pl-2 py-1">
+          <span className="text-sm font-semibold text-gray-500 italic">Header</span>
+        </div>
+
+        {/* Spec columns - empty/grayed out, spans 4 columns */}
+        <div className="col-span-4 flex items-center justify-center text-gray-400 text-xs italic bg-gray-50 border-l border-gray-200">
+          — Auto-generated from order details —
+        </div>
+
+        {/* QB Item - disabled */}
+        <div className="flex items-start border-l-2 border-gray-300 pl-2 h-full py-1">
+          <span className="text-xs text-gray-400">—</span>
+        </div>
+
+        {/* QB Description - shows header text (readonly) */}
+        <div className="h-full py-1 col-span-2">
+          <div className="w-full h-full px-2 py-1 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded whitespace-pre-wrap">
+            {part.qb_description || '(Header text will appear here)'}
+          </div>
+        </div>
+
+        {/* Quantity/Price columns - empty for header */}
+        <div className="flex items-start h-full py-1">
+          <span className="text-xs text-gray-400">—</span>
+        </div>
+        <div className="flex items-start text-right h-full py-1">
+          <span className="text-xs text-gray-400">—</span>
+        </div>
+        <div className="flex items-start justify-end h-full py-1">
+          <span className="text-xs text-gray-400">—</span>
+        </div>
+      </div>
+    );
+  }
+
   const [saving, setSaving] = useState(false);
   const [localPartScope, setLocalPartScope] = useState(part.part_scope || '');
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);

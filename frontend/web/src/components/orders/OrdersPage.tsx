@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, ListChecks, Table, CheckSquare, Home, Calendar } from 'lucide-react';
-import OrderDashboard from './dashboard/OrderDashboard';
+import { PanelDashboard } from './panelDashboard';
 import OrdersTable from './table/OrdersTable';
 import ProgressRoleView from './progressRole/ProgressRoleView';
 import TasksTable from './tasksTable/TasksTable';
@@ -91,7 +91,7 @@ export const OrdersPage: React.FC = () => {
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">
-        {activeTab === 'dashboard' && <OrderDashboard />}
+        {activeTab === 'dashboard' && <PanelDashboard />}
         {activeTab === 'progress' && <ProgressRoleView />}
         {activeTab === 'table' && <OrdersTable />}
         {activeTab === 'tasksTable' && <TasksTable />}

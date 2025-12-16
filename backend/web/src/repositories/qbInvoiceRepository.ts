@@ -21,6 +21,22 @@ import {
 } from '../types/qbInvoice';
 
 // =============================================
+// PHASE 2: EXTENDED INVOICE RECORD (includes QB tracking columns)
+// =============================================
+
+export interface OrderInvoiceRecordFull extends OrderInvoiceRecord {
+  qb_invoice_last_updated_time: Date | null;
+  qb_invoice_sync_token: string | null;
+  qb_invoice_content_hash: string | null;
+}
+
+export interface OrderInvoiceUpdateDataFull extends OrderInvoiceUpdateData {
+  qb_invoice_last_updated_time?: Date;
+  qb_invoice_sync_token?: string;
+  qb_invoice_content_hash?: string;
+}
+
+// =============================================
 // ORDER INVOICE TRACKING
 // =============================================
 
@@ -160,6 +176,148 @@ export async function isInvoiceLinkedToAnotherOrder(
 
   const rows = await query(sql, params) as RowDataPacket[];
   return rows.length > 0;
+}
+
+// =============================================
+// PHASE 2: FULL INVOICE RECORD (with QB tracking columns)
+// =============================================
+
+/**
+ * Get full invoice record including Phase 2 QB tracking columns
+ */
+export async function getOrderInvoiceRecordFull(orderId: number): Promise<OrderInvoiceRecordFull | null> {
+  const rows = await query(
+    `SELECT
+      order_id,
+      order_number,
+      qb_invoice_id,
+      qb_invoice_doc_number,
+      qb_invoice_url,
+      qb_invoice_synced_at,
+      qb_invoice_last_updated_time,
+      qb_invoice_sync_token,
+      qb_invoice_content_hash,
+      qb_invoice_data_hash,
+      invoice_sent_at
+    FROM orders
+    WHERE order_id = ?`,
+    [orderId]
+  ) as RowDataPacket[];
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const row = rows[0];
+  return {
+    order_id: row.order_id,
+    order_number: row.order_number,
+    qb_invoice_id: row.qb_invoice_id,
+    qb_invoice_doc_number: row.qb_invoice_doc_number,
+    qb_invoice_url: row.qb_invoice_url,
+    qb_invoice_synced_at: row.qb_invoice_synced_at,
+    qb_invoice_last_updated_time: row.qb_invoice_last_updated_time,
+    qb_invoice_sync_token: row.qb_invoice_sync_token,
+    qb_invoice_content_hash: row.qb_invoice_content_hash,
+    qb_invoice_data_hash: row.qb_invoice_data_hash,
+    invoice_sent_at: row.invoice_sent_at
+  };
+}
+
+/**
+ * Update invoice record including Phase 2 QB tracking columns
+ */
+export async function updateOrderInvoiceRecordFull(
+  orderId: number,
+  data: OrderInvoiceUpdateDataFull
+): Promise<void> {
+  const updates: string[] = [];
+  const values: any[] = [];
+
+  // Phase 1 columns
+  if (data.qb_invoice_id !== undefined) {
+    updates.push('qb_invoice_id = ?');
+    values.push(data.qb_invoice_id);
+  }
+  if (data.qb_invoice_doc_number !== undefined) {
+    updates.push('qb_invoice_doc_number = ?');
+    values.push(data.qb_invoice_doc_number);
+  }
+  if (data.qb_invoice_url !== undefined) {
+    updates.push('qb_invoice_url = ?');
+    values.push(data.qb_invoice_url);
+  }
+  if (data.qb_invoice_synced_at !== undefined) {
+    updates.push('qb_invoice_synced_at = ?');
+    values.push(data.qb_invoice_synced_at);
+  }
+  if (data.qb_invoice_data_hash !== undefined) {
+    updates.push('qb_invoice_data_hash = ?');
+    values.push(data.qb_invoice_data_hash);
+  }
+  if (data.invoice_sent_at !== undefined) {
+    updates.push('invoice_sent_at = ?');
+    values.push(data.invoice_sent_at);
+  }
+
+  // Phase 2 columns
+  if (data.qb_invoice_last_updated_time !== undefined) {
+    updates.push('qb_invoice_last_updated_time = ?');
+    values.push(data.qb_invoice_last_updated_time);
+  }
+  if (data.qb_invoice_sync_token !== undefined) {
+    updates.push('qb_invoice_sync_token = ?');
+    values.push(data.qb_invoice_sync_token);
+  }
+  if (data.qb_invoice_content_hash !== undefined) {
+    updates.push('qb_invoice_content_hash = ?');
+    values.push(data.qb_invoice_content_hash);
+  }
+
+  if (updates.length === 0) {
+    return; // Nothing to update
+  }
+
+  values.push(orderId);
+
+  await query(
+    `UPDATE orders SET ${updates.join(', ')} WHERE order_id = ?`,
+    values
+  );
+}
+
+/**
+ * Get order details by QB invoice ID (for checking if invoice is already linked)
+ */
+export async function getOrderByQbInvoiceId(
+  qbInvoiceId: string
+): Promise<{ order_id: number; order_number: number } | null> {
+  const rows = await query(
+    'SELECT order_id, order_number FROM orders WHERE qb_invoice_id = ?',
+    [qbInvoiceId]
+  ) as RowDataPacket[];
+
+  return rows.length > 0 ? {
+    order_id: rows[0].order_id,
+    order_number: rows[0].order_number
+  } : null;
+}
+
+/**
+ * Get all QB invoice IDs that are linked to orders (excluding a specific order)
+ * Used to filter out already-linked invoices when showing available invoices
+ */
+export async function getLinkedInvoiceIds(excludeOrderId?: number): Promise<string[]> {
+  let sql = 'SELECT qb_invoice_id FROM orders WHERE qb_invoice_id IS NOT NULL';
+  const params: any[] = [];
+
+  if (excludeOrderId) {
+    sql += ' AND order_id != ?';
+    params.push(excludeOrderId);
+  }
+
+  const rows = await query(sql, params) as RowDataPacket[];
+  return rows.map(row => row.qb_invoice_id);
 }
 
 // =============================================
@@ -395,7 +553,7 @@ export async function getAllEmailTemplates(): Promise<EmailTemplate[]> {
     template_name: row.template_name,
     subject: row.subject,
     body: row.body,
-    variables: row.variables ? JSON.parse(row.variables) : null,
+    variables: row.variables ? (typeof row.variables === 'string' ? JSON.parse(row.variables) : row.variables) : null,
     is_active: row.is_active === 1,
     created_at: row.created_at,
     updated_at: row.updated_at
@@ -407,12 +565,19 @@ export async function getAllEmailTemplates(): Promise<EmailTemplate[]> {
 // =============================================
 
 function parseScheduledEmailRow(row: RowDataPacket): ScheduledEmail {
+  // MySQL JSON columns may be auto-parsed by mysql2 driver, or returned as strings
+  const parseJsonField = (field: any): any => {
+    if (field === null || field === undefined) return null;
+    if (typeof field === 'string') return JSON.parse(field);
+    return field; // Already parsed by driver
+  };
+
   return {
     id: row.id,
     order_id: row.order_id,
     email_type: row.email_type,
-    recipient_emails: JSON.parse(row.recipient_emails),
-    cc_emails: row.cc_emails ? JSON.parse(row.cc_emails) : null,
+    recipient_emails: parseJsonField(row.recipient_emails),
+    cc_emails: parseJsonField(row.cc_emails),
     subject: row.subject,
     body: row.body,
     scheduled_for: row.scheduled_for,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Clock, RotateCcw } from 'lucide-react';
+import { CheckCircle, Clock, RotateCcw, ChevronDown } from 'lucide-react';
 import { ordersApi, authApi } from '../../../services/api';
 import RoleCard from './RoleCard';
 import type { UserRole } from '../../../types/user';
@@ -9,6 +9,15 @@ interface TaskUpdate {
   started?: boolean;
   completed?: boolean;
 }
+
+// Time window options for completed tasks filter
+const TIME_WINDOWS = [
+  { value: 24, label: 'Last 24 hours' },
+  { value: 48, label: 'Last 48 hours' },
+  { value: 168, label: 'Last 7 days' },
+  { value: 720, label: 'Last 30 days' },
+  { value: 0, label: 'All time' },
+];
 
 // Production roles organized by workflow rows (5 cards per row)
 const ROLE_ROWS: { role: string; label: string }[][] = [
@@ -42,16 +51,18 @@ export const ProgressRoleView: React.FC = () => {
   const [tasksByRole, setTasksByRole] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [hoursBack, setHoursBack] = useState<number>(24);
   const [stagedUpdates, setStagedUpdates] = useState<Map<number, TaskUpdate>>(new Map());
   const [saving, setSaving] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>('production_staff');
+
   useEffect(() => {
     fetchInitialData();
   }, []);
 
   useEffect(() => {
     fetchTasks();
-  }, [showCompleted]);
+  }, [showCompleted, hoursBack]);
 
   const fetchInitialData = async () => {
     try {
@@ -67,7 +78,7 @@ export const ProgressRoleView: React.FC = () => {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const data = await ordersApi.getTasksByRole(showCompleted, 24);
+      const data = await ordersApi.getTasksByRole(showCompleted, hoursBack);
       setTasksByRole(data);
     } catch (error) {
       console.error('Error fetching tasks by role:', error);
@@ -159,6 +170,7 @@ export const ProgressRoleView: React.FC = () => {
                   onTaskUpdate={handleTaskUpdate}
                   onTaskNotesUpdate={fetchTasks}
                   showCompleted={showCompleted}
+                  hoursBack={hoursBack}
                   userRole={userRole}
                 />
               ))}
@@ -184,6 +196,23 @@ export const ProgressRoleView: React.FC = () => {
           <Clock className="w-4 h-4 inline mr-1" />
           {showCompleted ? 'Hide' : 'Show'} Completed
         </button>
+        {showCompleted && (
+          <div className="relative">
+            <select
+              value={hoursBack}
+              onChange={(e) => setHoursBack(Number(e.target.value))}
+              className="appearance-none px-3 py-2 pr-8 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer transition-colors"
+              style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
+            >
+              {TIME_WINDOWS.map((tw) => (
+                <option key={tw.value} value={tw.value} className="bg-gray-800">
+                  {tw.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-white" />
+          </div>
+        )}
         <button
           onClick={handleReset}
           disabled={!hasUpdates}

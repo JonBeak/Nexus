@@ -210,10 +210,10 @@ Check backend logs for detailed comparison!`);
                     🏭 Supply Chain
                   </button>
                   <button
-                    onClick={() => navigate('/payments')}
-                    className="px-3 py-3 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors text-left"
+                    onClick={() => navigate('/invoices')}
+                    className="px-3 py-3 bg-teal-500 hover:bg-teal-600 text-white font-medium rounded-lg transition-colors text-left"
                   >
-                    💵 Payments
+                    📄 Invoices
                   </button>
                   <button
                     onClick={() => navigate('/customers')}
@@ -415,16 +415,16 @@ Check backend logs for detailed comparison!`);
                   </button>
 
                   <button
-                    onClick={() => navigate('/payments')}
-                    className="group p-6 bg-green-600 hover:bg-green-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
+                    onClick={() => navigate('/invoices')}
+                    className="group p-6 bg-teal-600 hover:bg-teal-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
                   >
                     <div className="flex items-center space-x-4">
                       <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                        <span className="text-green-600 text-2xl">💵</span>
+                        <span className="text-teal-600 text-2xl">📄</span>
                       </div>
                       <div>
-                        <h4 className="font-bold text-white text-lg">Payments</h4>
-                        <p className="text-green-100">Record multi-invoice payments</p>
+                        <h4 className="font-bold text-white text-lg">Invoices</h4>
+                        <p className="text-teal-100">View invoices & record payments</p>
                       </div>
                     </div>
                   </button>

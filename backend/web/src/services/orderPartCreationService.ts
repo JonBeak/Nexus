@@ -34,6 +34,8 @@ import { OrderPart, CreateOrderPartData, EstimatePreviewData, QBEstimateLineItem
 import { mapQBItemNameToSpecsDisplayName } from '../utils/qbItemNameMapper';
 import { mapSpecsDisplayNameToTypes } from '../utils/specsTypeMapper';
 import { autoFillSpecifications } from './specsAutoFill';
+import { createHeaderRow } from './invoiceHeaderService';
+import { RowDataPacket } from 'mysql2/promise';
 
 // Product type IDs to exclude from QB line matching (non-product rows)
 const NON_PRODUCT_TYPE_IDS = [21, 25, 27]; // Subtotal, Divider, Empty Row
@@ -55,6 +57,25 @@ export class OrderPartCreationService {
   ): Promise<OrderPart[]> {
     const parts: OrderPart[] = [];
     console.time('[Order Parts] Loop through items');
+
+    // Create header row FIRST (part_number=0) for 1:1 QB sync
+    // Fetch order data needed for header text
+    const [orderRows] = await connection.execute(
+      `SELECT order_number, order_name, customer_po, customer_job_number
+       FROM orders WHERE order_id = ?`,
+      [orderId]
+    ) as [RowDataPacket[], any];
+    if (orderRows.length > 0) {
+      const orderData = orderRows[0];
+      await createHeaderRow(
+        orderId,
+        orderData.order_number,
+        orderData.order_name,
+        orderData.customer_po,
+        orderData.customer_job_number,
+        connection
+      );
+    }
 
     // Fetch customer preferences for auto-fill (if customerId provided)
     // Using CustomerRepository instead of direct query (architecture fix - Nov 14, 2025)

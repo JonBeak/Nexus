@@ -147,7 +147,8 @@
     <Route path="/account-management">User account and RBAC management (Manager+ only)</Route>
     <Route path="/supply-chain">Supply chain and supplier management (Manager+ only)</Route>
     <Route path="/job-estimation">Job estimation with complex product forms (Manager+ only)</Route>
-    <Route path="/orders">Orders management with Tasks Table, invoice automation, email history</Route>
+    <Route path="/orders">Orders management with Tasks Table, invoice automation, email history, panel dashboard</Route>
+    <Route path="/invoices">Invoice listing with analytics, balance tracking (Manager+ only)</Route>
     <Route path="/payments">Multi-invoice payment management (Manager+ only)</Route>
     <Route path="/settings">Email templates, system configuration, audit log (Manager+ only)</Route>
   </ImplementedRoutes>
@@ -164,8 +165,10 @@
     <Feature name="AccountManagement">User account system with role management, vacation tracking, schedule management</Feature>
     <Feature name="CompanyOperations">Holiday management, work schedules, company-wide settings</Feature>
     <Feature name="TasksTable">Production task tracking grid with sticky headers, role-based task columns, hide completed/empty filters</Feature>
-    <Feature name="InvoiceAutomation">QB invoice create/update/link, PDF viewing, email sending/scheduling, email history, custom messages</Feature>
+    <Feature name="InvoiceAutomation">QB invoice create/update/link with bi-directional sync, conflict detection and resolution, PDF viewing, email sending/scheduling, email history, custom messages, customer invoice browser for linking</Feature>
     <Feature name="PaymentProcessing">Record payments to QuickBooks, balance fetched from QB (no local tracking)</Feature>
+    <Feature name="PanelDashboard">Configurable workflow panels with compact order rows, filtering by assigned/status</Feature>
+    <Feature name="OrderPartHeaders">Header rows for grouping line items in orders (is_header_row flag)</Feature>
     <Feature name="GmailIntegration">Service account email sending with BCC support, retry logic, attachment support</Feature>
   </WorkingFeatures>
 

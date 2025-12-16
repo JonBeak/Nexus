@@ -25,12 +25,15 @@ import LoadingState from './components/LoadingState';
 import ErrorState from './components/ErrorState';
 import TaxDropdown from './components/TaxDropdown';
 import PointPersonsEditor from './components/PointPersonsEditor';
+import AccountingEmailsEditor from './components/AccountingEmailsEditor';
 import PrepareOrderModal from '../preparation/PrepareOrderModal';
 import ConfirmationModal from './components/ConfirmationModal';
 import { InvoiceAction } from './components/InvoiceButton';
 import InvoiceActionModal from '../modals/InvoiceActionModal';
 import RecordPaymentModal from '../modals/RecordPaymentModal';
 import LinkInvoiceModal from '../modals/LinkInvoiceModal';
+import InvoiceConflictModal from '../modals/InvoiceConflictModal';
+import { qbInvoiceApi, InvoiceSyncStatus, InvoiceDifference } from '../../../services/api/orders/qbInvoiceApi';
 
 export const OrderDetailsPage: React.FC = () => {
   const { orderNumber } = useParams<{ orderNumber: string }>();
@@ -53,6 +56,12 @@ export const OrderDetailsPage: React.FC = () => {
   const [showLinkInvoiceModal, setShowLinkInvoiceModal] = useState(false);
   const [invoicePromptType, setInvoicePromptType] = useState<'deposit' | 'full' | 'send' | null>(null);
   const [pendingStatusChange, setPendingStatusChange] = useState<string | null>(null);
+
+  // Phase 2: Bi-directional sync - Conflict Modal States
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [conflictStatus, setConflictStatus] = useState<InvoiceSyncStatus>('in_sync');
+  const [conflictDifferences, setConflictDifferences] = useState<InvoiceDifference[]>([]);
+  const [deepCheckLoading, setDeepCheckLoading] = useState(false);
 
   // Use the custom hooks
   const {
@@ -237,8 +246,47 @@ export const OrderDetailsPage: React.FC = () => {
   };
 
   // Phase 2.e: Invoice Action Handlers
-  const handleInvoiceAction = (action: InvoiceAction) => {
-    // All actions now open the modal (including 'view')
+  const handleInvoiceAction = async (action: InvoiceAction, differences?: InvoiceDifference[]) => {
+    // If button already detected conflict/qb_modified, show conflict modal directly
+    if ((action === 'qb_modified' || action === 'conflict') && differences) {
+      setConflictStatus(action);
+      setConflictDifferences(differences);
+      setShowConflictModal(true);
+      return;
+    }
+
+    // For existing invoices (not 'create'), do a deep check before showing modal
+    if (action !== 'create' && orderData.order?.qb_invoice_id) {
+      try {
+        setDeepCheckLoading(true);
+        const result = await qbInvoiceApi.compareWithQB(orderData.order.order_number);
+
+        // Defensive check - if result is undefined, fall through to normal modal
+        if (result && result.status) {
+          // If QB was modified or there's a conflict, show conflict modal
+          if (result.status === 'qb_modified' || result.status === 'conflict') {
+            setConflictStatus(result.status);
+            setConflictDifferences(result.differences || []);
+            setShowConflictModal(true);
+            return;
+          }
+
+          // If local is stale, switch to update mode
+          if (result.status === 'local_stale') {
+            setInvoiceModalMode('update');
+            setShowInvoiceModal(true);
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Deep check failed:', error);
+        // Fall through to show normal modal on error
+      } finally {
+        setDeepCheckLoading(false);
+      }
+    }
+
+    // All other cases: open the normal modal
     setInvoiceModalMode(action as 'create' | 'update' | 'send' | 'view');
     setShowInvoiceModal(true);
   };
@@ -255,6 +303,13 @@ export const OrderDetailsPage: React.FC = () => {
 
   const handleLinkInvoiceSuccess = () => {
     setShowLinkInvoiceModal(false);
+    refetch();
+  };
+
+  // Phase 2: Conflict resolution handler
+  const handleConflictResolved = () => {
+    setShowConflictModal(false);
+    setConflictDifferences([]);
     refetch();
   };
 
@@ -453,6 +508,33 @@ export const OrderDetailsPage: React.FC = () => {
     }
   };
 
+  // Handler for saving accounting emails
+  const handleAccountingEmailsSave = async (accountingEmails: any[]) => {
+    if (!orderData.order) return;
+
+    try {
+      setUiState(prev => ({ ...prev, saving: true }));
+
+      // Transform accounting emails to API format
+      const apiAccountingEmails = accountingEmails.map(ae => ({
+        email: ae.email,
+        email_type: ae.email_type,
+        label: ae.label,
+        saveToDatabase: ae.saveToDatabase
+      }));
+
+      await ordersApi.updateOrderAccountingEmails(orderData.order.order_number, apiAccountingEmails);
+
+      // Refresh order data after save
+      await refetch();
+    } catch (err) {
+      console.error('Error updating accounting emails:', err);
+      alert('Failed to update accounting emails. Please try again.');
+    } finally {
+      setUiState(prev => ({ ...prev, saving: false }));
+    }
+  };
+
   if (uiState.initialLoad) {
     return <LoadingState />;
   }
@@ -477,6 +559,7 @@ export const OrderDetailsPage: React.FC = () => {
         onFilesCreated={handleFilesCreated}
         onApproveFilesAndPrint={handleApproveFilesAndPrint}
         onInvoiceAction={handleInvoiceAction}
+        onLinkInvoice={() => setShowLinkInvoiceModal(true)}
         generatingForms={uiState.generatingForms}
         printingForm={uiState.printingForm}
       />
@@ -690,26 +773,18 @@ export const OrderDetailsPage: React.FC = () => {
                 {/* Panel 4: Contact & Invoice Settings */}
                 <div className="flex-shrink-0 bg-white rounded-lg shadow p-4" style={{ width: '700px', height: '280px' }}>
                   <div className="h-full flex gap-4">
-                    {/* Left Column: Accounting Email & Point Persons */}
+                    {/* Left Column: Accounting Emails & Point Persons */}
                     <div className="overflow-y-auto" style={{ width: '430px' }}>
-                      {/* Accounting Email */}
-                      <div className="flex justify-between items-center py-1 px-1 mb-2">
-                        <span className="text-gray-500 text-xs">Accounting Email</span>
-                        <EditableField
-                          field="invoice_email"
-                          value={orderData.order.invoice_email}
-                          type="email"
-                          isEditing={editState.editingField === 'invoice_email'}
-                          isSaving={uiState.saving}
-                          onEdit={startEdit}
-                          onSave={saveEdit}
-                          onCancel={cancelEdit}
-                          editValue={editState.editValue}
-                          onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
-                          valueSize="sm"
-                        />
-                      </div>
-                      <h3 className="text-xs font-semibold text-gray-700 mb-2 border-t border-gray-100 pt-2">Point Persons</h3>
+                      {/* Accounting Emails */}
+                      <h3 className="text-xs font-semibold text-gray-700 mb-2">Accounting Emails</h3>
+                      <AccountingEmailsEditor
+                        customerId={orderData.order.customer_id}
+                        orderId={orderData.order.order_id}
+                        initialAccountingEmails={orderData.order.accounting_emails || []}
+                        onSave={handleAccountingEmailsSave}
+                        disabled={uiState.saving}
+                      />
+                      <h3 className="text-xs font-semibold text-gray-700 mb-2 border-t border-gray-100 pt-2 mt-3">Point Persons</h3>
                       <PointPersonsEditor
                         customerId={orderData.order.customer_id}
                         orderId={orderData.order.order_id}
@@ -914,6 +989,19 @@ export const OrderDetailsPage: React.FC = () => {
         onClose={() => setShowLinkInvoiceModal(false)}
         orderNumber={orderData.order.order_number}
         onSuccess={handleLinkInvoiceSuccess}
+      />
+
+      {/* Phase 2: Invoice Conflict Modal for bi-directional sync */}
+      <InvoiceConflictModal
+        isOpen={showConflictModal}
+        onClose={() => {
+          setShowConflictModal(false);
+          setConflictDifferences([]);
+        }}
+        order={orderData.order}
+        status={conflictStatus}
+        differences={conflictDifferences}
+        onResolved={handleConflictResolved}
       />
     </div>
   );

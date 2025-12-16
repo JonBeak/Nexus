@@ -19,7 +19,6 @@ export interface Order {
   production_notes?: string;
   manufacturing_note?: string;  // Auto-filled from customer special_instructions, editable per order
   internal_note?: string;        // Auto-filled from customer comments, editable per order
-  invoice_email?: string;        // Auto-filled from customer invoice_email, editable per order
   terms?: string;                // Auto-filled from customer payment_terms, editable per order
   deposit_required?: boolean;    // Auto-filled from customer deposit_required, editable per order
   invoice_notes?: string;        // Auto-filled from customer invoice_email_preference, editable per order
@@ -35,6 +34,11 @@ export interface Order {
   qb_invoice_synced_at?: string | null;
   qb_invoice_data_hash?: string | null;
   invoice_sent_at?: string | null;
+
+  // Invoice balance cache (Phase 2.f)
+  cached_balance?: number | null;
+  cached_balance_at?: string | null;
+  cached_invoice_total?: number | null;
 
   // Accounting emails (snapshot from customer at order creation)
   accounting_emails?: OrderAccountingEmail[];
@@ -114,6 +118,19 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   cancelled: 'Cancelled'
 };
 
+// Statuses where deposit tracking applies (after customer confirmation, before completion)
+export const DEPOSIT_TRACKING_STATUSES: OrderStatus[] = [
+  'pending_production_files_creation',
+  'pending_production_files_approval',
+  'production_queue',
+  'in_production',
+  'overdue',
+  'qc_packing',
+  'shipping',
+  'pick_up',
+  'awaiting_payment'
+];
+
 export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
   job_details_setup: 'bg-amber-100 text-amber-800',
   pending_confirmation: 'bg-yellow-100 text-yellow-800',
@@ -139,6 +156,7 @@ export interface OrderPart {
   part_id: number;
   order_id: number;
   part_number: number;
+  is_header_row?: boolean;  // True for auto-generated invoice header row (part_number=0)
   display_number?: string;
   is_parent: boolean;
   product_type: string;

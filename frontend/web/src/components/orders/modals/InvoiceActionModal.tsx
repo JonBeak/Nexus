@@ -11,8 +11,9 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { X, Loader2, Calendar, Send, FileText, RefreshCw, Clock, Mail, Eye, Truck, Package, AlertTriangle, Plus, UserCircle } from 'lucide-react';
 import { Order, OrderPart } from '../../../types/orders';
-import { qbInvoiceApi, EmailPreview, InvoiceDetails } from '../../../services/api/orders/qbInvoiceApi';
+import { qbInvoiceApi, EmailPreview, InvoiceDetails, InvoiceSyncStatus, InvoiceDifference, InvoiceSyncResult } from '../../../services/api/orders/qbInvoiceApi';
 import { customerContactsApi } from '../../../services/api';
+import { InvoiceConflictModal } from './InvoiceConflictModal';
 
 interface InvoiceActionModalProps {
   isOpen: boolean;
@@ -87,6 +88,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   const [previewTab, setPreviewTab] = useState<'invoice' | 'email'>('email');
   const [htmlBody, setHtmlBody] = useState(''); // Full HTML for preview
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   // Custom message and subject prefix state
   const [customMessage, setCustomMessage] = useState('');
@@ -105,15 +107,32 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   const [isStale, setIsStale] = useState(false);
   const [checkingStaleness, setCheckingStaleness] = useState(false);
 
+  // Track if update mode has completed update (to enable Send/Schedule)
+  const [updateCompleted, setUpdateCompleted] = useState(false);
+
+  // Conflict detection (Phase 2 bi-directional sync)
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<InvoiceSyncStatus | null>(null);
+  const [syncDifferences, setSyncDifferences] = useState<InvoiceDifference[]>([]);
+  const [checkingSync, setCheckingSync] = useState(false);
+
   // Invoice PDF for Invoice Details tab
   const [invoicePdf, setInvoicePdf] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
 
-  // Determine template based on order type
+  // Determine template based on order type and deposit payment status
   const templateKey = useMemo(() => {
-    return order.deposit_required ? 'deposit_request' : 'full_invoice';
-  }, [order.deposit_required]);
+    if (!order.deposit_required) return 'full_invoice';
+
+    // Check if deposit has been paid (any payment made reduces balance below total)
+    const depositPaid = !!(order.qb_invoice_id &&
+      order.cached_balance != null &&
+      order.cached_invoice_total != null &&
+      order.cached_balance < order.cached_invoice_total);
+
+    return depositPaid ? 'full_invoice' : 'deposit_request';
+  }, [order.deposit_required, order.qb_invoice_id, order.cached_balance, order.cached_invoice_total]);
 
   // Calculate invoice line items from order parts
   const lineItems = useMemo((): InvoiceLineItem[] => {
@@ -181,16 +200,6 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
           });
           addedEmails.add(ae.email.toLowerCase());
         });
-      } else if (order.invoice_email) {
-        // Fallback for legacy orders without accounting_emails
-        entries.push({
-          id: 'accounting',
-          mode: 'accounting',
-          email: order.invoice_email,
-          name: 'Accounting',
-          emailType: 'to'
-        });
-        addedEmails.add(order.invoice_email.toLowerCase());
       }
 
       // Add point persons (skip if already added as accounting email)
@@ -298,11 +307,10 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     }
   };
 
-  // Load email history and check staleness when modal opens in view mode
+  // Load email history when modal opens in view mode
   useEffect(() => {
     if (isOpen && mode === 'view') {
       loadEmailHistory();
-      checkStaleness();
       // Also load QB invoice data for view mode
       if (order.qb_invoice_id && !qbInvoiceData) {
         loadQbInvoiceData();
@@ -310,18 +318,39 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     }
   }, [isOpen, mode]);
 
-  // Check if invoice is stale (order data changed since last sync)
-  const checkStaleness = async () => {
+  // Check sync status when modal opens with existing invoice (view or update mode)
+  useEffect(() => {
+    if (isOpen && order.qb_invoice_id && (mode === 'view' || mode === 'update')) {
+      checkSyncStatus();
+    }
+  }, [isOpen, mode, order.qb_invoice_id]);
+
+  // Full sync check - compares local data with QuickBooks invoice
+  // Shows conflict modal if QB was modified or there's a conflict
+  const checkSyncStatus = async () => {
     if (!order.qb_invoice_id) return;
 
     try {
+      setCheckingSync(true);
       setCheckingStaleness(true);
-      const result = await qbInvoiceApi.checkUpdates(order.order_number);
-      setIsStale(result.isStale);
+      const result = await qbInvoiceApi.compareWithQB(order.order_number);
+
+      setSyncStatus(result.status);
+      setSyncDifferences(result.differences || []);
+
+      // Determine if update is needed (local changed)
+      setIsStale(result.localChanged);
+
+      // If QB was modified or there's a conflict, show conflict modal
+      if (result.status === 'qb_modified' || result.status === 'conflict') {
+        setShowConflictModal(true);
+      }
     } catch (err) {
-      console.error('Failed to check invoice staleness:', err);
+      console.error('Failed to check invoice sync status:', err);
       setIsStale(false);
+      setSyncStatus(null);
     } finally {
+      setCheckingSync(false);
       setCheckingStaleness(false);
     }
   };
@@ -359,6 +388,24 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
       setLoadingPdf(false);
     }
   };
+
+  // Auto-check pickup/shipping based on order status when modal opens and subject is loaded
+  useEffect(() => {
+    if (isOpen && subject && !loadingPreview) {
+      // Only auto-apply if no prefix already exists
+      if (!subject.startsWith('[Ready for')) {
+        if (order.status === 'pick_up') {
+          setPickupChecked(true);
+          setShippingChecked(false);
+          setSubject(`[Ready for Pickup] ${subject}`);
+        } else if (order.status === 'shipping') {
+          setShippingChecked(true);
+          setPickupChecked(false);
+          setSubject(`[Ready for Shipping] ${subject}`);
+        }
+      }
+    }
+  }, [isOpen, loadingPreview]); // Only run when modal opens and preview finishes loading
 
   // Smart checkbox behavior - uncheck if prefix is manually removed
   useEffect(() => {
@@ -404,12 +451,17 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
       setScheduleEnabled(false);
       setScheduledDate('');
       setScheduledTime('09:00');
+      setShowScheduleModal(false);
       setCustomMessage('');
       setPickupChecked(false);
       setShippingChecked(false);
       setQbInvoiceData(null);
       setEmailHistory([]);
       setIsStale(false);
+      setUpdateCompleted(false);
+      setShowConflictModal(false);
+      setSyncStatus(null);
+      setSyncDifferences([]);
       setInvoicePdf(null);
       setPdfError(null);
       setRecipientEntries([]);
@@ -418,6 +470,8 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   }, [isOpen]);
 
   // Handle creating/updating invoice only (no email)
+  // For update mode: stay open and reload data so user can then send
+  // For create mode: call onSuccess to refresh parent and close
   const handleInvoiceOnly = async () => {
     try {
       setLoading(true);
@@ -431,7 +485,23 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
         console.log(`Invoice ${mode}d:`, result);
       }
 
-      onSuccess();
+      if (mode === 'update') {
+        // Stay open and reload modal data so user can Schedule/Send
+        setIsStale(false);
+        setUpdateCompleted(true);  // Enable Schedule/Send buttons
+        setInvoicePdf(null);
+        setPdfError(null);
+        setQbInvoiceData(null);
+
+        // Reload PDF and invoice data
+        await Promise.all([
+          loadInvoicePdf(),
+          loadQbInvoiceData()
+        ]);
+      } else {
+        // Create mode - close modal and refresh parent
+        onSuccess();
+      }
     } catch (err) {
       console.error(`Failed to ${mode} invoice:`, err);
       setError(err instanceof Error ? err.message : `Failed to ${mode} invoice`);
@@ -441,13 +511,25 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   };
 
   // Handle updating invoice from view mode (when stale)
+  // After successful update, reload modal data instead of closing
   const handleUpdateInvoice = async () => {
     try {
       setLoading(true);
       setError(null);
       await qbInvoiceApi.updateInvoice(order.order_number);
       setIsStale(false);
-      onSuccess();
+
+      // Reload modal data instead of closing
+      // Reset PDF state to trigger reload
+      setInvoicePdf(null);
+      setPdfError(null);
+      setQbInvoiceData(null);
+
+      // Reload PDF and invoice data
+      await Promise.all([
+        loadInvoicePdf(),
+        loadQbInvoiceData()
+      ]);
     } catch (err) {
       console.error('Failed to update invoice:', err);
       setError(err instanceof Error ? err.message : 'Failed to update invoice');
@@ -456,7 +538,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     }
   };
 
-  // Handle sending invoice email
+  // Handle sending invoice email immediately
   const handleSendInvoice = async () => {
     // Get valid recipients (have email)
     const validEntries = recipientEntries.filter(r => r.email?.trim());
@@ -481,36 +563,78 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
         console.log(`Invoice ${mode}d:`, result);
       }
 
-      // Send or schedule email - use previewHtml which has customMessage injected
+      // Send email immediately - use previewHtml which has customMessage injected
       const finalBody = previewHtml || body;
-      if (scheduleEnabled && scheduledDate) {
-        const scheduledFor = `${scheduledDate}T${scheduledTime}:00`;
-        await qbInvoiceApi.scheduleEmail(order.order_number, {
-          recipientEmails: toEmails,
-          ccEmails: ccEmails.length > 0 ? ccEmails : undefined,
-          bccEmails: bccEmails.length > 0 ? bccEmails : undefined,
-          subject,
-          body: finalBody,
-          scheduledFor,
-          attachInvoicePdf: true
-        });
-        console.log('Email scheduled for:', scheduledFor);
-      } else {
-        await qbInvoiceApi.sendEmail(order.order_number, {
-          recipientEmails: toEmails,
-          ccEmails: ccEmails.length > 0 ? ccEmails : undefined,
-          bccEmails: bccEmails.length > 0 ? bccEmails : undefined,
-          subject,
-          body: finalBody,
-          attachInvoicePdf: true
-        });
-        console.log('Email sent immediately');
-      }
+      await qbInvoiceApi.sendEmail(order.order_number, {
+        recipientEmails: toEmails,
+        ccEmails: ccEmails.length > 0 ? ccEmails : undefined,
+        bccEmails: bccEmails.length > 0 ? bccEmails : undefined,
+        subject,
+        body: finalBody,
+        attachInvoicePdf: true
+      });
+      console.log('Email sent immediately');
 
       onSuccess();
     } catch (err) {
       console.error('Failed to send invoice:', err);
       setError(err instanceof Error ? err.message : 'Failed to send invoice');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle scheduling invoice email
+  const handleScheduleConfirm = async () => {
+    if (!scheduledDate) {
+      setError('Please select a date');
+      return;
+    }
+
+    // Get valid recipients (have email)
+    const validEntries = recipientEntries.filter(r => r.email?.trim());
+    const toEmails = validEntries.filter(r => r.emailType === 'to').map(r => r.email);
+    const ccEmails = validEntries.filter(r => r.emailType === 'cc').map(r => r.email);
+    const bccEmails = validEntries.filter(r => r.emailType === 'bcc').map(r => r.email);
+
+    if (toEmails.length === 0) {
+      setError('Please add at least one "To" recipient');
+      setShowScheduleModal(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Create/update invoice first if needed
+      if (mode === 'create' || mode === 'update') {
+        const result = mode === 'create'
+          ? await qbInvoiceApi.createInvoice(order.order_number)
+          : await qbInvoiceApi.updateInvoice(order.order_number);
+        console.log(`Invoice ${mode}d:`, result);
+      }
+
+      // Schedule email - use previewHtml which has customMessage injected
+      const finalBody = previewHtml || body;
+      const scheduledFor = `${scheduledDate}T${scheduledTime}:00`;
+      await qbInvoiceApi.scheduleEmail(order.order_number, {
+        recipientEmails: toEmails,
+        ccEmails: ccEmails.length > 0 ? ccEmails : undefined,
+        bccEmails: bccEmails.length > 0 ? bccEmails : undefined,
+        subject,
+        body: finalBody,
+        scheduledFor,
+        attachInvoicePdf: true
+      });
+      console.log('Email scheduled for:', scheduledFor);
+
+      setShowScheduleModal(false);
+      onSuccess();
+    } catch (err) {
+      console.error('Failed to schedule invoice:', err);
+      setError(err instanceof Error ? err.message : 'Failed to schedule invoice');
+      setShowScheduleModal(false);
     } finally {
       setLoading(false);
     }
@@ -651,8 +775,8 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                 <X className="w-5 h-5 text-gray-600" />
               </button>
             </div>
-            {/* Open in QuickBooks button - shown in view mode */}
-            {mode === 'view' && order.qb_invoice_id && (
+            {/* Open in QuickBooks button - shown whenever invoice is linked */}
+            {order.qb_invoice_id && (
               <button
                 onClick={() => window.open(`https://qbo.intuit.com/app/invoice?txnId=${order.qb_invoice_id}`, '_blank')}
                 className="flex items-center space-x-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors mt-3"
@@ -665,8 +789,18 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
 
           {/* Form Content */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {/* Sync Check Loading */}
+            {checkingSync && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
+                  <span className="text-sm text-blue-700">Checking invoice sync status with QuickBooks...</span>
+                </div>
+              </div>
+            )}
+
             {/* Staleness Warning - View Mode */}
-              {mode === 'view' && isStale && (
+              {mode === 'view' && isStale && !checkingSync && (
                 <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                   <div className="flex items-start gap-3">
                     <AlertTriangle className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
@@ -688,7 +822,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                         ) : (
                           <>
                             <RefreshCw className="w-4 h-4" />
-                            Update Invoice Now
+                            Update
                           </>
                         )}
                       </button>
@@ -903,36 +1037,6 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                 />
               </div>
 
-              {/* Schedule Option */}
-              <div className="bg-blue-50 rounded-lg p-4">
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={scheduleEnabled}
-                    onChange={(e) => setScheduleEnabled(e.target.checked)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <Clock className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm font-medium text-gray-700">Schedule for later</span>
-                </label>
-                {scheduleEnabled && (
-                  <div className="mt-3 flex gap-3">
-                    <input
-                      type="date"
-                      value={scheduledDate}
-                      onChange={(e) => setScheduledDate(e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                    />
-                    <input
-                      type="time"
-                      value={scheduledTime}
-                      onChange={(e) => setScheduledTime(e.target.value)}
-                      className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                )}
-              </div>
 
               {/* Email History - View Mode Only (at bottom) */}
               {mode === 'view' && (
@@ -949,35 +1053,65 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                   ) : emailHistory.length === 0 ? (
                     <p className="text-sm text-gray-500 italic">No emails sent yet</p>
                   ) : (
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {emailHistory.map((email) => (
+                    <div className="space-y-2">
+                      {/* Sort: pending (scheduled) first, then by date descending */}
+                      {[...emailHistory]
+                        .sort((a, b) => {
+                          if (a.status === 'pending' && b.status !== 'pending') return -1;
+                          if (a.status !== 'pending' && b.status === 'pending') return 1;
+                          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                        })
+                        .map((email) => (
                         <div
                           key={email.id}
-                          className="bg-white border border-gray-200 rounded-lg p-3 text-sm"
+                          className={`bg-white border rounded-lg p-3 text-sm ${
+                            email.status === 'pending' ? 'border-yellow-300 bg-yellow-50' : 'border-gray-200'
+                          }`}
                         >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-medium text-gray-900 truncate flex-1 mr-2">
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <span className="font-medium text-gray-900 break-words flex-1">
                               {email.subject}
                             </span>
-                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${
                               email.status === 'sent' ? 'bg-green-100 text-green-700' :
                               email.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
                               email.status === 'failed' ? 'bg-red-100 text-red-700' :
                               'bg-gray-100 text-gray-700'
                             }`}>
-                              {email.status}
+                              {email.status === 'pending' ? 'scheduled' : email.status}
                             </span>
                           </div>
                           <div className="text-xs text-gray-500">
                             <span>To: {email.recipientEmails.join(', ')}</span>
                           </div>
-                          <div className="text-xs text-gray-400 mt-1">
-                            {email.sentAt
-                              ? `Sent: ${new Date(email.sentAt).toLocaleString()}`
-                              : email.status === 'pending'
-                              ? `Scheduled: ${new Date(email.scheduledFor).toLocaleString()}`
-                              : `Created: ${new Date(email.createdAt).toLocaleString()}`
-                            }
+                          <div className="text-xs text-gray-400 mt-1 flex items-center justify-between">
+                            <span>
+                              {email.sentAt
+                                ? `Sent: ${new Date(email.sentAt).toLocaleString()}`
+                                : email.status === 'pending'
+                                ? `Scheduled: ${new Date(email.scheduledFor).toLocaleString()}`
+                                : `Created: ${new Date(email.createdAt).toLocaleString()}`
+                              }
+                            </span>
+                            {email.status === 'pending' && (
+                              <button
+                                onClick={async () => {
+                                  if (window.confirm('Cancel this scheduled email?')) {
+                                    try {
+                                      await qbInvoiceApi.cancelScheduledEmail(order.order_number, email.id);
+                                      // Refresh history
+                                      const history = await qbInvoiceApi.getEmailHistory(order.order_number);
+                                      setEmailHistory(history);
+                                    } catch (err) {
+                                      console.error('Failed to cancel email:', err);
+                                    }
+                                  }
+                                }}
+                                className="text-red-600 hover:text-red-800 font-medium"
+                              >
+                                Cancel
+                              </button>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -1012,45 +1146,52 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                     <button
                       onClick={handleInvoiceOnly}
                       disabled={loading}
-                      className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 text-sm"
+                      className={`px-3 py-2 rounded-lg disabled:opacity-50 text-sm ${
+                        mode === 'update'
+                          ? 'bg-orange-500 hover:bg-orange-600 text-white font-medium'
+                          : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                      }`}
                     >
                       {loading ? (
                         <span className="flex items-center gap-2">
                           <Loader2 className="w-4 h-4 animate-spin" />
                         </span>
                       ) : (
-                        `${mode === 'create' ? 'Create' : 'Update'} Only`
+                        mode === 'create' ? 'Create Only' : 'Update'
                       )}
                     </button>
                   )}
 
-                  {/* Send Button */}
+                  {/* Schedule Button - disabled when update required */}
+                  <button
+                    onClick={() => setShowScheduleModal(true)}
+                    disabled={loading || !hasValidToRecipients || (mode === 'update' && !updateCompleted) || (mode === 'view' && isStale)}
+                    className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 text-sm ${
+                      loading || !hasValidToRecipients || (mode === 'update' && !updateCompleted) || (mode === 'view' && isStale)
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                  >
+                    <Clock className="w-4 h-4" />
+                    Schedule
+                  </button>
+
+                  {/* Send Button - disabled when update required */}
                   <button
                     onClick={handleSendInvoice}
-                    disabled={loading || !hasValidToRecipients}
+                    disabled={loading || !hasValidToRecipients || (mode === 'update' && !updateCompleted) || (mode === 'view' && isStale)}
                     className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 text-sm ${
-                      loading || !hasValidToRecipients
+                      loading || !hasValidToRecipients || (mode === 'update' && !updateCompleted) || (mode === 'view' && isStale)
                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : scheduleEnabled
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
                         : 'bg-green-600 text-white hover:bg-green-700'
                     }`}
                   >
                     {loading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      </>
-                    ) : scheduleEnabled ? (
-                      <>
-                        <Calendar className="w-4 h-4" />
-                        Schedule
-                      </>
+                      <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <>
                         <Send className="w-4 h-4" />
-                        {mode === 'view' ? 'Resend' :
-                         mode === 'send' ? 'Send' :
-                         `${mode === 'create' ? 'Create' : 'Update'} & Send`}
+                        {mode === 'view' ? 'Resend' : 'Send'}
                       </>
                     )}
                   </button>
@@ -1221,6 +1362,103 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
             </div>
           </div>
       </div>
+
+      {/* Schedule Modal */}
+      {showScheduleModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-blue-600" />
+                Schedule Email
+              </h3>
+              <button
+                onClick={() => setShowScheduleModal(false)}
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                <input
+                  type="date"
+                  value={scheduledDate}
+                  onChange={(e) => setScheduledDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
+                <input
+                  type="time"
+                  value={scheduledTime}
+                  onChange={(e) => setScheduledTime(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowScheduleModal(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleScheduleConfirm}
+                disabled={loading || !scheduledDate}
+                className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 text-sm ${
+                  loading || !scheduledDate
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {loading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <Calendar className="w-4 h-4" />
+                    Confirm Schedule
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invoice Conflict Modal - shown when QB invoice differs from local data */}
+      <InvoiceConflictModal
+        isOpen={showConflictModal}
+        onClose={() => setShowConflictModal(false)}
+        order={order}
+        status={syncStatus || 'in_sync'}
+        differences={syncDifferences}
+        onResolved={async () => {
+          // After resolution, reload modal data
+          setShowConflictModal(false);
+          setSyncStatus(null);
+          setSyncDifferences([]);
+          setIsStale(false);
+          setInvoicePdf(null);
+          setPdfError(null);
+          setQbInvoiceData(null);
+
+          // Reload data
+          await Promise.all([
+            loadInvoicePdf(),
+            loadQbInvoiceData()
+          ]);
+
+          // Re-check sync status
+          await checkSyncStatus();
+        }}
+      />
     </div>
   );
 };

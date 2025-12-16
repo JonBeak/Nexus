@@ -29,15 +29,16 @@ export class OrderPartRepository {
 
     const [result] = await conn.execute<ResultSetHeader>(
       `INSERT INTO order_parts (
-        order_id, part_number, display_number, is_parent,
+        order_id, part_number, is_header_row, display_number, is_parent,
         product_type, part_scope, qb_item_name, qb_description, specs_display_name, specs_qty, product_type_id,
         channel_letter_type_id, base_product_type_id,
         quantity, specifications, production_notes,
         invoice_description, unit_price, extended_price
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.order_id,
         data.part_number,
+        data.is_header_row || false,
         data.display_number || null,
         data.is_parent || false,
         data.product_type,
@@ -288,11 +289,14 @@ export class OrderPartRepository {
     includeCompleted: boolean,
     hoursBack: number
   ): Promise<any[]> {
+    // Handle completed filter: hoursBack=0 means "all time" (no time restriction)
     const completedFilter = includeCompleted
-      ? 'AND ot.completed = 1 AND ot.completed_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)'
+      ? hoursBack > 0
+        ? 'AND ot.completed = 1 AND ot.completed_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)'
+        : 'AND ot.completed = 1'
       : 'AND ot.completed = 0';
 
-    const params = includeCompleted ? [role, hoursBack] : [role];
+    const params = includeCompleted && hoursBack > 0 ? [role, hoursBack] : [role];
 
     const rows = await query(
       `SELECT

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Printer, FolderOpen, Settings, CheckCircle, FileCheck } from 'lucide-react';
-import { Order } from '../../../../types/orders';
+import { Order, DEPOSIT_TRACKING_STATUSES } from '../../../../types/orders';
 import StatusBadge from '../../common/StatusBadge';
 import InvoiceButton, { InvoiceAction } from './InvoiceButton';
 
@@ -18,6 +18,7 @@ interface OrderHeaderProps {
   onFilesCreated: () => void;  // NEW: Files created transition
   onApproveFilesAndPrint: () => void;  // NEW: Approve files and print
   onInvoiceAction: (action: InvoiceAction) => void;  // Phase 2.e: Invoice actions
+  onLinkInvoice?: () => void;  // Phase 2.e: Link existing invoice
   generatingForms: boolean;
   printingForm: boolean;
 }
@@ -35,6 +36,7 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
   onFilesCreated,
   onApproveFilesAndPrint,
   onInvoiceAction,
+  onLinkInvoice,
   generatingForms,
   printingForm
 }) => {
@@ -63,6 +65,32 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
                   {order.order_name}
                 </h1>
                 <StatusBadge status={order.status} />
+                {/* Deposit status indicator - shows deposit required (red) or paid (green) */}
+                {(() => {
+                  if (!order.deposit_required) return null;
+
+                  // Deposit is paid when invoice exists AND balance < total (some payment made)
+                  const depositPaid = !!(order.qb_invoice_id &&
+                    order.cached_balance != null &&
+                    order.cached_invoice_total != null &&
+                    order.cached_balance < order.cached_invoice_total);
+
+                  if (!DEPOSIT_TRACKING_STATUSES.includes(order.status)) return null;
+
+                  if (depositPaid) {
+                    return (
+                      <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 border border-green-300 rounded-full">
+                        Deposit Paid
+                      </span>
+                    );
+                  }
+
+                  return (
+                    <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800 border border-red-300 rounded-full">
+                      Deposit Required
+                    </span>
+                  );
+                })()}
               </div>
               <p className="text-lg font-semibold text-gray-800 mt-1">{order.customer_name}</p>
               <p className="text-sm text-gray-600">Order #{order.order_number}</p>
@@ -177,6 +205,7 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
               <InvoiceButton
                 order={order}
                 onAction={onInvoiceAction}
+                onLinkInvoice={onLinkInvoice}
                 disabled={generatingForms || printingForm}
               />
             )}

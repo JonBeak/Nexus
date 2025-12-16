@@ -1,8 +1,8 @@
 # Phase 2.e: QuickBooks Invoice Automation
 
-**Status:** In Progress - Pivoting to Hybrid Approach
+**Status:** ✅ COMPLETE
 **Created:** 2025-12-11
-**Updated:** 2025-12-15
+**Updated:** 2025-12-16
 
 ---
 
@@ -103,40 +103,79 @@ Create and manage QuickBooks invoices from Nexus orders. **Hybrid approach**: QB
 
 ---
 
-## Remaining Work
+## Completed Work (Phase 2.e.5 - 2.e.7)
 
-### Phase 2.e.5: Email Template Redesign 🔄
+### Phase 2.e.5: Email Template Redesign ✅
 
 **Goal:** Match the Order Confirmation email styling
 
-**Current Order Confirmation Email Style:**
-- Font: `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif`
-- Dark header (`#334155`)
-- Table-based layout for email compatibility
-- Dark mode support
-- Professional container structure
-- Company footer with contact info
+- [x] Update `email_templates` table body to use styled HTML matching Order Confirmation
+- [x] Ensure template variables work: `{orderNumber}`, `{customerName}`, `{invoiceTotal}`, `{qbInvoiceUrl}`
+- [x] Added custom message support with `{customMessage}` variable
+- [x] Added balance line with `{balanceLine}` for deposit vs full invoice display
 
-**Tasks:**
-- [ ] Update `email_templates` table body to use styled HTML matching Order Confirmation
-- [ ] Ensure template variables work: `{orderNumber}`, `{customerName}`, `{invoiceTotal}`, `{qbInvoiceUrl}`
-- [ ] Test email rendering in major clients (Gmail, Outlook)
+### Phase 2.e.6: Invoice Button Integration ✅
 
-### Phase 2.e.6: Invoice Button Integration 🔄
+- [x] InvoiceButton shows correct states (create/update/send/view)
+- [x] InvoiceActionModal flow end-to-end working
+- [x] Email preview before sending (with PDF tab)
+- [x] Scheduled email functionality with time picker
 
-**Tasks:**
-- [ ] Verify InvoiceButton shows correct states (create/update/send/view)
-- [ ] Test InvoiceActionModal flow end-to-end
-- [ ] Add email preview before sending
-- [ ] Test scheduled email functionality
+### Phase 2.e.7: Testing & Polish ✅
 
-### Phase 2.e.7: Testing & Polish 🔄
+- [x] End-to-end test: Create order → Create invoice → Send email → Record payment
+- [x] QB invoice URL works in sent emails
+- [x] Staleness detection (order changes after invoice created)
+- [x] Error handling edge cases
 
-**Tasks:**
-- [ ] End-to-end test: Create order → Create invoice → Send email → Record payment
-- [ ] Verify QB invoice URL works in sent emails
-- [ ] Test staleness detection (order changes after invoice created)
-- [ ] Error handling edge cases
+---
+
+## Phase 2.f: Customer Accounting Emails + Email History ✅
+
+**Completed:** 2025-12-16
+
+- [x] Customer accounting emails (to/cc/bcc) stored in `customer_accounting_emails` table
+- [x] Per-order accounting emails override via `order_accounting_emails` table
+- [x] Invoice PDF attachment via Gmail API
+- [x] Email history tracking with `invoice_emails` table
+- [x] Email history display in InvoiceActionModal
+- [x] Payments system with balance fetched from QuickBooks
+
+---
+
+## Phase 2.g: Bi-Directional Sync + Panel Dashboard ✅
+
+**Completed:** 2025-12-16
+
+### Bi-Directional Invoice Sync
+- [x] Compare local order data with QuickBooks invoice in real-time
+- [x] Detect QB-side modifications via content hash comparison
+- [x] Conflict resolution modal with use_local, use_qb, keep_both options
+- [x] Track `qb_invoice_last_updated_time` and `qb_invoice_sync_token`
+- [x] InvoiceConflictModal component for resolution
+
+### Customer Invoice Browser (for Linking)
+- [x] Paginated query of customer's QB invoices
+- [x] Search by doc number or invoice ID
+- [x] Preview invoice before linking
+- [x] Enhanced LinkInvoiceModal with browse/search tabs
+
+### Panel Dashboard
+- [x] Configurable workflow panels with assignment/status filtering
+- [x] Compact order rows showing key info at a glance
+- [x] Panel selection modal for dashboard customization
+- [x] Persistent panel configuration via `dashboard_panels` table
+
+### Invoices Listing Page
+- [x] Dedicated /invoices route with analytics cards
+- [x] Balance tracking with `cached_balance` from QB
+- [x] Invoice table with customer, order, and payment info
+- [x] Filtering and search capabilities
+
+### Other Enhancements
+- [x] Order part headers (`is_header_row` flag for grouping)
+- [x] Auto-apply Ready for Pickup/Shipping tags based on order status
+- [x] Per-order accounting emails editor (AccountingEmailsEditor component)
 
 ---
 
@@ -197,5 +236,5 @@ The original plan included building custom email templates stored in database wi
 
 ---
 
-**Document Status:** Updated with Hybrid Approach
-**Last Updated:** 2025-12-15
+**Document Status:** COMPLETE - All phases through 2.g implemented
+**Last Updated:** 2025-12-16

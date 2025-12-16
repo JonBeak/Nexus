@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Mail, Paperclip, AlertCircle, Loader2 } from 'lucide-react';
+import { Mail, Paperclip, Loader2 } from 'lucide-react';
 import { orderPreparationApi } from '../../../../services/api/orders/orderPreparationApi';
 
 interface Props {
@@ -86,20 +86,6 @@ export const EmailPreview: React.FC<Props> = ({
 
   return (
     <div className="space-y-4">
-      {/* Warning Notice */}
-      <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex gap-3">
-        <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-        <div>
-          <p className="text-sm font-medium text-yellow-900">
-            Gmail API Integration Pending
-          </p>
-          <p className="text-xs text-yellow-800 mt-1">
-            Email preview is shown below. Actual email sending will be implemented in Phase 2
-            when Gmail API is integrated. For now, email details will be logged to the console.
-          </p>
-        </div>
-      </div>
-
       {/* Email Preview */}
       <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
         {/* Email Header */}

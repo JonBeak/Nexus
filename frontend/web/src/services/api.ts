@@ -56,7 +56,9 @@ export {
   timeSchedulesApi,
   timeAnalyticsApi,
   timeNotificationsApi,
-  timeCalendarApi
+  timeCalendarApi,
+  // Dashboard Panels
+  dashboardPanelsApi
 } from './api/index';
 
 // Export as default for module compatibility

@@ -134,6 +134,22 @@ export class OrderService {
     }
 
     await orderRepository.updateOrder(orderId, data);
+
+    // Check if header-affecting fields changed - update header row for 1:1 QB sync
+    const headerFields: (keyof UpdateOrderData)[] = ['order_name', 'customer_po', 'customer_job_number'];
+    const headerChanged = headerFields.some(field => data[field] !== undefined);
+
+    if (headerChanged) {
+      // Dynamically import to avoid circular dependency
+      const { updateHeaderRow } = await import('./invoiceHeaderService');
+      await updateHeaderRow(
+        orderId,
+        order.order_number,
+        data.order_name ?? order.order_name,
+        data.customer_po ?? order.customer_po,
+        data.customer_job_number ?? order.customer_job_number
+      );
+    }
   }
 
   /**
@@ -395,6 +411,59 @@ export class OrderService {
         display_order: i
       });
     }
+  }
+
+  /**
+   * Update order accounting emails
+   * Updates the accounting_emails JSON column on the order
+   * Optionally saves new emails to customer_accounting_emails table
+   */
+  async updateOrderAccountingEmails(
+    orderId: number,
+    customerId: number,
+    accountingEmails: Array<{
+      email: string;
+      email_type: 'to' | 'cc' | 'bcc';
+      label?: string;
+      saveToDatabase?: boolean;
+    }>,
+    userId?: number
+  ): Promise<void> {
+    // Import CustomerAccountingEmailService dynamically to avoid circular dependency
+    const { CustomerAccountingEmailService } = await import('./customerAccountingEmailService');
+    const accountingEmailService = new CustomerAccountingEmailService();
+
+    // For each email with saveToDatabase flag, create in customer_accounting_emails
+    for (const email of accountingEmails) {
+      if (email.saveToDatabase && email.email) {
+        try {
+          const result = await accountingEmailService.createEmail({
+            customer_id: customerId,
+            email: email.email,
+            email_type: email.email_type,
+            label: email.label
+          }, userId || 0);
+          if (result.success) {
+            console.log(`✅ Accounting email saved to customer: ${email.email}`);
+          } else {
+            console.warn(`⚠️ Failed to save accounting email: ${result.error}`);
+          }
+        } catch (err) {
+          // May fail if email already exists - that's OK
+          console.warn(`⚠️ Failed to save accounting email (may already exist): ${email.email}`);
+        }
+      }
+    }
+
+    // Build the order accounting emails array (without saveToDatabase flag)
+    const orderAccountingEmails = accountingEmails.map(ae => ({
+      email: ae.email,
+      email_type: ae.email_type,
+      label: ae.label
+    }));
+
+    // Update the order's accounting_emails JSON column
+    await orderRepository.updateOrderAccountingEmails(orderId, orderAccountingEmails);
   }
 
 }

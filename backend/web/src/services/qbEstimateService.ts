@@ -256,30 +256,13 @@ async function mapOrderToQBEstimate(
   // Resolve tax code (with database fallback for unmapped taxes)
   const { taxCodeId, taxName } = await resolveTaxCodeWithFallback(orderData.tax_name);
 
-  // Build memo text for DescriptionOnly line item #1
-  let memoText = `Order #${orderData.order_number} - ${orderData.order_name}`;
-
-  // Add PO # if present
-  if (orderData.customer_po && orderData.customer_po.trim()) {
-    memoText += `\nPO #: ${orderData.customer_po}`;
-  }
-
-  // Add Job # if present
-  if (orderData.customer_job_number && orderData.customer_job_number.trim()) {
-    memoText += `\nJob #: ${orderData.customer_job_number}`;
-  }
-
   // Build line items
+  // NOTE: Header row is now stored in order_parts (is_header_row=true, part_number=0)
+  // It's included in orderParts from the query (sorted by part_number), so we iterate all parts
+  // This ensures 1:1 mapping between order_parts and QB estimate lines
   const lineItems: any[] = [];
 
-  // First: DescriptionOnly line item with order info
-  lineItems.push({
-    DetailType: 'DescriptionOnly',
-    Description: memoText,
-    DescriptionLineDetail: {}
-  });
-
-  // Order parts (invoice items) - QB will auto-number based on array order
+  // Order parts (includes header row as first item) - QB will auto-number based on array order
   for (const part of orderParts) {
     // Check if this should be a DescriptionOnly row
     // Criteria: has qb_description but NO qb_item_name AND NO unit_price (or zero)

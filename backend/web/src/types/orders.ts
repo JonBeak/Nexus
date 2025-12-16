@@ -44,7 +44,6 @@ export interface Order {
   production_notes?: string;
   manufacturing_note?: string;  // Auto-filled from customer special_instructions
   internal_note?: string;       // Auto-filled from customer comments
-  invoice_email?: string;       // Auto-filled from customer invoice_email
   terms?: string;               // Auto-filled from customer payment_terms
   deposit_required?: boolean;   // Auto-filled from customer deposit_required
   invoice_notes?: string;       // Auto-filled from customer invoice_email_preference
@@ -55,6 +54,19 @@ export interface Order {
 
   // Accounting emails (snapshot from customer at order creation)
   accounting_emails?: OrderAccountingEmail[];
+
+  // QB Invoice fields (Phase 2.e)
+  qb_invoice_id?: string | null;
+  qb_invoice_doc_number?: string | null;
+  qb_invoice_url?: string | null;
+  qb_invoice_synced_at?: Date | null;
+  qb_invoice_data_hash?: string | null;
+  invoice_sent_at?: Date | null;
+
+  // Invoice balance cache (Phase 2.f)
+  cached_balance?: number | null;
+  cached_balance_at?: Date | null;
+  cached_invoice_total?: number | null;
 
   sign_image_path?: string;
   crop_top?: number;            // Pixels to crop from top edge (auto-crop feature)
@@ -104,6 +116,19 @@ export type OrderStatus =
   | 'completed'
   | 'cancelled';
 
+// Statuses where deposit tracking applies (after customer confirmation, before completion)
+export const DEPOSIT_TRACKING_STATUSES: OrderStatus[] = [
+  'pending_production_files_creation',
+  'pending_production_files_approval',
+  'production_queue',
+  'in_production',
+  'overdue',
+  'qc_packing',
+  'shipping',
+  'pick_up',
+  'awaiting_payment'
+];
+
 // =============================================
 // ORDER PART TYPES
 // =============================================
@@ -112,6 +137,7 @@ export interface OrderPart {
   part_id: number;
   order_id: number;
   part_number: number;
+  is_header_row?: boolean;  // True for auto-generated invoice header row (part_number=0)
   display_number?: string;  // Phase 1.5: "1", "1a", "1b" numbering
   is_parent?: boolean;      // Phase 1.5: Mark first item in section
   product_type: string;  // Human-readable
@@ -135,6 +161,7 @@ export interface OrderPart {
 export interface CreateOrderPartData {
   order_id: number;
   part_number: number;
+  is_header_row?: boolean;  // True for auto-generated invoice header row (part_number=0)
   display_number?: string;  // Phase 1.5
   is_parent?: boolean;      // Phase 1.5
   product_type: string;
@@ -368,7 +395,6 @@ export interface UpdateOrderData {
   production_notes?: string;
   manufacturing_note?: string;
   internal_note?: string;
-  invoice_email?: string;
   terms?: string;
   deposit_required?: boolean;
   invoice_notes?: string;
@@ -397,7 +423,6 @@ export interface CreateOrderData {
   production_notes?: string;
   manufacturing_note?: string;        // Auto-filled from customer special_instructions
   internal_note?: string;             // Auto-filled from customer comments
-  invoice_email?: string;             // Auto-filled from customer invoice_email
   terms?: string;                     // Auto-filled from customer payment_terms
   deposit_required?: boolean;         // Auto-filled from customer deposit_required
   invoice_notes?: string;             // Auto-filled from customer invoice_email_preference

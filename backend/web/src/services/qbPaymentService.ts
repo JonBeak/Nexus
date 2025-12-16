@@ -9,11 +9,13 @@
 import {
   queryOpenInvoicesByCustomer,
   buildMultiInvoicePaymentPayload,
-  createQBPayment
+  createQBPayment,
+  getQBInvoice
 } from '../utils/quickbooks/invoiceClient';
 import { resolveCustomerId } from '../utils/quickbooks/entityResolver';
 import { quickbooksRepository } from '../repositories/quickbooksRepository';
 import { customerRepository } from '../repositories/customerRepository';
+import * as invoiceListingRepo from '../repositories/invoiceListingRepository';
 import {
   OpenInvoice,
   MultiPaymentInput,
@@ -149,6 +151,22 @@ export async function createMultiInvoicePayment(
     const totalAmount = input.allocations.reduce((sum, alloc) => sum + alloc.amount, 0);
 
     console.log(`Created multi-invoice payment: ${paymentId}, total: $${totalAmount}`);
+
+    // 6. Update cached balances for linked orders
+    for (const alloc of input.allocations) {
+      try {
+        const orderId = await invoiceListingRepo.getOrderIdByQBInvoiceId(alloc.invoiceId);
+        if (orderId) {
+          // Fetch updated invoice to get new balance
+          const updatedInvoice = await getQBInvoice(alloc.invoiceId, realmId);
+          await invoiceListingRepo.updateCachedBalance(orderId, updatedInvoice.Balance, updatedInvoice.TotalAmt);
+          console.log(`Updated cached balance for order ${orderId}: $${updatedInvoice.Balance}`);
+        }
+      } catch (error) {
+        // Log but don't fail the payment - cache will update on next sync
+        console.warn(`Failed to update cached balance for invoice ${alloc.invoiceId}:`, error);
+      }
+    }
 
     return {
       paymentId,

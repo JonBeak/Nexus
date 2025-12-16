@@ -268,3 +268,42 @@ export const updateOrderPointPersons = async (req: Request, res: Response) => {
     return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to update point persons', 'INTERNAL_ERROR');
   }
 };
+
+/**
+ * Update order accounting emails
+ * PUT /api/orders/:orderNumber/accounting-emails
+ * Permission: orders.update (Manager+ only)
+ */
+export const updateOrderAccountingEmails = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const { accountingEmails } = req.body;
+    const userId = (req as any).user?.user_id;
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    if (!Array.isArray(accountingEmails)) {
+      return sendErrorResponse(res, 'accountingEmails must be an array', 'VALIDATION_ERROR');
+    }
+
+    // Get the order to get customer_id for saving new accounting emails
+    const order = await orderService.getOrderById(orderId);
+    if (!order) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    await orderService.updateOrderAccountingEmails(orderId, order.customer_id, accountingEmails, userId);
+
+    res.json({
+      success: true,
+      message: 'Accounting emails updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating order accounting emails:', error);
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to update accounting emails', 'INTERNAL_ERROR');
+  }
+};

@@ -24,7 +24,8 @@ export {
   deleteOrder,
   validateOrderName,
   getOrderByEstimate,
-  updateOrderPointPersons
+  updateOrderPointPersons,
+  updateOrderAccountingEmails
 } from './OrderCrudController';
 
 // Status Management

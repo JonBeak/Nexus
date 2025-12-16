@@ -380,6 +380,39 @@ export function buildPaymentPayload(
 }
 
 /**
+ * Query all invoices for a customer (both open and closed)
+ * Returns open invoices first, then closed, sorted by date descending
+ */
+export async function queryAllInvoicesByCustomer(
+  qbCustomerId: string,
+  realmId: string
+): Promise<Array<{
+  Id: string;
+  DocNumber: string;
+  TxnDate: string;
+  DueDate?: string;
+  TotalAmt: number;
+  Balance: number;
+  CustomerRef: { value: string; name?: string };
+}>> {
+  console.log(`🔍 Querying all invoices for QB customer ${qbCustomerId}...`);
+
+  try {
+    // Query all invoices for this customer, newest first
+    const query = `SELECT * FROM Invoice WHERE CustomerRef = '${qbCustomerId}' ORDERBY TxnDate DESC MAXRESULTS 100`;
+    const response = await queryQB(query, realmId);
+
+    const invoices = response?.QueryResponse?.Invoice || [];
+    console.log(`✅ Found ${invoices.length} total invoice(s) for customer ${qbCustomerId}`);
+
+    return invoices;
+  } catch (error) {
+    console.error('❌ Error querying all invoices:', error);
+    throw error;
+  }
+}
+
+/**
  * Query open invoices for a customer (invoices with balance > 0)
  * Used for multi-invoice payment selection
  */

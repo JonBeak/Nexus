@@ -122,10 +122,10 @@ export class OrderRepository {
         order_number, version_number, order_name, estimate_id,
         customer_id, customer_po, customer_job_number,
         order_date, due_date, hard_due_date_time, production_notes,
-        manufacturing_note, internal_note, invoice_email, terms,
+        manufacturing_note, internal_note, terms,
         deposit_required, invoice_notes, cash, discount, tax_name, accounting_emails,
         sign_image_path, status, form_version, shipping_required, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.order_number,
         data.version_number || 1,
@@ -140,7 +140,6 @@ export class OrderRepository {
         data.production_notes || null,
         data.manufacturing_note || null,
         data.internal_note || null,
-        data.invoice_email || null,
         data.terms || null,
         data.deposit_required || false,
         data.invoice_notes || null,
@@ -275,10 +274,6 @@ export class OrderRepository {
     if (data.internal_note !== undefined) {
       updates.push('internal_note = ?');
       params.push(data.internal_note);
-    }
-    if (data.invoice_email !== undefined) {
-      updates.push('invoice_email = ?');
-      params.push(data.invoice_email);
     }
     if (data.terms !== undefined) {
       updates.push('terms = ?');
@@ -452,6 +447,19 @@ export class OrderRepository {
     const rows = await query(sql, params) as RowDataPacket[];
 
     return rows[0].count === 0;
+  }
+
+  /**
+   * Update order accounting emails JSON column
+   */
+  async updateOrderAccountingEmails(
+    orderId: number,
+    accountingEmails: Array<{ email: string; email_type: 'to' | 'cc' | 'bcc'; label?: string }>
+  ): Promise<void> {
+    await query(
+      'UPDATE orders SET accounting_emails = ? WHERE order_id = ?',
+      [JSON.stringify(accountingEmails), orderId]
+    );
   }
 
 }
