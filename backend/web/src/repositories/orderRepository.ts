@@ -123,9 +123,9 @@ export class OrderRepository {
         customer_id, customer_po, customer_job_number,
         order_date, due_date, hard_due_date_time, production_notes,
         manufacturing_note, internal_note, invoice_email, terms,
-        deposit_required, invoice_notes, cash, discount, tax_name, sign_image_path,
-        status, form_version, shipping_required, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        deposit_required, invoice_notes, cash, discount, tax_name, accounting_emails,
+        sign_image_path, status, form_version, shipping_required, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.order_number,
         data.version_number || 1,
@@ -147,6 +147,7 @@ export class OrderRepository {
         data.cash || false,
         data.discount || 0,
         data.tax_name || null,
+        data.accounting_emails ? JSON.stringify(data.accounting_emails) : null,
         data.sign_image_path || null,
         data.status || 'job_details_setup',
         data.form_version || 1,

@@ -50,92 +50,6 @@ function CustomerForm({ formData, isEditing, ledTypes, powerSupplyTypes, onInput
               <p className="text-gray-800 bg-gray-50 p-2 rounded">{formData.quickbooks_name || '-'}</p>
             )}
           </div>
-          <div>
-            <label className="text-sm font-semibold text-gray-600">Contact First Name</label>
-            {isEditing ? (
-              <input
-                type="text"
-                value={formData.contact_first_name || ''}
-                onChange={(e) => onInputChange('contact_first_name', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-red focus:border-primary-red"
-              />
-            ) : (
-              <p className="text-gray-800 bg-gray-50 p-2 rounded">{formData.contact_first_name || '-'}</p>
-            )}
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-gray-600">Contact Last Name</label>
-            {isEditing ? (
-              <input
-                type="text"
-                value={formData.contact_last_name || ''}
-                onChange={(e) => onInputChange('contact_last_name', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-red focus:border-primary-red"
-              />
-            ) : (
-              <p className="text-gray-800 bg-gray-50 p-2 rounded">{formData.contact_last_name || '-'}</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Contact Information */}
-      <div>
-        <h4 className="text-lg font-bold text-gray-800 mb-4 border-b border-gray-200 pb-2">Contact Information</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-semibold text-gray-600">Email</label>
-            {isEditing ? (
-              <input
-                type="email"
-                value={formData.email || ''}
-                onChange={(e) => onInputChange('email', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-red focus:border-primary-red"
-              />
-            ) : (
-              <p className="text-gray-800 bg-gray-50 p-2 rounded">{formData.email || '-'}</p>
-            )}
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-gray-600">Phone</label>
-            {isEditing ? (
-              <input
-                type="text"
-                value={formData.phone || ''}
-                onChange={(e) => onInputChange('phone', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-red focus:border-primary-red"
-              />
-            ) : (
-              <p className="text-gray-800 bg-gray-50 p-2 rounded">{formData.phone || '-'}</p>
-            )}
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-gray-600">Invoice Email</label>
-            {isEditing ? (
-              <input
-                type="email"
-                value={formData.invoice_email || ''}
-                onChange={(e) => onInputChange('invoice_email', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-red focus:border-primary-red"
-              />
-            ) : (
-              <p className="text-gray-800 bg-gray-50 p-2 rounded">{formData.invoice_email || '-'}</p>
-            )}
-          </div>
-          <div className="md:col-span-2">
-            <label className="text-sm font-semibold text-gray-600">Invoice Preference</label>
-            {isEditing ? (
-              <textarea
-                rows={2}
-                value={formData.invoice_email_preference || ''}
-                onChange={(e) => onInputChange('invoice_email_preference', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-red focus:border-primary-red"
-                placeholder="e.g., Include Job # and PO# in Subject Line. Include Point Person and Accounting"
-              />
-            ) : (
-              <p className="text-gray-800 bg-gray-50 p-2 rounded">{formData.invoice_email_preference || '-'}</p>
-            )}
-          </div>
         </div>
       </div>
 
@@ -212,6 +126,20 @@ function CustomerForm({ formData, isEditing, ledTypes, powerSupplyTypes, onInput
               </select>
             ) : (
               <p className="text-gray-800 bg-gray-50 p-2 rounded">{formData.po_required ? 'Yes' : 'No'}</p>
+            )}
+          </div>
+          <div className="md:col-span-2">
+            <label className="text-sm font-semibold text-gray-600">Invoice Preference</label>
+            {isEditing ? (
+              <textarea
+                rows={2}
+                value={formData.invoice_email_preference || ''}
+                onChange={(e) => onInputChange('invoice_email_preference', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-red focus:border-primary-red"
+                placeholder="e.g., Include Job # and PO# in Subject Line. Include Point Person and Accounting"
+              />
+            ) : (
+              <p className="text-gray-800 bg-gray-50 p-2 rounded">{formData.invoice_email_preference || '-'}</p>
             )}
           </div>
         </div>

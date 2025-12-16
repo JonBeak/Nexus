@@ -27,6 +27,7 @@ import { CustomerController } from '../controllers/customers/customerController'
 import { AddressController } from '../controllers/customers/addressController';
 import { LookupController } from '../controllers/customers/lookupController';
 import * as customerContactController from '../controllers/customerContactController';
+import * as customerAccountingEmailController from '../controllers/customerAccountingEmailController';
 
 const router = Router();
 
@@ -156,6 +157,42 @@ router.delete(
   '/:customerId/contacts/:contactId',
   requirePermission('customers.update'),
   customerContactController.deleteCustomerContact
+);
+
+// Customer Accounting Emails Routes
+// Get all accounting emails for customer
+router.get(
+  '/:customerId/accounting-emails',
+  requirePermission('customers.read'),
+  customerAccountingEmailController.getAccountingEmails
+);
+
+// Get single accounting email by ID
+router.get(
+  '/:customerId/accounting-emails/:emailId',
+  requirePermission('customers.read'),
+  customerAccountingEmailController.getAccountingEmail
+);
+
+// Create new accounting email
+router.post(
+  '/:customerId/accounting-emails',
+  requirePermission('customers.update'),
+  customerAccountingEmailController.createAccountingEmail
+);
+
+// Update accounting email
+router.put(
+  '/:customerId/accounting-emails/:emailId',
+  requirePermission('customers.update'),
+  customerAccountingEmailController.updateAccountingEmail
+);
+
+// Delete accounting email (soft delete)
+router.delete(
+  '/:customerId/accounting-emails/:emailId',
+  requirePermission('customers.update'),
+  customerAccountingEmailController.deleteAccountingEmail
 );
 
 export default router;

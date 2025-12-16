@@ -13,7 +13,6 @@ import {
   getQBInvoice,
   queryQBInvoiceByDocNumber,
   createQBPayment,
-  getInvoiceWebUrl,
   buildPaymentPayload
 } from '../utils/quickbooks/invoiceClient';
 import * as qbInvoiceRepo from '../repositories/qbInvoiceRepository';
@@ -139,8 +138,13 @@ export async function createInvoiceFromOrder(
     console.log(`📝 Creating QB invoice for order #${orderData.order_number}...`);
     const { invoiceId, docNumber } = await createQBInvoice(invoicePayload, realmId);
 
-    // 10. Get invoice URL
-    const invoiceUrl = getInvoiceWebUrl(invoiceId);
+    // 10. Fetch invoice to get the customer payment link
+    const invoice = await getQBInvoice(invoiceId, realmId, true);
+    // Only use payment link - do NOT fall back to admin URL
+    const invoiceUrl = (invoice as any).InvoiceLink || null;
+    if (!invoiceUrl) {
+      console.warn('⚠️  No payment link returned from QB - customer may need to access invoice through QB directly');
+    }
 
     // 11. Update order with invoice data
     await qbInvoiceRepo.updateOrderInvoiceRecord(orderId, {
@@ -263,6 +267,7 @@ export async function getInvoiceDetails(orderId: number): Promise<InvoiceDetails
         invoiceUrl: null,
         total: null,
         balance: null,
+        dueDate: null,
         syncedAt: null,
         sentAt: null
       };
@@ -276,13 +281,28 @@ export async function getInvoiceDetails(orderId: number): Promise<InvoiceDetails
 
     const qbInvoice = await getQBInvoice(invoiceRecord.qb_invoice_id, realmId);
 
+    // Use payment link from QB if available, otherwise fall back to stored URL
+    let invoiceUrl = invoiceRecord.qb_invoice_url;
+    const paymentLink = (qbInvoice as any).InvoiceLink;
+    if (paymentLink) {
+      invoiceUrl = paymentLink;
+      // Update stored URL if we got a new payment link
+      if (paymentLink !== invoiceRecord.qb_invoice_url) {
+        await qbInvoiceRepo.updateOrderInvoiceRecord(orderId, {
+          qb_invoice_url: paymentLink
+        });
+        console.log(`🔗 Updated stored invoice URL to payment link: ${paymentLink}`);
+      }
+    }
+
     return {
       exists: true,
       invoiceId: invoiceRecord.qb_invoice_id,
       invoiceNumber: invoiceRecord.qb_invoice_doc_number,
-      invoiceUrl: invoiceRecord.qb_invoice_url,
+      invoiceUrl,
       total: qbInvoice.TotalAmt,
       balance: qbInvoice.Balance,
+      dueDate: qbInvoice.DueDate || null,
       syncedAt: invoiceRecord.qb_invoice_synced_at,
       sentAt: invoiceRecord.invoice_sent_at
     };
@@ -329,8 +349,11 @@ export async function linkExistingInvoice(
       throw new Error('This invoice is already linked to another order');
     }
 
-    // 4. Get invoice URL
-    const invoiceUrl = getInvoiceWebUrl(qbInvoice.Id);
+    // 4. Get invoice URL - only use payment link, not admin URL
+    const invoiceUrl = (qbInvoice as any).InvoiceLink || null;
+    if (!invoiceUrl) {
+      console.warn('⚠️  No payment link returned from QB when linking invoice');
+    }
 
     // 5. Calculate current hash (for staleness tracking going forward)
     const dataHash = await calculateOrderDataHash(orderId);
@@ -437,6 +460,10 @@ async function buildInvoicePayload(
   // Resolve tax code
   const { taxCodeId, taxName } = await resolveTaxCodeWithFallback(orderData.tax_name);
 
+  // Get point person email for BillEmail (required for payment link)
+  const pointPersons = await orderPrepRepo.getOrderPointPersons(orderData.order_number);
+  const primaryEmail = pointPersons.length > 0 ? pointPersons[0].contact_email : null;
+
   // Build line items
   const lineItems: QBLineItem[] = [];
 
@@ -494,8 +521,19 @@ async function buildInvoicePayload(
     Line: lineItems,
     TxnTaxDetail: {
       TxnTaxCodeRef: { value: taxCodeId, name: taxName }
-    }
+    },
+    // Enable online payments - REQUIRED for QB to generate a payment link
+    AllowOnlineCreditCardPayment: true,
+    AllowOnlineACHPayment: true
   };
+
+  // Add BillEmail if we have a point person email (required for payment link)
+  if (primaryEmail) {
+    payload.BillEmail = { Address: primaryEmail };
+    console.log(`📧 Setting invoice BillEmail to: ${primaryEmail}`);
+  } else {
+    console.warn('⚠️  No point person email found - invoice may not get a payment link');
+  }
 
   return payload;
 }

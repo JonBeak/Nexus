@@ -18,6 +18,8 @@
 //   - Updated in Order, UpdateOrderData interfaces (CreateOrderData and OrderDataForPDF already correct)
 //   - Preserved ProductTypeTaskTemplate for future task template implementation
 
+import { OrderAccountingEmail } from './customerAccountingEmails';
+
 /**
  * Order System Type Definitions
  * Phase 1.b - Backend Order Conversion & Management
@@ -50,6 +52,10 @@ export interface Order {
   discount?: number;            // Auto-filled from customer discount
   tax_name?: string;            // Auto-filled from billing address province tax, editable per order
   original_tax_name?: string;   // Saved tax_name before cash job override - restored when cash job unchecked
+
+  // Accounting emails (snapshot from customer at order creation)
+  accounting_emails?: OrderAccountingEmail[];
+
   sign_image_path?: string;
   crop_top?: number;            // Pixels to crop from top edge (auto-crop feature)
   crop_right?: number;          // Pixels to crop from right edge (auto-crop feature)
@@ -398,6 +404,7 @@ export interface CreateOrderData {
   cash?: boolean;                     // Auto-filled from customer cash_yes_or_no
   discount?: number;                  // Auto-filled from customer discount
   tax_name?: string;                  // Auto-filled from billing address province tax, editable per order
+  accounting_emails?: OrderAccountingEmail[];  // Snapshot from customer at order creation
   sign_image_path?: string;
   crop_top?: number;                  // Pixels to crop from top edge (auto-crop feature)
   crop_right?: number;                // Pixels to crop from right edge (auto-crop feature)

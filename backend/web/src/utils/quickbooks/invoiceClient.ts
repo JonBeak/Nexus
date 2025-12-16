@@ -105,15 +105,22 @@ export async function updateQBInvoice(
 
 /**
  * Get invoice details from QuickBooks
- * Returns full invoice including balance
+ * Returns full invoice including balance and payment link
  */
 export async function getQBInvoice(
   invoiceId: string,
-  realmId: string
-): Promise<QBInvoice> {
+  realmId: string,
+  includePaymentLink: boolean = true
+): Promise<QBInvoice & { InvoiceLink?: string }> {
   console.log(`📋 Fetching invoice ${invoiceId} from QuickBooks...`);
 
-  const response = await makeQBApiCall('GET', `invoice/${invoiceId}`, realmId);
+  // Include invoiceLink to get the customer-facing payment URL
+  // minorversion 65+ is required for invoiceLink feature
+  const params = includePaymentLink
+    ? { include: 'invoiceLink', minorversion: '65' }
+    : { minorversion: '65' };
+
+  const response = await makeQBApiCall('GET', `invoice/${invoiceId}`, realmId, { params });
 
   const invoice = response.Invoice;
   if (!invoice) {
@@ -121,8 +128,13 @@ export async function getQBInvoice(
   }
 
   console.log(`✅ Invoice fetched: Doc#=${invoice.DocNumber}, Balance=$${invoice.Balance}`);
+  if (invoice.InvoiceLink) {
+    console.log(`🔗 Payment link: ${invoice.InvoiceLink}`);
+  } else {
+    console.log(`⚠️  No payment link returned - ensure invoice has email and payments are enabled in QB`);
+  }
 
-  return invoice as QBInvoice;
+  return invoice as QBInvoice & { InvoiceLink?: string };
 }
 
 /**
@@ -244,12 +256,65 @@ export async function getQBPaymentsForInvoice(
 }
 
 // =============================================
+// PDF OPERATIONS
+// =============================================
+
+/**
+ * Download invoice PDF from QuickBooks
+ * Returns the PDF as a Buffer for serving to clients
+ */
+export async function getQBInvoicePdf(
+  invoiceId: string,
+  realmId: string
+): Promise<Buffer> {
+  console.log(`📄 Downloading PDF for invoice ${invoiceId}...`);
+
+  const { quickbooksOAuthRepository } = await import('../../repositories/quickbooksOAuthRepository');
+  const { refreshAccessToken } = await import('./oauthClient');
+
+  // Get active access token
+  let tokenData = await quickbooksOAuthRepository.getActiveTokens(realmId);
+
+  if (!tokenData) {
+    console.log(`⚠️  No active access token for Realm ${realmId}. Attempting refresh...`);
+    await refreshAccessToken(realmId);
+    tokenData = await quickbooksOAuthRepository.getActiveTokens(realmId);
+  }
+
+  if (!tokenData) {
+    throw new APIError('No active access token available for PDF download');
+  }
+
+  const url = `${QB_API_BASE_URL}/${realmId}/invoice/${invoiceId}/pdf`;
+
+  try {
+    const axios = (await import('axios')).default;
+    const response = await axios.get<ArrayBuffer>(url, {
+      headers: {
+        Authorization: `Bearer ${tokenData.access_token}`,
+        Accept: 'application/pdf',
+      },
+      responseType: 'arraybuffer',
+    });
+
+    const data = response.data as ArrayBuffer;
+    console.log(`✅ PDF downloaded: ${data.byteLength} bytes`);
+    return Buffer.from(data);
+  } catch (error: any) {
+    const status = error.response?.status;
+    console.error(`❌ PDF download failed (${status}):`, error.message);
+    throw new APIError(`Failed to download invoice PDF: ${error.message}`, status);
+  }
+}
+
+// =============================================
 // URL HELPERS
 // =============================================
 
 /**
- * Get invoice web interface URL
- * Returns the QuickBooks web UI URL that users can open directly in browser
+ * Get invoice admin URL (FALLBACK ONLY)
+ * Returns the QuickBooks admin dashboard URL - requires QB login
+ * Prefer using InvoiceLink from getQBInvoice() for customer-facing payment links
  */
 export function getInvoiceWebUrl(invoiceId: string): string {
   return `https://qbo.intuit.com/app/invoice?txnId=${invoiceId}`;
@@ -310,6 +375,88 @@ export function buildPaymentPayload(
   if (options.memo) {
     payload.PrivateNote = options.memo;
   }
+
+  return payload;
+}
+
+/**
+ * Query open invoices for a customer (invoices with balance > 0)
+ * Used for multi-invoice payment selection
+ */
+export async function queryOpenInvoicesByCustomer(
+  qbCustomerId: string,
+  realmId: string
+): Promise<Array<{
+  Id: string;
+  DocNumber: string;
+  TxnDate: string;
+  DueDate?: string;
+  TotalAmt: number;
+  Balance: number;
+  CustomerRef: { value: string; name?: string };
+}>> {
+  console.log(`🔍 Querying open invoices for QB customer ${qbCustomerId}...`);
+
+  try {
+    // Query invoices where customer matches and balance is greater than 0
+    const query = `SELECT * FROM Invoice WHERE CustomerRef = '${qbCustomerId}' AND Balance > '0' ORDERBY TxnDate`;
+    const response = await queryQB(query, realmId);
+
+    const invoices = response?.QueryResponse?.Invoice || [];
+    console.log(`✅ Found ${invoices.length} open invoice(s) for customer ${qbCustomerId}`);
+
+    return invoices;
+  } catch (error) {
+    console.error('❌ Error querying open invoices:', error);
+    throw error;
+  }
+}
+
+/**
+ * Build payment payload for recording a payment against multiple invoices
+ * Each invoice gets its own Line entry with the amount to apply
+ */
+export function buildMultiInvoicePaymentPayload(
+  qbCustomerId: string,
+  allocations: Array<{ invoiceId: string; amount: number }>,
+  paymentDate: string,
+  options: {
+    paymentMethodRef?: string;
+    referenceNumber?: string;
+    memo?: string;
+  } = {}
+): QBPaymentPayload {
+  // Calculate total from allocations
+  const totalAmount = allocations.reduce((sum, alloc) => sum + alloc.amount, 0);
+
+  const payload: QBPaymentPayload = {
+    CustomerRef: { value: qbCustomerId },
+    TotalAmt: totalAmount,
+    TxnDate: paymentDate,
+    Line: allocations.map(alloc => ({
+      Amount: alloc.amount,
+      LinkedTxn: [
+        {
+          TxnId: alloc.invoiceId,
+          TxnType: 'Invoice' as const,
+        },
+      ],
+    })),
+  };
+
+  if (options.paymentMethodRef) {
+    payload.PaymentMethodRef = { value: options.paymentMethodRef };
+  }
+
+  if (options.referenceNumber) {
+    payload.PaymentRefNum = options.referenceNumber;
+  }
+
+  if (options.memo) {
+    payload.PrivateNote = options.memo;
+  }
+
+  console.log(`📝 Built multi-invoice payment payload: $${totalAmount} across ${allocations.length} invoice(s)`);
 
   return payload;
 }

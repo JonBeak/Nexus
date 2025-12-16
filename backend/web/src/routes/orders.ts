@@ -604,6 +604,17 @@ router.get(
 );
 
 /**
+ * Get invoice PDF from QuickBooks
+ * GET /api/orders/:orderNumber/qb-invoice/pdf
+ */
+router.get(
+  '/:orderNumber/qb-invoice/pdf',
+  authenticateToken,
+  requirePermission('orders.view'),
+  qbInvoiceController.getInvoicePdf
+);
+
+/**
  * Record payment against invoice (Manager+ only)
  * POST /api/orders/:orderNumber/qb-payment
  */
@@ -649,6 +660,17 @@ router.get(
   authenticateToken,
   requirePermission('orders.view'),
   qbInvoiceController.getScheduledEmail
+);
+
+/**
+ * Get email history for order
+ * GET /api/orders/:orderNumber/invoice-email/history
+ */
+router.get(
+  '/:orderNumber/invoice-email/history',
+  authenticateToken,
+  requirePermission('orders.view'),
+  qbInvoiceController.getEmailHistory
 );
 
 /**

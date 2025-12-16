@@ -48,7 +48,7 @@ export const OrderDetailsPage: React.FC = () => {
 
   // Phase 2.e: Invoice Modal States
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [invoiceModalMode, setInvoiceModalMode] = useState<'create' | 'update' | 'send'>('create');
+  const [invoiceModalMode, setInvoiceModalMode] = useState<'create' | 'update' | 'send' | 'view'>('create');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showLinkInvoiceModal, setShowLinkInvoiceModal] = useState(false);
   const [invoicePromptType, setInvoicePromptType] = useState<'deposit' | 'full' | 'send' | null>(null);
@@ -238,12 +238,8 @@ export const OrderDetailsPage: React.FC = () => {
 
   // Phase 2.e: Invoice Action Handlers
   const handleInvoiceAction = (action: InvoiceAction) => {
-    if (action === 'view' && orderData.order?.qb_invoice_url) {
-      window.open(orderData.order.qb_invoice_url, '_blank');
-      return;
-    }
-    // For create, update, send - open the modal in appropriate mode
-    setInvoiceModalMode(action as 'create' | 'update' | 'send');
+    // All actions now open the modal (including 'view')
+    setInvoiceModalMode(action as 'create' | 'update' | 'send' | 'view');
     setShowInvoiceModal(true);
   };
 
@@ -898,6 +894,7 @@ export const OrderDetailsPage: React.FC = () => {
           setShowInvoiceModal(false);
           setInvoicePromptType(null);
           setPendingStatusChange(null);
+          refetch(); // Re-check staleness after closing modal
         }}
         order={orderData.order}
         mode={invoiceModalMode}

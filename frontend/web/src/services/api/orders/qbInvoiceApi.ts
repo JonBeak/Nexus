@@ -39,12 +39,12 @@ export interface PaymentResult {
 }
 
 export interface EmailInput {
-  recipients: string[];
-  cc?: string[];
+  recipientEmails: string[];
+  ccEmails?: string[];
+  bccEmails?: string[];
   subject: string;
   body: string;
-  templateKey: string;
-  attachPdf?: boolean;
+  attachInvoicePdf?: boolean;
 }
 
 export interface ScheduledEmailInput extends EmailInput {
@@ -134,6 +134,15 @@ export const qbInvoiceApi = {
     return response.data;
   },
 
+  /**
+   * Get invoice PDF from QuickBooks
+   * Returns base64-encoded PDF data
+   */
+  async getInvoicePdf(orderNumber: number): Promise<{ pdf: string; filename: string }> {
+    const response = await api.get(`/orders/${orderNumber}/qb-invoice/pdf`);
+    return response.data;
+  },
+
   // ========================================
   // Payment Operations
   // ========================================
@@ -197,6 +206,31 @@ export const qbInvoiceApi = {
   async getEmailPreview(orderNumber: number, templateKey: string): Promise<EmailPreview> {
     const response = await api.get(`/orders/${orderNumber}/invoice-email/preview/${templateKey}`);
     return response.data;
+  },
+
+  /**
+   * Get all invoice emails for this order (history)
+   */
+  async getEmailHistory(orderNumber: number): Promise<ScheduledEmail[]> {
+    const response = await api.get(`/orders/${orderNumber}/invoice-email/history`);
+    // Transform snake_case from backend to camelCase for frontend
+    const rawData = response.data as any[];
+    return rawData.map(item => ({
+      id: item.id,
+      orderId: item.order_id,
+      emailType: item.email_type,
+      recipientEmails: item.recipient_emails,
+      ccEmails: item.cc_emails,
+      subject: item.subject,
+      body: item.body,
+      scheduledFor: item.scheduled_for,
+      status: item.status,
+      sentAt: item.sent_at,
+      errorMessage: item.error_message,
+      createdAt: item.created_at,
+      createdBy: item.created_by,
+      updatedAt: item.updated_at
+    }));
   },
 
   // ========================================

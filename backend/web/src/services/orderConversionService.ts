@@ -49,6 +49,7 @@ import { CustomerContactService } from './customerContactService';
 import { orderPartCreationService } from './orderPartCreationService';
 import { qbEstimateComparisonService } from './qbEstimateComparisonService';
 import { QBEstimateLineItem } from '../types/orders';
+import { CustomerAccountingEmailRepository } from '../repositories/customerAccountingEmailRepository';
 
 const customerContactService = new CustomerContactService();
 
@@ -139,6 +140,16 @@ export class OrderConversionService {
 
       const taxName = addressRows[0].tax_name;
 
+      // 5b. Fetch accounting emails for customer (snapshot for order)
+      const accountingEmails = await CustomerAccountingEmailRepository.getEmailsForCustomer(estimate.customer_id);
+      const accountingEmailsSnapshot = accountingEmails.length > 0
+        ? accountingEmails.map(ae => ({
+            email: ae.email,
+            email_type: ae.email_type,
+            label: ae.label
+          }))
+        : undefined;
+
       // 6. Get next order number
       const orderNumber = await orderRepository.getNextOrderNumber(connection);
 
@@ -168,6 +179,7 @@ export class OrderConversionService {
         cash: customer?.cash_yes_or_no || false,                     // Auto-fill from customer
         discount: customer?.discount || 0,                           // Auto-fill from customer
         tax_name: taxName,                                           // Auto-fill from billing/primary address
+        accounting_emails: accountingEmailsSnapshot,                 // Snapshot from customer accounting emails
         form_version: 1,
         shipping_required: false,
         status: 'job_details_setup' as const,  // Phase 1.5: Start in job details setup

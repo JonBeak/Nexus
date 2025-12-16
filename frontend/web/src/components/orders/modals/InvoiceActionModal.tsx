@@ -8,18 +8,30 @@
  * - Schedule option for delayed send
  */
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { X, Loader2, Calendar, Send, FileText, RefreshCw, Clock, Mail, Eye, Truck, Package } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { X, Loader2, Calendar, Send, FileText, RefreshCw, Clock, Mail, Eye, Truck, Package, AlertTriangle, Plus, UserCircle } from 'lucide-react';
 import { Order, OrderPart } from '../../../types/orders';
 import { qbInvoiceApi, EmailPreview, InvoiceDetails } from '../../../services/api/orders/qbInvoiceApi';
+import { customerContactsApi } from '../../../services/api';
 
 interface InvoiceActionModalProps {
   isOpen: boolean;
   onClose: () => void;
   order: Order;
-  mode: 'create' | 'update' | 'send';
+  mode: 'create' | 'update' | 'send' | 'view';
   onSuccess: () => void;
   onSkip?: () => void;  // For status change prompts - allows skipping
+}
+
+interface EmailHistoryItem {
+  id: number;
+  emailType: string;
+  recipientEmails: string[];
+  subject: string;
+  status: 'pending' | 'sent' | 'cancelled' | 'failed';
+  scheduledFor: string;
+  sentAt: string | null;
+  createdAt: string;
 }
 
 interface InvoiceLineItem {
@@ -27,6 +39,25 @@ interface InvoiceLineItem {
   quantity: number;
   unitPrice: number;
   amount: number;
+}
+
+// Recipient entry with mode (existing/custom) and email type (to/cc/bcc)
+interface RecipientEntry {
+  id: string;
+  mode: 'existing' | 'custom' | 'accounting';  // accounting = auto-added invoice_email
+  contact_id?: number;
+  email: string;
+  name?: string;
+  emailType: 'to' | 'cc' | 'bcc';
+  saveToDatabase?: boolean;
+}
+
+interface CustomerContact {
+  contact_id: number;
+  contact_email: string;
+  contact_name?: string;
+  contact_phone?: string;
+  contact_role?: string;
 }
 
 export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
@@ -38,13 +69,16 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   onSkip
 }) => {
   // Form State
-  const [recipients, setRecipients] = useState<string[]>([]);
-  const [ccEmails, setCcEmails] = useState<string[]>([]);
+  const [recipientEntries, setRecipientEntries] = useState<RecipientEntry[]>([]);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('09:00');
+
+  // Customer contacts for recipient selection
+  const [customerContacts, setCustomerContacts] = useState<CustomerContact[]>([]);
+  const [loadingContacts, setLoadingContacts] = useState(false);
 
   // UI State
   const [loading, setLoading] = useState(false);
@@ -62,6 +96,19 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   // QB Invoice data for Invoice Details tab
   const [qbInvoiceData, setQbInvoiceData] = useState<InvoiceDetails | null>(null);
   const [loadingQbInvoice, setLoadingQbInvoice] = useState(false);
+
+  // Email history for view mode
+  const [emailHistory, setEmailHistory] = useState<EmailHistoryItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Staleness detection for view mode
+  const [isStale, setIsStale] = useState(false);
+  const [checkingStaleness, setCheckingStaleness] = useState(false);
+
+  // Invoice PDF for Invoice Details tab
+  const [invoicePdf, setInvoicePdf] = useState<string | null>(null);
+  const [loadingPdf, setLoadingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   // Determine template based on order type
   const templateKey = useMemo(() => {
@@ -99,20 +146,80 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     return { subtotal, tax, taxRate, total, deposit };
   }, [lineItems, order.cash, order.deposit_required]);
 
-  // Initialize recipients from point persons
-  useEffect(() => {
-    if (isOpen && order.point_persons) {
-      const emails = order.point_persons
-        .map(pp => pp.contact_email)
-        .filter((email): email is string => !!email);
-
-      setRecipients(emails.length > 0 ? emails : []);
+  // Load customer contacts
+  const loadContacts = useCallback(async () => {
+    if (!order.customer_id) return;
+    try {
+      setLoadingContacts(true);
+      const contacts = await customerContactsApi.getContacts(order.customer_id);
+      setCustomerContacts(contacts || []);
+    } catch (error) {
+      console.error('Failed to load customer contacts:', error);
+      setCustomerContacts([]);
+    } finally {
+      setLoadingContacts(false);
     }
-  }, [isOpen, order.point_persons]);
+  }, [order.customer_id]);
+
+  // Initialize recipients: accounting emails first, then point persons
+  useEffect(() => {
+    if (isOpen) {
+      loadContacts();
+
+      const entries: RecipientEntry[] = [];
+      const addedEmails = new Set<string>(); // Track added emails for deduplication
+
+      // Add accounting emails (use accounting_emails array if available, fallback to invoice_email)
+      if (order.accounting_emails && order.accounting_emails.length > 0) {
+        order.accounting_emails.forEach((ae, idx) => {
+          entries.push({
+            id: `accounting-${idx}`,
+            mode: 'accounting',
+            email: ae.email,
+            name: ae.label || 'Accounting',
+            emailType: ae.email_type  // Use stored type (to/cc/bcc)
+          });
+          addedEmails.add(ae.email.toLowerCase());
+        });
+      } else if (order.invoice_email) {
+        // Fallback for legacy orders without accounting_emails
+        entries.push({
+          id: 'accounting',
+          mode: 'accounting',
+          email: order.invoice_email,
+          name: 'Accounting',
+          emailType: 'to'
+        });
+        addedEmails.add(order.invoice_email.toLowerCase());
+      }
+
+      // Add point persons (skip if already added as accounting email)
+      if (order.point_persons) {
+        order.point_persons.forEach((pp, idx) => {
+          if (pp.contact_email) {
+            // Skip if already added as accounting email
+            if (addedEmails.has(pp.contact_email.toLowerCase())) return;
+
+            entries.push({
+              id: `pp-${pp.id || idx}`,
+              mode: pp.contact_id ? 'existing' : 'custom',
+              contact_id: pp.contact_id,
+              email: pp.contact_email,
+              name: pp.contact_name,
+              emailType: 'to'
+            });
+            addedEmails.add(pp.contact_email.toLowerCase());
+          }
+        });
+      }
+
+      setRecipientEntries(entries);
+    }
+  }, [isOpen, order.point_persons, order.invoice_email, order.accounting_emails, loadContacts]);
 
   // Load email preview/template
   useEffect(() => {
-    if (isOpen && (mode === 'create' || mode === 'send')) {
+    if (isOpen) {
       loadEmailPreview();
     }
   }, [isOpen, mode, templateKey, order.order_number]);
@@ -124,9 +231,9 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     try {
       setLoadingPreview(true);
       const preview = await qbInvoiceApi.getEmailPreview(order.order_number, templateKey);
-      // Use our default subject format instead of template's
-      setSubject(defaultSubject);
-      setHtmlBody(preview.body); // Store full HTML for preview
+      // Use subject from template (includes PO#, Job# if available)
+      setSubject(preview.subject);
+      setHtmlBody(preview.body); // Store base HTML for preview (customMessage will be empty)
       // Extract plain text version for simple editing (strip HTML tags)
       const plainText = preview.body
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
@@ -146,6 +253,31 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     }
   };
 
+  // Compute final HTML with custom message injected (for real-time preview)
+  const previewHtml = useMemo(() => {
+    if (!htmlBody) return '';
+
+    if (!customMessage || !customMessage.trim()) {
+      return htmlBody;
+    }
+
+    // Inject custom message before the highlight-box or urgency-box
+    // The template has {customMessage} placeholder which is empty,
+    // we inject a styled paragraph before the highlight/urgency box
+    const styledMessage = `<p class="custom-message" style="margin: 18px 0; font-size: 15px; color: #333;">${customMessage.trim()}</p>`;
+
+    // Insert before the highlight-box or urgency-box div
+    const insertPoint = htmlBody.indexOf('<div class="highlight-box">') !== -1
+      ? '<div class="highlight-box">'
+      : '<div class="urgency-box">';
+
+    if (htmlBody.includes(insertPoint)) {
+      return htmlBody.replace(insertPoint, styledMessage + insertPoint);
+    }
+
+    return htmlBody;
+  }, [htmlBody, customMessage]);
+
   // Load QB invoice data when switching to invoice tab (if invoice exists)
   useEffect(() => {
     if (isOpen && previewTab === 'invoice' && order.qb_invoice_id && !qbInvoiceData) {
@@ -163,6 +295,68 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
       // Fall back to local data - don't set error
     } finally {
       setLoadingQbInvoice(false);
+    }
+  };
+
+  // Load email history and check staleness when modal opens in view mode
+  useEffect(() => {
+    if (isOpen && mode === 'view') {
+      loadEmailHistory();
+      checkStaleness();
+      // Also load QB invoice data for view mode
+      if (order.qb_invoice_id && !qbInvoiceData) {
+        loadQbInvoiceData();
+      }
+    }
+  }, [isOpen, mode]);
+
+  // Check if invoice is stale (order data changed since last sync)
+  const checkStaleness = async () => {
+    if (!order.qb_invoice_id) return;
+
+    try {
+      setCheckingStaleness(true);
+      const result = await qbInvoiceApi.checkUpdates(order.order_number);
+      setIsStale(result.isStale);
+    } catch (err) {
+      console.error('Failed to check invoice staleness:', err);
+      setIsStale(false);
+    } finally {
+      setCheckingStaleness(false);
+    }
+  };
+
+  const loadEmailHistory = async () => {
+    try {
+      setLoadingHistory(true);
+      const history = await qbInvoiceApi.getEmailHistory(order.order_number);
+      setEmailHistory(history);
+    } catch (err) {
+      console.error('Failed to load email history:', err);
+      setEmailHistory([]);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Load invoice PDF as soon as modal opens (if QB invoice exists)
+  useEffect(() => {
+    if (isOpen && order.qb_invoice_id && !invoicePdf && !loadingPdf) {
+      loadInvoicePdf();
+    }
+  }, [isOpen, order.qb_invoice_id]);
+
+  const loadInvoicePdf = async () => {
+    try {
+      setLoadingPdf(true);
+      setPdfError(null);
+      const result = await qbInvoiceApi.getInvoicePdf(order.order_number);
+      setInvoicePdf(result.pdf);
+    } catch (err) {
+      console.error('Failed to load invoice PDF:', err);
+      setPdfError(err instanceof Error ? err.message : 'Failed to load PDF');
+    } finally {
+      setLoadingPdf(false);
     }
   };
 
@@ -214,6 +408,12 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
       setPickupChecked(false);
       setShippingChecked(false);
       setQbInvoiceData(null);
+      setEmailHistory([]);
+      setIsStale(false);
+      setInvoicePdf(null);
+      setPdfError(null);
+      setRecipientEntries([]);
+      setCustomerContacts([]);
     }
   }, [isOpen]);
 
@@ -240,10 +440,32 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     }
   };
 
+  // Handle updating invoice from view mode (when stale)
+  const handleUpdateInvoice = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      await qbInvoiceApi.updateInvoice(order.order_number);
+      setIsStale(false);
+      onSuccess();
+    } catch (err) {
+      console.error('Failed to update invoice:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update invoice');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Handle sending invoice email
   const handleSendInvoice = async () => {
-    if (recipients.length === 0) {
-      setError('Please add at least one recipient');
+    // Get valid recipients (have email)
+    const validEntries = recipientEntries.filter(r => r.email?.trim());
+    const toEmails = validEntries.filter(r => r.emailType === 'to').map(r => r.email);
+    const ccEmails = validEntries.filter(r => r.emailType === 'cc').map(r => r.email);
+    const bccEmails = validEntries.filter(r => r.emailType === 'bcc').map(r => r.email);
+
+    if (toEmails.length === 0) {
+      setError('Please add at least one "To" recipient');
       return;
     }
 
@@ -259,27 +481,28 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
         console.log(`Invoice ${mode}d:`, result);
       }
 
-      // Send or schedule email
+      // Send or schedule email - use previewHtml which has customMessage injected
+      const finalBody = previewHtml || body;
       if (scheduleEnabled && scheduledDate) {
         const scheduledFor = `${scheduledDate}T${scheduledTime}:00`;
         await qbInvoiceApi.scheduleEmail(order.order_number, {
-          recipients,
-          cc: ccEmails.length > 0 ? ccEmails : undefined,
+          recipientEmails: toEmails,
+          ccEmails: ccEmails.length > 0 ? ccEmails : undefined,
+          bccEmails: bccEmails.length > 0 ? bccEmails : undefined,
           subject,
-          body,
-          templateKey,
+          body: finalBody,
           scheduledFor,
-          attachPdf: true
+          attachInvoicePdf: true
         });
         console.log('Email scheduled for:', scheduledFor);
       } else {
         await qbInvoiceApi.sendEmail(order.order_number, {
-          recipients,
-          cc: ccEmails.length > 0 ? ccEmails : undefined,
+          recipientEmails: toEmails,
+          ccEmails: ccEmails.length > 0 ? ccEmails : undefined,
+          bccEmails: bccEmails.length > 0 ? bccEmails : undefined,
           subject,
-          body,
-          templateKey,
-          attachPdf: true
+          body: finalBody,
+          attachInvoicePdf: true
         });
         console.log('Email sent immediately');
       }
@@ -302,134 +525,330 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     }
   };
 
-  // Add/remove recipient
-  const addRecipient = (email: string) => {
-    if (email && !recipients.includes(email)) {
-      setRecipients([...recipients, email]);
-    }
+  // Recipient management functions
+  const getAvailableContacts = (currentEntryId: string) => {
+    const selectedContactIds = recipientEntries
+      .filter(r => r.contact_id)
+      .map(r => r.contact_id);
+    const currentEntry = recipientEntries.find(r => r.id === currentEntryId);
+    return customerContacts.filter(c =>
+      !selectedContactIds.includes(c.contact_id) ||
+      c.contact_id === currentEntry?.contact_id
+    );
   };
 
-  const removeRecipient = (email: string) => {
-    setRecipients(recipients.filter(r => r !== email));
+  const hasAvailableContacts = () => {
+    const selectedContactIds = recipientEntries
+      .filter(r => r.contact_id)
+      .map(r => r.contact_id);
+    return customerContacts.some(c => !selectedContactIds.includes(c.contact_id));
   };
+
+  const handleAddRecipient = () => {
+    const defaultMode = hasAvailableContacts() ? 'existing' : 'custom';
+    const newEntry: RecipientEntry = {
+      id: `new-${Date.now()}`,
+      mode: defaultMode,
+      email: '',
+      emailType: 'to',
+      saveToDatabase: defaultMode === 'custom' ? true : undefined
+    };
+    setRecipientEntries([...recipientEntries, newEntry]);
+  };
+
+  const handleRemoveRecipient = (id: string) => {
+    setRecipientEntries(recipientEntries.filter(r => r.id !== id));
+  };
+
+  const handleRecipientModeChange = (id: string, mode: 'existing' | 'custom') => {
+    setRecipientEntries(recipientEntries.map(entry => {
+      if (entry.id === id) {
+        return {
+          ...entry,
+          mode,
+          contact_id: undefined,
+          email: '',
+          name: undefined,
+          saveToDatabase: mode === 'custom' ? true : undefined
+        };
+      }
+      return entry;
+    }));
+  };
+
+  const handleExistingContactSelect = (id: string, contactId: number | null) => {
+    if (!contactId) {
+      setRecipientEntries(recipientEntries.map(entry => {
+        if (entry.id === id) {
+          return { ...entry, contact_id: undefined, email: '', name: undefined };
+        }
+        return entry;
+      }));
+      return;
+    }
+
+    const selectedContact = customerContacts.find(c => c.contact_id === contactId);
+    if (!selectedContact) return;
+
+    setRecipientEntries(recipientEntries.map(entry => {
+      if (entry.id === id) {
+        return {
+          ...entry,
+          contact_id: selectedContact.contact_id,
+          email: selectedContact.contact_email,
+          name: selectedContact.contact_name
+        };
+      }
+      return entry;
+    }));
+  };
+
+  const handleRecipientFieldChange = (id: string, field: keyof RecipientEntry, value: any) => {
+    setRecipientEntries(recipientEntries.map(entry => {
+      if (entry.id === id) {
+        return { ...entry, [field]: value };
+      }
+      return entry;
+    }));
+  };
+
+  // Check if there are valid To recipients for button enable state
+  const hasValidToRecipients = recipientEntries.some(r => r.email?.trim() && r.emailType === 'to');
 
   if (!isOpen) return null;
 
   const modalTitle = {
     create: 'Create Invoice',
     update: 'Update Invoice',
-    send: 'Send Invoice'
+    send: 'Send Invoice',
+    view: 'View Invoice'
   }[mode];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl w-[95%] max-w-7xl h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center space-x-3">
-              {mode === 'create' && <FileText className="w-6 h-6 text-green-600" />}
-              {mode === 'update' && <RefreshCw className="w-6 h-6 text-orange-500" />}
-              {mode === 'send' && <Send className="w-6 h-6 text-blue-600" />}
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">{modalTitle}</h2>
-                <p className="text-sm text-gray-600">
-                  #{order.order_number} - {order.order_name}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5 text-gray-600" />
-            </button>
-          </div>
-        </div>
-
-        {/* Content - Two Panels */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Left Panel - Form (45%) */}
-          <div className="w-[45%] border-r border-gray-200 flex flex-col">
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {/* Invoice Summary */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">Invoice Summary</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Customer:</span>
-                    <span className="font-medium">{order.customer_name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Subtotal:</span>
-                    <span className="font-medium">${totals.subtotal.toFixed(2)}</span>
-                  </div>
-                  {!order.cash && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Tax ({(totals.taxRate * 100).toFixed(0)}%):</span>
-                      <span className="font-medium">${totals.tax.toFixed(2)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between border-t pt-2 mt-2">
-                    <span className="text-gray-900 font-semibold">Total:</span>
-                    <span className="text-gray-900 font-semibold">${totals.total.toFixed(2)}</span>
-                  </div>
-                  {order.deposit_required && (
-                    <div className="flex justify-between text-green-700 bg-green-50 px-2 py-1 rounded">
-                      <span className="font-medium">Deposit (50%):</span>
-                      <span className="font-semibold">${totals.deposit.toFixed(2)}</span>
-                    </div>
-                  )}
+      <div className="bg-white rounded-lg shadow-2xl w-[96%] max-w-[1475px] h-[95vh] flex overflow-hidden">
+        {/* Left Panel - Header + Form + Footer (37%) */}
+        <div className="w-[37%] border-r border-gray-200 flex flex-col">
+          {/* Header - Left side only */}
+          <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center space-x-3">
+                {mode === 'create' && <FileText className="w-6 h-6 text-green-600" />}
+                {mode === 'update' && <RefreshCw className="w-6 h-6 text-orange-500" />}
+                {mode === 'send' && <Send className="w-6 h-6 text-blue-600" />}
+                {mode === 'view' && <Eye className="w-6 h-6 text-gray-600" />}
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">{modalTitle}</h2>
+                  <p className="text-sm text-gray-600">
+                    #{order.order_number} - {order.order_name}
+                  </p>
                 </div>
               </div>
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+            {/* Open in QuickBooks button - shown in view mode */}
+            {mode === 'view' && order.qb_invoice_id && (
+              <button
+                onClick={() => window.open(`https://qbo.intuit.com/app/invoice?txnId=${order.qb_invoice_id}`, '_blank')}
+                className="flex items-center space-x-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors mt-3"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Open in QuickBooks</span>
+              </button>
+            )}
+          </div>
+
+          {/* Form Content */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {/* Staleness Warning - View Mode */}
+              {mode === 'view' && isStale && (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <h4 className="text-sm font-semibold text-orange-800">Invoice Out of Date</h4>
+                      <p className="text-sm text-orange-700 mt-1">
+                        Order data has changed since this invoice was created.
+                      </p>
+                      <button
+                        onClick={handleUpdateInvoice}
+                        disabled={loading}
+                        className="mt-2 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {loading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Updating...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="w-4 h-4" />
+                            Update Invoice Now
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Invoice Notes - Display only */}
+              {order.invoice_notes && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <h4 className="text-xs font-semibold text-amber-800 mb-1 flex items-center gap-1">
+                    <FileText className="w-3.5 h-3.5" />
+                    Invoice Notes
+                  </h4>
+                  <p className="text-sm text-amber-900 whitespace-pre-wrap">{order.invoice_notes}</p>
+                </div>
+              )}
 
               {/* Recipients */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   <Mail className="w-4 h-4 inline-block mr-1" />
                   Recipients
+                  {loadingContacts && (
+                    <Loader2 className="w-3 h-3 inline-block ml-2 animate-spin text-gray-400" />
+                  )}
                 </label>
                 <div className="space-y-2">
-                  {recipients.map((email, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between bg-gray-100 rounded px-3 py-2"
-                    >
-                      <span className="text-sm">{email}</span>
-                      <button
-                        onClick={() => removeRecipient(email)}
-                        className="text-gray-400 hover:text-red-500"
+                  {recipientEntries.map((entry) => {
+                    const availableContacts = getAvailableContacts(entry.id);
+                    const canUseExisting = availableContacts.length > 0 || entry.mode === 'existing';
+                    const isAccounting = entry.mode === 'accounting';
+
+                    return (
+                      <div
+                        key={entry.id}
+                        className={`border rounded-lg p-2 ${
+                          isAccounting ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
+                        }`}
                       >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                  <div className="flex gap-2">
-                    <input
-                      type="email"
-                      placeholder="Add recipient email..."
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          const input = e.target as HTMLInputElement;
-                          addRecipient(input.value);
-                          input.value = '';
-                        }
-                      }}
-                    />
-                    <button
-                      onClick={(e) => {
-                        const input = (e.target as HTMLElement).previousElementSibling as HTMLInputElement;
-                        if (input) {
-                          addRecipient(input.value);
-                          input.value = '';
-                        }
-                      }}
-                      className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-sm hover:bg-gray-200"
-                    >
-                      Add
-                    </button>
-                  </div>
+                        <div className="flex items-start gap-2">
+                          {/* Email Type Selector (To/CC/BCC) */}
+                          <select
+                            value={entry.emailType}
+                            onChange={(e) => handleRecipientFieldChange(entry.id, 'emailType', e.target.value)}
+                            className="w-16 px-1 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 bg-white"
+                          >
+                            <option value="to">To</option>
+                            <option value="cc">CC</option>
+                            <option value="bcc">BCC</option>
+                          </select>
+
+                          {/* Content based on mode */}
+                          <div className="flex-1 min-w-0">
+                            {isAccounting ? (
+                              /* Accounting Email - Read-only display */
+                              <div className="flex items-center gap-2">
+                                <UserCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-xs text-green-700 font-medium">Accounting</span>
+                                  <p className="text-sm text-gray-900 truncate">{entry.email}</p>
+                                </div>
+                              </div>
+                            ) : entry.mode === 'existing' ? (
+                              /* Existing Contact Dropdown */
+                              <select
+                                value={entry.contact_id || ''}
+                                onChange={(e) => handleExistingContactSelect(entry.id, e.target.value ? parseInt(e.target.value) : null)}
+                                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                              >
+                                <option value="">Select contact...</option>
+                                {availableContacts.map(contact => (
+                                  <option key={contact.contact_id} value={contact.contact_id}>
+                                    {contact.contact_name}{contact.contact_role && ` (${contact.contact_role})`} - {contact.contact_email}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              /* Custom Contact Input */
+                              <div className="space-y-1">
+                                <div className="flex gap-1">
+                                  <input
+                                    type="email"
+                                    value={entry.email}
+                                    onChange={(e) => handleRecipientFieldChange(entry.id, 'email', e.target.value)}
+                                    className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                                    placeholder="Email *"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={entry.name || ''}
+                                    onChange={(e) => handleRecipientFieldChange(entry.id, 'name', e.target.value)}
+                                    className="w-24 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                                    placeholder="Name"
+                                  />
+                                </div>
+                                <label className="flex items-center gap-1 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={entry.saveToDatabase || false}
+                                    onChange={(e) => handleRecipientFieldChange(entry.id, 'saveToDatabase', e.target.checked)}
+                                    className="w-3 h-3 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                  />
+                                  <span className="text-[10px] text-gray-500">Save to contacts</span>
+                                </label>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Mode Toggle (Existing/New) - only for non-accounting */}
+                          {!isAccounting && (
+                            <div className="flex flex-col items-start gap-0" style={{ minWidth: '55px' }}>
+                              {canUseExisting && (
+                                <label className="flex items-center gap-1 cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name={`mode-${entry.id}`}
+                                    checked={entry.mode === 'existing'}
+                                    onChange={() => handleRecipientModeChange(entry.id, 'existing')}
+                                    className="w-3 h-3 text-blue-600 focus:ring-blue-500"
+                                  />
+                                  <span className="text-[10px] text-gray-600">Existing</span>
+                                </label>
+                              )}
+                              <label className="flex items-center gap-1 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name={`mode-${entry.id}`}
+                                  checked={entry.mode === 'custom'}
+                                  onChange={() => handleRecipientModeChange(entry.id, 'custom')}
+                                  className="w-3 h-3 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="text-[10px] text-gray-600">New</span>
+                              </label>
+                            </div>
+                          )}
+
+                          {/* Remove Button */}
+                          <button
+                            onClick={() => handleRemoveRecipient(entry.id)}
+                            className="p-1 text-gray-400 hover:text-red-500 flex-shrink-0"
+                            title="Remove recipient"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Add Recipient Button */}
+                  <button
+                    type="button"
+                    onClick={handleAddRecipient}
+                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 pt-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add Recipient
+                  </button>
                 </div>
               </div>
 
@@ -482,9 +901,6 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  This will appear between the greeting and invoice details.
-                </p>
               </div>
 
               {/* Schedule Option */}
@@ -518,6 +934,58 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                 )}
               </div>
 
+              {/* Email History - View Mode Only (at bottom) */}
+              {mode === 'view' && (
+                <div className="bg-gray-50 rounded-lg p-4 border-t border-gray-200 mt-4">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                    <Clock className="w-4 h-4 mr-2" />
+                    Email History
+                  </h3>
+                  {loadingHistory ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                      <span className="ml-2 text-sm text-gray-500">Loading history...</span>
+                    </div>
+                  ) : emailHistory.length === 0 ? (
+                    <p className="text-sm text-gray-500 italic">No emails sent yet</p>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {emailHistory.map((email) => (
+                        <div
+                          key={email.id}
+                          className="bg-white border border-gray-200 rounded-lg p-3 text-sm"
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-medium text-gray-900 truncate flex-1 mr-2">
+                              {email.subject}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              email.status === 'sent' ? 'bg-green-100 text-green-700' :
+                              email.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                              email.status === 'failed' ? 'bg-red-100 text-red-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {email.status}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            <span>To: {email.recipientEmails.join(', ')}</span>
+                          </div>
+                          <div className="text-xs text-gray-400 mt-1">
+                            {email.sentAt
+                              ? `Sent: ${new Date(email.sentAt).toLocaleString()}`
+                              : email.status === 'pending'
+                              ? `Scheduled: ${new Date(email.scheduledFor).toLocaleString()}`
+                              : `Created: ${new Date(email.createdAt).toLocaleString()}`
+                            }
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Error Message */}
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
@@ -525,18 +993,82 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Footer Actions - Inside Left Panel */}
+            <div className="px-6 py-4 border-t border-gray-200 bg-white flex-shrink-0">
+              <div className="flex items-center justify-between gap-3">
+                {/* Cancel - Left */}
+                <button
+                  onClick={handleSkip}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
+                >
+                  {onSkip ? 'Skip' : 'Cancel'}
+                </button>
+
+                {/* Action Buttons - Right */}
+                <div className="flex items-center gap-2">
+                  {/* Invoice Only Button (for create/update modes) */}
+                  {(mode === 'create' || mode === 'update') && (
+                    <button
+                      onClick={handleInvoiceOnly}
+                      disabled={loading}
+                      className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 text-sm"
+                    >
+                      {loading ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        </span>
+                      ) : (
+                        `${mode === 'create' ? 'Create' : 'Update'} Only`
+                      )}
+                    </button>
+                  )}
+
+                  {/* Send Button */}
+                  <button
+                    onClick={handleSendInvoice}
+                    disabled={loading || !hasValidToRecipients}
+                    className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 text-sm ${
+                      loading || !hasValidToRecipients
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : scheduleEnabled
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-green-600 text-white hover:bg-green-700'
+                    }`}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      </>
+                    ) : scheduleEnabled ? (
+                      <>
+                        <Calendar className="w-4 h-4" />
+                        Schedule
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        {mode === 'view' ? 'Resend' :
+                         mode === 'send' ? 'Send' :
+                         `${mode === 'create' ? 'Create' : 'Update'} & Send`}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Right Panel - Preview (55%) */}
-          <div className="w-[55%] bg-gray-50 flex flex-col">
+        {/* Right Panel - Preview (63%) - Full height from top */}
+        <div className="w-[63%] bg-gray-50 flex flex-col">
             {/* Preview Tabs */}
-            <div className="flex border-b border-gray-200 px-6 pt-4">
+            <div className="flex border-b border-gray-300 px-6 pt-3 pb-0 bg-gray-200">
               <button
                 onClick={() => setPreviewTab('email')}
                 className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                   previewTab === 'email'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    ? 'border-blue-600 text-blue-700'
+                    : 'border-transparent text-gray-700 hover:text-gray-900'
                 }`}
               >
                 <Eye className="w-4 h-4 inline-block mr-1.5" />
@@ -546,8 +1078,8 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                 onClick={() => setPreviewTab('invoice')}
                 className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                   previewTab === 'invoice'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    ? 'border-blue-600 text-blue-700'
+                    : 'border-transparent text-gray-700 hover:text-gray-900'
                 }`}
               >
                 <FileText className="w-4 h-4 inline-block mr-1.5" />
@@ -556,224 +1088,138 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
             </div>
 
             {/* Preview Content */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className={`flex-1 ${
+              previewTab === 'email'
+                ? 'overflow-hidden'
+                : order.qb_invoice_id
+                  ? 'overflow-hidden'  // PDF view - full height, no padding
+                  : 'overflow-y-auto p-6'  // Local preview - with padding
+            }`}>
               {previewTab === 'email' ? (
-                /* Email Preview - Rendered HTML */
-                <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-                  {loadingPreview ? (
-                    <div className="flex items-center justify-center h-64">
-                      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                      <span className="ml-2 text-gray-500">Loading preview...</span>
-                    </div>
-                  ) : htmlBody ? (
-                    <iframe
-                      ref={iframeRef}
-                      srcDoc={htmlBody}
-                      title="Email Preview"
-                      className="w-full h-[600px] border-0"
-                      sandbox="allow-same-origin"
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-64 text-gray-500">
-                      No email preview available
-                    </div>
-                  )}
-                </div>
-              ) : (
-                /* Invoice Details - QB Data or Local Preview */
-                <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
-                  {loadingQbInvoice ? (
-                    <div className="flex items-center justify-center h-64">
-                      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                      <span className="ml-2 text-gray-500">Loading invoice from QuickBooks...</span>
-                    </div>
-                  ) : qbInvoiceData ? (
-                    /* QB Invoice Data */
-                    <>
-                      {/* Header */}
-                      <div className="flex justify-between items-start mb-6 pb-4 border-b">
-                        <div>
-                          <h4 className="text-lg font-bold text-gray-900">INVOICE</h4>
-                          <p className="text-sm text-gray-600">#{qbInvoiceData.docNumber}</p>
-                          <p className="text-xs text-green-600 mt-1">From QuickBooks</p>
-                        </div>
-                        <div className="text-right text-sm">
-                          <p className="font-medium">{qbInvoiceData.customerName}</p>
-                          <p className="text-gray-600">{new Date(qbInvoiceData.txnDate).toLocaleDateString()}</p>
-                          {qbInvoiceData.dueDate && (
-                            <p className="text-gray-500">Due: {new Date(qbInvoiceData.dueDate).toLocaleDateString()}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* QB Totals */}
-                      <div className="space-y-3 text-sm">
-                        <div className="flex justify-end">
-                          <span className="w-32 font-semibold text-gray-900">Total:</span>
-                          <span className="w-28 text-right font-bold text-gray-900">${qbInvoiceData.total.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-end">
-                          <span className="w-32 text-gray-600">Balance Due:</span>
-                          <span className={`w-28 text-right font-semibold ${qbInvoiceData.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            ${qbInvoiceData.balance.toFixed(2)}
-                          </span>
-                        </div>
-                        {qbInvoiceData.balance === 0 && (
-                          <div className="flex justify-end">
-                            <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-                              Paid in Full
-                            </span>
-                          </div>
-                        )}
-                        <div className="pt-4 mt-4 border-t">
-                          <a
-                            href={qbInvoiceData.invoiceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                          >
-                            View in QuickBooks →
-                          </a>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    /* Local Preview - No QB Invoice Yet */
-                    <>
-                      {/* Header */}
-                      <div className="flex justify-between items-start mb-6 pb-4 border-b">
-                        <div>
-                          <h4 className="text-lg font-bold text-gray-900">INVOICE PREVIEW</h4>
-                          <p className="text-sm text-gray-600">#{order.order_number}</p>
-                          <p className="text-xs text-amber-600 mt-1">Not yet created in QuickBooks</p>
-                        </div>
-                        <div className="text-right text-sm">
-                          <p className="font-medium">{order.customer_name}</p>
-                          <p className="text-gray-600">{new Date().toLocaleDateString()}</p>
-                        </div>
-                      </div>
-
-                      {/* Line Items */}
-                      <table className="w-full text-sm mb-6">
-                        <thead>
-                          <tr className="border-b">
-                            <th className="text-left py-2 font-medium text-gray-700">Description</th>
-                            <th className="text-right py-2 font-medium text-gray-700 w-16">Qty</th>
-                            <th className="text-right py-2 font-medium text-gray-700 w-24">Price</th>
-                            <th className="text-right py-2 font-medium text-gray-700 w-24">Amount</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {lineItems.map((item, idx) => (
-                            <tr key={idx} className="border-b border-gray-100">
-                              <td className="py-2 text-gray-900">{item.description}</td>
-                              <td className="py-2 text-right text-gray-600">{item.quantity}</td>
-                              <td className="py-2 text-right text-gray-600">${item.unitPrice.toFixed(2)}</td>
-                              <td className="py-2 text-right text-gray-900">${item.amount.toFixed(2)}</td>
-                            </tr>
-                          ))}
-                          {lineItems.length === 0 && (
-                            <tr>
-                              <td colSpan={4} className="py-4 text-center text-gray-500 italic">
-                                No line items
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-
-                      {/* Totals */}
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-end">
-                          <span className="w-32 text-gray-600">Subtotal:</span>
-                          <span className="w-24 text-right font-medium">${totals.subtotal.toFixed(2)}</span>
-                        </div>
-                        {!order.cash && (
-                          <div className="flex justify-end">
-                            <span className="w-32 text-gray-600">Tax ({(totals.taxRate * 100).toFixed(0)}%):</span>
-                            <span className="w-24 text-right font-medium">${totals.tax.toFixed(2)}</span>
-                          </div>
-                        )}
-                        <div className="flex justify-end border-t pt-2 mt-2">
-                          <span className="w-32 font-semibold text-gray-900">Total:</span>
-                          <span className="w-24 text-right font-bold text-gray-900">${totals.total.toFixed(2)}</span>
-                        </div>
-                        {order.deposit_required && (
-                          <div className="flex justify-end bg-green-50 px-3 py-2 rounded mt-2">
-                            <span className="w-32 font-semibold text-green-700">Deposit Due:</span>
-                            <span className="w-24 text-right font-bold text-green-700">${totals.deposit.toFixed(2)}</span>
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Footer Actions */}
-        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={handleSkip}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800"
-            >
-              {onSkip ? 'Skip' : 'Cancel'}
-            </button>
-
-            <div className="flex items-center space-x-3">
-              {/* Invoice Only Button (for create/update modes) */}
-              {(mode === 'create' || mode === 'update') && (
-                <button
-                  onClick={handleInvoiceOnly}
-                  disabled={loading}
-                  className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                >
-                  {loading ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Processing...
-                    </span>
-                  ) : (
-                    `${mode === 'create' ? 'Create' : 'Update'} Only`
-                  )}
-                </button>
-              )}
-
-              {/* Send Button */}
-              <button
-                onClick={handleSendInvoice}
-                disabled={loading || recipients.length === 0}
-                className={`px-6 py-2.5 rounded-lg font-medium flex items-center gap-2 ${
-                  loading || recipients.length === 0
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : scheduleEnabled
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-green-600 text-white hover:bg-green-700'
-                }`}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : scheduleEnabled ? (
-                  <>
-                    <Calendar className="w-4 h-4" />
-                    Schedule Email
-                  </>
+                /* Email Preview - Rendered HTML (full height, no wrapper) */
+                loadingPreview ? (
+                  <div className="flex items-center justify-center h-full bg-white">
+                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                    <span className="ml-2 text-gray-500">Loading preview...</span>
+                  </div>
+                ) : previewHtml ? (
+                  <iframe
+                    ref={iframeRef}
+                    srcDoc={previewHtml}
+                    title="Email Preview"
+                    className="w-full h-full border-0 bg-white"
+                    sandbox="allow-same-origin"
+                  />
                 ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    {mode === 'send' ? 'Send Now' : `${mode === 'create' ? 'Create' : 'Update'} & Send`}
-                  </>
-                )}
-              </button>
+                  <div className="flex items-center justify-center h-full text-gray-500 bg-white">
+                    No email preview available
+                  </div>
+                )
+              ) : (
+                /* Invoice Details - PDF or Local Preview */
+                order.qb_invoice_id ? (
+                  /* QB Invoice PDF */
+                  loadingPdf ? (
+                    <div className="flex items-center justify-center h-full bg-white">
+                      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                      <span className="ml-2 text-gray-500">Loading invoice PDF...</span>
+                    </div>
+                  ) : invoicePdf ? (
+                    <iframe
+                      src={`data:application/pdf;base64,${invoicePdf}#view=FitH`}
+                      title="Invoice PDF"
+                      className="w-full h-full border-0"
+                    />
+                  ) : pdfError ? (
+                    <div className="flex flex-col items-center justify-center h-full bg-white text-gray-500">
+                      <FileText className="w-12 h-12 text-gray-300 mb-3" />
+                      <p className="text-sm">Failed to load PDF</p>
+                      <p className="text-xs text-gray-400 mt-1">{pdfError}</p>
+                      <button
+                        onClick={loadInvoicePdf}
+                        className="mt-3 px-3 py-1.5 text-sm text-blue-600 hover:text-blue-800"
+                      >
+                        Try Again
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-full bg-white text-gray-500">
+                      No PDF available
+                    </div>
+                  )
+                ) : (
+                  /* Local Preview - No QB Invoice Yet */
+                  <div className="bg-white rounded-lg shadow border border-gray-200 p-6 overflow-y-auto h-full">
+                    {/* Header */}
+                    <div className="flex justify-between items-start mb-6 pb-4 border-b">
+                      <div>
+                        <h4 className="text-lg font-bold text-gray-900">INVOICE PREVIEW</h4>
+                        <p className="text-sm text-gray-600">#{order.order_number}</p>
+                        <p className="text-xs text-amber-600 mt-1">Not yet created in QuickBooks</p>
+                      </div>
+                      <div className="text-right text-sm">
+                        <p className="font-medium">{order.customer_name}</p>
+                        <p className="text-gray-600">{new Date().toLocaleDateString()}</p>
+                      </div>
+                    </div>
+
+                    {/* Line Items */}
+                    <table className="w-full text-sm mb-6">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-2 font-medium text-gray-700">Description</th>
+                          <th className="text-right py-2 font-medium text-gray-700 w-16">Qty</th>
+                          <th className="text-right py-2 font-medium text-gray-700 w-24">Price</th>
+                          <th className="text-right py-2 font-medium text-gray-700 w-24">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lineItems.map((item, idx) => (
+                          <tr key={idx} className="border-b border-gray-100">
+                            <td className="py-2 text-gray-900">{item.description}</td>
+                            <td className="py-2 text-right text-gray-600">{item.quantity}</td>
+                            <td className="py-2 text-right text-gray-600">${item.unitPrice.toFixed(2)}</td>
+                            <td className="py-2 text-right text-gray-900">${item.amount.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                        {lineItems.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="py-4 text-center text-gray-500 italic">
+                              No line items
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+
+                    {/* Totals */}
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-end">
+                        <span className="w-32 text-gray-600">Subtotal:</span>
+                        <span className="w-24 text-right font-medium">${totals.subtotal.toFixed(2)}</span>
+                      </div>
+                      {!order.cash && (
+                        <div className="flex justify-end">
+                          <span className="w-32 text-gray-600">Tax ({(totals.taxRate * 100).toFixed(0)}%):</span>
+                          <span className="w-24 text-right font-medium">${totals.tax.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-end border-t pt-2 mt-2">
+                        <span className="w-32 font-semibold text-gray-900">Total:</span>
+                        <span className="w-24 text-right font-bold text-gray-900">${totals.total.toFixed(2)}</span>
+                      </div>
+                      {order.deposit_required && (
+                        <div className="flex justify-end bg-green-50 px-3 py-2 rounded mt-2">
+                          <span className="w-32 font-semibold text-green-700">Deposit Due:</span>
+                          <span className="w-24 text-right font-bold text-green-700">${totals.deposit.toFixed(2)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              )}
             </div>
           </div>
-        </div>
       </div>
     </div>
   );

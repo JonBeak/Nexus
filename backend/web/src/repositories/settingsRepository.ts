@@ -458,9 +458,9 @@ export class SettingsRepository {
     const { tableName, userId, limit = 50, offset = 0 } = filters;
 
     let sql = `
-      SELECT sal.*, e.first_name, e.last_name
+      SELECT sal.*, u.first_name, u.last_name
       FROM settings_audit_log sal
-      LEFT JOIN employees e ON sal.changed_by = e.employee_id
+      LEFT JOIN users u ON sal.changed_by = u.user_id
     `;
     const conditions: string[] = [];
     const params: unknown[] = [];
@@ -488,6 +488,30 @@ export class SettingsRepository {
       old_values: typeof row.old_values === 'string' ? JSON.parse(row.old_values) : row.old_values,
       new_values: typeof row.new_values === 'string' ? JSON.parse(row.new_values) : row.new_values
     })) as SettingsAuditLogEntry[];
+  }
+
+  async getAuditLogCount(filters: AuditLogFilters = {}): Promise<number> {
+    const { tableName, userId } = filters;
+
+    let sql = 'SELECT COUNT(*) as total FROM settings_audit_log sal';
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (tableName) {
+      conditions.push('sal.table_name = ?');
+      params.push(tableName);
+    }
+    if (userId) {
+      conditions.push('sal.changed_by = ?');
+      params.push(userId);
+    }
+
+    if (conditions.length > 0) {
+      sql += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    const rows = await query(sql, params) as RowDataPacket[];
+    return rows[0]?.total ?? 0;
   }
 }
 

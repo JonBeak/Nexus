@@ -190,6 +190,51 @@ export const checkInvoiceUpdates = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Get invoice PDF from QuickBooks
+ * GET /api/orders/:orderNumber/qb-invoice/pdf
+ */
+export const getInvoicePdf = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    // Get invoice record to get qb_invoice_id
+    const invoiceRecord = await qbInvoiceRepo.getOrderInvoiceRecord(orderId);
+    if (!invoiceRecord?.qb_invoice_id) {
+      return sendErrorResponse(res, 'No invoice linked to this order', 'NOT_FOUND');
+    }
+
+    // Get realm ID
+    const { quickbooksRepository } = await import('../repositories/quickbooksRepository');
+    const realmId = await quickbooksRepository.getDefaultRealmId();
+    if (!realmId) {
+      return sendErrorResponse(res, 'QuickBooks not configured', 'CONFIGURATION_ERROR');
+    }
+
+    // Download PDF from QuickBooks
+    const { getQBInvoicePdf } = await import('../utils/quickbooks/invoiceClient');
+    const pdfBuffer = await getQBInvoicePdf(invoiceRecord.qb_invoice_id, realmId);
+
+    // Send as base64 for frontend to display
+    res.json({
+      success: true,
+      data: {
+        pdf: pdfBuffer.toString('base64'),
+        filename: `Invoice-${invoiceRecord.qb_invoice_doc_number || orderNumber}.pdf`
+      }
+    });
+  } catch (error) {
+    console.error('Error getting invoice PDF:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get invoice PDF';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
 // =============================================
 // PAYMENT OPERATIONS
 // =============================================
@@ -284,7 +329,8 @@ export const sendInvoiceEmail = async (req: Request, res: Response) => {
       emailData.ccEmails || [],
       emailData.subject,
       emailData.body,
-      user.user_id
+      user.user_id,
+      emailData.bccEmails
     );
 
     res.json({
@@ -375,6 +421,32 @@ export const getScheduledEmail = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error getting scheduled email:', error);
     const message = error instanceof Error ? error.message : 'Failed to get scheduled email';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Get email history for order
+ * GET /api/orders/:orderNumber/invoice-email/history
+ */
+export const getEmailHistory = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    const history = await qbInvoiceRepo.getEmailHistoryForOrder(orderId);
+
+    res.json({
+      success: true,
+      data: history
+    });
+  } catch (error) {
+    console.error('Error getting email history:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get email history';
     return sendErrorResponse(res, message, 'INTERNAL_ERROR');
   }
 };

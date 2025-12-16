@@ -4,39 +4,12 @@
  *
  * Each template defines 1-3 specification fields with their input types and options.
  * These are displayed in the "Specs" table in the Order Details page.
+ *
+ * NOTE: Dropdown options are populated from database via populateSpecificationOptions().
+ * Templates start with empty arrays and are populated on Order Details page load.
  */
 
-import {
-  PREFINISHED_COLORS,
-  RETURN_DEPTHS,
-  FACE_MATERIALS,
-  FACE_COLORS,
-  DRAIN_HOLE_SIZES,
-  VINYL_APPLICATIONS,
-  DIGITAL_PRINT_TYPES,
-  WIRE_GAUGES,
-  CUTTING_METHODS,
-  PAINTING_COMPONENTS,
-  PAINTING_TIMINGS,
-  MATERIAL_COLOURS,
-  BOX_MATERIALS,
-  BOX_COLOURS,
-  BOX_FABRICATION,
-  PUSH_THRU_THICKNESSES,
-  PUSH_THRU_COLOURS,
-  NEON_BASE_THICKNESSES,
-  NEON_BASE_MATERIALS,
-  NEON_BASE_COLOURS,
-  NEON_LED_STROKE_WIDTHS,
-  NEON_LED_COLOURS,
-  D_TAPE_THICKNESSES,
-  PIN_TYPES,
-  SPACER_TYPES,
-  EXTRUSION_COLOURS,
-  BACK_MATERIALS,
-  type LEDType,
-  type PowerSupplyType
-} from './specificationConstants';
+import { type LEDType, type PowerSupplyType } from './specificationConstants';
 
 /**
  * Field input types
@@ -77,14 +50,14 @@ export const RETURN_TEMPLATE: SpecificationTemplate = {
     key: 'depth',
     label: 'Depth',
     type: 'combobox',
-    options: RETURN_DEPTHS,
+    options: [], // Populated from DB: return_depths
     placeholder: 'Depth'
   },
   spec2: {
     key: 'colour',
     label: 'Colour',
     type: 'dropdown',
-    options: PREFINISHED_COLORS,
+    options: [], // Populated from DB: prefinished_colors
     placeholder: 'Colour'
   }
 };
@@ -101,7 +74,7 @@ export const TRIM_TEMPLATE: SpecificationTemplate = {
     key: 'colour',
     label: 'Colour',
     type: 'dropdown',
-    options: PREFINISHED_COLORS,
+    options: [], // Populated from DB: prefinished_colors
     placeholder: 'Colour'
   }
 };
@@ -118,14 +91,14 @@ export const FACE_TEMPLATE: SpecificationTemplate = {
     key: 'material',
     label: 'Material',
     type: 'combobox',
-    options: FACE_MATERIALS,
+    options: [], // Populated from DB: face_materials
     placeholder: 'Material'
   },
   spec2: {
     key: 'colour',
     label: 'Colour',
     type: 'combobox',
-    options: FACE_COLORS,
+    options: [], // Populated from DB: face_colors
     placeholder: 'Colour'
   }
 };
@@ -150,7 +123,7 @@ export const VINYL_TEMPLATE: SpecificationTemplate = {
     key: 'application',
     label: 'Application',
     type: 'combobox',
-    options: VINYL_APPLICATIONS,
+    options: [], // Populated from DB: vinyl_applications
     placeholder: 'Application'
   },
   spec3: {
@@ -179,14 +152,14 @@ export const DIGITAL_PRINT_TEMPLATE: SpecificationTemplate = {
     key: 'type',
     label: 'Type',
     type: 'dropdown',
-    options: DIGITAL_PRINT_TYPES,
+    options: [], // Populated from DB: digital_print_types
     placeholder: 'Type'
   },
   spec3: {
     key: 'application',
     label: 'Application',
     type: 'combobox',
-    options: VINYL_APPLICATIONS,
+    options: [], // Populated from DB: vinyl_applications
     placeholder: 'Application'
   }
 };
@@ -271,7 +244,7 @@ export const WIRE_LENGTH_TEMPLATE: SpecificationTemplate = {
     key: 'wire_gauge',
     label: 'Wire Gauge',
     type: 'combobox',
-    options: WIRE_GAUGES,
+    options: [], // Populated from DB: wire_gauges
     placeholder: 'Wire Gauge'
   }
 };
@@ -316,7 +289,7 @@ export const DRAIN_HOLES_TEMPLATE: SpecificationTemplate = {
     key: 'size',
     label: 'Size',
     type: 'combobox',
-    options: DRAIN_HOLE_SIZES,
+    options: [], // Populated from DB: drain_hole_sizes
     placeholder: 'Hole size'
   }
 };
@@ -349,7 +322,7 @@ export const CUTTING_TEMPLATE: SpecificationTemplate = {
     key: 'method',
     label: 'Method',
     type: 'combobox',
-    options: CUTTING_METHODS,
+    options: [], // Populated from DB: cutting_methods
     placeholder: 'Method'
   }
 };
@@ -372,14 +345,14 @@ export const PAINTING_TEMPLATE: SpecificationTemplate = {
     key: 'component',
     label: 'Component',
     type: 'combobox',
-    options: PAINTING_COMPONENTS,
+    options: [], // Populated from DB: painting_components
     placeholder: 'Component'
   },
   spec3: {
     key: 'timing',
     label: 'Timing',
     type: 'combobox',
-    options: PAINTING_TIMINGS,
+    options: [], // Populated from DB: painting_timings
     placeholder: 'Timing'
   }
 };
@@ -402,14 +375,14 @@ export const MATERIAL_TEMPLATE: SpecificationTemplate = {
     key: 'substrate',
     label: 'Substrate',
     type: 'dropdown',
-    options: [], // Populated from API
+    options: [], // Populated from API (pricing data)
     placeholder: 'Substrate'
   },
   spec2: {
     key: 'colour',
     label: 'Colour',
     type: 'combobox',
-    options: MATERIAL_COLOURS,
+    options: [], // Populated from DB: material_colours
     placeholder: 'Colour'
   }
 };
@@ -426,21 +399,21 @@ export const BOX_TYPE_TEMPLATE: SpecificationTemplate = {
     key: 'material',
     label: 'Material',
     type: 'combobox',
-    options: BOX_MATERIALS,
+    options: [], // Populated from DB: box_materials
     placeholder: 'Material'
   },
   spec2: {
     key: 'colour',
     label: 'Colour',
     type: 'combobox',
-    options: BOX_COLOURS,
+    options: [], // Populated from DB: box_colours
     placeholder: 'Colour'
   },
   spec3: {
     key: 'fabrication',
     label: 'Fabrication',
     type: 'combobox',
-    options: BOX_FABRICATION,
+    options: [], // Populated from DB: box_fabrication
     placeholder: 'Fabrication'
   }
 };
@@ -457,14 +430,14 @@ export const ACRYLIC_TEMPLATE: SpecificationTemplate = {
     key: 'thickness',
     label: 'Thickness',
     type: 'combobox',
-    options: PUSH_THRU_THICKNESSES,
+    options: [], // Populated from DB: push_thru_thicknesses
     placeholder: 'Thickness'
   },
   spec2: {
     key: 'colour',
     label: 'Colour',
     type: 'combobox',
-    options: PUSH_THRU_COLOURS,
+    options: [], // Populated from DB: push_thru_colours
     placeholder: 'Colour'
   }
 };
@@ -481,21 +454,21 @@ export const NEON_BASE_TEMPLATE: SpecificationTemplate = {
     key: 'thickness',
     label: 'Thickness',
     type: 'combobox',
-    options: NEON_BASE_THICKNESSES,
+    options: [], // Populated from DB: neon_base_thicknesses
     placeholder: 'Thickness'
   },
   spec2: {
     key: 'material',
     label: 'Material',
     type: 'combobox',
-    options: NEON_BASE_MATERIALS,
+    options: [], // Populated from DB: neon_base_materials
     placeholder: 'Material'
   },
   spec3: {
     key: 'colour',
     label: 'Colour',
     type: 'combobox',
-    options: NEON_BASE_COLOURS,
+    options: [], // Populated from DB: neon_base_colours
     placeholder: 'Colour'
   }
 };
@@ -512,14 +485,14 @@ export const NEON_LED_TEMPLATE: SpecificationTemplate = {
     key: 'stroke_width',
     label: 'Stroke Width',
     type: 'combobox',
-    options: NEON_LED_STROKE_WIDTHS,
+    options: [], // Populated from DB: neon_led_stroke_widths
     placeholder: 'Stroke Width'
   },
   spec2: {
     key: 'colour',
     label: 'Colour',
     type: 'combobox',
-    options: NEON_LED_COLOURS,
+    options: [], // Populated from DB: neon_led_colours
     placeholder: 'Colour'
   }
 };
@@ -558,7 +531,7 @@ export const D_TAPE_TEMPLATE: SpecificationTemplate = {
     key: 'thickness',
     label: 'Thickness',
     type: 'combobox',
-    options: D_TAPE_THICKNESSES,
+    options: [], // Populated from DB: d_tape_thicknesses
     placeholder: 'Thickness'
   }
 };
@@ -581,14 +554,14 @@ export const MOUNTING_TEMPLATE: SpecificationTemplate = {
     key: 'pins',
     label: 'Pins',
     type: 'combobox',
-    options: PIN_TYPES,
+    options: [], // Populated from DB: pin_types
     placeholder: 'Pin Type'
   },
   spec3: {
     key: 'spacers',
     label: 'Spacers',
     type: 'combobox',
-    options: SPACER_TYPES,
+    options: [], // Populated from DB: spacer_types
     placeholder: 'Spacer Type'
   }
 };
@@ -653,7 +626,7 @@ export const EXTR_COLOUR_TEMPLATE: SpecificationTemplate = {
     key: 'colour',
     label: 'Colour',
     type: 'combobox',
-    options: EXTRUSION_COLOURS,
+    options: [], // Populated from DB: extrusion_colours
     placeholder: 'Colour'
   }
 };
@@ -670,7 +643,7 @@ export const BACK_TEMPLATE: SpecificationTemplate = {
     key: 'material',
     label: 'Material',
     type: 'combobox',
-    options: BACK_MATERIALS,
+    options: [], // Populated from DB: back_materials
     placeholder: 'Material'
   }
 };
@@ -859,4 +832,152 @@ export function populateMaterialOptions(materials: string[]): void {
  */
 export function getAllTemplateNames(): string[] {
   return Object.keys(TEMPLATE_REGISTRY);
+}
+
+/**
+ * Populate specification options from database cache
+ * Called after fetching spec options from SpecificationOptionsCache
+ *
+ * Maps database category keys to template spec fields.
+ * No fallbacks - database is the single source of truth.
+ *
+ * @param optionsMap - Record of category key -> option values from database
+ */
+export function populateSpecificationOptions(optionsMap: Record<string, string[]>): void {
+  console.log('[Templates] Populating specification options from database...');
+
+  // Helper to get options (empty array if category missing)
+  const getOptions = (category: string): string[] => {
+    const dbOptions = optionsMap[category];
+    if (!dbOptions || dbOptions.length === 0) {
+      console.warn(`[Templates] No options found for category: ${category}`);
+      return [];
+    }
+    return dbOptions;
+  };
+
+  // RETURN_TEMPLATE
+  if (RETURN_TEMPLATE.spec1) {
+    RETURN_TEMPLATE.spec1.options = getOptions('return_depths');
+  }
+  if (RETURN_TEMPLATE.spec2) {
+    RETURN_TEMPLATE.spec2.options = getOptions('prefinished_colors');
+  }
+
+  // TRIM_TEMPLATE
+  if (TRIM_TEMPLATE.spec1) {
+    TRIM_TEMPLATE.spec1.options = getOptions('prefinished_colors');
+  }
+
+  // FACE_TEMPLATE
+  if (FACE_TEMPLATE.spec1) {
+    FACE_TEMPLATE.spec1.options = getOptions('face_materials');
+  }
+  if (FACE_TEMPLATE.spec2) {
+    FACE_TEMPLATE.spec2.options = getOptions('face_colors');
+  }
+
+  // VINYL_TEMPLATE
+  if (VINYL_TEMPLATE.spec2) {
+    VINYL_TEMPLATE.spec2.options = getOptions('vinyl_applications');
+  }
+
+  // DIGITAL_PRINT_TEMPLATE
+  if (DIGITAL_PRINT_TEMPLATE.spec2) {
+    DIGITAL_PRINT_TEMPLATE.spec2.options = getOptions('digital_print_types');
+  }
+  if (DIGITAL_PRINT_TEMPLATE.spec3) {
+    DIGITAL_PRINT_TEMPLATE.spec3.options = getOptions('vinyl_applications');
+  }
+
+  // WIRE_LENGTH_TEMPLATE
+  if (WIRE_LENGTH_TEMPLATE.spec2) {
+    WIRE_LENGTH_TEMPLATE.spec2.options = getOptions('wire_gauges');
+  }
+
+  // DRAIN_HOLES_TEMPLATE
+  if (DRAIN_HOLES_TEMPLATE.spec2) {
+    DRAIN_HOLES_TEMPLATE.spec2.options = getOptions('drain_hole_sizes');
+  }
+
+  // CUTTING_TEMPLATE
+  if (CUTTING_TEMPLATE.spec1) {
+    CUTTING_TEMPLATE.spec1.options = getOptions('cutting_methods');
+  }
+
+  // PAINTING_TEMPLATE
+  if (PAINTING_TEMPLATE.spec2) {
+    PAINTING_TEMPLATE.spec2.options = getOptions('painting_components');
+  }
+  if (PAINTING_TEMPLATE.spec3) {
+    PAINTING_TEMPLATE.spec3.options = getOptions('painting_timings');
+  }
+
+  // MATERIAL_TEMPLATE (spec2 only - spec1 populated by populateMaterialOptions)
+  if (MATERIAL_TEMPLATE.spec2) {
+    MATERIAL_TEMPLATE.spec2.options = getOptions('material_colours');
+  }
+
+  // BOX_TYPE_TEMPLATE
+  if (BOX_TYPE_TEMPLATE.spec1) {
+    BOX_TYPE_TEMPLATE.spec1.options = getOptions('box_materials');
+  }
+  if (BOX_TYPE_TEMPLATE.spec2) {
+    BOX_TYPE_TEMPLATE.spec2.options = getOptions('box_colours');
+  }
+  if (BOX_TYPE_TEMPLATE.spec3) {
+    BOX_TYPE_TEMPLATE.spec3.options = getOptions('box_fabrication');
+  }
+
+  // ACRYLIC_TEMPLATE
+  if (ACRYLIC_TEMPLATE.spec1) {
+    ACRYLIC_TEMPLATE.spec1.options = getOptions('push_thru_thicknesses');
+  }
+  if (ACRYLIC_TEMPLATE.spec2) {
+    ACRYLIC_TEMPLATE.spec2.options = getOptions('push_thru_colours');
+  }
+
+  // NEON_BASE_TEMPLATE
+  if (NEON_BASE_TEMPLATE.spec1) {
+    NEON_BASE_TEMPLATE.spec1.options = getOptions('neon_base_thicknesses');
+  }
+  if (NEON_BASE_TEMPLATE.spec2) {
+    NEON_BASE_TEMPLATE.spec2.options = getOptions('neon_base_materials');
+  }
+  if (NEON_BASE_TEMPLATE.spec3) {
+    NEON_BASE_TEMPLATE.spec3.options = getOptions('neon_base_colours');
+  }
+
+  // NEON_LED_TEMPLATE
+  if (NEON_LED_TEMPLATE.spec1) {
+    NEON_LED_TEMPLATE.spec1.options = getOptions('neon_led_stroke_widths');
+  }
+  if (NEON_LED_TEMPLATE.spec2) {
+    NEON_LED_TEMPLATE.spec2.options = getOptions('neon_led_colours');
+  }
+
+  // D_TAPE_TEMPLATE
+  if (D_TAPE_TEMPLATE.spec2) {
+    D_TAPE_TEMPLATE.spec2.options = getOptions('d_tape_thicknesses');
+  }
+
+  // MOUNTING_TEMPLATE
+  if (MOUNTING_TEMPLATE.spec2) {
+    MOUNTING_TEMPLATE.spec2.options = getOptions('pin_types');
+  }
+  if (MOUNTING_TEMPLATE.spec3) {
+    MOUNTING_TEMPLATE.spec3.options = getOptions('spacer_types');
+  }
+
+  // EXTR_COLOUR_TEMPLATE
+  if (EXTR_COLOUR_TEMPLATE.spec1) {
+    EXTR_COLOUR_TEMPLATE.spec1.options = getOptions('extrusion_colours');
+  }
+
+  // BACK_TEMPLATE
+  if (BACK_TEMPLATE.spec1) {
+    BACK_TEMPLATE.spec1.options = getOptions('back_materials');
+  }
+
+  console.log('[Templates] Specification options populated from database');
 }

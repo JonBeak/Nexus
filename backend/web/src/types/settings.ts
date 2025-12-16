@@ -209,3 +209,10 @@ export interface AuditLogEntryInput {
   changed_by: number;
   ip_address?: string;
 }
+
+export interface AuditLogResponse {
+  entries: SettingsAuditLogEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+}

@@ -9,10 +9,12 @@ import {
   powerSuppliesApi
 } from '../../../../services/api';
 import { PricingDataResource } from '../../../../services/pricingDataResource';
+import { SpecificationOptionsCache } from '../../../../services/specificationOptionsCache';
 import {
   populateLEDOptions,
   populatePowerSupplyOptions,
   populateMaterialOptions,
+  populateSpecificationOptions,
   areTemplatesPopulated,
   getCachedLEDs,
   getCachedPowerSupplies,
@@ -97,7 +99,7 @@ export function useOrderDetails(orderNumber: string | undefined) {
   const fetchSpecificationData = async () => {
     try {
       // Check if templates are already populated (cached)
-      if (areTemplatesPopulated()) {
+      if (areTemplatesPopulated() && SpecificationOptionsCache.isCachePopulated()) {
         // Use cached data
         setCalculatedValues(prev => ({
           ...prev,
@@ -108,11 +110,13 @@ export function useOrderDetails(orderNumber: string | undefined) {
         }));
         return;
       }
-      // Fetch LEDs, Power Supplies, and Materials in parallel
-      const [ledsData, powerSuppliesData, pricingData] = await Promise.all([
+
+      // Fetch LEDs, Power Supplies, Materials, and Spec Options in parallel
+      const [ledsData, powerSuppliesData, pricingData, specOptionsData] = await Promise.all([
         ledsApi.getActiveLEDs(),
         powerSuppliesApi.getActivePowerSupplies(),
-        PricingDataResource.getAllPricingData()
+        PricingDataResource.getAllPricingData(),
+        SpecificationOptionsCache.getAllOptions()
       ]);
 
       // Extract substrate names from pricing data
@@ -131,9 +135,12 @@ export function useOrderDetails(orderNumber: string | undefined) {
       populateLEDOptions(ledsData.leds || ledsData);
       populatePowerSupplyOptions(powerSuppliesData.powerSupplies || powerSuppliesData);
       populateMaterialOptions(materialsData);
+
+      // Populate specification dropdown options from database
+      populateSpecificationOptions(specOptionsData);
     } catch (err) {
       console.error('Error fetching specification data:', err);
-      // Non-critical error - specs will just have empty dropdowns
+      // Non-critical error - specs will just have empty dropdowns or use hardcoded defaults
     }
   };
 

@@ -16,8 +16,8 @@ import {
   PaintingMatrixEntry,
   EmailTemplate,
   SettingsCategory,
-  SettingsAuditLogEntry,
-  AuditLogFilters
+  AuditLogFilters,
+  AuditLogResponse
 } from '../types/settings';
 
 // =============================================================================
@@ -569,10 +569,21 @@ export class SettingsService {
   // Audit Log
   // ==========================================================================
 
-  async getAuditLog(filters: AuditLogFilters = {}): Promise<ServiceResult<SettingsAuditLogEntry[]>> {
+  async getAuditLog(filters: AuditLogFilters = {}): Promise<ServiceResult<AuditLogResponse>> {
     try {
-      const entries = await settingsRepository.getAuditLog(filters);
-      return { success: true, data: entries };
+      const [entries, total] = await Promise.all([
+        settingsRepository.getAuditLog(filters),
+        settingsRepository.getAuditLogCount(filters)
+      ]);
+      return {
+        success: true,
+        data: {
+          entries,
+          total,
+          limit: filters.limit ?? 50,
+          offset: filters.offset ?? 0
+        }
+      };
     } catch (error) {
       console.error('Error fetching audit log:', error);
       return { success: false, error: 'Failed to fetch audit log', code: 'FETCH_ERROR' };

@@ -35,6 +35,8 @@ export interface QBInvoicePayload {
     TxnTaxCodeRef: { value: string; name: string };
   };
   PrivateNote?: string;
+  AllowOnlineCreditCardPayment?: boolean;
+  AllowOnlineACHPayment?: boolean;
 }
 
 export interface QBPaymentPayload {
@@ -125,6 +127,7 @@ export interface InvoiceDetailsResult {
   invoiceUrl: string | null;
   total: number | null;
   balance: number | null;
+  dueDate: string | null;
   syncedAt: Date | null;
   sentAt: Date | null;
 }
@@ -146,6 +149,41 @@ export interface PaymentInput {
 export interface PaymentResult {
   paymentId: string;
   newBalance: number;
+}
+
+// =============================================
+// MULTI-INVOICE PAYMENT TYPES
+// =============================================
+
+export interface OpenInvoice {
+  invoiceId: string;
+  docNumber: string;
+  txnDate: string;
+  dueDate: string | null;
+  totalAmt: number;
+  balance: number;
+  customerName: string;
+  orderNumber?: number; // Linked back to our order if possible
+}
+
+export interface InvoicePaymentAllocation {
+  invoiceId: string;
+  amount: number;
+}
+
+export interface MultiPaymentInput {
+  qbCustomerId: string;
+  allocations: InvoicePaymentAllocation[];
+  paymentDate: string; // YYYY-MM-DD format
+  paymentMethod?: string;
+  referenceNumber?: string;
+  memo?: string;
+}
+
+export interface MultiPaymentResult {
+  paymentId: string;
+  totalAmount: number;
+  invoicesUpdated: number;
 }
 
 // =============================================
@@ -181,6 +219,9 @@ export interface ScheduledEmailInput {
   body: string;
   scheduled_for: Date;
   created_by: number;
+  // Optional fields for immediate sends (already sent at creation time)
+  status?: 'pending' | 'sent';
+  sent_at?: Date;
 }
 
 export interface EmailSendInput {
@@ -215,11 +256,19 @@ export interface EmailTemplate {
 
 export interface TemplateVariables {
   orderNumber: string;
+  orderName: string;
   customerName: string;
   invoiceTotal: string;
   depositAmount?: string;
-  dueDate?: string;
+  dueDateLine?: string; // Full HTML line with due date, or empty if no due date from QB
   qbInvoiceUrl: string;
+  customMessage?: string; // User-provided custom message, wrapped in HTML if provided
+  jobName?: string; // Order name / job name
+  customerPO?: string; // Customer PO number (if exists)
+  customerJobNumber?: string; // Customer job number (if exists)
+  orderDetailsBlock?: string; // Pre-built HTML block with job name, PO#, Job# if they exist
+  subjectSuffix?: string; // Pre-built suffix for subject line with PO# and Job# if they exist
+  balanceLine?: string; // HTML line showing remaining balance (only if balance != total)
 }
 
 // =============================================
@@ -270,16 +319,20 @@ export interface RecordPaymentRequest {
 export interface SendEmailRequest {
   recipientEmails: string[];
   ccEmails?: string[];
+  bccEmails?: string[];
   subject: string;
   body: string;
+  customMessage?: string; // Optional custom message to inject into template
   attachInvoicePdf?: boolean;
 }
 
 export interface ScheduleEmailRequest {
   recipientEmails: string[];
   ccEmails?: string[];
+  bccEmails?: string[];
   subject: string;
   body: string;
+  customMessage?: string; // Optional custom message to inject into template
   scheduledFor: string; // ISO datetime string
 }
 
@@ -289,4 +342,5 @@ export interface UpdateScheduledEmailRequest {
   scheduledFor?: string;
   recipientEmails?: string[];
   ccEmails?: string[];
+  bccEmails?: string[];
 }

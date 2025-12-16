@@ -36,6 +36,9 @@ export interface Order {
   qb_invoice_data_hash?: string | null;
   invoice_sent_at?: string | null;
 
+  // Accounting emails (snapshot from customer at order creation)
+  accounting_emails?: OrderAccountingEmail[];
+
   sign_image_path?: string;
   crop_top?: number;             // Pixels to crop from top edge (auto-crop feature)
   crop_right?: number;           // Pixels to crop from right edge (auto-crop feature)
@@ -215,4 +218,13 @@ export interface PartUpdateData {
   unit_price?: number;
   extended_price?: number;
   production_notes?: string;
+}
+
+/**
+ * Order Accounting Email (snapshot stored on order)
+ */
+export interface OrderAccountingEmail {
+  email: string;
+  email_type: 'to' | 'cc' | 'bcc';
+  label?: string;
 }

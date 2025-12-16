@@ -37,7 +37,8 @@ export async function sendInvoiceEmail(
   ccEmails: string[],
   subject: string,
   body: string,
-  userId: number
+  userId: number,
+  bccEmails?: string[]
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
     // Validate recipients
@@ -53,15 +54,31 @@ export async function sendInvoiceEmail(
       console.log(`  From: ${SENDER_NAME} <${SENDER_EMAIL}>`);
       console.log(`  To: ${recipientEmails.join(', ')}`);
       if (ccEmails?.length) console.log(`  CC: ${ccEmails.join(', ')}`);
-      if (BCC_EMAIL) console.log(`  Bcc: ${BCC_EMAIL}`);
+      if (bccEmails?.length) console.log(`  BCC: ${bccEmails.join(', ')}`);
+      if (BCC_EMAIL) console.log(`  Auto-BCC: ${BCC_EMAIL}`);
       console.log(`  Subject: ${subject}`);
       console.log('\n  Body Preview (first 500 chars):');
       console.log('  ' + body.replace(/<[^>]*>/g, '').substring(0, 500) + '...');
       console.log('='.repeat(80) + '\n');
 
       // Mark invoice as sent even in disabled mode
+      const sentAt = new Date();
       await qbInvoiceRepo.updateOrderInvoiceRecord(orderId, {
-        invoice_sent_at: new Date()
+        invoice_sent_at: sentAt
+      });
+
+      // Create email history record for immediate sends
+      await qbInvoiceRepo.createScheduledEmail({
+        order_id: orderId,
+        email_type: 'full_invoice',
+        recipient_emails: recipientEmails,
+        cc_emails: ccEmails?.length ? ccEmails : undefined,
+        subject,
+        body,
+        scheduled_for: sentAt,
+        created_by: userId,
+        status: 'sent',
+        sent_at: sentAt
       });
 
       return {
@@ -81,7 +98,8 @@ export async function sendInvoiceEmail(
       recipientEmails,
       ccEmails,
       subject,
-      body
+      body,
+      bccEmails
     );
 
     // Send email
@@ -92,8 +110,23 @@ export async function sendInvoiceEmail(
     console.log(`✅ Invoice email sent: ${messageId}`);
 
     // Mark invoice as sent
+    const sentAt = new Date();
     await qbInvoiceRepo.updateOrderInvoiceRecord(orderId, {
-      invoice_sent_at: new Date()
+      invoice_sent_at: sentAt
+    });
+
+    // Create email history record for immediate sends
+    await qbInvoiceRepo.createScheduledEmail({
+      order_id: orderId,
+      email_type: 'full_invoice',
+      recipient_emails: recipientEmails,
+      cc_emails: ccEmails?.length ? ccEmails : undefined,
+      subject,
+      body,
+      scheduled_for: sentAt,
+      created_by: userId,
+      status: 'sent',
+      sent_at: sentAt
     });
 
     return { success: true, messageId };
@@ -184,10 +217,14 @@ export async function cancelScheduledEmail(id: number): Promise<void> {
 
 /**
  * Get email preview with variables replaced
+ * @param orderId - Order ID
+ * @param templateKey - Template key (full_invoice or deposit_request)
+ * @param customMessage - Optional custom message to insert into template
  */
 export async function getEmailPreview(
   orderId: number,
-  templateKey: EmailType
+  templateKey: EmailType,
+  customMessage?: string
 ): Promise<EmailPreview> {
   // Get template
   const template = await qbInvoiceRepo.getEmailTemplate(templateKey);
@@ -201,19 +238,93 @@ export async function getEmailPreview(
     throw new Error('Order not found');
   }
 
-  // Get invoice data
+  // Get invoice data - use fresh data from QB if invoice exists
   const invoiceRecord = await qbInvoiceRepo.getOrderInvoiceRecord(orderId);
+
+  // Try to get fresh payment link and invoice details from QB if invoice exists
+  let qbInvoiceUrl = invoiceRecord?.qb_invoice_url || '#';
+  let invoiceTotal = '0.00';
+  let dueDateLine = ''; // Will contain full HTML line or be empty
+  let balanceLine = ''; // Will contain remaining balance line if balance != total
+
+  if (invoiceRecord?.qb_invoice_id) {
+    try {
+      // Import dynamically to avoid circular dependency
+      const qbInvoiceService = await import('./qbInvoiceService');
+      const details = await qbInvoiceService.getInvoiceDetails(orderId);
+      if (details.invoiceUrl) {
+        qbInvoiceUrl = details.invoiceUrl;
+      }
+      if (details.total) {
+        invoiceTotal = details.total.toFixed(2);
+      }
+      // Show remaining balance if it differs from total (partial payment made)
+      if (details.balance !== null && details.total !== null && details.balance !== details.total) {
+        const formattedBalance = details.balance.toFixed(2);
+        balanceLine = `<br><p style="margin: 0; font-weight: 600; color: #dc2626;">Amount Due: $${formattedBalance}</p>`;
+      }
+      if (details.dueDate) {
+        // Format the due date nicely and wrap in HTML
+        const date = new Date(details.dueDate);
+        const formattedDate = date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        dueDateLine = `<p style="margin-top: 5px;">Due Date: ${formattedDate}</p>`;
+      }
+    } catch (err) {
+      console.error('Failed to get fresh QB invoice data for email preview:', err);
+      // Fall back to stored data - no due date line if we can't fetch from QB
+    }
+  }
 
   // Get point persons for recipients
   const pointPersons = await orderPrepRepo.getOrderPointPersons(orderId);
   const recipientEmails = pointPersons.map((pp: { contact_email: string }) => pp.contact_email);
 
+  // Format custom message - wrap in styled paragraph if provided, empty string if not
+  const formattedCustomMessage = customMessage && customMessage.trim()
+    ? `<p class="custom-message">${customMessage.trim()}</p>`
+    : '';
+
+  // Build order details block (Job Name, PO#, Job# - only include if they exist)
+  const orderDetailsLines: string[] = [];
+  if (order.order_name) {
+    orderDetailsLines.push(`<p style="margin: 0 0 5px 0;"><strong>Job Name:</strong> ${order.order_name}</p>`);
+  }
+  if (order.customer_po) {
+    orderDetailsLines.push(`<p style="margin: 0 0 5px 0;"><strong>PO #:</strong> ${order.customer_po}</p>`);
+  }
+  if (order.customer_job_number) {
+    orderDetailsLines.push(`<p style="margin: 0 0 5px 0;"><strong>Job #:</strong> ${order.customer_job_number}</p>`);
+  }
+  const orderDetailsBlock = orderDetailsLines.length > 0
+    ? orderDetailsLines.join('\n') + '\n'
+    : '';
+
+  // Build subject suffix for PO# and Job# (optional)
+  const subjectParts: string[] = [];
+  if (order.customer_po) {
+    subjectParts.push(`PO# ${order.customer_po}`);
+  }
+  if (order.customer_job_number) {
+    subjectParts.push(`Job# ${order.customer_job_number}`);
+  }
+  const subjectSuffix = subjectParts.length > 0 ? ` | ${subjectParts.join(' | ')}` : '';
+
   // Build variables
   const variables: TemplateVariables = {
     orderNumber: String(order.order_number),
+    orderName: order.order_name || `Order #${order.order_number}`,
     customerName: order.customer_name,
-    invoiceTotal: '0.00', // Will be updated when invoice exists
-    qbInvoiceUrl: invoiceRecord?.qb_invoice_url || '#'
+    invoiceTotal,
+    dueDateLine,
+    balanceLine,
+    qbInvoiceUrl,
+    customMessage: formattedCustomMessage,
+    orderDetailsBlock,
+    subjectSuffix
   };
 
   // Replace variables in subject and body
@@ -266,7 +377,8 @@ function buildEmailMessage(
   recipients: string[],
   ccEmails: string[] | undefined,
   subject: string,
-  htmlBody: string
+  htmlBody: string,
+  bccEmails?: string[]
 ): string {
   const boundary = '----=_Part_' + Date.now() + '_' + Math.random().toString(36).substring(7);
 
@@ -280,8 +392,16 @@ function buildEmailMessage(
     headers.push(`Cc: ${ccEmails.join(', ')}`);
   }
 
-  if (BCC_EMAIL && BCC_EMAIL.trim() !== '') {
-    headers.push(`Bcc: ${BCC_EMAIL}`);
+  // Combine user BCC emails with auto-BCC from config
+  const allBccEmails: string[] = [];
+  if (bccEmails && bccEmails.length > 0) {
+    allBccEmails.push(...bccEmails);
+  }
+  if (BCC_EMAIL && BCC_EMAIL.trim() !== '' && !allBccEmails.includes(BCC_EMAIL)) {
+    allBccEmails.push(BCC_EMAIL);
+  }
+  if (allBccEmails.length > 0) {
+    headers.push(`Bcc: ${allBccEmails.join(', ')}`);
   }
 
   headers.push(

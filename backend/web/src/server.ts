@@ -41,6 +41,7 @@ import powerSuppliesRoutes from './routes/powerSupplies';
 import printRoutes from './routes/print';
 import systemRoutes from './routes/system';
 import settingsRoutes from './routes/settings';  // Phase 3: Settings & Templates UI (Dec 15, 2025)
+import paymentsRoutes from './routes/payments';  // Multi-invoice payment system (Dec 17, 2025)
 
 // QuickBooks utilities for startup
 import { quickbooksOAuthRepository } from './repositories/quickbooksOAuthRepository';
@@ -119,6 +120,7 @@ app.use('/api/power-supplies', powerSuppliesRoutes);
 app.use('/api/print', printRoutes);
 app.use('/api/system', systemRoutes);
 app.use('/api/settings', settingsRoutes);  // Phase 3: Settings & Templates UI (Dec 15, 2025)
+app.use('/api/payments', paymentsRoutes);  // Multi-invoice payment system (Dec 17, 2025)
 
 // =============================================
 // STATIC FILE SERVING (Phase 1.5.g)

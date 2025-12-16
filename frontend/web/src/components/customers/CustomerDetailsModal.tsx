@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { customerApi } from '../../services/api';
 import CustomerForm from './CustomerForm';
 import AddressManager from './AddressManager';
+import ContactsEditor from './ContactsEditor';
+import AccountingEmailsEditor from './AccountingEmailsEditor';
 import ConfirmationModals from './ConfirmationModals';
 import { Address, Customer, LedType, PowerSupplyType } from '../../types';
 
@@ -226,7 +228,7 @@ function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) 
             onInputChange={handleInputChange}
           />
 
-          <AddressManager 
+          <AddressManager
             customer={customer}
             addresses={addresses}
             setAddresses={setAddresses}
@@ -236,6 +238,19 @@ function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) 
             setSaveError={setSaveError}
             onAddressDelete={confirmDeleteAddress}
           />
+
+          {/* Contacts Section */}
+          <div className="mt-8">
+            <h4 className="text-lg font-bold text-gray-800 mb-4 border-b border-gray-200 pb-2">Contacts</h4>
+            <ContactsEditor customerId={customer.customer_id} />
+          </div>
+
+          {/* Accounting Emails Section */}
+          <div className="mt-8">
+            <h4 className="text-lg font-bold text-gray-800 mb-4 border-b border-gray-200 pb-2">Accounting Emails</h4>
+            <p className="text-sm text-gray-500 mb-3">Email addresses for sending invoices. Set type (To/CC/BCC) for each recipient.</p>
+            <AccountingEmailsEditor customerId={customer.customer_id} />
+          </div>
         </div>
       </div>
       

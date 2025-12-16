@@ -1,236 +1,194 @@
 # SignHouse Manufacturing System - Development Roadmap
 
-## Phase 1: Core Web Interface ⭐ (CURRENT PHASE)
+## Phase 1: Core Web Interface ✅ COMPLETE
 
-### 1.1 Customer Management System
-**Priority**: Critical - Primary business function
-**Estimate**: 2-3 development sessions
+### 1.1 Customer Management System ✅
+- ✅ Customer search and filtering (by company, contact, location)
+- ✅ Customer profile view with all addresses and preferences
+- ✅ Add/edit customer information with validation
+- ✅ Multi-address management (billing, shipping, jobsite)
+- ✅ Customer notes and communication history
+- ✅ Sign manufacturing preferences (LED, wiring, patterns)
+- ✅ Tax calculation integration based on address
 
-#### Features:
-- Customer search and filtering (by company, contact, location)
-- Customer profile view with all addresses and preferences
-- Add/edit customer information with validation
-- Multi-address management (billing, shipping, jobsite)
-- Customer notes and communication history
-- Sign manufacturing preferences (LED, wiring, patterns)
+### 1.2 Advanced Estimating System ✅
+- ✅ Grid-based job builder with dynamic product forms
+- ✅ Product types: Channel Letters, Vinyl, Substrate Cut, Backer, Push Thru, Blade Signs, LED Neon
+- ✅ Complex input forms with XY dimensions, LED counts, UL requirements
+- ✅ Advanced calculations with multipliers, discounts, shipping
+- ✅ Quote versioning and revision tracking
+- ✅ PDF generation for customer delivery
+- ✅ Quote status tracking (Draft, Sent, Approved, etc.)
 
-#### Technical Requirements:
-- REST API endpoints for CRUD operations
-- Web interface with responsive design
-- Tax calculation integration based on address
-- Audit trail logging for all changes
-- Data validation and error handling
+### 1.3 Time Management System ✅
+- ✅ Employee time tracking with clock in/out
+- ✅ Manager approval workflow
+- ✅ Edit request system with notifications
+- ✅ Vacation tracking
+- ✅ Schedule management
+- ✅ Payroll integration
 
-#### Success Criteria:
-- Users can find customers quickly (< 2 seconds)
-- All customer data editable through web interface
-- Tax rates automatically calculated for addresses
-- Changes logged to audit trail
-- Mobile-friendly interface
+### 1.4 Vinyl Inventory System ✅
+- ✅ Vinyl product management (512 inventory items)
+- ✅ Stock tracking with low stock alerts
+- ✅ Supplier cost tracking
+- ✅ Bulk operations
 
-### 1.2 Advanced Estimating System ⭐ (ENHANCED SCOPE)
-**Priority**: Critical - Revenue generation and operational efficiency
-**Estimate**: 6-8 development sessions (expanded from Excel integration requirements)
+### 1.5 Account Management ✅
+- ✅ User account CRUD operations
+- ✅ Role-based access control (59 permissions)
+- ✅ Password management
+- ✅ Login tracking and session management
 
-#### Current Status:
-- ✅ Basic job estimation system implemented with grid-based builder
-- ✅ Product types and addon management
-- ✅ Group-based estimate organization
-- ✅ Bulk estimate creation capabilities
-- 🔄 **NEW**: Excel-based estimator integration needed
-
-#### Enhanced Features:
-- **Excel Integration**: Import and digitize current Excel-based estimator
-- **Advanced Product Categories**: Channel Letters, Vinyl, Substrate Cut, Backer, Push Thru, Blade Signs, LED Neon
-- **Complex Input Forms**: Dynamic form generation based on product type (XY dimensions, LED counts, UL requirements, etc.)
-- **Advanced Calculations**: Multipliers, discounts, shipping, material cuts
-- **Specialized Fields**: UL compliance tracking, wiring specifications, custom configurations
-- **Quote versioning and revision tracking**
-- **PDF generation for customer delivery**
-- **Quote status tracking (Draft, Sent, Approved, etc.)**
-
-#### Technical Requirements:
-- **Enhanced Database Schema**: Support for complex Excel field types (XY, XYZ, quantities, options, calculations)
-- **Dynamic Form Engine**: Generate input forms based on product category configuration
-- **Advanced Calculation Engine**: Handle multipliers, cascading calculations, conditional pricing
-- **Field Type System**: Support for measurements, quantities, options, costs, calculated fields
-- **Data Migration Tools**: Convert existing Excel formulas to digital calculations
-- **PDF generation system with Excel-style formatting**
-- **Template system for industry-specific quote formats**
-
-#### Success Criteria:
-- **Feature Parity**: All Excel estimator capabilities available digitally
-- **Improved Efficiency**: Generate quotes faster than Excel workflow
-- **Data Consistency**: Eliminate manual calculation errors
-- **User Adoption**: Staff can use digital system for all estimate types
-- **Integration**: Seamlessly work with existing job management system
-
-## Phase 2: Job Management & Workflow
-
-### 2.1 Job Tracking System
-**Priority**: High - Operations management
-**Estimate**: 4-5 development sessions
-
-#### Features:
-- Convert quotes to job orders
-- Job status workflow management
-- Production scheduling and tracking
-- File management integration (drawings, specs)
-- Shipping and delivery tracking
-- Job completion and invoicing
-
-#### Technical Requirements:
-- Job database schema
-- File upload and management system
-- Status workflow engine
-- Integration with external drive storage
-- Notification system for status changes
-
-### 2.2 Materials & Inventory
-**Priority**: Medium - Cost control
-**Estimate**: 3-4 development sessions
-
-#### Features:
-- Material catalog and pricing
-- Inventory tracking and alerts
-- Supplier management
-- Cost calculation for quotes
-- Purchase order generation
-- Material usage tracking by job
-
-#### Technical Requirements:
-- Materials database schema
-- Import scripts for existing data
-- Inventory management algorithms
-- Supplier integration planning
-
-## Phase 3: Financial Integration
-
-### 3.1 QuickBooks Integration
-**Priority**: High - Accounting workflow
-**Estimate**: 5-6 development sessions
-
-#### Features:
-- Customer synchronization
-- Invoice generation and sync
-- Payment tracking
-- Chart of accounts mapping
-- Tax reporting integration
-- Financial reporting
-
-#### Technical Requirements:
-- QuickBooks API integration
-- Data mapping and transformation
-- Sync conflict resolution
-- Error handling and recovery
-
-### 3.2 Advanced Reporting
-**Priority**: Medium - Business intelligence
-**Estimate**: 2-3 development sessions
-
-#### Features:
-- Sales reporting and analytics
-- Customer profitability analysis
-- Job performance metrics
-- Material usage reports
-- Financial dashboards
-
-## Phase 4: System Enhancement
-
-### 4.1 Admin & Security Features
-**Priority**: Medium - System management
-**Estimate**: 2-3 development sessions
-
-#### Features:
-- **User account management**: Create, edit, delete user accounts
-- **Password management**: Reset passwords, enforce password policies
-- **Role-based permissions**: Assign and modify user roles (manager, designer, production_staff)
-- **Session management**: View active sessions, force logout all users
-- **Audit logging**: Track all admin actions and user activities
-- **System settings**: Configure application-wide settings
-
-#### Technical Requirements:
-- Admin-only routes with elevated permissions
-- Secure password reset functionality
-- Session invalidation system
-- Activity logging and monitoring
-- Settings configuration management
-
-### 4.2 Advanced Features
-**Priority**: Low - Nice to have
-**Estimate**: Variable
-
-#### Features:
-- Mobile app for field operations
-- Advanced scheduling and capacity planning
-- Customer portal for order tracking
-- Automated quote follow-up system
-- Integration with sign design software
-
-### 4.2 Performance & Scalability
-**Priority**: Medium - Long-term stability
-
-#### Features:
-- Database optimization
-- Caching implementation
-- Load balancing preparation
-- Backup system enhancement
-- Security hardening
-
-## Technical Architecture Evolution
-
-### Current State:
-- MySQL database with core customer data
-- Basic backup system
-- File-based configuration
-
-### Target State:
-- Full-stack web application
-- RESTful API architecture
-- Modern responsive frontend
-- Integrated business workflow
-- Real-time notifications
-- Comprehensive reporting
-
-## Implementation Strategy
-
-### Development Approach:
-1. **Iterative development** - Build and test each feature incrementally
-2. **User feedback loops** - Test with actual users after each major feature
-3. **Data integrity focus** - Ensure all changes maintain business continuity
-4. **Performance monitoring** - Track system performance as features are added
-
-### Risk Mitigation:
-- **Data backup** before any major changes
-- **Feature flags** for new functionality
-- **Rollback procedures** for each deployment
-- **User training** for new features
-
-### Success Metrics:
-- **User adoption** - All daily tasks performed through web interface
-- **Time savings** - Reduce quote generation time by 50%
-- **Data accuracy** - Eliminate manual data entry errors
-- **Customer satisfaction** - Faster response times to customer inquiries
-
-## Next Immediate Steps:
-
-### Current Development Priority: Excel Estimator Integration
-
-1. **Excel Analysis & Documentation** ✅ - Document current Excel structure and field types
-2. **Field Type System Design** - Create database schema for complex field types (XY, XYZ, calculated fields)
-3. **Product Category Configuration** - Set up dynamic product types based on Excel categories
-4. **Calculation Engine** - Implement formula processing for multipliers, discounts, and derived fields
-5. **Dynamic Form Generator** - Build UI components that adapt to different product types
-6. **Data Migration Strategy** - Plan conversion from Excel formulas to digital calculations
-7. **Testing with Real Data** - Validate calculations match Excel results
-
-### Previously Completed Infrastructure:
-- ✅ **Database connection module** - MySQL connection pool implemented
-- ✅ **Web framework** - React/TypeScript frontend with Node.js/Express backend
-- ✅ **Customer API endpoints** - Full CRUD operations for customer management
-- ✅ **Web interface** - Responsive customer management interface
-- ✅ **Basic estimation system** - Job estimation with groups and items
+### 1.6 QuickBooks Estimate Integration ✅
+- ✅ Push estimates to QuickBooks as estimates
+- ✅ Customer sync with QuickBooks
+- ✅ Line item mapping with DescriptionOnly support
 
 ---
 
-**Note**: Timeline estimates are based on focused development sessions. Actual timeline may vary based on complexity discovery and business requirements refinement.
+## Phase 2: Job Management & Workflow ✅ 99% COMPLETE
+
+### 2.a Tasks Table View ✅
+- ✅ Production task tracking grid with 11 core task columns
+- ✅ Sticky headers for easy navigation
+- ✅ Role-based task columns (different tasks shown per role)
+- ✅ Hide completed/empty order filters
+- ✅ Drag-to-scroll functionality
+- ✅ Inline task toggling
+- ✅ Multi-select status filter
+
+### 2.b Calendar View ✅
+- ✅ Calendar view for task scheduling
+- ✅ TaskRow shared component
+- ✅ Tasks Table improvements
+
+### 2.c Orders Table Enhancements ✅
+- ✅ Days Left column with color coding
+- ✅ URL routing for direct order access
+- ✅ Multi-select filters
+- ✅ Order status workflow
+
+### 2.d Order Preparation Workflow ✅
+- ✅ Order preparation steps and validation
+- ✅ Part specifications management
+- ✅ Task generation from order parts
+- ✅ Point person assignment
+
+### 2.e QuickBooks Invoice Automation ✅
+- ✅ Create/Update/Link invoices in QuickBooks
+- ✅ Invoice staleness detection (order changed since invoice created)
+- ✅ Email templates with variable substitution
+- ✅ Send invoice emails immediately or schedule for later
+- ✅ Email history tracking (fixed: now records immediate sends)
+- ✅ Invoice PDF fetching and preview
+- ✅ Customer contact selection for recipients (to/cc/bcc)
+- ✅ Custom message injection in emails
+- ✅ Ready for Pickup/Shipping subject prefixes
+- ✅ Balance line in emails (shows remaining balance if partial payment)
+- ✅ Settings system for email templates
+- 🔄 Invoice modal/workflow refinements (pending user testing)
+
+### 2.f Gmail Integration ✅
+- ✅ Service account with domain-wide delegation
+- ✅ Send emails via Gmail API
+- ✅ Attachment support (PDF invoices)
+- ✅ Retry logic with exponential backoff
+- ✅ BCC support for audit copies
+
+---
+
+## Phase 3: Financial Integration 🔄 IN PROGRESS
+
+### 3.1 QuickBooks Integration ✅ (Core Complete)
+- ✅ OAuth 2.0 authentication flow
+- ✅ Customer synchronization (resolve by name)
+- ✅ Estimate creation and sync
+- ✅ Invoice creation/update/linking
+- ✅ Tax code resolution and mapping
+- ✅ Balance tracking (fetched from QB invoice data)
+- ⬜ Record payments in QuickBooks (push only - not tracked locally)
+- ⬜ Two-way customer sync
+
+### 3.2 Advanced Reporting
+- ⬜ Sales reporting and analytics
+- ⬜ Customer profitability analysis
+- ⬜ Job performance metrics
+- ⬜ Material usage reports
+- ⬜ Financial dashboards
+
+---
+
+## Phase 4: Supply Chain & Materials
+
+### 4.1 Supply Chain Management
+- ⬜ Supplier management
+- ⬜ Purchase order generation
+- ⬜ Material cost tracking
+- ⬜ Low stock alerts
+- ⬜ Material requirements calculation from orders
+
+### 4.2 Materials Integration
+- ⬜ Real-time material costs in pricing
+- ⬜ Job material tracking
+- ⬜ Waste tracking
+
+---
+
+## Phase 5: System Enhancement
+
+### 5.1 Performance & Scalability
+- ⬜ Database optimization
+- ⬜ Caching implementation
+- ⬜ Specification options caching (in progress)
+
+### 5.2 Advanced Features
+- ⬜ Mobile app for field operations
+- ⬜ Customer portal for order tracking
+- ⬜ Advanced scheduling and capacity planning
+
+---
+
+## Current Uncommitted Changes (Session: 2025-12-16)
+
+### Invoice Modal Enhancements
+- Customer contacts integration for recipient selection
+- Email history now records immediate sends (bug fix)
+- Modal sizing adjustments (slimmer right panel)
+- Email template copy update: "The invoice for your order # has been prepared."
+
+### Backend Improvements
+- `qbInvoiceRepository.ts` - createScheduledEmail() now accepts optional status/sent_at
+- `invoiceEmailService.ts` - Creates history records for immediate email sends
+- `qbInvoice.ts` - ScheduledEmailInput type updated with optional fields
+- Balance line support in email templates
+
+### Database Migrations (New)
+- `20251216_001_add_custom_message_to_templates.sql`
+- `20251216_002_update_email_header_green.sql`
+- `20251216_003_add_balance_line_to_email_templates.sql`
+
+### Frontend Changes
+- `InvoiceActionModal.tsx` - Major refactor with customer contacts, recipient management
+- `specificationConstants.ts` - Cleanup and refactoring
+- `orderProductTemplates.ts` - Updates
+
+---
+
+## Infrastructure
+
+### Build System ✅
+- ✅ Dual-build system (production/development)
+- ✅ PM2 process management
+- ✅ Automated backup system
+- ✅ Build management scripts
+
+### Security ✅
+- ✅ JWT authentication with refresh tokens
+- ✅ Role-based access control (RBAC)
+- ✅ Encrypted credential storage (QuickBooks, Gmail)
+- ✅ Audit trail logging
+
+---
+
+**Last Updated**: 2025-12-16

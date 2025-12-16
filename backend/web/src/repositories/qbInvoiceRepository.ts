@@ -168,8 +168,12 @@ export async function isInvoiceLinkedToAnotherOrder(
 
 /**
  * Create a scheduled email
+ * Supports optional status and sent_at for recording immediate sends
  */
 export async function createScheduledEmail(data: ScheduledEmailInput): Promise<number> {
+  const status = data.status || 'pending';
+  const sentAt = data.sent_at || null;
+
   const result = await query(
     `INSERT INTO scheduled_emails (
       order_id,
@@ -180,8 +184,9 @@ export async function createScheduledEmail(data: ScheduledEmailInput): Promise<n
       body,
       scheduled_for,
       status,
+      sent_at,
       created_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       data.order_id,
       data.email_type,
@@ -190,6 +195,8 @@ export async function createScheduledEmail(data: ScheduledEmailInput): Promise<n
       data.subject,
       data.body,
       data.scheduled_for,
+      status,
+      sentAt,
       data.created_by
     ]
   ) as ResultSetHeader;
@@ -230,6 +237,21 @@ export async function getScheduledEmailForOrder(orderId: number): Promise<Schedu
   }
 
   return parseScheduledEmailRow(rows[0]);
+}
+
+/**
+ * Get all emails for an order (history)
+ */
+export async function getEmailHistoryForOrder(orderId: number): Promise<ScheduledEmail[]> {
+  const rows = await query(
+    `SELECT * FROM scheduled_emails
+    WHERE order_id = ?
+    ORDER BY created_at DESC
+    LIMIT 50`,
+    [orderId]
+  ) as RowDataPacket[];
+
+  return rows.map(parseScheduledEmailRow);
 }
 
 /**
