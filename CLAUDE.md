@@ -140,28 +140,33 @@
   <ImplementedRoutes>
     <Route path="/login">Authentication with JWT refresh token system</Route>
     <Route path="/dashboard">Main dashboard with role-based feature access</Route>
-    <Route path="/customers">Customer management with addresses and preferences - See Nexus_Customers.md</Route>
-    <Route path="/time-management">Time tracking, approvals, scheduling (Manager+ only) - See Nexus_TimeManagement.md</Route>
-    <Route path="/vinyl-inventory">Vinyl inventory management with bulk operations - See Nexus_Vinyls.md</Route>
-    <Route path="/wages">Payroll and wage management (Owner only) - See Nexus_WagesManagement.md</Route>
-    <Route path="/account-management">User account and RBAC management (Manager+ only) - See Nexus_AccountsManagement.md</Route>
-    <Route path="/supply-chain">Supply chain and supplier management (Manager+ only) - See Nexus_SupplyChain.md</Route>
-    <Route path="/job-estimation">Job estimation with complex product forms (Manager+ only) - See Nexus_JobEstimation.md</Route>
-    <Route path="/orders">Orders management with Tasks Table view for production tracking</Route>
+    <Route path="/customers">Customer management with addresses, contacts, and accounting emails</Route>
+    <Route path="/time-management">Time tracking, approvals, scheduling (Manager+ only)</Route>
+    <Route path="/vinyl-inventory">Vinyl inventory management with bulk operations</Route>
+    <Route path="/wages">Payroll and wage management (Owner only)</Route>
+    <Route path="/account-management">User account and RBAC management (Manager+ only)</Route>
+    <Route path="/supply-chain">Supply chain and supplier management (Manager+ only)</Route>
+    <Route path="/job-estimation">Job estimation with complex product forms (Manager+ only)</Route>
+    <Route path="/orders">Orders management with Tasks Table, invoice automation, email history</Route>
+    <Route path="/payments">Multi-invoice payment management (Manager+ only)</Route>
+    <Route path="/settings">Email templates, system configuration, audit log (Manager+ only)</Route>
   </ImplementedRoutes>
 
   <WorkingFeatures>
-    <Feature name="CustomerManagement">Full CRUD with multi-address support (644+ customers, communication prefs, history tracking)</Feature>
-    <Feature name="TimeTracking">Complete time management system (44 entries, approvals, scheduling, edit requests with notifications)</Feature>
+    <Feature name="CustomerManagement">Full CRUD with multi-address support, contacts, and accounting emails (to/cc/bcc for invoices)</Feature>
+    <Feature name="TimeTracking">Complete time management system (approvals, scheduling, edit requests with notifications)</Feature>
     <Feature name="VinylInventory">Comprehensive vinyl products management (512 inventory items, 190 products with bulk operations)</Feature>
     <Feature name="WageManagement">Full payroll system with wage calculations, deduction overrides, payment history</Feature>
     <Feature name="Authentication">JWT with automatic refresh, comprehensive RBAC (59 permissions, 132 role assignments, login tracking)</Feature>
-    <Feature name="AuditSystem">Complete audit trail for all data changes (111+ tracked events)</Feature>
+    <Feature name="AuditSystem">Complete audit trail for all data changes</Feature>
     <Feature name="TaxRules">Tax calculation system based on billing address (29 rules, 67 provinces)</Feature>
-    <Feature name="JobEstimation">Currently in development. Major refactoring going on. Please check ArchitectureReference for more information</Feature>
+    <Feature name="JobEstimation">Grid-based job builder with dynamic product forms and QB estimate sync</Feature>
     <Feature name="AccountManagement">User account system with role management, vacation tracking, schedule management</Feature>
     <Feature name="CompanyOperations">Holiday management, work schedules, company-wide settings</Feature>
-    <Feature name="TasksTable">Production task tracking grid with sticky headers, role-based task columns, hide completed/empty filters, drag-to-scroll, inline task toggling</Feature>
+    <Feature name="TasksTable">Production task tracking grid with sticky headers, role-based task columns, hide completed/empty filters</Feature>
+    <Feature name="InvoiceAutomation">QB invoice create/update/link, PDF viewing, email sending/scheduling, email history, custom messages</Feature>
+    <Feature name="PaymentProcessing">Record payments to QuickBooks, balance fetched from QB (no local tracking)</Feature>
+    <Feature name="GmailIntegration">Service account email sending with BCC support, retry logic, attachment support</Feature>
   </WorkingFeatures>
 
   <FuturePriorities>

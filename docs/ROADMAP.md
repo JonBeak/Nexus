@@ -47,7 +47,7 @@
 
 ---
 
-## Phase 2: Job Management & Workflow ✅ 99% COMPLETE
+## Phase 2: Job Management & Workflow ✅ COMPLETE
 
 ### 2.a Tasks Table View ✅
 - ✅ Production task tracking grid with 11 core task columns
@@ -80,21 +80,27 @@
 - ✅ Invoice staleness detection (order changed since invoice created)
 - ✅ Email templates with variable substitution
 - ✅ Send invoice emails immediately or schedule for later
-- ✅ Email history tracking (fixed: now records immediate sends)
-- ✅ Invoice PDF fetching and preview
+- ✅ Email history tracking (records all sends)
+- ✅ Invoice PDF fetching and preview in modal
 - ✅ Customer contact selection for recipients (to/cc/bcc)
 - ✅ Custom message injection in emails
 - ✅ Ready for Pickup/Shipping subject prefixes
 - ✅ Balance line in emails (shows remaining balance if partial payment)
 - ✅ Settings system for email templates
-- 🔄 Invoice modal/workflow refinements (pending user testing)
 
-### 2.f Gmail Integration ✅
+### 2.f Customer Accounting Emails ✅
+- ✅ Dedicated accounting emails table per customer (separate from contacts)
+- ✅ Email types: to/cc/bcc with labels
+- ✅ AccountingEmailsEditor component in customer form
+- ✅ Order snapshot of accounting emails at conversion time
+- ✅ Auto-populate invoice recipients from accounting emails
+
+### 2.g Gmail Integration ✅
 - ✅ Service account with domain-wide delegation
 - ✅ Send emails via Gmail API
 - ✅ Attachment support (PDF invoices)
 - ✅ Retry logic with exponential backoff
-- ✅ BCC support for audit copies
+- ✅ BCC support for audit copies (user-specified + auto-BCC)
 
 ---
 
@@ -107,10 +113,20 @@
 - ✅ Invoice creation/update/linking
 - ✅ Tax code resolution and mapping
 - ✅ Balance tracking (fetched from QB invoice data)
-- ⬜ Record payments in QuickBooks (push only - not tracked locally)
+- ✅ Customer payment links (InvoiceLink from QB, not admin URLs)
+- ✅ Online payments enabled (credit card + ACH)
 - ⬜ Two-way customer sync
 
-### 3.2 Advanced Reporting
+### 3.2 Payment Processing ✅
+- ✅ Record payments in QuickBooks
+- ✅ PaymentsPage component (multi-invoice payment view)
+- ✅ paymentsApi service for payment operations
+- ✅ qbPaymentController and qbPaymentService backend
+- ✅ /api/payments routes mounted
+- ✅ Balance fetched from QuickBooks (no local payment tracking)
+- ✅ Balance line in invoice emails (shows remaining if partial payment)
+
+### 3.3 Advanced Reporting
 - ⬜ Sales reporting and analytics
 - ⬜ Customer profitability analysis
 - ⬜ Job performance metrics
@@ -139,8 +155,9 @@
 
 ### 5.1 Performance & Scalability
 - ⬜ Database optimization
-- ⬜ Caching implementation
-- ⬜ Specification options caching (in progress)
+- ✅ Specification options caching (specificationOptionsCache.ts)
+- ✅ Settings page with audit log pagination
+- ⬜ Additional caching layers
 
 ### 5.2 Advanced Features
 - ⬜ Mobile app for field operations
@@ -149,29 +166,25 @@
 
 ---
 
-## Current Uncommitted Changes (Session: 2025-12-16)
+## Recent Releases
 
-### Invoice Modal Enhancements
-- Customer contacts integration for recipient selection
-- Email history now records immediate sends (bug fix)
-- Modal sizing adjustments (slimmer right panel)
-- Email template copy update: "The invoice for your order # has been prepared."
+### Phase 2.f (2025-12-17)
+- Customer Accounting Emails system (to/cc/bcc per customer)
+- Invoice PDF viewing/download in modal
+- Email history tracking for all sends
+- Custom message support in invoice emails
+- Payment links from QuickBooks (InvoiceLink)
+- Multi-invoice payment system foundation
 
-### Backend Improvements
-- `qbInvoiceRepository.ts` - createScheduledEmail() now accepts optional status/sent_at
-- `invoiceEmailService.ts` - Creates history records for immediate email sends
-- `qbInvoice.ts` - ScheduledEmailInput type updated with optional fields
-- Balance line support in email templates
+### Phase 2.e (2025-12-16)
+- QuickBooks Invoice Automation complete
+- Settings system for email templates
+- Bulk entries UX improvements
 
-### Database Migrations (New)
-- `20251216_001_add_custom_message_to_templates.sql`
-- `20251216_002_update_email_header_green.sql`
-- `20251216_003_add_balance_line_to_email_templates.sql`
-
-### Frontend Changes
-- `InvoiceActionModal.tsx` - Major refactor with customer contacts, recipient management
-- `specificationConstants.ts` - Cleanup and refactoring
-- `orderProductTemplates.ts` - Updates
+### Phase 2.b (2025-12-15)
+- Calendar View for task scheduling
+- TaskRow shared component
+- Tasks Table improvements
 
 ---
 
@@ -191,4 +204,4 @@
 
 ---
 
-**Last Updated**: 2025-12-16
+**Last Updated**: 2025-12-17

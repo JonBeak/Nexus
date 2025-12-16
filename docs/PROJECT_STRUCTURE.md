@@ -5,135 +5,197 @@
 ```
 /home/jon/Nexus/
 ├── CLAUDE.md                    # Claude development context and standards
-├── README.md                    # Project overview and setup instructions
-├── SERVER_RECOVERY.md           # System recovery procedures
+├── BUILD_MANAGEMENT.md          # Build, backup, and server management guide
 │
-├── backend/                     # Server-side application
-│   ├── api/                     # REST API endpoints (Flask/FastAPI)
-│   ├── config/                  # Configuration files
-│   │   ├── email_config.json
-│   │   ├── pc_database_config.json
-│   │   └── server_database_config.json
-│   ├── database/                # Database schema and migrations
-│   │   ├── create_database_first.sql
-│   │   ├── customer_addresses_schema.sql
-│   │   ├── database_setup.sh
-│   │   ├── enhanced_customers_schema.sql
-│   │   ├── fix_address_sequence.sql
-│   │   ├── sign_manufacturing_schema.sql
-│   │   └── simple_addresses_schema.sql
-│   └── scripts/                 # Utility and maintenance scripts
-│       ├── email_system.py
-│       ├── import_addresses_and_tax.py
-│       ├── import_addresses_with_mapping.py
-│       ├── import_customers_csv.py
-│       ├── import_json_customers.py
-│       ├── migrate_customers.py
-│       └── simple_csv_import.py
+├── backend/web/                 # TypeScript/Express backend
+│   ├── src/
+│   │   ├── config/              # Database connection, environment
+│   │   │   └── database.ts      # MySQL connection pool
+│   │   ├── controllers/         # Request handlers (HTTP layer)
+│   │   │   ├── customers/       # Customer management controllers
+│   │   │   ├── orders/          # Order management controllers
+│   │   │   ├── qbInvoiceController.ts
+│   │   │   ├── qbPaymentController.ts
+│   │   │   ├── customerAccountingEmailController.ts
+│   │   │   └── ...
+│   │   ├── routes/              # Express route definitions
+│   │   │   ├── customers.ts     # /api/customers/*
+│   │   │   ├── orders.ts        # /api/orders/*
+│   │   │   ├── payments.ts      # /api/payments/*
+│   │   │   ├── settings.ts      # /api/settings/*
+│   │   │   └── ...
+│   │   ├── services/            # Business logic layer
+│   │   │   ├── qbInvoiceService.ts
+│   │   │   ├── qbPaymentService.ts
+│   │   │   ├── invoiceEmailService.ts
+│   │   │   ├── customerAccountingEmailService.ts
+│   │   │   └── ...
+│   │   ├── repositories/        # Data access layer
+│   │   │   ├── orderRepository.ts
+│   │   │   ├── qbInvoiceRepository.ts
+│   │   │   ├── customerAccountingEmailRepository.ts
+│   │   │   └── ...
+│   │   ├── middleware/          # Auth, RBAC, validation
+│   │   ├── types/               # TypeScript definitions
+│   │   │   ├── orders.ts
+│   │   │   ├── qbInvoice.ts
+│   │   │   ├── customerAccountingEmails.ts
+│   │   │   ├── settings.ts
+│   │   │   └── ...
+│   │   ├── utils/               # Utilities and integrations
+│   │   │   ├── quickbooks/      # QB API client utilities
+│   │   │   │   ├── invoiceClient.ts
+│   │   │   │   └── ...
+│   │   │   └── gmail/           # Gmail API utilities
+│   │   └── server.ts            # Express app entry point
+│   ├── .env                     # Environment variables (credentials)
+│   └── package.json
 │
-├── frontend/                    # Client-side web interface
-│   ├── web/                     # HTML/CSS/JS files
-│   ├── components/              # Reusable UI components
-│   └── assets/                  # Static assets (images, fonts, etc.)
+├── frontend/web/                # React + TypeScript + Vite
+│   ├── src/
+│   │   ├── components/          # UI components by feature
+│   │   │   ├── customers/       # Customer management
+│   │   │   │   ├── CustomerForm.tsx
+│   │   │   │   ├── AccountingEmailsEditor.tsx
+│   │   │   │   ├── ContactsEditor.tsx
+│   │   │   │   └── ...
+│   │   │   ├── orders/          # Order management
+│   │   │   │   ├── details/     # Order details page
+│   │   │   │   ├── tasksTable/  # Tasks Table view
+│   │   │   │   ├── modals/      # Order modals (Invoice, etc.)
+│   │   │   │   └── ...
+│   │   │   ├── dashboard/       # Dashboard components
+│   │   │   └── ...
+│   │   ├── pages/               # Full page components
+│   │   │   └── PaymentsPage.tsx
+│   │   ├── services/            # API client services
+│   │   │   ├── api.ts           # Main API client
+│   │   │   └── api/
+│   │   │       ├── orders/
+│   │   │       │   └── qbInvoiceApi.ts
+│   │   │       ├── paymentsApi.ts
+│   │   │       ├── customerAccountingEmailsApi.ts
+│   │   │       └── ...
+│   │   ├── contexts/            # React contexts
+│   │   │   └── AuthContext.tsx
+│   │   ├── types/               # Frontend TypeScript types
+│   │   ├── config/              # Configuration and constants
+│   │   │   ├── specificationConstants.ts
+│   │   │   └── orderProductTemplates.ts
+│   │   └── App.tsx              # Main app with routing
+│   └── package.json
 │
-├── infrastructure/              # System infrastructure
-│   ├── deployment/              # Installation and setup scripts
-│   │   ├── install_sign_system.sh
-│   │   ├── setup_cron_jobs.sh
-│   │   └── setup_external_drive.sh
-│   ├── backups/                 # Backup management (DO NOT MODIFY)
-│   │   └── backup_system.sh
-│   └── monitoring/              # System monitoring scripts
+├── database/
+│   └── migrations/              # SQL migration files
+│       ├── 20251216_001_add_custom_message_to_templates.sql
+│       ├── 20251217_001_add_customer_accounting_emails.sql
+│       ├── 20251217_002_add_order_accounting_emails.sql
+│       └── ...
 │
-├── data/                        # Data files and imports
-│   ├── import/                  # Source data files
-│   │   ├── Customer_addresses.csv
-│   │   ├── Customers.csv
-│   │   └── province_to_tax.csv
-│   ├── exports/                 # Generated exports
-│   └── archive/                 # Historical data and logs
-│       └── customer_import.log
+├── infrastructure/
+│   ├── scripts/                 # Server management scripts
+│   │   ├── start-production.sh
+│   │   ├── start-dev.sh
+│   │   ├── stop-servers.sh
+│   │   ├── status-servers.sh
+│   │   ├── rebuild-dev.sh
+│   │   ├── rebuild-production.sh
+│   │   ├── backup-builds.sh
+│   │   └── ...
+│   └── backups/                 # Build backups (DO NOT MODIFY)
 │
 └── docs/                        # Documentation
-    ├── PROJECT_STRUCTURE.md    # This file
-    └── ROADMAP.md              # Development roadmap
+    ├── PROJECT_STRUCTURE.md     # This file
+    └── ROADMAP.md               # Development roadmap
 ```
 
-## File Purposes
+## Technology Stack
 
-### Core Documentation
-- **CLAUDE.md**: Development context, standards, and workflow for Claude
-- **README.md**: Project overview and setup instructions for users
-- **SERVER_RECOVERY.md**: System recovery and disaster recovery procedures
+| Layer | Technology | Port |
+|-------|------------|------|
+| Frontend | React + TypeScript + Vite | 5173 |
+| Backend | TypeScript + Express | 3001 |
+| Database | MySQL 8.0 | 3306 |
+| Process Manager | PM2 | - |
+| Auth | JWT (1hr access, 30d refresh) | - |
 
-### Backend Components
-- **api/**: REST API endpoints for web interface
-- **config/**: Database connections and application configuration
-- **database/**: SQL schema files and database management scripts
-- **scripts/**: Utility scripts for data import, maintenance, and system operations
+## Architecture Pattern
 
-### Frontend Components
-- **web/**: Main web interface files (HTML, CSS, JavaScript)
-- **components/**: Reusable UI components for modular development
-- **assets/**: Static files like images, fonts, stylesheets
+```
+Route → Controller → Service → Repository → Database
+```
 
-### Infrastructure
-- **deployment/**: System installation and configuration scripts
-- **backups/**: Automated backup system (production critical - don't modify)
-- **monitoring/**: System health monitoring and alerting
+| Layer | Responsibility | Max Lines |
+|-------|----------------|-----------|
+| Route | HTTP routing, middleware chains | 15-25/endpoint |
+| Controller | Request/response handling | 300/file |
+| Service | Business logic, validation | 500/file |
+| Repository | Database queries, data access | 300/file |
 
-### Data Management
-- **import/**: Source data files for initial system setup and future imports
-- **exports/**: Generated reports and data exports
-- **archive/**: Historical data and import logs
+## Key API Routes
 
-## Development Workflow
+### Customers (`/api/customers`)
+- CRUD operations for customers
+- Address management (billing, shipping, jobsite)
+- Accounting emails (to/cc/bcc for invoices)
+- Customer contacts
 
-### Current Phase: Web Interface Development
-**Next Steps:**
-1. Create database connection module in `backend/config/`
-2. Build REST API endpoints in `backend/api/`
-3. Develop customer management interface in `frontend/web/`
+### Orders (`/api/orders`)
+- Order management and workflow
+- QuickBooks invoice operations
+- Invoice email sending/scheduling
+- Email history tracking
+- Invoice PDF retrieval
 
-### File Naming Conventions
-- **Configuration**: `*_config.json`
-- **Database Schema**: `*_schema.sql`
-- **Import Scripts**: `import_*.py`
-- **Setup Scripts**: `setup_*.sh`
-- **Web Pages**: `*.html` (descriptive names)
-- **API Endpoints**: `*_api.py` (resource-based)
+### Payments (`/api/payments`)
+- Record payments to QuickBooks
+- Multi-invoice payment views
 
-### Development Guidelines
-1. **Always use absolute paths**: `/home/jon/Nexus/...`
-2. **Follow CLAUDE.md standards**: Error handling, logging, testing
-3. **Test with production data**: Use actual customer database
-4. **Document changes**: Update relevant files in `docs/`
-5. **Backup before major changes**: Use existing backup system
+### Settings (`/api/settings`)
+- Email templates management
+- System configuration
+- Audit log with pagination
 
-### Security Considerations
-- **Database configs**: Contain credentials - keep secure
-- **Backup files**: Contain customer data - maintain security
-- **Web interface**: Implement proper authentication
-- **API endpoints**: Validate all inputs and use prepared statements
+## External Integrations
 
-## System Integration Points
+### QuickBooks Online
+- OAuth 2.0 authentication
+- Customer sync (resolve by name)
+- Estimate and Invoice creation
+- Payment recording
+- Balance fetched from QB (no local tracking)
+- Customer payment links (InvoiceLink)
 
-### Database: `sign_manufacturing`
-- Customer management with multi-address support
-- Tax calculation based on address location
-- Audit trails for all business data changes
-- Foreign key relationships ensuring data integrity
+### Gmail API
+- Service account with domain-wide delegation
+- Invoice email sending
+- BCC support for audit copies
+- Retry logic with exponential backoff
 
-### External Systems
-- **QuickBooks**: Future integration for accounting
-- **Email System**: SMTP for customer communications
-- **File Storage**: External USB drive for job files and drawings
+## Development Guidelines
 
-### Network Access
-- **Local**: localhost (development and local access)
-- **Network**: 192.168.2.222:3306 (Windows PC access)
-- **Web Interface**: Future deployment on local network
+1. **Ports**: Backend 3001, Frontend 5173 (never change)
+2. **Paths**: Always use absolute paths `/home/jon/Nexus/...`
+3. **File Size**: Max 500 lines per file - refactor before exceeding
+4. **Builds**: Use infrastructure scripts, never manual `npm run build`
+5. **Hot Reload**: Frontend uses Vite hot-reload during development
+
+## Server Management
+
+```bash
+# Start servers
+/home/jon/Nexus/infrastructure/scripts/start-production.sh
+/home/jon/Nexus/infrastructure/scripts/start-dev.sh
+
+# Stop/Status
+/home/jon/Nexus/infrastructure/scripts/stop-servers.sh
+/home/jon/Nexus/infrastructure/scripts/status-servers.sh
+
+# Rebuild
+/home/jon/Nexus/infrastructure/scripts/rebuild-dev.sh
+/home/jon/Nexus/infrastructure/scripts/rebuild-production.sh
+```
 
 ---
 
-**Note**: This structure supports modular development, easy maintenance, and future scaling. Each component has a clear purpose and defined interfaces with other system parts.
+**Last Updated**: 2025-12-17
