@@ -1,23 +1,36 @@
 import { useState, useEffect } from 'react';
 import { quickbooksApi } from '../../../services/api';
+import { jobVersioningApi } from '../../../services/jobVersioningApi';
 import { EstimateVersion } from '../types';
 import { EstimatePreviewData } from '../core/layers/CalculationLayer';
+import { PointPersonEntry } from '../EstimatePointPersonsEditor';
 
 interface UseQuickBooksIntegrationParams {
   currentEstimate: EstimateVersion | null;
   estimatePreviewData: EstimatePreviewData | null;
   onEstimateUpdate: (estimate: EstimateVersion) => void;
+  // Phase 7: Workflow data
+  pointPersons?: PointPersonEntry[];
+  emailSubject?: string;
+  emailBody?: string;
 }
 
 export const useQuickBooksIntegration = ({
   currentEstimate,
   estimatePreviewData,
-  onEstimateUpdate
+  onEstimateUpdate,
+  pointPersons,
+  emailSubject,
+  emailBody
 }: UseQuickBooksIntegrationParams) => {
   const [qbConnected, setQbConnected] = useState(false);
   const [qbRealmId, setQbRealmId] = useState<string | null>(null);
   const [qbCheckingStatus, setQbCheckingStatus] = useState(true);
   const [qbCreatingEstimate, setQbCreatingEstimate] = useState(false);
+
+  // Phase 7: Prepare/Send workflow states
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   // Modal states
   const [showConfirmFinalizeModal, setShowConfirmFinalizeModal] = useState(false);
@@ -130,6 +143,79 @@ export const useQuickBooksIntegration = ({
     }
   };
 
+  // Phase 7: Prepare estimate for sending (locks grid, saves point persons + email)
+  const handlePrepareEstimate = async () => {
+    if (!currentEstimate) return;
+
+    try {
+      setIsPreparing(true);
+
+      const result = await jobVersioningApi.prepareEstimate(currentEstimate.id, {
+        emailSubject,
+        emailBody,
+        pointPersons: pointPersons?.map(pp => ({
+          contact_id: pp.contact_id,
+          contact_email: pp.contact_email,
+          contact_name: pp.contact_name,
+          contact_phone: pp.contact_phone,
+          contact_role: pp.contact_role,
+          saveToDatabase: pp.saveToDatabase
+        }))
+      });
+
+      if (result.success) {
+        // Update local state to reflect preparation
+        onEstimateUpdate({
+          ...currentEstimate,
+          is_draft: false,
+          is_prepared: true
+        });
+      } else {
+        alert(`Failed to prepare estimate: ${result.message || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      console.error('Error preparing estimate:', error);
+      alert(`Error preparing estimate: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsPreparing(false);
+    }
+  };
+
+  // Phase 7: Send estimate to customer (creates QB estimate, sends email)
+  const handleSendToCustomer = async () => {
+    if (!currentEstimate || !estimatePreviewData) return;
+
+    try {
+      setIsSending(true);
+
+      const result = await jobVersioningApi.sendEstimateToCustomer(
+        currentEstimate.id,
+        estimatePreviewData
+      );
+
+      if (result.success) {
+        // Update local state
+        onEstimateUpdate({
+          ...currentEstimate,
+          qb_estimate_id: result.qbEstimateId,
+          status: 'sent'
+        });
+
+        // Show success notification
+        if (result.emailSentTo && result.emailSentTo.length > 0) {
+          alert(`Estimate sent to: ${result.emailSentTo.join(', ')}`);
+        }
+      } else {
+        alert(`Failed to send estimate: ${result.message || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      console.error('Error sending estimate:', error);
+      alert(`Error sending estimate: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   const handleOpenQuickBooksEstimate = () => {
     if (currentEstimate?.qb_estimate_url) {
       window.open(currentEstimate.qb_estimate_url, '_blank');
@@ -211,6 +297,11 @@ export const useQuickBooksIntegration = ({
     setShowSuccessModal,
     successData,
     handleConfirmFinalize,
+    // Phase 7: Prepare/Send workflow
+    isPreparing,
+    isSending,
+    handlePrepareEstimate,
+    handleSendToCustomer,
     handleOpenFromSuccessModal
   };
 };

@@ -39,6 +39,8 @@ router.get('/product-types/:productTypeId/field-prompts', authenticateToken, job
 // Job Management - Using JobController
 router.get('/jobs/all-with-activity', authenticateToken, jobController.getAllJobsWithRecentActivity);
 router.get('/customers/:customerId/jobs', authenticateToken, jobController.getJobsByCustomer);
+// By-name lookup for URL-based navigation (must come before /jobs/:jobId)
+router.get('/customers/:customerId/jobs/by-name/:name', authenticateToken, jobController.getJobByName);
 router.post('/jobs/validate-name', authenticateToken, jobController.validateJobName);
 router.post('/jobs', authenticateToken, jobController.createJob);
 router.put('/jobs/:jobId', authenticateToken, jobController.updateJob);
@@ -47,6 +49,9 @@ router.get('/jobs/:jobId', authenticateToken, jobController.getJobById);
 // Estimate Version Management - Using EstimateVersionController
 router.get('/jobs/:jobId/estimates', authenticateToken, estimateVersionController.getEstimateVersionsByJob);
 router.post('/jobs/:jobId/estimates', authenticateToken, estimateVersionController.createNewEstimateVersion);
+
+// Single Estimate Retrieval (must come before other /estimates/:estimateId routes)
+router.get('/estimates/:estimateId', authenticateToken, estimateVersionController.getEstimateById);
 
 // Draft/Final Workflow - Using EstimateWorkflowController
 router.post('/estimates/:estimateId/save-draft', authenticateToken, estimateWorkflowController.saveDraft);
@@ -80,6 +85,27 @@ router.post('/estimates/:estimateId/send', authenticateToken, estimateStatusCont
 router.post('/estimates/:estimateId/approve', authenticateToken, estimateStatusController.approveEstimate);
 router.post('/estimates/:estimateId/not-approved', authenticateToken, estimateStatusController.markNotApproved);
 router.post('/estimates/:estimateId/retract', authenticateToken, estimateStatusController.retractEstimate);
+
+// =============================================
+// ESTIMATE WORKFLOW - Phase 4c (Prepare to Send / Send to Customer)
+// =============================================
+
+// Email template for estimates
+router.get('/estimates/template/send-email', authenticateToken, estimateVersionController.getEstimateSendTemplate);
+
+// Prepare estimate for sending (locks estimate, cleans rows)
+router.post('/estimates/:estimateId/prepare', authenticateToken, estimateVersionController.prepareEstimate);
+
+// Send estimate to customer (creates QB estimate, sends email)
+router.post('/estimates/:estimateId/send-to-customer', authenticateToken, estimateVersionController.sendEstimate);
+
+// Point persons management
+router.get('/estimates/:estimateId/point-persons', authenticateToken, estimateVersionController.getEstimatePointPersons);
+router.put('/estimates/:estimateId/point-persons', authenticateToken, estimateVersionController.updateEstimatePointPersons);
+
+// Email content management
+router.get('/estimates/:estimateId/email-content', authenticateToken, estimateVersionController.getEstimateEmailContent);
+router.put('/estimates/:estimateId/email-content', authenticateToken, estimateVersionController.updateEstimateEmailContent);
 
 // Multiple orders support - Using JobController
 router.get('/jobs/:jobId/check-existing-orders', authenticateToken, jobController.checkExistingOrders);

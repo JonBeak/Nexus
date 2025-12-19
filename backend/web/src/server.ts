@@ -26,6 +26,7 @@ import vacationsRoutes from './routes/vacations';  // New properly-architected v
 import vinylRoutes from './routes/vinyl';
 import vinylProductsRoutes from './routes/vinylProducts';
 import suppliersRoutes from './routes/suppliers';
+import productTypesRoutes from './routes/productTypes';  // Phase 4.b: Product Types Catalog (Dec 18, 2025)
 import jobsRoutes from './routes/jobs';
 // supplyChainSimple routes removed Nov 21, 2025 - dead code, ideas preserved in docs/ideas/SUPPLY_CHAIN_ROUTES_IDEAS.md
 import jobEstimationRoutes from './routes/jobEstimation';
@@ -107,6 +108,7 @@ app.use('/api/vacations', vacationsRoutes);  // New properly-architected vacatio
 app.use('/api/vinyl', vinylRoutes);
 app.use('/api/vinyl-products', vinylProductsRoutes);
 app.use('/api/suppliers', suppliersRoutes);
+app.use('/api/product-types', productTypesRoutes);  // Phase 4.b: Product Types Catalog (Dec 18, 2025)
 app.use('/api/jobs', jobsRoutes);
 // /api/supply-chain routes removed Nov 21, 2025 - see docs/ideas/SUPPLY_CHAIN_ROUTES_IDEAS.md
 app.use('/api/job-estimation', jobEstimationRoutes);

@@ -37,11 +37,38 @@
 import { Response } from 'express';
 import { CustomerService } from '../../services/customers/customerService';
 import { AddressService } from '../../services/customers/addressService';
+import { customerRepository } from '../../repositories/customerRepository';
 import { getTrimmedString, toNumberOrUndefined } from '../../utils/validation';
 import { parseIntParam, sendErrorResponse, sendSuccessResponse } from '../../utils/controllerHelpers';
 import { AuthRequest } from '../../types';
 
 export class CustomerController {
+  /**
+   * Get customer by company name (case-insensitive)
+   * Used for URL-based navigation in job estimation
+   * @route GET /customers/by-name/:name
+   */
+  static async getCustomerByName(req: AuthRequest, res: Response) {
+    try {
+      const companyName = decodeURIComponent(req.params.name);
+
+      if (!companyName || !companyName.trim()) {
+        return sendErrorResponse(res, 'Company name is required', 'VALIDATION_ERROR');
+      }
+
+      const customer = await customerRepository.getCustomerByName(companyName);
+
+      if (!customer) {
+        return sendErrorResponse(res, 'Customer not found', 'NOT_FOUND');
+      }
+
+      res.json({ success: true, data: customer });
+    } catch (error) {
+      console.error('Error fetching customer by name:', error);
+      return sendErrorResponse(res, 'Failed to fetch customer', 'INTERNAL_ERROR');
+    }
+  }
+
   static async getCustomers(req: AuthRequest, res: Response) {
     try {
       // Permissions enforced at route level via requirePermission() middleware

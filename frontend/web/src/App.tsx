@@ -18,6 +18,7 @@ const AccountManagement = lazy(() => import('./components/accounts/AccountManage
 const VinylInventory = lazy(() => import('./components/inventory/VinylInventory'));
 const SupplyChainDashboard = lazy(() => import('./components/supplyChain/SupplyChainDashboard').then(m => ({ default: m.SupplyChainDashboard })));
 const JobEstimationDashboard = lazy(() => import('./components/jobEstimation/JobEstimationDashboard').then(m => ({ default: m.JobEstimationDashboard })));
+const EstimateEditorPage = lazy(() => import('./components/jobEstimation/EstimateEditorPage').then(m => ({ default: m.EstimateEditorPage })));
 const OrdersPage = lazy(() => import('./components/orders/OrdersPage'));
 const OrderDetailsPage = lazy(() => import('./components/orders/details/OrderDetailsPage'));
 const SettingsPage = lazy(() => import('./components/settings/SettingsPage'));
@@ -130,9 +131,18 @@ function AppContent() {
           user && (user.role === 'manager' || user.role === 'owner') ? <SupplyChainDashboard user={user} /> : <Navigate to="/dashboard" />
         } />
 
-        <Route path="/job-estimation" element={
+        {/* Estimate Editor - singular /estimate/:estimateId */}
+        <Route path="/estimate/:estimateId" element={
+          user && (user.role === 'manager' || user.role === 'owner') ? <EstimateEditorPage user={user} /> : <Navigate to="/dashboard" />
+        } />
+
+        {/* Navigation page - uses query params ?cid=123&jid=456 */}
+        <Route path="/estimates" element={
           user && (user.role === 'manager' || user.role === 'owner') ? <JobEstimationDashboard user={user} /> : <Navigate to="/dashboard" />
         } />
+
+        {/* Backwards compatibility redirect */}
+        <Route path="/job-estimation" element={<Navigate to="/estimates" replace />} />
 
         <Route path="/orders" element={
           user && (user.role === 'manager' || user.role === 'owner') ? <OrdersPage /> : <Navigate to="/dashboard" />

@@ -95,6 +95,10 @@ export class EstimateVersioningService {
     return this.estimateService.getEstimateVersionsByJob(jobId);
   }
 
+  async getEstimateById(estimateId: number): Promise<RowDataPacket | null> {
+    return this.estimateRepository.getEstimateById(estimateId);
+  }
+
   async createNewEstimateVersion(data: EstimateVersionData, userId: number): Promise<number> {
     // Validate parent chain if specified
     if (data.parent_estimate_id) {
@@ -334,6 +338,76 @@ export class EstimateVersioningService {
    */
   async getJobIdByEstimateId(estimateId: number): Promise<number> {
     return this.estimateService.getJobIdByEstimateId(estimateId);
+  }
+
+  // =============================================
+  // ESTIMATE WORKFLOW - Phase 4c
+  // =============================================
+
+  /**
+   * Prepare estimate for sending (locks estimate, cleans rows)
+   */
+  async prepareEstimateForSending(
+    estimateId: number,
+    userId: number,
+    request: { emailSubject?: string; emailBody?: string; pointPersons?: any[] }
+  ) {
+    return this.estimateService.prepareEstimateForSending(estimateId, userId, request);
+  }
+
+  /**
+   * Send estimate to customer (creates QB estimate, sends email)
+   */
+  async sendEstimateToCustomer(
+    estimateId: number,
+    userId: number,
+    estimatePreviewData?: any
+  ) {
+    return this.estimateService.sendEstimateToCustomer(estimateId, userId, estimatePreviewData);
+  }
+
+  /**
+   * Get point persons for an estimate
+   */
+  async getEstimatePointPersons(estimateId: number) {
+    return this.estimateService.getEstimatePointPersons(estimateId);
+  }
+
+  /**
+   * Update point persons for an estimate
+   */
+  async updateEstimatePointPersons(
+    estimateId: number,
+    pointPersons: any[],
+    userId: number
+  ) {
+    return this.estimateService.updateEstimatePointPersons(estimateId, pointPersons, userId);
+  }
+
+  /**
+   * Get email content for an estimate
+   */
+  async getEstimateEmailContent(estimateId: number) {
+    return this.estimateService.getEstimateEmailContent(estimateId);
+  }
+
+  /**
+   * Update email content for an estimate
+   */
+  async updateEstimateEmailContent(
+    estimateId: number,
+    subject: string | null,
+    body: string | null,
+    userId: number
+  ) {
+    return this.estimateService.updateEstimateEmailContent(estimateId, subject, body, userId);
+  }
+
+  /**
+   * Get estimate send email template
+   */
+  async getEstimateSendTemplate() {
+    return this.estimateService.getEstimateSendTemplate();
   }
 }
 

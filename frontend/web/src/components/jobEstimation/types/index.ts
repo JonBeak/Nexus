@@ -248,9 +248,10 @@ export interface BreadcrumbNavigationProps {
   jobName?: string;
   version?: string;
   status?: string;
-  onNavigateToCustomerSelection?: () => void;
-  onNavigateToJobSelection?: () => void;
-  onNavigateToVersionSelection?: () => void;
+  onNavigateToHome?: () => void;
+  onNavigateToEstimates?: () => void;
+  onNavigateToCustomer?: () => void;
+  onNavigateToJob?: () => void;
 }
 
 export type WorkflowStep = 'customer-selection' | 'job-selection' | 'version-selection' | 'estimate-builder';

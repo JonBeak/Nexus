@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronRight, Building, Calendar, FileText, Home } from 'lucide-react';
+import { ChevronRight, Home } from 'lucide-react';
 import { BreadcrumbNavigationProps } from './types';
 import { getStatusColorClasses } from './utils/statusUtils';
 
@@ -8,71 +8,30 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
   jobName,
   version,
   status,
-  onNavigateToCustomerSelection,
-  onNavigateToJobSelection,
-  onNavigateToVersionSelection
+  onNavigateToHome,
+  onNavigateToEstimates,
+  onNavigateToCustomer,
+  onNavigateToJob
 }) => {
-  const breadcrumbs = [];
-
-  // Job Estimation root
-  breadcrumbs.push({
-    label: 'Job Estimation',
-    icon: Home,
-    onClick: onNavigateToCustomerSelection,
-    active: !customerName
-  });
-
-  // Customer level - only show if we actually have a customer name
-  if (customerName) {
-    breadcrumbs.push({
-      label: customerName,
-      icon: Building,
-      onClick: onNavigateToCustomerSelection,
-      active: !jobName
-    });
-  }
-
-  // Job level
-  if (jobName) {
-    breadcrumbs.push({
-      label: jobName,
-      icon: Calendar,
-      onClick: onNavigateToJobSelection,
-      active: !version
-    });
-  }
-
-  // Version level
-  if (version) {
-    const versionLabel = status ? `${version} (${status})` : version;
-    breadcrumbs.push({
-      label: versionLabel,
-      icon: FileText,
-      onClick: onNavigateToVersionSelection,
-      active: true
-    });
-  }
-
   const getStatusColor = (status?: string) => {
     if (!status) return 'text-gray-700';
-    
-    // Extract text color from standard color classes
+
     const colorClasses = getStatusColorClasses(status);
     const textColorMatch = colorClasses.match(/text-([a-z]+)-([0-9]+)/);
-    
+
     if (textColorMatch) {
       const [, color] = textColorMatch;
-      return `text-${color}-600`; // Use 600 shade for text
+      return `text-${color}-600`;
     }
-    
+
     return 'text-gray-700';
   };
 
   const getStatusBadge = (status?: string) => {
     if (!status || status === 'Draft') return null;
-    
+
     const colorClass = getStatusColorClasses(status);
-    
+
     return (
       <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${colorClass}`}>
         {status}
@@ -83,35 +42,71 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
   return (
     <nav className="bg-white border-b border-gray-200 px-4 py-4">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        {breadcrumbs.map((crumb, index) => (
-          <React.Fragment key={index}>
-            <div
-              className={`flex items-center gap-2 ${
-                crumb.onClick
-                  ? 'cursor-pointer hover:text-purple-600 transition-colors'
-                  : ''
-              } ${
-                crumb.active
-                  ? `font-medium ${status ? getStatusColor(status) : 'text-purple-600'}`
-                  : 'text-gray-500'
+        {/* Home button - leads to dashboard */}
+        <button
+          onClick={onNavigateToHome}
+          className="p-1 text-gray-500 hover:text-purple-600 transition-colors"
+          title="Back to Dashboard"
+        >
+          <Home className="w-5 h-5" />
+        </button>
+
+        <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+
+        {/* Job Estimation - leads to navigation page */}
+        <span
+          className="cursor-pointer text-gray-500 hover:text-purple-600 transition-colors"
+          onClick={onNavigateToEstimates}
+        >
+          Job Estimation
+        </span>
+
+        {/* Customer - leads to customer's jobs */}
+        {customerName && (
+          <>
+            <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <span
+              className={`truncate max-w-[150px] md:max-w-xs ${
+                jobName
+                  ? 'cursor-pointer text-gray-500 hover:text-purple-600 transition-colors'
+                  : `font-medium ${status ? getStatusColor(status) : 'text-purple-600'}`
               }`}
-              onClick={crumb.onClick}
+              onClick={jobName ? onNavigateToCustomer : undefined}
             >
-              <crumb.icon className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0" />
-              <span className="truncate max-w-[150px] md:max-w-xs">{crumb.label}</span>
+              {customerName}
+            </span>
+          </>
+        )}
 
-              {/* Status badge for version breadcrumb */}
-              {index === breadcrumbs.length - 1 && status && getStatusBadge(status)}
-            </div>
+        {/* Job - leads to job's versions */}
+        {jobName && (
+          <>
+            <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <span
+              className={`truncate max-w-[150px] md:max-w-xs ${
+                version
+                  ? 'cursor-pointer text-gray-500 hover:text-purple-600 transition-colors'
+                  : `font-medium ${status ? getStatusColor(status) : 'text-purple-600'}`
+              }`}
+              onClick={version ? onNavigateToJob : undefined}
+            >
+              {jobName}
+            </span>
+          </>
+        )}
 
-            {/* Separator */}
-            {index < breadcrumbs.length - 1 && (
-              <ChevronRight className="w-4 h-4 md:w-5 md:h-5 text-gray-400 flex-shrink-0" />
-            )}
-          </React.Fragment>
-        ))}
+        {/* Version - current page, no click */}
+        {version && (
+          <>
+            <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <span className={`font-medium ${status ? getStatusColor(status) : 'text-purple-600'}`}>
+              {version}
+            </span>
+            {status && getStatusBadge(status)}
+          </>
+        )}
       </div>
-      
+
       {/* Additional context information */}
       {version && status && (
         <div className="mt-2 text-xs text-gray-500">

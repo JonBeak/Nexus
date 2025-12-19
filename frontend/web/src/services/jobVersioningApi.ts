@@ -32,7 +32,23 @@ export const jobVersioningApi = {
     return response.data;
   },
 
+  // URL-based navigation support
+  getCustomerByName: async (companyName: string): Promise<{ customer_id: number; company_name: string }> => {
+    const response = await api.get(`/customers/by-name/${encodeURIComponent(companyName)}`);
+    return response.data;
+  },
+
+  getJobByName: async (customerId: number, jobName: string): Promise<{ job_id: number; job_name: string; customer_id: number }> => {
+    const response = await api.get(`/job-estimation/customers/${customerId}/jobs/by-name/${encodeURIComponent(jobName)}`);
+    return response.data;
+  },
+
   // Estimate Version Management
+  getEstimateById: async (estimateId: number) => {
+    const response = await api.get(`/job-estimation/estimates/${estimateId}`);
+    return response.data;
+  },
+
   getEstimateVersions: async (jobId: number) => {
     const response = await api.get(`/job-estimation/jobs/${jobId}/estimates`);
     return response.data;
@@ -162,6 +178,106 @@ export const jobVersioningApi = {
 
   addTemplateSection: async (estimateId: number) => {
     const response = await api.post(`/job-estimation/estimates/${estimateId}/add-section`);
+    return response.data;
+  },
+
+  // =============================================
+  // ESTIMATE WORKFLOW - Phase 4c (Prepare to Send / Send to Customer)
+  // =============================================
+
+  /**
+   * Get the email template for sending estimates
+   */
+  getEstimateSendTemplate: async () => {
+    const response = await api.get('/job-estimation/estimates/template/send-email');
+    return response.data;
+  },
+
+  /**
+   * Prepare estimate for sending
+   * - Cleans empty rows
+   * - Saves point persons and email content
+   * - Locks the estimate
+   */
+  prepareEstimate: async (
+    estimateId: number,
+    data: {
+      emailSubject?: string;
+      emailBody?: string;
+      pointPersons?: Array<{
+        contact_id?: number;
+        contact_email: string;
+        contact_name?: string;
+        contact_phone?: string;
+        contact_role?: string;
+        saveToDatabase?: boolean;
+      }>;
+    }
+  ) => {
+    const response = await api.post(`/job-estimation/estimates/${estimateId}/prepare`, data);
+    return response.data;
+  },
+
+  /**
+   * Send estimate to customer
+   * - Creates QB estimate
+   * - Sends email to point persons
+   */
+  sendEstimateToCustomer: async (estimateId: number, estimatePreviewData?: any) => {
+    const response = await api.post(`/job-estimation/estimates/${estimateId}/send-to-customer`, {
+      estimatePreviewData
+    });
+    return response.data;
+  },
+
+  /**
+   * Get point persons for an estimate
+   */
+  getEstimatePointPersons: async (estimateId: number) => {
+    const response = await api.get(`/job-estimation/estimates/${estimateId}/point-persons`);
+    return response.data;
+  },
+
+  /**
+   * Update point persons for an estimate
+   */
+  updateEstimatePointPersons: async (
+    estimateId: number,
+    pointPersons: Array<{
+      contact_id?: number;
+      contact_email: string;
+      contact_name?: string;
+      contact_phone?: string;
+      contact_role?: string;
+      saveToDatabase?: boolean;
+    }>
+  ) => {
+    const response = await api.put(`/job-estimation/estimates/${estimateId}/point-persons`, {
+      pointPersons
+    });
+    return response.data;
+  },
+
+  /**
+   * Get email content for an estimate
+   */
+  getEstimateEmailContent: async (estimateId: number) => {
+    const response = await api.get(`/job-estimation/estimates/${estimateId}/email-content`);
+    return response.data;
+  },
+
+  /**
+   * Update email content for an estimate
+   */
+  updateEstimateEmailContent: async (
+    estimateId: number,
+    subject: string | null,
+    body: string | null
+  ) => {
+    const response = await api.put(`/job-estimation/estimates/${estimateId}/email-content`, {
+      subject,
+      body
+    });
     return response.data;
   }
 };

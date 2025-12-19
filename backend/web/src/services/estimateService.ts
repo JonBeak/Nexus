@@ -28,7 +28,9 @@ import { EstimateVersionService } from './estimate/estimateVersionService';
 import { EstimateStatusService } from './estimate/estimateStatusService';
 import { EstimateTemplateService } from './estimate/estimateTemplateService';
 import { EstimateDuplicationService } from './estimate/estimateDuplicationService';
+import { EstimateWorkflowService } from './estimate/estimateWorkflowService';
 import { EstimateRepository } from '../repositories/estimateRepository';
+import { PrepareEstimateRequest, EstimatePointPersonInput } from '../types/estimatePointPerson';
 
 export class EstimateService {
 
@@ -37,6 +39,7 @@ export class EstimateService {
   private statusService = new EstimateStatusService();
   private templateService = new EstimateTemplateService();
   private duplicationService = new EstimateDuplicationService();
+  private workflowService = new EstimateWorkflowService();
   private estimateRepository = new EstimateRepository();
 
   // =============================================
@@ -165,5 +168,83 @@ export class EstimateService {
       throw new Error('Estimate not found');
     }
     return jobId;
+  }
+
+  // =============================================
+  // ESTIMATE WORKFLOW - Delegated to EstimateWorkflowService
+  // Phase 4c: Prepare to Send / Send to Customer workflow
+  // =============================================
+
+  /**
+   * Prepare estimate for sending
+   * - Cleans empty rows
+   * - Saves point persons and email content
+   * - Locks the estimate (is_prepared=true, is_draft=false)
+   */
+  async prepareEstimateForSending(
+    estimateId: number,
+    userId: number,
+    request: PrepareEstimateRequest
+  ) {
+    return this.workflowService.prepareEstimateForSending(estimateId, userId, request);
+  }
+
+  /**
+   * Send estimate to customer
+   * - Creates QB estimate
+   * - Downloads PDF
+   * - Sends email to point persons
+   * - Marks estimate as sent
+   */
+  async sendEstimateToCustomer(
+    estimateId: number,
+    userId: number,
+    estimatePreviewData?: any
+  ) {
+    return this.workflowService.sendEstimateToCustomer(estimateId, userId, estimatePreviewData);
+  }
+
+  /**
+   * Get point persons for an estimate
+   */
+  async getEstimatePointPersons(estimateId: number) {
+    return this.workflowService.getPointPersons(estimateId);
+  }
+
+  /**
+   * Update point persons for an estimate
+   */
+  async updateEstimatePointPersons(
+    estimateId: number,
+    pointPersons: EstimatePointPersonInput[],
+    userId: number
+  ) {
+    return this.workflowService.updatePointPersons(estimateId, pointPersons, userId);
+  }
+
+  /**
+   * Get email content for an estimate
+   */
+  async getEstimateEmailContent(estimateId: number) {
+    return this.workflowService.getEmailContent(estimateId);
+  }
+
+  /**
+   * Update email content for an estimate
+   */
+  async updateEstimateEmailContent(
+    estimateId: number,
+    subject: string | null,
+    body: string | null,
+    userId: number
+  ) {
+    return this.workflowService.updateEmailContent(estimateId, subject, body, userId);
+  }
+
+  /**
+   * Get estimate send email template
+   */
+  async getEstimateSendTemplate() {
+    return this.workflowService.getEstimateSendTemplate();
   }
 }

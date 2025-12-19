@@ -1,170 +1,73 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { ArrowLeft, FileText } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import GridJobBuilderRefactored from './GridJobBuilderRefactored';
-import { EstimateTable } from './EstimateTable';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CustomerPanel } from './CustomerPanel';
 import { JobPanel } from './JobPanel';
 import { VersionManager } from './VersionManager';
-import { BreadcrumbNavigation } from './BreadcrumbNavigation';
-import { CustomerPreferencesPanel } from './CustomerPreferencesPanel';
-import CustomerDetailsModal from '../customers/CustomerDetailsModal';
-import { ApproveEstimateModal } from '../orders/modals/ApproveEstimateModal';
-import { ConfirmFinalizeModal } from './modals/ConfirmFinalizeModal';
-import { QBEstimateSuccessModal } from './modals/QBEstimateSuccessModal';
 import { jobVersioningApi } from '../../services/api';
-import { getEstimateStatusText } from './utils/statusUtils';
 import { User } from '../../types';
 import './JobEstimation.css';
-
-// Custom hooks
-import { useEstimateNavigation } from './hooks/useEstimateNavigation';
-import { useCustomerContext } from './hooks/useCustomerContext';
-import { useValidationOrchestration } from './hooks/useValidationOrchestration';
-import { useQuickBooksIntegration } from './hooks/useQuickBooksIntegration';
-import { GridEngine } from './core/GridEngine';
 
 interface JobEstimationDashboardProps {
   user: User;
 }
 
 export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ user }) => {
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Navigation guard from GridJobBuilder
-  const [navigationGuard, setNavigationGuard] = useState<((fn: () => void) => void) | null>(null);
+  // Read IDs directly from URL - no state needed
+  const selectedCustomerId = searchParams.get('cid') ? parseInt(searchParams.get('cid')!) : null;
+  const selectedJobId = searchParams.get('jid') ? parseInt(searchParams.get('jid')!) : null;
 
-  // Cross-component hover state for row highlighting
-  const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
-
-  // GridEngine reference for auto-save orchestration
-  const [gridEngineRef, setGridEngineRef] = useState<GridEngine | null>(null);
-
-  // Approval modal state
-  const [showApprovalModal, setShowApprovalModal] = useState(false);
-  const [createdOrderNumber, setCreatedOrderNumber] = useState<number | null>(null);
-
-  // Customer context hook
-  const {
-    taxRate,
-    fullCustomer,
-    customerPreferencesData,
-    preferencesValidationResult,
-    showEditCustomerModal,
-    setCustomerPreferencesData,
-    setPreferencesValidationResult,
-    reloadCustomerData,
-    handleEditCustomer,
-    handleCloseEditCustomerModal
-  } = useCustomerContext();
-
-  // Navigation hook
-  const {
-    selectedCustomerId,
-    selectedCustomerName,
-    selectedJobId,
-    selectedEstimateId,
-    currentEstimate,
-    isInBuilderMode,
-    jobName,
-    setSelectedCustomerId,
-    setSelectedCustomerName,
-    setSelectedJobId,
-    setSelectedEstimateId,
-    setCurrentEstimate,
-    setIsInBuilderMode,
-    setJobName,
-    handleCustomerSelected,
-    handleJobSelected,
-    handleCreateNewJob,
-    handleVersionSelected: baseHandleVersionSelected,
-    handleCreateNewVersion,
-    handleBackToVersions
-  } = useEstimateNavigation({
-    onCustomerDataReload: reloadCustomerData
-  });
-
-  // Validation orchestration hook
-  const {
-    hasValidationErrors,
-    validationErrorCount,
-    estimatePreviewData,
-    handlePreferencesLoaded,
-    handleGridDataChange,
-    handleValidationChange
-  } = useValidationOrchestration({
-    isInBuilderMode,
-    selectedEstimateId,
-    isDraft: currentEstimate?.is_draft ?? false,
-    customerPreferencesData,
-    setCustomerPreferencesData,
-    setPreferencesValidationResult,
-    gridEngineRef
-  });
-
-  // QuickBooks integration hook
-  const {
-    qbConnected,
-    qbCheckingStatus,
-    qbCreatingEstimate,
-    handleCreateQuickBooksEstimate,
-    handleOpenQuickBooksEstimate,
-    handleConnectToQuickBooks,
-    handleDisconnectFromQuickBooks,
-    showConfirmFinalizeModal,
-    setShowConfirmFinalizeModal,
-    showSuccessModal,
-    setShowSuccessModal,
-    successData,
-    handleConfirmFinalize,
-    handleOpenFromSuccessModal
-  } = useQuickBooksIntegration({
-    currentEstimate,
-    estimatePreviewData,
-    onEstimateUpdate: setCurrentEstimate
-  });
-
-  const handleApproveEstimate = () => {
-    // Open the approval modal (which will handle order creation)
-    setShowApprovalModal(true);
-  };
-
-  const handleApprovalSuccess = (orderNumber: number) => {
-    // Store the created order number and navigate to order page
-    setCreatedOrderNumber(orderNumber);
-    setShowApprovalModal(false);
-
-    // Navigate to the newly created order
-    navigate(`/orders/${orderNumber}`);
-  };
-
-  // Dynamic viewport control - enable zoom out only in builder mode
-  useEffect(() => {
-    const viewportMeta = document.querySelector('meta[name="viewport"]');
-
-    if (viewportMeta) {
-      if (isInBuilderMode) {
-        // Builder mode: allow zooming out to 0.2x
-        viewportMeta.setAttribute('content', 'width=device-width, initial-scale=0.5, minimum-scale=0.2, maximum-scale=5.0, user-scalable=yes');
-      } else {
-        // 3-panel nav mode: normal zoom (minimum 1.0)
-        viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes');
-      }
+  // Navigation handlers
+  const handleCustomerSelected = (customerId: number | null) => {
+    if (customerId === null) {
+      navigate('/estimates');
+    } else {
+      navigate(`/estimates?cid=${customerId}`);
     }
-  }, [isInBuilderMode]);
+  };
 
-  // Restore original viewport when leaving the entire page
-  useEffect(() => {
-    const viewportMeta = document.querySelector('meta[name="viewport"]');
-    const originalContent = viewportMeta?.getAttribute('content');
+  const handleJobSelected = (jobId: number, customerId: number) => {
+    navigate(`/estimates?cid=${customerId}&jid=${jobId}`);
+  };
 
-    return () => {
-      if (viewportMeta && originalContent) {
-        viewportMeta.setAttribute('content', originalContent);
-      }
-    };
-  }, []);
+  const handleCreateNewJob = async (newJobName: string) => {
+    if (!selectedCustomerId) return;
 
+    try {
+      const response = await jobVersioningApi.createJob({
+        customer_id: selectedCustomerId,
+        job_name: newJobName,
+      });
+      const result = response.data || response;
+      navigate(`/estimates?cid=${selectedCustomerId}&jid=${result.job_id}`);
+    } catch (err) {
+      console.error('Failed to create job:', err);
+    }
+  };
+
+  const handleVersionSelected = (estimateId: number) => {
+    navigate(`/estimate/${estimateId}`);
+  };
+
+  const handleCreateNewVersion = async (parentId?: number) => {
+    if (!selectedJobId) return;
+
+    try {
+      const response = await jobVersioningApi.createEstimateVersion(
+        selectedJobId,
+        parentId ? { parent_estimate_id: parentId } : {}
+      );
+      const result = response.data || response;
+      navigate(`/estimate/${result.estimate_id}`);
+    } catch (err) {
+      console.error('Failed to create new version:', err);
+    }
+  };
+
+  // Access denied check
   if (!user || (user.role !== 'manager' && user.role !== 'owner')) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -173,7 +76,7 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
           <p className="text-gray-500 mb-4">Job Estimation is available to managers and owners only.</p>
           <button
             onClick={() => navigate('/dashboard')}
-            className="bg-purple-600 text-white px-2 py-1 rounded hover:bg-purple-700 text-sm"
+            className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 text-sm"
           >
             Return to Dashboard
           </button>
@@ -182,186 +85,14 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
     );
   }
 
-  const render3PanelWorkflow = () => {
-    // Show builder mode if estimate is selected
-    if (isInBuilderMode && currentEstimate) {
-      return (
-        <div>
-          <BreadcrumbNavigation
-            customerName={customerPreferencesData?.customerName || undefined}
-            jobName={jobName || undefined}
-            version={`v${currentEstimate.version_number}`}
-            status={getEstimateStatusText(currentEstimate)}
-            onNavigateToCustomerSelection={() => {
-              const navAction = () => {
-                // Navigate back to customer selection (All Customers), reset everything
-                setIsInBuilderMode(false);
-                setSelectedEstimateId(null);
-                setCurrentEstimate(null);
-                setSelectedJobId(null);
-                setJobName(null);
-                setSelectedCustomerId(null);
-                setSelectedCustomerName(null);
-              };
-
-              if (navigationGuard) {
-                navigationGuard(navAction);
-              } else {
-                navAction();
-              }
-            }}
-            onNavigateToJobSelection={() => {
-              const navAction = () => {
-                // Navigate back to job selection, preserve customer but reset job/estimate
-                setIsInBuilderMode(false);
-                setSelectedEstimateId(null);
-                setCurrentEstimate(null);
-                // Keep: selectedCustomerId, selectedJobId, jobName, customerPreferencesData (preserve customer + job context)
-              };
-
-              if (navigationGuard) {
-                navigationGuard(navAction);
-              } else {
-                navAction();
-              }
-            }}
-            onNavigateToVersionSelection={() => {
-              const navAction = () => {
-                // Navigate back to version list, preserve all parent context
-                setIsInBuilderMode(false);
-                setSelectedEstimateId(null);
-                setCurrentEstimate(null);
-                // Keep: selectedCustomerId, selectedJobId, jobName, customerPreferencesData (preserve all context)
-              };
-
-              if (navigationGuard) {
-                navigationGuard(navAction);
-              } else {
-                navAction();
-              }
-            }}
-          />
-          {/* Unified scrollable container - breakpoint at 1650px matches content width */}
-          <div className="estimate-builder-scroll-container">
-            <div className="estimate-builder-layout-container">
-              {/* Mobile: EstimateTable first, Desktop (≥1650px): Grid first */}
-              <div className="estimate-builder-grid-wrapper">
-                <GridJobBuilderRefactored
-                  user={user}
-                  estimate={currentEstimate}
-                  isCreatingNew={false}
-                  isReadOnly={!currentEstimate.is_draft}
-                  onEstimateChange={setCurrentEstimate}
-                  onBackToEstimates={() => {
-                    const navAction = () => navigate('/dashboard');
-                    if (navigationGuard) {
-                      navigationGuard(navAction);
-                    } else {
-                      navAction();
-                    }
-                  }}
-                  customerId={selectedCustomerId}
-                  customerName={customerPreferencesData?.customerName || null}
-                  cashCustomer={customerPreferencesData?.cashCustomer || false}
-                  taxRate={taxRate}
-                  versioningMode={true}
-                  estimateId={selectedEstimateId}
-                  onValidationChange={handleValidationChange}
-                  onRequestNavigation={setNavigationGuard}
-                  onPreferencesLoaded={handlePreferencesLoaded}
-                  onGridDataChange={handleGridDataChange}
-                  onGridEngineReady={setGridEngineRef}
-                  hoveredRowId={hoveredRowId}
-                  onRowHover={setHoveredRowId}
-                  estimatePreviewData={estimatePreviewData}
-                />
-              </div>
-              <div className="estimate-builder-preview-wrapper">
-                <CustomerPreferencesPanel
-                  customerData={customerPreferencesData}
-                  validationResult={preferencesValidationResult}
-                  onEditCustomer={handleEditCustomer}
-                />
-                <EstimateTable
-                  estimate={currentEstimate}
-                  hasValidationErrors={hasValidationErrors}
-                  validationErrorCount={validationErrorCount}
-                  estimatePreviewData={estimatePreviewData}
-                  hoveredRowId={hoveredRowId}
-                  onRowHover={setHoveredRowId}
-                  customerName={customerPreferencesData?.customerName || null}
-                  jobName={jobName}
-                  version={`v${currentEstimate.version_number}`}
-                  qbEstimateId={currentEstimate.qb_estimate_id}
-                  qbEstimateUrl={currentEstimate.qb_estimate_id ? `https://qbo.intuit.com/app/estimate?txnId=${currentEstimate.qb_estimate_id}` : null}
-                  qbCreatingEstimate={qbCreatingEstimate}
-                  qbConnected={qbConnected}
-                  qbCheckingStatus={qbCheckingStatus}
-                  isApproved={currentEstimate.is_approved === true || currentEstimate.is_approved === 1}
-                  onCreateQBEstimate={handleCreateQuickBooksEstimate}
-                  onOpenQBEstimate={handleOpenQuickBooksEstimate}
-                  onConnectQB={handleConnectToQuickBooks}
-                  onDisconnectQB={handleDisconnectFromQuickBooks}
-                  onApproveEstimate={handleApproveEstimate}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // Show 3-panel layout
-    return (
-      <div className="three-panel-container">
-        <CustomerPanel
-          selectedCustomerId={selectedCustomerId}
-          onCustomerSelected={handleCustomerSelected}
-        />
-        <JobPanel
-          selectedCustomerId={selectedCustomerId}
-          selectedCustomerName={selectedCustomerName}
-          selectedJobId={selectedJobId}
-          onJobSelected={handleJobSelected}
-          onCreateNewJob={handleCreateNewJob}
-          user={user}
-        />
-        {selectedJobId && (
-          <VersionManager
-            jobId={selectedJobId}
-            currentEstimateId={selectedEstimateId}
-            onVersionSelected={baseHandleVersionSelected}
-            onCreateNewVersion={handleCreateNewVersion}
-            user={user}
-          />
-        )}
-        {!selectedJobId && (
-          <div className="bg-white rounded shadow-sm border border-gray-200 p-6 h-full flex items-center justify-center">
-            <div className="text-center text-gray-500">
-              <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <p className="text-sm">Select a job to view versions</p>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
   return (
-    <div className={`min-h-screen bg-gray-50 ${isInBuilderMode ? 'job-estimation-builder-mode' : ''}`}>
-      <div className={`max-w-[1920px] mx-auto ${isInBuilderMode ? 'estimate-builder-mobile-unified' : 'p-6'}`}>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-[1920px] mx-auto p-6">
         {/* Header */}
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <button
-              onClick={() => {
-                const navAction = () => navigate('/dashboard');
-                if (navigationGuard) {
-                  navigationGuard(navAction);
-                } else {
-                  navAction();
-                }
-              }}
+              onClick={() => navigate('/dashboard')}
               className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -371,53 +102,38 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
           </div>
         </div>
 
-        {/* Content Area */}
-        <div>
-          {render3PanelWorkflow()}
+        {/* 3-Panel Layout */}
+        <div className="three-panel-container">
+          <CustomerPanel
+            selectedCustomerId={selectedCustomerId}
+            onCustomerSelected={handleCustomerSelected}
+          />
+          <JobPanel
+            selectedCustomerId={selectedCustomerId}
+            selectedCustomerName={null}
+            selectedJobId={selectedJobId}
+            onJobSelected={handleJobSelected}
+            onCreateNewJob={handleCreateNewJob}
+            user={user}
+          />
+          {selectedJobId ? (
+            <VersionManager
+              jobId={selectedJobId}
+              currentEstimateId={null}
+              onVersionSelected={handleVersionSelected}
+              onCreateNewVersion={handleCreateNewVersion}
+              user={user}
+            />
+          ) : (
+            <div className="bg-white rounded shadow-sm border border-gray-200 p-6 h-full flex items-center justify-center">
+              <div className="text-center text-gray-500">
+                <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                <p className="text-sm">Select a job to view versions</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-
-      {/* Customer Edit Modal */}
-      {showEditCustomerModal && fullCustomer && (
-        <CustomerDetailsModal
-          customer={fullCustomer}
-          onClose={() => handleCloseEditCustomerModal(selectedCustomerId)}
-        />
-      )}
-
-      {/* Approve Estimate Modal */}
-      {showApprovalModal && currentEstimate && estimatePreviewData && (
-        <ApproveEstimateModal
-          isOpen={showApprovalModal}
-          onClose={() => setShowApprovalModal(false)}
-          onSuccess={handleApprovalSuccess}
-          estimateId={currentEstimate.id}
-          estimatePreviewData={estimatePreviewData}
-          defaultOrderName={jobName || `Order for ${customerPreferencesData?.customerName || 'Customer'}`}
-          customerId={selectedCustomerId || 0}
-          jobName={jobName || undefined}
-          estimateNotes={currentEstimate.notes || undefined}
-          qbEstimateId={currentEstimate.qb_estimate_id || undefined}
-        />
-      )}
-
-      {/* QuickBooks Confirm Finalize Modal */}
-      <ConfirmFinalizeModal
-        isOpen={showConfirmFinalizeModal}
-        onConfirm={handleConfirmFinalize}
-        onCancel={() => setShowConfirmFinalizeModal(false)}
-      />
-
-      {/* QuickBooks Success Modal */}
-      {successData && (
-        <QBEstimateSuccessModal
-          isOpen={showSuccessModal}
-          qbDocNumber={successData.qbDocNumber}
-          qbEstimateUrl={successData.qbEstimateUrl}
-          onOpenInQuickBooks={handleOpenFromSuccessModal}
-          onClose={() => setShowSuccessModal(false)}
-        />
-      )}
     </div>
   );
 };

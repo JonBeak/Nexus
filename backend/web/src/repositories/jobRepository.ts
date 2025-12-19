@@ -148,6 +148,21 @@ export class JobRepository {
   }
 
   /**
+   * Find job by name within a specific customer (case-insensitive)
+   * Used for URL-based navigation in job estimation
+   */
+  async getJobByNameAndCustomer(customerId: number, jobName: string): Promise<{ job_id: number; job_name: string; customer_id: number } | null> {
+    const rows = await query(
+      `SELECT job_id, job_name, customer_id
+       FROM jobs
+       WHERE customer_id = ? AND LOWER(job_name) = LOWER(?)`,
+      [customerId, jobName]
+    ) as RowDataPacket[];
+
+    return rows.length > 0 ? rows[0] as { job_id: number; job_name: string; customer_id: number } : null;
+  }
+
+  /**
    * Get job by ID
    */
   async getJobById(jobId: number): Promise<RowDataPacket | null> {

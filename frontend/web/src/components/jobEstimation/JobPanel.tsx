@@ -9,7 +9,7 @@ interface JobPanelProps {
   selectedCustomerId: number | null;
   selectedCustomerName: string | null;
   selectedJobId: number | null;
-  onJobSelected: (jobId: number) => void;
+  onJobSelected: (jobId: number, customerId: number) => void;
   onCreateNewJob: (jobName: string) => Promise<void>;
   user: User;
 }
@@ -296,7 +296,7 @@ export const JobPanel: React.FC<JobPanelProps> = ({
                     ? 'bg-purple-100 border-purple-500'
                     : 'border-gray-200 hover:bg-gray-50 hover:border-purple-200'
                 }`}
-                onClick={() => onJobSelected(job.job_id)}
+                onClick={() => onJobSelected(job.job_id, job.customer_id)}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex-1 min-w-0">

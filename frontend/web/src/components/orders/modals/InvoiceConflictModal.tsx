@@ -65,9 +65,14 @@ export const InvoiceConflictModal: React.FC<InvoiceConflictModalProps> = ({
       } else {
         setError(result.message || 'Failed to resolve conflict');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error resolving conflict:', err);
-      setError(err instanceof Error ? err.message : 'Failed to resolve conflict');
+      // Extract error message from axios response or error object
+      const errorMessage = err?.response?.data?.message
+        || err?.response?.data?.error
+        || err?.message
+        || 'Failed to resolve conflict';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

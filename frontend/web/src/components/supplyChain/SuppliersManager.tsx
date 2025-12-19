@@ -1,57 +1,79 @@
+// Phase 4.a: Updated for extended supplier fields + contacts
+// Updated: 2025-12-18
 import React, { useCallback, useEffect, useState } from 'react';
-import { 
-  Building2, 
-  Mail, 
-  Phone, 
-  Globe, 
-  Edit, 
-  Trash2, 
+import {
+  Building2,
+  Globe,
+  Edit,
+  Trash2,
   Plus,
-  FileText
+  FileText,
+  Users,
+  ChevronDown,
+  ChevronRight,
+  MapPin,
+  Clock,
+  CreditCard,
+  Hash
 } from 'lucide-react';
 import api from '../../services/api';
-import type { User as AccountUser } from '../accounts/hooks/useAccountAPI';
+import { SupplierContactsSection } from './SupplierContactsSection';
 
 interface Supplier {
   supplier_id: number;
   name: string;
-  contact_email?: string;
-  contact_phone?: string;
   website?: string;
   notes?: string;
+  payment_terms?: string;
+  default_lead_days?: number;
+  account_number?: string;
+  address_line1?: string;
+  address_line2?: string;
+  city?: string;
+  province?: string;
+  postal_code?: string;
+  country?: string;
   is_active: boolean;
+  contact_count?: number;
   created_at: string;
   updated_at: string;
 }
 
 interface SuppliersManagerProps {
-  user?: AccountUser;
   showNotification: (message: string, type?: 'success' | 'error') => void;
 }
 
-export const SuppliersManager: React.FC<SuppliersManagerProps> = ({ 
-  user, 
-  showNotification 
+const PAYMENT_TERMS_OPTIONS = [
+  'Net 15', 'Net 30', 'Net 45', 'Net 60', 'COD', 'Credit Card', 'Prepaid', 'Other'
+];
+
+export const SuppliersManager: React.FC<SuppliersManagerProps> = ({
+  showNotification
 }) => {
-  void user;
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [expandedSupplier, setExpandedSupplier] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     name: '',
-    contact_email: '',
-    contact_phone: '',
     website: '',
-    notes: ''
+    notes: '',
+    payment_terms: '',
+    default_lead_days: '',
+    account_number: '',
+    address_line1: '',
+    address_line2: '',
+    city: '',
+    province: '',
+    postal_code: '',
+    country: 'Canada'
   });
 
   const loadSuppliers = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.get<Supplier[]>('/suppliers');
-      // Backend uses handleServiceResult() which returns ServiceResult<Supplier[]>
-      // Interceptor unwraps { success: true, data: Supplier[] } -> Supplier[] directly
       setSuppliers(response.data);
     } catch (error) {
       console.error('Error loading suppliers:', error);
@@ -72,17 +94,20 @@ export const SuppliersManager: React.FC<SuppliersManagerProps> = ({
     }
 
     try {
+      const payload = {
+        ...formData,
+        default_lead_days: formData.default_lead_days ? parseInt(formData.default_lead_days) : null
+      };
+
       if (editingSupplier) {
-        await api.put(`/suppliers/${editingSupplier.supplier_id}`, formData);
+        await api.put(`/suppliers/${editingSupplier.supplier_id}`, payload);
         showNotification(`Updated supplier: ${formData.name}`, 'success');
       } else {
-        await api.post('/suppliers', formData);
+        await api.post('/suppliers', payload);
         showNotification(`Created supplier: ${formData.name}`, 'success');
       }
-      
-      setShowAddModal(false);
-      setEditingSupplier(null);
-      setFormData({ name: '', contact_email: '', contact_phone: '', website: '', notes: '' });
+
+      resetForm();
       void loadSuppliers();
     } catch (error) {
       console.error('Error saving supplier:', error);
@@ -94,12 +119,19 @@ export const SuppliersManager: React.FC<SuppliersManagerProps> = ({
     setEditingSupplier(supplier);
     setFormData({
       name: supplier.name,
-      contact_email: supplier.contact_email || '',
-      contact_phone: supplier.contact_phone || '',
       website: supplier.website || '',
-      notes: supplier.notes || ''
+      notes: supplier.notes || '',
+      payment_terms: supplier.payment_terms || '',
+      default_lead_days: supplier.default_lead_days?.toString() || '',
+      account_number: supplier.account_number || '',
+      address_line1: supplier.address_line1 || '',
+      address_line2: supplier.address_line2 || '',
+      city: supplier.city || '',
+      province: supplier.province || '',
+      postal_code: supplier.postal_code || '',
+      country: supplier.country || 'Canada'
     });
-    setShowAddModal(true);
+    setShowModal(true);
   };
 
   const handleDeleteSupplier = async (supplierId: number, name: string) => {
@@ -116,9 +148,35 @@ export const SuppliersManager: React.FC<SuppliersManagerProps> = ({
   };
 
   const resetForm = () => {
-    setFormData({ name: '', contact_email: '', contact_phone: '', website: '', notes: '' });
+    setFormData({
+      name: '',
+      website: '',
+      notes: '',
+      payment_terms: '',
+      default_lead_days: '',
+      account_number: '',
+      address_line1: '',
+      address_line2: '',
+      city: '',
+      province: '',
+      postal_code: '',
+      country: 'Canada'
+    });
     setEditingSupplier(null);
-    setShowAddModal(false);
+    setShowModal(false);
+  };
+
+  const toggleExpanded = (supplierId: number) => {
+    setExpandedSupplier(expandedSupplier === supplierId ? null : supplierId);
+  };
+
+  const formatAddress = (supplier: Supplier) => {
+    const parts = [
+      supplier.city,
+      supplier.province,
+      supplier.country
+    ].filter(Boolean);
+    return parts.join(', ') || null;
   };
 
   if (loading) {
@@ -139,7 +197,7 @@ export const SuppliersManager: React.FC<SuppliersManagerProps> = ({
           <p className="text-sm text-gray-500">Manage supplier information and contacts</p>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => setShowModal(true)}
           className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
         >
           <Plus className="w-4 h-4" />
@@ -147,190 +205,332 @@ export const SuppliersManager: React.FC<SuppliersManagerProps> = ({
         </button>
       </div>
 
-      {/* Suppliers Grid */}
+      {/* Suppliers List */}
       {suppliers.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 rounded-lg">
           <Building2 className="w-8 h-8 text-gray-400 mx-auto mb-2" />
           <p className="text-gray-500">No suppliers found</p>
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => setShowModal(true)}
             className="mt-4 bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
           >
             Add Your First Supplier
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="space-y-4">
           {suppliers.map((supplier) => (
-            <div key={supplier.supplier_id} className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
-              {/* Header */}
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center space-x-3">
+            <div key={supplier.supplier_id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+              {/* Supplier Header Row */}
+              <div
+                className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50"
+                onClick={() => toggleExpanded(supplier.supplier_id)}
+              >
+                <div className="flex items-center space-x-4">
                   <div className="p-2 bg-blue-100 rounded-lg">
-                    <Building2 className="w-6 h-6 text-blue-600" />
+                    <Building2 className="w-5 h-5 text-blue-600" />
                   </div>
                   <div>
                     <h4 className="font-medium text-gray-900">{supplier.name}</h4>
-                    <div className="text-xs text-gray-500">
-                      ID: {supplier.supplier_id}
+                    <div className="flex items-center space-x-4 text-sm text-gray-500 mt-1">
+                      {formatAddress(supplier) && (
+                        <span className="flex items-center space-x-1">
+                          <MapPin className="w-3 h-3" />
+                          <span>{formatAddress(supplier)}</span>
+                        </span>
+                      )}
+                      {supplier.payment_terms && (
+                        <span className="flex items-center space-x-1">
+                          <CreditCard className="w-3 h-3" />
+                          <span>{supplier.payment_terms}</span>
+                        </span>
+                      )}
+                      {supplier.default_lead_days && (
+                        <span className="flex items-center space-x-1">
+                          <Clock className="w-3 h-3" />
+                          <span>{supplier.default_lead_days} days</span>
+                        </span>
+                      )}
+                      <span className="flex items-center space-x-1">
+                        <Users className="w-3 h-3" />
+                        <span>{supplier.contact_count || 0} contacts</span>
+                      </span>
                     </div>
                   </div>
                 </div>
-                
-                <div className="flex space-x-2">
+
+                <div className="flex items-center space-x-3">
                   <button
-                    onClick={() => handleEditSupplier(supplier)}
-                    className="p-1 text-gray-400 hover:text-blue-600"
+                    onClick={(e) => { e.stopPropagation(); handleEditSupplier(supplier); }}
+                    className="p-2 text-gray-400 hover:text-blue-600 rounded"
                   >
                     <Edit className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => handleDeleteSupplier(supplier.supplier_id, supplier.name)}
-                    className="p-1 text-gray-400 hover:text-red-600"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteSupplier(supplier.supplier_id, supplier.name); }}
+                    className="p-2 text-gray-400 hover:text-red-600 rounded"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
+                  {expandedSupplier === supplier.supplier_id ? (
+                    <ChevronDown className="w-5 h-5 text-gray-400" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5 text-gray-400" />
+                  )}
                 </div>
               </div>
 
-              {/* Contact Info */}
-              <div className="space-y-2">
-                {supplier.contact_email && (
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <Mail className="w-4 h-4" />
-                    <span className="truncate">{supplier.contact_email}</span>
+              {/* Expanded Details */}
+              {expandedSupplier === supplier.supplier_id && (
+                <div className="border-t border-gray-200 bg-gray-50">
+                  {/* Supplier Details */}
+                  <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    {supplier.website && (
+                      <div>
+                        <span className="text-gray-500 flex items-center space-x-1">
+                          <Globe className="w-3 h-3" />
+                          <span>Website</span>
+                        </span>
+                        <a href={supplier.website} target="_blank" rel="noopener noreferrer"
+                           className="text-blue-600 hover:underline truncate block">
+                          {supplier.website}
+                        </a>
+                      </div>
+                    )}
+                    {supplier.account_number && (
+                      <div>
+                        <span className="text-gray-500 flex items-center space-x-1">
+                          <Hash className="w-3 h-3" />
+                          <span>Account #</span>
+                        </span>
+                        <span className="text-gray-900">{supplier.account_number}</span>
+                      </div>
+                    )}
+                    {(supplier.address_line1 || supplier.address_line2) && (
+                      <div className="col-span-2">
+                        <span className="text-gray-500 flex items-center space-x-1">
+                          <MapPin className="w-3 h-3" />
+                          <span>Address</span>
+                        </span>
+                        <div className="text-gray-900">
+                          {supplier.address_line1 && <div>{supplier.address_line1}</div>}
+                          {supplier.address_line2 && <div>{supplier.address_line2}</div>}
+                          <div>
+                            {[supplier.city, supplier.province, supplier.postal_code].filter(Boolean).join(', ')}
+                          </div>
+                          {supplier.country && supplier.country !== 'Canada' && <div>{supplier.country}</div>}
+                        </div>
+                      </div>
+                    )}
+                    {supplier.notes && (
+                      <div className="col-span-2 md:col-span-4">
+                        <span className="text-gray-500 flex items-center space-x-1">
+                          <FileText className="w-3 h-3" />
+                          <span>Notes</span>
+                        </span>
+                        <span className="text-gray-900">{supplier.notes}</span>
+                      </div>
+                    )}
                   </div>
-                )}
-                
-                {supplier.contact_phone && (
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <Phone className="w-4 h-4" />
-                    <span>{supplier.contact_phone}</span>
-                  </div>
-                )}
-                
-                {supplier.website && (
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <Globe className="w-4 h-4" />
-                    <span className="truncate">{supplier.website}</span>
-                  </div>
-                )}
 
-                {supplier.notes && (
-                  <div className="flex items-start space-x-2 text-sm text-gray-600">
-                    <FileText className="w-4 h-4 mt-0.5" />
-                    <span className="line-clamp-2">{supplier.notes}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Footer */}
-              <div className="mt-4 pt-4 border-t border-gray-100">
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span>Added: {new Date(supplier.created_at).toLocaleDateString()}</span>
-                  <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    supplier.is_active 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {supplier.is_active ? 'Active' : 'Inactive'}
+                  {/* Contacts Section */}
+                  <div className="border-t border-gray-200">
+                    <SupplierContactsSection
+                      supplierId={supplier.supplier_id}
+                      showNotification={showNotification}
+                    />
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           ))}
         </div>
       )}
 
       {/* Add/Edit Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
-              {editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}
-            </h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Supplier Name *
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
-                  placeholder="Enter supplier name..."
-                />
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                {editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Name */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Supplier Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    placeholder="Enter supplier name..."
+                  />
+                </div>
+
+                {/* Website */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Website
+                  </label>
+                  <input
+                    type="url"
+                    value={formData.website}
+                    onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    placeholder="https://supplier.com"
+                  />
+                </div>
+
+                {/* Payment Terms */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Terms
+                  </label>
+                  <select
+                    value={formData.payment_terms}
+                    onChange={(e) => setFormData({ ...formData, payment_terms: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  >
+                    <option value="">Select...</option>
+                    {PAYMENT_TERMS_OPTIONS.map(term => (
+                      <option key={term} value={term}>{term}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Lead Days */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Default Lead Days
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.default_lead_days}
+                    onChange={(e) => setFormData({ ...formData, default_lead_days: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    placeholder="e.g., 5"
+                  />
+                </div>
+
+                {/* Account Number */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Account Number
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.account_number}
+                    onChange={(e) => setFormData({ ...formData, account_number: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    placeholder="Your account # with supplier"
+                  />
+                </div>
+
+                {/* Address Line 1 */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Address Line 1
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.address_line1}
+                    onChange={(e) => setFormData({ ...formData, address_line1: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    placeholder="Street address"
+                  />
+                </div>
+
+                {/* Address Line 2 */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Address Line 2
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.address_line2}
+                    onChange={(e) => setFormData({ ...formData, address_line2: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    placeholder="Suite, unit, etc."
+                  />
+                </div>
+
+                {/* City */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                  <input
+                    type="text"
+                    value={formData.city}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+
+                {/* Province */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Province/State</label>
+                  <input
+                    type="text"
+                    value={formData.province}
+                    onChange={(e) => setFormData({ ...formData, province: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+
+                {/* Postal Code */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Postal Code</label>
+                  <input
+                    type="text"
+                    value={formData.postal_code}
+                    onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+
+                {/* Country */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                  <input
+                    type="text"
+                    value={formData.country}
+                    onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+
+                {/* Notes */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    placeholder="Additional notes..."
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Contact Email
-                </label>
-                <input
-                  type="email"
-                  value={formData.contact_email}
-                  onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
-                  placeholder="orders@supplier.com"
-                />
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={resetForm}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveSupplier}
+                  className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+                  disabled={!formData.name.trim()}
+                >
+                  {editingSupplier ? 'Update' : 'Create'} Supplier
+                </button>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Contact Phone
-                </label>
-                <input
-                  type="tel"
-                  value={formData.contact_phone}
-                  onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
-                  placeholder="(555) 123-4567"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Website
-                </label>
-                <input
-                  type="url"
-                  value={formData.website}
-                  onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
-                  placeholder="https://supplier.com"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Notes
-                </label>
-                <textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
-                  placeholder="Payment terms, shipping info, etc..."
-                />
-              </div>
-            </div>
-            
-            <div className="flex justify-end space-x-3 mt-6">
-              <button
-                onClick={resetForm}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveSupplier}
-                className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
-                disabled={!formData.name.trim()}
-              >
-                {editingSupplier ? 'Update' : 'Create'} Supplier
-              </button>
             </div>
           </div>
         </div>

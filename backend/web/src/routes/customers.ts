@@ -65,6 +65,11 @@ router.get('/',
   requirePermission('customers.read'),
   CustomerController.getCustomers
 );
+// By-name lookup for URL-based navigation (must come before /:id)
+router.get('/by-name/:name',
+  requirePermission('customers.read'),
+  CustomerController.getCustomerByName
+);
 router.get('/:id',
   requirePermission('customers.read'),
   CustomerController.getCustomerById

@@ -1,24 +1,37 @@
-// File Clean up Finished: Nov 14, 2025
-// Additional cleanup: 2025-11-15
-// - Migrated to centralized isValidUrl() from utils/validation.ts
+// Phase 4.a: Updated for extended supplier fields
+// Updated: 2025-12-18
 import { SupplierRepository, SupplierRow, SupplierStatsRow, SupplierSearchParams } from '../../repositories/supplyChain/supplierRepository';
-import { isValidEmail, isValidUrl } from '../../utils/validation';
+import { isValidUrl } from '../../utils/validation';
 import { ServiceResult } from '../../types/serviceResults';
 
 export interface CreateSupplierData {
   name: string;
-  contact_email?: string;
-  contact_phone?: string;
   website?: string;
   notes?: string;
+  payment_terms?: string;
+  default_lead_days?: number;
+  account_number?: string;
+  address_line1?: string;
+  address_line2?: string;
+  city?: string;
+  province?: string;
+  postal_code?: string;
+  country?: string;
 }
 
 export interface UpdateSupplierData {
   name?: string;
-  contact_email?: string;
-  contact_phone?: string;
   website?: string;
   notes?: string;
+  payment_terms?: string;
+  default_lead_days?: number;
+  account_number?: string;
+  address_line1?: string;
+  address_line2?: string;
+  city?: string;
+  province?: string;
+  postal_code?: string;
+  country?: string;
   is_active?: boolean;
 }
 
@@ -86,15 +99,6 @@ export class SupplierService {
         };
       }
 
-      // Validate email format if provided
-      if (data.contact_email && !isValidEmail(data.contact_email)) {
-        return {
-          success: false,
-          error: 'Invalid email format',
-          code: 'VALIDATION_ERROR'
-        };
-      }
-
       // Validate website format if provided
       if (data.website && !isValidUrl(data.website)) {
         return {
@@ -104,12 +108,28 @@ export class SupplierService {
         };
       }
 
+      // Validate default_lead_days if provided
+      if (data.default_lead_days !== undefined && data.default_lead_days < 0) {
+        return {
+          success: false,
+          error: 'Lead days cannot be negative',
+          code: 'VALIDATION_ERROR'
+        };
+      }
+
       const supplierId = await this.repository.create({
         name: data.name.trim(),
-        contact_email: data.contact_email?.trim(),
-        contact_phone: data.contact_phone?.trim(),
         website: data.website?.trim(),
         notes: data.notes?.trim(),
+        payment_terms: data.payment_terms?.trim(),
+        default_lead_days: data.default_lead_days,
+        account_number: data.account_number?.trim(),
+        address_line1: data.address_line1?.trim(),
+        address_line2: data.address_line2?.trim(),
+        city: data.city?.trim(),
+        province: data.province?.trim(),
+        postal_code: data.postal_code?.trim(),
+        country: data.country?.trim(),
         created_by: userId
       });
 
@@ -144,15 +164,6 @@ export class SupplierService {
         };
       }
 
-      // Validate email format if provided
-      if (updates.contact_email && !isValidEmail(updates.contact_email)) {
-        return {
-          success: false,
-          error: 'Invalid email format',
-          code: 'VALIDATION_ERROR'
-        };
-      }
-
       // Validate website format if provided
       if (updates.website && !isValidUrl(updates.website)) {
         return {
@@ -162,13 +173,37 @@ export class SupplierService {
         };
       }
 
+      // Validate default_lead_days if provided
+      if (updates.default_lead_days !== undefined && updates.default_lead_days < 0) {
+        return {
+          success: false,
+          error: 'Lead days cannot be negative',
+          code: 'VALIDATION_ERROR'
+        };
+      }
+
       // Trim string fields
-      const cleanedUpdates: any = { ...updates, updated_by: userId };
-      if (cleanedUpdates.name) cleanedUpdates.name = cleanedUpdates.name.trim();
-      if (cleanedUpdates.contact_email) cleanedUpdates.contact_email = cleanedUpdates.contact_email.trim();
-      if (cleanedUpdates.contact_phone) cleanedUpdates.contact_phone = cleanedUpdates.contact_phone.trim();
-      if (cleanedUpdates.website) cleanedUpdates.website = cleanedUpdates.website.trim();
-      if (cleanedUpdates.notes) cleanedUpdates.notes = cleanedUpdates.notes.trim();
+      const cleanedUpdates: any = { updated_by: userId };
+
+      const stringFields = [
+        'name', 'website', 'notes', 'payment_terms', 'account_number',
+        'address_line1', 'address_line2', 'city', 'province', 'postal_code', 'country'
+      ];
+
+      for (const field of stringFields) {
+        if (updates[field as keyof UpdateSupplierData] !== undefined) {
+          const value = updates[field as keyof UpdateSupplierData];
+          cleanedUpdates[field] = typeof value === 'string' ? value.trim() : value;
+        }
+      }
+
+      // Handle non-string fields
+      if (updates.default_lead_days !== undefined) {
+        cleanedUpdates.default_lead_days = updates.default_lead_days;
+      }
+      if (updates.is_active !== undefined) {
+        cleanedUpdates.is_active = updates.is_active;
+      }
 
       await this.repository.update(id, cleanedUpdates);
 

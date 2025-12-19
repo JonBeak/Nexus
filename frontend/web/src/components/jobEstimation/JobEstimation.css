@@ -176,6 +176,7 @@ body:has(.job-estimation-builder-mode) {
 }
 
 /* Desktop layout: side by side when screen >= 1700px */
+/* Phase 4c: Dynamic layout - grid wider during draft, preview wider when prepared */
 @media (min-width: 1700px) {
   .estimate-builder-layout-container {
     flex-direction: row;
@@ -184,6 +185,7 @@ body:has(.job-estimation-builder-mode) {
     width: 100%; /* Reset width on desktop */
   }
 
+  /* Default (draft/building mode): Grid fills space, preview fixed width */
   .estimate-builder-grid-wrapper {
     order: 1;
     flex: 1;
@@ -200,9 +202,22 @@ body:has(.job-estimation-builder-mode) {
   .estimate-builder-preview-wrapper {
     order: 2;
     width: 700px;
-    max-width: 700px; /* Fixed width on desktop */
+    max-width: 700px; /* Fixed width on desktop during draft */
     flex-shrink: 0;
     margin-bottom: 0 !important; /* Reset mobile spacing */
+  }
+
+  /* Prepared mode: Preview wider for email composition */
+  .estimate-prepared .estimate-builder-grid-wrapper {
+    flex: 0 0 40%; /* Fixed 40% width */
+    max-width: 800px; /* Constrain grid when prepared */
+  }
+
+  .estimate-prepared .estimate-builder-preview-wrapper {
+    flex: 1; /* Takes remaining space */
+    width: auto;
+    max-width: none;
+    min-width: 800px; /* Wider minimum for email/send UI */
   }
 
   .estimate-builder-scroll-container {

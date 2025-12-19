@@ -192,7 +192,7 @@ Check backend logs for detailed comparison!`);
                 <h3 className="text-xl font-bold text-gray-800 mb-4">Pages</h3>
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => navigate('/job-estimation')}
+                    onClick={() => navigate('/estimates')}
                     className="px-3 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition-colors text-left"
                   >
                     📋 Estimates
@@ -400,7 +400,7 @@ Check backend logs for detailed comparison!`);
                   </button>
 
                   <button
-                    onClick={() => navigate('/job-estimation')}
+                    onClick={() => navigate('/estimates')}
                     className="group p-6 bg-emerald-600 hover:bg-emerald-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
                   >
                     <div className="flex items-center space-x-4">

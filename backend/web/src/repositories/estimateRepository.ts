@@ -149,6 +149,53 @@ export class EstimateRepository {
   // =============================================
 
   /**
+   * Get a single estimate by ID with full context
+   * Returns estimate details including job and customer info for breadcrumb navigation
+   */
+  async getEstimateById(estimateId: number): Promise<RowDataPacket | null> {
+    const rows = await query(
+      `SELECT
+        e.id,
+        e.job_id,
+        j.customer_id AS customer_id,
+        e.job_code,
+        e.version_number,
+        e.parent_estimate_id,
+        pe.version_number as parent_version,
+        CAST(e.is_draft AS UNSIGNED) as is_draft,
+        CAST(e.is_active AS UNSIGNED) as is_active,
+        e.status,
+        e.finalized_at,
+        fu.username as finalized_by_name,
+        e.subtotal,
+        e.tax_amount,
+        e.total_amount,
+        e.qb_estimate_id,
+        e.sent_to_qb_at,
+        e.created_at,
+        e.updated_at,
+        e.notes,
+        cu.username as created_by_name,
+        CAST(e.is_sent AS UNSIGNED) as is_sent,
+        CAST(e.is_approved AS UNSIGNED) as is_approved,
+        CAST(e.is_retracted AS UNSIGNED) as is_retracted,
+        j.job_name,
+        j.job_number,
+        c.company_name as customer_name
+       FROM job_estimates e
+       LEFT JOIN job_estimates pe ON e.parent_estimate_id = pe.id
+       LEFT JOIN users fu ON e.finalized_by_user_id = fu.user_id
+       LEFT JOIN users cu ON e.created_by = cu.user_id
+       LEFT JOIN jobs j ON e.job_id = j.job_id
+       LEFT JOIN customers c ON j.customer_id = c.customer_id
+       WHERE e.id = ?`,
+      [estimateId]
+    ) as RowDataPacket[];
+
+    return rows.length > 0 ? rows[0] : null;
+  }
+
+  /**
    * Get all estimate versions for a job with full details
    * Includes parent version reference, finalization info, and customer data
    */
@@ -541,5 +588,151 @@ export class EstimateRepository {
     );
 
     return rows[0]?.next_sequence || 1;
+  }
+
+  // =============================================
+  // ESTIMATE WORKFLOW METHODS (Phase 4c)
+  // =============================================
+
+  /**
+   * Prepare estimate for sending
+   * Sets is_prepared=true, is_draft=false (locks the estimate)
+   */
+  async prepareEstimate(
+    estimateId: number,
+    userId: number,
+    emailSubject?: string | null,
+    emailBody?: string | null
+  ): Promise<void> {
+    await query(
+      `UPDATE job_estimates
+       SET is_prepared = TRUE,
+           is_draft = FALSE,
+           email_subject = ?,
+           email_body = ?,
+           updated_by = ?,
+           updated_at = NOW()
+       WHERE id = ?`,
+      [emailSubject || null, emailBody || null, userId, estimateId]
+    );
+  }
+
+  /**
+   * Check if estimate is prepared (locked but not yet sent)
+   */
+  async checkEstimateIsPrepared(estimateId: number): Promise<boolean> {
+    const rows = await query(
+      'SELECT is_prepared FROM job_estimates WHERE id = ? AND is_prepared = TRUE',
+      [estimateId]
+    ) as RowDataPacket[];
+
+    return rows.length > 0;
+  }
+
+  /**
+   * Get estimate with prepared check
+   * Returns null if not prepared or doesn't exist
+   */
+  async getEstimateWithPreparedCheck(estimateId: number): Promise<RowDataPacket | null> {
+    const rows = await query(
+      `SELECT id, is_draft, is_prepared, is_sent, email_subject, email_body
+       FROM job_estimates
+       WHERE id = ? AND is_prepared = TRUE AND is_sent = FALSE`,
+      [estimateId]
+    ) as RowDataPacket[];
+
+    return rows.length > 0 ? rows[0] : null;
+  }
+
+  /**
+   * Update email content for an estimate
+   */
+  async updateEmailContent(
+    estimateId: number,
+    subject: string | null,
+    body: string | null,
+    userId: number
+  ): Promise<void> {
+    await query(
+      `UPDATE job_estimates
+       SET email_subject = ?,
+           email_body = ?,
+           updated_by = ?,
+           updated_at = NOW()
+       WHERE id = ?`,
+      [subject, body, userId, estimateId]
+    );
+  }
+
+  /**
+   * Get estimate email content
+   */
+  async getEstimateEmailContent(estimateId: number): Promise<{ email_subject: string | null; email_body: string | null } | null> {
+    const rows = await query(
+      'SELECT email_subject, email_body FROM job_estimates WHERE id = ?',
+      [estimateId]
+    ) as RowDataPacket[];
+
+    return rows.length > 0 ? rows[0] as any : null;
+  }
+
+  /**
+   * Mark estimate as sent (after QB creation and email)
+   */
+  async markEstimateAsSent(
+    estimateId: number,
+    userId: number,
+    qbEstimateId?: string,
+    qbEstimateUrl?: string
+  ): Promise<void> {
+    await query(
+      `UPDATE job_estimates
+       SET is_sent = TRUE,
+           status = 'sent',
+           qb_estimate_id = ?,
+           sent_to_qb_at = NOW(),
+           updated_by = ?,
+           updated_at = NOW()
+       WHERE id = ?`,
+      [qbEstimateId || null, userId, estimateId]
+    );
+
+    // Update QB URL separately if provided (kept in a different location)
+    if (qbEstimateUrl) {
+      // Note: qb_estimate_url is stored via quickbooksRepository.finalizeEstimate()
+      // This method focuses on status flags
+    }
+  }
+
+  /**
+   * Get estimate for sending (includes all needed data)
+   */
+  async getEstimateForSending(estimateId: number): Promise<RowDataPacket | null> {
+    const rows = await query(
+      `SELECT
+        e.id,
+        e.job_id,
+        e.job_code,
+        e.customer_id,
+        e.is_draft,
+        e.is_prepared,
+        e.is_sent,
+        e.email_subject,
+        e.email_body,
+        e.subtotal,
+        e.tax_amount,
+        e.total_amount,
+        j.job_name,
+        j.job_number,
+        c.company_name as customer_name,
+        c.qb_customer_name
+       FROM job_estimates e
+       JOIN jobs j ON e.job_id = j.job_id
+       JOIN customers c ON e.customer_id = c.customer_id
+       WHERE e.id = ?`,
+      [estimateId]
+    ) as RowDataPacket[];
+
+    return rows.length > 0 ? rows[0] : null;
   }
 }

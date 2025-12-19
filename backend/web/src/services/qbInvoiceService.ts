@@ -512,17 +512,23 @@ async function buildInvoicePayload(
       const mapping = itemMappings.get(part.qb_item_name?.toLowerCase() || '');
       const qbItemId = mapping?.qb_item_id || '1';
 
+      // Calculate Amount from Qty * UnitPrice to ensure QB validation passes
+      // QB requires Amount === Qty * UnitPrice exactly
+      const qty = parseFloat(String(part.quantity || 1));
+      const unitPrice = parseFloat(String(part.unit_price || 0));
+      const calculatedAmount = Math.round(qty * unitPrice * 100) / 100; // Round to 2 decimals
+
       lineItems.push({
         DetailType: 'SalesItemLineDetail',
         Description: part.qb_description || '',
-        Amount: parseFloat(String(part.extended_price || 0)),
+        Amount: calculatedAmount,
         SalesItemLineDetail: {
           ItemRef: {
             value: qbItemId,
             name: part.qb_item_name || part.product_type || 'General Item'
           },
-          Qty: parseFloat(String(part.quantity || 1)),
-          UnitPrice: parseFloat(String(part.unit_price || 0)),
+          Qty: qty,
+          UnitPrice: unitPrice,
           TaxCodeRef: { value: taxCodeId }
         }
       });
@@ -531,6 +537,7 @@ async function buildInvoicePayload(
 
   // Build payload
   const payload: QBInvoicePayload = {
+    DocNumber: 'AUTO_GENERATE', // Required when Custom Transaction Numbers is enabled in QB
     CustomerRef: { value: qbCustomerId },
     TxnDate: new Date().toISOString().split('T')[0],
     Line: lineItems,

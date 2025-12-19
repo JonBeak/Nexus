@@ -1,29 +1,37 @@
-// File Clean up Finished: Nov 14, 2025
+// Phase 4.a: Updated for extended supplier fields + contacts
+// Updated: 2025-12-18
 import { query } from '../../config/database';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 export interface SupplierRow extends RowDataPacket {
   supplier_id: number;
   name: string;
-  contact_email: string | null;
-  contact_phone: string | null;
   website: string | null;
   notes: string | null;
+  payment_terms: string | null;
+  default_lead_days: number | null;
+  account_number: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  province: string | null;
+  postal_code: string | null;
+  country: string | null;
   is_active: boolean;
-  supplier_type: 'general' | 'vinyl' | 'both';
   created_at: Date;
   updated_at: Date;
   created_by: number | null;
   updated_by: number | null;
   created_by_name?: string;
   updated_by_name?: string;
+  contact_count?: number;
 }
 
 export interface SupplierStatsRow extends RowDataPacket {
   total_suppliers: number;
   active_suppliers: number;
-  suppliers_with_email: number;
   suppliers_with_website: number;
+  total_contacts: number;
 }
 
 export interface SupplierSearchParams {
@@ -33,14 +41,15 @@ export interface SupplierSearchParams {
 
 export class SupplierRepository {
   /**
-   * Build enriched supplier query with user names
+   * Build enriched supplier query with user names and contact count
    */
   private buildSupplierQuery(whereClause: string = '1=1'): string {
     return `
       SELECT
         s.*,
         CONCAT(cu.first_name, ' ', cu.last_name) as created_by_name,
-        CONCAT(uu.first_name, ' ', uu.last_name) as updated_by_name
+        CONCAT(uu.first_name, ' ', uu.last_name) as updated_by_name,
+        (SELECT COUNT(*) FROM supplier_contacts sc WHERE sc.supplier_id = s.supplier_id AND sc.is_active = TRUE) as contact_count
       FROM suppliers s
       LEFT JOIN users cu ON s.created_by = cu.user_id
       LEFT JOIN users uu ON s.updated_by = uu.user_id
@@ -64,11 +73,12 @@ export class SupplierRepository {
     if (params.search) {
       conditions.push(`(
         s.name LIKE ? OR
-        s.contact_email LIKE ? OR
-        s.website LIKE ?
+        s.website LIKE ? OR
+        s.account_number LIKE ? OR
+        s.city LIKE ?
       )`);
       const searchTerm = `%${params.search}%`;
-      queryParams.push(searchTerm, searchTerm, searchTerm);
+      queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
     }
 
     const sql = this.buildSupplierQuery(conditions.join(' AND ')) + ' ORDER BY s.name';
@@ -90,21 +100,38 @@ export class SupplierRepository {
    */
   async create(data: {
     name: string;
-    contact_email?: string;
-    contact_phone?: string;
     website?: string;
     notes?: string;
+    payment_terms?: string;
+    default_lead_days?: number;
+    account_number?: string;
+    address_line1?: string;
+    address_line2?: string;
+    city?: string;
+    province?: string;
+    postal_code?: string;
+    country?: string;
     created_by: number;
   }): Promise<number> {
     const result = await query(
-      `INSERT INTO suppliers (name, contact_email, contact_phone, website, notes, created_by, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO suppliers (
+        name, website, notes, payment_terms, default_lead_days, account_number,
+        address_line1, address_line2, city, province, postal_code, country,
+        created_by, updated_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.name,
-        data.contact_email || null,
-        data.contact_phone || null,
         data.website || null,
         data.notes || null,
+        data.payment_terms || null,
+        data.default_lead_days || null,
+        data.account_number || null,
+        data.address_line1 || null,
+        data.address_line2 || null,
+        data.city || null,
+        data.province || null,
+        data.postal_code || null,
+        data.country || 'Canada',
         data.created_by,
         data.created_by
       ]
@@ -118,17 +145,28 @@ export class SupplierRepository {
    */
   async update(id: number, updates: {
     name?: string;
-    contact_email?: string;
-    contact_phone?: string;
     website?: string;
     notes?: string;
+    payment_terms?: string;
+    default_lead_days?: number;
+    account_number?: string;
+    address_line1?: string;
+    address_line2?: string;
+    city?: string;
+    province?: string;
+    postal_code?: string;
+    country?: string;
     is_active?: boolean;
     updated_by: number;
   }): Promise<void> {
     const updateFields: string[] = [];
     const updateValues: any[] = [];
 
-    const allowedFields = ['name', 'contact_email', 'contact_phone', 'website', 'notes', 'is_active'];
+    const allowedFields = [
+      'name', 'website', 'notes', 'payment_terms', 'default_lead_days',
+      'account_number', 'address_line1', 'address_line2', 'city',
+      'province', 'postal_code', 'country', 'is_active'
+    ];
 
     for (const field of allowedFields) {
       if (updates[field as keyof typeof updates] !== undefined) {
@@ -191,8 +229,8 @@ export class SupplierRepository {
       SELECT
         COUNT(*) as total_suppliers,
         COUNT(CASE WHEN is_active = TRUE THEN 1 END) as active_suppliers,
-        COUNT(CASE WHEN contact_email IS NOT NULL AND contact_email != '' THEN 1 END) as suppliers_with_email,
-        COUNT(CASE WHEN website IS NOT NULL AND website != '' THEN 1 END) as suppliers_with_website
+        COUNT(CASE WHEN website IS NOT NULL AND website != '' THEN 1 END) as suppliers_with_website,
+        (SELECT COUNT(*) FROM supplier_contacts WHERE is_active = TRUE) as total_contacts
       FROM suppliers
     `) as SupplierStatsRow[];
 

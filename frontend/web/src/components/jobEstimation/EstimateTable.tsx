@@ -3,6 +3,8 @@ import { Copy, FileText, AlertTriangle, Check, CheckCircle, ExternalLink } from 
 import { EstimatePreviewData } from './core/layers/CalculationLayer';
 import { generateEstimateSVG } from './utils/svgEstimateExporter';
 import { EstimateVersion } from './types';
+import EstimatePointPersonsEditor, { PointPersonEntry } from './EstimatePointPersonsEditor';
+import EstimateEmailComposer from './EstimateEmailComposer';
 
 interface EstimateTableProps {
   estimate: EstimateVersion | null; // Used to check is_draft for QB integration
@@ -26,6 +28,19 @@ interface EstimateTableProps {
   onConnectQB?: () => void;
   onDisconnectQB?: () => void;
   onApproveEstimate?: () => void;
+  // Phase 7: Point Persons
+  customerId?: number;
+  pointPersons?: PointPersonEntry[];
+  onPointPersonsChange?: (pointPersons: PointPersonEntry[]) => void;
+  // Phase 7: Email Content
+  emailSubject?: string;
+  emailBody?: string;
+  onEmailChange?: (subject: string, body: string) => void;
+  // Phase 7: Workflow handlers
+  onPrepareEstimate?: () => void;
+  onSendToCustomer?: () => void;
+  isPreparing?: boolean;
+  isSending?: boolean;
 }
 
 // Split number into whole and decimal parts for alignment
@@ -107,7 +122,18 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
   onOpenQBEstimate,
   onConnectQB,
   onDisconnectQB,
-  onApproveEstimate
+  onApproveEstimate,
+  // Phase 7: New props
+  customerId,
+  pointPersons,
+  onPointPersonsChange,
+  emailSubject,
+  emailBody,
+  onEmailChange,
+  onPrepareEstimate,
+  onSendToCustomer,
+  isPreparing = false,
+  isSending = false
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [copySuccess, setCopySuccess] = useState(false);
@@ -224,10 +250,10 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                 <button
                   onClick={onApproveEstimate}
                   className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
-                  title="Approve estimate and create order"
+                  title="Convert estimate to order"
                 >
                   <CheckCircle className="w-3.5 h-3.5" />
-                  Approve
+                  Convert to Order
                 </button>
               )}
             </>
@@ -246,48 +272,44 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                 <button
                   onClick={onApproveEstimate}
                   className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
-                  title="Approve estimate and create order (without QB estimate)"
+                  title="Convert estimate to order (without QB estimate)"
                 >
                   <CheckCircle className="w-3.5 h-3.5" />
-                  Approve
+                  Convert to Order
                 </button>
               )}
             </>
           ) : (
-            // Connected - show disconnect + create + approve buttons
+            // Connected - show workflow buttons based on state
             <>
-              <button
-                onClick={onDisconnectQB}
-                className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
-                title="Disconnect from QuickBooks"
-              >
-                ✕ Disconnect
-              </button>
-              {estimate?.is_draft && (
+              {estimate?.is_draft ? (
+                // DRAFT STATE: Show "Prepare to Send"
                 <button
-                  onClick={onCreateQBEstimate}
-                  disabled={qbCreatingEstimate || !estimatePreviewData || estimatePreviewData.items.length === 0}
-                  className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Create estimate in QuickBooks (will finalize this draft)"
+                  onClick={onPrepareEstimate}
+                  disabled={isPreparing || hasValidationErrors || !estimatePreviewData || estimatePreviewData.items.length === 0}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs rounded whitespace-nowrap bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={hasValidationErrors ? 'Fix validation errors first' : 'Prepare estimate for sending'}
                 >
-                  {qbCreatingEstimate ? (
-                    <>⏳ Creating...</>
-                  ) : (
-                    <>
-                      <FileText className="w-3.5 h-3.5" />
-                      Create QB Estimate
-                    </>
-                  )}
+                  {isPreparing ? '⏳ Preparing...' : 'Prepare to Send'}
                 </button>
-              )}
+              ) : estimate?.is_prepared && !qbEstimateId ? (
+                // PREPARED STATE: Show "Send to Customer"
+                <button
+                  onClick={onSendToCustomer}
+                  disabled={isSending}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs rounded whitespace-nowrap bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSending ? '⏳ Sending...' : 'Send to Customer'}
+                </button>
+              ) : null}
               {!isApproved && onApproveEstimate && (
                 <button
                   onClick={onApproveEstimate}
                   className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
-                  title="Approve estimate and create order (without QB estimate)"
+                  title="Convert estimate to order"
                 >
                   <CheckCircle className="w-3.5 h-3.5" />
-                  Approve
+                  Convert to Order
                 </button>
               )}
             </>
@@ -440,6 +462,44 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                     </div>
                   </div>
                 </div>
+
+                {/* Point Persons Section */}
+                {customerId && (
+                  <div className="border-t pt-3 mt-3">
+                    <h4 className="text-xs font-medium text-gray-700 mb-2">Point Person(s)</h4>
+                    <EstimatePointPersonsEditor
+                      customerId={customerId}
+                      initialPointPersons={pointPersons?.map(pp => ({
+                        id: typeof pp.id === 'string' ? parseInt(pp.id.replace('existing-', '').replace('new-', '')) || 0 : 0,
+                        contact_id: pp.contact_id,
+                        contact_email: pp.contact_email,
+                        contact_name: pp.contact_name,
+                        contact_phone: pp.contact_phone,
+                        contact_role: pp.contact_role
+                      }))}
+                      onChange={onPointPersonsChange || (() => {})}
+                      disabled={!estimate?.is_draft}
+                    />
+                  </div>
+                )}
+
+                {/* Email Composer Section */}
+                {estimate && customerId && (
+                  <div className="border-t pt-3 mt-3">
+                    <h4 className="text-xs font-medium text-gray-700 mb-2">Email to Customer</h4>
+                    <EstimateEmailComposer
+                      estimateId={estimate.id}
+                      customerName={customerName || undefined}
+                      jobName={jobName || undefined}
+                      estimateNumber={`EST-${estimate.id}`}
+                      total={estimatePreviewData?.total ? `$${estimatePreviewData.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : undefined}
+                      initialSubject={emailSubject}
+                      initialBody={emailBody}
+                      onChange={onEmailChange || (() => {})}
+                      disabled={!estimate?.is_draft}
+                    />
+                  </div>
+                )}
 
                 {/* Debug info (only shown if tax rate indicates failure) */}
                 {estimatePreviewData.taxRate >= 1.0 && (

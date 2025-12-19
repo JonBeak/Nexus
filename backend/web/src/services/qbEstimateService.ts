@@ -312,6 +312,7 @@ async function mapOrderToQBEstimate(
 
   // Build QB estimate payload (no CustomerMemo - moved to line #1)
   const estimatePayload: any = {
+    DocNumber: 'AUTO_GENERATE', // Required when Custom Transaction Numbers is enabled in QB
     CustomerRef: {
       value: qbCustomerId
     },

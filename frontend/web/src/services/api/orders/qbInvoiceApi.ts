@@ -185,7 +185,7 @@ export const qbInvoiceApi = {
    */
   async compareWithQB(orderNumber: number): Promise<InvoiceSyncResult> {
     const response = await api.get(`/orders/${orderNumber}/qb-invoice/compare`);
-    return response.data.data;
+    return response.data;
   },
 
   /**

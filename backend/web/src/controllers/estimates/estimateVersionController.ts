@@ -21,6 +21,36 @@ const versioningService = new EstimateVersioningService();
 // =============================================
 
 /**
+ * Get a single estimate by ID with full context
+ * Used by the EstimateEditorPage for direct URL access
+ * @route GET /estimates/:estimateId
+ */
+export const getEstimateById = async (req: AuthRequest, res: Response) => {
+  try {
+    const validation = validateEstimateId(req.params.estimateId, res);
+    if (!validation.isValid) return;
+    const estimateId = validation.value!;
+
+    const estimate = await versioningService.getEstimateById(estimateId);
+
+    if (!estimate) {
+      return res.status(404).json({
+        success: false,
+        message: 'Estimate not found'
+      });
+    }
+
+    res.json({ success: true, data: estimate });
+  } catch (error) {
+    console.error('Controller error fetching estimate:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch estimate'
+    });
+  }
+};
+
+/**
  * Get all estimate versions for a job
  * @route GET /jobs/:jobId/estimates
  */
@@ -167,6 +197,210 @@ export const duplicateEstimateAsNewVersion = async (req: AuthRequest, res: Respo
     res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'Failed to duplicate estimate'
+    });
+  }
+};
+
+// =============================================
+// ESTIMATE WORKFLOW ENDPOINTS (Phase 4c)
+// =============================================
+
+/**
+ * Prepare estimate for sending
+ * - Cleans empty rows
+ * - Saves point persons and email content
+ * - Locks the estimate
+ * @route POST /estimates/:estimateId/prepare
+ */
+export const prepareEstimate = async (req: AuthRequest, res: Response) => {
+  try {
+    const validated = validateEstimateRequest(req, res);
+    if (!validated) return;
+
+    const { emailSubject, emailBody, pointPersons } = req.body;
+
+    const result = await versioningService.prepareEstimateForSending(
+      validated.estimateId,
+      validated.userId,
+      { emailSubject, emailBody, pointPersons }
+    );
+
+    res.json({
+      success: true,
+      data: result,
+      message: `Estimate prepared. ${result.deletedRowCount} empty rows removed.`
+    });
+  } catch (error) {
+    console.error('Controller error preparing estimate:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to prepare estimate'
+    });
+  }
+};
+
+/**
+ * Send estimate to customer
+ * - Creates QB estimate
+ * - Sends email
+ * @route POST /estimates/:estimateId/send
+ */
+export const sendEstimate = async (req: AuthRequest, res: Response) => {
+  try {
+    const validated = validateEstimateRequest(req, res);
+    if (!validated) return;
+
+    const { estimatePreviewData } = req.body;
+
+    const result = await versioningService.sendEstimateToCustomer(
+      validated.estimateId,
+      validated.userId,
+      estimatePreviewData
+    );
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'Estimate sent to customer'
+    });
+  } catch (error) {
+    console.error('Controller error sending estimate:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to send estimate'
+    });
+  }
+};
+
+/**
+ * Get point persons for an estimate
+ * @route GET /estimates/:estimateId/point-persons
+ */
+export const getEstimatePointPersons = async (req: AuthRequest, res: Response) => {
+  try {
+    const validation = validateEstimateId(req.params.estimateId, res);
+    if (!validation.isValid) return;
+    const estimateId = validation.value!;
+
+    const pointPersons = await versioningService.getEstimatePointPersons(estimateId);
+
+    res.json({ success: true, data: pointPersons });
+  } catch (error) {
+    console.error('Controller error fetching point persons:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch point persons'
+    });
+  }
+};
+
+/**
+ * Update point persons for an estimate
+ * @route PUT /estimates/:estimateId/point-persons
+ */
+export const updateEstimatePointPersons = async (req: AuthRequest, res: Response) => {
+  try {
+    const validated = validateEstimateRequest(req, res);
+    if (!validated) return;
+
+    const { pointPersons } = req.body;
+
+    if (!Array.isArray(pointPersons)) {
+      return res.status(400).json({
+        success: false,
+        message: 'pointPersons must be an array'
+      });
+    }
+
+    await versioningService.updateEstimatePointPersons(
+      validated.estimateId,
+      pointPersons,
+      validated.userId
+    );
+
+    res.json({
+      success: true,
+      message: 'Point persons updated'
+    });
+  } catch (error) {
+    console.error('Controller error updating point persons:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update point persons'
+    });
+  }
+};
+
+/**
+ * Get email content for an estimate
+ * @route GET /estimates/:estimateId/email-content
+ */
+export const getEstimateEmailContent = async (req: AuthRequest, res: Response) => {
+  try {
+    const validation = validateEstimateId(req.params.estimateId, res);
+    if (!validation.isValid) return;
+    const estimateId = validation.value!;
+
+    const emailContent = await versioningService.getEstimateEmailContent(estimateId);
+
+    res.json({ success: true, data: emailContent });
+  } catch (error) {
+    console.error('Controller error fetching email content:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch email content'
+    });
+  }
+};
+
+/**
+ * Update email content for an estimate
+ * @route PUT /estimates/:estimateId/email-content
+ */
+export const updateEstimateEmailContent = async (req: AuthRequest, res: Response) => {
+  try {
+    const validated = validateEstimateRequest(req, res);
+    if (!validated) return;
+
+    const { subject, body } = req.body;
+
+    await versioningService.updateEstimateEmailContent(
+      validated.estimateId,
+      subject || null,
+      body || null,
+      validated.userId
+    );
+
+    res.json({
+      success: true,
+      message: 'Email content updated'
+    });
+  } catch (error) {
+    console.error('Controller error updating email content:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update email content'
+    });
+  }
+};
+
+/**
+ * Get estimate send email template
+ * @route GET /estimates/template/send-email
+ */
+export const getEstimateSendTemplate = async (req: AuthRequest, res: Response) => {
+  try {
+    const template = await versioningService.getEstimateSendTemplate();
+
+    res.json({
+      success: true,
+      data: template
+    });
+  } catch (error) {
+    console.error('Controller error fetching send template:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch send template'
     });
   }
 };

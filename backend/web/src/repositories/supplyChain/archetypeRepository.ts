@@ -1,0 +1,275 @@
+// Phase 4.b: Product Archetypes Repository
+// Created: 2025-12-18
+import { query } from '../../config/database';
+import { RowDataPacket, ResultSetHeader } from 'mysql2';
+
+export interface ArchetypeRow extends RowDataPacket {
+  archetype_id: number;
+  name: string;
+  category: string;
+  subcategory: string | null;
+  unit_of_measure: string;
+  specifications: Record<string, any> | null;
+  description: string | null;
+  reorder_point: number;
+  default_lead_days: number | null;
+  is_active: boolean;
+  created_at: Date;
+  updated_at: Date;
+  created_by: number | null;
+  updated_by: number | null;
+  created_by_name?: string;
+  updated_by_name?: string;
+}
+
+export interface ArchetypeStatsRow extends RowDataPacket {
+  total_archetypes: number;
+  active_archetypes: number;
+  categories_in_use: number;
+}
+
+export interface CategoryCountRow extends RowDataPacket {
+  category: string;
+  count: number;
+}
+
+export interface ArchetypeSearchParams {
+  search?: string;
+  category?: string;
+  subcategory?: string;
+  active_only?: boolean;
+}
+
+export class ArchetypeRepository {
+  /**
+   * Build enriched archetype query with user names
+   */
+  private buildArchetypeQuery(whereClause: string = '1=1'): string {
+    return `
+      SELECT
+        a.*,
+        CONCAT(cu.first_name, ' ', cu.last_name) as created_by_name,
+        CONCAT(uu.first_name, ' ', uu.last_name) as updated_by_name
+      FROM product_archetypes a
+      LEFT JOIN users cu ON a.created_by = cu.user_id
+      LEFT JOIN users uu ON a.updated_by = uu.user_id
+      WHERE ${whereClause}
+    `;
+  }
+
+  /**
+   * Get all archetypes with optional filtering
+   */
+  async findAll(params: ArchetypeSearchParams): Promise<ArchetypeRow[]> {
+    const conditions: string[] = ['1=1'];
+    const queryParams: any[] = [];
+
+    // Filter by active status (default to active only)
+    if (params.active_only !== false) {
+      conditions.push('a.is_active = TRUE');
+    }
+
+    // Filter by category
+    if (params.category) {
+      conditions.push('a.category = ?');
+      queryParams.push(params.category);
+    }
+
+    // Filter by subcategory
+    if (params.subcategory) {
+      conditions.push('a.subcategory = ?');
+      queryParams.push(params.subcategory);
+    }
+
+    // Search filter
+    if (params.search) {
+      conditions.push(`(
+        a.name LIKE ? OR
+        a.description LIKE ? OR
+        a.subcategory LIKE ?
+      )`);
+      const searchTerm = `%${params.search}%`;
+      queryParams.push(searchTerm, searchTerm, searchTerm);
+    }
+
+    const sql = this.buildArchetypeQuery(conditions.join(' AND ')) + ' ORDER BY a.category, a.name';
+
+    return await query(sql, queryParams) as ArchetypeRow[];
+  }
+
+  /**
+   * Get single archetype by ID
+   */
+  async findById(id: number): Promise<ArchetypeRow | null> {
+    const sql = this.buildArchetypeQuery('a.archetype_id = ?');
+    const rows = await query(sql, [id]) as ArchetypeRow[];
+    return rows.length > 0 ? rows[0] : null;
+  }
+
+  /**
+   * Check if archetype name already exists
+   */
+  async nameExists(name: string, excludeId?: number): Promise<boolean> {
+    let sql = 'SELECT COUNT(*) as count FROM product_archetypes WHERE name = ?';
+    const params: any[] = [name];
+
+    if (excludeId) {
+      sql += ' AND archetype_id != ?';
+      params.push(excludeId);
+    }
+
+    const rows = await query(sql, params) as RowDataPacket[];
+    return rows[0].count > 0;
+  }
+
+  /**
+   * Create new archetype
+   */
+  async create(data: {
+    name: string;
+    category: string;
+    subcategory?: string;
+    unit_of_measure: string;
+    specifications?: Record<string, any>;
+    description?: string;
+    reorder_point?: number;
+    default_lead_days?: number;
+    created_by?: number;
+  }): Promise<number> {
+    const result = await query(
+      `INSERT INTO product_archetypes (
+        name, category, subcategory, unit_of_measure, specifications,
+        description, reorder_point, default_lead_days,
+        created_by, updated_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        data.name,
+        data.category,
+        data.subcategory || null,
+        data.unit_of_measure,
+        data.specifications ? JSON.stringify(data.specifications) : null,
+        data.description || null,
+        data.reorder_point || 0,
+        data.default_lead_days || null,
+        data.created_by || null,
+        data.created_by || null
+      ]
+    ) as ResultSetHeader;
+
+    return result.insertId;
+  }
+
+  /**
+   * Update archetype
+   */
+  async update(id: number, updates: {
+    name?: string;
+    category?: string;
+    subcategory?: string;
+    unit_of_measure?: string;
+    specifications?: Record<string, any>;
+    description?: string;
+    reorder_point?: number;
+    default_lead_days?: number;
+    is_active?: boolean;
+    updated_by?: number;
+  }): Promise<void> {
+    const updateFields: string[] = [];
+    const updateValues: any[] = [];
+
+    const allowedFields = [
+      'name', 'category', 'subcategory', 'unit_of_measure',
+      'description', 'reorder_point', 'default_lead_days', 'is_active'
+    ];
+
+    for (const field of allowedFields) {
+      if (updates[field as keyof typeof updates] !== undefined) {
+        updateFields.push(`${field} = ?`);
+        updateValues.push(updates[field as keyof typeof updates]);
+      }
+    }
+
+    // Handle specifications separately (needs JSON stringify)
+    if (updates.specifications !== undefined) {
+      updateFields.push('specifications = ?');
+      updateValues.push(JSON.stringify(updates.specifications));
+    }
+
+    if (updateFields.length === 0) {
+      throw new Error('No valid fields to update');
+    }
+
+    // Add updated_by
+    if (updates.updated_by) {
+      updateFields.push('updated_by = ?');
+      updateValues.push(updates.updated_by);
+    }
+
+    // Add id for WHERE clause
+    updateValues.push(id);
+
+    await query(
+      `UPDATE product_archetypes SET ${updateFields.join(', ')} WHERE archetype_id = ?`,
+      updateValues
+    );
+  }
+
+  /**
+   * Soft delete archetype (deactivate)
+   */
+  async softDelete(id: number, updated_by?: number): Promise<void> {
+    await query(
+      'UPDATE product_archetypes SET is_active = FALSE, updated_by = ? WHERE archetype_id = ?',
+      [updated_by || null, id]
+    );
+  }
+
+  /**
+   * Hard delete archetype
+   */
+  async hardDelete(id: number): Promise<void> {
+    await query('DELETE FROM product_archetypes WHERE archetype_id = ?', [id]);
+  }
+
+  /**
+   * Get categories with counts
+   */
+  async getCategories(): Promise<CategoryCountRow[]> {
+    return await query(`
+      SELECT category, COUNT(*) as count
+      FROM product_archetypes
+      WHERE is_active = TRUE
+      GROUP BY category
+      ORDER BY category
+    `) as CategoryCountRow[];
+  }
+
+  /**
+   * Get archetype statistics
+   */
+  async getStatistics(): Promise<ArchetypeStatsRow> {
+    const rows = await query(`
+      SELECT
+        COUNT(*) as total_archetypes,
+        COUNT(CASE WHEN is_active = TRUE THEN 1 END) as active_archetypes,
+        COUNT(DISTINCT category) as categories_in_use
+      FROM product_archetypes
+    `) as ArchetypeStatsRow[];
+
+    return rows[0];
+  }
+
+  /**
+   * Get unique subcategories for a category
+   */
+  async getSubcategories(category: string): Promise<string[]> {
+    const rows = await query(`
+      SELECT DISTINCT subcategory
+      FROM product_archetypes
+      WHERE category = ? AND subcategory IS NOT NULL AND is_active = TRUE
+      ORDER BY subcategory
+    `, [category]) as RowDataPacket[];
+
+    return rows.map(r => r.subcategory);
+  }
+}

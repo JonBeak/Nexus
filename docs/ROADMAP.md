@@ -104,7 +104,7 @@
 
 ---
 
-## Phase 3: Financial Integration 🔄 IN PROGRESS
+## Phase 3: Financial Integration ✅ COMPLETE (Core)
 
 ### 3.1 QuickBooks Integration ✅ (Core Complete)
 - ✅ OAuth 2.0 authentication flow
@@ -115,7 +115,7 @@
 - ✅ Balance tracking (fetched from QB invoice data)
 - ✅ Customer payment links (InvoiceLink from QB, not admin URLs)
 - ✅ Online payments enabled (credit card + ACH)
-- ⬜ Two-way customer sync
+- ⏸️ Two-way customer sync (deferred - low priority)
 
 ### 3.2 Payment Processing ✅
 - ✅ Record payments in QuickBooks
@@ -126,28 +126,101 @@
 - ✅ Balance fetched from QuickBooks (no local payment tracking)
 - ✅ Balance line in invoice emails (shows remaining if partial payment)
 
-### 3.3 Advanced Reporting
-- ⬜ Sales reporting and analytics
-- ⬜ Customer profitability analysis
-- ⬜ Job performance metrics
-- ⬜ Material usage reports
-- ⬜ Financial dashboards
+### 3.3 Advanced Reporting ⏸️ DEFERRED
+**Reason**: Profitability analysis requires material costs (Phase 4) and labour tracking integration. Revisit after Phase 4 completion.
+- ⏸️ Sales reporting and analytics
+- ⏸️ Customer profitability analysis
+- ⏸️ Job performance metrics
+- ⏸️ Material usage reports
+- ⏸️ Financial dashboards
 
 ---
 
-## Phase 4: Supply Chain & Materials
+## Phase 4: Supply Chain & Materials 🔄 IN PROGRESS
 
-### 4.1 Supply Chain Management
-- ⬜ Supplier management
-- ⬜ Purchase order generation
-- ⬜ Material cost tracking
-- ⬜ Low stock alerts
-- ⬜ Material requirements calculation from orders
+### Data Model Overview
+```
+suppliers
+  └── supplier_contacts (sales reps, AP contacts, etc.)
 
-### 4.2 Materials Integration
-- ⬜ Real-time material costs in pricing
-- ⬜ Job material tracking
-- ⬜ Waste tracking
+product_archetypes (OUR internal definitions - used in BOMs)
+  - "0.5\" Black Acrylic", "3/4W White LED Module", etc.
+  - category, unit_of_measure, specifications
+
+supplier_products (THEIR specific offerings - what we actually buy)
+  - links to: archetype_id + supplier_id
+  - brand_name, color_name, sku, actual specs (may vary slightly)
+  - lead_time, min_order_qty, is_preferred
+
+pricing_history (price changes over time)
+  - supplier_product_id, unit_price, effective_start_date
+  - current price = most recent where effective_date <= today
+```
+
+### 4.a Suppliers + Contacts ✅ COMPLETE (2025-12-18)
+- ✅ `suppliers` table extended (payment_terms, default_lead_days, account_number, address fields)
+- ✅ `supplier_contacts` table (supplier_id, name, email, phone, role, is_primary)
+- ✅ Supplier CRUD interface with expandable rows
+- ✅ Contact management within supplier detail view
+- ✅ Primary contact designation with star indicator
+- ✅ Contact roles: sales, accounts_payable, customer_service, technical, general
+
+### 4.b Product Types (Internal Catalog) ✅ COMPLETE (2025-12-19)
+- ✅ `product_archetypes` table (our canonical product definitions)
+- ✅ `material_categories` table (dynamic, editable categories)
+- ✅ Categories: LED, Transformer, Substrate, Hardware, Paint, Trim Cap, Electrical, Misc
+- ✅ Unit of measure (each, linear ft, sq ft, sheet, roll, gallon, etc.)
+- ✅ Specifications as draggable key-value editor (stored as JSON)
+- ✅ Reorder point and lead days tracking
+- ✅ Product Types CRUD with category management UI
+- ✅ Search/filter by category with compact card layout
+- ✅ Backend routes: `/api/product-types` and `/api/product-types/categories`
+- ⏸️ Vinyl system remains separate (working, production data)
+
+### 4.c Supplier Products + Pricing
+- ⬜ `supplier_products` table (archetype_id, supplier_id, brand, sku, specs)
+- ⬜ `pricing_history` table (supplier_product_id, unit_price, effective_start_date)
+- ⬜ Link supplier products to archetypes (many suppliers → one archetype)
+- ⬜ Preferred supplier flag per archetype
+- ⬜ Lead time and minimum order quantity per supplier product
+- ⬜ Price lookup: current price = most recent effective_date <= today
+- ⬜ Price comparison view across suppliers for same archetype
+- ⬜ Price change tracking with effective dates
+
+### 4.d Purchase Orders
+- ⬜ `purchase_orders` table (supplier_id, status, order_date, expected_date)
+- ⬜ `purchase_order_items` table (po_id, supplier_product_id, qty, unit_price)
+- ⬜ PO status workflow: Draft → Sent → Partial → Received → Closed
+- ⬜ Receiving workflow (mark items received, partial receipts)
+- ⬜ PO history and audit trail
+- ⬜ Email PO to supplier (using existing Gmail integration)
+- ⬜ PO generation from low stock alerts
+
+### 4.e Inventory Tracking
+- ⬜ `inventory` table (archetype_id, quantity_on_hand, location)
+- ⬜ `inventory_transactions` table (type: received/used/adjusted/scrapped)
+- ⬜ Stock tracked at archetype level (not supplier product level)
+- ⬜ Receiving PO increases inventory for archetype
+- ⬜ Low stock alerts dashboard (qty < reorder_point)
+- ⬜ Stock valuation: average cost method
+- ⬜ Inventory count/adjustment interface
+- ⬜ Transaction history with audit trail
+
+### 4.f Order Materials / BOM
+- ⬜ `bom_templates` table (product_type → list of archetypes + quantities)
+- ⬜ Auto-calculate materials needed from order parts using BOM
+- ⬜ Material requirements view per order
+- ⬜ Aggregate materials across multiple orders (batch ordering)
+- ⬜ Reserve/allocate stock to orders (optional)
+- ⬜ Shortfall alerts (order needs X, only Y in stock)
+
+### 4.g Cost Tracking + Labour Integration
+- ⬜ Material cost per order (calculated from BOM × current prices)
+- ⬜ Cost snapshot at order creation (lock in prices)
+- ⬜ Margin analysis per order (revenue - material cost)
+- ⬜ Link time entries to orders (labour cost = hours × wage rates)
+- ⬜ Combined cost analysis (materials + labour)
+- ⬜ Feeds into Phase 3.3 profitability reporting
 
 ---
 
@@ -167,6 +240,19 @@
 ---
 
 ## Recent Releases
+
+### Phase 4.b (2025-12-19)
+- Product Types catalog (formerly "Materials/Archetypes")
+- Dynamic categories with CRUD management
+- Key-value specifications editor with drag-and-drop reordering
+- Compact card layout with expandable details
+- Removed supplier_type field (unnecessary complexity)
+- Simplified inventory: reorder_point only (removed safety_stock)
+
+### Phase 4.a (2025-12-18)
+- Suppliers table with extended fields
+- Supplier Contacts with primary designation
+- Contact roles system
 
 ### Phase 2.f (2025-12-17)
 - Customer Accounting Emails system (to/cc/bcc per customer)
@@ -204,4 +290,4 @@
 
 ---
 
-**Last Updated**: 2025-12-17
+**Last Updated**: 2025-12-19

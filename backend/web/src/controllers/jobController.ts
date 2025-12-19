@@ -23,12 +23,14 @@ import { Request, Response } from 'express';
 import { AuthRequest } from '../types';
 import { EstimateVersioningService, JobData } from '../services/estimateVersioningService';
 import { JobService } from '../services/jobService';
+import { JobRepository } from '../repositories/jobRepository';
 import { parseIntParam, sendErrorResponse } from '../utils/controllerHelpers';
 import { getTrimmedString } from '../utils/validation';
 import { validateJobOrOrderName } from '../utils/folderNameValidation';
 
 const versioningService = new EstimateVersioningService();
 const jobService = new JobService();
+const jobRepository = new JobRepository();
 
 // =============================================
 // JOB MANAGEMENT ENDPOINTS
@@ -328,5 +330,36 @@ export const suggestJobNameSuffix = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Controller error suggesting job name suffix:', error);
     return sendErrorResponse(res, 'Failed to suggest job name suffix', 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Get job by name within a specific customer (case-insensitive)
+ * Used for URL-based navigation in job estimation
+ * @route GET /customers/:customerId/jobs/by-name/:name
+ */
+export const getJobByName = async (req: Request, res: Response) => {
+  try {
+    const customerId = parseIntParam(req.params.customerId, 'customer ID');
+    const jobName = decodeURIComponent(req.params.name);
+
+    if (customerId === null) {
+      return sendErrorResponse(res, 'Invalid customer ID', 'VALIDATION_ERROR');
+    }
+
+    if (!jobName || !jobName.trim()) {
+      return sendErrorResponse(res, 'Job name is required', 'VALIDATION_ERROR');
+    }
+
+    const job = await jobRepository.getJobByNameAndCustomer(customerId, jobName);
+
+    if (!job) {
+      return sendErrorResponse(res, 'Job not found', 'NOT_FOUND');
+    }
+
+    res.json({ success: true, data: job });
+  } catch (error) {
+    console.error('Controller error fetching job by name:', error);
+    return sendErrorResponse(res, 'Failed to fetch job', 'INTERNAL_ERROR');
   }
 };

@@ -77,6 +77,24 @@ export class CustomerRepository {
   }
 
   /**
+   * Find customer by company name (case-insensitive)
+   * Used for URL-based navigation in job estimation
+   *
+   * @param companyName - Company name to search for (URL-decoded)
+   * @returns Customer ID and name or null if not found
+   */
+  async getCustomerByName(companyName: string): Promise<{ customer_id: number; company_name: string } | null> {
+    const rows = await query(
+      `SELECT customer_id, company_name
+       FROM customers
+       WHERE LOWER(company_name) = LOWER(?) AND active = 1`,
+      [companyName]
+    ) as RowDataPacket[];
+
+    return rows.length > 0 ? rows[0] as { customer_id: number; company_name: string } : null;
+  }
+
+  /**
    * Get basic customer information
    * Used for order conversion and invoice generation
    *

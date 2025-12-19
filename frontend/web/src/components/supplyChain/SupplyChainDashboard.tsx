@@ -10,6 +10,7 @@ import { JobMaterialRequirements } from './JobMaterialRequirements';
 import { LowStockAlerts } from './LowStockAlerts';
 import { ShoppingCartComponent } from './ShoppingCart';
 import { SuppliersManager } from './SuppliersManager';
+import { ProductArchetypesManager } from './ProductArchetypesManager';
 import { InventoryTab } from '../inventory/InventoryTab';
 import { ShoppingCartProvider } from '../../contexts/ShoppingCartContext';
 import type { User as AccountUser } from '../accounts/hooks/useAccountAPI';
@@ -18,7 +19,7 @@ interface SupplyChainDashboardProps {
   user: AccountUser | null;
 }
 
-type TabType = 'overview' | 'shopping-cart' | 'vinyl-inventory' | 'inventory' | 'suppliers' | 'products' | 'low-stock';
+type TabType = 'overview' | 'shopping-cart' | 'vinyl-inventory' | 'inventory' | 'suppliers' | 'product-types' | 'products' | 'low-stock';
 
 export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user }) => {
   const navigate = useNavigate();
@@ -210,7 +211,18 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
               >
                 Suppliers
               </button>
-              
+
+              <button
+                onClick={() => setActiveTab('product-types')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'product-types'
+                    ? 'border-purple-500 text-purple-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Product Types
+              </button>
+
               <button
                 onClick={() => setActiveTab('products')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
@@ -279,7 +291,11 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
             )}
             {activeTab === 'suppliers' && (
               <SuppliersManager
-                user={user}
+                showNotification={showNotification}
+              />
+            )}
+            {activeTab === 'product-types' && (
+              <ProductArchetypesManager
                 showNotification={showNotification}
               />
             )}
