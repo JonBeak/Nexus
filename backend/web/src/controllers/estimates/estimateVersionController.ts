@@ -385,6 +385,40 @@ export const updateEstimateEmailContent = async (req: AuthRequest, res: Response
 };
 
 /**
+ * Get email preview for modal display
+ * Generates HTML preview of what will be sent to recipients
+ * @route GET /estimates/:estimateId/email-preview
+ * @query recipients - comma-separated email addresses
+ */
+export const getEstimateEmailPreview = async (req: AuthRequest, res: Response) => {
+  try {
+    const validation = validateEstimateId(req.params.estimateId, res);
+    if (!validation.isValid) return;
+    const estimateId = validation.value!;
+
+    // Parse recipients from query string (comma-separated)
+    const recipientString = req.query.recipients as string || '';
+    const recipients = recipientString
+      .split(',')
+      .map(r => r.trim())
+      .filter(r => r.length > 0);
+
+    const preview = await versioningService.getEmailPreviewHtml(estimateId, recipients);
+
+    res.json({
+      success: true,
+      data: preview
+    });
+  } catch (error) {
+    console.error('Controller error fetching email preview:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch email preview'
+    });
+  }
+};
+
+/**
  * Get estimate send email template
  * @route GET /estimates/template/send-email
  */
@@ -401,6 +435,68 @@ export const getEstimateSendTemplate = async (req: AuthRequest, res: Response) =
     res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'Failed to fetch send template'
+    });
+  }
+};
+
+// =============================================
+// QB LINE DESCRIPTIONS (Phase 4.c)
+// =============================================
+
+/**
+ * Get all QB descriptions for an estimate
+ * @route GET /estimates/:estimateId/line-descriptions
+ */
+export const getLineDescriptions = async (req: AuthRequest, res: Response) => {
+  try {
+    const validation = validateEstimateId(req.params.estimateId, res);
+    if (!validation.isValid) return;
+    const estimateId = validation.value!;
+
+    const descriptions = await versioningService.getLineDescriptions(estimateId);
+
+    res.json({ success: true, data: descriptions });
+  } catch (error) {
+    console.error('Controller error fetching line descriptions:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch line descriptions'
+    });
+  }
+};
+
+/**
+ * Update QB descriptions (batch update)
+ * @route PUT /estimates/:estimateId/line-descriptions
+ */
+export const updateLineDescriptions = async (req: AuthRequest, res: Response) => {
+  try {
+    const validated = validateEstimateRequest(req, res);
+    if (!validated) return;
+
+    const { updates } = req.body;
+
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Updates array is required and must not be empty'
+      });
+    }
+
+    await versioningService.updateLineDescriptions(
+      validated.estimateId,
+      updates
+    );
+
+    res.json({
+      success: true,
+      message: `Updated ${updates.length} description(s)`
+    });
+  } catch (error) {
+    console.error('Controller error updating line descriptions:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update line descriptions'
     });
   }
 };

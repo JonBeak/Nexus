@@ -30,6 +30,7 @@ import { EstimateTemplateService } from './estimate/estimateTemplateService';
 import { EstimateDuplicationService } from './estimate/estimateDuplicationService';
 import { EstimateWorkflowService } from './estimate/estimateWorkflowService';
 import { EstimateRepository } from '../repositories/estimateRepository';
+import { estimateLineDescriptionRepository } from '../repositories/estimateLineDescriptionRepository';
 import { PrepareEstimateRequest, EstimatePointPersonInput } from '../types/estimatePointPerson';
 
 export class EstimateService {
@@ -246,5 +247,36 @@ export class EstimateService {
    */
   async getEstimateSendTemplate() {
     return this.workflowService.getEstimateSendTemplate();
+  }
+
+  /**
+   * Get email preview HTML for modal display
+   */
+  async getEmailPreviewHtml(estimateId: number, recipients: string[]) {
+    return this.workflowService.getEmailPreviewHtml(estimateId, recipients);
+  }
+
+  /**
+   * Get QB line descriptions for an estimate
+   */
+  async getLineDescriptions(estimateId: number) {
+    return estimateLineDescriptionRepository.getDescriptionsByEstimateId(estimateId);
+  }
+
+  /**
+   * Update QB line descriptions for an estimate
+   */
+  async updateLineDescriptions(
+    estimateId: number,
+    updates: Array<{ line_index: number; qb_description: string }>
+  ) {
+    for (const update of updates) {
+      await estimateLineDescriptionRepository.upsertLineDescription(
+        estimateId,
+        update.line_index,
+        update.qb_description || null,
+        false // is_auto_filled = false (user edit)
+      );
+    }
   }
 }

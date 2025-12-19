@@ -1,10 +1,13 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Copy, FileText, AlertTriangle, Check, CheckCircle, ExternalLink } from 'lucide-react';
 import { EstimatePreviewData } from './core/layers/CalculationLayer';
 import { generateEstimateSVG } from './utils/svgEstimateExporter';
 import { EstimateVersion } from './types';
 import EstimatePointPersonsEditor, { PointPersonEntry } from './EstimatePointPersonsEditor';
 import EstimateEmailComposer from './EstimateEmailComposer';
+import { EstimateLineDescriptionCell } from './components/EstimateLineDescriptionCell';
+import { EstimateEmailPreviewModal } from './components/EstimateEmailPreviewModal';
+import { jobVersioningApi } from '@/services/jobVersioningApi';
 
 interface EstimateTableProps {
   estimate: EstimateVersion | null; // Used to check is_draft for QB integration
@@ -137,7 +140,47 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [lineDescriptions, setLineDescriptions] = useState<Map<number, string>>(new Map());
+  const [isConvertedToOrder, setIsConvertedToOrder] = useState(false);
+  const [showEmailPreview, setShowEmailPreview] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // Load QB descriptions when estimate is prepared
+  useEffect(() => {
+    if (!estimate?.id || !estimate.is_prepared) {
+      setLineDescriptions(new Map());
+      return;
+    }
+
+    const loadDescriptions = async () => {
+      try {
+        const response = await jobVersioningApi.getEstimateLineDescriptions(estimate.id);
+        const descMap = new Map<number, string>();
+        if (response.data) {
+          response.data.forEach((desc: any) => {
+            if (desc.qb_description) {
+              descMap.set(desc.line_index, desc.qb_description);
+            }
+          });
+        }
+        setLineDescriptions(descMap);
+      } catch (error) {
+        console.error('Failed to load QB descriptions:', error);
+      }
+    };
+
+    loadDescriptions();
+  }, [estimate?.id, estimate?.is_prepared]);
+
+  // Check if estimate is converted to order
+  useEffect(() => {
+    if (!estimate?.id) {
+      setIsConvertedToOrder(false);
+      return;
+    }
+
+    setIsConvertedToOrder(estimate.status === 'ordered');
+  }, [estimate?.status]);
 
   const handleCopyToClipboard = async () => {
     if (!estimatePreviewData || estimatePreviewData.items.length === 0) {
@@ -195,6 +238,25 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
       }, 2000);
     } catch (error) {
       console.error('❌ Copy failed:', error);
+    }
+  };
+
+  const handleQBDescriptionUpdate = async (lineIndex: number, value: string) => {
+    if (!estimate?.id) return;
+
+    try {
+      await jobVersioningApi.updateEstimateLineDescriptions(estimate.id, [
+        { line_index: lineIndex, qb_description: value }
+      ]);
+
+      // Update local state
+      const newDescriptions = new Map(lineDescriptions);
+      newDescriptions.set(lineIndex, value);
+      setLineDescriptions(newDescriptions);
+
+    } catch (error) {
+      console.error('Failed to save QB description:', error);
+      // TODO: Show error toast to user
     }
   };
 
@@ -295,7 +357,13 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
               ) : estimate?.is_prepared && !qbEstimateId ? (
                 // PREPARED STATE: Show "Send to Customer"
                 <button
-                  onClick={onSendToCustomer}
+                  onClick={() => {
+                    if (pointPersons && pointPersons.length === 0) {
+                      alert('Please add at least one point person before sending');
+                      return;
+                    }
+                    setShowEmailPreview(true);
+                  }}
                   disabled={isSending}
                   className="flex items-center gap-1 px-3 py-1.5 text-xs rounded whitespace-nowrap bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -371,6 +439,7 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                       <tr>
                         <th className="px-2 py-1 text-left font-medium text-gray-900 w-6 border-r border-gray-200">#</th>
                         <th className="px-2 py-1 text-left font-medium text-gray-900 w-52">Item</th>
+                        <th className="px-2 py-1 text-left font-medium text-gray-900 w-64 border-l border-gray-200">QB Description</th>
                         <th className="px-2 py-1 text-left font-medium text-gray-900 max-w-xs">Details</th>
                         <th className="px-2 py-1 text-center font-medium text-gray-900 w-10 border-l border-gray-200">Qty</th>
                         <th className="px-2 py-1 text-center font-medium text-gray-900 w-20 border-l border-gray-200">Unit Price</th>
@@ -401,6 +470,20 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                                 <div></div>
                               ) : (
                                 <div className="font-medium text-gray-900 text-sm">{item.itemName}</div>
+                              )}
+                            </td>
+                            {/* QB Description Column - Between Item and Details */}
+                            <td className="px-2 py-1 border-l border-gray-200">
+                              {estimate?.is_prepared ? (
+                                <EstimateLineDescriptionCell
+                                  lineIndex={index}
+                                  initialValue={lineDescriptions.get(index) || ''}
+                                  estimateId={estimate.id}
+                                  readOnly={isConvertedToOrder || !!estimate?.qb_estimate_id}
+                                  onUpdate={handleQBDescriptionUpdate}
+                                />
+                              ) : (
+                                <span className="text-xs text-gray-400">-</span>
                               )}
                             </td>
                             <td className="px-2 py-1 max-w-xs">
@@ -478,7 +561,7 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                         contact_role: pp.contact_role
                       }))}
                       onChange={onPointPersonsChange || (() => {})}
-                      disabled={!estimate?.is_draft}
+                      disabled={isConvertedToOrder}
                     />
                   </div>
                 )}
@@ -496,7 +579,7 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                       initialSubject={emailSubject}
                       initialBody={emailBody}
                       onChange={onEmailChange || (() => {})}
-                      disabled={!estimate?.is_draft}
+                      disabled={isConvertedToOrder}
                     />
                   </div>
                 )}
@@ -519,6 +602,21 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
           </div>
         )}
       </div>
+
+      {/* Email Preview Modal */}
+      {estimate && pointPersons && (
+        <EstimateEmailPreviewModal
+          isOpen={showEmailPreview}
+          onClose={() => setShowEmailPreview(false)}
+          onConfirm={() => {
+            setShowEmailPreview(false);
+            onSendToCustomer?.();
+          }}
+          estimate={estimate}
+          pointPersons={pointPersons}
+          isSending={isSending || false}
+        />
+      )}
     </div>
   );
 };

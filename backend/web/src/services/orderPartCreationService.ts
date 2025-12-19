@@ -30,6 +30,7 @@ import { orderPartRepository } from '../repositories/orderPartRepository';
 import { orderConversionRepository } from '../repositories/orderConversionRepository';
 import { customerRepository } from '../repositories/customerRepository';
 import { quickbooksRepository } from '../repositories/quickbooksRepository';
+import { estimateLineDescriptionRepository } from '../repositories/estimateLineDescriptionRepository';
 import { OrderPart, CreateOrderPartData, EstimatePreviewData, QBEstimateLineItem } from '../types/orders';
 import { mapQBItemNameToSpecsDisplayName } from '../utils/qbItemNameMapper';
 import { mapSpecsDisplayNameToTypes } from '../utils/specsTypeMapper';
@@ -47,13 +48,17 @@ export class OrderPartCreationService {
    *
    * Phase 1.6: Optionally accepts QB line items to override invoice values
    * When qbLineItems provided, QB values are used for: qb_item_name, qb_description, quantity, unit_price
+   *
+   * Phase 4.c: Optionally accepts estimateId to fetch and use custom QB descriptions
+   * Priority: custom estimate descriptions > qb_item_mappings > calculationDisplay
    */
   async createOrderPartsFromPreviewData(
     previewData: EstimatePreviewData,
     orderId: number,
     connection: any,
     customerId?: number,
-    qbLineItems?: QBEstimateLineItem[]  // Phase 1.6: Optional QB Estimate line items
+    qbLineItems?: QBEstimateLineItem[],  // Phase 1.6: Optional QB Estimate line items
+    estimateId?: number  // Phase 4.c: Optional estimate ID for custom QB descriptions
   ): Promise<OrderPart[]> {
     const parts: OrderPart[] = [];
     console.time('[Order Parts] Loop through items');
@@ -88,6 +93,21 @@ export class OrderPartCreationService {
     // Using QuickBooksRepository.getBatchQBItemMappings() instead of direct query (architecture fix - Nov 14, 2025)
     const productTypes = previewData.items.map(item => item.itemName);
     const qbMap = await quickbooksRepository.getBatchQBItemMappings(productTypes, connection);
+
+    // NEW: Fetch estimate QB descriptions if provided (Phase 4.c)
+    let estimateDescriptions: Map<number, string> = new Map();
+    if (estimateId) {
+      const descriptions = await estimateLineDescriptionRepository.getDescriptionsByEstimateId(
+        estimateId,
+        connection
+      );
+      descriptions.forEach(d => {
+        if (d.qb_description) {
+          estimateDescriptions.set(d.line_index, d.qb_description);
+        }
+      });
+      console.log(`[Order Part Creation] Loaded ${estimateDescriptions.size} custom QB descriptions from estimate`);
+    }
 
     // Track previously processed items for cross-item logic (e.g., Extra Wire + LED consolidation)
     const processedItems: Array<{
@@ -146,6 +166,18 @@ export class OrderPartCreationService {
           finalExtendedPrice = qbLine.quantity * qbLine.unitPrice;
           console.log(`[Order Parts] Using QB values for item ${qbFilteredIndex + 1}: ${qbItemName}`);
         }
+      }
+
+      // NEW: Phase 4.c - Apply custom QB descriptions with priority logic
+      // Priority 1: Estimate custom description (user-edited)
+      // Priority 2: QB mappings or QB Estimate (default mappings)
+      if (estimateDescriptions.has(i)) {
+        qbDescription = estimateDescriptions.get(i)!;
+        console.log(`  Using custom description for item ${i}: "${qbDescription}"`);
+      }
+      // For description-only rows, use calculationDisplay if no QB description
+      else if (item.isDescriptionOnly && !qbDescription) {
+        qbDescription = item.calculationDisplay || '';
       }
 
       // Map QB item name to specs display name

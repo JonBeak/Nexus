@@ -160,7 +160,8 @@ export const useQuickBooksIntegration = ({
           contact_phone: pp.contact_phone,
           contact_role: pp.contact_role,
           saveToDatabase: pp.saveToDatabase
-        }))
+        })),
+        estimatePreviewData  // NEW: Pass for QB description auto-fill
       });
 
       if (result.success) {
@@ -200,6 +201,11 @@ export const useQuickBooksIntegration = ({
           qb_estimate_id: result.qbEstimateId,
           status: 'sent'
         });
+
+        // Show warning if resending
+        if (result.message) {
+          alert(result.message);
+        }
 
         // Show success notification
         if (result.emailSentTo && result.emailSentTo.length > 0) {

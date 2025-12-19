@@ -163,6 +163,7 @@ export class EstimateRepository {
         e.parent_estimate_id,
         pe.version_number as parent_version,
         CAST(e.is_draft AS UNSIGNED) as is_draft,
+        CAST(e.is_prepared AS UNSIGNED) as is_prepared,
         CAST(e.is_active AS UNSIGNED) as is_active,
         e.status,
         e.finalized_at,
@@ -210,6 +211,7 @@ export class EstimateRepository {
         e.parent_estimate_id,
         pe.version_number as parent_version,
         CAST(e.is_draft AS UNSIGNED) as is_draft,
+        CAST(e.is_prepared AS UNSIGNED) as is_prepared,
         CAST(e.is_active AS UNSIGNED) as is_active,
         e.status,
         e.finalized_at,
@@ -637,7 +639,7 @@ export class EstimateRepository {
     const rows = await query(
       `SELECT id, is_draft, is_prepared, is_sent, email_subject, email_body
        FROM job_estimates
-       WHERE id = ? AND is_prepared = TRUE AND is_sent = FALSE`,
+       WHERE id = ? AND is_prepared = TRUE`,
       [estimateId]
     ) as RowDataPacket[];
 
@@ -690,18 +692,13 @@ export class EstimateRepository {
        SET is_sent = TRUE,
            status = 'sent',
            qb_estimate_id = ?,
+           qb_estimate_url = ?,
            sent_to_qb_at = NOW(),
            updated_by = ?,
            updated_at = NOW()
        WHERE id = ?`,
-      [qbEstimateId || null, userId, estimateId]
+      [qbEstimateId || null, qbEstimateUrl || null, userId, estimateId]
     );
-
-    // Update QB URL separately if provided (kept in a different location)
-    if (qbEstimateUrl) {
-      // Note: qb_estimate_url is stored via quickbooksRepository.finalizeEstimate()
-      // This method focuses on status flags
-    }
   }
 
   /**
@@ -722,10 +719,14 @@ export class EstimateRepository {
         e.subtotal,
         e.tax_amount,
         e.total_amount,
+        e.qb_estimate_id,
+        e.qb_estimate_url,
+        e.sent_to_qb_at,
+        e.status,
         j.job_name,
         j.job_number,
         c.company_name as customer_name,
-        c.qb_customer_name
+        c.quickbooks_name
        FROM job_estimates e
        JOIN jobs j ON e.job_id = j.job_id
        JOIN customers c ON e.customer_id = c.customer_id

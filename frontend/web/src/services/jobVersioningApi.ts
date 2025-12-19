@@ -279,5 +279,49 @@ export const jobVersioningApi = {
       body
     });
     return response.data;
+  },
+
+  /**
+   * Get email preview HTML for modal display
+   */
+  getEstimateEmailPreview: async (
+    estimateId: number,
+    recipients: string
+  ) => {
+    const response = await api.get(
+      `/job-estimation/estimates/${estimateId}/email-preview`,
+      {
+        params: {
+          recipients
+        }
+      }
+    );
+    return response.data;
+  },
+
+  // =============================================
+  // QB LINE DESCRIPTIONS (Phase 4.c)
+  // =============================================
+
+  /**
+   * Get QB descriptions for an estimate
+   */
+  getEstimateLineDescriptions: async (estimateId: number) => {
+    const response = await api.get(`/job-estimation/estimates/${estimateId}/line-descriptions`);
+    return response.data;
+  },
+
+  /**
+   * Update QB descriptions for an estimate
+   */
+  updateEstimateLineDescriptions: async (
+    estimateId: number,
+    updates: Array<{ line_index: number; qb_description: string }>
+  ) => {
+    const response = await api.put(
+      `/job-estimation/estimates/${estimateId}/line-descriptions`,
+      { updates }
+    );
+    return response.data;
   }
 };

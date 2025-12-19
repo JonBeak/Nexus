@@ -266,7 +266,8 @@ export class OrderConversionService {
         orderId,
         connection,
         estimate.customer_id,  // Pass customerId for customer preferences
-        qbLineItems  // Phase 1.6: Pass QB line items if available
+        qbLineItems,  // Phase 1.6: Pass QB line items if available
+        request.estimateId  // Phase 4.c: Pass estimate ID for custom QB descriptions
       );
       console.timeEnd('[Order Conversion] Create order parts');
 

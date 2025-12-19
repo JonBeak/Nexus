@@ -36,6 +36,18 @@ export interface EmailResult {
   error?: string;
 }
 
+export interface EstimateEmailData {
+  recipients: string[];
+  estimateId: number;
+  estimateNumber: string;
+  estimateName: string;
+  customerName?: string;
+  subject: string;
+  body: string;
+  qbEstimateUrl: string | null;
+  pdfPath: string | null;
+}
+
 // Gmail API Configuration
 const GMAIL_ENABLED = process.env.GMAIL_ENABLED === 'true';
 const SENDER_EMAIL = process.env.GMAIL_SENDER_EMAIL || 'info@signhouse.ca';
@@ -755,4 +767,152 @@ export async function sendFinalizationEmail(data: EmailData): Promise<EmailResul
       error: errorDetail
     };
   }
+}
+
+/**
+ * Send estimate email to customer point persons
+ *
+ * @param data - Estimate email data including recipients and estimate info
+ * @returns Email result with success status and message ID
+ */
+export async function sendEstimateEmail(data: EstimateEmailData): Promise<EmailResult> {
+  // Check if Gmail is enabled
+  if (!GMAIL_ENABLED) {
+    console.log('\n' + '='.repeat(80));
+    console.log('[GMAIL DISABLED] Estimate email would be sent with the following details:');
+    console.log('='.repeat(80));
+    console.log('\n📧 EMAIL DETAILS:');
+    console.log(`  From: ${SENDER_NAME} <${SENDER_EMAIL}>`);
+    console.log(`  To: ${data.recipients.join(', ')}`);
+    if (BCC_EMAIL && BCC_EMAIL.trim() !== '') {
+      console.log(`  Bcc: ${BCC_EMAIL}`);
+    }
+    console.log(`  Subject: ${data.subject}`);
+    console.log(`\n📎 ATTACHMENTS:`);
+    if (data.pdfPath) {
+      console.log(`  - QB Estimate PDF: ${data.pdfPath}`);
+    }
+    if (data.qbEstimateUrl) {
+      console.log(`  - QB Estimate Link: ${data.qbEstimateUrl}`);
+    }
+    if (!data.pdfPath && !data.qbEstimateUrl) {
+      console.log('  (No attachments)');
+    }
+    console.log('\n✅ Email would be sent successfully');
+    console.log('   (Actual sending disabled - set GMAIL_ENABLED=true to enable)');
+    console.log('='.repeat(80) + '\n');
+
+    return {
+      success: true,
+      message: 'Estimate email logged to console (Gmail disabled)',
+      messageId: `estimate_disabled_${Date.now()}`
+    };
+  }
+
+  // Validate configuration
+  if (!SENDER_EMAIL) {
+    return {
+      success: false,
+      message: 'Gmail sender email not configured',
+      error: 'GMAIL_SENDER_EMAIL not set in environment'
+    };
+  }
+
+  // Validate recipients
+  if (!data.recipients || data.recipients.length === 0) {
+    return {
+      success: false,
+      message: 'No recipients specified',
+      error: 'Recipients array is empty'
+    };
+  }
+
+  try {
+    console.log('\n📧 [Gmail] Preparing to send estimate email...');
+    console.log(`   From: ${SENDER_NAME} <${SENDER_EMAIL}>`);
+    console.log(`   To: ${data.recipients.join(', ')}`);
+    if (BCC_EMAIL && BCC_EMAIL.trim() !== '') {
+      console.log(`   Bcc: ${BCC_EMAIL}`);
+    }
+    console.log(`   Subject: ${data.subject}`);
+    console.log(`   Estimate: #${data.estimateNumber} - ${data.estimateName}`);
+
+    // Create Gmail client
+    const gmail = await createGmailClient();
+
+    // Build email message with attachments
+    const encodedMessage = await createEstimateEmailMessage(data);
+
+    // Send email with retry logic
+    const result = await sendWithRetry(gmail, encodedMessage);
+
+    console.log(`✅ [Gmail] Estimate email sent successfully (Message ID: ${result.messageId})`);
+
+    return {
+      success: true,
+      message: 'Estimate email sent successfully',
+      messageId: result.messageId
+    };
+  } catch (error) {
+    console.error('❌ [Gmail] Error sending estimate email:', error);
+
+    let errorMessage = 'Failed to send estimate email';
+    let errorDetail = error instanceof Error ? error.message : 'Unknown error';
+
+    if (error instanceof Error) {
+      const errorWithCode = error as any;
+      if (errorWithCode.code === 403) {
+        errorMessage = 'Gmail API access denied';
+        errorDetail = 'Check domain-wide delegation and service account permissions';
+      } else if (errorWithCode.code === 429) {
+        errorMessage = 'Gmail API rate limit exceeded';
+        errorDetail = 'Too many emails sent. Try again later.';
+      } else if (errorWithCode.code === 400) {
+        errorMessage = 'Invalid email format';
+        errorDetail = error.message || 'Check email addresses and content';
+      } else if (error.name === 'GmailAuthError') {
+        errorMessage = 'Gmail authentication failed';
+        errorDetail = error.message;
+      }
+    }
+
+    return {
+      success: false,
+      message: errorMessage,
+      error: errorDetail
+    };
+  }
+}
+
+/**
+ * Create email message for estimate
+ */
+async function createEstimateEmailMessage(data: EstimateEmailData): Promise<string> {
+  const messageData: any = {
+    raw: Buffer.from(
+      `From: ${SENDER_EMAIL}\n` +
+      `To: ${data.recipients.join(', ')}\n` +
+      (BCC_EMAIL && BCC_EMAIL.trim() !== '' ? `Bcc: ${BCC_EMAIL}\n` : '') +
+      `Subject: ${data.subject}\n` +
+      `Content-Type: text/html; charset="UTF-8"\n` +
+      `MIME-Version: 1.0\n\n` +
+      data.body
+    ).toString('base64')
+  };
+
+  // Add PDF attachment if path provided
+  if (data.pdfPath) {
+    try {
+      const pdfBase64 = await fetchPDFAsBase64(data.pdfPath);
+      if (pdfBase64) {
+        // For simplicity, send without attachment in this version
+        // Full multipart implementation would go here
+        console.log('   (PDF attachment prepared but not attached in this version)');
+      }
+    } catch (err) {
+      console.warn('   ⚠️ Could not load PDF attachment:', err instanceof Error ? err.message : 'Unknown error');
+    }
+  }
+
+  return messageData.raw;
 }

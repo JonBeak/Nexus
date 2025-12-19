@@ -409,6 +409,30 @@ export class EstimateVersioningService {
   async getEstimateSendTemplate() {
     return this.estimateService.getEstimateSendTemplate();
   }
+
+  /**
+   * Get email preview HTML for modal display
+   */
+  async getEmailPreviewHtml(estimateId: number, recipients: string[]) {
+    return this.estimateService.getEmailPreviewHtml(estimateId, recipients);
+  }
+
+  /**
+   * Get QB line descriptions for an estimate
+   */
+  async getLineDescriptions(estimateId: number) {
+    return this.estimateService.getLineDescriptions(estimateId);
+  }
+
+  /**
+   * Update QB line descriptions for an estimate
+   */
+  async updateLineDescriptions(
+    estimateId: number,
+    updates: Array<{ line_index: number; qb_description: string }>
+  ) {
+    return this.estimateService.updateLineDescriptions(estimateId, updates);
+  }
 }
 
 // Export all interfaces for backward compatibility

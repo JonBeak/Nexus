@@ -168,6 +168,7 @@ export interface EstimateVersion {
   customer_id: number;
   customer_name: string;
   is_draft: boolean;
+  is_prepared: boolean;
   is_active: boolean; // Single source of truth for deactivation (false = deactivated, true = active)
   subtotal: number;
   tax_rate: number;

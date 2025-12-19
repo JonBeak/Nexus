@@ -38,6 +38,7 @@ export {
   vinylApi,
   vinylProductsApi,
   suppliersApi,
+  supplierProductsApi,
   accountsApi,
   provincesApi,
   // Tier 3 - Consolidated

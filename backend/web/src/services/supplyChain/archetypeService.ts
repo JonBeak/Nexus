@@ -23,7 +23,6 @@ export interface CreateArchetypeData {
   specifications?: Record<string, any>;
   description?: string;
   reorder_point?: number;
-  default_lead_days?: number;
 }
 
 export interface UpdateArchetypeData {
@@ -34,7 +33,6 @@ export interface UpdateArchetypeData {
   specifications?: Record<string, any>;
   description?: string;
   reorder_point?: number;
-  default_lead_days?: number;
   is_active?: boolean;
 }
 
@@ -150,14 +148,6 @@ export class ArchetypeService {
         };
       }
 
-      if (data.default_lead_days !== undefined && data.default_lead_days < 0) {
-        return {
-          success: false,
-          error: 'Lead days cannot be negative',
-          code: 'VALIDATION_ERROR'
-        };
-      }
-
       const archetypeId = await this.repository.create({
         name: data.name.trim(),
         category: data.category,
@@ -166,7 +156,6 @@ export class ArchetypeService {
         specifications: data.specifications,
         description: data.description?.trim(),
         reorder_point: data.reorder_point,
-        default_lead_days: data.default_lead_days,
         created_by: userId
       });
 
@@ -243,14 +232,6 @@ export class ArchetypeService {
         };
       }
 
-      if (updates.default_lead_days !== undefined && updates.default_lead_days < 0) {
-        return {
-          success: false,
-          error: 'Lead days cannot be negative',
-          code: 'VALIDATION_ERROR'
-        };
-      }
-
       // Trim string fields
       const cleanedUpdates: any = { updated_by: userId };
 
@@ -271,9 +252,6 @@ export class ArchetypeService {
       }
       if (updates.reorder_point !== undefined) {
         cleanedUpdates.reorder_point = updates.reorder_point;
-      }
-      if (updates.default_lead_days !== undefined) {
-        cleanedUpdates.default_lead_days = updates.default_lead_days;
       }
       if (updates.is_active !== undefined) {
         cleanedUpdates.is_active = updates.is_active;

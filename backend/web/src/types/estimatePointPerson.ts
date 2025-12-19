@@ -3,6 +3,8 @@
  * Phase 4c - Estimate Workflow Redesign
  */
 
+import { EstimatePreviewData } from './orders';
+
 // =============================================
 // ESTIMATE POINT PERSON TYPES
 // =============================================
@@ -46,6 +48,7 @@ export interface PrepareEstimateRequest {
   emailSubject?: string;
   emailBody?: string;
   pointPersons?: EstimatePointPersonInput[];
+  estimatePreviewData?: EstimatePreviewData; // For auto-filling QB descriptions
 }
 
 export interface SendEstimateRequest {
@@ -65,4 +68,5 @@ export interface SendEstimateResult {
   qbEstimateId?: string;
   qbEstimateUrl?: string;
   emailSentTo?: string[];
+  message?: string; // Optional message (e.g., "This estimate was previously sent")
 }

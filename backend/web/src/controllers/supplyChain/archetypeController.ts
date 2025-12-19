@@ -42,7 +42,7 @@ export const createArchetype = async (req: Request, res: Response): Promise<void
   const user = (req as any).user;
   const {
     name, category, subcategory, unit_of_measure, specifications,
-    description, reorder_point, default_lead_days
+    description, reorder_point
   } = req.body;
 
   const result = await archetypeService.createArchetype(
@@ -53,8 +53,7 @@ export const createArchetype = async (req: Request, res: Response): Promise<void
       unit_of_measure,
       specifications,
       description,
-      reorder_point,
-      default_lead_days
+      reorder_point
     },
     user?.user_id
   );

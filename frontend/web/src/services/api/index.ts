@@ -23,6 +23,7 @@ export { customerContactsApi } from './customerContactsApi';
 export { vinylApi } from './vinylApi';
 export { vinylProductsApi } from './vinylProductsApi';
 export { suppliersApi } from './suppliersApi';
+export { supplierProductsApi } from './supplierProductsApi';
 export { accountsApi } from './accountsApi';
 export { provincesApi } from './provincesApi';
 

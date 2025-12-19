@@ -10,9 +10,9 @@ export interface ArchetypeRow extends RowDataPacket {
   subcategory: string | null;
   unit_of_measure: string;
   specifications: Record<string, any> | null;
+  specifications_v2: string[] | null;
   description: string | null;
   reorder_point: number;
-  default_lead_days: number | null;
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
@@ -133,15 +133,14 @@ export class ArchetypeRepository {
     specifications?: Record<string, any>;
     description?: string;
     reorder_point?: number;
-    default_lead_days?: number;
     created_by?: number;
   }): Promise<number> {
     const result = await query(
       `INSERT INTO product_archetypes (
         name, category, subcategory, unit_of_measure, specifications,
-        description, reorder_point, default_lead_days,
+        description, reorder_point,
         created_by, updated_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.name,
         data.category,
@@ -150,7 +149,6 @@ export class ArchetypeRepository {
         data.specifications ? JSON.stringify(data.specifications) : null,
         data.description || null,
         data.reorder_point || 0,
-        data.default_lead_days || null,
         data.created_by || null,
         data.created_by || null
       ]
@@ -170,7 +168,6 @@ export class ArchetypeRepository {
     specifications?: Record<string, any>;
     description?: string;
     reorder_point?: number;
-    default_lead_days?: number;
     is_active?: boolean;
     updated_by?: number;
   }): Promise<void> {
@@ -179,7 +176,7 @@ export class ArchetypeRepository {
 
     const allowedFields = [
       'name', 'category', 'subcategory', 'unit_of_measure',
-      'description', 'reorder_point', 'default_lead_days', 'is_active'
+      'description', 'reorder_point', 'is_active'
     ];
 
     for (const field of allowedFields) {

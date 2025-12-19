@@ -22,6 +22,7 @@
  */
 import { JobCodeGenerator } from '../../utils/jobCodeGenerator';
 import { EstimateRepository } from '../../repositories/estimateRepository';
+import { estimateLineDescriptionRepository } from '../../repositories/estimateLineDescriptionRepository';
 
 export class EstimateDuplicationService {
   private estimateRepository = new EstimateRepository();
@@ -74,6 +75,17 @@ export class EstimateDuplicationService {
     // Duplicate the estimate items and groups
     await this.duplicateEstimateData(connection, sourceEstimateId, newEstimateId);
 
+    // NEW: Copy QB line descriptions if source is prepared (Phase 4.c)
+    const sourceEstimate = await this.estimateRepository.getEstimateById(sourceEstimateId);
+    if (sourceEstimate?.is_prepared) {
+      const copiedCount = await estimateLineDescriptionRepository.copyDescriptions(
+        sourceEstimateId,
+        newEstimateId,
+        connection
+      );
+      console.log(`✓ Copied ${copiedCount} QB descriptions to duplicated estimate`);
+    }
+
     return newEstimateId;
   }
 
@@ -105,6 +117,17 @@ export class EstimateDuplicationService {
 
       // Duplicate the estimate items and groups
       await this.duplicateEstimateData(connection, sourceEstimateId, newEstimateId);
+
+      // NEW: Copy QB line descriptions if source is prepared (Phase 4.c)
+      const sourceEstimate = await this.estimateRepository.getEstimateById(sourceEstimateId);
+      if (sourceEstimate?.is_prepared) {
+        const copiedCount = await estimateLineDescriptionRepository.copyDescriptions(
+          sourceEstimateId,
+          newEstimateId,
+          connection
+        );
+        console.log(`✓ Copied ${copiedCount} QB descriptions to duplicated estimate`);
+      }
 
       return newEstimateId;
     } catch (error) {

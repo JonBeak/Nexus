@@ -14,7 +14,8 @@ import {
   X,
   GripVertical
 } from 'lucide-react';
-import api from '../../services/api';
+import api, { suppliersApi } from '../../services/api';
+import { ArchetypeSupplierProducts } from './ArchetypeSupplierProducts';
 
 interface Category {
   id: number;
@@ -33,16 +34,14 @@ interface Archetype {
   category: string;
   subcategory: string | null;
   unit_of_measure: string;
-  specifications: Record<string, any> | null;
+  specifications: string[] | null;
   description: string | null;
   reorder_point: number;
-  default_lead_days: number | null;
   is_active: boolean;
 }
 
 interface SpecRow {
   key: string;
-  value: string;
 }
 
 interface ProductArchetypesManagerProps {
@@ -70,6 +69,7 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
 }) => {
   const [archetypes, setArchetypes] = useState<Archetype[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -86,10 +86,9 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
     subcategory: '',
     unit_of_measure: 'each',
     description: '',
-    reorder_point: '',
-    default_lead_days: ''
+    reorder_point: ''
   });
-  const [specRows, setSpecRows] = useState<SpecRow[]>([{ key: '', value: '' }]);
+  const [specRows, setSpecRows] = useState<SpecRow[]>([{ key: '' }]);
 
   // Category form state
   const [categoryForm, setCategoryForm] = useState({
@@ -106,13 +105,15 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
       if (selectedCategory !== 'all') params.category = selectedCategory;
       if (searchTerm) params.search = searchTerm;
 
-      const [archetypesRes, categoriesRes] = await Promise.all([
+      const [archetypesRes, categoriesRes, suppliersRes] = await Promise.all([
         api.get<Archetype[]>('/product-types', { params }),
-        api.get<Category[]>('/product-types/categories')
+        api.get<Category[]>('/product-types/categories'),
+        suppliersApi.getSuppliers({ active_only: true })
       ]);
 
       setArchetypes(archetypesRes.data);
       setCategories(categoriesRes.data);
+      setSuppliers(suppliersRes);
 
       // Set default category for new product types
       if (categoriesRes.data.length > 0 && !formData.category) {
@@ -131,29 +132,19 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
   }, [loadData]);
 
   // Convert specs object to rows
-  const specsToRows = (specs: Record<string, any> | null): SpecRow[] => {
-    if (!specs || Object.keys(specs).length === 0) {
-      return [{ key: '', value: '' }];
+  const specsToRows = (specs: string[] | null): SpecRow[] => {
+    if (!specs || specs.length === 0) {
+      return [{ key: '' }];
     }
-    return Object.entries(specs).map(([key, value]) => ({
-      key,
-      value: String(value)
-    }));
+    return specs.map(key => ({ key }));
   };
 
   // Convert rows to specs object
-  const rowsToSpecs = (rows: SpecRow[]): Record<string, any> | null => {
-    const specs: Record<string, any> = {};
-    for (const row of rows) {
-      if (row.key.trim()) {
-        // Try to parse as number
-        const numValue = parseFloat(row.value);
-        specs[row.key.trim()] = !isNaN(numValue) && row.value.trim() === String(numValue)
-          ? numValue
-          : row.value.trim();
-      }
-    }
-    return Object.keys(specs).length > 0 ? specs : null;
+  const rowsToSpecs = (rows: SpecRow[]): string[] | null => {
+    const keys = rows
+      .map(row => row.key.trim())
+      .filter(key => key.length > 0);
+    return keys.length > 0 ? keys : null;
   };
 
   const handleSaveProductType = async () => {
@@ -174,8 +165,7 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
         unit_of_measure: formData.unit_of_measure,
         specifications: rowsToSpecs(specRows),
         description: formData.description || null,
-        reorder_point: formData.reorder_point ? parseInt(formData.reorder_point) : 0,
-        default_lead_days: formData.default_lead_days ? parseInt(formData.default_lead_days) : null
+        reorder_point: formData.reorder_point ? parseInt(formData.reorder_point) : 0
       };
 
       if (editingArchetype) {
@@ -202,8 +192,7 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
       subcategory: archetype.subcategory || '',
       unit_of_measure: archetype.unit_of_measure,
       description: archetype.description || '',
-      reorder_point: archetype.reorder_point?.toString() || '',
-      default_lead_days: archetype.default_lead_days?.toString() || ''
+      reorder_point: archetype.reorder_point?.toString() || ''
     });
     setSpecRows(specsToRows(archetype.specifications));
     setShowModal(true);
@@ -228,10 +217,9 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
       subcategory: '',
       unit_of_measure: 'each',
       description: '',
-      reorder_point: '',
-      default_lead_days: ''
+      reorder_point: ''
     });
-    setSpecRows([{ key: '', value: '' }]);
+    setSpecRows([{ key: '' }]);
     setEditingArchetype(null);
     setShowModal(false);
   };
@@ -295,7 +283,7 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
   };
 
   // Spec row management
-  const addSpecRow = () => setSpecRows([...specRows, { key: '', value: '' }]);
+  const addSpecRow = () => setSpecRows([...specRows, { key: '' }]);
 
   const removeSpecRow = (index: number) => {
     if (specRows.length > 1) {
@@ -303,7 +291,7 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
     }
   };
 
-  const updateSpecRow = (index: number, field: 'key' | 'value', value: string) => {
+  const updateSpecRow = (index: number, field: 'key', value: string) => {
     const updated = [...specRows];
     updated[index][field] = value;
     setSpecRows(updated);
@@ -477,28 +465,34 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
                 </div>
 
                 {expandedArchetype === archetype.archetype_id && (
-                  <div className="border-t border-gray-200 bg-gray-50 px-3 py-2">
+                  <div className="border-t border-gray-200 bg-gray-50 px-3 py-3 space-y-4">
+                    {/* Archetype Details */}
                     <div className="flex items-center gap-6 text-sm">
                       <div>
                         <span className="text-gray-500 text-xs">Reorder Point</span>
                         <p className="text-gray-900">{archetype.reorder_point}</p>
                       </div>
-                      <div>
-                        <span className="text-gray-500 text-xs">Lead Days</span>
-                        <p className="text-gray-900">{archetype.default_lead_days || '-'}</p>
-                      </div>
-                      {archetype.specifications && Object.keys(archetype.specifications).length > 0 && (
+                      {archetype.specifications && archetype.specifications.length > 0 && (
                         <div className="flex-1">
-                          <span className="text-gray-500 text-xs">Specifications</span>
+                          <span className="text-gray-500 text-xs">Specification Template</span>
                           <div className="flex flex-wrap gap-1 mt-0.5">
-                            {Object.entries(archetype.specifications).map(([key, value]) => (
+                            {archetype.specifications.map((key) => (
                               <span key={key} className="px-1.5 py-0.5 bg-white border rounded text-xs">
-                                <span className="font-medium">{key}:</span> {String(value)}
+                                {key}
                               </span>
                             ))}
                           </div>
                         </div>
                       )}
+                    </div>
+
+                    {/* Supplier Products Section */}
+                    <div className="border-t pt-3">
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Supplier Products & Pricing</h4>
+                      <ArchetypeSupplierProducts
+                        archetypeId={archetype.archetype_id}
+                        onUpdate={loadData}
+                      />
                     </div>
                   </div>
                 )}
@@ -564,17 +558,6 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Lead Days</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={formData.default_lead_days}
-                    onChange={(e) => setFormData({ ...formData, default_lead_days: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500"
-                  />
-                </div>
-
-                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Point</label>
                   <input
                     type="number"
@@ -617,16 +600,9 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
                         </div>
                         <input
                           type="text"
-                          placeholder="Key (e.g., wattage)"
+                          placeholder="Key (e.g., thickness, color, finish)"
                           value={row.key}
                           onChange={(e) => updateSpecRow(index, 'key', e.target.value)}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Value (e.g., 0.72)"
-                          value={row.value}
-                          onChange={(e) => updateSpecRow(index, 'value', e.target.value)}
                           className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
                         />
                         <button
