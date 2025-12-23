@@ -1,17 +1,17 @@
 import React from 'react';
-import { CheckCircle, X } from 'lucide-react';
+import { CheckCircle, X, Mail, AlertTriangle } from 'lucide-react';
 
-interface QBEstimateSuccessModalProps {
+interface EstimateSentSuccessModalProps {
   isOpen: boolean;
-  qbDocNumber: string;
-  qbEstimateUrl: string;  // Keep for backwards compatibility but not used
-  onOpenInQuickBooks: () => void;  // Keep for backwards compatibility but not used
+  emailsSentTo: string[];
+  wasResent?: boolean;
   onClose: () => void;
 }
 
-export const QBEstimateSuccessModal: React.FC<QBEstimateSuccessModalProps> = ({
+export const EstimateSentSuccessModal: React.FC<EstimateSentSuccessModalProps> = ({
   isOpen,
-  qbDocNumber,
+  emailsSentTo,
+  wasResent,
   onClose
 }) => {
   if (!isOpen) return null;
@@ -31,7 +31,7 @@ export const QBEstimateSuccessModal: React.FC<QBEstimateSuccessModalProps> = ({
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
             <div className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-green-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Success!</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Estimate Sent!</h3>
             </div>
             <button
               onClick={onClose}
@@ -42,14 +42,30 @@ export const QBEstimateSuccessModal: React.FC<QBEstimateSuccessModalProps> = ({
           </div>
 
           {/* Content */}
-          <div className="p-6">
-            <p className="text-gray-700 mb-3">
-              Estimate created in QuickBooks.
-            </p>
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-              <p className="text-sm text-green-800">
-                <strong>QB Document #:</strong> {qbDocNumber}
-              </p>
+          <div className="p-6 space-y-4">
+            {/* Resend warning */}
+            {wasResent && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-start gap-2">
+                <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-yellow-800">
+                  This estimate was previously sent and has been sent again.
+                </p>
+              </div>
+            )}
+
+            {/* Recipients */}
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Mail className="h-4 w-4 text-green-600" />
+                <span className="text-sm font-medium text-green-800">Sent to:</span>
+              </div>
+              <ul className="space-y-1 ml-6">
+                {emailsSentTo.map((email, index) => (
+                  <li key={index} className="text-sm text-green-700">
+                    {email}
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
 

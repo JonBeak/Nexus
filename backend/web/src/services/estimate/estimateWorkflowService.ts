@@ -9,6 +9,7 @@
 
 import { pool, query } from '../../config/database';
 import { RowDataPacket } from 'mysql2';
+import { promises as fs } from 'fs';
 import { EstimateRepository } from '../../repositories/estimateRepository';
 import { estimatePointPersonRepository } from '../../repositories/estimatePointPersonRepository';
 import { estimateLineDescriptionRepository } from '../../repositories/estimateLineDescriptionRepository';
@@ -16,13 +17,31 @@ import { quickbooksRepository } from '../../repositories/quickbooksRepository';
 import { quickbooksService } from '../../services/quickbooksService';
 import { downloadEstimatePDF } from '../../services/qbEstimateService';
 import { sendEstimateEmail } from '../../services/gmailService';
+
+// PDF cache directory (must match controller cache location)
+const PDF_CACHE_DIR = '/tmp/estimate-pdf-cache';
 import {
   PrepareEstimateRequest,
   PrepareEstimateResult,
   SendEstimateResult,
-  EstimatePointPersonInput
+  EstimatePointPersonInput,
+  EmailSummaryConfig,
+  DEFAULT_EMAIL_SUMMARY_CONFIG
 } from '../../types/estimatePointPerson';
-import { EstimatePreviewData } from '../../types/orders';
+import { EstimatePreviewData, EstimateLineItem } from '../../types/orders';
+
+/**
+ * Company settings for email footer
+ */
+interface CompanySettings {
+  company_name: string | null;
+  company_phone: string | null;
+  company_email: string | null;
+  company_address: string | null;
+  company_website: string | null;
+  company_business_hours: string | null;
+  company_logo_base64: string | null;
+}
 
 // Structural row types that should never be deleted
 const STRUCTURAL_ROW_TYPES = [
@@ -30,6 +49,261 @@ const STRUCTURAL_ROW_TYPES = [
   27, // Empty Row (spacer)
   // Add other structural types like Divider if they exist
 ];
+
+/**
+ * Substitute template variables in email subject/body
+ * Variables: {{customerName}}, {{jobName}}, {{customerJobNumber}},
+ *            {{jobNameWithRef}}, {{qbEstimateNumber}}, {{estimateNumber}}, {{total}}
+ */
+function substituteEmailVariables(
+  template: string,
+  variables: {
+    customerName?: string;
+    jobName?: string;
+    customerJobNumber?: string;
+    qbEstimateNumber?: string;
+    estimateNumber?: string;
+    total?: string;
+  }
+): string {
+  // Build jobNameWithRef: "Job Name - Customer Ref" or just "Job Name"
+  const jobNameWithRef = variables.customerJobNumber
+    ? `${variables.jobName || ''} - ${variables.customerJobNumber}`
+    : (variables.jobName || '');
+
+  const allVariables: Record<string, string> = {
+    customerName: variables.customerName || '',
+    jobName: variables.jobName || '',
+    customerJobNumber: variables.customerJobNumber || '',
+    jobNameWithRef,
+    qbEstimateNumber: variables.qbEstimateNumber || '',
+    estimateNumber: variables.estimateNumber || '',
+    total: variables.total || ''
+  };
+
+  return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+    return allVariables[key] ?? match;
+  });
+}
+
+/**
+ * Load company settings from rbac_settings table
+ */
+async function loadCompanySettings(): Promise<CompanySettings> {
+  const rows = await query(
+    `SELECT setting_name, setting_value FROM rbac_settings
+     WHERE setting_name IN ('company_name', 'company_phone', 'company_email', 'company_address', 'company_website', 'company_business_hours', 'company_logo_base64')`,
+    []
+  ) as RowDataPacket[];
+
+  const settings: CompanySettings = {
+    company_name: null,
+    company_phone: null,
+    company_email: null,
+    company_address: null,
+    company_website: null,
+    company_business_hours: null,
+    company_logo_base64: null
+  };
+
+  for (const row of rows) {
+    if (row.setting_name === 'company_name') settings.company_name = row.setting_value;
+    if (row.setting_name === 'company_phone') settings.company_phone = row.setting_value;
+    if (row.setting_name === 'company_email') settings.company_email = row.setting_value;
+    if (row.setting_name === 'company_address') settings.company_address = row.setting_value;
+    if (row.setting_name === 'company_website') settings.company_website = row.setting_value;
+    if (row.setting_name === 'company_business_hours') settings.company_business_hours = row.setting_value;
+    if (row.setting_name === 'company_logo_base64') settings.company_logo_base64 = row.setting_value;
+  }
+
+  return settings;
+}
+
+/**
+ * Build the summary box HTML based on config checkboxes
+ */
+function buildSummaryBoxHtml(
+  config: EmailSummaryConfig | null,
+  data: {
+    jobName?: string;
+    customerJobNumber?: string;
+    qbEstimateNumber?: string;
+    subtotal?: string;
+    tax?: string;
+    total?: string;
+    estimateDate?: string;
+    validUntilDate?: string;
+  }
+): string {
+  // If no config or all disabled, return empty
+  if (!config) return '';
+
+  const rows: string[] = [];
+
+  if (config.includeJobName && data.jobName) {
+    rows.push(`<tr style="border-bottom: 1px solid #ddd;"><td style="padding: 6px 12px; font-weight: 600; color: #555; width: 40%; text-align: left;">Job Name:</td><td style="padding: 6px 12px; color: #333; text-align: right;">${data.jobName}</td></tr>`);
+  }
+  if (config.includeCustomerRef && data.customerJobNumber) {
+    rows.push(`<tr style="border-bottom: 1px solid #ddd;"><td style="padding: 6px 12px; font-weight: 600; color: #555; text-align: left;">Customer Ref #:</td><td style="padding: 6px 12px; color: #333; text-align: right;">${data.customerJobNumber}</td></tr>`);
+  }
+  if (config.includeQbEstimateNumber && data.qbEstimateNumber) {
+    rows.push(`<tr style="border-bottom: 1px solid #ddd;"><td style="padding: 6px 12px; font-weight: 600; color: #555; text-align: left;">QB Estimate #:</td><td style="padding: 6px 12px; color: #333; text-align: right;">${data.qbEstimateNumber}</td></tr>`);
+  }
+  if (config.includeEstimateDate && data.estimateDate) {
+    rows.push(`<tr style="border-bottom: 1px solid #ddd;"><td style="padding: 6px 12px; font-weight: 600; color: #555; text-align: left;">Estimate Date:</td><td style="padding: 6px 12px; color: #333; text-align: right;">${data.estimateDate}</td></tr>`);
+  }
+  if (config.includeValidUntilDate && data.validUntilDate) {
+    rows.push(`<tr style="border-bottom: 1px solid #ddd;"><td style="padding: 6px 12px; font-weight: 600; color: #555; text-align: left;">Valid Until:</td><td style="padding: 6px 12px; color: #333; text-align: right;">${data.validUntilDate}</td></tr>`);
+  }
+  if (config.includeSubtotal && data.subtotal) {
+    rows.push(`<tr style="border-bottom: 1px solid #ddd;"><td style="padding: 6px 12px; font-weight: 600; color: #555; text-align: left;">Subtotal:</td><td style="padding: 6px 12px; color: #333; text-align: right;">${data.subtotal}</td></tr>`);
+  }
+  if (config.includeTax && data.tax) {
+    rows.push(`<tr style="border-bottom: 1px solid #ddd;"><td style="padding: 6px 12px; font-weight: 600; color: #555; text-align: left;">Tax:</td><td style="padding: 6px 12px; color: #333; text-align: right;">${data.tax}</td></tr>`);
+  }
+  if (config.includeTotal && data.total) {
+    rows.push(`<tr style="background-color: #87CEEB;"><td style="padding: 8px 12px; font-weight: 700; color: #333; text-align: left;">Total:</td><td style="padding: 8px 12px; font-weight: 700; color: #333; text-align: right;">${data.total}</td></tr>`);
+  }
+
+  // If no rows enabled, return empty
+  if (rows.length === 0) return '';
+
+  return `
+    <div style="border: 1px solid #999; border-radius: 6px; padding: 0; margin: 20px auto; max-width: 350px; background: #F0F8FF; overflow: hidden;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <tbody>
+          ${rows.join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+/**
+ * Build the email footer HTML from company settings
+ */
+function buildEmailFooterHtml(settings: CompanySettings): string {
+  const parts: string[] = [];
+
+  if (settings.company_name) {
+    parts.push(`<p style="margin: 0 0 5px 0;"><strong>${settings.company_name}</strong></p>`);
+  }
+  if (settings.company_phone) {
+    parts.push(`<p style="margin: 0 0 5px 0;">${settings.company_phone}</p>`);
+  }
+  if (settings.company_email) {
+    parts.push(`<p style="margin: 0 0 5px 0;">${settings.company_email}</p>`);
+  }
+  if (settings.company_address) {
+    parts.push(`<p style="margin: 0 0 5px 0;">${settings.company_address}</p>`);
+  }
+  if (settings.company_website) {
+    // Display website as a clickable link, strip https:// for cleaner display
+    const displayUrl = settings.company_website.replace(/^https?:\/\//, '');
+    parts.push(`<p style="margin: 0 0 5px 0;"><a href="${settings.company_website}" style="color: #0066cc;">${displayUrl}</a></p>`);
+  }
+  if (settings.company_business_hours) {
+    parts.push(`<p style="margin: 0;">${settings.company_business_hours}</p>`);
+  }
+
+  if (parts.length === 0) return '';
+
+  return `
+    <hr style="border: none; border-top: 1px solid #ccc; margin: 30px auto 0; width: 80%;" />
+    <div style="margin-top: 15px; font-size: 12px; color: #666;">
+      ${parts.join('')}
+    </div>
+  `;
+}
+
+/**
+ * Build full email HTML body from 3 parts + footer
+ * Matches the format used in getEmailPreviewHtml for consistency
+ */
+function buildEmailHtml(
+  beginning: string | null,
+  summaryHtml: string,
+  end: string | null,
+  footerHtml: string,
+  logoBase64: string | null = null
+): string {
+  // Convert plain text to HTML (convert newlines to <br> for email client compatibility)
+  const beginningHtml = beginning
+    ? `<div class="content">${escapeHtml(beginning).replace(/\n/g, '<br>')}</div>`
+    : '';
+  const endHtml = end
+    ? `<div class="content">${escapeHtml(end).replace(/\n/g, '<br>')}</div>`
+    : '';
+
+  // Build logo HTML if base64 is provided
+  const logoHtml = logoBase64
+    ? `<div class="logo" style="margin-bottom: 20px;"><img src="data:image/png;base64,${logoBase64}" alt="Company Logo" style="max-width: 200px; height: auto;" /><hr style="border: none; border-top: 1px solid #ccc; margin: 15px auto 0; width: 80%;" /></div>`
+    : '';
+
+  return `
+    <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; text-align: center; border: 2px solid #87CEEB; border-radius: 24px; background-color: #f5f5f5; }
+          .logo { text-align: center; }
+          .content { margin: 20px 0; text-align: center; }
+          .estimate-summary { background: #F0F8FF; padding: 0; border: 1px solid #999; border-radius: 6px; margin: 20px auto; max-width: 350px; overflow: hidden; }
+          .summary-row { display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid #ddd; }
+          .summary-row:last-child { border-bottom: none; }
+          .summary-row-total { background-color: #87CEEB; padding: 8px 12px; border-bottom: none; }
+          .summary-label { font-weight: 600; color: #555; text-align: left; }
+          .summary-value { color: #333; text-align: right; }
+          .footer { border-top: 1px solid #ddd; padding-top: 15px; margin-top: 30px; font-size: 12px; color: #666; text-align: left; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          ${logoHtml}
+          ${beginningHtml}
+          ${summaryHtml}
+          ${endHtml}
+          ${footerHtml}
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+/**
+ * Escape HTML special characters
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
+ * Format currency for display
+ */
+function formatCurrency(amount: string | number | null | undefined): string {
+  if (amount === null || amount === undefined) return '';
+  const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+  if (isNaN(num)) return '';
+  return `$${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * Format date for display (Jan. 1, 2025)
+ */
+function formatDate(date: Date | string | null | undefined): string {
+  if (!date) return '';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return '';
+  const month = d.toLocaleDateString('en-US', { month: 'short' });
+  const day = d.getDate();
+  const year = d.getFullYear();
+  return `${month}. ${day}, ${year}`;
+}
 
 export class EstimateWorkflowService {
   private estimateRepository = new EstimateRepository();
@@ -78,19 +352,23 @@ export class EstimateWorkflowService {
         );
       }
 
-      // 4. Lock the estimate (is_prepared=true, is_draft=false)
+      // 4. Lock the estimate (is_prepared=true, is_draft=false) and save email content
       await connection.execute(
         `UPDATE job_estimates
          SET is_prepared = TRUE,
              is_draft = FALSE,
              email_subject = ?,
-             email_body = ?,
+             email_beginning = ?,
+             email_end = ?,
+             email_summary_config = ?,
              updated_by = ?,
              updated_at = NOW()
          WHERE id = ?`,
         [
           request.emailSubject || null,
-          request.emailBody || null,
+          request.emailBeginning || null,
+          request.emailEnd || null,
+          request.emailSummaryConfig ? JSON.stringify(request.emailSummaryConfig) : null,
           userId,
           estimateId
         ]
@@ -116,8 +394,7 @@ export class EstimateWorkflowService {
 
   /**
    * Auto-fill QB descriptions when preparing estimate
-   * - Product rows: Lookup from qb_item_mappings
-   * - Description-only rows: Use calculationDisplay
+   * Uses custom rules with fallback to qb_item_mappings lookup
    */
   private async autoFillQBDescriptions(
     estimateId: number,
@@ -127,7 +404,7 @@ export class EstimateWorkflowService {
     try {
       console.log(`[Auto-fill QB Descriptions] Starting for estimate ${estimateId}...`);
 
-      // 1. Fetch QB item mappings in batch
+      // 1. Fetch QB item mappings in batch (for fallback)
       const productTypes = estimatePreviewData.items
         .filter(item => !item.isDescriptionOnly)
         .map(item => item.itemName);
@@ -137,21 +414,11 @@ export class EstimateWorkflowService {
         connection
       );
 
-      console.log(`[Auto-fill QB Descriptions] Fetched ${qbMap.size} QB mappings`);
+      console.log(`[Auto-fill QB Descriptions] Fetched ${qbMap.size} QB mappings for fallback`);
 
-      // 2. Build descriptions array
+      // 2. Build descriptions using custom rules with fallback
       const descriptions = estimatePreviewData.items.map((item, index) => {
-        let qbDescription = '';
-
-        // Description-only rows: use calculationDisplay
-        if (item.isDescriptionOnly) {
-          qbDescription = item.calculationDisplay || '';
-        }
-        // Product rows: lookup from qb_item_mappings
-        else {
-          const qbItemData = qbMap.get(item.itemName.toLowerCase());
-          qbDescription = qbItemData?.description || '';
-        }
+        const qbDescription = this.generateQBDescription(item, qbMap);
 
         return {
           lineIndex: index,
@@ -160,7 +427,7 @@ export class EstimateWorkflowService {
         };
       });
 
-      // 3. Batch save (only non-empty descriptions to save space)
+      // 3. Batch save non-empty descriptions
       const nonEmptyDescriptions = descriptions.filter(d => d.qbDescription.length > 0);
 
       if (nonEmptyDescriptions.length > 0) {
@@ -179,6 +446,75 @@ export class EstimateWorkflowService {
       // Don't fail the entire prepare operation if QB description auto-fill fails
       // Log and continue - user can manually fill descriptions
     }
+  }
+
+  /**
+   * Generate QB description using custom rules with fallback
+   * Priority: 1) Custom rules, 2) qb_item_mappings lookup
+   */
+  private generateQBDescription(
+    item: EstimateLineItem,
+    qbMap: Map<string, { name: string; description: string | null; qb_item_id: string }>
+  ): string {
+    const { itemName, isDescriptionOnly, calculationDisplay } = item;
+
+    // Special case: Description-only rows always use calculationDisplay
+    if (isDescriptionOnly) {
+      return calculationDisplay || '';
+    }
+
+    // Step 1: Try custom rules
+    const customDescription = this.applyCustomRule(item);
+    if (customDescription !== null) {
+      return customDescription;
+    }
+
+    // Step 2: Fallback to qb_item_mappings lookup
+    const qbItemData = qbMap.get(itemName.toLowerCase());
+    if (qbItemData?.description) {
+      return qbItemData.description;
+    }
+
+    // Step 3: Last resort - empty (user can manually fill)
+    return '';
+  }
+
+  /**
+   * Apply custom rule for QB description generation
+   * Returns description string if rule matches, null otherwise (triggers fallback)
+   *
+   * Available data from item:
+   * - productTypeId: number (1=Channel Letters, 5=Push Thru, etc.)
+   * - productTypeName: string ("Channel Letters", "Vinyl", etc.)
+   * - itemName: string ("3\" Channel Letters", "LEDs", etc.)
+   * - calculationDisplay: string ("32\" @ $2.50/inch - [8 pcs]")
+   * - calculationComponents: array of { name, price, type, calculationDisplay }
+   * - quantity: number
+   * - unitPrice: number
+   * - extendedPrice: number
+   * - isDescriptionOnly: boolean
+   */
+  private applyCustomRule(item: EstimateLineItem): string | null {
+    // Destructure available data for rules
+    // const { productTypeId, productTypeName, itemName, calculationDisplay, calculationComponents, quantity } = item;
+
+    // =====================================================
+    // CUSTOM RULES - Add new rules here
+    // Return string to use as description, null to fallback
+    // =====================================================
+
+    // Example rule (disabled - for reference):
+    // if (productTypeId === 1) { // Channel Letters
+    //   // Parse calculationDisplay for dimensions
+    //   // return `Channel Letters: ${extracted_dimensions}`;
+    // }
+
+    // =====================================================
+    // END CUSTOM RULES
+    // =====================================================
+
+    // No custom rule matched - return null to trigger fallback
+    return null;
   }
 
   /**
@@ -326,6 +662,8 @@ export class EstimateWorkflowService {
 
     let qbEstimateId: string | undefined;
     let qbEstimateUrl: string | undefined;
+    let qbDocNumber: string | undefined;
+    let qbEstimateDateStr: string | undefined;  // TxnDate from QB as string
 
     try {
       // 2. Validate recipients exist
@@ -342,36 +680,111 @@ export class EstimateWorkflowService {
         );
         qbEstimateId = qbResult.qbEstimateId;
         qbEstimateUrl = qbResult.qbEstimateUrl;
+        qbDocNumber = qbResult.qbDocNumber;
+        qbEstimateDateStr = qbResult.estimateDate;
       } else {
         // Reuse existing QB estimate for resends
         qbEstimateId = estimate.qb_estimate_id;
         qbEstimateUrl = estimate.qb_estimate_url;
+        qbDocNumber = estimate.qb_doc_number;
+        qbEstimateDateStr = estimate.estimate_date;
       }
 
-      // 4. Download QB estimate PDF (non-blocking)
+      // 4. Get QB estimate PDF (check cache first, then download)
       let pdfPath: string | null = null;
-      if (qbEstimateId) {
-        try {
-          const pdfResult = await downloadEstimatePDF(
-            qbEstimateId,
-            estimate.job_id
-          );
-          pdfPath = pdfResult.pdfPath;
-        } catch (pdfError) {
-          console.error('⚠️ Failed to download QB PDF:', pdfError);
-          // Continue - PDF can be downloaded manually later
+      const cachePath = `${PDF_CACHE_DIR}/estimate-${estimateId}.pdf`;
+
+      // Try to use cached PDF first (from preview modal)
+      try {
+        await fs.access(cachePath);
+        pdfPath = cachePath;
+        console.log(`📎 Using cached PDF for estimate ${estimateId}: ${cachePath}`);
+      } catch {
+        // Cache miss - download from QuickBooks
+        if (qbEstimateId) {
+          try {
+            console.log(`📥 Cache miss - downloading QB PDF for estimate ${qbEstimateId}...`);
+            const pdfResult = await downloadEstimatePDF(
+              qbEstimateId,
+              estimate.job_id
+            );
+            pdfPath = pdfResult.pdfPath;
+            console.log(`✅ QB PDF downloaded successfully: ${pdfPath}`);
+          } catch (pdfError) {
+            console.error('⚠️ Failed to download QB PDF:', pdfError instanceof Error ? pdfError.message : pdfError);
+            console.error('   Full error:', pdfError);
+            // Continue - PDF can be downloaded manually later
+          }
+        } else {
+          console.log('⚠️ No qbEstimateId available - skipping PDF download');
         }
       }
 
-      // 5. Send email via Gmail
+      // 5. Build email from 3-part structure
+      const emailVariables = {
+        customerName: estimateData.customer_name,
+        jobName: estimateData.job_name,
+        customerJobNumber: estimateData.customer_job_number,
+        qbEstimateNumber: qbDocNumber || estimateData.qb_doc_number,
+        estimateNumber: estimateData.job_code,
+        total: estimateData.total_amount
+          ? formatCurrency(estimateData.total_amount)
+          : ''
+      };
+
+      // Substitute variables in subject, beginning, and end
+      const finalSubject = substituteEmailVariables(estimateData.email_subject || '', emailVariables);
+      const finalBeginning = substituteEmailVariables(estimateData.email_beginning || '', emailVariables);
+      const finalEnd = substituteEmailVariables(estimateData.email_end || '', emailVariables);
+
+      // Parse summary config (use default if not set)
+      let summaryConfig: EmailSummaryConfig | null = null;
+      if (estimateData.email_summary_config) {
+        summaryConfig = typeof estimateData.email_summary_config === 'string'
+          ? JSON.parse(estimateData.email_summary_config)
+          : estimateData.email_summary_config;
+      }
+
+      // Calculate valid until date (30 days from estimate date)
+      const estimateDate = estimateData.estimate_date ? new Date(estimateData.estimate_date) : new Date();
+      const validUntilDate = new Date(estimateDate);
+      validUntilDate.setDate(validUntilDate.getDate() + 30);
+
+      // Build summary box HTML (use QB date for new sends, DB date for resends)
+      const summaryHtml = buildSummaryBoxHtml(summaryConfig, {
+        jobName: estimateData.job_name,
+        customerJobNumber: estimateData.customer_job_number,
+        qbEstimateNumber: qbDocNumber || estimateData.qb_doc_number,
+        subtotal: formatCurrency(estimateData.subtotal),
+        tax: formatCurrency(estimateData.tax_amount),
+        total: formatCurrency(estimateData.total_amount),
+        estimateDate: formatDate(qbEstimateDateStr || estimateData.estimate_date),
+        validUntilDate: formatDate(validUntilDate)
+      });
+
+      // Load company settings for footer
+      const companySettings = await loadCompanySettings();
+      const footerHtml = buildEmailFooterHtml(companySettings);
+
+      // Build final email HTML from 3 parts + footer + logo
+      const finalBody = buildEmailHtml(
+        finalBeginning,
+        summaryHtml,
+        finalEnd,
+        footerHtml,
+        companySettings.company_logo_base64
+      );
+
+      // 6. Send email via Gmail (body is already HTML)
+      console.log(`📧 Sending estimate email with pdfPath: ${pdfPath || '(none)'}`);
       const emailResult = await sendEstimateEmail({
         recipients: recipientEmails,
         estimateId,
         estimateNumber: estimateData.job_code,
         estimateName: estimateData.job_name,
         customerName: estimateData.customer_name,
-        subject: estimateData.email_subject,
-        body: estimateData.email_body,
+        subject: finalSubject,
+        body: finalBody,
         qbEstimateUrl: qbEstimateUrl || null,
         pdfPath
       });
@@ -380,12 +793,13 @@ export class EstimateWorkflowService {
         throw new Error(`Email sending failed: ${emailResult.error}`);
       }
 
-      // 6. Mark estimate as sent (update qb_estimate_id, qb_estimate_url, is_sent)
+      // 7. Mark estimate as sent (update qb_estimate_id, qb_estimate_url, qb_doc_number, is_sent)
       await this.estimateRepository.markEstimateAsSent(
         estimateId,
         userId,
         qbEstimateId,
-        qbEstimateUrl
+        qbEstimateUrl,
+        qbDocNumber
       );
 
       return {
@@ -393,6 +807,7 @@ export class EstimateWorkflowService {
         estimateId,
         qbEstimateId,
         qbEstimateUrl,
+        estimateDate: qbEstimateDateStr,
         emailSentTo: recipientEmails,
         message: estimate.is_sent ? '⚠️ This estimate was previously sent. It has been sent again.' : undefined
       };
@@ -411,9 +826,41 @@ export class EstimateWorkflowService {
     pointPersons: EstimatePointPersonInput[],
     userId: number
   ): Promise<void> {
-    // Validate estimate exists
-    if (!(await this.estimateRepository.estimateExists(estimateId))) {
+    // Get estimate to retrieve customer_id
+    const estimate = await this.estimateRepository.getEstimateById(estimateId);
+    if (!estimate) {
       throw new Error('Estimate not found');
+    }
+
+    const customerId = estimate.customer_id;
+
+    // Import CustomerContactService dynamically to avoid circular dependency
+    const { CustomerContactService } = await import('../customerContactService');
+    const customerContactService = new CustomerContactService();
+
+    // Process each point person - create customer contact if saveToDatabase is true
+    for (const person of pointPersons) {
+      if (person.saveToDatabase && !person.contact_id && person.contact_email) {
+        try {
+          const result = await customerContactService.createContact({
+            customer_id: customerId,
+            contact_email: person.contact_email,
+            contact_name: person.contact_name || person.contact_email, // Use email as fallback name
+            contact_phone: person.contact_phone || undefined,
+            contact_role: person.contact_role || undefined
+          }, userId);
+
+          if (result.success && result.data) {
+            // Update the point person with the new contact_id
+            person.contact_id = result.data;
+            console.log(`✅ Contact saved to database: ${person.contact_email} (ID: ${result.data})`);
+          } else if (!result.success) {
+            console.warn(`⚠️ Failed to save contact: ${(result as any).error}`);
+          }
+        } catch (err) {
+          console.warn(`⚠️ Failed to save contact (may already exist): ${person.contact_email}`);
+        }
+      }
     }
 
     await estimatePointPersonRepository.updatePointPersons(estimateId, pointPersons);
@@ -433,15 +880,17 @@ export class EstimateWorkflowService {
   }
 
   /**
-   * Update email content for an estimate
+   * Update email content for an estimate (3-part structure)
    */
   async updateEmailContent(
     estimateId: number,
     subject: string | null,
-    body: string | null,
+    beginning: string | null,
+    end: string | null,
+    summaryConfig: any | null,
     userId: number
   ): Promise<void> {
-    await this.estimateRepository.updateEmailContent(estimateId, subject, body, userId);
+    await this.estimateRepository.updateEmailContent(estimateId, subject, beginning, end, summaryConfig, userId);
   }
 
   /**
@@ -477,88 +926,109 @@ export class EstimateWorkflowService {
 
   /**
    * Get email preview HTML for modal display
-   * Generates estimate-specific email with estimate details
+   * Generates email using the composed content from the frontend
    */
-  async getEmailPreviewHtml(estimateId: number, recipients: string[]): Promise<{ subject: string; html: string }> {
-    // Load estimate data
+  async getEmailPreviewHtml(
+    estimateId: number,
+    recipients: string[],
+    emailContent?: {
+      subject?: string;
+      beginning?: string;
+      end?: string;
+      summaryConfig?: {
+        includeJobName?: boolean;
+        includeCustomerRef?: boolean;
+        includeQbEstimateNumber?: boolean;
+        includeSubtotal?: boolean;
+        includeTax?: boolean;
+        includeTotal?: boolean;
+        includeEstimateDate?: boolean;
+        includeValidUntilDate?: boolean;
+      };
+      estimateData?: {
+        jobName?: string;
+        customerJobNumber?: string;
+        qbEstimateNumber?: string;
+        subtotal?: number;
+        tax?: number;
+        total?: number;
+        estimateDate?: string;
+      };
+    }
+  ): Promise<{ subject: string; html: string }> {
+    // Load estimate data for customer name (for variable substitution)
     const estimate = await this.estimateRepository.getEstimateForSending(estimateId);
     if (!estimate) {
       throw new Error('Estimate not found');
     }
 
-    // Load point persons
-    const pointPersons = await estimatePointPersonRepository.getPointPersonsByEstimateId(estimateId);
+    // Build template variables for substitution
+    const templateVars: Record<string, string> = {
+      customerName: estimate.customer_name || 'Valued Customer',
+      jobName: emailContent?.estimateData?.jobName || estimate.job_name || '',
+      qbEstimateNumber: emailContent?.estimateData?.qbEstimateNumber || estimate.qb_doc_number || '',
+      customerRef: emailContent?.estimateData?.customerJobNumber || estimate.customer_job_number || '',
+      jobNameWithRef: emailContent?.estimateData?.customerJobNumber
+        ? `${emailContent?.estimateData?.jobName || estimate.job_name} - ${emailContent?.estimateData?.customerJobNumber}`
+        : (emailContent?.estimateData?.jobName || estimate.job_name || '')
+    };
 
-    // Build recipient list for display
-    const recipientList = recipients
-      .filter(r => r && r.trim())
-      .map(r => r.trim());
+    // Process subject with variable substitution
+    const rawSubject = emailContent?.subject || `Estimate #${estimate.job_code} - ${estimate.job_name}`;
+    const subject = this.substituteTemplateVariables(rawSubject, templateVars);
 
-    // Construct estimate-specific email subject
-    const subject = `Estimate #${estimate.job_code} - ${estimate.job_name}`;
+    // Process beginning text with variable substitution
+    const beginningText = this.substituteTemplateVariables(
+      emailContent?.beginning || '',
+      templateVars
+    );
 
-    // Build estimate-specific HTML email body
+    // Process end text with variable substitution
+    const endText = this.substituteTemplateVariables(
+      emailContent?.end || '',
+      templateVars
+    );
+
+    // Build summary section based on summaryConfig and estimateData
+    const summaryHtml = this.buildEmailSummaryHtml(
+      emailContent?.summaryConfig,
+      emailContent?.estimateData
+    );
+
+    // Load company settings and build footer
+    const companySettings = await loadCompanySettings();
+    const footerHtml = buildEmailFooterHtml(companySettings);
+
+    // Build logo HTML if available
+    const logoHtml = companySettings.company_logo_base64
+      ? `<div class="logo" style="margin-bottom: 20px;"><img src="data:image/png;base64,${companySettings.company_logo_base64}" alt="Company Logo" style="max-width: 200px; height: auto;" /><hr style="border: none; border-top: 1px solid #ccc; margin: 15px auto 0; width: 80%;" /></div>`
+      : '';
+
+    // Build HTML email with composed content
     const html = `
       <html>
         <head>
           <style>
             body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { border-bottom: 2px solid #007bff; padding-bottom: 15px; margin-bottom: 20px; }
-            .greeting { font-size: 16px; margin-bottom: 15px; }
-            .estimate-details { background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0; }
-            .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ddd; }
-            .detail-row:last-child { border-bottom: none; }
-            .label { font-weight: bold; color: #555; }
-            .value { color: #333; }
-            .footer { border-top: 1px solid #ddd; padding-top: 15px; margin-top: 30px; font-size: 12px; color: #666; }
-            .qb-link { margin: 20px 0; padding: 15px; background: #e8f4f8; border-left: 4px solid #007bff; }
-            .action-required { color: #d9534f; font-weight: bold; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; text-align: center; border: 2px solid #87CEEB; border-radius: 24px; background-color: #f5f5f5; }
+            .logo { text-align: center; }
+            .content { margin: 20px 0; white-space: pre-wrap; text-align: center; }
+            .estimate-summary { background: #F0F8FF; padding: 0; border: 1px solid #999; border-radius: 6px; margin: 20px auto; max-width: 350px; overflow: hidden; }
+            .summary-row { display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid #ddd; }
+            .summary-row:last-child { border-bottom: none; }
+            .summary-row-total { background-color: #87CEEB; padding: 8px 12px; border-bottom: none; }
+            .summary-label { font-weight: 600; color: #555; text-align: left; }
+            .summary-value { color: #333; text-align: right; }
+            .footer { border-top: 1px solid #ddd; padding-top: 15px; margin-top: 30px; font-size: 12px; color: #666; text-align: left; }
           </style>
         </head>
         <body>
           <div class="container">
-            <div class="header">
-              <h2>Estimate for Review</h2>
-              <p class="greeting">Hello,</p>
-            </div>
-
-            <p>Please review the attached estimate below for <strong>${estimate.customer_name || 'our valued customer'}</strong>.</p>
-
-            <div class="estimate-details">
-              <div class="detail-row">
-                <span class="label">Estimate Number:</span>
-                <span class="value">${estimate.job_code}</span>
-              </div>
-              <div class="detail-row">
-                <span class="label">Estimate Name:</span>
-                <span class="value">${estimate.job_name}</span>
-              </div>
-              <div class="detail-row">
-                <span class="label">Customer:</span>
-                <span class="value">${estimate.customer_name || 'N/A'}</span>
-              </div>
-              <div class="detail-row">
-                <span class="label">Status:</span>
-                <span class="value">${estimate.status ? estimate.status.charAt(0).toUpperCase() + estimate.status.slice(1) : 'Draft'}</span>
-              </div>
-            </div>
-
-            ${estimate.qb_estimate_id ? `
-              <div class="qb-link">
-                <p><strong>QuickBooks Integration:</strong></p>
-                <p>This estimate has been synced to QuickBooks. You can <a href="${estimate.qb_estimate_url || '#'}">view it in QuickBooks</a> for additional details and management.</p>
-              </div>
-            ` : ''}
-
-            <p>If you have any questions or need clarification on any items in this estimate, please don't hesitate to reach out.</p>
-
-            <div class="footer">
-              <p><strong>Signhouse Manufacturing</strong></p>
-              <p>Professional sign manufacturing and installation</p>
-              <hr>
-              <p style="font-size: 11px; margin-top: 10px;">This estimate is valid for 30 days from the date of issue. Please contact us if you have any questions.</p>
-            </div>
+            ${logoHtml}
+            <div class="content">${this.escapeHtml(beginningText).replace(/\n/g, '<br>')}</div>
+            ${summaryHtml}
+            <div class="content">${this.escapeHtml(endText).replace(/\n/g, '<br>')}</div>
+            ${footerHtml}
           </div>
         </body>
       </html>
@@ -568,6 +1038,117 @@ export class EstimateWorkflowService {
       subject,
       html: html.trim()
     };
+  }
+
+  /**
+   * Build the estimate summary HTML section based on config and data
+   * Matches the frontend preview format in EstimateEmailComposer
+   */
+  private buildEmailSummaryHtml(
+    config?: {
+      includeJobName?: boolean;
+      includeCustomerRef?: boolean;
+      includeQbEstimateNumber?: boolean;
+      includeSubtotal?: boolean;
+      includeTax?: boolean;
+      includeTotal?: boolean;
+      includeEstimateDate?: boolean;
+      includeValidUntilDate?: boolean;
+    },
+    data?: {
+      jobName?: string;
+      customerJobNumber?: string;
+      qbEstimateNumber?: string;
+      subtotal?: number;
+      tax?: number;
+      total?: number;
+      estimateDate?: string;
+    }
+  ): string {
+    if (!config) return '';
+
+    const rows: string[] = [];
+
+    // Match the exact order and labels from frontend EstimateEmailComposer preview
+    if (config.includeJobName) {
+      const value = data?.jobName || '-';
+      rows.push(`<div class="summary-row"><span class="summary-label">Job Name:</span><span class="summary-value">${this.escapeHtml(value)}</span></div>`);
+    }
+
+    if (config.includeCustomerRef) {
+      const value = data?.customerJobNumber || '-';
+      rows.push(`<div class="summary-row"><span class="summary-label">Customer Ref #:</span><span class="summary-value">${this.escapeHtml(value)}</span></div>`);
+    }
+
+    if (config.includeQbEstimateNumber && data?.qbEstimateNumber) {
+      rows.push(`<div class="summary-row"><span class="summary-label">QB Estimate #:</span><span class="summary-value">${this.escapeHtml(data.qbEstimateNumber)}</span></div>`);
+    }
+
+    if (config.includeEstimateDate) {
+      const value = data?.estimateDate ? this.formatDate(data.estimateDate) : '-';
+      rows.push(`<div class="summary-row"><span class="summary-label">Estimate Date:</span><span class="summary-value">${value}</span></div>`);
+    }
+
+    if (config.includeValidUntilDate) {
+      // Calculate valid until date (30 days from estimate date)
+      let value = '-';
+      if (data?.estimateDate) {
+        const d = new Date(data.estimateDate);
+        d.setDate(d.getDate() + 30);
+        value = this.formatDate(d.toISOString());
+      }
+      rows.push(`<div class="summary-row"><span class="summary-label">Valid Until:</span><span class="summary-value">${value}</span></div>`);
+    }
+
+    if (config.includeSubtotal) {
+      const value = data?.subtotal !== undefined ? this.formatCurrency(data.subtotal) : '-';
+      rows.push(`<div class="summary-row"><span class="summary-label">Subtotal:</span><span class="summary-value">${value}</span></div>`);
+    }
+
+    if (config.includeTax) {
+      const value = data?.tax !== undefined ? this.formatCurrency(data.tax) : '-';
+      rows.push(`<div class="summary-row"><span class="summary-label">Tax:</span><span class="summary-value">${value}</span></div>`);
+    }
+
+    if (config.includeTotal) {
+      const value = data?.total !== undefined ? this.formatCurrency(data.total) : '-';
+      rows.push(`<div class="summary-row summary-row-total"><span class="summary-label"><strong>Total:</strong></span><span class="summary-value"><strong>${value}</strong></span></div>`);
+    }
+
+    if (rows.length === 0) return '';
+
+    return `<div class="estimate-summary">${rows.join('')}</div>`;
+  }
+
+  /**
+   * Escape HTML special characters
+   */
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  /**
+   * Format currency for display
+   */
+  private formatCurrency(amount: number): string {
+    return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  /**
+   * Format date for display
+   */
+  private formatDate(dateStr: string): string {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const month = d.toLocaleDateString('en-US', { month: 'short' });
+    const day = d.getDate();
+    const year = d.getFullYear();
+    return `${month}. ${day}, ${year}`;
   }
 }
 

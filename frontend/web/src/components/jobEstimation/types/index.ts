@@ -147,6 +147,7 @@ export interface JobSummary {
   job_id: number;
   job_number: string;
   job_name: string;
+  customer_job_number?: string;  // Customer reference number (PO, project code)
   customer_id: number;
   customer_name: string;
   job_status: 'draft' | 'sent' | 'approved';
@@ -162,6 +163,7 @@ export interface EstimateVersion {
   job_code: string;
   job_id: number;
   job_name: string;
+  customer_job_number?: string;  // Customer reference number (PO, project code)
   job_number: string;
   version_number: number;
   version_label: string; // "v1", "v2", etc.
@@ -190,6 +192,11 @@ export interface EstimateVersion {
   is_retracted: boolean;
   // sent_count, last_sent_at, approved_at, retracted_at now available via history API
 
+  // QuickBooks integration
+  qb_estimate_id?: string;
+  qb_doc_number?: string;  // QB estimate document number for display
+  qb_estimate_url?: string;
+
   // Audit fields
   finalized_at?: string;
   finalized_by?: string;
@@ -201,6 +208,7 @@ export interface EstimateVersion {
 export interface JobData {
   customer_id: number;
   job_name: string;
+  customer_job_number?: string;  // Optional customer reference number
 }
 
 export interface EstimateVersionData {
@@ -270,3 +278,45 @@ export interface WorkflowState {
   };
 }
 import type { RowCalculationResult } from '../core/types/LayerTypes';
+
+// =============================================
+// EMAIL COMPOSER TYPES
+// =============================================
+
+export interface EmailSummaryConfig {
+  includeJobName: boolean;
+  includeCustomerRef: boolean;
+  includeQbEstimateNumber: boolean;
+  includeSubtotal: boolean;
+  includeTax: boolean;
+  includeTotal: boolean;
+  includeEstimateDate: boolean;
+  includeValidUntilDate: boolean;
+}
+
+// Default config - all checked except Valid Until Date
+export const DEFAULT_EMAIL_SUMMARY_CONFIG: EmailSummaryConfig = {
+  includeJobName: true,
+  includeCustomerRef: true,
+  includeQbEstimateNumber: true,
+  includeSubtotal: true,
+  includeTax: true,
+  includeTotal: true,
+  includeEstimateDate: true,
+  includeValidUntilDate: true   // Checked by default
+};
+
+// Default email text values
+export const DEFAULT_EMAIL_SUBJECT = "{{jobNameWithRef}} - Estimate #{{qbEstimateNumber}} from Sign House Inc.";
+export const DEFAULT_EMAIL_BEGINNING = "Hi {{customerName}},\n\nPlease find the attached estimate for your review.\n\nNOTE: This estimate is pending your approval. Please reply to confirm and we will verify all details before beginning production.";
+export const DEFAULT_EMAIL_END = "If you have any questions, please don't hesitate to reach out.\n\nBest regards,\nThe Sign House Team";
+
+export interface EstimateEmailData {
+  jobName?: string;
+  customerJobNumber?: string;
+  qbEstimateNumber?: string;
+  subtotal?: number;
+  tax?: number;
+  total?: number;
+  estimateDate?: string;
+}

@@ -155,6 +155,18 @@ body:has(.job-estimation-builder-mode) {
   border-radius: 0 !important;
 }
 
+/* Square focus outline for inputs in Send to Customer panel and estimate builder */
+.estimate-builder-mobile-unified input:focus,
+.estimate-builder-mobile-unified select:focus,
+.estimate-builder-mobile-unified textarea:focus,
+.collapsible-panel input:focus,
+.collapsible-panel select:focus,
+.collapsible-panel textarea:focus {
+  outline: none !important;
+  border-radius: 0 !important;
+  box-shadow: 0 0 0 1px #6366f1 !important; /* Sharp indigo ring */
+}
+
 /* Estimate Builder Layout - Custom breakpoint at 1700px */
 .estimate-builder-layout-container {
   display: flex;
@@ -295,5 +307,145 @@ body:has(.job-estimation-builder-mode) {
     padding-left: 1rem !important;
     padding-right: 1rem !important;
     margin-bottom: 1rem !important;
+  }
+}
+
+/* ============================================
+   COLLAPSIBLE PANEL STYLES
+   For Prepare to Send mode with 3-section layout
+   ============================================ */
+
+/* Collapsible panel wrapper */
+.collapsible-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* When collapsed, panel shrinks to bar width */
+.collapsible-panel--collapsed {
+  flex: 0 0 40px;
+  width: 40px;
+  min-width: 40px;
+}
+
+/* When expanded, panel takes available space */
+.collapsible-panel--expanded {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Collapsed vertical bar */
+.collapsible-panel-collapsed {
+  width: 40px;
+  min-width: 40px;
+  height: 100%;
+  min-height: 400px;
+  background: linear-gradient(to bottom, #f3e8ff, #ede9fe);
+  border: 1px solid #c4b5fd;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.collapsible-panel-collapsed:hover {
+  background: linear-gradient(to bottom, #ede9fe, #ddd6fe);
+}
+
+.collapsible-panel-collapsed:focus {
+  outline: 2px solid #7c3aed;
+  outline-offset: -2px;
+}
+
+/* Rotated text label */
+.collapsible-panel-label {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #6b21a8;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* Expanded panel content */
+.collapsible-panel-expanded {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 3-column prepared mode layout */
+.estimate-prepared-3col {
+  display: flex;
+  flex-direction: row;
+  gap: 0.75rem;
+  align-items: stretch;
+  min-height: 600px;
+}
+
+/* In 3-col mode, the preview wrapper takes 60% */
+.estimate-prepared-3col .estimate-builder-preview-wrapper {
+  order: 3;
+  flex: 0 0 60%;
+  min-width: 500px;
+}
+
+/* Desktop overrides for 3-column mode */
+@media (min-width: 1700px) {
+  .estimate-prepared-3col {
+    gap: 1rem;
+  }
+
+  .estimate-prepared-3col .estimate-builder-preview-wrapper {
+    flex: 0 0 60%;
+    min-width: 600px;
+  }
+
+  /* Expanded panel takes remaining ~40% minus collapsed bar */
+  .estimate-prepared-3col .collapsible-panel-expanded {
+    flex: 1;
+  }
+}
+
+/* Mobile/tablet: stack vertically in 3-col mode */
+@media (max-width: 1699px) {
+  .estimate-prepared-3col {
+    flex-direction: column;
+    min-height: auto;
+  }
+
+  /* Collapsed panel wrapper in mobile becomes horizontal bar */
+  .estimate-prepared-3col .collapsible-panel--collapsed {
+    flex: 0 0 40px;
+    width: 100%;
+    min-width: 100%;
+    height: 40px;
+  }
+
+  .estimate-prepared-3col .collapsible-panel-collapsed {
+    width: 100%;
+    min-width: 100%;
+    height: 40px;
+    min-height: 40px;
+  }
+
+  .estimate-prepared-3col .collapsible-panel-label {
+    writing-mode: horizontal-tb;
+    transform: none;
+  }
+
+  .estimate-prepared-3col .estimate-builder-preview-wrapper {
+    order: 3;
+    flex: none;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
   }
 }

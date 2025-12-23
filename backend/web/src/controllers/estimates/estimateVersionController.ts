@@ -10,9 +10,14 @@
  */
 
 import { Response } from 'express';
+import { promises as fs } from 'fs';
+import * as path from 'path';
 import { AuthRequest } from '../../types';
 import { EstimateVersioningService, EstimateVersionData } from '../../services/estimateVersioningService';
 import { validateEstimateId, validateJobId, validateEstimateRequest, validateJobRequest } from '../../utils/estimateValidation';
+
+// PDF cache directory for estimate previews
+const PDF_CACHE_DIR = '/tmp/estimate-pdf-cache';
 
 const versioningService = new EstimateVersioningService();
 
@@ -217,12 +222,15 @@ export const prepareEstimate = async (req: AuthRequest, res: Response) => {
     const validated = validateEstimateRequest(req, res);
     if (!validated) return;
 
-    const { emailSubject, emailBody, pointPersons } = req.body;
+    const { emailSubject, emailBeginning, emailEnd, emailSummaryConfig, pointPersons, estimatePreviewData } = req.body;
+
+    // Debug: Check what's being received
+    console.log('[Prepare] estimatePreviewData received:', !!estimatePreviewData, 'items:', estimatePreviewData?.items?.length ?? 0);
 
     const result = await versioningService.prepareEstimateForSending(
       validated.estimateId,
       validated.userId,
-      { emailSubject, emailBody, pointPersons }
+      { emailSubject, emailBeginning, emailEnd, emailSummaryConfig, pointPersons, estimatePreviewData }
     );
 
     res.json({
@@ -259,8 +267,7 @@ export const sendEstimate = async (req: AuthRequest, res: Response) => {
     );
 
     res.json({
-      success: true,
-      data: result,
+      ...result,
       message: 'Estimate sent to customer'
     });
   } catch (error) {
@@ -354,7 +361,7 @@ export const getEstimateEmailContent = async (req: AuthRequest, res: Response) =
 };
 
 /**
- * Update email content for an estimate
+ * Update email content for an estimate (3-part structure)
  * @route PUT /estimates/:estimateId/email-content
  */
 export const updateEstimateEmailContent = async (req: AuthRequest, res: Response) => {
@@ -362,12 +369,14 @@ export const updateEstimateEmailContent = async (req: AuthRequest, res: Response
     const validated = validateEstimateRequest(req, res);
     if (!validated) return;
 
-    const { subject, body } = req.body;
+    const { subject, beginning, end, summaryConfig } = req.body;
 
     await versioningService.updateEstimateEmailContent(
       validated.estimateId,
       subject || null,
-      body || null,
+      beginning || null,
+      end || null,
+      summaryConfig || null,
       validated.userId
     );
 
@@ -387,8 +396,9 @@ export const updateEstimateEmailContent = async (req: AuthRequest, res: Response
 /**
  * Get email preview for modal display
  * Generates HTML preview of what will be sent to recipients
- * @route GET /estimates/:estimateId/email-preview
- * @query recipients - comma-separated email addresses
+ * @route POST /estimates/:estimateId/email-preview
+ * @body recipients - comma-separated email addresses
+ * @body subject, beginning, end, summaryConfig, estimateData - email content from composer
  */
 export const getEstimateEmailPreview = async (req: AuthRequest, res: Response) => {
   try {
@@ -396,14 +406,40 @@ export const getEstimateEmailPreview = async (req: AuthRequest, res: Response) =
     if (!validation.isValid) return;
     const estimateId = validation.value!;
 
-    // Parse recipients from query string (comma-separated)
-    const recipientString = req.query.recipients as string || '';
+    // Parse recipients from body (comma-separated string)
+    const recipientString = req.body.recipients as string || '';
     const recipients = recipientString
       .split(',')
-      .map(r => r.trim())
-      .filter(r => r.length > 0);
+      .map((r: string) => r.trim())
+      .filter((r: string) => r.length > 0);
 
-    const preview = await versioningService.getEmailPreviewHtml(estimateId, recipients);
+    // Extract email content from body
+    const emailContent = {
+      subject: req.body.subject as string | undefined,
+      beginning: req.body.beginning as string | undefined,
+      end: req.body.end as string | undefined,
+      summaryConfig: req.body.summaryConfig as {
+        includeJobName?: boolean;
+        includeCustomerRef?: boolean;
+        includeQbEstimateNumber?: boolean;
+        includeSubtotal?: boolean;
+        includeTax?: boolean;
+        includeTotal?: boolean;
+        includeEstimateDate?: boolean;
+        includeValidUntilDate?: boolean;
+      } | undefined,
+      estimateData: req.body.estimateData as {
+        jobName?: string;
+        customerJobNumber?: string;
+        qbEstimateNumber?: string;
+        subtotal?: number;
+        tax?: number;
+        total?: number;
+        estimateDate?: string;
+      } | undefined
+    };
+
+    const preview = await versioningService.getEmailPreviewHtml(estimateId, recipients, emailContent);
 
     res.json({
       success: true,
@@ -497,6 +533,79 @@ export const updateLineDescriptions = async (req: AuthRequest, res: Response) =>
     res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'Failed to update line descriptions'
+    });
+  }
+};
+
+// =============================================
+// QB ESTIMATE PDF (Phase 4.c)
+// =============================================
+
+/**
+ * Get QB estimate PDF for preview
+ * Downloads PDF from QuickBooks and returns as base64
+ * @route GET /estimates/:estimateId/qb-pdf
+ */
+export const getEstimatePdf = async (req: AuthRequest, res: Response) => {
+  try {
+    const validation = validateEstimateId(req.params.estimateId, res);
+    if (!validation.isValid) return;
+    const estimateId = validation.value!;
+
+    // Get estimate to find QB estimate ID
+    const estimate = await versioningService.getEstimateById(estimateId);
+    if (!estimate) {
+      return res.status(404).json({
+        success: false,
+        message: 'Estimate not found'
+      });
+    }
+
+    if (!estimate.qb_estimate_id) {
+      return res.status(404).json({
+        success: false,
+        message: 'No QuickBooks estimate linked to this estimate'
+      });
+    }
+
+    // Get realm ID
+    const { quickbooksRepository } = await import('../../repositories/quickbooksRepository');
+    const realmId = await quickbooksRepository.getDefaultRealmId();
+    if (!realmId) {
+      return res.status(500).json({
+        success: false,
+        message: 'QuickBooks not configured'
+      });
+    }
+
+    // Download PDF from QuickBooks
+    const { getQBEstimatePdf } = await import('../../utils/quickbooks/apiClient');
+    const pdfBuffer = await getQBEstimatePdf(estimate.qb_estimate_id, realmId);
+
+    // Cache PDF to disk for later use when sending email
+    try {
+      await fs.mkdir(PDF_CACHE_DIR, { recursive: true });
+      const cachePath = path.join(PDF_CACHE_DIR, `estimate-${estimateId}.pdf`);
+      await fs.writeFile(cachePath, pdfBuffer);
+      console.log(`📎 Cached PDF for estimate ${estimateId} at ${cachePath}`);
+    } catch (cacheError) {
+      // Non-blocking - log but don't fail the request
+      console.error('⚠️ Failed to cache PDF:', cacheError instanceof Error ? cacheError.message : cacheError);
+    }
+
+    // Return as base64 for frontend to display
+    res.json({
+      success: true,
+      data: {
+        pdf: pdfBuffer.toString('base64'),
+        filename: `Estimate-${estimate.qb_doc_number || estimateId}.pdf`
+      }
+    });
+  } catch (error) {
+    console.error('Controller error getting estimate PDF:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to get estimate PDF'
     });
   }
 };

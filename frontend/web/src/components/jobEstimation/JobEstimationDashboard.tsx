@@ -33,13 +33,14 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
     navigate(`/estimates?cid=${customerId}&jid=${jobId}`);
   };
 
-  const handleCreateNewJob = async (newJobName: string) => {
+  const handleCreateNewJob = async (newJobName: string, customerJobNumber?: string) => {
     if (!selectedCustomerId) return;
 
     try {
       const response = await jobVersioningApi.createJob({
         customer_id: selectedCustomerId,
         job_name: newJobName,
+        customer_job_number: customerJobNumber,
       });
       const result = response.data || response;
       navigate(`/estimates?cid=${selectedCustomerId}&jid=${result.job_id}`);

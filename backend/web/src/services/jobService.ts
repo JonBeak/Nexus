@@ -65,7 +65,7 @@ export class JobService {
     }
   }
 
-  async updateJobName(jobId: number, newName: string, userId: number): Promise<void> {
+  async updateJobName(jobId: number, newName: string, userId: number, customerJobNumber?: string): Promise<void> {
     try {
       // First validate the new name doesn't conflict
       const job = await this.jobRepository.getJobById(jobId);
@@ -75,14 +75,17 @@ export class JobService {
       }
 
       const customerId = job.customer_id;
-      const isValidName = await this.validateJobName(customerId, newName);
 
-      if (!isValidName) {
-        throw new Error('Job name already exists for this customer');
+      // Only validate name if it's different from current
+      if (job.job_name !== newName) {
+        const isValidName = await this.validateJobName(customerId, newName);
+        if (!isValidName) {
+          throw new Error('Job name already exists for this customer');
+        }
       }
 
-      // Update the job name
-      await this.jobRepository.updateJobName(jobId, newName);
+      // Update the job name and customer job number
+      await this.jobRepository.updateJobName(jobId, newName, customerJobNumber);
 
     } catch (error) {
       console.error('Service error updating job name:', error);
@@ -113,7 +116,12 @@ export class JobService {
       // Generate unique job number
       const jobNumber = await this.generateJobNumber();
 
-      return await this.jobRepository.createJob(jobNumber, data.customer_id, data.job_name);
+      return await this.jobRepository.createJob(
+        jobNumber,
+        data.customer_id,
+        data.job_name,
+        data.customer_job_number
+      );
     } catch (error) {
       console.error('Service error creating job:', error);
       throw new Error('Failed to create job');

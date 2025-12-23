@@ -78,6 +78,7 @@ interface EstimatePreviewData {
     unitPrice?: number;
     extendedPrice?: number;
     calculationDisplay?: string;
+    qbDescription?: string;  // QB Description from estimate preview
   }>;
   subtotal: number;
   taxAmount: number;
@@ -215,6 +216,8 @@ export class QuickBooksService {
     qbEstimateId: string;
     qbDocNumber: string;
     qbEstimateUrl: string;
+    qbTxnDate: string;
+    estimateDate: string;
     linesCreated: number;
     debug?: any;
   }> {
@@ -282,13 +285,16 @@ export class QuickBooksService {
     console.log(`QB Estimate created: ID=${result.estimateId}, Doc#=${result.docNumber}`);
 
     // STEP 6: Finalize estimate (make immutable)
+    // Use txnDate from QB response as the estimate_date
     await quickbooksRepository.finalizeEstimate(
       estimateId,
       result.estimateId,
+      result.docNumber,
       {
         subtotal: estimatePreviewData.subtotal,
         taxAmount: estimatePreviewData.taxAmount,
         total: estimatePreviewData.total,
+        estimateDate: result.txnDate,
       },
       userId
     );
@@ -303,6 +309,8 @@ export class QuickBooksService {
         qbEstimateId: result.estimateId,
         qbDocNumber: result.docNumber,
         qbEstimateUrl,
+        qbTxnDate: result.txnDate,
+        estimateDate: result.txnDate,
         linesCreated: lines.length,
         debug: debugData,
       };
@@ -312,6 +320,8 @@ export class QuickBooksService {
       qbEstimateId: result.estimateId,
       qbDocNumber: result.docNumber,
       qbEstimateUrl,
+      qbTxnDate: result.txnDate,
+      estimateDate: result.txnDate,
       linesCreated: lines.length,
     };
   }
@@ -329,8 +339,9 @@ export class QuickBooksService {
       throw new Error('Estimate not found');
     }
 
-    if (!estimateDetails.is_draft) {
-      throw new Error('Only draft estimates can be sent to QuickBooks. This estimate is already finalized.');
+    // Allow QB creation from draft OR prepared state (but not after sent)
+    if (!estimateDetails.is_draft && !estimateDetails.is_prepared) {
+      throw new Error('Only draft or prepared estimates can be sent to QuickBooks. This estimate is already finalized.');
     }
 
     if (estimateDetails.qb_estimate_id) {
@@ -470,7 +481,8 @@ export class QuickBooksService {
     // REGULAR ITEM or DISCOUNT/FEE - SalesItemLineDetail
     let itemData = await quickbooksRepository.getCachedItemId(item.itemName);
     let qbItemId: string | null = itemData?.qb_item_id || null;
-    let qbDescription: string | null = itemData?.description || null;
+    // Use qbDescription from estimate preview (set during Prepare phase), fallback to cached
+    let qbDescription: string | null = item.qbDescription || itemData?.description || null;
 
     if (!qbItemId) {
       console.log(`Looking up item in QB: "${item.itemName}"`);

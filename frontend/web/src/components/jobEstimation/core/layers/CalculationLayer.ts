@@ -31,6 +31,9 @@ export interface EstimateLineItem {
 
   // Special rendering flags
   isDescriptionOnly?: boolean;         // True for description-only items (display like Empty Row)
+
+  // QB Description (populated when sending to QuickBooks)
+  qbDescription?: string;
 }
 
 export interface EstimatePreviewData {

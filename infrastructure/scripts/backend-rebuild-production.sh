@@ -1,5 +1,6 @@
 #!/bin/bash
 # Rebuild Production Backend (Overwrites dist-production)
+# Used in dual-instance setup where production runs on port 3001
 
 set -e
 
@@ -10,13 +11,7 @@ echo ""
 
 cd "$BACKEND_DIR"
 
-# Remove symlink first to prevent building through it
-if [ -L "dist" ]; then
-    echo "🔗 Removing existing symlink..."
-    rm dist
-fi
-
-# Build TypeScript
+# Build TypeScript to temp dist folder
 echo "📦 Running TypeScript build..."
 npm run build
 
@@ -37,14 +32,17 @@ fi
 echo "✅ Moving new build to dist-production"
 mv dist dist-production
 
-# Recreate symlink if needed
-if [ -L "dist" ]; then
-    rm dist
-fi
-ln -s dist-production dist
-
 echo ""
 echo "✅ Production backend rebuilt successfully!"
 echo "   Location: $BACKEND_DIR/dist-production"
 echo ""
-echo "⚠️  Backend not restarted - use switch-to-production.sh to activate"
+
+# Restart the production PM2 instance
+echo "🔄 Restarting signhouse-backend (port 3001)..."
+pm2 restart signhouse-backend
+
+echo ""
+echo "✅ Production backend rebuilt and restarted!"
+echo ""
+echo "📋 Check logs: pm2 logs signhouse-backend --lines 20"
+echo "🌐 Production API: http://192.168.2.14:3001"

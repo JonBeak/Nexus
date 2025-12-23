@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { quickbooksApi } from '../../../services/api';
 import { jobVersioningApi } from '../../../services/jobVersioningApi';
-import { EstimateVersion } from '../types';
+import { EstimateVersion, EmailSummaryConfig } from '../types';
 import { EstimatePreviewData } from '../core/layers/CalculationLayer';
 import { PointPersonEntry } from '../EstimatePointPersonsEditor';
 
@@ -12,7 +12,10 @@ interface UseQuickBooksIntegrationParams {
   // Phase 7: Workflow data
   pointPersons?: PointPersonEntry[];
   emailSubject?: string;
-  emailBody?: string;
+  emailBeginning?: string;
+  emailEnd?: string;
+  emailSummaryConfig?: EmailSummaryConfig;
+  lineDescriptions?: Map<number, string>;  // QB descriptions by line index
 }
 
 export const useQuickBooksIntegration = ({
@@ -21,7 +24,10 @@ export const useQuickBooksIntegration = ({
   onEstimateUpdate,
   pointPersons,
   emailSubject,
-  emailBody
+  emailBeginning,
+  emailEnd,
+  emailSummaryConfig,
+  lineDescriptions
 }: UseQuickBooksIntegrationParams) => {
   const [qbConnected, setQbConnected] = useState(false);
   const [qbRealmId, setQbRealmId] = useState<string | null>(null);
@@ -36,6 +42,9 @@ export const useQuickBooksIntegration = ({
   const [showConfirmFinalizeModal, setShowConfirmFinalizeModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successData, setSuccessData] = useState<{ qbDocNumber: string; qbEstimateUrl: string } | null>(null);
+  // Sent success modal state
+  const [showSentSuccessModal, setShowSentSuccessModal] = useState(false);
+  const [sentSuccessData, setSentSuccessData] = useState<{ emailsSentTo: string[]; wasResent: boolean } | null>(null);
 
   // Check QuickBooks connection status on mount
   useEffect(() => {
@@ -73,8 +82,9 @@ export const useQuickBooksIntegration = ({
       return;
     }
 
-    if (!currentEstimate.is_draft) {
-      alert('Only draft estimates can be sent to QuickBooks.');
+    // Allow QB creation from draft OR prepared state
+    if (!currentEstimate.is_draft && !currentEstimate.is_prepared) {
+      alert('Only draft or prepared estimates can be sent to QuickBooks.');
       return;
     }
 
@@ -95,9 +105,18 @@ export const useQuickBooksIntegration = ({
     try {
       setQbCreatingEstimate(true);
 
+      // Enrich items with QB descriptions from lineDescriptions map
+      const enrichedPreviewData = {
+        ...estimatePreviewData,
+        items: estimatePreviewData.items.map((item, index) => ({
+          ...item,
+          qbDescription: lineDescriptions?.get(index) || undefined
+        }))
+      };
+
       const result = await quickbooksApi.createEstimate({
         estimateId: currentEstimate.id,
-        estimatePreviewData: estimatePreviewData,
+        estimatePreviewData: enrichedPreviewData,
         debugMode: true, // TEMPORARY: Enable debug mode to compare sent vs received
       });
 
@@ -111,12 +130,15 @@ export const useQuickBooksIntegration = ({
 
       if (result.success && result.qbEstimateUrl) {
         // Update local state to reflect finalization
+        // Use estimate_date from QB TxnDate (returned from backend)
         onEstimateUpdate({
           ...currentEstimate,
           is_draft: false,
           status: 'sent',
           qb_estimate_id: result.qbEstimateId,
           qb_estimate_url: result.qbEstimateUrl,
+          qb_doc_number: result.qbDocNumber,  // Include QB doc number for email template
+          estimate_date: result.estimateDate || new Date().toISOString().split('T')[0],  // Use QB TxnDate, fallback to today
         });
 
         // Show success modal with options
@@ -147,12 +169,17 @@ export const useQuickBooksIntegration = ({
   const handlePrepareEstimate = async () => {
     if (!currentEstimate) return;
 
+    // Debug: Check what we're sending
+    console.log('[Prepare] estimatePreviewData sending:', !!estimatePreviewData, 'items:', estimatePreviewData?.items?.length ?? 0);
+
     try {
       setIsPreparing(true);
 
       const result = await jobVersioningApi.prepareEstimate(currentEstimate.id, {
         emailSubject,
-        emailBody,
+        emailBeginning,
+        emailEnd,
+        emailSummaryConfig,
         pointPersons: pointPersons?.map(pp => ({
           contact_id: pp.contact_id,
           contact_email: pp.contact_email,
@@ -161,7 +188,7 @@ export const useQuickBooksIntegration = ({
           contact_role: pp.contact_role,
           saveToDatabase: pp.saveToDatabase
         })),
-        estimatePreviewData  // NEW: Pass for QB description auto-fill
+        estimatePreviewData  // Pass for QB description auto-fill
       });
 
       if (result.success) {
@@ -189,27 +216,36 @@ export const useQuickBooksIntegration = ({
     try {
       setIsSending(true);
 
+      // Enrich items with QB descriptions from lineDescriptions map
+      const enrichedPreviewData = {
+        ...estimatePreviewData,
+        items: estimatePreviewData.items.map((item, index) => ({
+          ...item,
+          qbDescription: lineDescriptions?.get(index) || undefined
+        }))
+      };
+
       const result = await jobVersioningApi.sendEstimateToCustomer(
         currentEstimate.id,
-        estimatePreviewData
+        enrichedPreviewData
       );
 
       if (result.success) {
-        // Update local state
+        // Update local state with estimate_date from QB TxnDate
         onEstimateUpdate({
           ...currentEstimate,
           qb_estimate_id: result.qbEstimateId,
-          status: 'sent'
+          status: 'sent',
+          estimate_date: result.estimateDate || new Date().toISOString().split('T')[0]
         });
 
-        // Show warning if resending
-        if (result.message) {
-          alert(result.message);
-        }
-
-        // Show success notification
+        // Show success modal with sent details
         if (result.emailSentTo && result.emailSentTo.length > 0) {
-          alert(`Estimate sent to: ${result.emailSentTo.join(', ')}`);
+          setSentSuccessData({
+            emailsSentTo: result.emailSentTo,
+            wasResent: !!result.message // message indicates it was a resend
+          });
+          setShowSentSuccessModal(true);
         }
       } else {
         alert(`Failed to send estimate: ${result.message || 'Unknown error'}`);
@@ -287,6 +323,12 @@ export const useQuickBooksIntegration = ({
     }
   };
 
+  // Handler to close sent success modal
+  const handleCloseSentSuccessModal = () => {
+    setShowSentSuccessModal(false);
+    setSentSuccessData(null);
+  };
+
   return {
     qbConnected,
     qbRealmId,
@@ -308,6 +350,10 @@ export const useQuickBooksIntegration = ({
     isSending,
     handlePrepareEstimate,
     handleSendToCustomer,
-    handleOpenFromSuccessModal
+    handleOpenFromSuccessModal,
+    // Sent success modal
+    showSentSuccessModal,
+    sentSuccessData,
+    handleCloseSentSuccessModal
   };
 };

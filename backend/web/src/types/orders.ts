@@ -341,6 +341,7 @@ export interface EstimateLineItem {
   extendedPrice: number;
   assemblyGroupId?: string;
   isDescriptionOnly?: boolean;
+  qbDescription?: string;  // QB Description from estimate preview
 }
 
 // =============================================

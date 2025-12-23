@@ -4,10 +4,16 @@
 
 ## System Overview
 
-Nexus uses a **dual-build architecture** where production and development builds coexist safely:
-- **Backend**: `/backend/web/dist` → symlink to `dist-production/` or `dist-dev/`
-- **Frontend**: `/frontend/web/dist` → symlink to `dist-production/` or `dist-dev/`
-- **PM2** runs whichever build the symlink points to
+Nexus uses a **dual-instance architecture** where production and development backends run simultaneously:
+
+| Environment | Backend Port | Build Directory | PM2 Process | Frontend |
+|-------------|--------------|-----------------|-------------|----------|
+| **Production** | 3001 | `dist-production/` | `signhouse-backend` | `nexuswebapp.duckdns.org` (Nginx) |
+| **Development** | 3002 | `dist-dev/` | `signhouse-backend-dev` | `192.168.2.14:5173` (Vite) |
+
+- Both backends run from PM2 using `/backend/web/ecosystem.config.js`
+- Each instance runs from its own build directory (no symlink switching needed)
+- Development changes don't affect production until you explicitly rebuild production
 
 All scripts located in: `/home/jon/Nexus/infrastructure/scripts/`
 
@@ -17,27 +23,35 @@ All scripts located in: `/home/jon/Nexus/infrastructure/scripts/`
 
 ### Server Management
 ```bash
-start-production.sh    # Start with production builds
-start-dev.sh          # Start with dev builds
+start-production.sh    # Start both backends + build frontend for Nginx
+start-dev.sh          # Start both backends + Vite dev server
 stop-servers.sh       # Stop all servers
-status-servers.sh     # Check status and active builds
+status-servers.sh     # Check status of all instances
 ```
 
 ### Build Management
 ```bash
-build-status.sh       # Check which builds are active
+# Backend (rebuilds and restarts the appropriate PM2 instance)
+backend-rebuild-dev.sh        # Rebuild dist-dev + restart signhouse-backend-dev
+backend-rebuild-production.sh # Rebuild dist-production + restart signhouse-backend
 
-# Unified (backend + frontend together)
-rebuild-dev.sh        # Rebuild both dev builds
-rebuild-production.sh # Rebuild both production builds
-switch-to-dev.sh      # Switch both to dev
-switch-to-production.sh # Switch both to production
+# Frontend
+frontend-rebuild-dev.sh       # Rebuild frontend dev
+frontend-rebuild-production.sh # Rebuild frontend production
 
-# Individual (backend OR frontend only)
-backend-rebuild-dev.sh        # Rebuild backend dev only
-backend-switch-to-dev.sh      # Switch backend to dev only
-frontend-rebuild-dev.sh       # Rebuild frontend dev only
-frontend-switch-to-dev.sh     # Switch frontend to dev only
+# Both (unified)
+rebuild-dev.sh        # Rebuild both backend + frontend dev
+rebuild-production.sh # Rebuild both backend + frontend production
+```
+
+### PM2 Commands
+```bash
+pm2 list                           # See both instances
+pm2 logs signhouse-backend         # Production backend logs
+pm2 logs signhouse-backend-dev     # Dev backend logs
+pm2 restart signhouse-backend      # Restart production only
+pm2 restart signhouse-backend-dev  # Restart dev only
+pm2 restart all                    # Restart both
 ```
 
 ### Backup Management
@@ -52,64 +66,64 @@ cleanup-backups.sh [N]    # Keep last N backups (default: 10)
 
 ## Development Workflow
 
-### Frontend Development
-**Use hot-reload - do NOT rebuild**
+### Day-to-Day Development
 
-1. Ensure dev server is running: `start-dev.sh`
-2. Make frontend code changes
-3. Changes appear automatically in browser
+1. **Frontend changes** - Vite hot-reloads automatically on port 5173
+2. **Backend changes** - Run `backend-rebuild-dev.sh` to rebuild and restart dev instance
+3. **Test** - Access `http://192.168.2.14:5173` (talks to backend on port 3002)
+4. **Production stays untouched** - Port 3001 continues serving stable code
 
-### Backend Development
-**Requires rebuild after changes**
+### Deploying to Production
 
-Quick rebuild command:
+When you're ready to push changes to production:
+
 ```bash
-backend-rebuild-dev.sh && backend-switch-to-dev.sh
+# 1. Create a backup first
+backup-builds.sh
+
+# 2. Rebuild production backend
+backend-rebuild-production.sh
+
+# 3. Rebuild production frontend (if frontend changes)
+frontend-rebuild-production.sh
+
+# 4. Verify
+status-servers.sh
 ```
 
-Steps:
-1. Make backend code changes
-2. Run: `backend-rebuild-dev.sh && backend-switch-to-dev.sh`
-3. Backend automatically restarts via PM2
-4. Test changes immediately
+Production is now live with your changes at `https://nexuswebapp.duckdns.org`
 
 ---
 
 ## Common Workflows
 
-### Testing New Features (Dev → Production)
-```bash
-# 1. Create backup
-backup-builds.sh
-
-# 2. Make code changes, then rebuild dev
-rebuild-dev.sh
-
-# 3. Switch to dev and restart
-switch-to-dev.sh
-stop-servers.sh && start-dev.sh
-
-# 4. Test thoroughly
-
-# 5. If good, promote to production
-rebuild-production.sh
-switch-to-production.sh
-stop-servers.sh && start-production.sh
-```
-
 ### Backend-Only Update
 ```bash
-# 1. Backup first
+# 1. Make backend code changes
+# 2. Rebuild and test on dev
+backend-rebuild-dev.sh
+# 3. Test on port 3002
+# 4. Deploy to production
 backup-builds.sh
-
-# 2. Make backend changes, rebuild and switch
-backend-rebuild-dev.sh && backend-switch-to-dev.sh
-
-# 3. Test backend (frontend stays on current build)
-
-# 4. If good, promote to production
 backend-rebuild-production.sh
-backend-switch-to-production.sh
+```
+
+### Frontend-Only Update
+```bash
+# 1. Make frontend code changes (hot-reload on 5173)
+# 2. When ready, rebuild production frontend
+frontend-rebuild-production.sh
+# Nginx automatically serves the new build
+```
+
+### Full Stack Update
+```bash
+# 1. Make all changes
+# 2. Test on dev (5173 + 3002)
+backend-rebuild-dev.sh
+# 3. Deploy to production
+backup-builds.sh
+rebuild-production.sh
 ```
 
 ### Emergency Rollback
@@ -126,106 +140,81 @@ restore-backup.sh <backup-filename>
 # 4. Start servers
 start-production.sh
 
-# 5. Verify in browser
-```
-
-### Switching Between Builds (No Rebuild)
-```bash
-# Switch to dev
-switch-to-dev.sh
-stop-servers.sh && start-dev.sh
-
-# Switch to production
-switch-to-production.sh
-stop-servers.sh && start-production.sh
-
-# Check status
-build-status.sh
+# 5. Verify
+status-servers.sh
 ```
 
 ---
 
 ## Best Practices
 
-✅ **DO:**
-- Test in dev before promoting to production
-- Create backups before major changes
-- Use `backend-rebuild-dev.sh` for quick backend iterations
+**DO:**
+- Test on dev (5173 + 3002) before deploying to production
+- Create backups before major production changes
+- Use `status-servers.sh` to verify both instances are running
 - Keep last 10 backups minimum
-- Check `build-status.sh` after switching
+- Run `backup-builds.sh` weekly
 
-❌ **DON'T:**
-- Rebuild frontend during development (use hot-reload)
-- Skip dev testing phase
+**DON'T:**
+- Manually run `npm run build` - use the scripts
 - Modify files in `/infrastructure/backups/`
-- Forget to restart servers after switching builds
+- Forget that production (3001) and dev (3002) are separate instances
 
 ---
 
 ## Troubleshooting
 
+### Instance not starting
+```bash
+# Check PM2 status
+pm2 status
+
+# Check logs for errors
+pm2 logs signhouse-backend --lines 50
+pm2 logs signhouse-backend-dev --lines 50
+
+# Restart from ecosystem config
+cd /home/jon/Nexus/backend/web
+pm2 delete all
+pm2 start ecosystem.config.js
+pm2 save
+```
+
 ### Build doesn't exist
 ```bash
 # Rebuild the missing build
-rebuild-dev.sh          # or
-rebuild-production.sh
+backend-rebuild-dev.sh     # For dev
+backend-rebuild-production.sh  # For production
 ```
 
-### Server won't start
+### Port already in use
 ```bash
-# Check status
-build-status.sh
-status-servers.sh
+# Check what's using the port
+lsof -i :3001  # Production
+lsof -i :3002  # Dev
 
-# Check logs
-pm2 logs signhouse-backend
-tail -f /tmp/signhouse-frontend.log
-
-# Verify builds exist
-ls -la /home/jon/Nexus/backend/web/dist*/
-ls -la /home/jon/Nexus/frontend/web/dist*/
+# Kill rogue process if needed
+kill -9 <PID>
 ```
 
-### Symlink broken
+### Frontend not connecting to correct backend
 ```bash
-# Check symlink
-readlink /home/jon/Nexus/backend/web/dist
+# Check .env.development (should point to 3002)
+cat /home/jon/Nexus/frontend/web/.env.development
+# Should show: VITE_API_URL=http://192.168.2.14:3002/api
 
-# Manual fix (backend example)
-cd /home/jon/Nexus/backend/web
-rm dist
-ln -s dist-production dist
-```
-
-### Backup restore failed
-```bash
-# Verify backup exists
-list-backups.sh
-
-# Check integrity
-tar -tzf /home/jon/Nexus/infrastructure/backups/backend-builds/<backup-file> > /dev/null
-
-# Manual restore (backend example)
-cd /home/jon/Nexus/backend/web
-tar -xzf /home/jon/Nexus/infrastructure/backups/backend-builds/<backup-file>
-```
-
-### Disk space low
-```bash
-# Aggressive cleanup (keep last 5)
-cleanup-backups.sh 5
-
-# Check sizes
-list-backups.sh
+# Check .env.production (should point to production URL)
+cat /home/jon/Nexus/frontend/web/.env.production
+# Should show: VITE_API_URL=https://nexuswebapp.duckdns.org/api
 ```
 
 ---
 
 ## Technical Notes
 
-- **Symlinks** allow instant switching without rebuilding
-- **PM2** automatically picks up changes after restart
-- **Vite** hot-reload works only in dev mode (port 5173)
+- **PM2 Config**: `/home/jon/Nexus/backend/web/ecosystem.config.js`
+- **Frontend Dev Env**: `.env.development` points to port 3002
+- **Frontend Prod Env**: `.env.production` points to `nexuswebapp.duckdns.org`
 - **Backups** stored in `/home/jon/Nexus/infrastructure/backups/`
 - **Backup format**: `dist-{production|dev}-YYYYMMDD-HHMMSS-commit-{hash}.tar.gz`
 - **Typical sizes**: Backend ~500KB, Frontend ~400KB (compressed)
@@ -234,9 +223,15 @@ list-backups.sh
 
 ## View Logs
 ```bash
-# Backend
+# Backend Production
 pm2 logs signhouse-backend
 
-# Frontend
+# Backend Development
+pm2 logs signhouse-backend-dev
+
+# Frontend Dev Server
 tail -f /tmp/signhouse-frontend.log
+
+# Nginx
+sudo tail -f /var/log/nginx/signhouse-error.log
 ```

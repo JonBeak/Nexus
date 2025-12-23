@@ -100,12 +100,19 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
     if (showDuplicateModal === null) return;
 
     try {
-      await jobVersioningApi.duplicateEstimate(showDuplicateModal, {
+      const result = await jobVersioningApi.duplicateEstimate(showDuplicateModal, {
         target_job_id: jobId,
         notes: notes.trim() || undefined
       });
       setShowDuplicateModal(null);
-      fetchVersions();
+
+      // Navigate to the new copied estimate's page
+      if (result?.estimate_id) {
+        navigate(`/estimate/${result.estimate_id}`);
+      } else {
+        // Fallback: refresh list if no estimate_id returned
+        fetchVersions();
+      }
     } catch (err) {
       console.error('Error duplicating version:', err);
       if (err instanceof Error && err.message.includes('circular reference')) {

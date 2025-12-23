@@ -1,5 +1,6 @@
 #!/bin/bash
 # Rebuild Development Backend (Overwrites dist-dev)
+# Used in dual-instance setup where dev runs on port 3002
 
 set -e
 
@@ -10,13 +11,7 @@ echo ""
 
 cd "$BACKEND_DIR"
 
-# Remove symlink first to prevent building through it
-if [ -L "dist" ]; then
-    echo "🔗 Removing existing symlink..."
-    rm dist
-fi
-
-# Build TypeScript
+# Build TypeScript to temp dist folder
 echo "📦 Running TypeScript build..."
 npm run build
 
@@ -37,14 +32,17 @@ fi
 echo "✅ Moving new build to dist-dev"
 mv dist dist-dev
 
-# Recreate symlink if needed
-if [ -L "dist" ]; then
-    rm dist
-fi
-ln -s dist-dev dist
-
 echo ""
 echo "✅ Dev backend rebuilt successfully!"
 echo "   Location: $BACKEND_DIR/dist-dev"
 echo ""
-echo "⚠️  Backend not restarted - use switch-to-dev.sh to activate"
+
+# Restart the dev PM2 instance
+echo "🔄 Restarting signhouse-backend-dev (port 3002)..."
+pm2 restart signhouse-backend-dev
+
+echo ""
+echo "✅ Dev backend rebuilt and restarted!"
+echo ""
+echo "📋 Check logs: pm2 logs signhouse-backend-dev --lines 20"
+echo "🌐 Dev API: http://192.168.2.14:3002"

@@ -306,7 +306,7 @@ export interface QBEstimatePayload {
 export async function createEstimate(
   estimatePayload: QBEstimatePayload,
   realmId: string
-): Promise<{ estimateId: string; docNumber: string }> {
+): Promise<{ estimateId: string; docNumber: string; txnDate: string }> {
   console.log('📝 Creating estimate in QuickBooks...');
 
   // Log the actual API call being made
@@ -353,6 +353,7 @@ export async function createEstimate(
   return {
     estimateId: estimate.Id,
     docNumber: estimate.DocNumber,
+    txnDate: estimate.TxnDate,
   };
 }
 
@@ -375,4 +376,48 @@ export function getEstimateWebUrl(estimateId: string): string {
 export function getEstimatePdfApiUrl(estimateId: string, realmId: string): string {
   // QuickBooks API endpoint for PDF download
   return `${QB_API_BASE_URL}/${realmId}/estimate/${estimateId}/pdf`;
+}
+
+/**
+ * Download estimate PDF from QuickBooks
+ * Returns the PDF as a Buffer for serving to clients
+ */
+export async function getQBEstimatePdf(
+  estimateId: string,
+  realmId: string
+): Promise<Buffer> {
+  console.log(`📄 Downloading PDF for estimate ${estimateId}...`);
+
+  // Get active access token
+  let tokenData = await quickbooksOAuthRepository.getActiveTokens(realmId);
+
+  if (!tokenData) {
+    console.log(`⚠️  No active access token for Realm ${realmId}. Attempting refresh...`);
+    await refreshAccessToken(realmId);
+    tokenData = await quickbooksOAuthRepository.getActiveTokens(realmId);
+  }
+
+  if (!tokenData) {
+    throw new APIError('No active access token available for PDF download');
+  }
+
+  const url = getEstimatePdfApiUrl(estimateId, realmId);
+
+  try {
+    const response = await axios.get<ArrayBuffer>(url, {
+      headers: {
+        Authorization: `Bearer ${tokenData.access_token}`,
+        Accept: 'application/pdf',
+      },
+      responseType: 'arraybuffer',
+    });
+
+    const data = response.data as ArrayBuffer;
+    console.log(`✅ Estimate PDF downloaded: ${data.byteLength} bytes`);
+    return Buffer.from(data);
+  } catch (error: any) {
+    const status = error.response?.status;
+    console.error(`❌ Estimate PDF download failed (${status}):`, error.message);
+    throw new APIError(`Failed to download estimate PDF: ${error.message}`, status);
+  }
 }

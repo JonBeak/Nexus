@@ -12,6 +12,17 @@ import type { EstimatePreviewData } from '../../jobEstimation/core/layers/Calcul
 import type { PointPersonInput } from '../../../types/orders';
 import { validateJobOrOrderName } from '../../../utils/folderNameValidation';
 
+interface PointPersonEntry {
+  id: string;                 // Temporary ID for React key
+  mode: 'existing' | 'custom'; // Mode: existing contact or custom entry
+  contact_id?: number;
+  contact_email: string;
+  contact_name?: string;
+  contact_phone?: string;
+  contact_role?: string;
+  saveToDatabase?: boolean;   // Only applicable for custom contacts
+}
+
 interface ApproveEstimateModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -23,17 +34,8 @@ interface ApproveEstimateModalProps {
   jobName?: string;           // Job name for estimate summary
   estimateNotes?: string;     // Estimate version notes/description
   qbEstimateId?: string;      // QuickBooks estimate ID (if sent to QB)
-}
-
-interface PointPersonEntry {
-  id: string;                 // Temporary ID for React key
-  mode: 'existing' | 'custom'; // Mode: existing contact or custom entry
-  contact_id?: number;
-  contact_email: string;
-  contact_name?: string;
-  contact_phone?: string;
-  contact_role?: string;
-  saveToDatabase?: boolean;   // Only applicable for custom contacts
+  initialCustomerJobNumber?: string;   // Pre-fill from job's Customer Ref #
+  initialPointPersons?: PointPersonEntry[];  // Inherit from estimate
 }
 
 export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
@@ -46,7 +48,9 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
   customerId,
   jobName,
   estimateNotes,
-  qbEstimateId
+  qbEstimateId,
+  initialCustomerJobNumber,
+  initialPointPersons
 }) => {
   // Existing state
   const [orderName, setOrderName] = useState(defaultOrderName);
@@ -59,8 +63,8 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
   // Confirmation for approving without QB estimate
   const [confirmedNoQBEstimate, setConfirmedNoQBEstimate] = useState(false);
 
-  // Phase 1.5.a.5: New state variables
-  const [customerJobNumber, setCustomerJobNumber] = useState('');
+  // Phase 1.5.a.5: New state variables - pre-fill from job's Customer Ref #
+  const [customerJobNumber, setCustomerJobNumber] = useState(initialCustomerJobNumber || '');
 
   // Due Date Tracking
   const [autoCalculatedDate, setAutoCalculatedDate] = useState<string>('');
@@ -87,11 +91,13 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
         estimateNotes,
         customerId,
         defaultOrderName,
-        qbEstimateId
+        qbEstimateId,
+        initialCustomerJobNumber,
+        initialPointPersonsCount: initialPointPersons?.length
       });
       setOrderName(defaultOrderName);
       setCustomerPo('');
-      setCustomerJobNumber('');
+      setCustomerJobNumber(initialCustomerJobNumber || '');
       setDueDate('');
       setAutoCalculatedDate('');
       setDueDateManuallyChanged(false);
@@ -105,7 +111,7 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
       setValidationError(null);
       setConfirmedNoQBEstimate(false);
     }
-  }, [isOpen, defaultOrderName, qbEstimateId]);
+  }, [isOpen, defaultOrderName, qbEstimateId, initialCustomerJobNumber]);
 
   // Calculate default due date when modal opens
   useEffect(() => {
@@ -165,17 +171,25 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
   // Fetch customer contacts when modal opens
   useEffect(() => {
     if (isOpen && customerId) {
+      // Check if we have initial point persons to inherit from the estimate
+      const hasInitialPointPersons = initialPointPersons && initialPointPersons.length > 0;
+
       // Try to fetch ALL contacts first (requires customers.view permission)
       // If that fails, fall back to just emails (requires orders.create permission)
       customerContactsApi.getContacts(customerId)
         .then(contacts => {
-          // Success - we have all contacts
+          // Success - we have all contacts for the dropdown
           setAllContacts(contacts || []);
           setContactEmails(contacts.map((c: any) => c.contact_email) || []);
 
-          // Check if there are any contacts
-          if (contacts && contacts.length > 0) {
-            // Has contacts - start with existing contact mode but empty dropdown
+          // If we have initial point persons from the estimate, use those
+          if (hasInitialPointPersons) {
+            setPointPersons(initialPointPersons.map(pp => ({
+              ...pp,
+              id: `inherited-${pp.id || Date.now()}-${Math.random()}`
+            })));
+          } else if (contacts && contacts.length > 0) {
+            // No inherited point persons, has contacts - start with existing contact mode but empty dropdown
             setPointPersons([{
               id: `empty-${Date.now()}`,
               mode: 'existing' as const,
@@ -200,8 +214,13 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
               setContactEmails(emails || []);
               setAllContacts([]);
 
-              // Check if there are any emails
-              if (emails && emails.length > 0) {
+              // If we have initial point persons from the estimate, use those
+              if (hasInitialPointPersons) {
+                setPointPersons(initialPointPersons.map(pp => ({
+                  ...pp,
+                  id: `inherited-${pp.id || Date.now()}-${Math.random()}`
+                })));
+              } else if (emails && emails.length > 0) {
                 // Has emails - start with existing contact mode but empty dropdown
                 setPointPersons([{
                   id: `empty-${Date.now()}`,
@@ -222,17 +241,26 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
               console.error('Error fetching contacts (fallback):', fallbackError);
               setContactEmails([]);
               setAllContacts([]);
-              // On error, still show one empty entry in custom mode with save enabled
-              setPointPersons([{
-                id: `empty-${Date.now()}`,
-                mode: 'custom' as const,
-                contact_email: '',
-                saveToDatabase: true
-              }]);
+
+              // If we have initial point persons from the estimate, use those even on error
+              if (hasInitialPointPersons) {
+                setPointPersons(initialPointPersons.map(pp => ({
+                  ...pp,
+                  id: `inherited-${pp.id || Date.now()}-${Math.random()}`
+                })));
+              } else {
+                // On error, still show one empty entry in custom mode with save enabled
+                setPointPersons([{
+                  id: `empty-${Date.now()}`,
+                  mode: 'custom' as const,
+                  contact_email: '',
+                  saveToDatabase: true
+                }]);
+              }
             });
         });
     }
-  }, [isOpen, customerId]);
+  }, [isOpen, customerId, initialPointPersons]);
 
   // Validate order name uniqueness (debounced)
   useEffect(() => {

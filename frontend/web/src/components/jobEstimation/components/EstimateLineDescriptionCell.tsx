@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 interface EstimateLineDescriptionCellProps {
   lineIndex: number;
@@ -18,6 +18,16 @@ export const EstimateLineDescriptionCell: React.FC<EstimateLineDescriptionCellPr
   const [value, setValue] = useState(initialValue);
   const [isDirty, setIsDirty] = useState(false);
   const prevValueRef = useRef(initialValue);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize textarea to fit content
+  const autoResize = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.max(24, textarea.scrollHeight)}px`;
+    }
+  }, []);
 
   // Update local state when initialValue changes (e.g., after auto-fill)
   useEffect(() => {
@@ -28,7 +38,12 @@ export const EstimateLineDescriptionCell: React.FC<EstimateLineDescriptionCellPr
     }
   }, [initialValue]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Auto-resize when value changes
+  useEffect(() => {
+    autoResize();
+  }, [value, autoResize]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
     setValue(newValue);
     setIsDirty(newValue !== initialValue);
@@ -41,33 +56,32 @@ export const EstimateLineDescriptionCell: React.FC<EstimateLineDescriptionCellPr
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.currentTarget.blur(); // Trigger save
-    }
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Escape') {
       setValue(initialValue); // Revert
       setIsDirty(false);
       e.currentTarget.blur();
     }
+    // Allow Enter for new lines (don't blur on Enter)
   };
 
   if (readOnly) {
     return (
-      <span className="text-xs text-gray-700 px-1">
+      <span className="text-xs text-gray-700 px-1 whitespace-pre-wrap break-words">
         {value || '-'}
       </span>
     );
   }
 
   return (
-    <input
-      type="text"
+    <textarea
+      ref={textareaRef}
       value={value}
       onChange={handleChange}
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
-      className={`w-full px-1 py-0.5 text-xs border rounded
+      rows={1}
+      className={`w-full px-1 py-0.5 text-xs border rounded resize-none overflow-hidden
         ${isDirty
           ? 'border-blue-500 bg-blue-50'
           : 'border-gray-300 hover:border-blue-400'

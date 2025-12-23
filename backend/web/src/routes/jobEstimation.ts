@@ -107,12 +107,15 @@ router.put('/estimates/:estimateId/point-persons', authenticateToken, estimateVe
 router.get('/estimates/:estimateId/email-content', authenticateToken, estimateVersionController.getEstimateEmailContent);
 router.put('/estimates/:estimateId/email-content', authenticateToken, estimateVersionController.updateEstimateEmailContent);
 
-// Email preview for modal display
-router.get('/estimates/:estimateId/email-preview', authenticateToken, estimateVersionController.getEstimateEmailPreview);
+// Email preview for modal display (POST to accept email content in body)
+router.post('/estimates/:estimateId/email-preview', authenticateToken, estimateVersionController.getEstimateEmailPreview);
 
 // QB Line Descriptions (Phase 4.c - QB Description Column)
 router.get('/estimates/:estimateId/line-descriptions', authenticateToken, estimateVersionController.getLineDescriptions);
 router.put('/estimates/:estimateId/line-descriptions', authenticateToken, estimateVersionController.updateLineDescriptions);
+
+// QB Estimate PDF (Phase 4.c - PDF Preview in Send Modal)
+router.get('/estimates/:estimateId/qb-pdf', authenticateToken, estimateVersionController.getEstimatePdf);
 
 // Multiple orders support - Using JobController
 router.get('/jobs/:jobId/check-existing-orders', authenticateToken, jobController.checkExistingOrders);

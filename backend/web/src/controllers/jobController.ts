@@ -155,7 +155,7 @@ export const updateJob = async (req: Request, res: Response) => {
   try {
     const user = (req as AuthRequest).user;
     const { jobId } = req.params;
-    const { job_name } = req.body;
+    const { job_name, customer_job_number } = req.body;
 
     const jobIdNum = parseIntParam(jobId, 'job ID');
 
@@ -174,11 +174,16 @@ export const updateJob = async (req: Request, res: Response) => {
       return sendErrorResponse(res, nameValidation.error!, 'VALIDATION_ERROR');
     }
 
-    await versioningService.updateJobName(jobIdNum, trimmedJobName, user?.user_id!);
+    await versioningService.updateJobName(
+      jobIdNum,
+      trimmedJobName,
+      user?.user_id!,
+      customer_job_number?.trim() || undefined
+    );
 
     res.json({
       success: true,
-      message: 'Job name updated successfully'
+      message: 'Job updated successfully'
     });
   } catch (error) {
     console.error('Controller error updating job:', error);
@@ -189,7 +194,7 @@ export const updateJob = async (req: Request, res: Response) => {
 export const createJob = async (req: Request, res: Response) => {
   try {
     const user = (req as AuthRequest).user;
-    const { customer_id, job_name } = req.body;
+    const { customer_id, job_name, customer_job_number } = req.body;
 
     if (!customer_id || !job_name) {
       return sendErrorResponse(res, 'Customer ID and job name are required', 'VALIDATION_ERROR');
@@ -208,7 +213,8 @@ export const createJob = async (req: Request, res: Response) => {
 
     const jobData: JobData = {
       customer_id: parseInt(customer_id),
-      job_name: trimmedJobName
+      job_name: trimmedJobName,
+      customer_job_number: customer_job_number?.trim() || undefined
     };
 
     const jobId = await versioningService.createJob(jobData);

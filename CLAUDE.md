@@ -311,28 +311,65 @@ export const ExampleComponent = ({ }: Props) => {
   </ArchitectureStandard>
 
   <SystemAccess>
+    <DualInstanceArchitecture>
+      <Overview>
+        Two backend instances run simultaneously on different ports, allowing development
+        without affecting production. Each instance runs from its own build directory.
+      </Overview>
+      <Instances>
+        <Production>
+          <Port>3001</Port>
+          <BuildDir>dist-production/</BuildDir>
+          <PM2Name>signhouse-backend</PM2Name>
+          <Frontend>https://nexuswebapp.duckdns.org (Nginx)</Frontend>
+        </Production>
+        <Development>
+          <Port>3002</Port>
+          <BuildDir>dist-dev/</BuildDir>
+          <PM2Name>signhouse-backend-dev</PM2Name>
+          <Frontend>http://192.168.2.14:5173 (Vite hot-reload)</Frontend>
+        </Development>
+      </Instances>
+      <PM2Config>/home/jon/Nexus/backend/web/ecosystem.config.js</PM2Config>
+    </DualInstanceArchitecture>
+
     <ServerManagement>
       <StartProduction>/home/jon/Nexus/infrastructure/scripts/start-production.sh</StartProduction>
       <StartDevelopment>/home/jon/Nexus/infrastructure/scripts/start-dev.sh</StartDevelopment>
       <StopServers>/home/jon/Nexus/infrastructure/scripts/stop-servers.sh</StopServers>
-      <CheckStatus>/home/jon/Nexus/infrastructure/scripts/status-servers.sh (shows active build)</CheckStatus>
+      <CheckStatus>/home/jon/Nexus/infrastructure/scripts/status-servers.sh (shows both instances)</CheckStatus>
       <ViewLogs>
-        <Backend>pm2 logs signhouse-backend</Backend>
+        <BackendProd>pm2 logs signhouse-backend</BackendProd>
+        <BackendDev>pm2 logs signhouse-backend-dev</BackendDev>
         <Frontend>tail -f /tmp/signhouse-frontend.log</Frontend>
       </ViewLogs>
-      <Deprecated>
-        <OldScript>/home/jon/Nexus/infrastructure/scripts/start-servers.sh (DO NOT USE - not build-aware)</OldScript>
-      </Deprecated>
     </ServerManagement>
+
+    <DevelopmentWorkflow>
+      <Step order="1">Make code changes (frontend hot-reloads automatically)</Step>
+      <Step order="2">For backend changes: backend-rebuild-dev.sh (rebuilds and restarts dev instance)</Step>
+      <Step order="3">Test on http://192.168.2.14:5173 (talks to backend on port 3002)</Step>
+      <Step order="4">Production on port 3001 remains untouched during development</Step>
+      <Step order="5">When ready to deploy: backend-rebuild-production.sh</Step>
+      <Step order="6">Production immediately serves new code</Step>
+    </DevelopmentWorkflow>
 
     <BuildAndBackupManagement>
       <FullDocumentation>See /home/jon/Nexus/BUILD_MANAGEMENT.md for complete build and backup management guide</FullDocumentation>
 
+      <BackupSchedule>
+        <Requirement>Create production build backups WEEKLY to maintain stable restore points</Requirement>
+        <Rationale>Backups enable quick rollback if issues occur. Weekly frequency ensures you always have a recent known-good state. Backup metadata includes commit hash so you know exact code version.</Rationale>
+        <Command>backup-builds.sh</Command>
+        <Note>Test backup restoration periodically to ensure backups are valid and processes work correctly</Note>
+      </BackupSchedule>
+
       <QuickReference>
-        <DualBuildSystem>
-          System supports simultaneous production and development builds for safe testing.
-          PM2 runs whichever build the 'dist' symlink points to.
-        </DualBuildSystem>
+        <DualInstanceSystem>
+          Two backend instances run simultaneously: production (3001) and dev (3002).
+          Each runs from its own build directory (dist-production/ and dist-dev/).
+          No symlink switching needed - just rebuild the appropriate directory.
+        </DualInstanceSystem>
 
         <MostUsedCommands>
           <ServerControl>
@@ -342,9 +379,10 @@ export const ExampleComponent = ({ }: Props) => {
           </ServerControl>
 
           <BuildControl>
-            <Rebuild>rebuild-dev.sh or rebuild-production.sh</Rebuild>
-            <Switch>switch-to-dev.sh or switch-to-production.sh</Switch>
-            <Check>build-status.sh</Check>
+            <RebuildDev>backend-rebuild-dev.sh (rebuilds and restarts dev on 3002)</RebuildDev>
+            <RebuildProd>backend-rebuild-production.sh (rebuilds and restarts prod on 3001)</RebuildProd>
+            <RestartDev>pm2 restart signhouse-backend-dev</RestartDev>
+            <RestartProd>pm2 restart signhouse-backend</RestartProd>
           </BuildControl>
 
           <BackupControl>

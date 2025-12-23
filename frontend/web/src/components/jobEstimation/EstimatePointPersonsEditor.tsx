@@ -38,19 +38,21 @@ interface EstimatePointPerson {
 interface EstimatePointPersonsEditorProps {
   customerId: number;
   initialPointPersons?: EstimatePointPerson[];
-  onChange: (pointPersons: PointPersonEntry[]) => void;
+  onSave: (pointPersons: PointPersonEntry[]) => Promise<void>;
   disabled?: boolean;
 }
 
 const EstimatePointPersonsEditor: React.FC<EstimatePointPersonsEditorProps> = ({
   customerId,
   initialPointPersons = [],
-  onChange,
+  onSave,
   disabled = false
 }) => {
   const [pointPersons, setPointPersons] = useState<PointPersonEntry[]>([]);
   const [allContacts, setAllContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
 
   // Load contacts function
   const loadContacts = useCallback(async () => {
@@ -89,15 +91,32 @@ const EstimatePointPersonsEditor: React.FC<EstimatePointPersonsEditorProps> = ({
     }
   }, [initialPointPersons]);
 
-  // Notify parent of changes
-  const notifyChange = (newPointPersons: PointPersonEntry[]) => {
-    setPointPersons(newPointPersons);
-    // Filter out empty entries before notifying
-    const validEntries = newPointPersons.filter(p => {
-      if (p.mode === 'existing') return p.contact_id != null;
-      return p.contact_email?.trim();
-    });
-    onChange(validEntries);
+  // Handle save - filter out empty rows and notify parent
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      // Filter out empty rows
+      const validPointPersons = pointPersons.filter(p => {
+        if (p.mode === 'existing') return p.contact_id != null;
+        return p.contact_email?.trim();
+      });
+
+      const hasSaveToDatabase = validPointPersons.some(p => p.saveToDatabase && !p.contact_id);
+      await onSave(validPointPersons);
+
+      // Update local state to remove empty rows
+      setPointPersons(validPointPersons);
+      setHasChanges(false);
+
+      // Reload contacts if any were saved to database
+      if (hasSaveToDatabase) {
+        await loadContacts();
+      }
+    } catch (error) {
+      console.error('Failed to save point persons:', error);
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Get IDs of contacts already selected
@@ -126,15 +145,17 @@ const EstimatePointPersonsEditor: React.FC<EstimatePointPersonsEditorProps> = ({
       contact_email: '',
       saveToDatabase: defaultMode === 'custom' ? true : undefined
     };
-    notifyChange([...pointPersons, newEntry]);
+    setPointPersons([...pointPersons, newEntry]);
+    setHasChanges(true);
   };
 
   const handleRemovePointPerson = (id: string) => {
-    notifyChange(pointPersons.filter(p => p.id !== id));
+    setPointPersons(pointPersons.filter(p => p.id !== id));
+    setHasChanges(true);
   };
 
   const handleModeChange = (id: string, mode: 'existing' | 'custom') => {
-    notifyChange(pointPersons.map(person => {
+    setPointPersons(pointPersons.map(person => {
       if (person.id === id) {
         return {
           ...person,
@@ -149,11 +170,12 @@ const EstimatePointPersonsEditor: React.FC<EstimatePointPersonsEditorProps> = ({
       }
       return person;
     }));
+    setHasChanges(true);
   };
 
   const handleExistingContactChange = (id: string, contactId: number | null) => {
     if (!contactId) {
-      notifyChange(pointPersons.map(person => {
+      setPointPersons(pointPersons.map(person => {
         if (person.id === id) {
           return {
             ...person,
@@ -166,13 +188,14 @@ const EstimatePointPersonsEditor: React.FC<EstimatePointPersonsEditorProps> = ({
         }
         return person;
       }));
+      setHasChanges(true);
       return;
     }
 
     const selectedContact = allContacts.find(c => c.contact_id === contactId);
     if (!selectedContact) return;
 
-    notifyChange(pointPersons.map(person => {
+    setPointPersons(pointPersons.map(person => {
       if (person.id === id) {
         return {
           ...person,
@@ -185,15 +208,17 @@ const EstimatePointPersonsEditor: React.FC<EstimatePointPersonsEditorProps> = ({
       }
       return person;
     }));
+    setHasChanges(true);
   };
 
   const handleCustomFieldChange = (id: string, field: keyof PointPersonEntry, value: any) => {
-    notifyChange(pointPersons.map(person => {
+    setPointPersons(pointPersons.map(person => {
       if (person.id === id) {
         return { ...person, [field]: value };
       }
       return person;
     }));
+    setHasChanges(true);
   };
 
   if (loading) {
@@ -220,7 +245,7 @@ const EstimatePointPersonsEditor: React.FC<EstimatePointPersonsEditorProps> = ({
                       name={`mode-${person.id}`}
                       checked={person.mode === 'existing'}
                       onChange={() => handleModeChange(person.id, 'existing')}
-                      disabled={disabled}
+                      disabled={disabled || saving}
                       className="w-3 h-3 text-indigo-600"
                     />
                     <span className="text-[10px] text-gray-600">Existing</span>
@@ -232,7 +257,7 @@ const EstimatePointPersonsEditor: React.FC<EstimatePointPersonsEditorProps> = ({
                     name={`mode-${person.id}`}
                     checked={person.mode === 'custom'}
                     onChange={() => handleModeChange(person.id, 'custom')}
-                    disabled={disabled}
+                    disabled={disabled || saving}
                     className="w-3 h-3 text-indigo-600"
                   />
                   <span className="text-[10px] text-gray-600">New</span>
@@ -245,7 +270,7 @@ const EstimatePointPersonsEditor: React.FC<EstimatePointPersonsEditorProps> = ({
                   <select
                     value={person.contact_id || ''}
                     onChange={(e) => handleExistingContactChange(person.id, e.target.value ? parseInt(e.target.value) : null)}
-                    disabled={disabled}
+                    disabled={disabled || saving}
                     className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500"
                   >
                     <option value="">Select contact...</option>
@@ -262,7 +287,7 @@ const EstimatePointPersonsEditor: React.FC<EstimatePointPersonsEditorProps> = ({
                         type="email"
                         value={person.contact_email}
                         onChange={(e) => handleCustomFieldChange(person.id, 'contact_email', e.target.value)}
-                        disabled={disabled}
+                        disabled={disabled || saving}
                         className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500"
                         placeholder="Email *"
                       />
@@ -270,7 +295,7 @@ const EstimatePointPersonsEditor: React.FC<EstimatePointPersonsEditorProps> = ({
                         type="text"
                         value={person.contact_name || ''}
                         onChange={(e) => handleCustomFieldChange(person.id, 'contact_name', e.target.value)}
-                        disabled={disabled}
+                        disabled={disabled || saving}
                         className="w-24 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500"
                         placeholder="Name"
                       />
@@ -280,7 +305,7 @@ const EstimatePointPersonsEditor: React.FC<EstimatePointPersonsEditorProps> = ({
                         type="checkbox"
                         checked={person.saveToDatabase || false}
                         onChange={(e) => handleCustomFieldChange(person.id, 'saveToDatabase', e.target.checked)}
-                        disabled={disabled}
+                        disabled={disabled || saving}
                         className="w-3 h-3 text-indigo-600 rounded"
                       />
                       <span className="text-[10px] text-gray-500">Save to contacts</span>
@@ -293,7 +318,7 @@ const EstimatePointPersonsEditor: React.FC<EstimatePointPersonsEditorProps> = ({
               <button
                 type="button"
                 onClick={() => handleRemovePointPerson(person.id)}
-                disabled={disabled}
+                disabled={disabled || saving}
                 className="p-1 text-gray-400 hover:text-red-500 disabled:opacity-50"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -307,12 +332,24 @@ const EstimatePointPersonsEditor: React.FC<EstimatePointPersonsEditorProps> = ({
       <button
         type="button"
         onClick={handleAddPointPerson}
-        disabled={disabled}
+        disabled={disabled || saving}
         className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
       >
         <Plus className="w-3.5 h-3.5" />
         Add Point Person
       </button>
+
+      {/* Save Button (only show if changes) */}
+      {hasChanges && (
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={disabled || saving}
+          className="w-full mt-1 px-2 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {saving ? 'Saving...' : 'Save'}
+        </button>
+      )}
     </div>
   );
 };

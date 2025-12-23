@@ -1,33 +1,20 @@
 #!/bin/bash
-# Sign House - Check server status
+# Sign House - Check server status (Dual-instance setup)
 
 echo "📊 Sign House Server Status"
 echo "============================"
 echo ""
 
-# Check backend (PM2)
-echo "🔧 Backend Server (PM2):"
-if pm2 list | grep -q "signhouse-backend"; then
+BACKEND_DIR="/home/jon/Nexus/backend/web"
+
+# Check production backend (PM2)
+echo "🔧 Backend PRODUCTION (port 3001):"
+if pm2 list | grep -q "signhouse-backend "; then
     STATUS=$(pm2 jlist | jq -r '.[] | select(.name=="signhouse-backend") | .pm2_env.status' 2>/dev/null)
     if [ "$STATUS" == "online" ]; then
         echo "   ✅ Running (PM2)"
         echo "   🌐 URL: http://192.168.2.14:3001"
-
-        # Check which build is active
-        BACKEND_DIR="/home/jon/Nexus/backend/web"
-        if [ -L "$BACKEND_DIR/dist" ]; then
-            ACTIVE_BUILD=$(readlink "$BACKEND_DIR/dist")
-            if [ "$ACTIVE_BUILD" == "dist-production" ]; then
-                echo "   🏗️  Build: PRODUCTION (commit 8c2a637)"
-            elif [ "$ACTIVE_BUILD" == "dist-dev" ]; then
-                echo "   🏗️  Build: DEVELOPMENT (latest code)"
-            else
-                echo "   🏗️  Build: $ACTIVE_BUILD"
-            fi
-        else
-            echo "   ⚠️  Build: Unknown (dist is not a symlink)"
-        fi
-
+        echo "   📁 Build: dist-production"
         if curl -s http://192.168.2.14:3001/api/health > /dev/null 2>&1; then
             echo "   💚 Health check: PASSED"
         else
@@ -42,12 +29,35 @@ fi
 
 echo ""
 
+# Check dev backend (PM2)
+echo "🔧 Backend DEV (port 3002):"
+if pm2 list | grep -q "signhouse-backend-dev"; then
+    STATUS=$(pm2 jlist | jq -r '.[] | select(.name=="signhouse-backend-dev") | .pm2_env.status' 2>/dev/null)
+    if [ "$STATUS" == "online" ]; then
+        echo "   ✅ Running (PM2)"
+        echo "   🌐 URL: http://192.168.2.14:3002"
+        echo "   📁 Build: dist-dev"
+        if curl -s http://192.168.2.14:3002/api/health > /dev/null 2>&1; then
+            echo "   💚 Health check: PASSED"
+        else
+            echo "   ⚠️  Health check: FAILED (or no health endpoint)"
+        fi
+    else
+        echo "   ⚠️  Status: $STATUS"
+    fi
+else
+    echo "   ❌ Not running in PM2"
+fi
+
+echo ""
+
 # Check frontend dev server
-echo "🌐 Frontend Dev Server:"
+echo "🌐 Frontend Dev Server (port 5173):"
 if pgrep -f "npx vite" > /dev/null; then
     FRONTEND_PID=$(pgrep -f "npx vite")
     echo "   ✅ Running (PID: $FRONTEND_PID)"
     echo "   🌐 URL: http://192.168.2.14:5173"
+    echo "   🔗 Talks to: Backend DEV (port 3002)"
     if curl -s http://192.168.2.14:5173 > /dev/null 2>&1; then
         echo "   💚 Health check: PASSED"
     else
@@ -60,10 +70,11 @@ fi
 echo ""
 
 # Check Nginx
-echo "🌍 Nginx (Production):"
+echo "🌍 Nginx (Production Frontend):"
 if systemctl is-active --quiet nginx; then
     echo "   ✅ Running"
-    echo "   🌐 Production URL: https://nexuswebapp.duckdns.org"
+    echo "   🌐 URL: https://nexuswebapp.duckdns.org"
+    echo "   🔗 Talks to: Backend PRODUCTION (port 3001)"
 else
     echo "   ❌ Not running"
 fi
@@ -80,13 +91,16 @@ fi
 
 echo ""
 echo "📋 Logs:"
-echo "   Backend (PM2):  pm2 logs signhouse-backend"
+echo "   Backend Prod:   pm2 logs signhouse-backend"
+echo "   Backend Dev:    pm2 logs signhouse-backend-dev"
 if [ -f /tmp/signhouse-frontend.log ]; then
-    echo "   Frontend (Dev): tail -f /tmp/signhouse-frontend.log"
+    echo "   Frontend Dev:   tail -f /tmp/signhouse-frontend.log"
 fi
 echo "   Nginx:          sudo tail -f /var/log/nginx/signhouse-error.log"
 echo ""
 echo "🔍 Quick Commands:"
 echo "   PM2 status:     pm2 status"
-echo "   PM2 restart:    pm2 restart signhouse-backend"
-echo "   PM2 logs:       pm2 logs signhouse-backend"
+echo "   Restart prod:   pm2 restart signhouse-backend"
+echo "   Restart dev:    pm2 restart signhouse-backend-dev"
+echo "   Rebuild dev:    backend-rebuild-dev.sh"
+echo "   Rebuild prod:   backend-rebuild-production.sh"

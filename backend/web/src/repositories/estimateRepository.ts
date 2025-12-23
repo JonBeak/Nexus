@@ -172,6 +172,8 @@ export class EstimateRepository {
         e.tax_amount,
         e.total_amount,
         e.qb_estimate_id,
+        e.qb_estimate_url,
+        e.qb_doc_number,
         e.sent_to_qb_at,
         e.created_at,
         e.updated_at,
@@ -180,8 +182,11 @@ export class EstimateRepository {
         CAST(e.is_sent AS UNSIGNED) as is_sent,
         CAST(e.is_approved AS UNSIGNED) as is_approved,
         CAST(e.is_retracted AS UNSIGNED) as is_retracted,
+        e.email_subject,
+        e.email_body,
         j.job_name,
         j.job_number,
+        j.customer_job_number,
         c.company_name as customer_name
        FROM job_estimates e
        LEFT JOIN job_estimates pe ON e.parent_estimate_id = pe.id
@@ -220,6 +225,8 @@ export class EstimateRepository {
         e.tax_amount,
         e.total_amount,
         e.qb_estimate_id,
+        e.qb_estimate_url,
+        e.qb_doc_number,
         e.sent_to_qb_at,
         e.created_at,
         e.updated_at,
@@ -230,6 +237,7 @@ export class EstimateRepository {
         CAST(e.is_retracted AS UNSIGNED) as is_retracted,
         j.job_name,
         j.job_number,
+        j.customer_job_number,
         c.company_name as customer_name
        FROM job_estimates e
        LEFT JOIN job_estimates pe ON e.parent_estimate_id = pe.id
@@ -391,14 +399,21 @@ export class EstimateRepository {
     userId: number,
     notes?: string | null
   ): Promise<number> {
+    // Fetch email template to initialize email_subject and email_body
+    const [templateRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT subject, body FROM email_templates WHERE template_key = 'estimate_send' AND is_active = 1`
+    );
+    const emailSubject = templateRows.length > 0 ? templateRows[0].subject : null;
+    const emailBody = templateRows.length > 0 ? templateRows[0].body : null;
+
     const [result] = await connection.execute<ResultSetHeader>(
       `INSERT INTO job_estimates (
         job_code, job_id, customer_id, version_number,
-        is_draft, created_by, updated_by, notes
+        is_draft, created_by, updated_by, notes, email_subject, email_body
        )
-       SELECT ?, ?, customer_id, ?, TRUE, ?, ?, ?
+       SELECT ?, ?, customer_id, ?, TRUE, ?, ?, ?, ?, ?
        FROM jobs WHERE job_id = ?`,
-      [jobCode, jobId, nextVersion, userId, userId, notes || null, jobId]
+      [jobCode, jobId, nextVersion, userId, userId, notes || null, emailSubject, emailBody, jobId]
     );
 
     return result.insertId;
@@ -637,9 +652,10 @@ export class EstimateRepository {
    */
   async getEstimateWithPreparedCheck(estimateId: number): Promise<RowDataPacket | null> {
     const rows = await query(
-      `SELECT id, is_draft, is_prepared, is_sent, email_subject, email_body
+      `SELECT id, is_draft, is_prepared, is_sent, email_subject, email_body,
+              qb_estimate_id, qb_estimate_url, qb_doc_number
        FROM job_estimates
-       WHERE id = ? AND is_prepared = TRUE`,
+       WHERE id = ? AND (is_prepared = TRUE OR is_sent = TRUE)`,
       [estimateId]
     ) as RowDataPacket[];
 
@@ -652,30 +668,52 @@ export class EstimateRepository {
   async updateEmailContent(
     estimateId: number,
     subject: string | null,
-    body: string | null,
+    beginning: string | null,
+    end: string | null,
+    summaryConfig: any | null,
     userId: number
   ): Promise<void> {
     await query(
       `UPDATE job_estimates
        SET email_subject = ?,
-           email_body = ?,
+           email_beginning = ?,
+           email_end = ?,
+           email_summary_config = ?,
            updated_by = ?,
            updated_at = NOW()
        WHERE id = ?`,
-      [subject, body, userId, estimateId]
+      [subject, beginning, end, summaryConfig ? JSON.stringify(summaryConfig) : null, userId, estimateId]
     );
   }
 
   /**
-   * Get estimate email content
+   * Get estimate email content (3-part structure)
    */
-  async getEstimateEmailContent(estimateId: number): Promise<{ email_subject: string | null; email_body: string | null } | null> {
+  async getEstimateEmailContent(estimateId: number): Promise<{
+    email_subject: string | null;
+    email_beginning: string | null;
+    email_end: string | null;
+    email_summary_config: any | null;
+  } | null> {
     const rows = await query(
-      'SELECT email_subject, email_body FROM job_estimates WHERE id = ?',
+      `SELECT email_subject, email_beginning, email_end, email_summary_config
+       FROM job_estimates WHERE id = ?`,
       [estimateId]
     ) as RowDataPacket[];
 
-    return rows.length > 0 ? rows[0] as any : null;
+    if (rows.length === 0) return null;
+
+    const row = rows[0];
+    return {
+      email_subject: row.email_subject,
+      email_beginning: row.email_beginning,
+      email_end: row.email_end,
+      email_summary_config: row.email_summary_config
+        ? (typeof row.email_summary_config === 'string'
+            ? JSON.parse(row.email_summary_config)
+            : row.email_summary_config)
+        : null
+    };
   }
 
   /**
@@ -685,7 +723,8 @@ export class EstimateRepository {
     estimateId: number,
     userId: number,
     qbEstimateId?: string,
-    qbEstimateUrl?: string
+    qbEstimateUrl?: string,
+    qbDocNumber?: string
   ): Promise<void> {
     await query(
       `UPDATE job_estimates
@@ -693,11 +732,12 @@ export class EstimateRepository {
            status = 'sent',
            qb_estimate_id = ?,
            qb_estimate_url = ?,
+           qb_doc_number = ?,
            sent_to_qb_at = NOW(),
            updated_by = ?,
            updated_at = NOW()
        WHERE id = ?`,
-      [qbEstimateId || null, qbEstimateUrl || null, userId, estimateId]
+      [qbEstimateId || null, qbEstimateUrl || null, qbDocNumber || null, userId, estimateId]
     );
   }
 
@@ -715,16 +755,21 @@ export class EstimateRepository {
         e.is_prepared,
         e.is_sent,
         e.email_subject,
-        e.email_body,
+        e.email_beginning,
+        e.email_end,
+        e.email_summary_config,
         e.subtotal,
         e.tax_amount,
         e.total_amount,
         e.qb_estimate_id,
         e.qb_estimate_url,
+        e.qb_doc_number,
         e.sent_to_qb_at,
         e.status,
+        e.created_at as estimate_date,
         j.job_name,
         j.job_number,
+        j.customer_job_number,
         c.company_name as customer_name,
         c.quickbooks_name
        FROM job_estimates e

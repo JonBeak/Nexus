@@ -11,16 +11,27 @@
 import React, { useState, useEffect } from 'react';
 import { Mail, Loader2 } from 'lucide-react';
 import { jobVersioningApi } from '../../../services/jobVersioningApi';
+import { EmailSummaryConfig, EstimateEmailData } from '../types';
 
 interface Props {
   estimateId: number;
   estimateName: string;
   recipients: string[];
+  emailSubject?: string;
+  emailBeginning?: string;
+  emailEnd?: string;
+  emailSummaryConfig?: EmailSummaryConfig;
+  estimateData?: EstimateEmailData;
 }
 
 export const EstimateEmailPreview: React.FC<Props> = ({
   estimateId,
-  recipients
+  recipients,
+  emailSubject,
+  emailBeginning,
+  emailEnd,
+  emailSummaryConfig,
+  estimateData
 }) => {
   const [loading, setLoading] = useState(true);
   const [subject, setSubject] = useState('');
@@ -30,7 +41,7 @@ export const EstimateEmailPreview: React.FC<Props> = ({
   // Load email preview from backend
   useEffect(() => {
     loadPreview();
-  }, [estimateId, recipients]);
+  }, [estimateId, recipients, emailSubject, emailBeginning, emailEnd, emailSummaryConfig, estimateData]);
 
   const loadPreview = async () => {
     try {
@@ -40,10 +51,17 @@ export const EstimateEmailPreview: React.FC<Props> = ({
       // Build comma-separated recipient string
       const recipientString = recipients.join(',');
 
-      // Fetch preview from backend
+      // Fetch preview from backend with email content
       const response = await jobVersioningApi.getEstimateEmailPreview(
         estimateId,
-        recipientString
+        recipientString,
+        {
+          subject: emailSubject,
+          beginning: emailBeginning,
+          end: emailEnd,
+          summaryConfig: emailSummaryConfig,
+          estimateData: estimateData
+        }
       );
 
       setSubject(response.subject);

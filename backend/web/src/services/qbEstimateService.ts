@@ -19,7 +19,7 @@
 import axios from 'axios';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { createEstimate, getEstimateWebUrl, getEstimatePdfApiUrl } from '../utils/quickbooks/apiClient';
+import { createEstimate, getEstimateWebUrl, getEstimatePdfApiUrl, refreshAccessToken } from '../utils/quickbooks/apiClient';
 import * as orderPrepRepo from '../repositories/orderPreparationRepository';
 import { quickbooksRepository } from '../repositories/quickbooksRepository';
 import { quickbooksOAuthRepository } from '../repositories/quickbooksOAuthRepository';
@@ -174,7 +174,7 @@ export async function createEstimateFromOrder(
 }
 
 /**
- * Download QB estimate PDF and save to order folder
+ * Download QB estimate PDF and save to order folder (or temp directory for estimates)
  */
 export async function downloadEstimatePDF(
   qbEstimateId: string,
@@ -183,22 +183,31 @@ export async function downloadEstimatePDF(
   pdfPath: string;
   pdfUrl: string;
 }> {
+  console.log(`📥 downloadEstimatePDF called with qbEstimateId=${qbEstimateId}, orderNumber=${orderNumber}`);
+
   try {
     // 1. Get realm ID
     const realmId = await quickbooksRepository.getDefaultRealmId();
     if (!realmId) {
       throw new Error('QuickBooks realm ID not configured');
     }
+    console.log(`   RealmID: ${realmId}`);
 
-    // 2. Get access token for QB API
-    const tokenData = await quickbooksOAuthRepository.getActiveTokens(realmId);
+    // 2. Get access token for QB API (with refresh if needed)
+    let tokenData = await quickbooksOAuthRepository.getActiveTokens(realmId);
     if (!tokenData) {
-      throw new Error('No active QuickBooks access token');
+      console.log('⚠️ No active token for PDF download, attempting refresh...');
+      await refreshAccessToken(realmId);
+      tokenData = await quickbooksOAuthRepository.getActiveTokens(realmId);
     }
+    if (!tokenData) {
+      throw new Error('No active QuickBooks access token after refresh attempt');
+    }
+    console.log(`   Access token available: yes`);
 
     // 3. Download PDF from QuickBooks API (using API endpoint with authentication)
     const pdfUrl = getEstimatePdfApiUrl(qbEstimateId, realmId);
-    console.log(`Downloading QB estimate PDF from: ${pdfUrl}`);
+    console.log(`   Downloading QB estimate PDF from: ${pdfUrl}`);
     const response = await axios.get(pdfUrl, {
       headers: {
         Authorization: `Bearer ${tokenData.access_token}`,
@@ -207,37 +216,57 @@ export async function downloadEstimatePDF(
       responseType: 'arraybuffer',
       timeout: 30000 // 30 second timeout
     });
+    console.log(`   QB API response status: ${response.status}, data length: ${(response.data as Buffer)?.length || 0} bytes`);
 
-    // 4. Get order data for folder path and name
+    // 4. Try to get order data for folder path and name
     const order = await orderPrepRepo.getOrderByOrderNumber(orderNumber);
-    if (!order || !order.folder_name || order.folder_location === 'none') {
-      throw new Error('Order folder not found');
+    console.log(`   Order lookup result: ${order ? `found (folder: ${order.folder_name}, location: ${order.folder_location})` : 'not found'}`);
+
+    let pdfPath: string;
+    let pdfUrlResult: string;
+
+    if (order && order.folder_name && order.folder_location !== 'none') {
+      // Order exists with folder - save to Specs subfolder
+      const basePath = order.folder_location === 'active'
+        ? path.join(SMB_ROOT, ORDERS_FOLDER)
+        : path.join(SMB_ROOT, ORDERS_FOLDER, FINISHED_FOLDER);
+      const orderFolderRoot = path.join(basePath, order.folder_name);
+
+      // Ensure Specs subfolder exists
+      const specsFolder = path.join(orderFolderRoot, 'Specs');
+      await fs.mkdir(specsFolder, { recursive: true });
+
+      // Save PDF to Specs subfolder with proper naming
+      const filename = `${orderNumber} - ${order.order_name} - QB Estimate.pdf`;
+      pdfPath = path.join(specsFolder, filename);
+      pdfUrlResult = `/orders/${order.folder_name}/Specs/${filename}`;
+      console.log(`   Saving to order folder: ${pdfPath}`);
+    } else {
+      // No order folder - save to temp directory for email attachment
+      const tempDir = '/tmp/estimate-pdfs';
+      await fs.mkdir(tempDir, { recursive: true });
+
+      const filename = `Estimate-${orderNumber}-${qbEstimateId}.pdf`;
+      pdfPath = path.join(tempDir, filename);
+      pdfUrlResult = pdfPath; // For temp files, just use the path
+      console.log(`   No order folder found - saving PDF to temp: ${pdfPath}`);
     }
 
-    // 5. Construct full folder path (same logic as PDF generation service)
-    const basePath = order.folder_location === 'active'
-      ? path.join(SMB_ROOT, ORDERS_FOLDER)
-      : path.join(SMB_ROOT, ORDERS_FOLDER, FINISHED_FOLDER);
-    const orderFolderRoot = path.join(basePath, order.folder_name);
-
-    // 6. Ensure Specs subfolder exists
-    const specsFolder = path.join(orderFolderRoot, 'Specs');
-    await fs.mkdir(specsFolder, { recursive: true });
-
-    // 7. Save PDF to Specs subfolder with proper naming
-    const filename = `${orderNumber} - ${order.order_name} - QB Estimate.pdf`;
-    const pdfPath = path.join(specsFolder, filename);
-
     await fs.writeFile(pdfPath, response.data as Buffer);
-    console.log(`QB estimate PDF saved to: ${pdfPath}`);
+    console.log(`✅ QB estimate PDF saved successfully to: ${pdfPath}`);
 
     return {
       pdfPath,
-      pdfUrl: `/orders/${order.folder_name}/Specs/${filename}` // URL for frontend preview
+      pdfUrl: pdfUrlResult
     };
-  } catch (error) {
-    console.error('Error downloading QB estimate PDF:', error);
-    throw new Error('Failed to download QB estimate PDF');
+  } catch (error: unknown) {
+    console.error('❌ Error downloading QB estimate PDF:', error);
+    if (error instanceof Error && 'isAxiosError' in error) {
+      const axiosErr = error as { response?: { status?: number; data?: unknown }; message: string };
+      console.error(`   Axios error - Status: ${axiosErr.response?.status}, Message: ${axiosErr.message}`);
+      console.error(`   Response data:`, axiosErr.response?.data);
+    }
+    throw new Error(`Failed to download QB estimate PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 

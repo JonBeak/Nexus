@@ -1,43 +1,27 @@
 #!/bin/bash
-# Switch Backend to Development Build
+# Restart Dev Backend Instance
+# In dual-instance setup, this restarts signhouse-backend-dev on port 3002
 
 set -e
 
 BACKEND_DIR="/home/jon/Nexus/backend/web"
 
-echo "🔄 Switching to DEV backend..."
+echo "🔄 Restarting DEV backend..."
 echo ""
 
-cd "$BACKEND_DIR"
-
 # Check if dev build exists
-if [ ! -d "dist-dev" ]; then
+if [ ! -d "$BACKEND_DIR/dist-dev" ]; then
     echo "❌ Dev build not found!"
     echo "   Run backend-rebuild-dev.sh first"
     exit 1
 fi
 
-# Remove existing symlink
-if [ -L "dist" ]; then
-    rm dist
-elif [ -d "dist" ]; then
-    echo "⚠️  'dist' is a directory, not a symlink!"
-    echo "   Moving to dist-temp-$(date +%Y%m%d-%H%M%S)"
-    mv dist "dist-temp-$(date +%Y%m%d-%H%M%S)"
-fi
-
-# Create symlink to dev
-ln -s dist-dev dist
-
-echo "✅ Symlink updated: dist -> dist-dev"
-echo ""
-
-# Restart PM2
-echo "🔄 Restarting PM2..."
-pm2 restart signhouse-backend
+# Restart PM2 dev instance
+echo "🔄 Restarting signhouse-backend-dev (port 3002)..."
+pm2 restart signhouse-backend-dev
 
 echo ""
-echo "✅ Backend switched to DEV and restarted!"
+echo "✅ Dev backend restarted!"
 echo ""
-echo "📋 Check status:"
-echo "   pm2 logs signhouse-backend --lines 20"
+echo "📋 Check logs: pm2 logs signhouse-backend-dev --lines 20"
+echo "🌐 Dev API: http://192.168.2.14:3002"

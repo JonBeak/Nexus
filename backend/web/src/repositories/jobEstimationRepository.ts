@@ -82,11 +82,20 @@ export class JobEstimationRepository {
   // Legacy getEstimateGroups method removed - Phase 4/5 uses grid-data endpoints instead
 
   async createEstimate(data: EstimateData, jobCode: string, userId: number): Promise<number> {
+    // Fetch email template to initialize email_subject and email_body
+    const templateRows = await query(
+      `SELECT subject, body FROM email_templates WHERE template_key = 'estimate_send' AND is_active = 1`,
+      []
+    ) as RowDataPacket[];
+
+    const emailSubject = templateRows.length > 0 ? templateRows[0].subject : '';
+    const emailBody = templateRows.length > 0 ? templateRows[0].body : '';
+
     const result = await query(
       `INSERT INTO job_estimates
-       (job_code, customer_id, estimate_name, created_by, updated_by)
-       VALUES (?, ?, ?, ?, ?)`,
-      [jobCode, data.customer_id, data.estimate_name, userId, userId]
+       (job_code, customer_id, estimate_name, email_subject, email_body, created_by, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [jobCode, data.customer_id, data.estimate_name, emailSubject, emailBody, userId, userId]
     ) as ResultSetHeader;
 
     return result.insertId;

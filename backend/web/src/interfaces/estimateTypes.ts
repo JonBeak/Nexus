@@ -18,6 +18,7 @@
 export interface JobData {
   customer_id: number;
   job_name: string;
+  customer_job_number?: string;  // Optional customer reference number (PO, project code)
 }
 
 export interface EstimateVersionData {

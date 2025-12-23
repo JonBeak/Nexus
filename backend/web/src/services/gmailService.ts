@@ -885,34 +885,89 @@ export async function sendEstimateEmail(data: EstimateEmailData): Promise<EmailR
 }
 
 /**
- * Create email message for estimate
+ * Create email message for estimate with optional PDF attachment
+ * Uses multipart MIME format when attachment is present
  */
 async function createEstimateEmailMessage(data: EstimateEmailData): Promise<string> {
-  const messageData: any = {
-    raw: Buffer.from(
-      `From: ${SENDER_EMAIL}\n` +
-      `To: ${data.recipients.join(', ')}\n` +
-      (BCC_EMAIL && BCC_EMAIL.trim() !== '' ? `Bcc: ${BCC_EMAIL}\n` : '') +
-      `Subject: ${data.subject}\n` +
-      `Content-Type: text/html; charset="UTF-8"\n` +
-      `MIME-Version: 1.0\n\n` +
-      data.body
-    ).toString('base64')
-  };
+  // Generate a unique boundary for multipart messages
+  const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-  // Add PDF attachment if path provided
+  // Try to get PDF attachment if path provided
+  let pdfBase64: string | null = null;
+  let pdfFilename = 'estimate.pdf';
+
+  console.log(`   📎 PDF path received: ${data.pdfPath || '(none provided)'}`);
+
   if (data.pdfPath) {
     try {
-      const pdfBase64 = await fetchPDFAsBase64(data.pdfPath);
+      // Check if it's a local file path or URL
+      if (data.pdfPath.startsWith('http://') || data.pdfPath.startsWith('https://')) {
+        // URL - fetch remotely
+        console.log(`   📎 Fetching PDF from URL: ${data.pdfPath}`);
+        pdfBase64 = await fetchPDFAsBase64(data.pdfPath);
+      } else {
+        // Local file path - read from filesystem
+        console.log(`   📎 Reading PDF from local path: ${data.pdfPath}`);
+        const fs = await import('fs').then(m => m.promises);
+        const pdfBuffer = await fs.readFile(data.pdfPath);
+        pdfBase64 = pdfBuffer.toString('base64');
+        console.log(`   📎 PDF loaded from local path: ${data.pdfPath} (${Math.round(pdfBase64.length / 1024)}KB)`);
+      }
+
       if (pdfBase64) {
-        // For simplicity, send without attachment in this version
-        // Full multipart implementation would go here
-        console.log('   (PDF attachment prepared but not attached in this version)');
+        // Extract filename from path or use estimate number
+        pdfFilename = `Estimate-${data.estimateNumber || 'document'}.pdf`;
+        console.log(`   📎 PDF attachment ready: ${pdfFilename}`);
       }
     } catch (err) {
-      console.warn('   ⚠️ Could not load PDF attachment:', err instanceof Error ? err.message : 'Unknown error');
+      console.error('   ⚠️ Could not load PDF attachment:', err instanceof Error ? err.message : 'Unknown error');
+      console.error('   Full error:', err);
+      pdfBase64 = null;
     }
+  } else {
+    console.log('   ⚠️ No PDF path provided - email will be sent without attachment');
   }
 
-  return messageData.raw;
+  let rawMessage: string;
+
+  if (pdfBase64) {
+    // Build multipart MIME message with HTML body and PDF attachment
+    rawMessage =
+      `From: ${SENDER_EMAIL}\r\n` +
+      `To: ${data.recipients.join(', ')}\r\n` +
+      (BCC_EMAIL && BCC_EMAIL.trim() !== '' ? `Bcc: ${BCC_EMAIL}\r\n` : '') +
+      `Subject: ${data.subject}\r\n` +
+      `MIME-Version: 1.0\r\n` +
+      `Content-Type: multipart/mixed; boundary="${boundary}"\r\n` +
+      `\r\n` +
+      `--${boundary}\r\n` +
+      `Content-Type: text/html; charset="UTF-8"\r\n` +
+      `Content-Transfer-Encoding: 7bit\r\n` +
+      `\r\n` +
+      `${data.body}\r\n` +
+      `--${boundary}\r\n` +
+      `Content-Type: application/pdf; name="${pdfFilename}"\r\n` +
+      `Content-Disposition: attachment; filename="${pdfFilename}"\r\n` +
+      `Content-Transfer-Encoding: base64\r\n` +
+      `\r\n` +
+      `${pdfBase64}\r\n` +
+      `--${boundary}--`;
+  } else {
+    // Simple message without attachment
+    rawMessage =
+      `From: ${SENDER_EMAIL}\r\n` +
+      `To: ${data.recipients.join(', ')}\r\n` +
+      (BCC_EMAIL && BCC_EMAIL.trim() !== '' ? `Bcc: ${BCC_EMAIL}\r\n` : '') +
+      `Subject: ${data.subject}\r\n` +
+      `Content-Type: text/html; charset="UTF-8"\r\n` +
+      `MIME-Version: 1.0\r\n` +
+      `\r\n` +
+      `${data.body}`;
+  }
+
+  // Encode for Gmail API (URL-safe base64)
+  return Buffer.from(rawMessage).toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 }

@@ -59,8 +59,8 @@ export class EstimateVersioningService {
     return this.jobService.validateJobName(customerId, jobName);
   }
 
-  async updateJobName(jobId: number, newName: string, userId: number): Promise<void> {
-    return this.jobService.updateJobName(jobId, newName, userId);
+  async updateJobName(jobId: number, newName: string, userId: number, customerJobNumber?: string): Promise<void> {
+    return this.jobService.updateJobName(jobId, newName, userId, customerJobNumber);
   }
 
   async getAllJobsWithRecentActivity(): Promise<RowDataPacket[]> {
@@ -350,7 +350,7 @@ export class EstimateVersioningService {
   async prepareEstimateForSending(
     estimateId: number,
     userId: number,
-    request: { emailSubject?: string; emailBody?: string; pointPersons?: any[] }
+    request: { emailSubject?: string; emailBeginning?: string; emailEnd?: string; emailSummaryConfig?: any; pointPersons?: any[]; estimatePreviewData?: any }
   ) {
     return this.estimateService.prepareEstimateForSending(estimateId, userId, request);
   }
@@ -392,15 +392,17 @@ export class EstimateVersioningService {
   }
 
   /**
-   * Update email content for an estimate
+   * Update email content for an estimate (3-part structure)
    */
   async updateEstimateEmailContent(
     estimateId: number,
     subject: string | null,
-    body: string | null,
+    beginning: string | null,
+    end: string | null,
+    summaryConfig: any | null,
     userId: number
   ) {
-    return this.estimateService.updateEstimateEmailContent(estimateId, subject, body, userId);
+    return this.estimateService.updateEstimateEmailContent(estimateId, subject, beginning, end, summaryConfig, userId);
   }
 
   /**
@@ -413,8 +415,35 @@ export class EstimateVersioningService {
   /**
    * Get email preview HTML for modal display
    */
-  async getEmailPreviewHtml(estimateId: number, recipients: string[]) {
-    return this.estimateService.getEmailPreviewHtml(estimateId, recipients);
+  async getEmailPreviewHtml(
+    estimateId: number,
+    recipients: string[],
+    emailContent?: {
+      subject?: string;
+      beginning?: string;
+      end?: string;
+      summaryConfig?: {
+        includeJobName?: boolean;
+        includeCustomerRef?: boolean;
+        includeQbEstimateNumber?: boolean;
+        includeSubtotal?: boolean;
+        includeTax?: boolean;
+        includeTotal?: boolean;
+        includeEstimateDate?: boolean;
+        includeValidUntilDate?: boolean;
+      };
+      estimateData?: {
+        jobName?: string;
+        customerJobNumber?: string;
+        qbEstimateNumber?: string;
+        subtotal?: number;
+        tax?: number;
+        total?: number;
+        estimateDate?: string;
+      };
+    }
+  ) {
+    return this.estimateService.getEmailPreviewHtml(estimateId, recipients, emailContent);
   }
 
   /**

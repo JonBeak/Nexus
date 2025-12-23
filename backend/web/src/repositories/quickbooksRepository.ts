@@ -41,11 +41,12 @@ export class QuickBooksRepository {
   async getEstimateDetails(estimateId: number): Promise<{
     customer_id: number;
     is_draft: boolean;
+    is_prepared: boolean;
     qb_estimate_id: string | null;
     job_id: number;
   } | null> {
     const rows = await query(
-      `SELECT customer_id, is_draft, qb_estimate_id, job_id
+      `SELECT customer_id, is_draft, is_prepared, qb_estimate_id, job_id
        FROM job_estimates
        WHERE id = ?`,
       [estimateId]
@@ -58,6 +59,7 @@ export class QuickBooksRepository {
     return {
       customer_id: rows[0].customer_id,
       is_draft: Boolean(rows[0].is_draft),
+      is_prepared: Boolean(rows[0].is_prepared),
       qb_estimate_id: rows[0].qb_estimate_id,
       job_id: rows[0].job_id
     };
@@ -66,27 +68,32 @@ export class QuickBooksRepository {
   /**
    * Finalize estimate after successful QB creation
    * Sets is_draft = FALSE and updates QB linkage
+   * Uses txnDate from QuickBooks as estimate_date
    */
   async finalizeEstimate(
     estimateId: number,
     qbEstimateId: string,
-    amounts: { subtotal: number; taxAmount: number; total: number },
+    qbDocNumber: string,
+    amounts: { subtotal: number; taxAmount: number; total: number; estimateDate?: string },
     userId: number
   ): Promise<void> {
     await query(
       `UPDATE job_estimates
        SET is_draft = FALSE,
+           is_prepared = FALSE,
            status = 'sent',
            is_sent = TRUE,
            finalized_at = NOW(),
            finalized_by_user_id = ?,
            qb_estimate_id = ?,
+           qb_doc_number = ?,
            sent_to_qb_at = NOW(),
+           estimate_date = ?,
            subtotal = ?,
            tax_amount = ?,
            total_amount = ?
-       WHERE id = ? AND is_draft = TRUE`,
-      [userId, qbEstimateId, amounts.subtotal, amounts.taxAmount, amounts.total, estimateId]
+       WHERE id = ? AND (is_draft = TRUE OR is_prepared = TRUE)`,
+      [userId, qbEstimateId, qbDocNumber, amounts.estimateDate || null, amounts.subtotal, amounts.taxAmount, amounts.total, estimateId]
     );
   }
 

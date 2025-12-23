@@ -92,6 +92,7 @@ export class JobRepository {
         j.job_id,
         j.job_number,
         j.job_name,
+        j.customer_job_number,
         j.customer_id,
         c.company_name as customer_name,
         j.status as job_status,
@@ -130,6 +131,7 @@ export class JobRepository {
         j.job_id,
         j.job_number,
         j.job_name,
+        j.customer_job_number,
         j.customer_id,
         j.status as job_status,
         COUNT(e.id) as estimate_count,
@@ -205,23 +207,23 @@ export class JobRepository {
   /**
    * Create a new job
    */
-  async createJob(jobNumber: string, customerId: number, jobName: string): Promise<number> {
+  async createJob(jobNumber: string, customerId: number, jobName: string, customerJobNumber?: string): Promise<number> {
     const result = await query(
-      `INSERT INTO jobs (job_number, customer_id, job_name, status, created_at)
-       VALUES (?, ?, ?, 'draft', NOW())`,
-      [jobNumber, customerId, jobName]
+      `INSERT INTO jobs (job_number, customer_id, job_name, customer_job_number, status, created_at)
+       VALUES (?, ?, ?, ?, 'draft', NOW())`,
+      [jobNumber, customerId, jobName, customerJobNumber || null]
     ) as ResultSetHeader;
 
     return result.insertId;
   }
 
   /**
-   * Update job name
+   * Update job name and optionally customer job number
    */
-  async updateJobName(jobId: number, newName: string): Promise<void> {
+  async updateJobName(jobId: number, newName: string, customerJobNumber?: string): Promise<void> {
     await query(
-      'UPDATE jobs SET job_name = ?, updated_at = NOW() WHERE job_id = ?',
-      [newName.trim(), jobId]
+      'UPDATE jobs SET job_name = ?, customer_job_number = ?, updated_at = NOW() WHERE job_id = ?',
+      [newName.trim(), customerJobNumber?.trim() || null, jobId]
     );
   }
 

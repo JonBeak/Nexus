@@ -22,7 +22,7 @@ export const jobVersioningApi = {
     return response.data;
   },
 
-  createJob: async (data: { customer_id: number; job_name: string }) => {
+  createJob: async (data: { customer_id: number; job_name: string; customer_job_number?: string }) => {
     const response = await api.post('/job-estimation/jobs', data);
     return response.data;
   },
@@ -153,9 +153,10 @@ export const jobVersioningApi = {
     return response.data;
   },
 
-  updateJob: async (jobId: number, jobName: string) => {
+  updateJob: async (jobId: number, jobName: string, customerJobNumber?: string) => {
     const response = await api.put(`/job-estimation/jobs/${jobId}`, {
-      job_name: jobName
+      job_name: jobName,
+      customer_job_number: customerJobNumber
     });
     return response.data;
   },
@@ -196,14 +197,25 @@ export const jobVersioningApi = {
   /**
    * Prepare estimate for sending
    * - Cleans empty rows
-   * - Saves point persons and email content
+   * - Saves point persons and email content (3-part structure)
    * - Locks the estimate
    */
   prepareEstimate: async (
     estimateId: number,
     data: {
       emailSubject?: string;
-      emailBody?: string;
+      emailBeginning?: string;
+      emailEnd?: string;
+      emailSummaryConfig?: {
+        includeJobName: boolean;
+        includeCustomerRef: boolean;
+        includeQbEstimateNumber: boolean;
+        includeSubtotal: boolean;
+        includeTax: boolean;
+        includeTotal: boolean;
+        includeEstimateDate: boolean;
+        includeValidUntilDate: boolean;
+      };
       pointPersons?: Array<{
         contact_id?: number;
         contact_email: string;
@@ -212,6 +224,7 @@ export const jobVersioningApi = {
         contact_role?: string;
         saveToDatabase?: boolean;
       }>;
+      estimatePreviewData?: any;
     }
   ) => {
     const response = await api.post(`/job-estimation/estimates/${estimateId}/prepare`, data);
@@ -267,33 +280,70 @@ export const jobVersioningApi = {
   },
 
   /**
-   * Update email content for an estimate
+   * Update email content for an estimate (3-part structure)
    */
   updateEstimateEmailContent: async (
     estimateId: number,
     subject: string | null,
-    body: string | null
+    beginning: string | null,
+    end: string | null,
+    summaryConfig?: {
+      includeJobName: boolean;
+      includeCustomerRef: boolean;
+      includeQbEstimateNumber: boolean;
+      includeSubtotal: boolean;
+      includeTax: boolean;
+      includeTotal: boolean;
+      includeEstimateDate: boolean;
+      includeValidUntilDate: boolean;
+    } | null
   ) => {
     const response = await api.put(`/job-estimation/estimates/${estimateId}/email-content`, {
       subject,
-      body
+      beginning,
+      end,
+      summaryConfig
     });
     return response.data;
   },
 
   /**
    * Get email preview HTML for modal display
+   * POST request with email content in body for preview generation
    */
   getEstimateEmailPreview: async (
     estimateId: number,
-    recipients: string
+    recipients: string,
+    emailContent?: {
+      subject?: string;
+      beginning?: string;
+      end?: string;
+      summaryConfig?: {
+        includeJobName: boolean;
+        includeCustomerRef: boolean;
+        includeQbEstimateNumber: boolean;
+        includeSubtotal: boolean;
+        includeTax: boolean;
+        includeTotal: boolean;
+        includeEstimateDate: boolean;
+        includeValidUntilDate: boolean;
+      };
+      estimateData?: {
+        jobName?: string;
+        customerJobNumber?: string;
+        qbEstimateNumber?: string;
+        subtotal?: number;
+        tax?: number;
+        total?: number;
+        estimateDate?: string;
+      };
+    }
   ) => {
-    const response = await api.get(
+    const response = await api.post(
       `/job-estimation/estimates/${estimateId}/email-preview`,
       {
-        params: {
-          recipients
-        }
+        recipients,
+        ...emailContent
       }
     );
     return response.data;
@@ -322,6 +372,19 @@ export const jobVersioningApi = {
       `/job-estimation/estimates/${estimateId}/line-descriptions`,
       { updates }
     );
+    return response.data;
+  },
+
+  // =============================================
+  // QB ESTIMATE PDF (Phase 4.c - PDF Preview in Send Modal)
+  // =============================================
+
+  /**
+   * Get QB estimate PDF for preview in Send to Customer modal
+   * Returns base64-encoded PDF
+   */
+  getEstimatePdf: async (estimateId: number): Promise<{ success: boolean; data: { pdf: string; filename: string } }> => {
+    const response = await api.get(`/job-estimation/estimates/${estimateId}/qb-pdf`);
     return response.data;
   }
 };

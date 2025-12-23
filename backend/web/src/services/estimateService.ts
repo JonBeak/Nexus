@@ -236,10 +236,12 @@ export class EstimateService {
   async updateEstimateEmailContent(
     estimateId: number,
     subject: string | null,
-    body: string | null,
+    beginning: string | null,
+    end: string | null,
+    summaryConfig: any | null,
     userId: number
   ) {
-    return this.workflowService.updateEmailContent(estimateId, subject, body, userId);
+    return this.workflowService.updateEmailContent(estimateId, subject, beginning, end, summaryConfig, userId);
   }
 
   /**
@@ -252,8 +254,35 @@ export class EstimateService {
   /**
    * Get email preview HTML for modal display
    */
-  async getEmailPreviewHtml(estimateId: number, recipients: string[]) {
-    return this.workflowService.getEmailPreviewHtml(estimateId, recipients);
+  async getEmailPreviewHtml(
+    estimateId: number,
+    recipients: string[],
+    emailContent?: {
+      subject?: string;
+      beginning?: string;
+      end?: string;
+      summaryConfig?: {
+        includeJobName?: boolean;
+        includeCustomerRef?: boolean;
+        includeQbEstimateNumber?: boolean;
+        includeSubtotal?: boolean;
+        includeTax?: boolean;
+        includeTotal?: boolean;
+        includeEstimateDate?: boolean;
+        includeValidUntilDate?: boolean;
+      };
+      estimateData?: {
+        jobName?: string;
+        customerJobNumber?: string;
+        qbEstimateNumber?: string;
+        subtotal?: number;
+        tax?: number;
+        total?: number;
+        estimateDate?: string;
+      };
+    }
+  ) {
+    return this.workflowService.getEmailPreviewHtml(estimateId, recipients, emailContent);
   }
 
   /**
