@@ -334,13 +334,27 @@ export class EstimateWorkflowService {
       // 2. Clean empty rows (keep structural rows)
       const cleanResult = await this.cleanEmptyRows(estimateId, connection);
 
-      // 2.5. Auto-fill QB descriptions (if preview data provided)
+      // 2.5. Insert job header row at position 1 FIRST
+      const headerText = await this.insertJobHeaderRow(estimateId, connection);
+
+      // 2.7. Auto-fill QB descriptions (with +1 offset for header row)
       if (request.estimatePreviewData) {
         await this.autoFillQBDescriptions(
           estimateId,
           request.estimatePreviewData,
-          connection
+          connection,
+          1  // offset: header row is at index 0, so items start at index 1
         );
+      }
+
+      // 2.8. Add QB description for the header row (after auto-fill clears old ones)
+      if (headerText) {
+        await connection.execute(
+          `INSERT INTO estimate_line_descriptions (estimate_id, line_index, qb_description, is_auto_filled)
+           VALUES (?, 0, ?, 1)`,
+          [estimateId, headerText]
+        );
+        console.log(`[Prepare] Added header QB description: "${headerText}"`);
       }
 
       // 3. Save point persons if provided
@@ -393,16 +407,107 @@ export class EstimateWorkflowService {
   }
 
   /**
+   * Insert a job header row at position 1
+   * Contains the job name and optionally the customer reference number
+   * Format: "Job Name" or "Job Name - Customer Ref #"
+   */
+  private async insertJobHeaderRow(
+    estimateId: number,
+    connection: any
+  ): Promise<string | null> {
+    try {
+      // 1. Get job info via estimate
+      const [jobRows] = await connection.execute(
+        `SELECT j.job_name, j.customer_job_number
+         FROM jobs j
+         JOIN job_estimates e ON j.job_id = e.job_id
+         WHERE e.id = ?`,
+        [estimateId]
+      ) as [RowDataPacket[], any];
+
+      if (jobRows.length === 0) {
+        console.warn(`[Insert Job Header] Could not find job for estimate ${estimateId}`);
+        return null;
+      }
+
+      const { job_name, customer_job_number } = jobRows[0];
+
+      // 2. Build the header text: "Job Name" or "Job Name - Customer Ref #"
+      let headerText = job_name || 'Untitled Job';
+      if (customer_job_number && customer_job_number.trim()) {
+        headerText += ` - ${customer_job_number.trim()}`;
+      }
+
+      console.log(`[Insert Job Header] Adding header row: "${headerText}"`);
+
+      // 3. Shift all existing item_order values by +1
+      await connection.execute(
+        `UPDATE job_estimate_items
+         SET item_order = item_order + 1,
+             item_index = item_index + 1
+         WHERE estimate_id = ?`,
+        [estimateId]
+      );
+
+      // 4. Insert the new header row at position 1
+      // Product type 27 = Empty Row, field1 = "Label" (the description field)
+      const gridData = JSON.stringify({
+        quantity: '',
+        field1: headerText,
+        field2: '',
+        field3: '',
+        field4: '',
+        field5: '',
+        field6: '',
+        field7: '',
+        field8: '',
+        field9: '',
+        field10: '',
+        field11: '',
+        field12: ''
+      });
+
+      await connection.execute(
+        `INSERT INTO job_estimate_items (
+          estimate_id,
+          product_type_id,
+          item_name,
+          item_order,
+          item_index,
+          grid_data,
+          created_at,
+          updated_at
+        ) VALUES (?, 27, 'Job Header', 1, 1, ?, NOW(), NOW())`,
+        [estimateId, gridData]
+      );
+
+      console.log(`[Insert Job Header] ✓ Header row inserted successfully`);
+      return headerText;  // Return for QB description insertion later
+    } catch (error) {
+      console.error('[Insert Job Header] Error:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Auto-fill QB descriptions when preparing estimate
    * Uses custom rules with fallback to qb_item_mappings lookup
    */
   private async autoFillQBDescriptions(
     estimateId: number,
     estimatePreviewData: EstimatePreviewData,
-    connection: any
+    connection: any,
+    indexOffset: number = 0  // Offset for line indices (e.g., 1 if header row was inserted)
   ): Promise<void> {
     try {
-      console.log(`[Auto-fill QB Descriptions] Starting for estimate ${estimateId}...`);
+      console.log(`[Auto-fill QB Descriptions] Starting for estimate ${estimateId} (offset: ${indexOffset})...`);
+
+      // 0. Clear any existing QB descriptions (start fresh each time)
+      await connection.execute(
+        `DELETE FROM estimate_line_descriptions WHERE estimate_id = ?`,
+        [estimateId]
+      );
+      console.log(`[Auto-fill QB Descriptions] Cleared existing descriptions`);
 
       // 1. Fetch QB item mappings in batch (for fallback)
       const productTypes = estimatePreviewData.items
@@ -417,11 +522,14 @@ export class EstimateWorkflowService {
       console.log(`[Auto-fill QB Descriptions] Fetched ${qbMap.size} QB mappings for fallback`);
 
       // 2. Build descriptions using custom rules with fallback
+      // Apply indexOffset to account for header row insertion
+      console.log(`[Auto-fill QB Descriptions] Processing ${estimatePreviewData.items.length} items from frontend`);
       const descriptions = estimatePreviewData.items.map((item, index) => {
+        console.log(`[Auto-fill QB Descriptions] Item ${index}: productTypeId=${item.productTypeId}, name="${item.itemName}", calcDisplay="${item.calculationDisplay?.substring(0, 30)}"`);
         const qbDescription = this.generateQBDescription(item, qbMap);
 
         return {
-          lineIndex: index,
+          lineIndex: index + indexOffset,  // Apply offset
           qbDescription,
           isAutoFilled: true
         };
@@ -456,7 +564,13 @@ export class EstimateWorkflowService {
     item: EstimateLineItem,
     qbMap: Map<string, { name: string; description: string | null; qb_item_id: string }>
   ): string {
-    const { itemName, isDescriptionOnly, calculationDisplay } = item;
+    const { itemName, isDescriptionOnly, calculationDisplay, productTypeId, description } = item;
+
+    // Special case: Empty Row (product type 27) - use field1 text as QB description
+    if (productTypeId === 27) {
+      console.log(`[QB Desc] Empty Row - description: "${description}", calculationDisplay: "${calculationDisplay}"`);
+      return description || calculationDisplay || '';
+    }
 
     // Special case: Description-only rows always use calculationDisplay
     if (isDescriptionOnly) {

@@ -19,7 +19,8 @@
 import axios from 'axios';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { createEstimate, getEstimateWebUrl, getEstimatePdfApiUrl, refreshAccessToken } from '../utils/quickbooks/apiClient';
+import { createEstimate, getEstimateWebUrl, getEstimatePdfApiUrl } from '../utils/quickbooks/apiClient';
+import { refreshAccessToken } from '../utils/quickbooks/oauthClient';
 import * as orderPrepRepo from '../repositories/orderPreparationRepository';
 import { quickbooksRepository } from '../repositories/quickbooksRepository';
 import { quickbooksOAuthRepository } from '../repositories/quickbooksOAuthRepository';
