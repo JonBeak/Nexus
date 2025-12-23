@@ -17,6 +17,7 @@
 
 import { createGmailClient } from './gmailAuthService';
 import axios from 'axios';
+import MailComposer from 'nodemailer/lib/mail-composer';
 
 export interface EmailData {
   recipients: string[];
@@ -451,9 +452,11 @@ async function fetchPDFAsBase64(url: string): Promise<string | null> {
     });
 
     const base64 = Buffer.from(response.data as ArrayBuffer).toString('base64');
+    // Wrap at 76 characters per line (RFC 2045 requirement for MIME base64)
+    const wrappedBase64 = base64.match(/.{1,76}/g)?.join('\r\n') || base64;
     console.log(`✅ [Gmail] PDF fetched successfully (${Math.round(base64.length / 1024)}KB)`);
 
-    return base64;
+    return wrappedBase64;
   } catch (error) {
     console.error(`❌ [Gmail] Failed to fetch PDF from ${url}:`, error);
     return null;
@@ -886,88 +889,84 @@ export async function sendEstimateEmail(data: EstimateEmailData): Promise<EmailR
 
 /**
  * Create email message for estimate with optional PDF attachment
- * Uses multipart MIME format when attachment is present
+ * Uses Nodemailer's MailComposer for proper MIME construction
  */
 async function createEstimateEmailMessage(data: EstimateEmailData): Promise<string> {
-  // Generate a unique boundary for multipart messages
-  const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-  // Try to get PDF attachment if path provided
-  let pdfBase64: string | null = null;
-  let pdfFilename = 'estimate.pdf';
+  const pdfFilename = `Estimate-${data.estimateNumber || 'document'}.pdf`;
 
   console.log(`   📎 PDF path received: ${data.pdfPath || '(none provided)'}`);
 
+  // Build mail options for MailComposer
+  const mailOptions: any = {
+    from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
+    to: data.recipients.join(', '),
+    subject: data.subject,
+    html: data.body,
+    attachments: []
+  };
+
+  // Add BCC if configured
+  if (BCC_EMAIL && BCC_EMAIL.trim() !== '') {
+    mailOptions.bcc = BCC_EMAIL;
+  }
+
+  // Add PDF attachment if path provided
   if (data.pdfPath) {
     try {
-      // Check if it's a local file path or URL
+      let pdfContent: Buffer;
+
       if (data.pdfPath.startsWith('http://') || data.pdfPath.startsWith('https://')) {
         // URL - fetch remotely
         console.log(`   📎 Fetching PDF from URL: ${data.pdfPath}`);
-        pdfBase64 = await fetchPDFAsBase64(data.pdfPath);
+        const response = await axios.get<ArrayBuffer>(data.pdfPath, {
+          responseType: 'arraybuffer',
+          timeout: 30000
+        });
+        pdfContent = Buffer.from(response.data);
+        console.log(`   📎 PDF fetched: ${Math.round(pdfContent.length / 1024)}KB`);
       } else {
-        // Local file path - read from filesystem
+        // Local file path
         console.log(`   📎 Reading PDF from local path: ${data.pdfPath}`);
         const fs = await import('fs').then(m => m.promises);
-        const pdfBuffer = await fs.readFile(data.pdfPath);
-        pdfBase64 = pdfBuffer.toString('base64');
-        console.log(`   📎 PDF loaded from local path: ${data.pdfPath} (${Math.round(pdfBase64.length / 1024)}KB)`);
+        pdfContent = await fs.readFile(data.pdfPath);
+        console.log(`   📎 PDF loaded: ${Math.round(pdfContent.length / 1024)}KB`);
       }
 
-      if (pdfBase64) {
-        // Extract filename from path or use estimate number
-        pdfFilename = `Estimate-${data.estimateNumber || 'document'}.pdf`;
-        console.log(`   📎 PDF attachment ready: ${pdfFilename}`);
-      }
+      mailOptions.attachments.push({
+        filename: pdfFilename,
+        content: pdfContent,
+        contentType: 'application/pdf'
+      });
+
+      console.log(`   📎 PDF attachment added: ${pdfFilename}`);
     } catch (err) {
       console.error('   ⚠️ Could not load PDF attachment:', err instanceof Error ? err.message : 'Unknown error');
-      console.error('   Full error:', err);
-      pdfBase64 = null;
     }
   } else {
     console.log('   ⚠️ No PDF path provided - email will be sent without attachment');
   }
 
-  let rawMessage: string;
+  // Use MailComposer to build proper MIME message
+  const mail = new MailComposer(mailOptions);
 
-  if (pdfBase64) {
-    // Build multipart MIME message with HTML body and PDF attachment
-    rawMessage =
-      `From: ${SENDER_EMAIL}\r\n` +
-      `To: ${data.recipients.join(', ')}\r\n` +
-      (BCC_EMAIL && BCC_EMAIL.trim() !== '' ? `Bcc: ${BCC_EMAIL}\r\n` : '') +
-      `Subject: ${data.subject}\r\n` +
-      `MIME-Version: 1.0\r\n` +
-      `Content-Type: multipart/mixed; boundary="${boundary}"\r\n` +
-      `\r\n` +
-      `--${boundary}\r\n` +
-      `Content-Type: text/html; charset="UTF-8"\r\n` +
-      `Content-Transfer-Encoding: 7bit\r\n` +
-      `\r\n` +
-      `${data.body}\r\n` +
-      `--${boundary}\r\n` +
-      `Content-Type: application/pdf; name="${pdfFilename}"\r\n` +
-      `Content-Disposition: attachment; filename="${pdfFilename}"\r\n` +
-      `Content-Transfer-Encoding: base64\r\n` +
-      `\r\n` +
-      `${pdfBase64}\r\n` +
-      `--${boundary}--`;
-  } else {
-    // Simple message without attachment
-    rawMessage =
-      `From: ${SENDER_EMAIL}\r\n` +
-      `To: ${data.recipients.join(', ')}\r\n` +
-      (BCC_EMAIL && BCC_EMAIL.trim() !== '' ? `Bcc: ${BCC_EMAIL}\r\n` : '') +
-      `Subject: ${data.subject}\r\n` +
-      `Content-Type: text/html; charset="UTF-8"\r\n` +
-      `MIME-Version: 1.0\r\n` +
-      `\r\n` +
-      `${data.body}`;
-  }
+  return new Promise((resolve, reject) => {
+    mail.compile().build((err, message) => {
+      if (err) {
+        reject(err);
+        return;
+      }
 
-  // Encode for Gmail API (URL-safe base64)
-  return Buffer.from(rawMessage).toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
+      // Debug: Log first 2000 chars of message
+      const debugContent = message.toString().substring(0, 2000).replace(/[A-Za-z0-9+/=]{100,}/g, '[BASE64...]');
+      console.log('   📋 MailComposer output preview:\n' + debugContent);
+
+      // Encode for Gmail API (URL-safe base64)
+      const encodedMessage = message.toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+
+      resolve(encodedMessage);
+    });
+  });
 }

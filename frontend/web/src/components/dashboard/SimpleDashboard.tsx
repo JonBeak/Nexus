@@ -251,6 +251,12 @@ Check backend logs for detailed comparison!`);
                   >
                     ⚙️ Settings
                   </button>
+                  <button
+                    onClick={() => navigate('/server-management')}
+                    className="px-3 py-3 bg-slate-600 hover:bg-slate-700 text-white font-medium rounded-lg transition-colors text-left"
+                  >
+                    🖥️ Servers
+                  </button>
                 </div>
               </div>
             </div>

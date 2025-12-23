@@ -66,10 +66,19 @@ export const EstimateLineDescriptionCell: React.FC<EstimateLineDescriptionCellPr
   };
 
   if (readOnly) {
+    // Display with proper newline formatting when finalized
     return (
-      <span className="text-xs text-gray-700 px-1 whitespace-pre-wrap break-words">
-        {value || '-'}
-      </span>
+      <div className="text-xs text-gray-700 px-1">
+        {value ? (
+          value.split('\n').map((line, i) => (
+            <div key={i} className="leading-tight">
+              {line || '\u00A0'}
+            </div>
+          ))
+        ) : (
+          <span className="text-gray-400">-</span>
+        )}
+      </div>
     );
   }
 
@@ -81,12 +90,12 @@ export const EstimateLineDescriptionCell: React.FC<EstimateLineDescriptionCellPr
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
       rows={1}
-      className={`w-full px-1 py-0.5 text-xs border rounded resize-none overflow-hidden
+      className={`w-full px-1 py-0.5 text-xs border-2 rounded resize-none overflow-hidden
         ${isDirty
           ? 'border-blue-500 bg-blue-50'
-          : 'border-gray-300 hover:border-blue-400'
+          : 'border-green-500 bg-green-50 hover:border-green-600'
         }
-        focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
+        focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-500`}
       placeholder="Enter QB description"
       disabled={readOnly}
     />

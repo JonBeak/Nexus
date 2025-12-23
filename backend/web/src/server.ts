@@ -46,6 +46,7 @@ import settingsRoutes from './routes/settings';  // Phase 3: Settings & Template
 import paymentsRoutes from './routes/payments';  // Multi-invoice payment system (Dec 17, 2025)
 import invoicesRoutes from './routes/invoices';  // Invoices listing page (Dec 17, 2025)
 import dashboardPanelsRoutes from './routes/dashboardPanels';  // Customizable Orders Dashboard panels (Dec 17, 2025)
+import serverManagementRoutes from './routes/serverManagement';  // Server Management GUI (Dec 23, 2025)
 
 // QuickBooks utilities for startup
 import { quickbooksOAuthRepository } from './repositories/quickbooksOAuthRepository';
@@ -129,6 +130,7 @@ app.use('/api/settings', settingsRoutes);  // Phase 3: Settings & Templates UI (
 app.use('/api/payments', paymentsRoutes);  // Multi-invoice payment system (Dec 17, 2025)
 app.use('/api/invoices', invoicesRoutes);  // Invoices listing page (Dec 17, 2025)
 app.use('/api/dashboard-panels', dashboardPanelsRoutes);  // Customizable Orders Dashboard panels (Dec 17, 2025)
+app.use('/api/server-management', serverManagementRoutes);  // Server Management GUI (Dec 23, 2025)
 
 // =============================================
 // STATIC FILE SERVING (Phase 1.5.g)

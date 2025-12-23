@@ -194,12 +194,19 @@ export class JobRepository {
 
   /**
    * Check if job name exists for customer
+   * @param excludeJobId - Optional job ID to exclude from the check (for updates)
    */
-  async jobNameExists(customerId: number, jobName: string): Promise<boolean> {
-    const rows = await query(
-      'SELECT job_id FROM jobs WHERE customer_id = ? AND LOWER(job_name) = LOWER(?)',
-      [customerId, jobName.trim()]
-    ) as RowDataPacket[];
+  async jobNameExists(customerId: number, jobName: string, excludeJobId?: number): Promise<boolean> {
+    let sql = 'SELECT job_id FROM jobs WHERE customer_id = ? AND LOWER(job_name) = LOWER(?)';
+    const params: any[] = [customerId, jobName.trim()];
+
+    // Exclude the current job when checking for duplicates during updates
+    if (excludeJobId !== undefined) {
+      sql += ' AND job_id != ?';
+      params.push(excludeJobId);
+    }
+
+    const rows = await query(sql, params) as RowDataPacket[];
 
     return rows.length > 0;
   }

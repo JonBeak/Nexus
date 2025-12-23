@@ -182,6 +182,7 @@ export class EstimateRepository {
         CAST(e.is_sent AS UNSIGNED) as is_sent,
         CAST(e.is_approved AS UNSIGNED) as is_approved,
         CAST(e.is_retracted AS UNSIGNED) as is_retracted,
+        CAST(e.uses_preparation_table AS UNSIGNED) as uses_preparation_table,
         e.email_subject,
         e.email_body,
         j.job_name,
@@ -718,6 +719,8 @@ export class EstimateRepository {
 
   /**
    * Mark estimate as sent (after QB creation and email)
+   * This is the ONLY place that should set is_sent=TRUE
+   * Called after both QB estimate creation AND email sending succeed
    */
   async markEstimateAsSent(
     estimateId: number,
@@ -729,11 +732,11 @@ export class EstimateRepository {
     await query(
       `UPDATE job_estimates
        SET is_sent = TRUE,
+           is_prepared = FALSE,
            status = 'sent',
-           qb_estimate_id = ?,
-           qb_estimate_url = ?,
-           qb_doc_number = ?,
-           sent_to_qb_at = NOW(),
+           qb_estimate_id = COALESCE(?, qb_estimate_id),
+           qb_estimate_url = COALESCE(?, qb_estimate_url),
+           qb_doc_number = COALESCE(?, qb_doc_number),
            updated_by = ?,
            updated_at = NOW()
        WHERE id = ?`,
@@ -743,6 +746,8 @@ export class EstimateRepository {
 
   /**
    * Get estimate for sending (includes all needed data)
+   * For estimates with uses_preparation_table=1, calculates totals from preparation items
+   * Tax rate is determined from customer's billing address province
    */
   async getEstimateForSending(estimateId: number): Promise<RowDataPacket | null> {
     const rows = await query(
@@ -754,19 +759,32 @@ export class EstimateRepository {
         e.is_draft,
         e.is_prepared,
         e.is_sent,
+        e.uses_preparation_table,
         e.email_subject,
         e.email_beginning,
         e.email_end,
         e.email_summary_config,
-        e.subtotal,
-        e.tax_amount,
-        e.total_amount,
+        -- Get tax rate from customer's billing address province (already decimal, e.g., 0.13 for 13%)
+        COALESCE(tr.tax_percent, e.tax_rate, 0) as tax_rate,
+        -- Use preparation items totals if uses_preparation_table, otherwise use stored totals
+        CASE
+          WHEN e.uses_preparation_table = 1 THEN COALESCE(prep.prep_subtotal, 0)
+          ELSE e.subtotal
+        END as subtotal,
+        CASE
+          WHEN e.uses_preparation_table = 1 THEN ROUND(COALESCE(prep.prep_subtotal, 0) * COALESCE(tr.tax_percent, e.tax_rate, 0), 2)
+          ELSE e.tax_amount
+        END as tax_amount,
+        CASE
+          WHEN e.uses_preparation_table = 1 THEN ROUND(COALESCE(prep.prep_subtotal, 0) * (1 + COALESCE(tr.tax_percent, e.tax_rate, 0)), 2)
+          ELSE e.total_amount
+        END as total_amount,
         e.qb_estimate_id,
         e.qb_estimate_url,
         e.qb_doc_number,
         e.sent_to_qb_at,
         e.status,
-        e.created_at as estimate_date,
+        e.estimate_date,
         j.job_name,
         j.job_number,
         j.customer_job_number,
@@ -775,6 +793,21 @@ export class EstimateRepository {
        FROM job_estimates e
        JOIN jobs j ON e.job_id = j.job_id
        JOIN customers c ON e.customer_id = c.customer_id
+       -- Join for preparation items subtotal
+       LEFT JOIN (
+         SELECT estimate_id, SUM(extended_price) as prep_subtotal
+         FROM estimate_preparation_items
+         WHERE is_description_only = 0
+         GROUP BY estimate_id
+       ) prep ON prep.estimate_id = e.id
+       -- Join for tax rate from customer's billing address
+       LEFT JOIN customer_addresses ca ON c.customer_id = ca.customer_id
+         AND (ca.is_billing = 1 OR (ca.is_primary = 1 AND NOT EXISTS(
+           SELECT 1 FROM customer_addresses ca2
+           WHERE ca2.customer_id = c.customer_id AND ca2.is_billing = 1
+         )))
+       LEFT JOIN provinces_tax pt ON ca.province_state_short = pt.province_short AND pt.is_active = 1
+       LEFT JOIN tax_rules tr ON pt.tax_name = tr.tax_name AND tr.is_active = 1
        WHERE e.id = ?`,
       [estimateId]
     ) as RowDataPacket[];

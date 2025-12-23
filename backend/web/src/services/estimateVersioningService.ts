@@ -361,9 +361,10 @@ export class EstimateVersioningService {
   async sendEstimateToCustomer(
     estimateId: number,
     userId: number,
-    estimatePreviewData?: any
+    estimatePreviewData?: any,
+    recipientEmails?: string[]
   ) {
-    return this.estimateService.sendEstimateToCustomer(estimateId, userId, estimatePreviewData);
+    return this.estimateService.sendEstimateToCustomer(estimateId, userId, estimatePreviewData, recipientEmails);
   }
 
   /**

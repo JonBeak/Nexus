@@ -16,6 +16,7 @@ echo "📦 Frontend..."
 /home/jon/Nexus/infrastructure/scripts/frontend-rebuild-production.sh
 echo ""
 
-echo "✅ Both PRODUCTION builds rebuilt successfully!"
+echo "✅ Both PRODUCTION builds rebuilt and activated!"
 echo ""
-echo "🔄 To activate, run: switch-to-production.sh"
+echo "   Backend: port 3001 (signhouse-backend)"
+echo "   Frontend: Nginx (nexuswebapp.duckdns.org)"

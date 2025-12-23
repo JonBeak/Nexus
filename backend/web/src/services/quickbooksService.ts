@@ -17,6 +17,7 @@
 
 import { quickbooksRepository } from '../repositories/quickbooksRepository';
 import { quickbooksOAuthRepository } from '../repositories/quickbooksOAuthRepository';
+import { estimatePreparationRepository } from '../repositories/estimatePreparationRepository';
 import { validateConfig } from '../utils/quickbooks/oauthClient';
 import {
   createEstimate,
@@ -253,13 +254,29 @@ export class QuickBooksService {
       estimateDetails.customer_id
     );
 
-    // STEP 4: Build line items (complex product type handling)
-    const lines = await this.buildLineItems(
-      estimatePreviewData.items,
-      qbTaxCodeId,
-      taxName,
-      realmId
-    );
+    // STEP 4: Build line items
+    // Check if estimate uses the new preparation table (1:1 copy, no special handling)
+    const usesPreparationTable = await estimatePreparationRepository.usesPreparationTable(estimateId);
+    let lines: QBLine[];
+
+    if (usesPreparationTable) {
+      // NEW FLOW: Read from preparation table - 1:1 copy
+      console.log('  Using preparation table for line items (1:1 copy)');
+      lines = await this.buildLineItemsFromPreparationTable(
+        estimateId,
+        qbTaxCodeId,
+        taxName
+      );
+    } else {
+      // LEGACY FLOW: Complex product type handling
+      console.log('  Using legacy line item processing');
+      lines = await this.buildLineItems(
+        estimatePreviewData.items,
+        qbTaxCodeId,
+        taxName,
+        realmId
+      );
+    }
 
     if (lines.length === 0) {
       throw new Error('No valid line items found in estimate.');
@@ -387,6 +404,70 @@ export class QuickBooksService {
     if (missingItems.length > 0) {
       throw new Error(
         `The following items were not found in QuickBooks. Please create them in QuickBooks first:\n${missingItems.join('\n')}`
+      );
+    }
+
+    return lines;
+  }
+
+  /**
+   * Build line items from preparation table - 1:1 copy
+   * No special case handling - preparation table is the source of truth
+   */
+  private async buildLineItemsFromPreparationTable(
+    estimateId: number,
+    qbTaxCodeId: string,
+    taxName: string
+  ): Promise<QBLine[]> {
+    const items = await estimatePreparationRepository.getItemsByEstimateId(estimateId);
+    const lines: QBLine[] = [];
+    const missingQbItems: string[] = [];
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const lineNum = i + 1;
+
+      if (item.is_description_only) {
+        // Description-only row - just text, no pricing
+        lines.push({
+          DetailType: 'DescriptionOnly',
+          Description: item.qb_description || item.item_name || ' ',
+          DescriptionLineDetail: {},
+          LineNum: lineNum
+        });
+      } else {
+        // Regular sales item
+        if (!item.qb_item_id) {
+          missingQbItems.push(`Row ${lineNum}: "${item.item_name}" - No QB item selected`);
+          continue;
+        }
+
+        lines.push({
+          DetailType: 'SalesItemLineDetail',
+          SalesItemLineDetail: {
+            ItemRef: {
+              value: item.qb_item_id,
+              name: item.qb_item_name || item.item_name
+            },
+            Qty: item.quantity,
+            UnitPrice: item.unit_price,
+            TaxCodeRef: {
+              value: qbTaxCodeId,
+              name: taxName
+            }
+          },
+          Amount: item.extended_price,
+          Description: item.qb_description || '',
+          LineNum: lineNum
+        });
+      }
+
+      console.log(`   Line ${lineNum}: ${item.is_description_only ? 'Desc' : 'Item'} - "${item.item_name}"`);
+    }
+
+    if (missingQbItems.length > 0) {
+      throw new Error(
+        `The following items are missing QB item selection. Please select QB items before creating the estimate:\n${missingQbItems.join('\n')}`
       );
     }
 

@@ -35,6 +35,11 @@ interface EstimatePointPerson {
   contact_role?: string;
 }
 
+export interface EstimatePointPersonsEditorHandle {
+  hasChanges: () => boolean;
+  save: () => Promise<void>;
+}
+
 interface EstimatePointPersonsEditorProps {
   customerId: number;
   initialPointPersons?: EstimatePointPerson[];
@@ -42,13 +47,14 @@ interface EstimatePointPersonsEditorProps {
   disabled?: boolean;
 }
 
-const EstimatePointPersonsEditor: React.FC<EstimatePointPersonsEditorProps> = ({
+const EstimatePointPersonsEditor = React.forwardRef<EstimatePointPersonsEditorHandle, EstimatePointPersonsEditorProps>(({
   customerId,
   initialPointPersons = [],
   onSave,
   disabled = false
-}) => {
+}, ref) => {
   const [pointPersons, setPointPersons] = useState<PointPersonEntry[]>([]);
+  const [savedPointPersons, setSavedPointPersons] = useState<PointPersonEntry[]>([]);
   const [allContacts, setAllContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -77,17 +83,17 @@ const EstimatePointPersonsEditor: React.FC<EstimatePointPersonsEditorProps> = ({
   // Initialize point persons from props
   useEffect(() => {
     if (initialPointPersons && initialPointPersons.length > 0) {
-      setPointPersons(
-        initialPointPersons.map(pp => ({
-          id: `existing-${pp.id}`,
-          mode: pp.contact_id ? 'existing' as const : 'custom' as const,
-          contact_id: pp.contact_id,
-          contact_email: pp.contact_email,
-          contact_name: pp.contact_name,
-          contact_phone: pp.contact_phone,
-          contact_role: pp.contact_role
-        }))
-      );
+      const transformedPersons = initialPointPersons.map(pp => ({
+        id: `existing-${pp.id}`,
+        mode: pp.contact_id ? 'existing' as const : 'custom' as const,
+        contact_id: pp.contact_id,
+        contact_email: pp.contact_email,
+        contact_name: pp.contact_name,
+        contact_phone: pp.contact_phone,
+        contact_role: pp.contact_role
+      }));
+      setPointPersons(transformedPersons);
+      setSavedPointPersons(transformedPersons);
     }
   }, [initialPointPersons]);
 
@@ -104,8 +110,9 @@ const EstimatePointPersonsEditor: React.FC<EstimatePointPersonsEditorProps> = ({
       const hasSaveToDatabase = validPointPersons.some(p => p.saveToDatabase && !p.contact_id);
       await onSave(validPointPersons);
 
-      // Update local state to remove empty rows
+      // Update local state to remove empty rows and reset saved state
       setPointPersons(validPointPersons);
+      setSavedPointPersons(validPointPersons);
       setHasChanges(false);
 
       // Reload contacts if any were saved to database
@@ -118,6 +125,18 @@ const EstimatePointPersonsEditor: React.FC<EstimatePointPersonsEditorProps> = ({
       setSaving(false);
     }
   };
+
+  // Handle reset - revert to last saved state
+  const handleReset = () => {
+    setPointPersons(savedPointPersons);
+    setHasChanges(false);
+  };
+
+  // Expose methods via ref (after handleSave is defined)
+  React.useImperativeHandle(ref, () => ({
+    hasChanges: () => hasChanges,
+    save: handleSave
+  }), [hasChanges, handleSave]);
 
   // Get IDs of contacts already selected
   const selectedContactIds = pointPersons
@@ -339,19 +358,31 @@ const EstimatePointPersonsEditor: React.FC<EstimatePointPersonsEditorProps> = ({
         Add Point Person
       </button>
 
-      {/* Save Button (only show if changes) */}
+      {/* Save and Reset Buttons (only show if changes) */}
       {hasChanges && (
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={disabled || saving}
-          className="w-full mt-1 px-2 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 disabled:opacity-50"
-        >
-          {saving ? 'Saving...' : 'Save'}
-        </button>
+        <div className="flex gap-2 mt-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={disabled || saving}
+            className="flex-1 px-2 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+          <button
+            type="button"
+            onClick={handleReset}
+            disabled={disabled || saving}
+            className="flex-1 px-2 py-1 bg-gray-300 text-gray-700 text-xs rounded hover:bg-gray-400 disabled:opacity-50"
+          >
+            Reset Changes
+          </button>
+        </div>
       )}
     </div>
   );
-};
+});
+
+EstimatePointPersonsEditor.displayName = 'EstimatePointPersonsEditor';
 
 export default EstimatePointPersonsEditor;

@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Copy, Check, CheckCircle } from 'lucide-react';
 import GridJobBuilderRefactored from './GridJobBuilderRefactored';
 import { EstimateTable } from './EstimateTable';
+import { EstimatePreparationTable, PreparationTotals } from './EstimatePreparationTable';
 import { BreadcrumbNavigation } from './BreadcrumbNavigation';
 import { CustomerPreferencesPanel } from './CustomerPreferencesPanel';
 import { CollapsiblePanel } from './components/CollapsiblePanel';
-import { SendWorkflowPanel } from './components/SendWorkflowPanel';
+import { SendWorkflowPanel, SendWorkflowPanelHandle } from './components/SendWorkflowPanel';
+import { EstimateEmailPreviewModal } from './components/EstimateEmailPreviewModal';
 import CustomerDetailsModal from '../customers/CustomerDetailsModal';
 import { ApproveEstimateModal } from '../orders/modals/ApproveEstimateModal';
 import { ConfirmFinalizeModal } from './modals/ConfirmFinalizeModal';
@@ -13,6 +16,7 @@ import { QBEstimateSuccessModal } from './modals/QBEstimateSuccessModal';
 import { EstimateSentSuccessModal } from './modals/EstimateSentSuccessModal';
 import { jobVersioningApi, customerContactsApi } from '../../services/api';
 import { getEstimateStatusText } from './utils/statusUtils';
+import { generateEstimateSVG } from './utils/svgEstimateExporter';
 import { User } from '../../types';
 import { EstimateVersion, EmailSummaryConfig, DEFAULT_EMAIL_SUMMARY_CONFIG, EstimateEmailData, DEFAULT_EMAIL_BEGINNING, DEFAULT_EMAIL_END, DEFAULT_EMAIL_SUBJECT } from './types';
 import { PointPersonEntry } from './EstimatePointPersonsEditor';
@@ -48,8 +52,17 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
   // GridEngine reference for auto-save orchestration
   const [gridEngineRef, setGridEngineRef] = useState<GridEngine | null>(null);
 
+  // Copy SVG success state for preparation table view
+  const [copySvgSuccess, setCopySvgSuccess] = useState(false);
+
+  // SendWorkflowPanel reference for saving point persons before send
+  const sendWorkflowPanelRef = useRef<SendWorkflowPanelHandle>(null);
+
   // Approval modal state
   const [showApprovalModal, setShowApprovalModal] = useState(false);
+
+  // Email preview modal state for prepared mode
+  const [showPreparedEmailPreview, setShowPreparedEmailPreview] = useState(false);
 
   // Phase 7: Point persons and email state for workflow
   const [pointPersons, setPointPersons] = useState<PointPersonEntry[]>([]);
@@ -60,6 +73,9 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
 
   // QB Description state (lifted from EstimateTable for use in QB integration)
   const [lineDescriptions, setLineDescriptions] = useState<Map<number, string>>(new Map());
+
+  // Preparation table totals (for email preview in prepared mode)
+  const [preparationTotals, setPreparationTotals] = useState<PreparationTotals | null>(null);
 
   // Collapsible panel state for prepared mode (workflow expanded by default)
   const [leftPanelExpanded, setLeftPanelExpanded] = useState<'workflow' | 'grid'>('workflow');
@@ -318,6 +334,53 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
     navigate(`/orders/${orderNumber}`);
   };
 
+  // Copy SVG handler for preparation table view
+  const handleCopySvg = async () => {
+    if (!estimatePreviewData || estimatePreviewData.items.length === 0) {
+      console.error('No estimate data available');
+      return;
+    }
+
+    try {
+      const currentDate = new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+
+      const svg = generateEstimateSVG(estimatePreviewData, {
+        customerName: customerPreferencesData?.customerName || undefined,
+        jobName: currentEstimate?.job_name || undefined,
+        version: currentEstimate ? `v${currentEstimate.version_number}` : undefined,
+        description: currentEstimate?.notes || undefined,
+        date: currentDate
+      });
+
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(svg);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = svg;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+        } finally {
+          document.body.removeChild(textArea);
+        }
+      }
+
+      setCopySvgSuccess(true);
+      setTimeout(() => setCopySvgSuccess(false), 2000);
+    } catch (error) {
+      console.error('Copy failed:', error);
+    }
+  };
+
   // Phase 7: Email and point persons change handlers with auto-save
   const emailSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -365,6 +428,11 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
       }
     }
   }, [currentEstimate?.id]);
+
+  // Callback to save point persons from SendWorkflowPanel (for use before sending)
+  const handleSavePointPersonsBeforeSend = useCallback(async () => {
+    await sendWorkflowPanelRef.current?.savePointPersons?.();
+  }, []);
 
   // Handler for QB line description changes from EstimateTable
   const handleLineDescriptionChange = useCallback((lineIndex: number, value: string) => {
@@ -535,6 +603,7 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
                 side="right"
               >
                 <SendWorkflowPanel
+                  ref={sendWorkflowPanelRef}
                   customerId={currentEstimate.customer_id}
                   pointPersons={pointPersons}
                   onPointPersonsChange={handlePointPersonsChange}
@@ -546,9 +615,17 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
                     jobName: currentEstimate.job_name,
                     customerJobNumber: currentEstimate.customer_job_number,
                     qbEstimateNumber: currentEstimate.qb_doc_number,
-                    subtotal: estimatePreviewData?.subtotal,
-                    tax: estimatePreviewData?.taxAmount,
-                    total: estimatePreviewData?.total,
+                    // For preparation table mode, only use preparationTotals (no fallback to wrong data)
+                    // For legacy mode, use estimatePreviewData
+                    subtotal: currentEstimate.uses_preparation_table
+                      ? preparationTotals?.subtotal
+                      : estimatePreviewData?.subtotal,
+                    tax: currentEstimate.uses_preparation_table
+                      ? preparationTotals?.tax
+                      : estimatePreviewData?.taxAmount,
+                    total: currentEstimate.uses_preparation_table
+                      ? preparationTotals?.total
+                      : estimatePreviewData?.total,
                     estimateDate: currentEstimate.created_at
                   }}
                   onEmailChange={handleEmailChange}
@@ -556,46 +633,133 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
                 />
               </CollapsiblePanel>
 
-              {/* Section 3: Estimate Preview (always visible) */}
+              {/* Section 3: Estimate Preview / Preparation Table */}
               <div className="estimate-builder-preview-wrapper">
-                <EstimateTable
-                  estimate={currentEstimate}
-                  hasValidationErrors={hasValidationErrors}
-                  validationErrorCount={validationErrorCount}
-                  estimatePreviewData={estimatePreviewData}
-                  hoveredRowId={hoveredRowId}
-                  onRowHover={setHoveredRowId}
-                  customerName={customerPreferencesData?.customerName || null}
-                  jobName={currentEstimate.job_name}
-                  version={`v${currentEstimate.version_number}`}
-                  qbEstimateId={currentEstimate.qb_estimate_id}
-                  qbEstimateUrl={currentEstimate.qb_estimate_id ? `https://qbo.intuit.com/app/estimate?txnId=${currentEstimate.qb_estimate_id}` : null}
-                  qbCreatingEstimate={qbCreatingEstimate}
-                  qbConnected={qbConnected}
-                  qbCheckingStatus={qbCheckingStatus}
-                  isApproved={currentEstimate.is_approved === true || currentEstimate.is_approved === 1}
-                  onCreateQBEstimate={handleCreateQuickBooksEstimate}
-                  onOpenQBEstimate={handleOpenQuickBooksEstimate}
-                  onConnectQB={handleConnectToQuickBooks}
-                  onDisconnectQB={handleDisconnectFromQuickBooks}
-                  onApproveEstimate={handleApproveEstimate}
-                  // Hide send workflow in EstimateTable since it's in separate panel
-                  hideSendWorkflow={true}
-                  customerId={currentEstimate.customer_id}
-                  pointPersons={pointPersons}
-                  onPointPersonsChange={handlePointPersonsChange}
-                  emailSubject={emailSubject}
-                  emailBeginning={emailBeginning}
-                  emailEnd={emailEnd}
-                  emailSummaryConfig={emailSummaryConfig}
-                  onEmailChange={handleEmailChange}
-                  onPrepareEstimate={handlePrepareEstimate}
-                  onSendToCustomer={handleSendToCustomer}
-                  isPreparing={isPreparing}
-                  isSending={isSending}
-                  lineDescriptions={lineDescriptions}
-                  onLineDescriptionChange={handleLineDescriptionChange}
-                />
+                {/* Show Preparation Table for new estimates with uses_preparation_table flag */}
+                {currentEstimate.uses_preparation_table ? (
+                  <div className="flex flex-col gap-4">
+                    {/* Preparation Table - editable rows for QB */}
+                    <EstimatePreparationTable
+                      estimateId={currentEstimate.id}
+                      readOnly={currentEstimate.status === 'ordered' || !!currentEstimate.qb_estimate_id}
+                      taxRate={taxRate}
+                      onTotalsChange={(totals) => {
+                        setPreparationTotals(totals);
+                      }}
+                    />
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-2 justify-end flex-wrap">
+                      {/* Copy SVG Button */}
+                      <button
+                        onClick={handleCopySvg}
+                        disabled={!estimatePreviewData || estimatePreviewData.items.length === 0}
+                        className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded transition-colors ${
+                          copySvgSuccess
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        {copySvgSuccess ? (
+                          <>
+                            <Check className="w-4 h-4" />
+                            Copied!
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4" />
+                            Copy SVG
+                          </>
+                        )}
+                      </button>
+
+                      {/* Convert to Order Button */}
+                      {currentEstimate.status !== 'ordered' && (
+                        <button
+                          onClick={handleApproveEstimate}
+                          className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          Convert to Order
+                        </button>
+                      )}
+
+                      {/* QB Integration Buttons */}
+                      {!currentEstimate.qb_estimate_id && qbConnected && (
+                        <button
+                          onClick={handleCreateQuickBooksEstimate}
+                          disabled={qbCreatingEstimate}
+                          className="px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                        >
+                          {qbCreatingEstimate ? 'Creating...' : 'Create QB Estimate'}
+                        </button>
+                      )}
+                      {currentEstimate.qb_estimate_id && (
+                        <>
+                          <button
+                            onClick={handleOpenQuickBooksEstimate}
+                            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                          >
+                            Open in QB
+                          </button>
+                          <button
+                            onClick={async () => {
+                              // Save any unsaved point persons first
+                              await handleSavePointPersonsBeforeSend();
+                              setShowPreparedEmailPreview(true);
+                            }}
+                            disabled={isSending || pointPersons.length === 0}
+                            className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                            title={pointPersons.length === 0 ? 'Add point persons first' : undefined}
+                          >
+                            Send to Customer
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  /* Legacy: EstimateTable for estimates without uses_preparation_table */
+                  <EstimateTable
+                    estimate={currentEstimate}
+                    hasValidationErrors={hasValidationErrors}
+                    validationErrorCount={validationErrorCount}
+                    estimatePreviewData={estimatePreviewData}
+                    hoveredRowId={hoveredRowId}
+                    onRowHover={setHoveredRowId}
+                    customerName={customerPreferencesData?.customerName || null}
+                    jobName={currentEstimate.job_name}
+                    version={`v${currentEstimate.version_number}`}
+                    qbEstimateId={currentEstimate.qb_estimate_id}
+                    qbEstimateUrl={currentEstimate.qb_estimate_id ? `https://qbo.intuit.com/app/estimate?txnId=${currentEstimate.qb_estimate_id}` : null}
+                    qbCreatingEstimate={qbCreatingEstimate}
+                    qbConnected={qbConnected}
+                    qbCheckingStatus={qbCheckingStatus}
+                    isApproved={currentEstimate.is_approved === true || currentEstimate.is_approved === 1}
+                    onCreateQBEstimate={handleCreateQuickBooksEstimate}
+                    onOpenQBEstimate={handleOpenQuickBooksEstimate}
+                    onConnectQB={handleConnectToQuickBooks}
+                    onDisconnectQB={handleDisconnectFromQuickBooks}
+                    onApproveEstimate={handleApproveEstimate}
+                    // Hide send workflow in EstimateTable since it's in separate panel
+                    hideSendWorkflow={true}
+                    customerId={currentEstimate.customer_id}
+                    pointPersons={pointPersons}
+                    onPointPersonsChange={handlePointPersonsChange}
+                    emailSubject={emailSubject}
+                    emailBeginning={emailBeginning}
+                    emailEnd={emailEnd}
+                    emailSummaryConfig={emailSummaryConfig}
+                    onEmailChange={handleEmailChange}
+                    onPrepareEstimate={handlePrepareEstimate}
+                    onSendToCustomer={handleSendToCustomer}
+                    onSavePointPersons={handleSavePointPersonsBeforeSend}
+                    isPreparing={isPreparing}
+                    isSending={isSending}
+                    lineDescriptions={lineDescriptions}
+                    onLineDescriptionChange={handleLineDescriptionChange}
+                  />
+                )}
               </div>
             </div>
           ) : (
@@ -669,6 +833,7 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
                   onEmailChange={handleEmailChange}
                   onPrepareEstimate={handlePrepareEstimate}
                   onSendToCustomer={handleSendToCustomer}
+                  onSavePointPersons={handleSavePointPersonsBeforeSend}
                   isPreparing={isPreparing}
                   isSending={isSending}
                   lineDescriptions={lineDescriptions}
@@ -731,6 +896,34 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
           emailsSentTo={sentSuccessData.emailsSentTo}
           wasResent={sentSuccessData.wasResent}
           onClose={handleCloseSentSuccessModal}
+        />
+      )}
+
+      {/* Email Preview Modal for Prepared Mode */}
+      {currentEstimate && currentEstimate.uses_preparation_table && pointPersons.length > 0 && (
+        <EstimateEmailPreviewModal
+          isOpen={showPreparedEmailPreview}
+          onClose={() => setShowPreparedEmailPreview(false)}
+          onConfirm={(selectedRecipients: string[]) => {
+            setShowPreparedEmailPreview(false);
+            handleSendToCustomer(selectedRecipients);
+          }}
+          estimate={currentEstimate}
+          pointPersons={pointPersons}
+          isSending={isSending}
+          emailSubject={emailSubject}
+          emailBeginning={emailBeginning}
+          emailEnd={emailEnd}
+          emailSummaryConfig={emailSummaryConfig}
+          estimateData={{
+            jobName: currentEstimate.job_name || undefined,
+            customerJobNumber: currentEstimate.customer_job_number || undefined,
+            qbEstimateNumber: currentEstimate.qb_doc_number || undefined,
+            subtotal: preparationTotals?.subtotal,
+            tax: preparationTotals?.tax,
+            total: preparationTotals?.total,
+            estimateDate: currentEstimate.estimate_date || new Date().toISOString().split('T')[0]
+          }}
         />
       )}
     </div>

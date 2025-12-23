@@ -278,8 +278,11 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
     try {
       setLoadingTemplate(true);
       const response = await jobVersioningApi.getEstimateSendTemplate();
-      // Get subject from template if available, otherwise use default
+
+      // Get values from database template, with frontend defaults as fallback
       const templateSubject = (response.success && response.data?.subject) || DEFAULT_EMAIL_SUBJECT;
+      const templateBeginning = (response.success && response.data?.body_beginning) || DEFAULT_EMAIL_BEGINNING;
+      const templateEnd = (response.success && response.data?.body_end) || DEFAULT_EMAIL_END;
 
       // Build smart summary config - only include Customer Ref if job has one
       const smartConfig: EmailSummaryConfig = {
@@ -287,12 +290,12 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
         includeCustomerRef: !!estimateData?.customerJobNumber
       };
 
-      // Always reset to defaults (with smart Customer Ref handling)
+      // Reset to database values (with smart Customer Ref handling)
       setSubject(templateSubject);
-      setBeginning(DEFAULT_EMAIL_BEGINNING);
-      setEnd(DEFAULT_EMAIL_END);
+      setBeginning(templateBeginning);
+      setEnd(templateEnd);
       setSummaryConfig(smartConfig);
-      notifyChange(templateSubject, DEFAULT_EMAIL_BEGINNING, DEFAULT_EMAIL_END, smartConfig);
+      notifyChange(templateSubject, templateBeginning, templateEnd, smartConfig);
     } catch (error) {
       console.error('Failed to reload template:', error);
       // Build smart summary config even on error
@@ -300,7 +303,7 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
         ...DEFAULT_EMAIL_SUMMARY_CONFIG,
         includeCustomerRef: !!estimateData?.customerJobNumber
       };
-      // Even on error, reset to defaults
+      // On error, fall back to frontend defaults
       setSubject(DEFAULT_EMAIL_SUBJECT);
       setBeginning(DEFAULT_EMAIL_BEGINNING);
       setEnd(DEFAULT_EMAIL_END);

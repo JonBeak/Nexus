@@ -24,7 +24,7 @@ interface Props {
   estimateData?: EstimateEmailData;
 }
 
-export const EstimateEmailPreview: React.FC<Props> = ({
+const EstimateEmailPreviewComponent: React.FC<Props> = ({
   estimateId,
   recipients,
   emailSubject,
@@ -39,17 +39,17 @@ export const EstimateEmailPreview: React.FC<Props> = ({
   const [error, setError] = useState<string | null>(null);
 
   // Load email preview from backend
+  // Memoize recipients string to prevent unnecessary re-renders
+  const recipientString = React.useMemo(() => recipients.join(','), [recipients]);
+
   useEffect(() => {
     loadPreview();
-  }, [estimateId, recipients, emailSubject, emailBeginning, emailEnd, emailSummaryConfig, estimateData]);
+  }, [estimateId, recipientString, emailSubject, emailBeginning, emailEnd, emailSummaryConfig, estimateData]);
 
   const loadPreview = async () => {
     try {
       setLoading(true);
       setError(null);
-
-      // Build comma-separated recipient string
-      const recipientString = recipients.join(',');
 
       // Fetch preview from backend with email content
       const response = await jobVersioningApi.getEstimateEmailPreview(
@@ -137,3 +137,24 @@ export const EstimateEmailPreview: React.FC<Props> = ({
     </div>
   );
 };
+
+// Custom comparison: only re-render if actual email content changes, not array reference
+export const EstimateEmailPreview = React.memo(
+  EstimateEmailPreviewComponent,
+  (prevProps, nextProps) => {
+    const prevRecipientString = prevProps.recipients.join(',');
+    const nextRecipientString = nextProps.recipients.join(',');
+
+    // Return true if props are equal (no re-render needed)
+    return (
+      prevRecipientString === nextRecipientString &&
+      prevProps.estimateId === nextProps.estimateId &&
+      prevProps.emailSubject === nextProps.emailSubject &&
+      prevProps.emailBeginning === nextProps.emailBeginning &&
+      prevProps.emailEnd === nextProps.emailEnd &&
+      prevProps.estimateName === nextProps.estimateName &&
+      JSON.stringify(prevProps.emailSummaryConfig) === JSON.stringify(nextProps.emailSummaryConfig) &&
+      JSON.stringify(prevProps.estimateData) === JSON.stringify(nextProps.estimateData)
+    );
+  }
+);

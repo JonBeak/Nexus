@@ -17,6 +17,7 @@ import * as estimateWorkflowController from '../controllers/estimates/estimateWo
 import * as estimateItemsController from '../controllers/estimates/estimateItemsController';
 import * as estimateGridDataController from '../controllers/estimates/estimateGridDataController';
 import * as estimateStatusController from '../controllers/estimateStatusController';
+import * as estimatePreparationController from '../controllers/estimates/estimatePreparationController';
 
 const router = Router();
 
@@ -113,6 +114,17 @@ router.post('/estimates/:estimateId/email-preview', authenticateToken, estimateV
 // QB Line Descriptions (Phase 4.c - QB Description Column)
 router.get('/estimates/:estimateId/line-descriptions', authenticateToken, estimateVersionController.getLineDescriptions);
 router.put('/estimates/:estimateId/line-descriptions', authenticateToken, estimateVersionController.updateLineDescriptions);
+
+// =============================================
+// PREPARATION TABLE - Editable QB Estimate Rows (Phase 4.e)
+// =============================================
+router.get('/estimates/:estimateId/preparation-items', authenticateToken, estimatePreparationController.getPreparationItems);
+router.get('/estimates/:estimateId/preparation-items/totals', authenticateToken, estimatePreparationController.getPreparationTotals);
+router.put('/estimates/:estimateId/preparation-items/:itemId', authenticateToken, estimatePreparationController.updatePreparationItem);
+router.post('/estimates/:estimateId/preparation-items', authenticateToken, estimatePreparationController.addPreparationItem);
+router.delete('/estimates/:estimateId/preparation-items/:itemId', authenticateToken, estimatePreparationController.deletePreparationItem);
+router.post('/estimates/:estimateId/preparation-items/reorder', authenticateToken, estimatePreparationController.reorderPreparationItems);
+router.post('/estimates/:estimateId/preparation-items/:itemId/toggle-type', authenticateToken, estimatePreparationController.togglePreparationItemType);
 
 // QB Estimate PDF (Phase 4.c - PDF Preview in Send Modal)
 router.get('/estimates/:estimateId/qb-pdf', authenticateToken, estimateVersionController.getEstimatePdf);

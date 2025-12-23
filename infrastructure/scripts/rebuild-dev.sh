@@ -16,6 +16,7 @@ echo "📦 Frontend..."
 /home/jon/Nexus/infrastructure/scripts/frontend-rebuild-dev.sh
 echo ""
 
-echo "✅ Both DEV builds rebuilt successfully!"
+echo "✅ Both DEV builds rebuilt and activated!"
 echo ""
-echo "🔄 To activate, run: switch-to-dev.sh"
+echo "   Backend: port 3002 (signhouse-backend-dev)"
+echo "   Frontend: port 5173 (Vite dev server)"

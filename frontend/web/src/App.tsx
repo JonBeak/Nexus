@@ -31,6 +31,7 @@ const EmailTemplatesManager = lazy(() => import('./components/settings/EmailTemp
 const PaintingMatrixManager = lazy(() => import('./components/settings/PaintingMatrixManager').then(m => ({ default: m.PaintingMatrixManager })));
 const PaymentsPage = lazy(() => import('./pages/PaymentsPage'));
 const InvoicesPage = lazy(() => import('./components/invoices/InvoicesPage'));
+const ServerManagement = lazy(() => import('./components/serverManagement/ServerManagement'));
 
 // Loading component for lazy routes
 const RouteLoader = () => (
@@ -187,6 +188,11 @@ function AppContent() {
         } />
         <Route path="/invoices/payments" element={
           user && (user.role === 'manager' || user.role === 'owner') ? <InvoicesPage /> : <Navigate to="/dashboard" />
+        } />
+
+        {/* Server Management - Owner only */}
+        <Route path="/server-management" element={
+          user && user.role === 'owner' ? <ServerManagement /> : <Navigate to="/dashboard" />
         } />
 
         <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} />} />

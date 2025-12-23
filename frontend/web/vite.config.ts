@@ -23,6 +23,7 @@ export default defineConfig({
     },
   },
   build: {
+    outDir: process.env.VITE_OUT_DIR || 'dist',
     rollupOptions: {
       output: {
         manualChunks: {

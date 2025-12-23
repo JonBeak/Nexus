@@ -66,8 +66,9 @@ export class QuickBooksRepository {
   }
 
   /**
-   * Finalize estimate after successful QB creation
-   * Sets is_draft = FALSE and updates QB linkage
+   * Save QB linkage after successful QB estimate creation
+   * Does NOT set is_sent=TRUE - that happens in markEstimateAsSent after email is sent
+   * This allows email failures to be retried without incorrectly showing "previously sent"
    * Uses txnDate from QuickBooks as estimate_date
    */
   async finalizeEstimate(
@@ -80,9 +81,6 @@ export class QuickBooksRepository {
     await query(
       `UPDATE job_estimates
        SET is_draft = FALSE,
-           is_prepared = FALSE,
-           status = 'sent',
-           is_sent = TRUE,
            finalized_at = NOW(),
            finalized_by_user_id = ?,
            qb_estimate_id = ?,

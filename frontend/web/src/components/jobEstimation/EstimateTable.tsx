@@ -35,6 +35,7 @@ interface EstimateTableProps {
   customerId?: number;
   pointPersons?: PointPersonEntry[];
   onPointPersonsChange?: (pointPersons: PointPersonEntry[]) => void;
+  onSavePointPersons?: () => Promise<void>;
   // Phase 7: Email Content (3-part structure)
   emailSubject?: string;
   emailBeginning?: string;
@@ -137,6 +138,7 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
   customerId,
   pointPersons,
   onPointPersonsChange,
+  onSavePointPersons,
   emailSubject,
   emailBeginning,
   emailEnd,
@@ -157,6 +159,7 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
   const lineDescriptions = lineDescriptionsProp || localLineDescriptions;
   const [isConvertedToOrder, setIsConvertedToOrder] = useState(false);
   const [showEmailPreview, setShowEmailPreview] = useState(false);
+  const [isSavingPointPersons, setIsSavingPointPersons] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Load QB descriptions for non-draft estimates (only if using local state)
@@ -332,19 +335,34 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
               </button>
               {!isApproved && (
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (pointPersons && pointPersons.length === 0) {
                       alert('Please add at least one point person before sending');
                       return;
                     }
+
+                    // Auto-save point persons before opening modal
+                    if (onSavePointPersons) {
+                      try {
+                        setIsSavingPointPersons(true);
+                        await onSavePointPersons();
+                      } catch (error) {
+                        console.error('Failed to auto-save point persons:', error);
+                        alert('Failed to save point persons. Please try again.');
+                        return;
+                      } finally {
+                        setIsSavingPointPersons(false);
+                      }
+                    }
+
                     setShowEmailPreview(true);
                   }}
-                  disabled={isSending}
+                  disabled={isSending || isSavingPointPersons}
                   className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors disabled:opacity-50"
                   title="Send estimate to customer via email"
                 >
                   <Mail className="w-3.5 h-3.5" />
-                  {isSending ? 'Sending...' : 'Send to Customer'}
+                  {isSavingPointPersons ? 'Saving...' : isSending ? 'Sending...' : 'Send to Customer'}
                 </button>
               )}
               {!isApproved && onApproveEstimate && (
@@ -596,7 +614,7 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                       }))}
                       onSave={async (newPointPersons) => {
                         if (onPointPersonsChange) {
-                          onPointPersonsChange(newPointPersons);
+                          await onPointPersonsChange(newPointPersons);
                         }
                       }}
                       disabled={isConvertedToOrder}

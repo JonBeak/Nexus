@@ -200,9 +200,10 @@ export class EstimateService {
   async sendEstimateToCustomer(
     estimateId: number,
     userId: number,
-    estimatePreviewData?: any
+    estimatePreviewData?: any,
+    recipientEmails?: string[]
   ) {
-    return this.workflowService.sendEstimateToCustomer(estimateId, userId, estimatePreviewData);
+    return this.workflowService.sendEstimateToCustomer(estimateId, userId, estimatePreviewData, recipientEmails);
   }
 
   /**

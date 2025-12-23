@@ -236,9 +236,10 @@ export const jobVersioningApi = {
    * - Creates QB estimate
    * - Sends email to point persons
    */
-  sendEstimateToCustomer: async (estimateId: number, estimatePreviewData?: any) => {
+  sendEstimateToCustomer: async (estimateId: number, estimatePreviewData?: any, recipientEmails?: string[]) => {
     const response = await api.post(`/job-estimation/estimates/${estimateId}/send-to-customer`, {
-      estimatePreviewData
+      estimatePreviewData,
+      recipientEmails
     });
     return response.data;
   },
@@ -385,6 +386,104 @@ export const jobVersioningApi = {
    */
   getEstimatePdf: async (estimateId: number): Promise<{ success: boolean; data: { pdf: string; filename: string } }> => {
     const response = await api.get(`/job-estimation/estimates/${estimateId}/qb-pdf`);
+    return response.data;
+  },
+
+  // =============================================
+  // PREPARATION TABLE (Phase 4.e - Editable QB Estimate Rows)
+  // =============================================
+
+  /**
+   * Get all preparation items for an estimate
+   */
+  getPreparationItems: async (estimateId: number) => {
+    const response = await api.get(`/job-estimation/estimates/${estimateId}/preparation-items`);
+    return response.data;
+  },
+
+  /**
+   * Get preparation table totals
+   */
+  getPreparationTotals: async (estimateId: number) => {
+    const response = await api.get(`/job-estimation/estimates/${estimateId}/preparation-items/totals`);
+    return response.data;
+  },
+
+  /**
+   * Update a single preparation item
+   */
+  updatePreparationItem: async (
+    estimateId: number,
+    itemId: number,
+    updates: {
+      item_name?: string;
+      qb_description?: string | null;
+      quantity?: number;
+      unit_price?: number;
+      extended_price?: number;
+      is_description_only?: boolean;
+      qb_item_id?: string | null;
+      qb_item_name?: string | null;
+    }
+  ) => {
+    const response = await api.put(
+      `/job-estimation/estimates/${estimateId}/preparation-items/${itemId}`,
+      updates
+    );
+    return response.data;
+  },
+
+  /**
+   * Add a new preparation item
+   */
+  addPreparationItem: async (
+    estimateId: number,
+    item: {
+      item_name: string;
+      qb_description?: string | null;
+      quantity?: number;
+      unit_price?: number;
+      is_description_only?: boolean;
+      qb_item_id?: string | null;
+      qb_item_name?: string | null;
+    },
+    afterDisplayOrder?: number
+  ) => {
+    const response = await api.post(
+      `/job-estimation/estimates/${estimateId}/preparation-items`,
+      { ...item, afterDisplayOrder }
+    );
+    return response.data;
+  },
+
+  /**
+   * Delete a preparation item
+   */
+  deletePreparationItem: async (estimateId: number, itemId: number) => {
+    const response = await api.delete(
+      `/job-estimation/estimates/${estimateId}/preparation-items/${itemId}`
+    );
+    return response.data;
+  },
+
+  /**
+   * Reorder preparation items (for drag-and-drop)
+   */
+  reorderPreparationItems: async (estimateId: number, itemIds: number[]) => {
+    const response = await api.post(
+      `/job-estimation/estimates/${estimateId}/preparation-items/reorder`,
+      { itemIds }
+    );
+    return response.data;
+  },
+
+  /**
+   * Toggle row type between regular and description-only
+   */
+  togglePreparationItemType: async (estimateId: number, itemId: number) => {
+    const response = await api.post(
+      `/job-estimation/estimates/${estimateId}/preparation-items/${itemId}/toggle-type`
+    );
     return response.data;
   }
 };

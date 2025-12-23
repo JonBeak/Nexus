@@ -1,8 +1,12 @@
-import React from 'react';
+import React, { useMemo, useRef } from 'react';
 import { Mail, Users } from 'lucide-react';
-import EstimatePointPersonsEditor, { PointPersonEntry } from '../EstimatePointPersonsEditor';
+import EstimatePointPersonsEditor, { PointPersonEntry, EstimatePointPersonsEditorHandle } from '../EstimatePointPersonsEditor';
 import EstimateEmailComposer from '../EstimateEmailComposer';
 import { EmailSummaryConfig, EstimateEmailData } from '../types';
+
+export interface SendWorkflowPanelHandle {
+  savePointPersons: () => Promise<void>;
+}
 
 interface SendWorkflowPanelProps {
   customerId: number;
@@ -26,7 +30,7 @@ interface SendWorkflowPanelProps {
  * SendWorkflowPanel - Contains Point Persons and Email sections
  * Email uses 3-part structure: Beginning + Estimate Summary + End
  */
-export const SendWorkflowPanel: React.FC<SendWorkflowPanelProps> = ({
+export const SendWorkflowPanel = React.forwardRef<SendWorkflowPanelHandle, SendWorkflowPanelProps>(({
   customerId,
   pointPersons,
   onPointPersonsChange,
@@ -37,7 +41,32 @@ export const SendWorkflowPanel: React.FC<SendWorkflowPanelProps> = ({
   estimateData,
   onEmailChange,
   isConvertedToOrder
-}) => {
+}, ref) => {
+  // Ref to point persons editor for external save calls
+  const pointPersonsEditorRef = useRef<EstimatePointPersonsEditorHandle>(null);
+
+  // Expose savePointPersons method via ref
+  React.useImperativeHandle(ref, () => ({
+    savePointPersons: async () => {
+      if (pointPersonsEditorRef.current?.hasChanges?.()) {
+        await pointPersonsEditorRef.current?.save?.();
+      }
+    }
+  }), []);
+
+  // Memoize initialPointPersons to prevent unnecessary resets of EstimatePointPersonsEditor state
+  // when parent component re-renders (e.g., from email autosave debounce)
+  const memoizedInitialPointPersons = useMemo(() => {
+    return pointPersons?.map(pp => ({
+      id: typeof pp.id === 'string' ? parseInt(pp.id.replace('existing-', '').replace('new-', '')) || 0 : 0,
+      contact_id: pp.contact_id,
+      contact_email: pp.contact_email,
+      contact_name: pp.contact_name,
+      contact_phone: pp.contact_phone,
+      contact_role: pp.contact_role
+    })) || [];
+  }, [pointPersons]);
+
   return (
     <div className="bg-white rounded-lg shadow h-full flex flex-col">
       {/* Header */}
@@ -55,17 +84,11 @@ export const SendWorkflowPanel: React.FC<SendWorkflowPanelProps> = ({
             <h4 className="text-xs font-medium text-gray-700">Point Person(s)</h4>
           </div>
           <EstimatePointPersonsEditor
+            ref={pointPersonsEditorRef}
             customerId={customerId}
-            initialPointPersons={pointPersons?.map(pp => ({
-              id: typeof pp.id === 'string' ? parseInt(pp.id.replace('existing-', '').replace('new-', '')) || 0 : 0,
-              contact_id: pp.contact_id,
-              contact_email: pp.contact_email,
-              contact_name: pp.contact_name,
-              contact_phone: pp.contact_phone,
-              contact_role: pp.contact_role
-            }))}
+            initialPointPersons={memoizedInitialPointPersons}
             onSave={async (newPointPersons) => {
-              onPointPersonsChange(newPointPersons);
+              await onPointPersonsChange(newPointPersons);
             }}
             disabled={isConvertedToOrder}
           />
@@ -90,6 +113,8 @@ export const SendWorkflowPanel: React.FC<SendWorkflowPanelProps> = ({
       </div>
     </div>
   );
-};
+});
+
+SendWorkflowPanel.displayName = 'SendWorkflowPanel';
 
 export default SendWorkflowPanel;

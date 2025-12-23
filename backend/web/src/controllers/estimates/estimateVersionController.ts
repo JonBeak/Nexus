@@ -258,18 +258,16 @@ export const sendEstimate = async (req: AuthRequest, res: Response) => {
     const validated = validateEstimateRequest(req, res);
     if (!validated) return;
 
-    const { estimatePreviewData } = req.body;
+    const { estimatePreviewData, recipientEmails } = req.body;
 
     const result = await versioningService.sendEstimateToCustomer(
       validated.estimateId,
       validated.userId,
-      estimatePreviewData
+      estimatePreviewData,
+      recipientEmails
     );
 
-    res.json({
-      ...result,
-      message: 'Estimate sent to customer'
-    });
+    res.json(result);
   } catch (error) {
     console.error('Controller error sending estimate:', error);
     res.status(500).json({

@@ -72,9 +72,17 @@ if [ -d "$TARGET_DIR/dist-$BUILD_TYPE" ]; then
     echo ""
     echo "📋 Next steps:"
     if [ "$TYPE" = "backend" ]; then
-        echo "   Switch to restored build: backend-switch-to-$BUILD_TYPE.sh"
+        if [ "$BUILD_TYPE" = "production" ]; then
+            echo "   Activate: pm2 restart signhouse-backend"
+        else
+            echo "   Activate: pm2 restart signhouse-backend-dev"
+        fi
     else
-        echo "   Switch to restored build: frontend-switch-to-$BUILD_TYPE.sh"
+        if [ "$BUILD_TYPE" = "production" ]; then
+            echo "   Nginx automatically serves the restored build"
+        else
+            echo "   Activate: stop-servers.sh && start-dev.sh"
+        fi
     fi
 else
     echo "❌ Restore failed - directory not created"

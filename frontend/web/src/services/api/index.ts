@@ -76,3 +76,13 @@ export type {
 
 // Dashboard Panels (Customizable Orders Dashboard)
 export { dashboardPanelsApi } from './dashboardPanelsApi';
+
+// Server Management GUI (Owner-only)
+export { serverManagementApi } from './serverManagementApi';
+export type {
+  PM2ProcessStatus,
+  BuildTimestamp,
+  SystemStatus,
+  BackupFile,
+  ScriptResult
+} from './serverManagementApi';

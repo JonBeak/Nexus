@@ -1,10 +1,10 @@
 #!/bin/bash
 # Frontend Dev Build Script
 # Builds frontend to dist-dev/ directory
+# NOTE: This only affects dev builds. Production is completely isolated.
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRONTEND_DIR="/home/jon/Nexus/frontend/web"
 
 cd "$FRONTEND_DIR"
@@ -12,12 +12,7 @@ cd "$FRONTEND_DIR"
 echo "🔨 Rebuilding DEV frontend..."
 echo ""
 
-# Remove symlink if it exists
-if [ -L "dist" ]; then
-    rm dist
-fi
-
-# Run dev build (same as production build, but to dist-dev)
+# Run dev build
 echo "📦 Running Vite build..."
 npm run build
 
@@ -38,13 +33,9 @@ else
     exit 1
 fi
 
-# Recreate symlink
-echo "🔗 Creating symlink: dist -> dist-dev"
-ln -sf dist-dev dist
-
 echo ""
 echo "✅ Dev frontend rebuilt successfully!"
 echo "   Location: $FRONTEND_DIR/dist-dev"
 echo ""
-echo "⚠️  Nginx serves from 'dist' symlink (currently -> dist-dev)"
-echo "    No restart needed"
+echo "📝 Note: Vite dev server on :5173 uses hot-reload (no rebuild needed for dev)"
+echo "         Production on duckdns is unaffected by this build"

@@ -29,32 +29,6 @@ echo "     - signhouse-backend (production) on port 3001"
 echo "     - signhouse-backend-dev (dev) on port 3002"
 echo ""
 
-# Build frontend production if needed
-echo "📦 Building frontend for production..."
-cd "$REPO_DIR/frontend/web"
-
-# Backup old production if it exists
-if [ -d "dist-production" ]; then
-    TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-    echo "   Backing up old production build..."
-    mv dist-production "dist-production-backup-$TIMESTAMP"
-fi
-
-npm run build
-if [ -d "dist" ]; then
-    mv dist dist-production
-    echo "   ✓ Production frontend build complete"
-else
-    echo "   ❌ Frontend build failed"
-    exit 1
-fi
-
-# Ensure symlink points to production for Nginx
-rm -f dist 2>/dev/null || true
-ln -s dist-production dist
-echo "   ✓ Symlink updated: dist -> dist-production"
-
-echo ""
 echo "✅ Sign House started in PRODUCTION MODE!"
 echo ""
 echo "📊 Access URLs:"

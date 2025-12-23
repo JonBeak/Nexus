@@ -197,6 +197,9 @@ export interface EstimateVersion {
   qb_doc_number?: string;  // QB estimate document number for display
   qb_estimate_url?: string;
 
+  // Preparation table flag (Phase 4.e)
+  uses_preparation_table?: boolean;  // True if using new preparation table workflow
+
   // Audit fields
   finalized_at?: string;
   finalized_by?: string;

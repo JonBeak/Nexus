@@ -196,7 +196,8 @@ export const useQuickBooksIntegration = ({
         onEstimateUpdate({
           ...currentEstimate,
           is_draft: false,
-          is_prepared: true
+          is_prepared: true,
+          uses_preparation_table: true
         });
       } else {
         alert(`Failed to prepare estimate: ${result.message || 'Unknown error'}`);
@@ -210,7 +211,7 @@ export const useQuickBooksIntegration = ({
   };
 
   // Phase 7: Send estimate to customer (creates QB estimate, sends email)
-  const handleSendToCustomer = async () => {
+  const handleSendToCustomer = async (selectedRecipients?: string[]) => {
     if (!currentEstimate || !estimatePreviewData) return;
 
     try {
@@ -227,7 +228,8 @@ export const useQuickBooksIntegration = ({
 
       const result = await jobVersioningApi.sendEstimateToCustomer(
         currentEstimate.id,
-        enrichedPreviewData
+        enrichedPreviewData,
+        selectedRecipients
       );
 
       if (result.success) {

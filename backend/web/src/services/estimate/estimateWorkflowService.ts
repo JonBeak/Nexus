@@ -13,6 +13,7 @@ import { promises as fs } from 'fs';
 import { EstimateRepository } from '../../repositories/estimateRepository';
 import { estimatePointPersonRepository } from '../../repositories/estimatePointPersonRepository';
 import { estimateLineDescriptionRepository } from '../../repositories/estimateLineDescriptionRepository';
+import { estimatePreparationRepository, CreatePreparationItemData } from '../../repositories/estimatePreparationRepository';
 import { quickbooksRepository } from '../../repositories/quickbooksRepository';
 import { quickbooksService } from '../../services/quickbooksService';
 import { downloadEstimatePDF } from '../../services/qbEstimateService';
@@ -334,27 +335,40 @@ export class EstimateWorkflowService {
       // 2. Clean empty rows (keep structural rows)
       const cleanResult = await this.cleanEmptyRows(estimateId, connection);
 
-      // 2.5. Insert job header row at position 1 FIRST
-      const headerText = await this.insertJobHeaderRow(estimateId, connection);
+      // 2.5. Insert job header row at position 1 FIRST (or detect existing)
+      const headerResult = await this.insertJobHeaderRow(estimateId, connection);
 
-      // 2.7. Auto-fill QB descriptions (with +1 offset for header row)
+      // 2.7. Auto-fill QB descriptions (offset depends on whether header was inserted)
       if (request.estimatePreviewData) {
+        // If header was inserted, offset by 1. If skipped (already exists), no offset needed
+        const offset = headerResult?.wasInserted ? 1 : 0;
         await this.autoFillQBDescriptions(
           estimateId,
           request.estimatePreviewData,
           connection,
-          1  // offset: header row is at index 0, so items start at index 1
+          offset
         );
       }
 
       // 2.8. Add QB description for the header row (after auto-fill clears old ones)
-      if (headerText) {
+      // Only add if header was actually inserted (not when it already existed)
+      if (headerResult?.wasInserted) {
         await connection.execute(
           `INSERT INTO estimate_line_descriptions (estimate_id, line_index, qb_description, is_auto_filled)
            VALUES (?, 0, ?, 1)`,
-          [estimateId, headerText]
+          [estimateId, headerResult.headerText]
         );
-        console.log(`[Prepare] Added header QB description: "${headerText}"`);
+        console.log(`[Prepare] Added header QB description: "${headerResult.headerText}"`);
+      }
+
+      // 2.9. Create preparation table snapshot (new editable table for QB)
+      if (request.estimatePreviewData?.items) {
+        await this.createPreparationSnapshot(
+          estimateId,
+          request.estimatePreviewData.items,
+          headerResult,
+          connection
+        );
       }
 
       // 3. Save point persons if provided
@@ -367,10 +381,12 @@ export class EstimateWorkflowService {
       }
 
       // 4. Lock the estimate (is_prepared=true, is_draft=false) and save email content
+      //    Also set uses_preparation_table = TRUE for new preparation table workflow
       await connection.execute(
         `UPDATE job_estimates
          SET is_prepared = TRUE,
              is_draft = FALSE,
+             uses_preparation_table = TRUE,
              email_subject = ?,
              email_beginning = ?,
              email_end = ?,
@@ -410,11 +426,12 @@ export class EstimateWorkflowService {
    * Insert a job header row at position 1
    * Contains the job name and optionally the customer reference number
    * Format: "Job Name" or "Job Name - Customer Ref #"
+   * Returns null if no job found, or object with headerText and wasInserted flag
    */
   private async insertJobHeaderRow(
     estimateId: number,
     connection: any
-  ): Promise<string | null> {
+  ): Promise<{ headerText: string; wasInserted: boolean } | null> {
     try {
       // 1. Get job info via estimate
       const [jobRows] = await connection.execute(
@@ -438,9 +455,32 @@ export class EstimateWorkflowService {
         headerText += ` - ${customer_job_number.trim()}`;
       }
 
+      // 3. Check if first row is already an Empty Row with matching job name
+      const [existingFirst] = await connection.execute(
+        `SELECT product_type_id, grid_data
+         FROM job_estimate_items
+         WHERE estimate_id = ? AND item_order = 1`,
+        [estimateId]
+      ) as [RowDataPacket[], any];
+
+      if (existingFirst.length > 0) {
+        const firstRow = existingFirst[0];
+        // Product type 27 = Empty Row
+        if (firstRow.product_type_id === 27) {
+          const existingGridData = typeof firstRow.grid_data === 'string'
+            ? JSON.parse(firstRow.grid_data)
+            : firstRow.grid_data;
+          // Check if field1 (Note) contains the job name
+          if (existingGridData?.field1 && existingGridData.field1.includes(job_name)) {
+            console.log(`[Insert Job Header] First row already contains job name "${job_name}", skipping insertion`);
+            return { headerText: existingGridData.field1, wasInserted: false };
+          }
+        }
+      }
+
       console.log(`[Insert Job Header] Adding header row: "${headerText}"`);
 
-      // 3. Shift all existing item_order values by +1
+      // 4. Shift all existing item_order values by +1
       await connection.execute(
         `UPDATE job_estimate_items
          SET item_order = item_order + 1,
@@ -449,7 +489,7 @@ export class EstimateWorkflowService {
         [estimateId]
       );
 
-      // 4. Insert the new header row at position 1
+      // 5. Insert the new header row at position 1
       // Product type 27 = Empty Row, field1 = "Label" (the description field)
       const gridData = JSON.stringify({
         quantity: '',
@@ -482,7 +522,7 @@ export class EstimateWorkflowService {
       );
 
       console.log(`[Insert Job Header] ✓ Header row inserted successfully`);
-      return headerText;  // Return for QB description insertion later
+      return { headerText, wasInserted: true };
     } catch (error) {
       console.error('[Insert Job Header] Error:', error);
       throw error;
@@ -558,26 +598,20 @@ export class EstimateWorkflowService {
 
   /**
    * Generate QB description using custom rules with fallback
-   * Priority: 1) Custom rules, 2) qb_item_mappings lookup
+   * Priority: 1) Custom rules (in applyCustomRule), 2) qb_item_mappings lookup, 3) empty string
+   *
+   * Custom rules include:
+   * - Rule 1: Empty Row (Product Type 27) - uses description or calculationDisplay
+   * - Rule 2: Description-only items - uses calculationDisplay
+   * - Future product-specific rules...
    */
   private generateQBDescription(
     item: EstimateLineItem,
     qbMap: Map<string, { name: string; description: string | null; qb_item_id: string }>
   ): string {
-    const { itemName, isDescriptionOnly, calculationDisplay, productTypeId, description } = item;
+    const { itemName } = item;
 
-    // Special case: Empty Row (product type 27) - use field1 text as QB description
-    if (productTypeId === 27) {
-      console.log(`[QB Desc] Empty Row - description: "${description}", calculationDisplay: "${calculationDisplay}"`);
-      return description || calculationDisplay || '';
-    }
-
-    // Special case: Description-only rows always use calculationDisplay
-    if (isDescriptionOnly) {
-      return calculationDisplay || '';
-    }
-
-    // Step 1: Try custom rules
+    // Step 1: Try custom rules (includes Empty Row and description-only checks)
     const customDescription = this.applyCustomRule(item);
     if (customDescription !== null) {
       return customDescription;
@@ -609,15 +643,31 @@ export class EstimateWorkflowService {
    * - isDescriptionOnly: boolean
    */
   private applyCustomRule(item: EstimateLineItem): string | null {
-    // Destructure available data for rules
-    // const { productTypeId, productTypeName, itemName, calculationDisplay, calculationComponents, quantity } = item;
+    const { productTypeId, description, calculationDisplay, isDescriptionOnly } = item;
 
     // =====================================================
-    // CUSTOM RULES - Add new rules here
+    // CUSTOM RULES - Priority order (first match wins)
     // Return string to use as description, null to fallback
     // =====================================================
 
-    // Example rule (disabled - for reference):
+    // Rule 1: Empty Row (Product Type 27)
+    // Empty Rows are structural spacing/formatting items that use field1 text
+    // Priority: description (field1) > calculationDisplay > empty string
+    if (productTypeId === 27) {
+      console.log(`[QB Desc Rule 1] Empty Row - description: "${description}", calculationDisplay: "${calculationDisplay}"`);
+      return description || calculationDisplay || '';
+    }
+
+    // Rule 2: Description-only items
+    // Items marked as description-only (Subtotal, Divider, Custom w/o price, etc.)
+    // Always use calculationDisplay for these structural items
+    if (isDescriptionOnly) {
+      console.log(`[QB Desc Rule 2] Description-only item - using calculationDisplay: "${calculationDisplay}"`);
+      return calculationDisplay || '';
+    }
+
+    // Future custom rules go here...
+    // Example rule (for reference):
     // if (productTypeId === 1) { // Channel Letters
     //   // Parse calculationDisplay for dimensions
     //   // return `Channel Letters: ${extracted_dimensions}`;
@@ -629,6 +679,120 @@ export class EstimateWorkflowService {
 
     // No custom rule matched - return null to trigger fallback
     return null;
+  }
+
+  /**
+   * Create preparation table snapshot from estimate preview data
+   * This creates editable rows in estimate_preparation_items table
+   */
+  private async createPreparationSnapshot(
+    estimateId: number,
+    items: EstimateLineItem[],
+    headerResult: { headerText: string; wasInserted: boolean } | null,
+    connection: any
+  ): Promise<void> {
+    try {
+      console.log(`[Prepare] Creating preparation table snapshot for estimate ${estimateId}`);
+
+      // Clear any existing preparation items (in case of re-prepare)
+      await estimatePreparationRepository.clearByEstimateId(estimateId, connection);
+
+      // Get QB item mappings for auto-resolving QB items (same approach as autoFillQBDescriptions)
+      const itemNames = items.map(item => item.itemName);
+      const qbMap = await quickbooksRepository.getBatchQBItemMappings(itemNames, connection);
+
+      const snapshotItems: CreatePreparationItemData[] = [];
+
+      // Add header row if it was inserted
+      if (headerResult?.wasInserted && headerResult.headerText) {
+        snapshotItems.push({
+          item_name: 'Job Header',
+          qb_description: headerResult.headerText,
+          quantity: 0,
+          unit_price: 0,
+          extended_price: 0,
+          is_description_only: true,
+          qb_item_id: null,
+          qb_item_name: null,
+          source_row_id: null,
+          source_product_type_id: 27 // Empty Row type
+        });
+      }
+
+      // Convert each estimate preview item to preparation item
+      for (const item of items) {
+        const isDescOnly = this.isDescriptionOnlyItem(item);
+
+        // Auto-resolve QB item from mapping (only for non-description-only items)
+        let qbItemId: string | null = null;
+        let qbItemName: string | null = null;
+        if (!isDescOnly) {
+          const qbItemData = qbMap.get(item.itemName.toLowerCase());
+          if (qbItemData) {
+            qbItemId = qbItemData.qb_item_id;
+            qbItemName = qbItemData.name;
+          }
+        }
+
+        // Generate QB description using existing logic
+        const qbDescription = this.generateQBDescription(item, qbMap);
+
+        snapshotItems.push({
+          item_name: item.itemName || '',
+          qb_description: qbDescription || null,
+          quantity: isDescOnly ? 0 : (item.quantity || 1),
+          unit_price: isDescOnly ? 0 : (item.unitPrice || 0),
+          extended_price: isDescOnly ? 0 : (item.extendedPrice || 0),
+          is_description_only: isDescOnly,
+          qb_item_id: qbItemId,
+          qb_item_name: qbItemName,
+          source_row_id: item.rowId || null,
+          source_product_type_id: item.productTypeId || null
+        });
+      }
+
+      // Bulk insert all preparation items
+      const insertedCount = await estimatePreparationRepository.createSnapshot(
+        estimateId,
+        snapshotItems,
+        connection
+      );
+
+      console.log(`[Prepare] Created ${insertedCount} preparation items (${headerResult?.wasInserted ? 'including header row' : 'no header row'})`);
+
+    } catch (error) {
+      console.error('[Prepare] Error creating preparation snapshot:', error);
+      // Don't fail the entire prepare operation
+      // Log and continue - preparation table will be empty but estimate is still prepared
+    }
+  }
+
+  /**
+   * Determine if an item should be description-only in QuickBooks
+   * Description-only items have no quantity/price, just text
+   */
+  private isDescriptionOnlyItem(item: EstimateLineItem): boolean {
+    const { productTypeId, unitPrice, isDescriptionOnly } = item;
+
+    // Empty Row (27) - always description only
+    if (productTypeId === 27) return true;
+
+    // Subtotal (21) - always description only
+    if (productTypeId === 21) return true;
+
+    // Divider (25) - always description only
+    if (productTypeId === 25) return true;
+
+    // Multiplier (23) - always description only (already applied to other items)
+    if (productTypeId === 23) return true;
+
+    // Custom (9) without price - description only
+    if (productTypeId === 9 && (!unitPrice || unitPrice === 0)) return true;
+
+    // Respect the flag if explicitly set
+    if (isDescriptionOnly) return true;
+
+    return false;
   }
 
   /**
@@ -749,7 +913,8 @@ export class EstimateWorkflowService {
   async sendEstimateToCustomer(
     estimateId: number,
     userId: number,
-    estimatePreviewData?: any
+    estimatePreviewData?: any,
+    recipientEmails?: string[]
   ): Promise<SendEstimateResult> {
     // 1. Validate estimate is prepared (allow resending)
     const estimate = await this.estimateRepository.getEstimateWithPreparedCheck(estimateId);
@@ -769,10 +934,20 @@ export class EstimateWorkflowService {
     }
 
     // Get point persons for email recipients
-    const pointPersons = await estimatePointPersonRepository.getPointPersonsByEstimateId(estimateId);
-    const recipientEmails = pointPersons
-      .filter(p => p.contact_email)
-      .map(p => p.contact_email);
+    // Use provided recipientEmails if available, otherwise get all point persons with emails
+    let finalRecipientEmails: string[];
+    if (recipientEmails && recipientEmails.length > 0) {
+      // Use the selected recipients from the modal
+      finalRecipientEmails = recipientEmails;
+      console.log(`📧 Sending to ${finalRecipientEmails.length} selected recipient(s):`, finalRecipientEmails);
+    } else {
+      // Fallback: send to all point persons (backwards compatibility)
+      const pointPersons = await estimatePointPersonRepository.getPointPersonsByEstimateId(estimateId);
+      finalRecipientEmails = pointPersons
+        .filter(p => p.contact_email)
+        .map(p => p.contact_email);
+      console.log(`📧 No recipients specified, sending to all ${finalRecipientEmails.length} point person(s):`, finalRecipientEmails);
+    }
 
     let qbEstimateId: string | undefined;
     let qbEstimateUrl: string | undefined;
@@ -781,7 +956,7 @@ export class EstimateWorkflowService {
 
     try {
       // 2. Validate recipients exist
-      if (recipientEmails.length === 0) {
+      if (finalRecipientEmails.length === 0) {
         throw new Error('No point persons with email addresses configured');
       }
 
@@ -892,7 +1067,7 @@ export class EstimateWorkflowService {
       // 6. Send email via Gmail (body is already HTML)
       console.log(`📧 Sending estimate email with pdfPath: ${pdfPath || '(none)'}`);
       const emailResult = await sendEstimateEmail({
-        recipients: recipientEmails,
+        recipients: finalRecipientEmails,
         estimateId,
         estimateNumber: estimateData.job_code,
         estimateName: estimateData.job_name,
@@ -922,7 +1097,7 @@ export class EstimateWorkflowService {
         qbEstimateId,
         qbEstimateUrl,
         estimateDate: qbEstimateDateStr,
-        emailSentTo: recipientEmails,
+        emailSentTo: finalRecipientEmails,
         message: estimate.is_sent ? '⚠️ This estimate was previously sent. It has been sent again.' : undefined
       };
 
@@ -1017,13 +1192,18 @@ export class EstimateWorkflowService {
   /**
    * Get estimate send template (for auto-filling email subject/body)
    */
-  async getEstimateSendTemplate(): Promise<{ subject: string; body: string } | null> {
+  async getEstimateSendTemplate(): Promise<{ subject: string; body: string; body_beginning: string | null; body_end: string | null } | null> {
     const rows = await query(
-      `SELECT subject, body FROM email_templates WHERE template_key = 'estimate_send' AND is_active = 1`,
+      `SELECT subject, body, body_beginning, body_end FROM email_templates WHERE template_key = 'estimate_send' AND is_active = 1`,
       []
     ) as RowDataPacket[];
 
-    return rows.length > 0 ? { subject: rows[0].subject, body: rows[0].body } : null;
+    return rows.length > 0 ? {
+      subject: rows[0].subject,
+      body: rows[0].body,
+      body_beginning: rows[0].body_beginning,
+      body_end: rows[0].body_end
+    } : null;
   }
 
   /**
@@ -1103,10 +1283,23 @@ export class EstimateWorkflowService {
       templateVars
     );
 
-    // Build summary section based on summaryConfig and estimateData
+    // Build summary data - use database-calculated totals (from preparation table if applicable)
+    // This ensures correct values even if frontend passes stale/incomplete data
+    const summaryData = {
+      jobName: emailContent?.estimateData?.jobName || estimate.job_name,
+      customerJobNumber: emailContent?.estimateData?.customerJobNumber || estimate.customer_job_number,
+      qbEstimateNumber: emailContent?.estimateData?.qbEstimateNumber || estimate.qb_doc_number,
+      // Always use database-calculated totals (handles preparation table automatically)
+      subtotal: Number(estimate.subtotal) || 0,
+      tax: Number(estimate.tax_amount) || 0,
+      total: Number(estimate.total_amount) || 0,
+      estimateDate: emailContent?.estimateData?.estimateDate || estimate.estimate_date
+    };
+
+    // Build summary section based on summaryConfig and corrected estimateData
     const summaryHtml = this.buildEmailSummaryHtml(
       emailContent?.summaryConfig,
-      emailContent?.estimateData
+      summaryData
     );
 
     // Load company settings and build footer

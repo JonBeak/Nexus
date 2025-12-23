@@ -16,7 +16,15 @@ ADD COLUMN qb_doc_number VARCHAR(50) DEFAULT NULL
 COMMENT 'QuickBooks estimate document number for display in emails'
 AFTER qb_estimate_id;
 
--- 3. Update email template subject format
+-- 3. Add body_beginning and body_end columns to email_templates for split email body content
+ALTER TABLE email_templates
+ADD COLUMN body_beginning TEXT NULL AFTER body,
+ADD COLUMN body_end TEXT NULL AFTER body_beginning;
+
+-- 4. Update email template with complete subject and body values
 UPDATE email_templates
-SET subject = '{{jobNameWithRef}} - Estimate #{{qbEstimateNumber}}'
+SET
+  subject = '{{jobNameWithRef}} - Estimate #{{qbEstimateNumber}} from Sign House Inc.',
+  body_beginning = 'Hi {{customerName}},\n\nPlease find the attached estimate for your review.\n\nNOTE: This estimate is pending your approval. Please reply to confirm and we will verify all details before beginning production.',
+  body_end = 'If you have any questions, please don''t hesitate to reach out.\n\nBest regards,\nThe Sign House Team'
 WHERE template_key = 'estimate_send';

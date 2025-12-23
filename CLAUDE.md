@@ -23,7 +23,7 @@
       <Rule id="5">Error Handling: Every database and file operation MUST include error handling</Rule>
       <Rule id="6">Pattern Consistency: ALWAYS examine existing code patterns before writing new code</Rule>
       <Rule id="7">CRITICAL GIT SAFETY: NEVER use "git checkout HEAD --" or any destructive git operations without creating backups first. User lost hours of work - always commit progress or create backups before any revert operations.</Rule>
-      <Rule id="8">BUILD SCRIPTS ONLY: NEVER manually run npm run build, mv dist, or manipulate build folders directly. ALWAYS use the preset scripts in /infrastructure/scripts/ (rebuild-dev.sh, rebuild-production.sh, switch-to-dev.sh, etc.). Manual builds break symlinks and cause deployment issues.</Rule>
+      <Rule id="8">BUILD SCRIPTS ONLY: NEVER manually run npm run build, mv dist, or manipulate build folders directly. ALWAYS use the preset scripts in /infrastructure/scripts/ (backend-rebuild-dev.sh, backend-rebuild-production.sh, frontend-rebuild-dev.sh, frontend-rebuild-production.sh). Manual builds bypass PM2 restarts and cause deployment issues.</Rule>
       <Rule id="9">HOT-RELOAD: During development, frontend uses Vite hot-reload. Do NOT rebuild frontend unless explicitly told to. Code changes apply automatically.</Rule>
     </AbsoluteRules>
   </ProductionSafetyRules>
@@ -538,7 +538,7 @@ const [rows] = await pool.execute(...);  // ❌ NEVER DO THIS
     <BuildAndBackupCommands>
       <FullReference>See /home/jon/Nexus/BUILD_MANAGEMENT.md for complete command reference, workflows, and troubleshooting</FullReference>
       <MostCommon>
-        <Build>rebuild-dev.sh, rebuild-production.sh, switch-to-dev.sh, switch-to-production.sh</Build>
+        <Build>backend-rebuild-dev.sh, backend-rebuild-production.sh, frontend-rebuild-dev.sh, frontend-rebuild-production.sh</Build>
         <Backup>backup-builds.sh, list-backups.sh, restore-backup.sh, cleanup-backups.sh</Backup>
         <Server>start-production.sh, start-dev.sh, stop-servers.sh, status-servers.sh</Server>
       </MostCommon>

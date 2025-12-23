@@ -25,7 +25,7 @@ import { EmailSummaryConfig, EstimateEmailData } from '../types';
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (selectedRecipients: string[]) => void;
   estimate: EstimateVersion;
   pointPersons: PointPersonEntry[];
   isSending: boolean;
@@ -94,7 +94,7 @@ export const EstimateEmailPreviewModal: React.FC<Props> = ({
       alert('Please select at least one recipient');
       return;
     }
-    onConfirm();
+    onConfirm(selectedEmails);
   };
 
   if (!isOpen) return null;
@@ -192,7 +192,7 @@ export const EstimateEmailPreviewModal: React.FC<Props> = ({
                               <p className="text-sm font-medium text-gray-900">
                                 {person.contact_name || person.contact_email}
                               </p>
-                              {person.contact_name && (
+                              {person.contact_name && person.contact_name !== person.contact_email && (
                                 <p className="text-xs text-gray-500 truncate">
                                   {person.contact_email}
                                 </p>
@@ -208,10 +208,10 @@ export const EstimateEmailPreviewModal: React.FC<Props> = ({
                     )}
                   </div>
 
-                  {/* Email Preview */}
-                  {selectedEmails.length > 0 && (
-                    <div className="border-t pt-4">
-                      <h3 className="font-medium text-gray-900 text-sm mb-2">Email Preview</h3>
+                  {/* Email Preview - Always in DOM to prevent screen shake */}
+                  <div className={`border-t pt-4 transition-opacity duration-200 ${selectedEmails.length > 0 ? 'opacity-100' : 'hidden'}`}>
+                    <h3 className="font-medium text-gray-900 text-sm mb-2">Email Preview</h3>
+                    {selectedEmails.length > 0 && (
                       <EstimateEmailPreview
                         estimateId={estimate.id}
                         estimateName={estimate.estimate_name}
@@ -222,8 +222,8 @@ export const EstimateEmailPreviewModal: React.FC<Props> = ({
                         emailSummaryConfig={emailSummaryConfig}
                         estimateData={estimateData}
                       />
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 {/* Footer */}
@@ -335,7 +335,7 @@ export const EstimateEmailPreviewModal: React.FC<Props> = ({
                             <p className="text-sm font-medium text-gray-900">
                               {person.contact_name || person.contact_email}
                             </p>
-                            {person.contact_name && (
+                            {person.contact_name && person.contact_name !== person.contact_email && (
                               <p className="text-xs text-gray-500 truncate">
                                 {person.contact_email}
                               </p>
@@ -351,22 +351,24 @@ export const EstimateEmailPreviewModal: React.FC<Props> = ({
                   )}
                 </div>
 
-                {/* Email Preview */}
-                {selectedEmails.length > 0 && (
+                {/* Email Preview - Always in DOM to prevent screen shake */}
+                <div className={`transition-opacity duration-200 ${selectedEmails.length > 0 ? 'opacity-100' : 'hidden'}`}>
                   <div className="border-t pt-6">
                     <h3 className="font-medium text-gray-900 mb-3">Email Preview</h3>
-                    <EstimateEmailPreview
-                      estimateId={estimate.id}
-                      estimateName={estimate.estimate_name}
-                      recipients={selectedEmails}
-                      emailSubject={emailSubject}
-                      emailBeginning={emailBeginning}
-                      emailEnd={emailEnd}
-                      emailSummaryConfig={emailSummaryConfig}
-                      estimateData={estimateData}
-                    />
+                    {selectedEmails.length > 0 && (
+                      <EstimateEmailPreview
+                        estimateId={estimate.id}
+                        estimateName={estimate.estimate_name}
+                        recipients={selectedEmails}
+                        emailSubject={emailSubject}
+                        emailBeginning={emailBeginning}
+                        emailEnd={emailEnd}
+                        emailSummaryConfig={emailSummaryConfig}
+                        estimateData={estimateData}
+                      />
+                    )}
                   </div>
-                )}
+                </div>
               </div>
 
               {/* Footer */}

@@ -55,9 +55,9 @@ export class JobService {
     }
   }
 
-  async validateJobName(customerId: number, jobName: string): Promise<boolean> {
+  async validateJobName(customerId: number, jobName: string, excludeJobId?: number): Promise<boolean> {
     try {
-      const exists = await this.jobRepository.jobNameExists(customerId, jobName);
+      const exists = await this.jobRepository.jobNameExists(customerId, jobName, excludeJobId);
       return !exists; // Return true if name is valid (doesn't exist)
     } catch (error) {
       console.error('Service error validating job name:', error);
@@ -78,7 +78,8 @@ export class JobService {
 
       // Only validate name if it's different from current
       if (job.job_name !== newName) {
-        const isValidName = await this.validateJobName(customerId, newName);
+        // Exclude current job from duplicate check
+        const isValidName = await this.validateJobName(customerId, newName, jobId);
         if (!isValidName) {
           throw new Error('Job name already exists for this customer');
         }

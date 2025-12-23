@@ -493,7 +493,7 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
+        <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-2">
             <CheckCircle className="w-6 h-6 text-green-600" />
             <h3 className="text-xl font-semibold">Approve Estimate & Create Order</h3>
@@ -508,27 +508,32 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
           </button>
         </div>
 
-        {/* Body - Two Column Layout */}
-        <div className="p-6 flex gap-6">
-          {/* LEFT COLUMN: Estimate Summary */}
-          <div className="flex-1 space-y-4">
-            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+        {/* Body - Three Column Layout */}
+        <div className="p-4 flex gap-6">
+          {/* LEFT COLUMN: Estimate Summary (narrow) */}
+          <div className="w-80 flex-shrink-0 pr-6 border-r border-gray-200">
+            <div className="bg-gray-50 rounded-lg p-3 space-y-2">
               <h4 className="font-medium text-gray-900">Estimate Summary</h4>
-              <div className="space-y-2 text-sm">
+              <div className="space-y-1.5">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Customer:</span>
-                  <span className="font-medium">{estimatePreviewData.customerName}</span>
+                  <span className="font-medium text-right">{estimatePreviewData.customerName}</span>
                 </div>
 
                 <div className="flex justify-between">
                   <span className="text-gray-600">Job:</span>
-                  <span className="font-medium text-right">
+                  <span className="font-medium text-right truncate max-w-[120px]" title={jobName || 'N/A'}>
                     {jobName || 'N/A'}
-                    {estimateNotes && <span className="text-gray-500"> ({estimateNotes})</span>}
                   </span>
                 </div>
 
-                <div className="border-t border-gray-200 my-2"></div>
+                {estimateNotes && (
+                  <div className="text-xs text-gray-500 truncate" title={estimateNotes}>
+                    {estimateNotes}
+                  </div>
+                )}
+
+                <div className="border-t border-gray-200 my-1.5"></div>
 
                 <div className="flex justify-between">
                   <span className="text-gray-600">Subtotal:</span>
@@ -540,24 +545,28 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
                   <span className="font-medium">{formatCurrency(estimatePreviewData.taxAmount)}</span>
                 </div>
 
-                <div className="flex justify-between font-semibold text-base pt-2 border-t border-gray-200">
+                <div className="flex justify-between font-semibold pt-1.5 border-t border-gray-200">
                   <span>Total:</span>
-                  <span className="text-lg">{formatCurrency(estimatePreviewData.total)}</span>
+                  <span>{formatCurrency(estimatePreviewData.total)}</span>
                 </div>
               </div>
             </div>
+          </div>
 
+          {/* MIDDLE COLUMN: All Input Fields */}
+          <div className="flex-1 space-y-3 pr-6 border-r border-gray-200">
             {/* Order Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Order Name <span className="text-red-500">*</span>
+              <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-1">
+                <span>Order Name <span className="text-red-500">*</span></span>
+                <span className="text-xs text-gray-500 font-normal">Must be unique per customer</span>
               </label>
               <input
                 type="text"
                 value={orderName}
                 onChange={(e) => setOrderName(e.target.value)}
                 disabled={loading}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                className={`w-full px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed ${
                   validationError ? 'border-red-500' : 'border-gray-300'
                 }`}
                 placeholder="Enter unique order name"
@@ -565,7 +574,6 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
               {validationError && (
                 <p className="mt-1 text-sm text-red-600">{validationError}</p>
               )}
-              <p className="mt-1 text-xs text-gray-500">Must be unique per customer</p>
             </div>
 
             {/* Customer Job # & PO# - Horizontal */}
@@ -579,8 +587,7 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
                   value={customerJobNumber}
                   onChange={(e) => setCustomerJobNumber(e.target.value)}
                   disabled={loading}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  placeholder="Optional"
+                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -593,8 +600,7 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
                   value={customerPo}
                   onChange={(e) => setCustomerPo(e.target.value)}
                   disabled={loading}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  placeholder="Optional"
+                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -602,24 +608,24 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
             {/* Due Date & Hard Time - Horizontal */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Due Date
+                <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-1">
+                  <span>Due Date <span className="text-red-500">*</span></span>
+                  {businessDaysFromToday !== null && (
+                    <span className="text-xs text-gray-500 font-normal">
+                      {businessDaysFromToday} business days
+                      {dueDateManuallyChanged && (
+                        <span className="ml-1 text-amber-600 font-medium">(adjusted)</span>
+                      )}
+                    </span>
+                  )}
                 </label>
                 <input
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
                   disabled={loading}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
-                {businessDaysFromToday !== null && (
-                  <p className="mt-1 text-xs text-gray-600">
-                    {businessDaysFromToday} business days
-                    {dueDateManuallyChanged && (
-                      <span className="ml-1 text-amber-600 font-medium">(adjusted)</span>
-                    )}
-                  </p>
-                )}
               </div>
 
               <div>
@@ -631,20 +637,16 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
                   value={hardDueTime}
                   onChange={(e) => setHardDueTime(e.target.value)}
                   disabled={loading}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  placeholder="--:--"
+                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
-                <p className="mt-1 text-xs text-gray-500">Optional</p>
               </div>
             </div>
-          </div>
 
-          {/* RIGHT COLUMN: Special Instructions & Point Persons */}
-          <div className="flex-1 space-y-4">
             {/* Special Instructions */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Special Instructions
+              <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-1">
+                <span>Special Instructions</span>
+                <span className="text-xs text-gray-500 font-normal">Appended to customer defaults</span>
               </label>
               <textarea
                 ref={specialInstructionsRef}
@@ -652,130 +654,122 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
                 onChange={(e) => setModalSpecialInstructions(e.target.value)}
                 disabled={loading}
                 rows={1}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed resize-none overflow-hidden"
-                placeholder="Additional instructions for this order (optional)"
+                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed resize-none overflow-hidden"
               />
-              <p className="mt-1 text-xs text-gray-500">
-                Will be appended to customer's default special instructions
-              </p>
             </div>
+          </div>
 
-            {/* Point Persons */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Point Persons
-              </label>
-              <div className="space-y-4">
-                {pointPersons.map((person, index) => (
-                  <div key={person.id} className="border border-gray-200 rounded-lg p-3 space-y-3">
-                    {/* Header with Mode Toggle and Remove Button */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name={`mode-${person.id}`}
-                            checked={person.mode === 'existing'}
-                            onChange={() => handleModeChange(person.id, 'existing')}
-                            disabled={loading}
-                            className="w-4 h-4 text-purple-600 focus:ring-purple-500 disabled:opacity-50"
-                          />
-                          <span className="text-sm text-gray-700">Existing Contact</span>
-                        </label>
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name={`mode-${person.id}`}
-                            checked={person.mode === 'custom'}
-                            onChange={() => handleModeChange(person.id, 'custom')}
-                            disabled={loading}
-                            className="w-4 h-4 text-purple-600 focus:ring-purple-500 disabled:opacity-50"
-                          />
-                          <span className="text-sm text-gray-700">New Contact</span>
-                        </label>
-                      </div>
-                      {pointPersons.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemovePointPerson(person.id)}
+          {/* RIGHT COLUMN: Point Persons */}
+          <div className="flex-1 space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Point Persons
+            </label>
+            <div className="space-y-2">
+              {pointPersons.map((person, index) => (
+                <div key={person.id} className="border border-gray-200 rounded-lg p-2 space-y-2">
+                  {/* Header with Mode Toggle and Remove Button */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-1.5">
+                        <input
+                          type="radio"
+                          name={`mode-${person.id}`}
+                          checked={person.mode === 'existing'}
+                          onChange={() => handleModeChange(person.id, 'existing')}
                           disabled={loading}
-                          className="px-2 py-1 text-red-600 hover:bg-red-50 rounded disabled:opacity-50"
-                          title="Remove"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
+                          className="w-3.5 h-3.5 text-purple-600 focus:ring-purple-500 disabled:opacity-50"
+                        />
+                        <span className="text-xs text-gray-700">Existing</span>
+                      </label>
+                      <label className="flex items-center gap-1.5">
+                        <input
+                          type="radio"
+                          name={`mode-${person.id}`}
+                          checked={person.mode === 'custom'}
+                          onChange={() => handleModeChange(person.id, 'custom')}
+                          disabled={loading}
+                          className="w-3.5 h-3.5 text-purple-600 focus:ring-purple-500 disabled:opacity-50"
+                        />
+                        <span className="text-xs text-gray-700">New</span>
+                      </label>
                     </div>
-
-                    {/* Existing Contact Mode */}
-                    {person.mode === 'existing' && (
-                      <div>
-                        <select
-                          value={person.contact_id || ''}
-                          onChange={(e) => handleExistingContactChange(person.id, parseInt(e.target.value))}
-                          disabled={loading}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                        >
-                          <option value="">Select a contact...</option>
-                          {allContacts.map(contact => (
-                            <option key={contact.contact_id} value={contact.contact_id}>
-                              {contact.contact_name}
-                              {contact.contact_role && ` (${contact.contact_role})`}
-                              {' - '}
-                              {contact.contact_email}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    {/* Custom Contact Mode */}
-                    {person.mode === 'custom' && (
-                      <div className="space-y-2">
-                        <div className="grid grid-cols-[65%_35%] gap-2">
-                          <input
-                            type="email"
-                            value={person.contact_email}
-                            onChange={(e) => handleCustomFieldChange(person.id, 'contact_email', e.target.value)}
-                            disabled={loading}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                            placeholder="Email *"
-                          />
-                          <input
-                            type="text"
-                            value={person.contact_name || ''}
-                            onChange={(e) => handleCustomFieldChange(person.id, 'contact_name', e.target.value)}
-                            disabled={loading}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                            placeholder="Name (optional)"
-                          />
-                        </div>
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={person.saveToDatabase || false}
-                            onChange={(e) => handleCustomFieldChange(person.id, 'saveToDatabase', e.target.checked)}
-                            disabled={loading}
-                            className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500 disabled:opacity-50"
-                          />
-                          <span className="text-sm text-gray-700">
-                            Save this contact to database for future use
-                          </span>
-                        </label>
-                      </div>
+                    {pointPersons.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePointPerson(person.id)}
+                        disabled={loading}
+                        className="p-1 text-red-600 hover:bg-red-50 rounded disabled:opacity-50"
+                        title="Remove"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     )}
                   </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={handleAddPointPerson}
-                  disabled={loading}
-                  className="flex items-center gap-2 text-sm text-purple-600 hover:text-purple-700 disabled:opacity-50"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Another Point Person
-                </button>
-              </div>
+
+                  {/* Existing Contact Mode */}
+                  {person.mode === 'existing' && (
+                    <select
+                      value={person.contact_id || ''}
+                      onChange={(e) => handleExistingContactChange(person.id, parseInt(e.target.value))}
+                      disabled={loading}
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    >
+                      <option value="">Select a contact...</option>
+                      {allContacts.map(contact => (
+                        <option key={contact.contact_id} value={contact.contact_id}>
+                          {contact.contact_name}
+                          {contact.contact_role && ` (${contact.contact_role})`}
+                          {' - '}
+                          {contact.contact_email}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  {/* Custom Contact Mode */}
+                  {person.mode === 'custom' && (
+                    <div className="space-y-1.5">
+                      <div className="grid grid-cols-[60%_40%] gap-1.5">
+                        <input
+                          type="email"
+                          value={person.contact_email}
+                          onChange={(e) => handleCustomFieldChange(person.id, 'contact_email', e.target.value)}
+                          disabled={loading}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          placeholder="Email *"
+                        />
+                        <input
+                          type="text"
+                          value={person.contact_name || ''}
+                          onChange={(e) => handleCustomFieldChange(person.id, 'contact_name', e.target.value)}
+                          disabled={loading}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          placeholder="Name"
+                        />
+                      </div>
+                      <label className="flex items-center gap-1.5">
+                        <input
+                          type="checkbox"
+                          checked={person.saveToDatabase || false}
+                          onChange={(e) => handleCustomFieldChange(person.id, 'saveToDatabase', e.target.checked)}
+                          disabled={loading}
+                          className="w-3.5 h-3.5 text-purple-600 border-gray-300 rounded focus:ring-purple-500 disabled:opacity-50"
+                        />
+                        <span className="text-xs text-gray-700">Save to database</span>
+                      </label>
+                    </div>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={handleAddPointPerson}
+                disabled={loading}
+                className="flex items-center gap-1.5 text-xs text-purple-600 hover:text-purple-700 disabled:opacity-50"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Another
+              </button>
             </div>
           </div>
         </div>
@@ -789,7 +783,7 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-4 p-6 border-t bg-gray-50">
+        <div className="flex items-center justify-between gap-4 p-4 border-t bg-gray-50">
           {/* QB Warning (if needed) - Left side */}
           {needsNoQBConfirmation ? (
             <div className="flex items-center gap-3">
