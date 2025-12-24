@@ -177,6 +177,22 @@ export const ServerManagement: React.FC = () => {
     });
   };
 
+  // Calculate time since build
+  const getTimeSinceBuilt = (timestamp: string | null) => {
+    if (!timestamp) return '';
+    const buildDate = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - buildDate.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const days = Math.floor(diffHours / 24);
+    const hours = diffHours % 24;
+
+    if (days > 0) {
+      return `(${days}d, ${hours}h)`;
+    }
+    return `(${hours}h)`;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -189,9 +205,9 @@ export const ServerManagement: React.FC = () => {
   }
 
   // Filter to only show signhouse backend processes
-  const backendProcesses = status?.processes.filter(p =>
+  const backendProcesses = (status?.processes.filter(p =>
     p.name.includes('signhouse-backend')
-  ) || [];
+  ) || []).reverse();
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -262,36 +278,6 @@ export const ServerManagement: React.FC = () => {
             ))}
           </div>
 
-          {/* Build Timestamps */}
-          <div className="bg-white rounded-xl shadow-md p-4 border border-gray-200">
-            <h3 className="font-semibold text-gray-800 mb-3">Build Timestamps</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <span className="text-gray-500">Backend Prod:</span>
-                <p className="font-medium text-gray-800">
-                  {formatBuildTime(status?.builds.backendProduction.lastModified || null)}
-                </p>
-              </div>
-              <div>
-                <span className="text-gray-500">Backend Dev:</span>
-                <p className="font-medium text-gray-800">
-                  {formatBuildTime(status?.builds.backendDev.lastModified || null)}
-                </p>
-              </div>
-              <div>
-                <span className="text-gray-500">Frontend Prod:</span>
-                <p className="font-medium text-gray-800">
-                  {formatBuildTime(status?.builds.frontendProduction.lastModified || null)}
-                </p>
-              </div>
-              <div>
-                <span className="text-gray-500">Frontend Dev:</span>
-                <p className="font-medium text-gray-800">
-                  {formatBuildTime(status?.builds.frontendDev.lastModified || null)}
-                </p>
-              </div>
-            </div>
-          </div>
         </section>
 
         {/* Build Operations Matrix */}
@@ -301,17 +287,23 @@ export const ServerManagement: React.FC = () => {
             Build Operations
           </h2>
 
-          <div className="bg-white rounded-xl shadow-md p-4 border border-gray-200">
+          <div className="bg-white rounded-xl shadow-md p-4 border border-gray-200 overflow-x-auto">
             {/* Matrix Header */}
-            <div className="grid grid-cols-3 gap-4 mb-2">
+            <div className="grid grid-cols-5 gap-3 mb-4 text-lg font-semibold">
               <div></div>
-              <div className="text-center font-semibold text-emerald-600">Dev</div>
-              <div className="text-center font-semibold text-purple-600">Production</div>
+              <div className="text-center text-emerald-600">Dev - Last Built</div>
+              <div className="text-center text-emerald-600">Dev - Rebuild</div>
+              <div className="text-center text-purple-600">Prod - Last Built</div>
+              <div className="text-center text-purple-600">Prod - Rebuild</div>
             </div>
 
             {/* Backend Row */}
-            <div className="grid grid-cols-3 gap-4 mb-2 items-center">
+            <div className="grid grid-cols-5 gap-3 mb-2 items-center text-sm">
               <div className="font-medium text-gray-700">Backend</div>
+              <div className="text-center text-gray-700 bg-emerald-50 p-2 rounded">
+                <div>{formatBuildTime(status?.builds.backendDev.lastModified || null)}</div>
+                <div className="text-xs text-gray-500">{getTimeSinceBuilt(status?.builds.backendDev.lastModified || null)}</div>
+              </div>
               <button
                 onClick={() => executeOperation(
                   'rebuild-backend-dev',
@@ -319,11 +311,15 @@ export const ServerManagement: React.FC = () => {
                   'backend-rebuild-dev.sh'
                 )}
                 disabled={buttonStates['rebuild-backend-dev'] === 'running'}
-                className={getButtonClass('dev', buttonStates['rebuild-backend-dev'] || 'idle') + ' w-full justify-center'}
+                className={getButtonClass('dev', buttonStates['rebuild-backend-dev'] || 'idle') + ' w-full justify-center text-sm py-1'}
               >
                 {getButtonIcon(buttonStates['rebuild-backend-dev'] || 'idle')}
                 {buttonStates['rebuild-backend-dev'] === 'running' ? 'Building...' : 'Rebuild'}
               </button>
+              <div className="text-center text-gray-700 bg-purple-50 p-2 rounded">
+                <div>{formatBuildTime(status?.builds.backendProduction.lastModified || null)}</div>
+                <div className="text-xs text-gray-500">{getTimeSinceBuilt(status?.builds.backendProduction.lastModified || null)}</div>
+              </div>
               <button
                 onClick={() => executeOperation(
                   'rebuild-backend-prod',
@@ -331,7 +327,7 @@ export const ServerManagement: React.FC = () => {
                   'backend-rebuild-production.sh'
                 )}
                 disabled={buttonStates['rebuild-backend-prod'] === 'running'}
-                className={getButtonClass('prod', buttonStates['rebuild-backend-prod'] || 'idle') + ' w-full justify-center'}
+                className={getButtonClass('prod', buttonStates['rebuild-backend-prod'] || 'idle') + ' w-full justify-center text-sm py-1'}
               >
                 {getButtonIcon(buttonStates['rebuild-backend-prod'] || 'idle')}
                 {buttonStates['rebuild-backend-prod'] === 'running' ? 'Building...' : 'Rebuild'}
@@ -339,8 +335,12 @@ export const ServerManagement: React.FC = () => {
             </div>
 
             {/* Frontend Row */}
-            <div className="grid grid-cols-3 gap-4 mb-2 items-center">
+            <div className="grid grid-cols-5 gap-3 mb-2 items-center text-sm">
               <div className="font-medium text-gray-700">Frontend</div>
+              <div className="text-center text-gray-700 bg-emerald-50 p-2 rounded">
+                <div>{formatBuildTime(status?.builds.frontendDev.lastModified || null)}</div>
+                <div className="text-xs text-gray-500">{getTimeSinceBuilt(status?.builds.frontendDev.lastModified || null)}</div>
+              </div>
               <button
                 onClick={() => executeOperation(
                   'rebuild-frontend-dev',
@@ -348,11 +348,15 @@ export const ServerManagement: React.FC = () => {
                   'frontend-rebuild-dev.sh'
                 )}
                 disabled={buttonStates['rebuild-frontend-dev'] === 'running'}
-                className={getButtonClass('dev', buttonStates['rebuild-frontend-dev'] || 'idle') + ' w-full justify-center'}
+                className={getButtonClass('dev', buttonStates['rebuild-frontend-dev'] || 'idle') + ' w-full justify-center text-sm py-1'}
               >
                 {getButtonIcon(buttonStates['rebuild-frontend-dev'] || 'idle')}
                 {buttonStates['rebuild-frontend-dev'] === 'running' ? 'Building...' : 'Rebuild'}
               </button>
+              <div className="text-center text-gray-700 bg-purple-50 p-2 rounded">
+                <div>{formatBuildTime(status?.builds.frontendProduction.lastModified || null)}</div>
+                <div className="text-xs text-gray-500">{getTimeSinceBuilt(status?.builds.frontendProduction.lastModified || null)}</div>
+              </div>
               <button
                 onClick={() => executeOperation(
                   'rebuild-frontend-prod',
@@ -360,16 +364,17 @@ export const ServerManagement: React.FC = () => {
                   'frontend-rebuild-production.sh'
                 )}
                 disabled={buttonStates['rebuild-frontend-prod'] === 'running'}
-                className={getButtonClass('prod', buttonStates['rebuild-frontend-prod'] || 'idle') + ' w-full justify-center'}
+                className={getButtonClass('prod', buttonStates['rebuild-frontend-prod'] || 'idle') + ' w-full justify-center text-sm py-1'}
               >
                 {getButtonIcon(buttonStates['rebuild-frontend-prod'] || 'idle')}
                 {buttonStates['rebuild-frontend-prod'] === 'running' ? 'Building...' : 'Rebuild'}
               </button>
             </div>
 
-            {/* Full Rebuild Row */}
-            <div className="grid grid-cols-3 gap-4 items-center pt-2 border-t border-gray-200">
+            {/* Full Stack Row */}
+            <div className="grid grid-cols-5 gap-3 items-center text-sm pt-2 border-t border-gray-200">
               <div className="font-medium text-gray-700">Full Stack</div>
+              <div className="text-center text-gray-500 text-xs">—</div>
               <button
                 onClick={() => executeOperation(
                   'rebuild-all-dev',
@@ -377,11 +382,12 @@ export const ServerManagement: React.FC = () => {
                   'rebuild-dev.sh'
                 )}
                 disabled={buttonStates['rebuild-all-dev'] === 'running'}
-                className={getButtonClass('dev', buttonStates['rebuild-all-dev'] || 'idle') + ' w-full justify-center'}
+                className={getButtonClass('dev', buttonStates['rebuild-all-dev'] || 'idle') + ' w-full justify-center text-sm py-1'}
               >
                 {getButtonIcon(buttonStates['rebuild-all-dev'] || 'idle')}
                 {buttonStates['rebuild-all-dev'] === 'running' ? 'Building...' : 'Rebuild All'}
               </button>
+              <div className="text-center text-gray-500 text-xs">—</div>
               <button
                 onClick={() => executeOperation(
                   'rebuild-all-prod',
@@ -389,7 +395,7 @@ export const ServerManagement: React.FC = () => {
                   'rebuild-production.sh'
                 )}
                 disabled={buttonStates['rebuild-all-prod'] === 'running'}
-                className={getButtonClass('prod', buttonStates['rebuild-all-prod'] || 'idle') + ' w-full justify-center'}
+                className={getButtonClass('prod', buttonStates['rebuild-all-prod'] || 'idle') + ' w-full justify-center text-sm py-1'}
               >
                 {getButtonIcon(buttonStates['rebuild-all-prod'] || 'idle')}
                 {buttonStates['rebuild-all-prod'] === 'running' ? 'Building...' : 'Rebuild All'}

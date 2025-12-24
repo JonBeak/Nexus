@@ -17,6 +17,7 @@ export interface EstimatePreparationItem {
   display_order: number;
   item_name: string;
   qb_description: string | null;
+  calculation_display: string | null;
   quantity: number;
   unit_price: number;
   extended_price: number;
@@ -32,6 +33,7 @@ export interface EstimatePreparationItem {
 export interface CreatePreparationItemData {
   item_name: string;
   qb_description?: string | null;
+  calculation_display?: string | null;
   quantity?: number;
   unit_price?: number;
   extended_price?: number;
@@ -68,7 +70,7 @@ class EstimatePreparationRepository {
     if (connection) {
       const [rows] = await connection.execute<RowDataPacket[]>(
         `SELECT id, estimate_id, display_order, item_name, qb_description,
-                quantity, unit_price, extended_price, is_description_only,
+                calculation_display, quantity, unit_price, extended_price, is_description_only,
                 qb_item_id, qb_item_name, source_row_id, source_product_type_id,
                 created_at, updated_at
          FROM estimate_preparation_items
@@ -80,7 +82,7 @@ class EstimatePreparationRepository {
     } else {
       const rows = await query(
         `SELECT id, estimate_id, display_order, item_name, qb_description,
-                quantity, unit_price, extended_price, is_description_only,
+                calculation_display, quantity, unit_price, extended_price, is_description_only,
                 qb_item_id, qb_item_name, source_row_id, source_product_type_id,
                 created_at, updated_at
          FROM estimate_preparation_items
@@ -98,7 +100,7 @@ class EstimatePreparationRepository {
   async getItemById(itemId: number): Promise<EstimatePreparationItem | null> {
     const rows = await query(
       `SELECT id, estimate_id, display_order, item_name, qb_description,
-              quantity, unit_price, extended_price, is_description_only,
+              calculation_display, quantity, unit_price, extended_price, is_description_only,
               qb_item_id, qb_item_name, source_row_id, source_product_type_id,
               created_at, updated_at
        FROM estimate_preparation_items
@@ -125,6 +127,7 @@ class EstimatePreparationRepository {
       index + 1, // display_order starts at 1
       item.item_name,
       item.qb_description || null,
+      item.calculation_display || null,
       item.quantity ?? 1,
       item.unit_price ?? 0,
       item.extended_price ?? 0,
@@ -136,13 +139,13 @@ class EstimatePreparationRepository {
     ]);
 
     const placeholders = items.map(() =>
-      '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).join(', ');
     const flatValues = values.flat();
 
     const [result] = await connection.execute<ResultSetHeader>(
       `INSERT INTO estimate_preparation_items
-         (estimate_id, display_order, item_name, qb_description,
+         (estimate_id, display_order, item_name, qb_description, calculation_display,
           quantity, unit_price, extended_price, is_description_only,
           qb_item_id, qb_item_name, source_row_id, source_product_type_id)
        VALUES ${placeholders}`,
@@ -247,15 +250,16 @@ class EstimatePreparationRepository {
       // Insert the new item
       const [result] = await conn.execute<ResultSetHeader>(
         `INSERT INTO estimate_preparation_items
-           (estimate_id, display_order, item_name, qb_description,
+           (estimate_id, display_order, item_name, qb_description, calculation_display,
             quantity, unit_price, extended_price, is_description_only,
             qb_item_id, qb_item_name, source_row_id, source_product_type_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           estimateId,
           newOrder,
           item.item_name,
           item.qb_description || null,
+          item.calculation_display || null,
           item.quantity ?? 1,
           item.unit_price ?? 0,
           item.extended_price ?? 0,

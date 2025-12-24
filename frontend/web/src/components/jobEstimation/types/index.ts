@@ -264,6 +264,13 @@ export interface BreadcrumbNavigationProps {
   onNavigateToEstimates?: () => void;
   onNavigateToCustomer?: () => void;
   onNavigateToJob?: () => void;
+
+  // Action buttons props
+  showCopySvg?: boolean;
+  copySvgSuccess?: boolean;
+  onCopySvg?: () => void;
+  showConvertToOrder?: boolean;
+  onConvertToOrder?: () => void;
 }
 
 export type WorkflowStep = 'customer-selection' | 'job-selection' | 'version-selection' | 'estimate-builder';

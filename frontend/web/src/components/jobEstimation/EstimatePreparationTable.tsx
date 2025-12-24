@@ -30,6 +30,7 @@ interface PreparationItem {
   display_order: number;
   item_name: string;
   qb_description: string | null;
+  calculation_display: string | null;
   quantity: number;
   unit_price: number;
   extended_price: number;
@@ -49,6 +50,7 @@ interface EstimatePreparationTableProps {
   readOnly?: boolean;
   taxRate?: number;
   onTotalsChange?: (totals: PreparationTotals) => void;
+  onItemsChange?: (items: PreparationItem[]) => void;
 }
 
 // ============================================================================
@@ -123,9 +125,22 @@ const EditableCell: React.FC<EditableCellProps> = ({
 
   // Now safe to do conditional rendering after all hooks are called
   if (disabled) {
+    // For textarea type, preserve newlines in read-only mode
+    if (type === 'textarea' && value) {
+      return (
+        <div className="text-gray-600 text-xs px-1">
+          {String(value).split('\n').map((line, i) => (
+            <div key={i} className="leading-tight">
+              {line || '\u00A0'}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
     return (
-      <span className="text-gray-400 text-xs px-1">
-        {type === 'currency' ? '-' : value || '-'}
+      <span className="text-gray-600 text-xs px-1">
+        {type === 'currency' ? (value ? `$${value}` : '') : value || ''}
       </span>
     );
   }
@@ -264,7 +279,7 @@ const SortableRow: React.FC<SortableRowProps> = ({
       {/* QB Item Dropdown */}
       <td className="px-2 py-1">
         {item.is_description_only ? (
-          <span className="text-gray-400 text-xs">-</span>
+          <span></span>
         ) : (
           <QBItemDropdown
             value={item.qb_item_id}
@@ -288,10 +303,19 @@ const SortableRow: React.FC<SortableRowProps> = ({
         />
       </td>
 
+      {/* Calculation Display (read-only) */}
+      <td className="px-2 py-1">
+        {item.calculation_display && (
+          <div className="text-xs text-gray-400 px-1 whitespace-pre-wrap break-words">
+            {item.calculation_display}
+          </div>
+        )}
+      </td>
+
       {/* Quantity */}
       <td className="px-2 py-1 text-right">
         <EditableCell
-          value={item.is_description_only ? '-' : item.quantity}
+          value={item.is_description_only ? '' : item.quantity}
           onChange={(val) => {
             const qty = parseFloat(val) || 0;
             onUpdateItem(item.id, {
@@ -308,7 +332,7 @@ const SortableRow: React.FC<SortableRowProps> = ({
       {/* Unit Price */}
       <td className="px-2 py-1 text-right">
         <EditableCell
-          value={item.is_description_only ? '-' : item.unit_price}
+          value={item.is_description_only ? '' : item.unit_price}
           onChange={(val) => {
             const price = parseFloat(val) || 0;
             onUpdateItem(item.id, {
@@ -324,9 +348,7 @@ const SortableRow: React.FC<SortableRowProps> = ({
 
       {/* Extended Price (calculated) */}
       <td className="px-2 py-1 text-right">
-        {item.is_description_only ? (
-          <span className="text-gray-400">-</span>
-        ) : (
+        {!item.is_description_only && (
           <span className="font-medium">
             {formatCurrency(Number(item.extended_price) || 0)}
           </span>
@@ -357,7 +379,8 @@ export const EstimatePreparationTable: React.FC<EstimatePreparationTableProps> =
   estimateId,
   readOnly = false,
   taxRate = 0,
-  onTotalsChange
+  onTotalsChange,
+  onItemsChange
 }) => {
   const [items, setItems] = useState<PreparationItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -367,9 +390,16 @@ export const EstimatePreparationTable: React.FC<EstimatePreparationTableProps> =
   // Use ref for callback to avoid infinite re-render loop
   // (callback changes reference on parent re-render, which would trigger loadItems recreation)
   const onTotalsChangeRef = useRef(onTotalsChange);
+  const onItemsChangeRef = useRef(onItemsChange);
   useEffect(() => {
     onTotalsChangeRef.current = onTotalsChange;
-  }, [onTotalsChange]);
+    onItemsChangeRef.current = onItemsChange;
+  }, [onTotalsChange, onItemsChange]);
+
+  // Notify parent whenever items change
+  useEffect(() => {
+    onItemsChangeRef.current?.(items);
+  }, [items]);
 
   // Load preparation items
   const loadItems = useCallback(async () => {
@@ -590,6 +620,7 @@ export const EstimatePreparationTable: React.FC<EstimatePreparationTableProps> =
                 <th className="px-2 py-1 text-left w-8">#</th>
                 <th className="px-2 py-1 text-left w-40">QB Item</th>
                 <th className="px-2 py-1 text-left min-w-[120px]">QB Description</th>
+                <th className="px-2 py-1 text-left w-48">Calculation Display</th>
                 <th className="px-2 py-1 text-right w-20">Qty</th>
                 <th className="px-2 py-1 text-right w-24">Unit $</th>
                 <th className="px-2 py-1 text-right w-24">Ext. $</th>

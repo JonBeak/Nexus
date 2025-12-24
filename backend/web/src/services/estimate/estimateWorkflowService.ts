@@ -708,6 +708,7 @@ export class EstimateWorkflowService {
         snapshotItems.push({
           item_name: 'Job Header',
           qb_description: headerResult.headerText,
+          calculation_display: null,
           quantity: 0,
           unit_price: 0,
           extended_price: 0,
@@ -740,6 +741,7 @@ export class EstimateWorkflowService {
         snapshotItems.push({
           item_name: item.itemName || '',
           qb_description: qbDescription || null,
+          calculation_display: (item as any).calculationDisplay || null,
           quantity: isDescOnly ? 0 : (item.quantity || 1),
           unit_price: isDescOnly ? 0 : (item.unitPrice || 0),
           extended_price: isDescOnly ? 0 : (item.extendedPrice || 0),

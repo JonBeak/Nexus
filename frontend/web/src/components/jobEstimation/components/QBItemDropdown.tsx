@@ -114,7 +114,7 @@ export const QBItemDropdown: React.FC<QBItemDropdownProps> = ({
   if (disabled) {
     return (
       <span className="text-xs text-gray-600 px-1 truncate block max-w-[120px]" title={displayValue || ''}>
-        {displayValue || <span className="text-gray-400">Not set</span>}
+        {displayValue || <span className="text-gray-600">Not set</span>}
       </span>
     );
   }

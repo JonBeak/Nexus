@@ -20,6 +20,7 @@ import { generateEstimateSVG } from './utils/svgEstimateExporter';
 import { User } from '../../types';
 import { EstimateVersion, EmailSummaryConfig, DEFAULT_EMAIL_SUMMARY_CONFIG, EstimateEmailData, DEFAULT_EMAIL_BEGINNING, DEFAULT_EMAIL_END, DEFAULT_EMAIL_SUBJECT } from './types';
 import { PointPersonEntry } from './EstimatePointPersonsEditor';
+import { EstimateLineItem, EstimatePreviewData } from './core/layers/CalculationLayer';
 import './JobEstimation.css';
 
 // Custom hooks
@@ -76,6 +77,12 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
 
   // Preparation table totals (for email preview in prepared mode)
   const [preparationTotals, setPreparationTotals] = useState<PreparationTotals | null>(null);
+
+  // Preparation table items (for data conversion after Prepare to Send)
+  const [preparationItems, setPreparationItems] = useState<any[]>([]);
+
+  // Preparation-based preview data (for Convert to Order after Prepare to Send)
+  const [preparationPreviewData, setPreparationPreviewData] = useState<EstimatePreviewData | null>(null);
 
   // Collapsible panel state for prepared mode (workflow expanded by default)
   const [leftPanelExpanded, setLeftPanelExpanded] = useState<'workflow' | 'grid'>('workflow');
@@ -334,6 +341,55 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
     navigate(`/orders/${orderNumber}`);
   };
 
+  // Convert preparation items to EstimatePreviewData for use in ApproveEstimateModal
+  const buildPreparationPreviewData = useCallback(() => {
+    if (!preparationItems || preparationItems.length === 0 || !preparationTotals) {
+      setPreparationPreviewData(null);
+      return;
+    }
+
+    try {
+      // Convert PreparationItem[] to EstimateLineItem[]
+      const items: EstimateLineItem[] = preparationItems.map((item: any, index: number) => ({
+        rowId: `prep-${item.id}`,
+        inputGridDisplayNumber: String(index + 1),
+        productTypeId: 0,
+        productTypeName: 'Preparation',
+        itemName: item.item_name || '',
+        description: item.qb_description || '',
+        calculationDisplay: item.calculation_display || '',
+        unitPrice: Number(item.unit_price) || 0,
+        quantity: Number(item.quantity) || 1,
+        extendedPrice: Number(item.extended_price) || 0,
+        isDescriptionOnly: item.is_description_only || false,
+        qbDescription: item.qb_description || undefined
+      }));
+
+      // Build EstimatePreviewData
+      const previewData: EstimatePreviewData = {
+        items,
+        subtotal: preparationTotals.subtotal,
+        taxRate: taxRate || 0,
+        taxAmount: preparationTotals.tax,
+        total: preparationTotals.total,
+        customerId: currentEstimate?.customer_id,
+        customerName: customerPreferencesData?.customerName || null,
+        estimateId: currentEstimate?.id,
+        cashCustomer: customerPreferencesData?.cashCustomer
+      };
+
+      setPreparationPreviewData(previewData);
+    } catch (error) {
+      console.error('Error building preparation preview data:', error);
+      setPreparationPreviewData(null);
+    }
+  }, [preparationItems, preparationTotals, taxRate, currentEstimate, customerPreferencesData]);
+
+  // Update preparation preview data when items or totals change
+  useEffect(() => {
+    buildPreparationPreviewData();
+  }, [buildPreparationPreviewData]);
+
   // Copy SVG handler for preparation table view
   const handleCopySvg = async () => {
     if (!estimatePreviewData || estimatePreviewData.items.length === 0) {
@@ -543,6 +599,11 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
           onNavigateToEstimates={handleNavigateToEstimates}
           onNavigateToCustomer={handleNavigateToCustomer}
           onNavigateToJob={handleNavigateToJob}
+          showCopySvg={!!estimatePreviewData && estimatePreviewData.items.length > 0}
+          copySvgSuccess={copySvgSuccess}
+          onCopySvg={handleCopySvg}
+          showConvertToOrder={currentEstimate.status !== 'ordered'}
+          onConvertToOrder={handleApproveEstimate}
         />
 
         {/* Unified scrollable container */}
@@ -646,45 +707,13 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
                       onTotalsChange={(totals) => {
                         setPreparationTotals(totals);
                       }}
+                      onItemsChange={(items) => {
+                        setPreparationItems(items);
+                      }}
                     />
 
-                    {/* Action Buttons */}
+                    {/* QB Integration Buttons */}
                     <div className="flex gap-2 justify-end flex-wrap">
-                      {/* Copy SVG Button */}
-                      <button
-                        onClick={handleCopySvg}
-                        disabled={!estimatePreviewData || estimatePreviewData.items.length === 0}
-                        className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded transition-colors ${
-                          copySvgSuccess
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                      >
-                        {copySvgSuccess ? (
-                          <>
-                            <Check className="w-4 h-4" />
-                            Copied!
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-4 h-4" />
-                            Copy SVG
-                          </>
-                        )}
-                      </button>
-
-                      {/* Convert to Order Button */}
-                      {currentEstimate.status !== 'ordered' && (
-                        <button
-                          onClick={handleApproveEstimate}
-                          className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                          Convert to Order
-                        </button>
-                      )}
-
-                      {/* QB Integration Buttons */}
                       {!currentEstimate.qb_estimate_id && qbConnected && (
                         <button
                           onClick={handleCreateQuickBooksEstimate}
@@ -854,13 +883,17 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
       )}
 
       {/* Approve Estimate Modal */}
-      {showApprovalModal && currentEstimate && estimatePreviewData && (
+      {showApprovalModal && currentEstimate && (
         <ApproveEstimateModal
           isOpen={showApprovalModal}
           onClose={() => setShowApprovalModal(false)}
           onSuccess={handleApprovalSuccess}
           estimateId={currentEstimate.id}
-          estimatePreviewData={estimatePreviewData}
+          estimatePreviewData={
+            currentEstimate.uses_preparation_table && preparationPreviewData
+              ? preparationPreviewData
+              : estimatePreviewData
+          }
           defaultOrderName={currentEstimate.job_name || `Order for ${customerPreferencesData?.customerName || 'Customer'}`}
           customerId={currentEstimate.customer_id || 0}
           jobName={currentEstimate.job_name || undefined}

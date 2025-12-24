@@ -390,11 +390,11 @@ body:has(.job-estimation-builder-mode) {
   min-height: 600px;
 }
 
-/* In 3-col mode, the preview wrapper takes 60% */
+/* In 3-col mode, the preview wrapper takes 65% (increased from 60%) */
 .estimate-prepared-3col .estimate-builder-preview-wrapper {
   order: 3;
-  flex: 0 0 60%;
-  min-width: 500px;
+  flex: 0 0 65%;
+  min-width: 600px;
 }
 
 /* Desktop overrides for 3-column mode */
@@ -404,8 +404,8 @@ body:has(.job-estimation-builder-mode) {
   }
 
   .estimate-prepared-3col .estimate-builder-preview-wrapper {
-    flex: 0 0 60%;
-    min-width: 600px;
+    flex: 0 0 65%;
+    min-width: 700px;
   }
 
   /* Expanded panel takes remaining ~40% minus collapsed bar */

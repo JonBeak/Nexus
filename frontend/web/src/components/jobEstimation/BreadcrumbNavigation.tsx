@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronRight, Home } from 'lucide-react';
+import { ChevronRight, Home, Copy, Check, CheckCircle } from 'lucide-react';
 import { BreadcrumbNavigationProps } from './types';
 import { getStatusColorClasses } from './utils/statusUtils';
 
@@ -11,7 +11,12 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
   onNavigateToHome,
   onNavigateToEstimates,
   onNavigateToCustomer,
-  onNavigateToJob
+  onNavigateToJob,
+  showCopySvg,
+  copySvgSuccess,
+  onCopySvg,
+  showConvertToOrder,
+  onConvertToOrder
 }) => {
   const getStatusColor = (status?: string) => {
     if (!status) return 'text-gray-700';
@@ -41,7 +46,9 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
 
   return (
     <nav className="bg-white border-b border-gray-200 px-4 py-4">
-      <div className="flex flex-wrap items-center gap-2 text-sm">
+      <div className="flex items-center justify-between mb-2 sm:mb-0">
+        {/* LEFT: Breadcrumb navigation */}
+        <div className="flex flex-wrap items-center gap-2 text-sm flex-1">
         {/* Home button - leads to dashboard */}
         <button
           onClick={onNavigateToHome}
@@ -104,6 +111,47 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
             </span>
             {status && getStatusBadge(status)}
           </>
+        )}
+        </div>
+
+        {/* RIGHT: Action buttons */}
+        {(onCopySvg || onConvertToOrder) && (
+          <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+            {/* Copy SVG Button */}
+            {showCopySvg && (
+              <button
+                onClick={onCopySvg}
+                className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded transition-colors flex-shrink-0 ${
+                  copySvgSuccess
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                }`}
+              >
+                {copySvgSuccess ? (
+                  <>
+                    <Check className="w-4 h-4 flex-shrink-0" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4 flex-shrink-0" />
+                    Copy SVG
+                  </>
+                )}
+              </button>
+            )}
+
+            {/* Convert to Order Button */}
+            {showConvertToOrder && (
+              <button
+                onClick={onConvertToOrder}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors flex-shrink-0"
+              >
+                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                Convert to Order
+              </button>
+            )}
+          </div>
         )}
       </div>
 

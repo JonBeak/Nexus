@@ -295,29 +295,6 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Copy SVG Button */}
-          <button
-            onClick={handleCopyToClipboard}
-            disabled={!estimatePreviewData || estimatePreviewData.items.length === 0}
-            className={`flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap transition-colors ${
-              copySuccess
-                ? 'bg-green-50 text-green-700'
-                : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
-          >
-            {copySuccess ? (
-              <>
-                <Check className="w-3.5 h-3.5" />
-                Copied!
-              </>
-            ) : (
-              <>
-                <Copy className="w-3.5 h-3.5" />
-                Copy SVG
-              </>
-            )}
-          </button>
-
           {/* QuickBooks Buttons */}
           {qbCheckingStatus ? (
             // Checking QB status
@@ -365,16 +342,6 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                   {isSavingPointPersons ? 'Saving...' : isSending ? 'Sending...' : 'Send to Customer'}
                 </button>
               )}
-              {!isApproved && onApproveEstimate && (
-                <button
-                  onClick={onApproveEstimate}
-                  className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
-                  title="Convert estimate to order"
-                >
-                  <CheckCircle className="w-3.5 h-3.5" />
-                  Convert to Order
-                </button>
-              )}
             </>
           ) : !qbConnected ? (
             // Not connected - show "Connect to QuickBooks" and "Approve"
@@ -387,16 +354,6 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                 <FileText className="w-3.5 h-3.5" />
                 Connect to QB
               </button>
-              {!isApproved && onApproveEstimate && (
-                <button
-                  onClick={onApproveEstimate}
-                  className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
-                  title="Convert estimate to order (without QB estimate)"
-                >
-                  <CheckCircle className="w-3.5 h-3.5" />
-                  Convert to Order
-                </button>
-              )}
             </>
           ) : (
             // Connected - show workflow buttons based on state
@@ -422,16 +379,6 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                   Create QB Estimate
                 </button>
               ) : null}
-              {!isApproved && onApproveEstimate && (
-                <button
-                  onClick={onApproveEstimate}
-                  className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
-                  title="Convert estimate to order"
-                >
-                  <CheckCircle className="w-3.5 h-3.5" />
-                  Convert to Order
-                </button>
-              )}
             </>
           )}
         </div>
