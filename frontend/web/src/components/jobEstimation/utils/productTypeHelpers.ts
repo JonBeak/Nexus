@@ -30,11 +30,11 @@ export const convertProductTypeToConfig = (productType: any): any => {
     ? String(pricingRules.calculation_type)
     : null;
 
-  // For now, create a basic config - will be enhanced when we implement dynamic templates
+  // GridEngine config - fields are accessed directly via rowUtils.ts from input_template
   return {
     id: productType.id,
     name: productType.name,
-    fields: [], // TODO: Load from input_template when dynamic templates are integrated
+    fields: [], // Not used here - rowUtils.getFieldsForProductType() reads input_template directly
     category: productType.category,
     pricingRules,
     calculationKey

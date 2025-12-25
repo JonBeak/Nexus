@@ -595,6 +595,8 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
             : currentEstimate.job_name || undefined}
           version={`v${currentEstimate.version_number}`}
           status={getEstimateStatusText(currentEstimate)}
+          customerId={currentEstimate.customer_id}
+          jobId={currentEstimate.job_id}
           onNavigateToHome={handleNavigateToHome}
           onNavigateToEstimates={handleNavigateToEstimates}
           onNavigateToCustomer={handleNavigateToCustomer}
@@ -687,7 +689,8 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
                     total: currentEstimate.uses_preparation_table
                       ? preparationTotals?.total
                       : estimatePreviewData?.total,
-                    estimateDate: currentEstimate.created_at
+                    // Only use estimate_date from QB (undefined if not sent yet)
+                    estimateDate: currentEstimate.estimate_date || undefined
                   }}
                   onEmailChange={handleEmailChange}
                   isConvertedToOrder={currentEstimate.status === 'ordered'}
@@ -955,7 +958,8 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
             subtotal: preparationTotals?.subtotal,
             tax: preparationTotals?.tax,
             total: preparationTotals?.total,
-            estimateDate: currentEstimate.estimate_date || new Date().toISOString().split('T')[0]
+            // Only use estimate_date from QB (undefined if not sent yet)
+            estimateDate: currentEstimate.estimate_date || undefined
           }}
         />
       )}

@@ -183,14 +183,16 @@ export const ServerManagement: React.FC = () => {
     const buildDate = new Date(timestamp);
     const now = new Date();
     const diffMs = now.getTime() - buildDate.getTime();
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMinutes / 60);
     const days = Math.floor(diffHours / 24);
     const hours = diffHours % 24;
+    const minutes = diffMinutes % 60;
 
     if (days > 0) {
       return `(${days}d, ${hours}h)`;
     }
-    return `(${hours}h)`;
+    return `(${hours}h, ${minutes}m)`;
   };
 
   if (loading) {

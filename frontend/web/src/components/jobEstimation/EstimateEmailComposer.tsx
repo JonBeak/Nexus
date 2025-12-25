@@ -2,6 +2,10 @@
  * EstimateEmailComposer Component
  * 3-part email editor: Beginning + Estimate Summary + End
  * Summary section shows live preview of included fields
+ *
+ * IMPORTANT: Summary field order and labels MUST match backend definition:
+ * See: backend/web/src/services/estimate/estimateEmailService.ts (SUMMARY_FIELDS constant)
+ * Order: Job Name, Customer Ref #, QB Estimate #, Estimate Date, Valid Until, Subtotal, Tax, Total
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Mail, Info, ChevronDown, ChevronUp } from 'lucide-react';
@@ -14,6 +18,7 @@ import {
   DEFAULT_EMAIL_END,
   EstimateEmailData
 } from './types';
+import { formatDate, formatCurrency, calculateValidUntilDate } from './utils/emailFormatUtils';
 
 // Valid variable names that will be highlighted
 const VALID_VARIABLES = [
@@ -151,19 +156,7 @@ interface EstimateEmailComposerProps {
   disabled?: boolean;
 }
 
-// Format currency for preview display
-const formatCurrency = (amount: number | undefined): string => {
-  if (amount === undefined || amount === null) return '-';
-  return `$${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
-
-// Format date for preview display
-const formatDate = (dateStr: string | undefined): string => {
-  if (!dateStr) return '-';
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return '-';
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-};
+// formatCurrency, formatDate, calculateValidUntilDate imported from ./utils/emailFormatUtils
 
 const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
   initialSubject = '',
@@ -315,13 +308,7 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
   };
 
   // Calculate valid until date (30 days from estimate date)
-  const validUntilDate = estimateData?.estimateDate
-    ? (() => {
-        const d = new Date(estimateData.estimateDate);
-        d.setDate(d.getDate() + 30);
-        return formatDate(d.toISOString());
-      })()
-    : '-';
+  const validUntilDate = calculateValidUntilDate(estimateData?.estimateDate);
 
   return (
     <div className="space-y-3">

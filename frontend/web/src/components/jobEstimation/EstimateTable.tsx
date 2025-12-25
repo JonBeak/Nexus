@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Copy, FileText, AlertTriangle, Check, CheckCircle, ExternalLink, Mail } from 'lucide-react';
+import { FileText, AlertTriangle } from 'lucide-react';
 import { EstimatePreviewData } from './core/layers/CalculationLayer';
 import { generateEstimateSVG } from './utils/svgEstimateExporter';
 import { EstimateVersion, EmailSummaryConfig } from './types';
@@ -7,6 +7,7 @@ import EstimatePointPersonsEditor, { PointPersonEntry } from './EstimatePointPer
 import EstimateEmailComposer from './EstimateEmailComposer';
 import { EstimateLineDescriptionCell } from './components/EstimateLineDescriptionCell';
 import { EstimateEmailPreviewModal } from './components/EstimateEmailPreviewModal';
+import { EstimateTableHeader } from './components/EstimateTableHeader';
 import { jobVersioningApi } from '@/services/jobVersioningApi';
 
 interface EstimateTableProps {
@@ -30,7 +31,6 @@ interface EstimateTableProps {
   onOpenQBEstimate?: () => void;
   onConnectQB?: () => void;
   onDisconnectQB?: () => void;
-  onApproveEstimate?: () => void;
   // Phase 7: Point Persons
   customerId?: number;
   pointPersons?: PointPersonEntry[];
@@ -133,7 +133,6 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
   onOpenQBEstimate,
   onConnectQB,
   onDisconnectQB,
-  onApproveEstimate,
   // Phase 7: New props
   customerId,
   pointPersons,
@@ -152,14 +151,12 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
   lineDescriptions: lineDescriptionsProp,
   onLineDescriptionChange
 }) => {
-  const [isExpanded, setIsExpanded] = useState(true);
   const [copySuccess, setCopySuccess] = useState(false);
   // Use prop if provided (lifted state), otherwise use local state
   const [localLineDescriptions, setLocalLineDescriptions] = useState<Map<number, string>>(new Map());
   const lineDescriptions = lineDescriptionsProp || localLineDescriptions;
   const [isConvertedToOrder, setIsConvertedToOrder] = useState(false);
   const [showEmailPreview, setShowEmailPreview] = useState(false);
-  const [isSavingPointPersons, setIsSavingPointPersons] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Load QB descriptions for non-draft estimates (only if using local state)
@@ -281,108 +278,34 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
 
     } catch (error) {
       console.error('Failed to save QB description:', error);
-      // TODO: Show error toast to user
+      // Non-critical - user can retry on next blur; console log is adequate
     }
   };
 
   return (
     <div className="bg-white rounded-lg shadow mb-8 w-full">
       {/* Header */}
-      <div className="flex items-center justify-between p-2 border-b min-w-0">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <FileText className="w-4 h-4 text-gray-600 flex-shrink-0" />
-          <h3 className="text-base font-medium text-gray-900 whitespace-nowrap">Estimate Preview</h3>
-        </div>
-
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {/* QuickBooks Buttons */}
-          {qbCheckingStatus ? (
-            // Checking QB status
-            <span className="text-xs text-gray-500">Checking QB...</span>
-          ) : qbEstimateId && qbEstimateUrl ? (
-            // QB estimate exists - show "Open in QB", "Send to Customer", and optionally "Approve"
-            <>
-              <button
-                onClick={onOpenQBEstimate}
-                className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
-                title="Open this estimate in QuickBooks"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                Open in QB
-              </button>
-              {!isApproved && (
-                <button
-                  onClick={async () => {
-                    if (pointPersons && pointPersons.length === 0) {
-                      alert('Please add at least one point person before sending');
-                      return;
-                    }
-
-                    // Auto-save point persons before opening modal
-                    if (onSavePointPersons) {
-                      try {
-                        setIsSavingPointPersons(true);
-                        await onSavePointPersons();
-                      } catch (error) {
-                        console.error('Failed to auto-save point persons:', error);
-                        alert('Failed to save point persons. Please try again.');
-                        return;
-                      } finally {
-                        setIsSavingPointPersons(false);
-                      }
-                    }
-
-                    setShowEmailPreview(true);
-                  }}
-                  disabled={isSending || isSavingPointPersons}
-                  className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors disabled:opacity-50"
-                  title="Send estimate to customer via email"
-                >
-                  <Mail className="w-3.5 h-3.5" />
-                  {isSavingPointPersons ? 'Saving...' : isSending ? 'Sending...' : 'Send to Customer'}
-                </button>
-              )}
-            </>
-          ) : !qbConnected ? (
-            // Not connected - show "Connect to QuickBooks" and "Approve"
-            <>
-              <button
-                onClick={onConnectQB}
-                className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
-                title="Connect to QuickBooks to create estimates"
-              >
-                <FileText className="w-3.5 h-3.5" />
-                Connect to QB
-              </button>
-            </>
-          ) : (
-            // Connected - show workflow buttons based on state
-            <>
-              {estimate?.is_draft ? (
-                // DRAFT STATE: Show "Prepare to Send"
-                <button
-                  onClick={onPrepareEstimate}
-                  disabled={isPreparing || hasValidationErrors || !estimatePreviewData || estimatePreviewData.items.length === 0}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs rounded whitespace-nowrap bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={hasValidationErrors ? 'Fix validation errors first' : 'Prepare estimate for sending'}
-                >
-                  {isPreparing ? '⏳ Preparing...' : 'Prepare to Send'}
-                </button>
-              ) : estimate?.is_prepared && !qbEstimateId ? (
-                // PREPARED STATE: Show "Create QB Estimate" (must create QB before sending)
-                <button
-                  onClick={onCreateQBEstimate}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs rounded whitespace-nowrap bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-                  title="Create estimate in QuickBooks"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  Create QB Estimate
-                </button>
-              ) : null}
-            </>
-          )}
-        </div>
-      </div>
+      <EstimateTableHeader
+        isDraft={estimate?.is_draft ?? false}
+        isPrepared={estimate?.is_prepared ?? false}
+        isApproved={isApproved}
+        qbEstimateId={qbEstimateId}
+        qbEstimateUrl={qbEstimateUrl}
+        qbConnected={qbConnected}
+        qbCheckingStatus={qbCheckingStatus}
+        qbCreatingEstimate={qbCreatingEstimate}
+        hasValidationErrors={hasValidationErrors}
+        hasEstimateData={!!estimatePreviewData && estimatePreviewData.items.length > 0}
+        pointPersonsCount={pointPersons?.length ?? 0}
+        onSavePointPersons={onSavePointPersons || (async () => {})}
+        isPreparing={isPreparing}
+        isSending={isSending}
+        onConnectQB={onConnectQB || (() => {})}
+        onCreateQBEstimate={onCreateQBEstimate || (() => {})}
+        onOpenQBEstimate={onOpenQBEstimate || (() => {})}
+        onPrepareEstimate={onPrepareEstimate || (() => {})}
+        onOpenEmailPreview={() => setShowEmailPreview(true)}
+      />
 
       {/* Content */}
       <div ref={contentRef} className="p-3">
@@ -585,7 +508,8 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                         subtotal: estimatePreviewData?.subtotal,
                         tax: estimatePreviewData?.tax,
                         total: estimatePreviewData?.total,
-                        estimateDate: estimate.created_at
+                        // Only use estimate_date from QB (undefined if not sent yet)
+                        estimateDate: estimate.estimate_date || undefined
                       }}
                       onChange={onEmailChange || (() => {})}
                       disabled={isConvertedToOrder}
@@ -635,8 +559,8 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
             subtotal: estimatePreviewData?.subtotal,
             tax: estimatePreviewData?.taxAmount,
             total: estimatePreviewData?.total,
-            // Use saved date for resends, or today's date for new sends (preview)
-            estimateDate: estimate.estimate_date || new Date().toISOString().split('T')[0]
+            // Only use estimate_date from QB (undefined if not sent yet)
+            estimateDate: estimate.estimate_date || undefined
           }}
         />
       )}

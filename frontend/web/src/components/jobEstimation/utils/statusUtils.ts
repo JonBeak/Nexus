@@ -46,6 +46,12 @@ export const getEstimateStatusText = (estimate: EstimateVersion): string => {
   // Check if draft (handle both boolean and number)
   if (estimate.is_draft === true || estimate.is_draft === 1) return 'Draft';
 
+  // Check if prepared but not yet sent (show as Draft)
+  if ((estimate.is_prepared === true || estimate.is_prepared === 1) &&
+      !(estimate.is_sent === true || estimate.is_sent === 1)) {
+    return 'Draft';
+  }
+
   // Build status from boolean flags (handle both boolean and number)
   const statuses = [];
   if (estimate.is_sent === true || estimate.is_sent === 1) statuses.push('Sent');
@@ -71,6 +77,11 @@ export const isEstimateDraft = (estimate: EstimateVersion): boolean => {
 export const getPrimaryEstimateStatus = (estimate: EstimateVersion): string => {
   if (estimate.is_active === false || estimate.is_active === 0) return 'Deactivated';
   if (estimate.is_draft === true || estimate.is_draft === 1) return 'Draft';
+  // Check if prepared but not yet sent (show as Draft)
+  if ((estimate.is_prepared === true || estimate.is_prepared === 1) &&
+      !(estimate.is_sent === true || estimate.is_sent === 1)) {
+    return 'Draft';
+  }
   if (estimate.is_approved === true || estimate.is_approved === 1) return 'Approved';
   if (estimate.is_retracted === true || estimate.is_retracted === 1) return 'Retracted';
   if (estimate.is_sent === true || estimate.is_sent === 1) return 'Sent';

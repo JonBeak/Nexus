@@ -61,6 +61,16 @@ export const VersionStatusBadges: React.FC<VersionStatusBadgesProps> = ({ versio
     );
   }
 
+  // Check prepared-but-not-sent (show as Draft)
+  if ((version.is_prepared === true || version.is_prepared === 1) &&
+      !(version.is_sent === true || version.is_sent === 1)) {
+    return (
+      <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-medium">
+        Draft
+      </span>
+    );
+  }
+
   // If no status matches, show error (violates database constraint)
   return (
     <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-medium">

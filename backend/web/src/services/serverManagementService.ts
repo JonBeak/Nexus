@@ -255,7 +255,7 @@ class ServerManagementService {
               note: notesMap.get(filename) || null
             };
           })
-          .sort((a, b) => b.sizeBytes - a.sizeBytes || b.date.localeCompare(a.date));
+          .sort((a, b) => b.date.localeCompare(a.date)); // Most recent first
 
         return files;
       } catch (error) {

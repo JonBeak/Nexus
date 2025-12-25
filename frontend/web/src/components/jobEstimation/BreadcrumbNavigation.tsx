@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { ChevronRight, Home, Copy, Check, CheckCircle } from 'lucide-react';
 import { BreadcrumbNavigationProps } from './types';
 import { getStatusColorClasses } from './utils/statusUtils';
@@ -8,6 +9,8 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
   jobName,
   version,
   status,
+  customerId,
+  jobId,
   onNavigateToHome,
   onNavigateToEstimates,
   onNavigateToCustomer,
@@ -50,38 +53,58 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
         {/* LEFT: Breadcrumb navigation */}
         <div className="flex flex-wrap items-center gap-2 text-sm flex-1">
         {/* Home button - leads to dashboard */}
-        <button
-          onClick={onNavigateToHome}
+        <Link
+          to="/dashboard"
+          onClick={(e) => {
+            if (onNavigateToHome) {
+              e.preventDefault();
+              onNavigateToHome();
+            }
+          }}
           className="p-1 text-gray-500 hover:text-purple-600 transition-colors"
           title="Back to Dashboard"
         >
           <Home className="w-5 h-5" />
-        </button>
+        </Link>
 
         <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
 
         {/* Job Estimation - leads to navigation page */}
-        <span
-          className="cursor-pointer text-gray-500 hover:text-purple-600 transition-colors"
-          onClick={onNavigateToEstimates}
+        <Link
+          to="/estimates"
+          onClick={(e) => {
+            if (onNavigateToEstimates) {
+              e.preventDefault();
+              onNavigateToEstimates();
+            }
+          }}
+          className="text-gray-500 hover:text-purple-600 transition-colors"
         >
           Job Estimation
-        </span>
+        </Link>
 
         {/* Customer - leads to customer's jobs */}
         {customerName && (
           <>
             <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
-            <span
-              className={`truncate max-w-[150px] md:max-w-xs ${
-                jobName
-                  ? 'cursor-pointer text-gray-500 hover:text-purple-600 transition-colors'
-                  : `font-medium ${status ? getStatusColor(status) : 'text-purple-600'}`
-              }`}
-              onClick={jobName ? onNavigateToCustomer : undefined}
-            >
-              {customerName}
-            </span>
+            {jobName && customerId ? (
+              <Link
+                to={`/estimates?cid=${customerId}`}
+                onClick={(e) => {
+                  if (onNavigateToCustomer) {
+                    e.preventDefault();
+                    onNavigateToCustomer();
+                  }
+                }}
+                className="truncate max-w-[150px] md:max-w-xs text-gray-500 hover:text-purple-600 transition-colors"
+              >
+                {customerName}
+              </Link>
+            ) : (
+              <span className={`truncate max-w-[150px] md:max-w-xs font-medium ${status ? getStatusColor(status) : 'text-purple-600'}`}>
+                {customerName}
+              </span>
+            )}
           </>
         )}
 
@@ -89,16 +112,24 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
         {jobName && (
           <>
             <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
-            <span
-              className={`truncate max-w-[150px] md:max-w-xs ${
-                version
-                  ? 'cursor-pointer text-gray-500 hover:text-purple-600 transition-colors'
-                  : `font-medium ${status ? getStatusColor(status) : 'text-purple-600'}`
-              }`}
-              onClick={version ? onNavigateToJob : undefined}
-            >
-              {jobName}
-            </span>
+            {version && customerId && jobId ? (
+              <Link
+                to={`/estimates?cid=${customerId}&jid=${jobId}`}
+                onClick={(e) => {
+                  if (onNavigateToJob) {
+                    e.preventDefault();
+                    onNavigateToJob();
+                  }
+                }}
+                className="truncate max-w-[150px] md:max-w-xs text-gray-500 hover:text-purple-600 transition-colors"
+              >
+                {jobName}
+              </Link>
+            ) : (
+              <span className={`truncate max-w-[150px] md:max-w-xs font-medium ${status ? getStatusColor(status) : 'text-purple-600'}`}>
+                {jobName}
+              </span>
+            )}
           </>
         )}
 

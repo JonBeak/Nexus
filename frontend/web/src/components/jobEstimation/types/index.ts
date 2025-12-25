@@ -196,6 +196,7 @@ export interface EstimateVersion {
   qb_estimate_id?: string;
   qb_doc_number?: string;  // QB estimate document number for display
   qb_estimate_url?: string;
+  estimate_date?: string;  // QB estimate date (set when estimate is sent to QB)
 
   // Preparation table flag (Phase 4.e)
   uses_preparation_table?: boolean;  // True if using new preparation table workflow
@@ -260,6 +261,9 @@ export interface BreadcrumbNavigationProps {
   jobName?: string;
   version?: string;
   status?: string;
+  // IDs for building proper link URLs (right-clickable)
+  customerId?: number;
+  jobId?: number;
   onNavigateToHome?: () => void;
   onNavigateToEstimates?: () => void;
   onNavigateToCustomer?: () => void;
