@@ -119,6 +119,19 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
     gridEngineRef
   });
 
+  // Callback to clear empty rows before prepare (used by useQuickBooksIntegration)
+  const handleClearEmptyBeforePrepare = useCallback(async () => {
+    if (!currentEstimate?.id || !gridEngineRef) return;
+
+    try {
+      await jobVersioningApi.clearEmptyItems(currentEstimate.id);
+      await gridEngineRef.reloadFromBackend(currentEstimate.id, jobVersioningApi);
+    } catch (error) {
+      console.error('Failed to clear empty rows:', error);
+      // Don't block prepare if clear empty fails
+    }
+  }, [currentEstimate?.id, gridEngineRef]);
+
   // QuickBooks integration hook
   const {
     qbConnected,
@@ -154,7 +167,8 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
     emailBeginning,
     emailEnd,
     emailSummaryConfig,
-    lineDescriptions  // QB descriptions for items
+    lineDescriptions,  // QB descriptions for items
+    onBeforePrepare: handleClearEmptyBeforePrepare
   });
 
   // Load estimate on mount

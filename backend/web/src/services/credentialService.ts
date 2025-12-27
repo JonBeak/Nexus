@@ -262,12 +262,29 @@ export class CredentialService {
 
   /**
    * QuickBooks-specific: Get credentials
+   * Set USE_ENV_QB_CREDENTIALS=true in .env to use QB_* env vars instead of database
+   * (useful for home environment where database backups overwrite encrypted credentials)
    */
   public async getQuickBooksCredentials(
     userId?: number,
     ipAddress?: string,
     userAgent?: string
   ): Promise<QuickBooksCredentials | null> {
+    // Explicit flag to use environment variables instead of database
+    if (process.env.USE_ENV_QB_CREDENTIALS === 'true') {
+      if (!process.env.QB_CLIENT_ID || !process.env.QB_CLIENT_SECRET) {
+        console.error('USE_ENV_QB_CREDENTIALS is true but QB_CLIENT_ID or QB_CLIENT_SECRET not set');
+        return null;
+      }
+      return {
+        client_id: process.env.QB_CLIENT_ID,
+        client_secret: process.env.QB_CLIENT_SECRET,
+        redirect_uri: process.env.QB_REDIRECT_URI,
+        environment: process.env.QB_ENVIRONMENT as 'sandbox' | 'production' | undefined
+      };
+    }
+
+    // Default: use encrypted database credentials
     const credentials = await this.getServiceCredentials('quickbooks', userId, ipAddress, userAgent);
 
     if (!credentials.client_id || !credentials.client_secret) {

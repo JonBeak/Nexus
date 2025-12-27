@@ -49,6 +49,15 @@ export const jobVersioningApi = {
     return response.data;
   },
 
+  // Estimate Lookup (for Copy Rows feature)
+  lookupEstimate: async (params: { qbDocNumber?: string; estimateId?: number }) => {
+    const queryParams = new URLSearchParams();
+    if (params.qbDocNumber) queryParams.append('qbDocNumber', params.qbDocNumber);
+    if (params.estimateId) queryParams.append('estimateId', params.estimateId.toString());
+    const response = await api.get(`/job-estimation/estimates/lookup?${queryParams.toString()}`);
+    return response.data;
+  },
+
   getEstimateVersions: async (jobId: number) => {
     const response = await api.get(`/job-estimation/jobs/${jobId}/estimates`);
     return response.data;
@@ -179,6 +188,20 @@ export const jobVersioningApi = {
 
   addTemplateSection: async (estimateId: number) => {
     const response = await api.post(`/job-estimation/estimates/${estimateId}/add-section`);
+    return response.data;
+  },
+
+  /**
+   * Copy rows from another estimate and append to target estimate
+   * @param targetEstimateId - The estimate to copy rows TO
+   * @param sourceEstimateId - The estimate to copy rows FROM
+   * @param rowIds - Array of database IDs of rows to copy
+   */
+  copyRowsToEstimate: async (targetEstimateId: number, sourceEstimateId: number, rowIds: number[]) => {
+    const response = await api.post(`/job-estimation/estimates/${targetEstimateId}/copy-rows`, {
+      sourceEstimateId,
+      rowIds
+    });
     return response.data;
   },
 

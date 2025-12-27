@@ -70,10 +70,17 @@ backups/
 backend/web/config/
 **/gmail-service-account.json
 
+# SSL Certificates (home dev environment)
+*.pem
+*.pfx
+*.crt
+*.key
+
 # Claude specific
 .claude/.env
 backend/web/.env
 frontend/web/.env
+frontend/web/.env.development
 backend/web/.env.production
 frontend/web/.env.production
 .aider*

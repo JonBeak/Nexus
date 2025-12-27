@@ -24,6 +24,13 @@ export interface BuildTimestamp {
   exists: boolean;
 }
 
+export interface EnvironmentInfo {
+  os: 'windows' | 'linux';
+  platform: string;
+  nexusRoot: string;
+  hasNginx: boolean;
+}
+
 export interface SystemStatus {
   processes: PM2ProcessStatus[];
   builds: {
@@ -33,6 +40,7 @@ export interface SystemStatus {
     frontendDev: BuildTimestamp;
   };
   serverTime: string;
+  environment: EnvironmentInfo;
 }
 
 export interface BackupFile {

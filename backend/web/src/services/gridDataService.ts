@@ -371,6 +371,116 @@ export class GridDataService {
   }
 
   // =============================================
+  // COPY ROWS FROM ANOTHER ESTIMATE
+  // =============================================
+
+  /**
+   * Copy rows from a source estimate and append to target estimate
+   * @param targetEstimateId - The estimate to copy rows TO
+   * @param sourceEstimateId - The estimate to copy rows FROM
+   * @param rowIds - Array of database IDs of rows to copy (from source estimate)
+   * @param userId - User performing the copy
+   * @returns Number of rows copied
+   */
+  async copyRowsToEstimate(
+    targetEstimateId: number,
+    sourceEstimateId: number,
+    rowIds: number[],
+    userId: number
+  ): Promise<{ copiedCount: number }> {
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      // Validate target estimate exists and is a draft
+      const draftCheck = await this.estimateRepository.getEstimateWithDraftCheckInTransaction(targetEstimateId, connection);
+      if (!draftCheck) {
+        throw new Error('Cannot copy rows - target estimate is already finalized');
+      }
+
+      // Get the current max item_order in target estimate
+      const [maxOrderResult] = await connection.execute<RowDataPacket[]>(
+        'SELECT COALESCE(MAX(item_order), 0) as max_order FROM job_estimate_items WHERE estimate_id = ?',
+        [targetEstimateId]
+      );
+      let nextOrder = (maxOrderResult[0]?.max_order || 0) + 1;
+
+      // Get the source rows to copy
+      const [sourceRows] = await connection.execute<RowDataPacket[]>(
+        `SELECT
+          product_type_id,
+          item_name,
+          grid_data,
+          unit_price,
+          extended_price,
+          customer_description,
+          internal_notes
+        FROM job_estimate_items
+        WHERE estimate_id = ? AND id IN (${rowIds.map(() => '?').join(',')})
+        ORDER BY item_order`,
+        [sourceEstimateId, ...rowIds]
+      );
+
+      if (sourceRows.length === 0) {
+        throw new Error('No valid rows found to copy');
+      }
+
+      // Insert copied rows into target estimate
+      for (const row of sourceRows) {
+        await connection.execute(
+          `INSERT INTO job_estimate_items (
+            estimate_id,
+            assembly_group_id,
+            parent_item_id,
+            product_type_id,
+            item_name,
+            item_order,
+            item_index,
+            grid_data,
+            unit_price,
+            extended_price,
+            customer_description,
+            internal_notes,
+            created_at,
+            updated_at
+          ) VALUES (?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+          [
+            targetEstimateId,
+            row.product_type_id,
+            row.item_name,
+            nextOrder,
+            nextOrder, // item_index matches item_order for copied rows
+            row.grid_data,
+            null, // Don't copy pricing - will be recalculated
+            null,
+            row.customer_description,
+            row.internal_notes
+          ]
+        );
+        nextOrder++;
+      }
+
+      // Update estimate timestamp
+      await connection.execute(
+        'UPDATE job_estimates SET updated_by = ?, updated_at = NOW() WHERE id = ?',
+        [userId, targetEstimateId]
+      );
+
+      await connection.commit();
+
+      console.log(`📋 Copied ${sourceRows.length} rows from estimate ${sourceEstimateId} to ${targetEstimateId}`);
+
+      return { copiedCount: sourceRows.length };
+    } catch (error) {
+      await connection.rollback();
+      console.error('Service error copying rows:', error);
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  // =============================================
   // VALIDATION METHODS
   // =============================================
 

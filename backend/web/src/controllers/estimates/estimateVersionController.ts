@@ -56,6 +56,57 @@ export const getEstimateById = async (req: AuthRequest, res: Response) => {
 };
 
 /**
+ * Look up estimate by QB document number or estimate ID
+ * Used by Copy Rows feature for quick lookup
+ * @route GET /estimates/lookup
+ * @query qbDocNumber - QB document number (e.g., "EST-00001")
+ * @query estimateId - Estimate ID (numeric)
+ */
+export const lookupEstimate = async (req: AuthRequest, res: Response) => {
+  try {
+    const { qbDocNumber, estimateId } = req.query;
+
+    // Must provide one of the two
+    if (!qbDocNumber && !estimateId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Must provide either qbDocNumber or estimateId'
+      });
+    }
+
+    let estimate = null;
+
+    // Try QB doc number lookup first
+    if (qbDocNumber && typeof qbDocNumber === 'string') {
+      estimate = await versioningService.getEstimateByQbDocNumber(qbDocNumber);
+    }
+
+    // Try estimate ID lookup if QB doc number not provided or not found
+    if (!estimate && estimateId) {
+      const id = parseInt(estimateId as string);
+      if (!isNaN(id)) {
+        estimate = await versioningService.getEstimateSummaryById(id);
+      }
+    }
+
+    if (!estimate) {
+      return res.status(404).json({
+        success: false,
+        message: 'Estimate not found'
+      });
+    }
+
+    res.json({ success: true, data: estimate });
+  } catch (error) {
+    console.error('Controller error looking up estimate:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to look up estimate'
+    });
+  }
+};
+
+/**
  * Get all estimate versions for a job
  * @route GET /jobs/:jobId/estimates
  */

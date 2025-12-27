@@ -746,6 +746,62 @@ export class EstimateRepository {
     );
   }
 
+  // =============================================
+  // ESTIMATE LOOKUP METHODS (Copy Rows Feature)
+  // =============================================
+
+  /**
+   * Look up estimate by QB document number (e.g., "EST-00001")
+   * Returns basic estimate info with job/customer context for display
+   */
+  async getEstimateByQbDocNumber(qbDocNumber: string): Promise<RowDataPacket | null> {
+    const rows = await query(
+      `SELECT
+        e.id,
+        e.job_id,
+        e.version_number,
+        e.qb_doc_number,
+        e.status,
+        e.total_amount,
+        j.job_name,
+        j.job_number,
+        c.company_name as customer_name
+       FROM job_estimates e
+       JOIN jobs j ON e.job_id = j.job_id
+       JOIN customers c ON j.customer_id = c.customer_id
+       WHERE e.qb_doc_number = ?`,
+      [qbDocNumber]
+    ) as RowDataPacket[];
+
+    return rows.length > 0 ? rows[0] : null;
+  }
+
+  /**
+   * Get estimate summary for copy rows modal display
+   * Returns lightweight info for selection UI
+   */
+  async getEstimateSummaryById(estimateId: number): Promise<RowDataPacket | null> {
+    const rows = await query(
+      `SELECT
+        e.id,
+        e.job_id,
+        e.version_number,
+        e.qb_doc_number,
+        e.status,
+        e.total_amount,
+        j.job_name,
+        j.job_number,
+        c.company_name as customer_name
+       FROM job_estimates e
+       JOIN jobs j ON e.job_id = j.job_id
+       JOIN customers c ON j.customer_id = c.customer_id
+       WHERE e.id = ?`,
+      [estimateId]
+    ) as RowDataPacket[];
+
+    return rows.length > 0 ? rows[0] : null;
+  }
+
   /**
    * Get estimate for sending (includes all needed data)
    * For estimates with uses_preparation_table=1, calculates totals from preparation items

@@ -316,6 +316,23 @@ export class EstimateVersioningService {
     return this.estimateService.addTemplateSection(estimateId, userId);
   }
 
+  /**
+   * Copy rows from a source estimate and append to target estimate
+   * @param targetEstimateId - The estimate to copy rows TO
+   * @param sourceEstimateId - The estimate to copy rows FROM
+   * @param rowIds - Array of database IDs of rows to copy
+   * @param userId - User performing the copy
+   * @returns Number of rows copied
+   */
+  async copyRowsToEstimate(
+    targetEstimateId: number,
+    sourceEstimateId: number,
+    rowIds: number[],
+    userId: number
+  ): Promise<{ copiedCount: number }> {
+    return this.gridDataService.copyRowsToEstimate(targetEstimateId, sourceEstimateId, rowIds, userId);
+  }
+
   // =============================================
   // ESTIMATE DATA ACCESS - Delegated to EstimateService/Repository
   // =============================================
@@ -338,6 +355,21 @@ export class EstimateVersioningService {
    */
   async getJobIdByEstimateId(estimateId: number): Promise<number> {
     return this.estimateService.getJobIdByEstimateId(estimateId);
+  }
+
+  /**
+   * Look up estimate by QB document number (e.g., "EST-00001")
+   * Used by Copy Rows feature for quick lookup
+   */
+  async getEstimateByQbDocNumber(qbDocNumber: string): Promise<RowDataPacket | null> {
+    return this.estimateRepository.getEstimateByQbDocNumber(qbDocNumber);
+  }
+
+  /**
+   * Get estimate summary for copy rows modal display
+   */
+  async getEstimateSummaryById(estimateId: number): Promise<RowDataPacket | null> {
+    return this.estimateRepository.getEstimateSummaryById(estimateId);
   }
 
   // =============================================

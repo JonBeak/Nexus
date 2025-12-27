@@ -369,6 +369,11 @@ export const JobPanel: React.FC<JobPanelProps> = ({
                           <span className={`truncate ${selectedJobId === job.job_id ? 'font-semibold' : ''}`} title={job.job_name}>
                             {job.job_name}
                           </span>
+                          {job.customer_job_number && (
+                            <span className="text-xs text-gray-400 truncate" title={job.customer_job_number}>
+                              {job.customer_job_number}
+                            </span>
+                          )}
                           {(user.role === 'manager' || user.role === 'owner') && (
                             <button
                               onClick={(e) => {
@@ -386,14 +391,8 @@ export const JobPanel: React.FC<JobPanelProps> = ({
                     </div>
                     <div className="text-xs text-gray-500">
                       #{job.job_number} • {job.customer_name}
-                      {job.customer_job_number && (
-                        <span className="text-gray-400"> • Ref: {job.customer_job_number}</span>
-                      )}
-                    </div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      {job.estimate_count || 0} version{job.estimate_count !== 1 ? 's' : ''}
                       {job.last_activity && (
-                        <span> • {new Date(job.last_activity).toLocaleDateString()}</span>
+                        <span> • {new Date(job.last_activity).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                       )}
                     </div>
                   </div>

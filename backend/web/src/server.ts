@@ -9,6 +9,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
+import https from 'https';
 import { testConnection, startPoolHealthMonitoring } from './config/database';
 import authRoutes from './routes/auth';
 import customersRoutes from './routes/customers';
@@ -66,6 +67,7 @@ const allowedOrigins = [
   'https://nexuswebapp.duckdns.org',  // Production
   'http://192.168.2.14:5173',          // LAN development
   'http://localhost:5173',             // Local development
+  'https://nexuswebapphome.duckdns.org:3001',  // Home HTTPS
 ];
 
 app.use(cors({
@@ -237,17 +239,43 @@ const startServer = async () => {
     // Start scheduled email job (runs every 5 minutes)
     startScheduledEmailJob();
 
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log('\n' + '='.repeat(60));
-      console.log(`✅ SIGNHOUSE BACKEND v${serverVersion.version} STARTED`);
-      console.log(`⏰ Timestamp: ${serverVersion.timestamp}`);
-      console.log('='.repeat(60));
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📍 Environment: ${process.env.NODE_ENV}`);
-      console.log(`🌐 CORS Origin: ${process.env.CORS_ORIGIN}`);
-      console.log(`🌍 Network access: http://192.168.2.14:${PORT}`);
-      console.log('='.repeat(60) + '\n');
-    });
+    // Check for SSL certificates (home environment HTTPS support)
+    const sslKeyPath = path.join(__dirname, '..', 'nexuswebapphome.duckdns.org-key.pem');
+    const sslCertPath = path.join(__dirname, '..', 'nexuswebapphome.duckdns.org-chain.pem');
+    const useHttps = fs.existsSync(sslKeyPath) && fs.existsSync(sslCertPath);
+
+    if (useHttps) {
+      // HTTPS mode for home environment
+      const httpsOptions = {
+        key: fs.readFileSync(sslKeyPath),
+        cert: fs.readFileSync(sslCertPath)
+      };
+
+      https.createServer(httpsOptions, app).listen(PORT, '0.0.0.0', () => {
+        console.log('\n' + '='.repeat(60));
+        console.log(`✅ SIGNHOUSE BACKEND v${serverVersion.version} STARTED (HTTPS)`);
+        console.log(`⏰ Timestamp: ${serverVersion.timestamp}`);
+        console.log('='.repeat(60));
+        console.log(`🔒 Server running on HTTPS port ${PORT}`);
+        console.log(`📍 Environment: ${process.env.NODE_ENV}`);
+        console.log(`🌐 CORS Origin: ${process.env.CORS_ORIGIN}`);
+        console.log(`🌍 Network access: https://nexuswebapphome.duckdns.org:${PORT}`);
+        console.log('='.repeat(60) + '\n');
+      });
+    } else {
+      // HTTP mode (production behind nginx, or local dev)
+      app.listen(PORT, '0.0.0.0', () => {
+        console.log('\n' + '='.repeat(60));
+        console.log(`✅ SIGNHOUSE BACKEND v${serverVersion.version} STARTED`);
+        console.log(`⏰ Timestamp: ${serverVersion.timestamp}`);
+        console.log('='.repeat(60));
+        console.log(`🚀 Server running on port ${PORT}`);
+        console.log(`📍 Environment: ${process.env.NODE_ENV}`);
+        console.log(`🌐 CORS Origin: ${process.env.CORS_ORIGIN}`);
+        console.log(`🌍 Network access: http://192.168.2.14:${PORT}`);
+        console.log('='.repeat(60) + '\n');
+      });
+    }
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);

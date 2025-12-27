@@ -25,8 +25,10 @@ import {
   serverManagementApi,
   SystemStatus,
   BackupFile,
-  ScriptResult
+  ScriptResult,
+  EnvironmentInfo
 } from '../../services/api/serverManagementApi';
+import { Monitor } from 'lucide-react';
 
 type ButtonState = 'idle' | 'running' | 'success' | 'error';
 
@@ -233,6 +235,17 @@ export const ServerManagement: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {/* OS Badge */}
+              {status?.environment && (
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${
+                  status.environment.os === 'windows'
+                    ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                    : 'bg-orange-100 text-orange-700 border border-orange-200'
+                }`}>
+                  <Monitor className="w-4 h-4" />
+                  {status.environment.os === 'windows' ? 'Windows' : 'Linux'}
+                </div>
+              )}
               <span className={`text-sm ${autoRefresh ? 'text-green-600' : 'text-gray-400'}`}>
                 {autoRefresh ? 'Auto-refresh: ON' : 'Auto-refresh: PAUSED'}
               </span>
@@ -413,6 +426,20 @@ export const ServerManagement: React.FC = () => {
             Backup Operations
           </h2>
 
+          {/* Windows notice */}
+          {status?.environment?.os === 'windows' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 flex items-start gap-3">
+              <Monitor className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-blue-800 font-medium">Windows Environment</p>
+                <p className="text-blue-600 text-sm">
+                  Backup operations are only available on the Linux production server.
+                  Use the dev rebuild button above to rebuild the backend.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-2 mb-4">
             <button
               onClick={() => executeOperation(
@@ -420,7 +447,7 @@ export const ServerManagement: React.FC = () => {
                 serverManagementApi.createBackup,
                 'backup-builds.sh'
               )}
-              disabled={buttonStates['backup-create'] === 'running'}
+              disabled={buttonStates['backup-create'] === 'running' || status?.environment?.os === 'windows'}
               className={getButtonClass('backup', buttonStates['backup-create'] || 'idle')}
             >
               {getButtonIcon(buttonStates['backup-create'] || 'idle')}
@@ -433,7 +460,7 @@ export const ServerManagement: React.FC = () => {
                 serverManagementApi.backupDatabase,
                 'backup-db-to-gdrive.sh'
               )}
-              disabled={buttonStates['backup-database'] === 'running'}
+              disabled={buttonStates['backup-database'] === 'running' || status?.environment?.os === 'windows'}
               className={getButtonClass('backup', buttonStates['backup-database'] || 'idle')}
             >
               {getButtonIcon(buttonStates['backup-database'] || 'idle')}
@@ -446,7 +473,7 @@ export const ServerManagement: React.FC = () => {
                 serverManagementApi.cleanupBackups,
                 'cleanup-backups.sh'
               )}
-              disabled={buttonStates['backup-cleanup'] === 'running'}
+              disabled={buttonStates['backup-cleanup'] === 'running' || status?.environment?.os === 'windows'}
               className={getButtonClass('neutral', buttonStates['backup-cleanup'] || 'idle')}
             >
               {getButtonIcon(buttonStates['backup-cleanup'] || 'idle')}
@@ -455,22 +482,25 @@ export const ServerManagement: React.FC = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <BackupTable
-              title="Backend Backups"
-              backups={backups.backend}
-              onRestore={handleRestore}
-              onSaveNote={handleSaveNote}
-              isRestoring={buttonStates['restore'] === 'running'}
-            />
-            <BackupTable
-              title="Frontend Backups"
-              backups={backups.frontend}
-              onRestore={handleRestore}
-              onSaveNote={handleSaveNote}
-              isRestoring={buttonStates['restore'] === 'running'}
-            />
-          </div>
+          {/* Only show backup tables on Linux */}
+          {status?.environment?.os !== 'windows' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <BackupTable
+                title="Backend Backups"
+                backups={backups.backend}
+                onRestore={handleRestore}
+                onSaveNote={handleSaveNote}
+                isRestoring={buttonStates['restore'] === 'running'}
+              />
+              <BackupTable
+                title="Frontend Backups"
+                backups={backups.frontend}
+                onRestore={handleRestore}
+                onSaveNote={handleSaveNote}
+                isRestoring={buttonStates['restore'] === 'running'}
+              />
+            </div>
+          )}
         </section>
 
         {/* Output Panel */}

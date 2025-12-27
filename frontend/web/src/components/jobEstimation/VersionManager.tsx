@@ -181,11 +181,11 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
 
     return (
       <div
-        className="text-base text-gray-700 font-medium cursor-pointer hover:bg-gray-100 px-2 py-1 rounded"
+        className="group/notes text-base text-gray-700 font-medium cursor-pointer hover:bg-gray-100 px-2 py-1 rounded min-h-[28px]"
         onClick={() => handleEditNotes(version)}
         title="Click to edit description"
       >
-        {version.notes || <span className="text-sm text-gray-400 italic font-normal">Click to add description...</span>}
+        {version.notes || <span className="text-sm text-gray-400 italic font-normal opacity-0 group-hover/notes:opacity-100 transition-opacity">Click to add description...</span>}
       </div>
     );
   };
@@ -268,8 +268,8 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
         <table className="w-full table-fixed">
           <thead className="bg-gray-50">
             <tr>
-              <th className="text-left p-4 font-medium text-gray-700 w-24">Version</th>
-              <th className="text-left p-4 font-medium text-gray-700 w-64">Description</th>
+              <th className="text-left p-4 font-medium text-gray-700 w-44">Version</th>
+              <th className="text-left p-4 font-medium text-gray-700 w-56">Description</th>
               <th className="text-left p-4 font-medium text-gray-700 w-28">Status</th>
               <th className="text-right p-4 font-medium text-gray-700 w-24">Total</th>
               <th className="text-center p-4 font-medium text-gray-700 w-32">Actions</th>
@@ -311,12 +311,11 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
                   className="hover:bg-gray-50"
                 >
                   <td className="p-4">
-                    <div className="font-medium">v{version.version_number}</div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {formatDate(version.updated_at).date}
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      {formatDate(version.updated_at).time}
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-medium">v{version.version_number}</span>
+                      <span className="text-xs text-gray-500">
+                        {formatDate(version.updated_at).date} <span className="text-gray-400">{formatDate(version.updated_at).time}</span>
+                      </span>
                     </div>
                     {getLockIndicator(version)}
                   </td>
@@ -344,9 +343,12 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
           >
             <div className="flex items-start justify-between mb-3">
               <div className="flex-shrink-0">
-                <div className="font-semibold text-lg">v{version.version_number}</div>
-                <div className="text-xs text-gray-500 mt-1">{formatDate(version.updated_at).date}</div>
-                <div className="text-xs text-gray-400">{formatDate(version.updated_at).time}</div>
+                <div className="flex items-baseline gap-2">
+                  <span className="font-semibold text-lg">v{version.version_number}</span>
+                  <span className="text-xs text-gray-500">
+                    {formatDate(version.updated_at).date} <span className="text-gray-400">{formatDate(version.updated_at).time}</span>
+                  </span>
+                </div>
                 {getLockIndicator(version)}
               </div>
               <div className="flex flex-wrap gap-1 justify-end">

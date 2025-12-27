@@ -4,6 +4,8 @@
  *
  * Core service for script execution, PM2 status parsing, and backup management.
  * Used by the Server Management GUI for owner-only operations.
+ *
+ * Supports both Windows and Linux environments.
  */
 
 import { exec } from 'child_process';
@@ -15,11 +17,19 @@ import { RowDataPacket } from 'mysql2';
 
 const execAsync = promisify(exec);
 
-// Configuration
-const SCRIPTS_DIR = '/home/jon/Nexus/infrastructure/scripts';
-const BACKUPS_DIR = '/home/jon/Nexus/infrastructure/backups';
-const BACKEND_BUILD_DIR = '/home/jon/Nexus/backend/web';
-const FRONTEND_BUILD_DIR = '/home/jon/Nexus/frontend/web';
+// OS Detection
+const IS_WINDOWS = process.platform === 'win32';
+
+// Cross-platform Configuration
+const NEXUS_ROOT = IS_WINDOWS
+  ? (process.env.NEXUS_ROOT || 'C:/Users/13433/Nexus')
+  : '/home/jon/Nexus';
+
+const SCRIPTS_DIR = path.join(NEXUS_ROOT, 'infrastructure', 'scripts');
+const WINDOWS_SCRIPTS_DIR = path.join(SCRIPTS_DIR, 'windows');
+const BACKUPS_DIR = path.join(NEXUS_ROOT, 'infrastructure', 'backups');
+const BACKEND_BUILD_DIR = path.join(NEXUS_ROOT, 'backend', 'web');
+const FRONTEND_BUILD_DIR = path.join(NEXUS_ROOT, 'frontend', 'web');
 
 // Interfaces
 export interface PM2ProcessStatus {
@@ -38,6 +48,13 @@ export interface BuildTimestamp {
   exists: boolean;
 }
 
+export interface EnvironmentInfo {
+  os: 'windows' | 'linux';
+  platform: string;
+  nexusRoot: string;
+  hasNginx: boolean;
+}
+
 export interface SystemStatus {
   processes: PM2ProcessStatus[];
   builds: {
@@ -47,6 +64,7 @@ export interface SystemStatus {
     frontendDev: BuildTimestamp;
   };
   serverTime: string;
+  environment: EnvironmentInfo;
 }
 
 export interface BackupFile {
@@ -68,6 +86,18 @@ export interface ScriptResult {
 
 class ServerManagementService {
   /**
+   * Get environment info (OS, paths, available features)
+   */
+  getEnvironmentInfo(): EnvironmentInfo {
+    return {
+      os: IS_WINDOWS ? 'windows' : 'linux',
+      platform: process.platform,
+      nexusRoot: NEXUS_ROOT,
+      hasNginx: !IS_WINDOWS // Nginx only on Linux
+    };
+  }
+
+  /**
    * Get complete system status including PM2 processes and build timestamps
    */
   async getSystemStatus(): Promise<SystemStatus> {
@@ -79,7 +109,8 @@ class ServerManagementService {
     return {
       processes,
       builds,
-      serverTime: new Date().toISOString()
+      serverTime: new Date().toISOString(),
+      environment: this.getEnvironmentInfo()
     };
   }
 
@@ -88,7 +119,9 @@ class ServerManagementService {
    */
   async getPM2Status(): Promise<PM2ProcessStatus[]> {
     try {
-      const { stdout } = await execAsync('pm2 jlist', { timeout: 10000 });
+      // Use npx on Windows to ensure PM2 is found
+      const pm2Command = IS_WINDOWS ? 'npx pm2 jlist' : 'pm2 jlist';
+      const { stdout } = await execAsync(pm2Command, { timeout: 15000 });
       const processes = JSON.parse(stdout);
 
       return processes.map((p: any) => ({
@@ -137,21 +170,50 @@ class ServerManagementService {
   }
 
   /**
-   * Execute an infrastructure script
+   * Execute an infrastructure script (cross-platform)
+   * On Windows: looks for .ps1 in windows/ subdirectory
+   * On Linux: uses .sh scripts directly
    */
   async executeScript(scriptName: string, timeout: number = 120000): Promise<ScriptResult> {
-    const scriptPath = path.join(SCRIPTS_DIR, scriptName);
+    let scriptPath: string;
+    let command: string;
+    let cwd: string;
 
-    // Validate script exists
-    if (!fs.existsSync(scriptPath)) {
-      return { success: false, output: '', error: `Script not found: ${scriptName}` };
+    if (IS_WINDOWS) {
+      // Convert .sh name to .ps1 and look in windows subdirectory
+      const psScriptName = scriptName.replace('.sh', '.ps1');
+      scriptPath = path.join(WINDOWS_SCRIPTS_DIR, psScriptName);
+      cwd = WINDOWS_SCRIPTS_DIR;
+
+      // Validate Windows script exists
+      if (!fs.existsSync(scriptPath)) {
+        return {
+          success: false,
+          output: '',
+          error: `Windows script not found: ${psScriptName}. Only dev scripts are available on Windows.`
+        };
+      }
+
+      // Execute PowerShell script with bypass policy
+      command = `powershell -ExecutionPolicy Bypass -File "${scriptPath}"`;
+    } else {
+      // Linux: use bash scripts directly
+      scriptPath = path.join(SCRIPTS_DIR, scriptName);
+      cwd = SCRIPTS_DIR;
+
+      // Validate Linux script exists
+      if (!fs.existsSync(scriptPath)) {
+        return { success: false, output: '', error: `Script not found: ${scriptName}` };
+      }
+
+      command = scriptPath;
     }
 
     try {
-      const { stdout, stderr } = await execAsync(scriptPath, {
+      const { stdout, stderr } = await execAsync(command, {
         timeout,
         maxBuffer: 1024 * 1024, // 1MB buffer
-        cwd: SCRIPTS_DIR
+        cwd
       });
 
       const output = stdout + (stderr ? `\n${stderr}` : '');
@@ -164,11 +226,16 @@ class ServerManagementService {
   }
 
   /**
-   * Execute a PM2 command
+   * Execute a PM2 command (cross-platform)
    */
   async executePM2Command(command: string): Promise<ScriptResult> {
     try {
-      const { stdout, stderr } = await execAsync(command, {
+      // On Windows, use npx to run PM2 commands
+      const actualCommand = IS_WINDOWS
+        ? command.replace(/^pm2/, 'npx pm2')
+        : command;
+
+      const { stdout, stderr } = await execAsync(actualCommand, {
         timeout: 30000,
         maxBuffer: 1024 * 1024
       });

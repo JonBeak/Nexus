@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, Lock, Save, Trash2, RotateCcw, Eraser, Plus } from 'lucide-react';
+import { AlertTriangle, Lock, Save, Trash2, RotateCcw, Eraser, Plus, Copy } from 'lucide-react';
 import { GridEngine } from '../core/GridEngine';
 import { getStatusColorClasses } from '../utils/statusUtils';
 
@@ -12,6 +12,7 @@ interface GridHeaderProps {
   onClearAll: () => void;
   onClearEmpty: () => void;
   onAddSection: () => void;
+  onCopyRows: () => void;
   onManualSave?: () => void;
 }
 
@@ -24,6 +25,7 @@ export const GridHeader: React.FC<GridHeaderProps> = ({
   onClearAll,
   onClearEmpty,
   onAddSection,
+  onCopyRows,
   onManualSave
 }) => {
   // Subscribe to GridEngine state changes
@@ -132,6 +134,15 @@ export const GridHeader: React.FC<GridHeaderProps> = ({
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Section</span>
+              </button>
+
+              <button
+                onClick={onCopyRows}
+                className="flex items-center space-x-1.5 px-2 py-1.5 text-sm text-green-600 hover:text-green-900 border border-green-300 rounded hover:bg-green-50"
+                title="Copy rows from another estimate"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Copy Rows</span>
               </button>
             </>
           )}

@@ -51,6 +51,9 @@ router.get('/jobs/:jobId', authenticateToken, jobController.getJobById);
 router.get('/jobs/:jobId/estimates', authenticateToken, estimateVersionController.getEstimateVersionsByJob);
 router.post('/jobs/:jobId/estimates', authenticateToken, estimateVersionController.createNewEstimateVersion);
 
+// Estimate Lookup (must come before /estimates/:estimateId to avoid conflict)
+router.get('/estimates/lookup', authenticateToken, estimateVersionController.lookupEstimate);
+
 // Single Estimate Retrieval (must come before other /estimates/:estimateId routes)
 router.get('/estimates/:estimateId', authenticateToken, estimateVersionController.getEstimateById);
 
@@ -70,6 +73,7 @@ router.post('/estimates/:estimateId/reset', authenticateToken, estimateItemsCont
 router.post('/estimates/:estimateId/clear-all', authenticateToken, estimateItemsController.clearAllEstimateItems);
 router.post('/estimates/:estimateId/clear-empty', authenticateToken, estimateItemsController.clearEmptyItems);
 router.post('/estimates/:estimateId/add-section', authenticateToken, estimateItemsController.addTemplateSection);
+router.post('/estimates/:estimateId/copy-rows', authenticateToken, estimateItemsController.copyRowsToEstimate);
 
 // Edit Lock System - REMOVED Nov 14, 2025 (Phase 1 Cleanup)
 // Legacy estimate-specific locks removed (never used - 0 locks in job_estimates columns)

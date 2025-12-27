@@ -91,7 +91,7 @@ export const CustomerPanel: React.FC<CustomerPanelProps> = ({
           <div className="max-h-[calc(100vh-280px)] overflow-y-auto border">
             {/* All Customers Option */}
             <div
-              className={`p-3 cursor-pointer hover:bg-gray-50 transition-all ${
+              className={`py-2 px-3 cursor-pointer hover:bg-gray-50 transition-all ${
                 selectedCustomerId === null ? 'bg-purple-100 border-2 border-purple-500' : 'border-b'
               }`}
               onClick={() => onCustomerSelected(null)}
@@ -104,7 +104,7 @@ export const CustomerPanel: React.FC<CustomerPanelProps> = ({
             {filteredCustomers.map((customer) => (
               <div
                 key={customer.customer_id}
-                className={`p-3 cursor-pointer hover:bg-gray-50 transition-all ${
+                className={`py-2 px-3 cursor-pointer hover:bg-gray-50 transition-all ${
                   selectedCustomerId === customer.customer_id ? 'bg-purple-100 border-2 border-purple-500' : 'border-b last:border-b-0'
                 }`}
                 onClick={() => handleCustomerSelect(customer.customer_id)}

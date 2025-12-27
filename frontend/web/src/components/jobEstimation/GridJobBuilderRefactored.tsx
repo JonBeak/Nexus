@@ -16,6 +16,8 @@ import { GridRow } from './core/types/LayerTypes';
 import { DragDropGridRenderer } from './components/DragDropGridRenderer';
 import { GridHeader } from './components/GridHeader';
 import { GridConfirmationModals } from './components/GridConfirmationModals';
+import { CopyRowsModal } from './components/CopyRowsModal';
+import { GridRowCore } from './core/types/CoreTypes';
 
 // Hooks
 import { useEditLock } from '../../hooks/useEditLock';
@@ -82,6 +84,8 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
   const [rowConfirmationType, setRowConfirmationType] = useState<'clear' | 'delete' | null>(null);
   const [pendingRowIndex, setPendingRowIndex] = useState<number | null>(null);
   const [validationVersion, setValidationVersion] = useState(0);
+  const [showCopyRowsModal, setShowCopyRowsModal] = useState(false);
+  const [rowsVersion, setRowsVersion] = useState(0);
 
   // === GRID DATA CHANGE CALLBACK ===
   // Notify Dashboard when grid data changes (for auto-save orchestration)
@@ -105,14 +109,9 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
         enabled: true // Always enable validation for pricing calculations (even in read-only mode)
       },
       callbacks: {
-        onRowsChange: (gridRows) => {
-          // Pass GridRowWithCalculations directly - no conversion needed
-          // Filter out empty rows for parent callback
-          gridRows.filter(row =>
-            row.productTypeId ||
-            Object.values(row.data || {}).some(value => value && String(value).trim() !== '')
-          );
-
+        onRowsChange: () => {
+          // Trigger re-render when rows change
+          setRowsVersion(prev => prev + 1);
         },
         onStateChange: () => {
           // GridEngine state changes
@@ -141,6 +140,34 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
 
     return new GridEngine(config);
   }, [isReadOnly, versioningMode, user?.role, estimateId, effectiveCustomerId, customerName, cashCustomer, taxRate]);
+
+  // === COPY ROWS HANDLER ===
+  // Handler for copying rows from another estimate (backend-first pattern)
+  const handleCopyRows = useCallback(async (selectedRows: GridRowCore[], sourceEstimateId: number) => {
+    if (selectedRows.length === 0 || !estimateId) return;
+
+    try {
+      // Extract database IDs from selected rows
+      const rowIds = selectedRows
+        .map(row => row.dbId)
+        .filter((id): id is number => typeof id === 'number');
+
+      if (rowIds.length === 0) {
+        console.error('No valid database IDs found in selected rows');
+        return;
+      }
+
+      // Save to backend first (follows handleAddSection pattern)
+      await jobVersioningApi.copyRowsToEstimate(estimateId, sourceEstimateId, rowIds);
+
+      // Reload from backend to get fresh data and trigger proper React re-render
+      await gridEngine.reloadFromBackend(estimateId, jobVersioningApi);
+
+      console.log(`Copied ${rowIds.length} rows from estimate ${sourceEstimateId} to ${estimateId}`);
+    } catch (error) {
+      console.error('Failed to copy rows:', error);
+    }
+  }, [gridEngine, estimateId]);
 
   // Customer prefs effect
   useEffect(() => {
@@ -371,6 +398,7 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
         onClearAll={() => { setClearModalType('clearAll'); setShowClearConfirmation(true); }}
         onClearEmpty={() => { setClearModalType('clearEmpty'); setShowClearConfirmation(true); }}
         onAddSection={actions.handleAddSection}
+        onCopyRows={() => setShowCopyRowsModal(true)}
         onManualSave={actions.handleManualSave}
       />
 
@@ -423,6 +451,14 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
         }}
         onClearRow={actions.executeClearRow}
         onDeleteRow={actions.executeDeleteRow}
+      />
+
+      {/* Copy Rows Modal */}
+      <CopyRowsModal
+        isOpen={showCopyRowsModal}
+        onClose={() => setShowCopyRowsModal(false)}
+        onCopyRows={handleCopyRows}
+        currentEstimateId={estimateId}
       />
     </div>
   );

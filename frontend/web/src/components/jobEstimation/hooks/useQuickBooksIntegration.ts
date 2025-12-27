@@ -16,6 +16,8 @@ interface UseQuickBooksIntegrationParams {
   emailEnd?: string;
   emailSummaryConfig?: EmailSummaryConfig;
   lineDescriptions?: Map<number, string>;  // QB descriptions by line index
+  // Optional callback to run before prepare (e.g., clear empty rows)
+  onBeforePrepare?: () => Promise<void>;
 }
 
 export const useQuickBooksIntegration = ({
@@ -27,7 +29,8 @@ export const useQuickBooksIntegration = ({
   emailBeginning,
   emailEnd,
   emailSummaryConfig,
-  lineDescriptions
+  lineDescriptions,
+  onBeforePrepare
 }: UseQuickBooksIntegrationParams) => {
   const [qbConnected, setQbConnected] = useState(false);
   const [qbRealmId, setQbRealmId] = useState<string | null>(null);
@@ -174,6 +177,13 @@ export const useQuickBooksIntegration = ({
 
     try {
       setIsPreparing(true);
+
+      // Clear empty rows first (if callback provided)
+      if (onBeforePrepare) {
+        console.log('[Prepare] Running onBeforePrepare (clearing empty rows)...');
+        await onBeforePrepare();
+        console.log('[Prepare] onBeforePrepare completed');
+      }
 
       const result = await jobVersioningApi.prepareEstimate(currentEstimate.id, {
         emailSubject,

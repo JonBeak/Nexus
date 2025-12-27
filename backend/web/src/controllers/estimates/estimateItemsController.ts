@@ -147,3 +147,58 @@ export const updateEstimateNotes = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+/**
+ * Copy rows from another estimate and append to this estimate
+ * @route POST /estimates/:estimateId/copy-rows
+ */
+export const copyRowsToEstimate = async (req: AuthRequest, res: Response) => {
+  try {
+    const validated = validateEstimateRequest(req, res);
+    if (!validated) return;
+
+    const { sourceEstimateId, rowIds } = req.body;
+
+    // Validate required fields
+    if (!sourceEstimateId || !Number.isInteger(sourceEstimateId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'sourceEstimateId is required and must be an integer'
+      });
+    }
+
+    if (!Array.isArray(rowIds) || rowIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'rowIds must be a non-empty array of integers'
+      });
+    }
+
+    // Validate all rowIds are integers
+    if (!rowIds.every((id: any) => Number.isInteger(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'All rowIds must be integers'
+      });
+    }
+
+    const result = await versioningService.copyRowsToEstimate(
+      validated.estimateId,
+      sourceEstimateId,
+      rowIds,
+      validated.userId
+    );
+
+    res.json({
+      success: true,
+      data: result,
+      message: `${result.copiedCount} row(s) copied successfully`
+    });
+  } catch (error) {
+    console.error('Controller error copying rows:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to copy rows'
+    });
+  }
+};

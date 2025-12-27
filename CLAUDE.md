@@ -11,6 +11,12 @@
       <WhenToReference>Before any build/deployment operations, backup/restore operations, or server management tasks</WhenToReference>
       <Note>Context-optimized - detailed version only referenced when needed</Note>
     </Document>
+    <Document name="HOME_DEV_SETUP.md">
+      <Path>/home/jon/Nexus/docs/HOME_DEV_SETUP.md</Path>
+      <Purpose>Home (Windows) development environment setup - HTTPS, SSL certs, QB credentials via .env, DuckDNS configuration</Purpose>
+      <WhenToReference>When working from home environment or troubleshooting home dev setup</WhenToReference>
+      <Note>Home uses different encryption keys and QB credentials stored in .env instead of encrypted database</Note>
+    </Document>
   </KeyDocumentation>
 
   <ProductionSafetyRules>
