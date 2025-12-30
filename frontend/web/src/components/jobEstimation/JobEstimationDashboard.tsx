@@ -53,13 +53,13 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
     navigate(`/estimate/${estimateId}`);
   };
 
-  const handleCreateNewVersion = async (parentId?: number) => {
+  const handleCreateNewVersion = async (parentId?: number, notes?: string) => {
     if (!selectedJobId) return;
 
     try {
       const response = await jobVersioningApi.createEstimateVersion(
         selectedJobId,
-        parentId ? { parent_estimate_id: parentId } : {}
+        { parent_estimate_id: parentId, notes }
       );
       const result = response.data || response;
       navigate(`/estimate/${result.estimate_id}`);

@@ -245,7 +245,7 @@ export interface VersionManagerProps {
   jobId: number;
   currentEstimateId?: number;
   onVersionSelected: (estimateId: number) => void;
-  onCreateNewVersion: (parentId?: number) => void;
+  onCreateNewVersion: (parentId?: number, notes?: string) => void;
   user: User;
 }
 

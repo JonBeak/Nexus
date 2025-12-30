@@ -1,45 +1,59 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
-interface DuplicationModalProps {
+interface VersionNotesModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onDuplicate: (notes: string) => void;
+  onConfirm: (notes: string) => void;
+  title?: string;
+  buttonText?: string;
+  placeholder?: string;
 }
 
-export const DuplicationModal: React.FC<DuplicationModalProps> = ({
+export const VersionNotesModal: React.FC<VersionNotesModalProps> = ({
   isOpen,
   onClose,
-  onDuplicate
+  onConfirm,
+  title = 'Duplicate Version',
+  buttonText = 'Duplicate',
+  placeholder = 'Add notes about this version...'
 }) => {
   const [notes, setNotes] = useState('');
 
+  // Reset notes when modal opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      setNotes('');
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
-  const handleDuplicate = () => {
-    onDuplicate(notes);
-    setNotes(''); // Reset notes after duplication
+  const handleConfirm = () => {
+    onConfirm(notes);
+    setNotes('');
   };
 
   const handleClose = () => {
-    setNotes(''); // Reset notes on close
+    setNotes('');
     onClose();
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded p-6 w-full max-w-md">
-        <h3 className="text-lg font-semibold mb-4">Duplicate Version</h3>
+        <h3 className="text-lg font-semibold mb-4">{title}</h3>
 
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Notes (Optional)
+            Description (Optional)
           </label>
           <textarea
             className="w-full px-2 py-1 border rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
             rows={3}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Add notes about this duplication..."
+            placeholder={placeholder}
+            autoFocus
           />
         </div>
 
@@ -51,10 +65,10 @@ export const DuplicationModal: React.FC<DuplicationModalProps> = ({
             Cancel
           </button>
           <button
-            onClick={handleDuplicate}
+            onClick={handleConfirm}
             className="flex-1 px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
           >
-            Duplicate
+            {buttonText}
           </button>
         </div>
       </div>

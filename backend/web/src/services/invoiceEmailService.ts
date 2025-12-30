@@ -104,6 +104,10 @@ export async function sendInvoiceEmail(
 
     // Send email
     console.log(`📧 Sending invoice email for order ${orderId}...`);
+    console.log(`   To: ${recipientEmails.join(', ')}`);
+    if (ccEmails?.length) console.log(`   CC: ${ccEmails.join(', ')}`);
+    if (bccEmails?.length) console.log(`   BCC (user): ${bccEmails.join(', ')}`);
+    console.log(`   Auto-BCC: ${BCC_EMAIL || '(not configured)'}`);
     const response = await sendWithRetry(gmail, encodedMessage);
     const messageId = response.data?.id;
 

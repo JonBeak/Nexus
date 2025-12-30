@@ -956,12 +956,28 @@ async function createEstimateEmailMessage(data: EstimateEmailData): Promise<stri
         return;
       }
 
+      let messageStr = message.toString();
+
+      // MailComposer strips BCC headers (standard SMTP behavior), but Gmail API
+      // needs the BCC header in the raw message to deliver to BCC recipients.
+      // Manually insert BCC header after the To: line.
+      if (BCC_EMAIL && BCC_EMAIL.trim() !== '') {
+        // Find the To: header line and insert BCC after it
+        const toHeaderMatch = messageStr.match(/^To: .+$/m);
+        if (toHeaderMatch) {
+          const toHeader = toHeaderMatch[0];
+          const bccHeader = `Bcc: ${BCC_EMAIL}`;
+          messageStr = messageStr.replace(toHeader, `${toHeader}\r\n${bccHeader}`);
+          console.log(`   📧 BCC header injected: ${BCC_EMAIL}`);
+        }
+      }
+
       // Debug: Log first 2000 chars of message
-      const debugContent = message.toString().substring(0, 2000).replace(/[A-Za-z0-9+/=]{100,}/g, '[BASE64...]');
+      const debugContent = messageStr.substring(0, 2000).replace(/[A-Za-z0-9+/=]{100,}/g, '[BASE64...]');
       console.log('   📋 MailComposer output preview:\n' + debugContent);
 
       // Encode for Gmail API (URL-safe base64)
-      const encodedMessage = message.toString('base64')
+      const encodedMessage = Buffer.from(messageStr).toString('base64')
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
         .replace(/=+$/, '');

@@ -13,7 +13,7 @@ import { jobVersioningApi, ordersApi } from '../../services/api';
 import { VersionManagerProps, EstimateVersion } from './types';
 import { formatCurrency, formatDate } from './utils/versionUtils';
 import { VersionStatusBadges } from './components/VersionStatusBadges';
-import { DuplicationModal } from './components/DuplicationModal';
+import { VersionNotesModal } from './components/VersionNotesModal';
 import { useVersionLocking } from './hooks/useVersionLocking';
 
 export const VersionManager: React.FC<VersionManagerProps> = ({
@@ -28,6 +28,7 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDuplicateModal, setShowDuplicateModal] = useState<number | null>(null);
+  const [showNewVersionModal, setShowNewVersionModal] = useState(false);
   const [createdOrderNumber, setCreatedOrderNumber] = useState<number | null>(null);
   const [editingNotes, setEditingNotes] = useState<number | null>(null);
   const [notesValue, setNotesValue] = useState('');
@@ -87,13 +88,18 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
     }
   }, [fetchVersions, jobId]);
 
-  const handleCreateNewVersion = async (parentId?: number) => {
+  const handleCreateNewVersion = async (parentId?: number, notes?: string) => {
     try {
-      await onCreateNewVersion(parentId);
+      await onCreateNewVersion(parentId, notes);
       fetchVersions(); // Refresh the list
     } catch (err) {
       console.error('Error creating new version:', err);
     }
+  };
+
+  const handleNewVersionConfirm = async (notes: string) => {
+    setShowNewVersionModal(false);
+    await handleCreateNewVersion(undefined, notes || undefined);
   };
 
   const handleDuplicateVersion = async (notes: string) => {
@@ -255,7 +261,7 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
           <span className="ml-2 text-sm text-gray-500">({versions.length})</span>
         </div>
         <button
-          onClick={() => handleCreateNewVersion()}
+          onClick={() => setShowNewVersionModal(true)}
           className="flex items-center space-x-2 bg-purple-600 text-white px-2 py-1 rounded hover:bg-purple-700"
         >
           <Plus className="w-4 h-4" />
@@ -369,10 +375,24 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
         ))}
       </div>
 
-      <DuplicationModal
+      {/* New Version Modal */}
+      <VersionNotesModal
+        isOpen={showNewVersionModal}
+        onClose={() => setShowNewVersionModal(false)}
+        onConfirm={handleNewVersionConfirm}
+        title="New Estimate Version"
+        buttonText="Create"
+        placeholder="Add a description for this version..."
+      />
+
+      {/* Duplicate Version Modal */}
+      <VersionNotesModal
         isOpen={showDuplicateModal !== null}
         onClose={() => setShowDuplicateModal(null)}
-        onDuplicate={handleDuplicateVersion}
+        onConfirm={handleDuplicateVersion}
+        title="Duplicate Version"
+        buttonText="Duplicate"
+        placeholder="Add notes about this duplication..."
       />
     </div>
   );
