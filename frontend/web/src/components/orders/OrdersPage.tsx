@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ListChecks, Table, CheckSquare, Home, Calendar } from 'lucide-react';
+import { LayoutDashboard, ListChecks, Table, CheckSquare, Calendar } from 'lucide-react';
+import { HomeButton } from '../common/HomeButton';
 import { PanelDashboard } from './panelDashboard';
 import OrdersTable from './table/OrdersTable';
 import ProgressRoleView from './progressRole/ProgressRoleView';
@@ -50,13 +51,7 @@ export const OrdersPage: React.FC = () => {
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Back to Dashboard"
-            >
-              <Home className="w-7 h-7" />
-            </button>
+            <HomeButton />
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
               <p className="text-sm text-gray-600 mt-1">Manage production orders and track progress</p>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { customerApi } from '../../services/api';
 import { Address, Customer } from '../../types';
+import { PAGE_STYLES } from '../../constants/moduleColors';
 
 interface DeleteConfirmation {
   show: boolean;
@@ -63,10 +64,10 @@ function ConfirmationModals({
       {/* Delete Confirmation Dialog */}
       {deleteConfirmation.show && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Confirm Delete</h3>
-            <p className="text-gray-600 mb-2">Are you sure you want to delete this address?</p>
-            <div className="bg-gray-50 p-3 rounded text-sm mb-4">
+          <div className={`${PAGE_STYLES.panel.background} rounded-lg p-6 max-w-md w-full mx-4`}>
+            <h3 className={`text-lg font-bold ${PAGE_STYLES.panel.text} mb-4`}>Confirm Delete</h3>
+            <p className={`${PAGE_STYLES.panel.textSecondary} mb-2`}>Are you sure you want to delete this address?</p>
+            <div className={`${PAGE_STYLES.header.background} p-3 rounded text-sm mb-4`}>
               <strong>{getAddressTypeLabels(deleteConfirmation.address!)}</strong><br />
               {deleteConfirmation.address!.address_line1}<br />
               {deleteConfirmation.address!.city}, {deleteConfirmation.address!.province_state_short} {deleteConfirmation.address!.postal_zip}
@@ -74,7 +75,7 @@ function ConfirmationModals({
             <div className="flex space-x-3 justify-end">
               <button
                 onClick={() => setDeleteConfirmation({show: false, address: null, index: -1})}
-                className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded font-semibold transition-colors"
+                className={`px-4 py-2 ${PAGE_STYLES.header.background} hover:bg-gray-500 ${PAGE_STYLES.panel.text} rounded font-semibold transition-colors`}
               >
                 Cancel
               </button>
@@ -88,14 +89,14 @@ function ConfirmationModals({
           </div>
         </div>
       )}
-      
+
       {/* Deactivate Customer Confirmation Dialog */}
       {deactivateConfirmation.show && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Confirm Deactivate</h3>
-            <p className="text-gray-600 mb-2">Are you sure you want to deactivate this customer?</p>
-            <div className="bg-gray-50 p-3 rounded text-sm mb-4">
+          <div className={`${PAGE_STYLES.panel.background} rounded-lg p-6 max-w-md w-full mx-4`}>
+            <h3 className={`text-lg font-bold ${PAGE_STYLES.panel.text} mb-4`}>Confirm Deactivate</h3>
+            <p className={`${PAGE_STYLES.panel.textSecondary} mb-2`}>Are you sure you want to deactivate this customer?</p>
+            <div className={`${PAGE_STYLES.header.background} p-3 rounded text-sm mb-4`}>
               <strong>{deactivateConfirmation.customer?.company_name}</strong><br />
               {deactivateConfirmation.customer?.contact_first_name && deactivateConfirmation.customer?.contact_last_name && (
                 <span>{deactivateConfirmation.customer.contact_first_name} {deactivateConfirmation.customer.contact_last_name}<br /></span>
@@ -108,7 +109,7 @@ function ConfirmationModals({
             <div className="flex space-x-3 justify-end">
               <button
                 onClick={() => setDeactivateConfirmation({show: false, customer: null})}
-                className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded font-semibold transition-colors"
+                className={`px-4 py-2 ${PAGE_STYLES.header.background} hover:bg-gray-500 ${PAGE_STYLES.panel.text} rounded font-semibold transition-colors`}
               >
                 Cancel
               </button>

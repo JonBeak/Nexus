@@ -1,6 +1,7 @@
 import React from 'react';
 import { CustomerCreateData, CustomerFormCreateProps } from './CustomerCreationTypes';
 import { CustomerCreationValidation } from './CustomerCreationValidation';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
   formData,
@@ -23,14 +24,16 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
     return CustomerCreationValidation.getValidationClass(fieldName, value, Boolean(error));
   };
 
+  const labelClass = `block text-sm font-semibold ${PAGE_STYLES.panel.textSecondary} mb-1`;
+
   return (
     <div className="space-y-8">
       {/* Basic Information */}
       <div>
-        <h4 className="text-lg font-bold text-gray-800 mb-4 border-b border-gray-200 pb-2">Basic Information</h4>
+        <h4 className={`text-lg font-bold ${PAGE_STYLES.panel.text} mb-4 border-b ${PAGE_STYLES.panel.border} pb-2`}>Basic Information</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">Company Name *</label>
+            <label className={labelClass}>Company Name *</label>
             <input
               type="text"
               required
@@ -40,7 +43,7 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">QuickBooks Name</label>
+            <label className={labelClass}>QuickBooks Name</label>
             <input
               type="text"
               value={formData.quickbooks_name || ''}
@@ -50,7 +53,7 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">Contact First Name</label>
+            <label className={labelClass}>Contact First Name</label>
             <input
               type="text"
               value={formData.contact_first_name || ''}
@@ -59,7 +62,7 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">Contact Last Name</label>
+            <label className={labelClass}>Contact Last Name</label>
             <input
               type="text"
               value={formData.contact_last_name || ''}
@@ -72,10 +75,10 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
 
       {/* Contact Information */}
       <div>
-        <h4 className="text-lg font-bold text-gray-800 mb-4 border-b border-gray-200 pb-2">Contact Information</h4>
+        <h4 className={`text-lg font-bold ${PAGE_STYLES.panel.text} mb-4 border-b ${PAGE_STYLES.panel.border} pb-2`}>Contact Information</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">Email</label>
+            <label className={labelClass}>Email</label>
             <input
               type="email"
               value={formData.email || ''}
@@ -84,7 +87,7 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">Phone</label>
+            <label className={labelClass}>Phone</label>
             <input
               type="text"
               value={formData.phone || ''}
@@ -93,7 +96,7 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">Invoice Email</label>
+            <label className={labelClass}>Invoice Email</label>
             <input
               type="email"
               value={formData.invoice_email || ''}
@@ -102,7 +105,7 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
             />
           </div>
           <div className="md:col-span-2">
-            <label className="block text-sm font-semibold text-gray-600 mb-1">Invoice Preference</label>
+            <label className={labelClass}>Invoice Preference</label>
             <textarea
               rows={2}
               value={formData.invoice_email_preference || ''}
@@ -116,10 +119,10 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
 
       {/* Payment & Terms */}
       <div>
-        <h4 className="text-lg font-bold text-gray-800 mb-4 border-b border-gray-200 pb-2">Payment & Terms</h4>
+        <h4 className={`text-lg font-bold ${PAGE_STYLES.panel.text} mb-4 border-b ${PAGE_STYLES.panel.border} pb-2`}>Payment & Terms</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">Payment Terms</label>
+            <label className={labelClass}>Payment Terms</label>
             <select
               value={formData.payment_terms || ''}
               onChange={(e) => onInputChange('payment_terms', e.target.value)}
@@ -134,7 +137,7 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
             </select>
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">Discount (%)</label>
+            <label className={labelClass}>Discount (%)</label>
             <input
               type="number"
               step="0.01"
@@ -144,7 +147,7 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">Default Turnaround (days)</label>
+            <label className={labelClass}>Default Turnaround (days)</label>
             <input
               type="number"
               value={formData.default_turnaround || 10}
@@ -153,7 +156,7 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
             />
           </div>
         </div>
-        
+
         {/* Payment Options */}
         <div className="mt-4 space-y-3">
           <div className="flex items-center">
@@ -162,20 +165,20 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
               id="cash_payment"
               checked={formData.cash_yes_or_no || false}
               onChange={(e) => onInputChange('cash_yes_or_no', e.target.checked)}
-              className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
             />
-            <label htmlFor="cash_payment" className="ml-2 text-sm font-semibold text-gray-600">Cash Payment Accepted</label>
+            <label htmlFor="cash_payment" className={`ml-2 text-sm font-semibold ${PAGE_STYLES.panel.textSecondary}`}>Cash Payment Accepted</label>
           </div>
         </div>
       </div>
 
       {/* Product Preferences */}
       <div>
-        <h4 className="text-lg font-bold text-gray-800 mb-4 border-b border-gray-200 pb-2">Product Preferences</h4>
+        <h4 className={`text-lg font-bold ${PAGE_STYLES.panel.text} mb-4 border-b ${PAGE_STYLES.panel.border} pb-2`}>Product Preferences</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* LEDs */}
           <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">LEDs</label>
+            <label className={labelClass}>LEDs</label>
             <select
               value={formData.leds_yes_or_no ? 'yes' : 'no'}
               onChange={(e) => onInputChange('leds_yes_or_no', e.target.value === 'yes')}
@@ -202,7 +205,7 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
           
           {/* Wire Length */}
           <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">Wire Length (feet)</label>
+            <label className={labelClass}>Wire Length (feet)</label>
             <input
               type="number"
               min="0"
@@ -215,7 +218,7 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
 
           {/* Power Supply */}
           <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">Power Supply</label>
+            <label className={labelClass}>Power Supply</label>
             <select
               value={formData.powersupply_yes_or_no ? 'yes' : 'no'}
               onChange={(e) => onInputChange('powersupply_yes_or_no', e.target.value === 'yes')}
@@ -246,11 +249,11 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
               <input
                 type="checkbox"
                 id="ul_listed"
-                checked={formData.ul_yes_or_no || false} // CORRECTED field name
-                onChange={(e) => onInputChange('ul_yes_or_no', e.target.checked)} // CORRECTED field name
-                className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                checked={formData.ul_yes_or_no || false}
+                onChange={(e) => onInputChange('ul_yes_or_no', e.target.checked)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
-              <label htmlFor="ul_listed" className="ml-2 text-sm font-semibold text-gray-600">UL Listed</label>
+              <label htmlFor="ul_listed" className={`ml-2 text-sm font-semibold ${PAGE_STYLES.panel.textSecondary}`}>UL Listed</label>
             </div>
             <div className="flex items-center">
               <input
@@ -258,9 +261,9 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
                 id="drain_holes"
                 checked={formData.drain_holes_yes_or_no || false}
                 onChange={(e) => onInputChange('drain_holes_yes_or_no', e.target.checked)}
-                className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
-              <label htmlFor="drain_holes" className="ml-2 text-sm font-semibold text-gray-600">Drain Holes</label>
+              <label htmlFor="drain_holes" className={`ml-2 text-sm font-semibold ${PAGE_STYLES.panel.textSecondary}`}>Drain Holes</label>
             </div>
             <div className="flex items-center">
               <input
@@ -268,29 +271,29 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
                 id="pattern"
                 checked={formData.pattern_yes_or_no || false}
                 onChange={(e) => onInputChange('pattern_yes_or_no', e.target.checked)}
-                className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
-              <label htmlFor="pattern" className="ml-2 text-sm font-semibold text-gray-600">Pattern</label>
+              <label htmlFor="pattern" className={`ml-2 text-sm font-semibold ${PAGE_STYLES.panel.textSecondary}`}>Pattern</label>
             </div>
             <div className="flex items-center">
               <input
                 type="checkbox"
                 id="plug_play"
-                checked={formData.plug_n_play_yes_or_no || false} // CORRECTED field name
-                onChange={(e) => onInputChange('plug_n_play_yes_or_no', e.target.checked)} // CORRECTED field name
-                className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                checked={formData.plug_n_play_yes_or_no || false}
+                onChange={(e) => onInputChange('plug_n_play_yes_or_no', e.target.checked)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
-              <label htmlFor="plug_play" className="ml-2 text-sm font-semibold text-gray-600">Plug & Play</label>
+              <label htmlFor="plug_play" className={`ml-2 text-sm font-semibold ${PAGE_STYLES.panel.textSecondary}`}>Plug & Play</label>
             </div>
           </div>
 
-          {/* Pattern Type - CORRECTED field name */}
+          {/* Pattern Type */}
           {formData.pattern_yes_or_no && (
             <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">Pattern Type</label>
+              <label className={labelClass}>Pattern Type</label>
               <select
-                value={formData.pattern_type || 'Paper'} // CORRECTED field name
-                onChange={(e) => onInputChange('pattern_type', e.target.value)} // CORRECTED field name
+                value={formData.pattern_type || 'Paper'}
+                onChange={(e) => onInputChange('pattern_type', e.target.value)}
                 className={getFieldClass('pattern_type', formData.pattern_type)}
               >
                 <option value="Paper">Paper</option>
@@ -299,13 +302,13 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
             </div>
           )}
 
-          {/* Wiring Diagram Type - CORRECTED field name */}
+          {/* Wiring Diagram Type */}
           {formData.wiring_diagram_yes_or_no && (
             <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">Wiring Diagram Type</label>
+              <label className={labelClass}>Wiring Diagram Type</label>
               <select
-                value={formData.wiring_diagram_type || 'Paper'} // CORRECTED field name
-                onChange={(e) => onInputChange('wiring_diagram_type', e.target.value)} // CORRECTED field name
+                value={formData.wiring_diagram_type || 'Paper'}
+                onChange={(e) => onInputChange('wiring_diagram_type', e.target.value)}
                 className={getFieldClass('wiring_diagram_type', formData.wiring_diagram_type)}
               >
                 <option value="Paper">Paper</option>
@@ -317,7 +320,7 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
 
         {/* Shipping Section */}
         <div className="mt-6">
-          <h5 className="text-md font-semibold text-gray-700 mb-3">Shipping Options</h5>
+          <h5 className={`text-md font-semibold ${PAGE_STYLES.panel.text} mb-3`}>Shipping Options</h5>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="flex items-center">
               <input
@@ -325,15 +328,15 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
                 id="shipping"
                 checked={formData.shipping_yes_or_no || false}
                 onChange={(e) => onInputChange('shipping_yes_or_no', e.target.checked)}
-                className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
-              <label htmlFor="shipping" className="ml-2 text-sm font-semibold text-gray-600">Enable Shipping</label>
+              <label htmlFor="shipping" className={`ml-2 text-sm font-semibold ${PAGE_STYLES.panel.textSecondary}`}>Enable Shipping</label>
             </div>
-            
+
             {formData.shipping_yes_or_no && (
               <>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">Shipping Multiplier</label>
+                  <label className={labelClass}>Shipping Multiplier</label>
                   <input
                     type="number"
                     step="0.01"
@@ -344,13 +347,13 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">Flat Shipping Rate ($)</label>
+                  <label className={labelClass}>Flat Shipping Rate ($)</label>
                   <input
                     type="number"
                     step="0.01"
                     min="0"
-                    value={formData.shipping_flat || ''} // CORRECTED field name
-                    onChange={(e) => onInputChange('shipping_flat', e.target.value ? parseFloat(e.target.value) : null)} // CORRECTED field name
+                    value={formData.shipping_flat || ''}
+                    onChange={(e) => onInputChange('shipping_flat', e.target.value ? parseFloat(e.target.value) : null)}
                     className={getFieldClass('shipping_flat', formData.shipping_flat)}
                     placeholder="Optional flat rate"
                   />
@@ -363,10 +366,10 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
 
       {/* Notes & Instructions */}
       <div>
-        <h4 className="text-lg font-bold text-gray-800 mb-4 border-b border-gray-200 pb-2">Notes & Instructions</h4>
+        <h4 className={`text-lg font-bold ${PAGE_STYLES.panel.text} mb-4 border-b ${PAGE_STYLES.panel.border} pb-2`}>Notes & Instructions</h4>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">Comments</label>
+            <label className={labelClass}>Comments</label>
             <textarea
               rows={3}
               value={formData.comments || ''}
@@ -376,7 +379,7 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">Special Instructions</label>
+            <label className={labelClass}>Special Instructions</label>
             <textarea
               rows={3}
               value={formData.special_instructions || ''}

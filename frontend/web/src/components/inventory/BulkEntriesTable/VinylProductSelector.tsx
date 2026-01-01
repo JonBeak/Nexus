@@ -3,6 +3,7 @@ import { BulkEntry } from '../../../hooks/useBulkEntries';
 import { VinylItem, VinylAutofillSuggestions } from '../types';
 import { CombinedVinylDropdown } from '../../common/CombinedVinylDropdown';
 import { VinylSpecificSelector } from '../../common/VinylSpecificSelector';
+import { MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface VinylProductSelectorProps {
   entry: BulkEntry;
@@ -18,6 +19,7 @@ interface VinylProductSelectorProps {
   onSpecificSelect: (vinylItem: VinylItem) => void;
   onTab: () => void;
   onSuggestionsNeeded?: () => void;
+  inputClassName?: string;
 }
 
 /**
@@ -31,7 +33,8 @@ export const VinylProductSelector: React.FC<VinylProductSelectorProps> = ({
   onChange,
   onSpecificSelect,
   onTab,
-  onSuggestionsNeeded
+  onSuggestionsNeeded,
+  inputClassName = ''
 }) => {
   const [specificSelectorOpen, setSpecificSelectorOpen] = React.useState(false);
   const prevSpecsRef = React.useRef({ brand: '', series: '', colour_number: '', colour_name: '' });
@@ -91,6 +94,7 @@ export const VinylProductSelector: React.FC<VinylProductSelectorProps> = ({
         combinations={bulkAutofillSuggestions.combinations || []}
         placeholder="Search vinyl products..."
         className="w-full"
+        inputClassName={inputClassName}
         name={`${entry.id}-vinyl_product`}
         loading={bulkLoadingSuggestions}
         onTab={onTab}
@@ -99,7 +103,7 @@ export const VinylProductSelector: React.FC<VinylProductSelectorProps> = ({
 
       {/* Specific vinyl indicator */}
       {entry.specific_vinyl_id && (
-        <div className="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded">
+        <div className={`text-xs ${MODULE_COLORS.vinyls.text} ${MODULE_COLORS.vinyls.light} px-2 py-1 rounded`}>
           Specific vinyl #{entry.specific_vinyl_id} selected
         </div>
       )}
@@ -109,7 +113,7 @@ export const VinylProductSelector: React.FC<VinylProductSelectorProps> = ({
         <button
           type="button"
           onClick={handleOpenSpecificSelector}
-          className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 w-full"
+          className="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 w-full"
         >
           Choose Specific Piece
         </button>

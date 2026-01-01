@@ -1,5 +1,6 @@
 import React from 'react';
 import { Customer } from '../../../types';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface CustomerTableRowProps {
   customer: Customer;
@@ -15,45 +16,45 @@ export const CustomerTableRow: React.FC<CustomerTableRowProps> = React.memo(({
   const isDeactivated = !customer.active;
 
   return (
-    <tr className={`${isDeactivated ? 'opacity-60 bg-gray-50' : 'hover:bg-gray-50'} transition-colors`}>
+    <tr className={`${isDeactivated ? 'opacity-60' : ''} ${PAGE_STYLES.header.background} hover:bg-[var(--theme-hover-bg)] transition-colors`}>
       {/* Company */}
       <td className="px-2 py-2 w-48">
         <div className="flex items-center">
-          <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mr-2 ${isDeactivated ? 'bg-gray-400' : 'bg-primary-red'}`}>
+          <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mr-2 ${isDeactivated ? 'bg-gray-400' : MODULE_COLORS.customers.base}`}>
             <span className="text-white font-bold text-xs">
               {customer.company_name.charAt(0).toUpperCase()}
             </span>
           </div>
           <div className="min-w-0">
-            <div className={`text-sm font-medium ${isDeactivated ? 'text-gray-500' : 'text-gray-900'}`}>
+            <div className={`text-sm font-medium ${isDeactivated ? PAGE_STYLES.panel.textMuted : PAGE_STYLES.panel.text}`}>
               {customer.company_name}
             </div>
             {customer.quickbooks_name && customer.quickbooks_name !== customer.company_name && (
-              <div className="text-sm text-gray-500">QB: {customer.quickbooks_name}</div>
+              <div className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>QB: {customer.quickbooks_name}</div>
             )}
           </div>
         </div>
       </td>
       
       {/* Invoice Email */}
-      <td className="px-2 py-2 text-sm text-gray-900 w-32">
+      <td className={`px-2 py-2 text-sm ${PAGE_STYLES.panel.text} w-32`}>
         <div className="truncate" title={customer.invoice_email || ''}>
           {customer.invoice_email || '-'}
         </div>
       </td>
-      
+
       {/* Invoice Instructions */}
-      <td className="px-2 py-2 text-sm text-gray-900 w-20">
+      <td className={`px-2 py-2 text-sm ${PAGE_STYLES.panel.text} w-20`}>
         <div className="break-words" title={customer.invoice_email_preference || ''}>
           {customer.invoice_email_preference || '-'}
         </div>
       </td>
-      
+
       {/* Location */}
-      <td className="px-2 py-2 text-sm text-gray-900 w-24">
+      <td className={`px-2 py-2 text-sm ${PAGE_STYLES.panel.text} w-24`}>
         <div>
           <div>{customer.city || '-'}</div>
-          <div className="text-sm text-gray-500">{customer.state || '-'}</div>
+          <div className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>{customer.state || '-'}</div>
         </div>
       </td>
       
@@ -69,34 +70,34 @@ export const CustomerTableRow: React.FC<CustomerTableRowProps> = React.memo(({
       </td>
       
       {/* LEDs */}
-      <td className="px-2 py-2 text-sm text-gray-900 w-20">
+      <td className={`px-2 py-2 text-sm ${PAGE_STYLES.panel.text} w-20`}>
         <div className="break-words" title={
-          customer.leds_yes_or_no ? 
-            (customer.leds_default_type ? 
+          customer.leds_yes_or_no ?
+            (customer.leds_default_type ?
               customer.leds_default_type
               : 'System Default'
             ) : 'No'
         }>
-          {customer.leds_yes_or_no ? 
-            (customer.leds_default_type ? 
+          {customer.leds_yes_or_no ?
+            (customer.leds_default_type ?
               customer.leds_default_type
               : 'Default'
             ) : 'No'
           }
         </div>
       </td>
-      
+
       {/* Power Supply */}
-      <td className="px-2 py-2 text-sm text-gray-900 w-20">
+      <td className={`px-2 py-2 text-sm ${PAGE_STYLES.panel.text} w-20`}>
         <div className="break-words" title={
-          customer.powersupply_yes_or_no ? 
-            (customer.powersupply_default_type ? 
+          customer.powersupply_yes_or_no ?
+            (customer.powersupply_default_type ?
               customer.powersupply_default_type
               : 'System Default'
             ) : 'No'
         }>
-          {customer.powersupply_yes_or_no ? 
-            (customer.powersupply_default_type ? 
+          {customer.powersupply_yes_or_no ?
+            (customer.powersupply_default_type ?
               customer.powersupply_default_type
               : 'Default'
             ) : 'No'
@@ -138,19 +139,19 @@ export const CustomerTableRow: React.FC<CustomerTableRowProps> = React.memo(({
       </td>
       
       {/* Special Instructions */}
-      <td className="px-2 py-2 text-sm text-gray-900 w-20">
+      <td className={`px-2 py-2 text-sm ${PAGE_STYLES.panel.text} w-20`}>
         <div className="break-words" title={customer.special_instructions || ''}>
           {customer.special_instructions || '-'}
         </div>
       </td>
-      
+
       {/* Notes */}
-      <td className="px-2 py-2 text-sm text-gray-900 w-20">
+      <td className={`px-2 py-2 text-sm ${PAGE_STYLES.panel.text} w-20`}>
         <div className="break-words" title={customer.comments || ''}>
           {customer.comments || '-'}
         </div>
       </td>
-      
+
       {/* Actions */}
       <td className="px-2 py-2 whitespace-nowrap text-right text-xs font-medium w-16">
         <div className="flex justify-end">
@@ -164,7 +165,7 @@ export const CustomerTableRow: React.FC<CustomerTableRowProps> = React.memo(({
           ) : (
             <button
               onClick={() => onDetailsClick(customer)}
-              className="bg-primary-blue hover:bg-primary-blue-dark text-white px-2 py-1 rounded text-xs font-semibold transition-colors"
+              className={`${MODULE_COLORS.customers.base} ${MODULE_COLORS.customers.hover} text-white px-2 py-1 rounded text-xs font-semibold transition-colors`}
             >
               Details
             </button>

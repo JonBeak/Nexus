@@ -13,6 +13,7 @@ import { FieldCell } from './FieldCell';
 import { ProductTypeSelector } from './ProductTypeSelector';
 import { StructureValidationError } from '../core/validation/ValidationResultsManager';
 import { ProductType } from '../hooks/useProductTypes';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface DragDropRowProps {
   row: GridRow;
@@ -86,7 +87,7 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
   // Get cell background for QTY and Field columns only
   const getCellBackground = () => {
     if (isDivider) return 'bg-orange-200';
-    if (isSubtotal) return 'bg-gray-400';
+    if (isSubtotal) return PAGE_STYLES.header.background;
     return '';
   };
 
@@ -96,25 +97,25 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
     <tr
       ref={setNodeRef}
       style={style}
-      className={`border-b border-gray-100 group transition-colors hover:bg-gray-50 ${
+      className={`border-b ${PAGE_STYLES.border} group transition-colors ${PAGE_STYLES.interactive.hover} ${
         isDragging ? 'ring-2 ring-blue-300 bg-blue-50' : ''
       } ${
-        isHighlighted ? 'relative z-10 outline outline-2 outline-blue-300 bg-gray-50' : ''
+        isHighlighted ? `relative z-10 outline outline-2 outline-blue-300 ${PAGE_STYLES.interactive.selected}` : ''
       }`}
       onMouseEnter={() => onRowHover(row.id)}
       onMouseLeave={() => onRowHover(null)}
     >
       {/* Row Number & Drag Handle - matches original exactly */}
-      <td className="w-4 px-0.5 py-0.25 border-r">
+      <td className={`w-4 px-0.5 py-0.25 border-r ${PAGE_STYLES.border}`}>
         <div className="flex items-center h-full">
           {/* Drag Handle - Left Aligned */}
           {row.isDraggable && (
             <div
               {...attributes}
               {...listeners}
-              className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 rounded mr-1"
+              className={`cursor-grab active:cursor-grabbing p-1 ${PAGE_STYLES.interactive.hoverOnHeader} rounded mr-1`}
             >
-              <GripVertical className="w-4 h-4 opacity-60 group-hover:opacity-100 text-gray-500" />
+              <GripVertical className={`w-4 h-4 opacity-60 group-hover:opacity-100 ${PAGE_STYLES.panel.textMuted}`} />
             </div>
           )}
 
@@ -122,7 +123,7 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
           {row.showRowNumber && (
             <span className={
               row.nestingLevel === 'sub'
-                ? 'text-xs text-gray-500 pr-1.5'  // Sub-item numbering (1.a, 1.b)
+                ? `text-xs ${PAGE_STYLES.panel.textMuted} pr-1.5`  // Sub-item numbering (1.a, 1.b)
                 : 'text-sm text-black font-bold pr-1.5'  // Main numbering (1, 2, 3)
             }>
               {row.displayNumber}
@@ -145,7 +146,7 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
       </td>
       
       {/* QTY Column */}
-      <td className={`px-0 py-0 w-4 border-l border-gray-100 ${cellBackgroundClass}`}>
+      <td className={`px-0 py-0 w-4 border-l ${PAGE_STYLES.border} ${cellBackgroundClass}`}>
         <FieldCell
           fieldName="quantity"
           fieldValue={row.data?.quantity || ''}
@@ -167,7 +168,7 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
         const { fieldName, fieldValue } = getFieldData(colIndex);
 
         return (
-          <td key={colIndex} className={`px-0 py-0 w-6 border-l border-gray-100 ${cellBackgroundClass}`}>
+          <td key={colIndex} className={`px-0 py-0 w-6 border-l ${PAGE_STYLES.border} ${cellBackgroundClass}`}>
             <FieldCell
               fieldName={fieldName}
               fieldValue={fieldValue}
@@ -189,13 +190,13 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
       })}
       
       {/* Actions - add row button on all rows except continuation rows */}
-      <td className="w-5 px-1 py-0 border-l">
+      <td className={`w-5 px-1 py-0 border-l ${PAGE_STYLES.border}`}>
         <div className="flex items-center justify-center gap-0.5">
           {/* Add Row button - show on all rows except continuation rows */}
           {!isReadOnly && row.rowType !== 'continuation' ? (
             <button
               onClick={() => onInsertRow(rowIndex)}
-              className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:text-green-600 hover:bg-green-50 transition-colors"
+              className={`w-5 h-5 flex items-center justify-center rounded ${PAGE_STYLES.panel.textMuted} hover:text-green-600 hover:bg-green-50 transition-colors`}
               title="Insert row"
             >
               <Plus className="w-4 h-4" />
@@ -208,7 +209,7 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
           {!isReadOnly && row.canDuplicate ? (
             <button
               onClick={() => onDuplicateRow(rowIndex)}
-              className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+              className={`w-5 h-5 flex items-center justify-center rounded ${PAGE_STYLES.panel.textMuted} hover:text-blue-600 hover:bg-blue-50 transition-colors`}
               title="Duplicate"
             >
               <Copy className="w-4 h-4" />
@@ -221,7 +222,7 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
           {!isReadOnly && row.editableFields?.length ? (
             <button
               onClick={() => onClearRow(rowIndex)}
-              className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:text-orange-600 hover:bg-orange-50 transition-colors"
+              className={`w-5 h-5 flex items-center justify-center rounded ${PAGE_STYLES.panel.textMuted} hover:text-orange-600 hover:bg-orange-50 transition-colors`}
               title="Clear row"
             >
               <Eraser className="w-4 h-4" />
@@ -234,7 +235,7 @@ export const DragDropRow: React.FC<DragDropRowProps> = React.memo(({
           {!isReadOnly && row.canDelete ? (
             <button
               onClick={() => onDeleteRow(rowIndex)}
-              className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+              className={`w-5 h-5 flex items-center justify-center rounded ${PAGE_STYLES.panel.textMuted} hover:text-red-600 hover:bg-red-50 transition-colors`}
               title="Delete"
             >
               <Trash2 className="w-4 h-4" />

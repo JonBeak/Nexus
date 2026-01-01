@@ -189,7 +189,7 @@ export class CustomerCreationValidation {
     value: CustomerCreateData[K] | null | undefined,
     hasError: boolean = false
   ): string {
-    const baseClass = "w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500";
+    const baseClass = "w-full px-3 py-2 border border-[var(--theme-border)] bg-[var(--theme-input-bg)] text-[var(--text-primary)] rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500";
 
     if (hasError) {
       return `${baseClass} border-red-500 focus:border-red-500 focus:ring-red-200`;
@@ -199,9 +199,9 @@ export class CustomerCreationValidation {
     const stringValue = typeof value === 'string' ? value : '';
 
     if (requiredFields.includes(fieldName) && !stringValue.trim()) {
-      return `${baseClass} border-gray-300 focus:border-purple-500`;
+      return `${baseClass} focus:border-blue-500`;
     }
 
-    return `${baseClass} border-gray-300 focus:border-purple-500`;
+    return `${baseClass} focus:border-blue-500`;
   }
 }

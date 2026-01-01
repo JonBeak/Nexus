@@ -4,6 +4,7 @@ import { AddressManagerCreateProps } from './CustomerCreationTypes';
 import { Address } from '../../../types';
 import { provincesApi } from '../../../services/api';
 import TaxInfoSection from '../components/TaxInfoSection';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
   addresses,
@@ -13,7 +14,8 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
   const [taxWarning, setTaxWarning] = useState('');
   const [taxDisplayValues, setTaxDisplayValues] = useState<Record<string, string>>({});
 
-  const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500';
+  const inputClass = `w-full px-3 py-2 border ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} ${PAGE_STYLES.input.placeholder} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`;
+  const labelClass = `block text-sm font-semibold ${PAGE_STYLES.panel.textSecondary} mb-1`;
 
   const buildAddressKey = useCallback(
     (address: Partial<Address> | undefined, idx: number) =>
@@ -169,7 +171,7 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h4 className="text-lg font-bold text-gray-800 border-b border-gray-200 pb-2">Addresses *</h4>
+        <h4 className={`text-lg font-bold ${PAGE_STYLES.panel.text} border-b ${PAGE_STYLES.panel.border} pb-2`}>Addresses *</h4>
         <button
           type="button"
           onClick={addAddress}
@@ -181,9 +183,9 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
       </div>
       
       {addresses.map((address, index) => (
-        <div key={index} className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+        <div key={index} className={`mb-6 p-4 border ${PAGE_STYLES.panel.border} rounded-lg ${PAGE_STYLES.header.background}`}>
           <div className="flex items-center justify-between mb-3">
-            <h5 className="font-semibold text-gray-700">Address {index + 1}</h5>
+            <h5 className={`font-semibold ${PAGE_STYLES.panel.text}`}>Address {index + 1}</h5>
             {addresses.length > 1 && (
               <button
                 type="button"
@@ -197,50 +199,50 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
           
           {/* Address Types - Moved to top */}
           <div className="mb-4">
-            <label className="block text-sm font-semibold text-gray-600 mb-2">Address Types</label>
+            <label className={`block text-sm font-semibold ${PAGE_STYLES.panel.textSecondary} mb-2`}>Address Types</label>
             <div className="flex flex-wrap gap-4">
-              <label className="flex items-center">
+              <label className={`flex items-center ${PAGE_STYLES.panel.text}`}>
                 <input
                   type="checkbox"
                   checked={address.is_primary || false}
                   onChange={(e) => handlePrimaryChange(index, e.target.checked)}
-                  className="mr-2 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                  className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 Primary
               </label>
-              <label className="flex items-center">
+              <label className={`flex items-center ${PAGE_STYLES.panel.text}`}>
                 <input
                   type="checkbox"
                   checked={address.is_billing || false}
                   onChange={(e) => handleAddressChange(index, 'is_billing', e.target.checked)}
-                  className="mr-2 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                  className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 Billing
               </label>
-              <label className="flex items-center">
+              <label className={`flex items-center ${PAGE_STYLES.panel.text}`}>
                 <input
                   type="checkbox"
                   checked={address.is_shipping || false}
                   onChange={(e) => handleAddressChange(index, 'is_shipping', e.target.checked)}
-                  className="mr-2 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                  className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 Shipping
               </label>
-              <label className="flex items-center">
+              <label className={`flex items-center ${PAGE_STYLES.panel.text}`}>
                 <input
                   type="checkbox"
                   checked={address.is_jobsite || false}
                   onChange={(e) => handleAddressChange(index, 'is_jobsite', e.target.checked)}
-                  className="mr-2 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                  className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 Jobsite
               </label>
-              <label className="flex items-center">
+              <label className={`flex items-center ${PAGE_STYLES.panel.text}`}>
                 <input
                   type="checkbox"
                   checked={address.is_mailing || false}
                   onChange={(e) => handleAddressChange(index, 'is_mailing', e.target.checked)}
-                  className="mr-2 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                  className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 Mailing
               </label>
@@ -250,40 +252,40 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
           {/* Address Fields */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">
+              <label className={labelClass}>
                 Address Line 1
               </label>
               <input
                 type="text"
                 value={address.address_line1 || ''}
                 onChange={(e) => handleAddressChange(index, 'address_line1', e.target.value)}
-            className={inputClass}
+                className={inputClass}
                 placeholder="Street address"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">Address Line 2</label>
+              <label className={labelClass}>Address Line 2</label>
               <input
                 type="text"
                 value={address.address_line2 || ''}
                 onChange={(e) => handleAddressChange(index, 'address_line2', e.target.value)}
-            className={inputClass}
+                className={inputClass}
                 placeholder="Suite, unit, building, floor, etc."
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">
+              <label className={labelClass}>
                 City
               </label>
               <input
                 type="text"
                 value={address.city || ''}
                 onChange={(e) => handleAddressChange(index, 'city', e.target.value)}
-            className={inputClass}
+                className={inputClass}
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">
+              <label className={labelClass}>
                 Province/State <span className="text-red-500">*</span>
               </label>
               <select
@@ -326,12 +328,12 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">Postal/Zip Code</label>
+              <label className={labelClass}>Postal/Zip Code</label>
               <input
                 type="text"
                 value={address.postal_zip || ''}
                 onChange={(e) => handleAddressChange(index, 'postal_zip', e.target.value)}
-            className={inputClass}
+                className={inputClass}
                 placeholder="Postal or ZIP code"
               />
             </div>
@@ -350,32 +352,32 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
           {/* Address-specific contact info */}
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">Contact Name</label>
+              <label className={labelClass}>Contact Name</label>
               <input
                 type="text"
                 value={address.contact_name || ''}
                 onChange={(e) => handleAddressChange(index, 'contact_name', e.target.value)}
-            className={inputClass}
+                className={inputClass}
                 placeholder="Contact person at this address"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">Phone</label>
+              <label className={labelClass}>Phone</label>
               <input
                 type="text"
                 value={address.phone || ''}
                 onChange={(e) => handleAddressChange(index, 'phone', e.target.value)}
-            className={inputClass}
+                className={inputClass}
                 placeholder="Phone number for this address"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">Email</label>
+              <label className={labelClass}>Email</label>
               <input
                 type="email"
                 value={address.email || ''}
                 onChange={(e) => handleAddressChange(index, 'email', e.target.value)}
-            className={inputClass}
+                className={inputClass}
                 placeholder="Email for this address"
               />
             </div>
@@ -383,12 +385,12 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
 
           {/* Address Instructions */}
           <div className="mt-4">
-            <label className="block text-sm font-semibold text-gray-600 mb-1">Delivery Instructions</label>
+            <label className={labelClass}>Delivery Instructions</label>
             <textarea
               rows={2}
               value={address.instructions || ''}
               onChange={(e) => handleAddressChange(index, 'instructions', e.target.value)}
-            className={inputClass}
+              className={inputClass}
               placeholder="Special delivery or access instructions for this address..."
             />
           </div>
@@ -396,12 +398,12 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
       ))}
 
       {addresses.length === 0 && (
-        <div className="text-center py-8 text-gray-500 border border-dashed border-gray-300 rounded-lg">
+        <div className={`text-center py-8 ${PAGE_STYLES.panel.textMuted} border border-dashed ${PAGE_STYLES.panel.border} rounded-lg`}>
           <p className="mb-2">No addresses added yet.</p>
           <button
             type="button"
             onClick={addAddress}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+            className={`${MODULE_COLORS.customers.base} ${MODULE_COLORS.customers.hover} text-white px-4 py-2 rounded-lg font-semibold transition-colors`}
           >
             Add First Address
           </button>
@@ -409,7 +411,7 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
       )}
 
       {/* Validation hint */}
-      <div className="mt-4 text-sm text-gray-600 bg-blue-50 p-3 rounded-lg border-l-4 border-blue-400">
+      <div className={`mt-4 text-sm ${PAGE_STYLES.panel.textSecondary} ${PAGE_STYLES.header.background} p-3 rounded-lg border-l-4 border-blue-400`}>
         <p><strong>Required:</strong> Provide at least one address with a Province/State selected so taxes can be calculated.</p>
         <p><strong>Primary Address:</strong> When multiple addresses exist, one must be marked as primary.</p>
       </div>

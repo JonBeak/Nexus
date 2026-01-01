@@ -10,6 +10,7 @@ import {
   CustomerAccountingEmail,
   AccountingEmailType
 } from '../../services/api/customerAccountingEmailsApi';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 
 interface EditingEmail {
   id?: number;  // undefined for new emails
@@ -159,11 +160,13 @@ const AccountingEmailsEditor: React.FC<AccountingEmailsEditorProps> = ({ custome
     }
   };
 
+  const inputClass = `px-2 py-1.5 text-sm border ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500`;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-4">
-        <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-        <span className="ml-2 text-sm text-gray-500">Loading accounting emails...</span>
+        <Loader2 className={`w-5 h-5 animate-spin ${MODULE_COLORS.customers.text}`} />
+        <span className={`ml-2 text-sm ${PAGE_STYLES.panel.textMuted}`}>Loading accounting emails...</span>
       </div>
     );
   }
@@ -179,27 +182,27 @@ const AccountingEmailsEditor: React.FC<AccountingEmailsEditorProps> = ({ custome
 
       {/* Emails List */}
       {emails.length === 0 && editingId !== 'new' ? (
-        <p className="text-sm text-gray-500 italic">No accounting emails added yet</p>
+        <p className={`text-sm ${PAGE_STYLES.panel.textMuted} italic`}>No accounting emails added yet</p>
       ) : (
         <div className="space-y-1">
           {emails.map((email) => (
             <div key={email.id}>
               {editingId === email.id ? (
                 // Editing Mode
-                <div className="bg-blue-50 rounded-lg p-3 space-y-2">
+                <div className="bg-blue-100 rounded-lg p-3 space-y-2">
                   <div className="grid grid-cols-3 gap-2">
                     <input
                       type="email"
                       value={editForm.email}
                       onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                       placeholder="Email address *"
-                      className="col-span-2 px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      className={`col-span-2 ${inputClass}`}
                       disabled={saving}
                     />
                     <select
                       value={editForm.email_type}
                       onChange={(e) => setEditForm({ ...editForm, email_type: e.target.value as AccountingEmailType })}
-                      className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      className={inputClass}
                       disabled={saving}
                     >
                       {EMAIL_TYPE_OPTIONS.map(opt => (
@@ -212,7 +215,7 @@ const AccountingEmailsEditor: React.FC<AccountingEmailsEditorProps> = ({ custome
                     value={editForm.label}
                     onChange={(e) => setEditForm({ ...editForm, label: e.target.value })}
                     placeholder="Label (e.g., AP Department, Billing Manager)"
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full ${inputClass}`}
                     disabled={saving}
                   />
                   <div className="flex gap-2">
@@ -236,18 +239,18 @@ const AccountingEmailsEditor: React.FC<AccountingEmailsEditorProps> = ({ custome
                 </div>
               ) : (
                 // View Mode
-                <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                <div className={`flex items-center justify-between py-2 px-3 ${PAGE_STYLES.header.background} rounded-lg hover:bg-[var(--theme-hover-bg)]`}>
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <Mail className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <Mail className={`w-4 h-4 ${PAGE_STYLES.panel.textMuted} flex-shrink-0`} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm text-gray-900 truncate">{email.email}</span>
+                        <span className={`font-medium text-sm ${PAGE_STYLES.panel.text} truncate`}>{email.email}</span>
                         <span className={`text-xs px-1.5 py-0.5 rounded uppercase font-medium ${EMAIL_TYPE_COLORS[email.email_type]}`}>
                           {email.email_type}
                         </span>
                       </div>
                       {email.label && (
-                        <div className="text-xs text-gray-500">{email.label}</div>
+                        <div className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>{email.label}</div>
                       )}
                     </div>
                   </div>
@@ -255,7 +258,7 @@ const AccountingEmailsEditor: React.FC<AccountingEmailsEditorProps> = ({ custome
                     <button
                       onClick={() => handleEdit(email)}
                       disabled={saving || editingId !== null}
-                      className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-50"
+                      className={`p-1.5 ${PAGE_STYLES.panel.textMuted} hover:${MODULE_COLORS.customers.text} hover:${MODULE_COLORS.customers.light} rounded disabled:opacity-50`}
                       title="Edit"
                     >
                       <Pencil className="w-4 h-4" />
@@ -263,7 +266,7 @@ const AccountingEmailsEditor: React.FC<AccountingEmailsEditorProps> = ({ custome
                     <button
                       onClick={() => handleDelete(email.id)}
                       disabled={saving || editingId !== null}
-                      className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-50"
+                      className={`p-1.5 ${PAGE_STYLES.panel.textMuted} hover:text-red-600 hover:bg-red-100 rounded disabled:opacity-50`}
                       title="Delete"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -278,7 +281,7 @@ const AccountingEmailsEditor: React.FC<AccountingEmailsEditorProps> = ({ custome
 
       {/* New Email Form */}
       {editingId === 'new' && (
-        <div className="bg-green-50 rounded-lg p-3 space-y-2">
+        <div className="bg-green-100 rounded-lg p-3 space-y-2">
           <div className="text-sm font-medium text-green-800 mb-2">Add Accounting Email</div>
           <div className="grid grid-cols-3 gap-2">
             <input
@@ -286,14 +289,14 @@ const AccountingEmailsEditor: React.FC<AccountingEmailsEditorProps> = ({ custome
               value={editForm.email}
               onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
               placeholder="Email address *"
-              className="col-span-2 px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500"
+              className={`col-span-2 ${inputClass}`}
               disabled={saving}
               autoFocus
             />
             <select
               value={editForm.email_type}
               onChange={(e) => setEditForm({ ...editForm, email_type: e.target.value as AccountingEmailType })}
-              className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500"
+              className={inputClass}
               disabled={saving}
             >
               {EMAIL_TYPE_OPTIONS.map(opt => (
@@ -306,7 +309,7 @@ const AccountingEmailsEditor: React.FC<AccountingEmailsEditorProps> = ({ custome
             value={editForm.label}
             onChange={(e) => setEditForm({ ...editForm, label: e.target.value })}
             placeholder="Label (e.g., AP Department, Billing Manager)"
-            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500"
+            className={`w-full ${inputClass}`}
             disabled={saving}
           />
           <div className="flex gap-2">
@@ -335,7 +338,7 @@ const AccountingEmailsEditor: React.FC<AccountingEmailsEditorProps> = ({ custome
         <button
           onClick={handleAdd}
           disabled={saving}
-          className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50 mt-2"
+          className={`flex items-center gap-1.5 text-sm ${MODULE_COLORS.customers.text} ${MODULE_COLORS.customers.hover.replace('hover:bg-', 'hover:text-')} disabled:opacity-50 mt-2`}
         >
           <Plus className="w-4 h-4" />
           Add Accounting Email

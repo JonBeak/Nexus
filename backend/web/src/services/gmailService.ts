@@ -38,7 +38,9 @@ export interface EmailResult {
 }
 
 export interface EstimateEmailData {
-  recipients: string[];
+  recipients: string[];  // Main recipients (To:) - kept for backward compatibility
+  ccRecipients?: string[];  // CC recipients
+  bccRecipients?: string[];  // BCC recipients (in addition to GMAIL_BCC_EMAIL)
   estimateId: number;
   estimateNumber: string;
   estimateName: string;
@@ -779,6 +781,12 @@ export async function sendFinalizationEmail(data: EmailData): Promise<EmailResul
  * @returns Email result with success status and message ID
  */
 export async function sendEstimateEmail(data: EstimateEmailData): Promise<EmailResult> {
+  // Build full BCC list for logging
+  const logBccRecipients: string[] = [...(data.bccRecipients || [])];
+  if (BCC_EMAIL && BCC_EMAIL.trim() !== '' && !logBccRecipients.includes(BCC_EMAIL)) {
+    logBccRecipients.push(BCC_EMAIL);
+  }
+
   // Check if Gmail is enabled
   if (!GMAIL_ENABLED) {
     console.log('\n' + '='.repeat(80));
@@ -787,8 +795,11 @@ export async function sendEstimateEmail(data: EstimateEmailData): Promise<EmailR
     console.log('\n📧 EMAIL DETAILS:');
     console.log(`  From: ${SENDER_NAME} <${SENDER_EMAIL}>`);
     console.log(`  To: ${data.recipients.join(', ')}`);
-    if (BCC_EMAIL && BCC_EMAIL.trim() !== '') {
-      console.log(`  Bcc: ${BCC_EMAIL}`);
+    if (data.ccRecipients && data.ccRecipients.length > 0) {
+      console.log(`  CC: ${data.ccRecipients.join(', ')}`);
+    }
+    if (logBccRecipients.length > 0) {
+      console.log(`  Bcc: ${logBccRecipients.join(', ')}`);
     }
     console.log(`  Subject: ${data.subject}`);
     console.log(`\n📎 ATTACHMENTS:`);
@@ -834,8 +845,11 @@ export async function sendEstimateEmail(data: EstimateEmailData): Promise<EmailR
     console.log('\n📧 [Gmail] Preparing to send estimate email...');
     console.log(`   From: ${SENDER_NAME} <${SENDER_EMAIL}>`);
     console.log(`   To: ${data.recipients.join(', ')}`);
-    if (BCC_EMAIL && BCC_EMAIL.trim() !== '') {
-      console.log(`   Bcc: ${BCC_EMAIL}`);
+    if (data.ccRecipients && data.ccRecipients.length > 0) {
+      console.log(`   CC: ${data.ccRecipients.join(', ')}`);
+    }
+    if (logBccRecipients.length > 0) {
+      console.log(`   Bcc: ${logBccRecipients.join(', ')}`);
     }
     console.log(`   Subject: ${data.subject}`);
     console.log(`   Estimate: #${data.estimateNumber} - ${data.estimateName}`);
@@ -905,9 +919,22 @@ async function createEstimateEmailMessage(data: EstimateEmailData): Promise<stri
     attachments: []
   };
 
-  // Add BCC if configured
-  if (BCC_EMAIL && BCC_EMAIL.trim() !== '') {
-    mailOptions.bcc = BCC_EMAIL;
+  // Add CC recipients if provided
+  if (data.ccRecipients && data.ccRecipients.length > 0) {
+    mailOptions.cc = data.ccRecipients.join(', ');
+    console.log(`   CC: ${mailOptions.cc}`);
+  }
+
+  // Build BCC list: combine user-selected BCC with company BCC
+  const allBccRecipients: string[] = [];
+  if (data.bccRecipients && data.bccRecipients.length > 0) {
+    allBccRecipients.push(...data.bccRecipients);
+  }
+  if (BCC_EMAIL && BCC_EMAIL.trim() !== '' && !allBccRecipients.includes(BCC_EMAIL)) {
+    allBccRecipients.push(BCC_EMAIL);
+  }
+  if (allBccRecipients.length > 0) {
+    mailOptions.bcc = allBccRecipients.join(', ');
   }
 
   // Add PDF attachment if path provided
@@ -961,14 +988,14 @@ async function createEstimateEmailMessage(data: EstimateEmailData): Promise<stri
       // MailComposer strips BCC headers (standard SMTP behavior), but Gmail API
       // needs the BCC header in the raw message to deliver to BCC recipients.
       // Manually insert BCC header after the To: line.
-      if (BCC_EMAIL && BCC_EMAIL.trim() !== '') {
+      if (allBccRecipients.length > 0) {
         // Find the To: header line and insert BCC after it
         const toHeaderMatch = messageStr.match(/^To: .+$/m);
         if (toHeaderMatch) {
           const toHeader = toHeaderMatch[0];
-          const bccHeader = `Bcc: ${BCC_EMAIL}`;
+          const bccHeader = `Bcc: ${allBccRecipients.join(', ')}`;
           messageStr = messageStr.replace(toHeader, `${toHeader}\r\n${bccHeader}`);
-          console.log(`   📧 BCC header injected: ${BCC_EMAIL}`);
+          console.log(`   📧 BCC header injected: ${allBccRecipients.join(', ')}`);
         }
       }
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { AccountUser } from '../../types/user';
+import { PAGE_STYLES } from '../../constants/moduleColors';
 
 interface LoginResponse {
   accessToken: string;
@@ -50,7 +51,7 @@ function SimpleLogin({ onLogin }: SimpleLoginProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div className={`${PAGE_STYLES.fullPage} flex items-center justify-center`}>
       <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-6 text-center">Sign House Web</h1>
         <form onSubmit={handleSubmit} className="space-y-4">

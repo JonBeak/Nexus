@@ -2,6 +2,7 @@ import React from 'react';
 import { AutofillComboBox } from '../../common/AutofillComboBox';
 import { InventoryUser } from '../types';
 import { InventoryColumnFilters, InventorySortField } from '../hooks/useInventoryFiltering';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface InventoryTableHeaderProps {
   user: InventoryUser;
@@ -28,11 +29,13 @@ export const InventoryTableHeader: React.FC<InventoryTableHeaderProps> = ({
   getColourNameOptions,
   getDispositionOptions
 }) => {
+  const thClass = `px-3 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider cursor-pointer hover:bg-[var(--theme-hover-bg)]`;
+
   return (
-    <thead className="bg-white">
+    <thead className={PAGE_STYLES.header.background}>
       <tr>
         <th
-          className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+          className={thClass}
           style={{width: '166px'}}
           onClick={() => handleSort('brand')}
         >
@@ -54,8 +57,8 @@ export const InventoryTableHeader: React.FC<InventoryTableHeaderProps> = ({
             />
           </div>
         </th>
-        <th 
-          className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+        <th
+          className={thClass}
           style={{width: '166px'}}
           onClick={() => handleSort('series')}
         >
@@ -77,8 +80,8 @@ export const InventoryTableHeader: React.FC<InventoryTableHeaderProps> = ({
             />
           </div>
         </th>
-        <th 
-          className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-44"
+        <th
+          className={`${thClass} w-44`}
           onClick={() => handleSort('colour_number')}
         >
           Colour# <span className="w-4 h-4 inline ml-1">{getSortIcon('colour_number')}</span>
@@ -99,8 +102,8 @@ export const InventoryTableHeader: React.FC<InventoryTableHeaderProps> = ({
             />
           </div>
         </th>
-        <th 
-          className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 flex-1"
+        <th
+          className={`${thClass} flex-1`}
           onClick={() => handleSort('colour_name')}
         >
           Colour Name <span className="w-4 h-4 inline ml-1">{getSortIcon('colour_name')}</span>
@@ -121,22 +124,22 @@ export const InventoryTableHeader: React.FC<InventoryTableHeaderProps> = ({
             />
           </div>
         </th>
-        <th 
-          className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+        <th
+          className={thClass}
           style={{width: '30px'}}
           onClick={() => handleSort('width')}
         >
           Width (in) <span className="w-4 h-4 inline ml-1">{getSortIcon('width')}</span>
         </th>
-        <th 
-          className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+        <th
+          className={thClass}
           style={{width: '34px'}}
           onClick={() => handleSort('length_yards')}
         >
           Length (yds) <span className="w-4 h-4 inline ml-1">{getSortIcon('length_yards')}</span>
         </th>
         <th
-          className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-24"
+          className={`${thClass} w-24`}
           onClick={() => handleSort('disposition')}
         >
           Status <span className="w-4 h-4 inline ml-1">{getSortIcon('disposition')}</span>
@@ -158,7 +161,7 @@ export const InventoryTableHeader: React.FC<InventoryTableHeaderProps> = ({
           </div>
         </th>
         {(user.role === 'manager' || user.role === 'owner') && (
-          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+          <th className={`px-3 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`}>Actions</th>
         )}
       </tr>
     </thead>

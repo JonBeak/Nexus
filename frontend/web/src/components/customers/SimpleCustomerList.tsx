@@ -7,6 +7,8 @@ import { CustomerTable } from './components/CustomerTable';
 import CustomerDetailsModal from './CustomerDetailsModal';
 import { CustomerCreationModal } from './CustomerCreationModal';
 import { Customer } from '../../types';
+import { PAGE_STYLES } from '../../constants/moduleColors';
+import '../jobEstimation/JobEstimation.css';
 
 function SimpleCustomerList() {
   // Custom hooks for business logic
@@ -72,7 +74,7 @@ function SimpleCustomerList() {
         />
       )}
       
-      <div className="min-h-screen bg-gray-100">
+      <div className={PAGE_STYLES.fullPage}>
         <CustomerListHeader
           activeCustomerCount={getActiveCustomerCount(customers)}
           showDeactivatedCustomers={showDeactivatedCustomers}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface VersionNotesModalProps {
   isOpen: boolean;
@@ -40,15 +41,15 @@ export const VersionNotesModal: React.FC<VersionNotesModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded p-6 w-full max-w-md">
-        <h3 className="text-lg font-semibold mb-4">{title}</h3>
+      <div className={`${PAGE_STYLES.panel.background} rounded p-6 w-full max-w-md`}>
+        <h3 className={`text-lg font-semibold mb-4 ${PAGE_STYLES.panel.text}`}>{title}</h3>
 
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-2`}>
             Description (Optional)
           </label>
           <textarea
-            className="w-full px-2 py-1 border rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+            className={`w-full px-2 py-1 border ${PAGE_STYLES.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm`}
             rows={3}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -60,7 +61,7 @@ export const VersionNotesModal: React.FC<VersionNotesModalProps> = ({
         <div className="flex space-x-3">
           <button
             onClick={handleClose}
-            className="flex-1 px-2 py-1 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
+            className={`flex-1 px-2 py-1 border ${PAGE_STYLES.border} ${PAGE_STYLES.panel.textSecondary} rounded ${PAGE_STYLES.interactive.hover}`}
           >
             Cancel
           </button>

@@ -13,6 +13,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Maximize2 } from 'lucide-react';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 // Constants
 const OVERLAY_MIN_HEIGHT = 200;
@@ -302,7 +303,7 @@ export const ExpandableFieldInput: React.FC<ExpandableFieldInputProps> = ({
           type="button"
           onClick={handleExpandClick}
           tabIndex={-1}
-          className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+          className={`absolute right-1 top-1/2 -translate-y-1/2 p-0.5 ${PAGE_STYLES.panel.textMuted} hover:text-blue-600 hover:bg-blue-50 rounded transition-colors`}
           title="Expand input"
         >
           <Maximize2 className="w-3 h-3" />
@@ -324,18 +325,18 @@ export const ExpandableFieldInput: React.FC<ExpandableFieldInputProps> = ({
             value={localValue}
             onChange={(e) => handleChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="px-3 py-2 text-sm border-2 border-blue-500 rounded shadow-lg bg-white focus:outline-none resize-none overflow-y-auto"
+            className={`px-3 py-2 text-sm border-2 border-blue-500 rounded shadow-lg ${PAGE_STYLES.panel.background} focus:outline-none resize-none overflow-y-auto`}
             style={{
               width: '500px',
               height: `${overlayHeight}px`
             }}
             placeholder={placeholder}
           />
-          <div className="mt-1 text-xs text-gray-600 bg-white px-3 py-2 rounded border-2 border-blue-500 shadow-lg">
-            <kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Enter</kbd> to save, {' '}
-            <kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Tab</kbd> to save & next field, {' '}
-            <kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Esc</kbd> to cancel, {' '}
-            <kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Shift+Enter</kbd> for new line
+          <div className={`mt-1 text-xs ${PAGE_STYLES.panel.textMuted} ${PAGE_STYLES.panel.background} px-3 py-2 rounded border-2 border-blue-500 shadow-lg`}>
+            <kbd className={`px-1 py-0.5 ${PAGE_STYLES.header.background} rounded text-xs`}>Enter</kbd> to save, {' '}
+            <kbd className={`px-1 py-0.5 ${PAGE_STYLES.header.background} rounded text-xs`}>Tab</kbd> to save & next field, {' '}
+            <kbd className={`px-1 py-0.5 ${PAGE_STYLES.header.background} rounded text-xs`}>Esc</kbd> to cancel, {' '}
+            <kbd className={`px-1 py-0.5 ${PAGE_STYLES.header.background} rounded text-xs`}>Shift+Enter</kbd> for new line
           </div>
         </div>,
         document.body

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { FileText, ExternalLink, Mail } from 'lucide-react';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface EstimateTableHeaderProps {
   // Workflow state
@@ -81,17 +82,17 @@ export const EstimateTableHeader: React.FC<EstimateTableHeaderProps> = ({
   };
 
   return (
-    <div className="flex items-center justify-between p-2 border-b min-w-0">
+    <div className={`flex items-center justify-between p-2 border-b ${PAGE_STYLES.border} min-w-0`}>
       <div className="flex items-center gap-2 min-w-0 flex-1">
-        <FileText className="w-4 h-4 text-gray-600 flex-shrink-0" />
-        <h3 className="text-base font-medium text-gray-900 whitespace-nowrap">Estimate Preview</h3>
+        <FileText className={`w-4 h-4 ${PAGE_STYLES.panel.textMuted} flex-shrink-0`} />
+        <h3 className={`text-base font-medium ${PAGE_STYLES.panel.text} whitespace-nowrap`}>Estimate Preview</h3>
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
         {/* QuickBooks Buttons - 5 workflow states */}
         {qbCheckingStatus ? (
           // State 1: Checking QB status
-          <span className="text-xs text-gray-500">Checking QB...</span>
+          <span className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>Checking QB...</span>
         ) : qbEstimateId && qbEstimateUrl ? (
           // State 2: QB estimate exists - show "Open in QB" and "Send to Customer"
           <>

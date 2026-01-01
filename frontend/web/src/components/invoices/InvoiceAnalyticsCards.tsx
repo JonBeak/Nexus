@@ -1,6 +1,7 @@
 import React from 'react';
 import { DollarSign, FileX, FileText, AlertTriangle } from 'lucide-react';
 import { InvoiceAnalytics } from '../../services/api/invoicesApi';
+import { PAGE_STYLES } from '../../constants/moduleColors';
 
 interface Props {
   analytics: InvoiceAnalytics | null;
@@ -19,14 +20,14 @@ export const InvoiceAnalyticsCards: React.FC<Props> = ({ analytics, loading }) =
 
   if (loading || !analytics) {
     return (
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className={`${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.border} border-b px-6 py-4`}>
         <div className="grid grid-cols-4 gap-6">
           {[1, 2, 3, 4].map(i => (
             <div key={i} className="flex items-center space-x-3">
-              <div className="bg-gray-100 rounded-lg p-3 animate-pulse w-12 h-12" />
+              <div className={`${PAGE_STYLES.header.background} rounded-lg p-3 animate-pulse w-12 h-12`} />
               <div className="space-y-2">
-                <div className="h-3 w-24 bg-gray-200 rounded animate-pulse" />
-                <div className="h-6 w-16 bg-gray-200 rounded animate-pulse" />
+                <div className={`h-3 w-24 ${PAGE_STYLES.header.background} rounded animate-pulse`} />
+                <div className={`h-6 w-16 ${PAGE_STYLES.header.background} rounded animate-pulse`} />
               </div>
             </div>
           ))}
@@ -36,14 +37,14 @@ export const InvoiceAnalyticsCards: React.FC<Props> = ({ analytics, loading }) =
   }
 
   return (
-    <div className="bg-white border-b border-gray-200 px-6 py-4">
+    <div className={`${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.border} border-b px-6 py-4`}>
       <div className="grid grid-cols-4 gap-6">
         <StatCard
-          icon={<DollarSign className="w-6 h-6 text-indigo-600" />}
+          icon={<DollarSign className="w-6 h-6 text-green-600" />}
           label="YTD Total Sales"
           value={formatCurrency(analytics.ytdTotalSales)}
           subValue={`${analytics.ytdOrderCount} orders`}
-          color="indigo"
+          color="green"
         />
         <StatCard
           icon={<FileX className="w-6 h-6 text-orange-600" />}
@@ -81,11 +82,11 @@ interface StatCardProps {
 
 const StatCard: React.FC<StatCardProps> = ({ icon, label, value, subValue, color }) => {
   const colorClasses = {
-    indigo: 'bg-indigo-50',
-    orange: 'bg-orange-50',
-    blue: 'bg-blue-50',
-    red: 'bg-red-50',
-    green: 'bg-green-50'
+    indigo: 'bg-indigo-100',
+    orange: 'bg-orange-100',
+    blue: 'bg-blue-100',
+    red: 'bg-red-100',
+    green: 'bg-green-100'
   };
 
   return (
@@ -94,9 +95,9 @@ const StatCard: React.FC<StatCardProps> = ({ icon, label, value, subValue, color
         {icon}
       </div>
       <div>
-        <p className="text-sm text-gray-600">{label}</p>
-        <p className="text-2xl font-semibold text-gray-900">{value}</p>
-        {subValue && <p className="text-xs text-gray-500">{subValue}</p>}
+        <p className={`text-sm ${PAGE_STYLES.panel.textSecondary}`}>{label}</p>
+        <p className={`text-2xl font-semibold ${PAGE_STYLES.panel.text}`}>{value}</p>
+        {subValue && <p className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>{subValue}</p>}
       </div>
     </div>
   );

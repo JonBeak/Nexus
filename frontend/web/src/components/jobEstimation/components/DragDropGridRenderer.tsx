@@ -11,6 +11,7 @@ import { GridRow } from '../core/types/LayerTypes';
 import { DragDropRow } from './DragDropRow';
 import { ProductType } from '../hooks/useProductTypes';
 import { GridEngine } from '../core/GridEngine';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface DragDropGridRendererProps {
   rows: GridRow[];
@@ -71,7 +72,7 @@ export const DragDropGridRenderer: React.FC<DragDropGridRendererProps> = ({
 
   if (rows.length === 0) {
     return (
-      <div className="p-8 text-center text-gray-500">
+      <div className={`p-8 text-center ${PAGE_STYLES.panel.textMuted}`}>
         <p>No rows to display</p>
         {!isReadOnly && (
           <button
@@ -105,22 +106,22 @@ export const DragDropGridRenderer: React.FC<DragDropGridRendererProps> = ({
         >
           <table className="w-full text-sm table-fixed min-w-[1100px]">
             {/* Header - matches original GridBody exactly */}
-            <thead className="bg-gray-50 border-b-2 border-gray-200">
+            <thead className={`${PAGE_STYLES.header.background} border-b-2 ${PAGE_STYLES.border}`}>
               <tr>
-                <th className="w-3.5 px-0 py-1 text-xs font-medium text-gray-600 text-center">#</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-left w-10">Product / Item</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-4">QTY</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 1</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 2</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 3</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 4</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 5</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 6</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 7</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 8</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 9</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Field 10</th>
-                <th className="px-1 py-1 text-xs font-medium text-gray-600 text-center w-6">Actions</th>
+                <th className={`w-3.5 px-0 py-1 text-xs font-medium ${PAGE_STYLES.panel.textMuted} text-center`}>#</th>
+                <th className={`px-1 py-1 text-xs font-medium ${PAGE_STYLES.panel.textMuted} text-left w-10`}>Product / Item</th>
+                <th className={`px-1 py-1 text-xs font-medium ${PAGE_STYLES.panel.textMuted} text-center w-4`}>QTY</th>
+                <th className={`px-1 py-1 text-xs font-medium ${PAGE_STYLES.panel.textMuted} text-center w-6`}>Field 1</th>
+                <th className={`px-1 py-1 text-xs font-medium ${PAGE_STYLES.panel.textMuted} text-center w-6`}>Field 2</th>
+                <th className={`px-1 py-1 text-xs font-medium ${PAGE_STYLES.panel.textMuted} text-center w-6`}>Field 3</th>
+                <th className={`px-1 py-1 text-xs font-medium ${PAGE_STYLES.panel.textMuted} text-center w-6`}>Field 4</th>
+                <th className={`px-1 py-1 text-xs font-medium ${PAGE_STYLES.panel.textMuted} text-center w-6`}>Field 5</th>
+                <th className={`px-1 py-1 text-xs font-medium ${PAGE_STYLES.panel.textMuted} text-center w-6`}>Field 6</th>
+                <th className={`px-1 py-1 text-xs font-medium ${PAGE_STYLES.panel.textMuted} text-center w-6`}>Field 7</th>
+                <th className={`px-1 py-1 text-xs font-medium ${PAGE_STYLES.panel.textMuted} text-center w-6`}>Field 8</th>
+                <th className={`px-1 py-1 text-xs font-medium ${PAGE_STYLES.panel.textMuted} text-center w-6`}>Field 9</th>
+                <th className={`px-1 py-1 text-xs font-medium ${PAGE_STYLES.panel.textMuted} text-center w-6`}>Field 10</th>
+                <th className={`px-1 py-1 text-xs font-medium ${PAGE_STYLES.panel.textMuted} text-center w-6`}>Actions</th>
               </tr>
             </thead>
             <tbody>

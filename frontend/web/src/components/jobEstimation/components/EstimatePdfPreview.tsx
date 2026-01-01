@@ -10,6 +10,7 @@ import React, { useState, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { FileText, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { jobVersioningApi } from '../../../services/jobVersioningApi';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
@@ -106,7 +107,7 @@ export const EstimatePdfPreview: React.FC<Props> = ({
   // Loading state - fetching from backend
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+      <div className={`flex flex-col items-center justify-center py-12 ${PAGE_STYLES.panel.textMuted}`}>
         <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mb-3" />
         <p className="text-sm">Loading PDF from QuickBooks...</p>
       </div>
@@ -131,7 +132,7 @@ export const EstimatePdfPreview: React.FC<Props> = ({
           <RefreshCw className="w-4 h-4" />
           Retry
         </button>
-        <p className="text-xs text-gray-500 mt-4 max-w-xs">
+        <p className={`text-xs ${PAGE_STYLES.panel.textMuted} mt-4 max-w-xs`}>
           You can still send the email. The customer will receive a link to view the estimate in QuickBooks.
         </p>
       </div>
@@ -144,7 +145,7 @@ export const EstimatePdfPreview: React.FC<Props> = ({
       {pdfLoading && (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
-          <span className="ml-2 text-sm text-gray-600">Rendering PDF...</span>
+          <span className={`ml-2 text-sm ${PAGE_STYLES.panel.textMuted}`}>Rendering PDF...</span>
         </div>
       )}
       <Document

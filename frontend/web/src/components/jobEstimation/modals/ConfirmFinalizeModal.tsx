@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, X } from 'lucide-react';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface ConfirmFinalizeModalProps {
   isOpen: boolean;
@@ -24,16 +25,16 @@ export const ConfirmFinalizeModal: React.FC<ConfirmFinalizeModalProps> = ({
         />
 
         {/* Modal */}
-        <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md transform transition-all">
+        <div className={`relative ${PAGE_STYLES.panel.background} rounded-lg shadow-xl w-full max-w-md transform transition-all`}>
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div className={`flex items-center justify-between p-6 border-b ${PAGE_STYLES.border}`}>
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-amber-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Finalize Estimate</h3>
+              <h3 className={`text-lg font-semibold ${PAGE_STYLES.panel.text}`}>Finalize Estimate</h3>
             </div>
             <button
               onClick={onCancel}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className={`${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.textSecondary} transition-colors`}
             >
               <X className="h-5 w-5" />
             </button>
@@ -41,22 +42,22 @@ export const ConfirmFinalizeModal: React.FC<ConfirmFinalizeModalProps> = ({
 
           {/* Content */}
           <div className="p-6">
-            <p className="text-gray-700 mb-4">
+            <p className={`${PAGE_STYLES.panel.textSecondary} mb-4`}>
               This will <strong>finalize</strong> the estimate and make it <strong>immutable</strong>.
             </p>
-            <p className="text-gray-700 mb-4">
+            <p className={`${PAGE_STYLES.panel.textSecondary} mb-4`}>
               The estimate will be locked from further edits and sent to QuickBooks.
             </p>
-            <p className="text-gray-700 font-medium">
+            <p className={`${PAGE_STYLES.panel.textSecondary} font-medium`}>
               Do you want to continue?
             </p>
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 rounded-b-lg">
+          <div className={`flex items-center justify-end gap-3 px-6 py-4 ${PAGE_STYLES.header.background} rounded-b-lg`}>
             <button
               onClick={onCancel}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              className={`px-4 py-2 text-sm font-medium ${PAGE_STYLES.panel.textSecondary} ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.border} rounded-md ${PAGE_STYLES.interactive.hover} transition-colors`}
             >
               Cancel
             </button>

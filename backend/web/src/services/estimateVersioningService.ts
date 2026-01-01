@@ -394,9 +394,9 @@ export class EstimateVersioningService {
     estimateId: number,
     userId: number,
     estimatePreviewData?: any,
-    recipientEmails?: string[]
+    recipients?: { to: string[]; cc: string[]; bcc: string[] }
   ) {
-    return this.estimateService.sendEstimateToCustomer(estimateId, userId, estimatePreviewData, recipientEmails);
+    return this.estimateService.sendEstimateToCustomer(estimateId, userId, estimatePreviewData, recipients);
   }
 
   /**

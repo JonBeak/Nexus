@@ -2,6 +2,7 @@ import React from 'react';
 import { AlertTriangle, Lock, Save, Trash2, RotateCcw, Eraser, Plus, Copy } from 'lucide-react';
 import { GridEngine } from '../core/GridEngine';
 import { getStatusColorClasses } from '../utils/statusUtils';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface GridHeaderProps {
   gridEngine: GridEngine;
@@ -48,10 +49,10 @@ export const GridHeader: React.FC<GridHeaderProps> = ({
 
 
   return (
-    <div className="px-6 py-4 border-b border-gray-200">
+    <div className={`px-6 py-4 border-b ${PAGE_STYLES.border}`}>
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">
+          <h2 className={`text-xl font-semibold ${PAGE_STYLES.panel.text}`}>
             {versioningMode 
               ? 'Job Estimate'
               : (isCreatingNew ? 'New Job Estimate' : 'Edit Job Estimate')
@@ -81,7 +82,7 @@ export const GridHeader: React.FC<GridHeaderProps> = ({
 
 
             {gridState.editMode === 'readonly' && (
-              <div className="flex items-center text-gray-500 text-sm">
+              <div className={`flex items-center ${PAGE_STYLES.panel.textMuted} text-sm`}>
                 <Lock className="w-4 h-4 mr-1" />
                 Read-only mode
               </div>
@@ -138,7 +139,7 @@ export const GridHeader: React.FC<GridHeaderProps> = ({
 
               <button
                 onClick={onCopyRows}
-                className="flex items-center space-x-1.5 px-2 py-1.5 text-sm text-green-600 hover:text-green-900 border border-green-300 rounded hover:bg-green-50"
+                className="flex items-center space-x-1.5 px-2 py-1.5 text-sm text-green-700 hover:text-green-900 border border-green-500 rounded hover:bg-green-100"
                 title="Copy rows from another estimate"
               >
                 <Copy className="w-3.5 h-3.5" />

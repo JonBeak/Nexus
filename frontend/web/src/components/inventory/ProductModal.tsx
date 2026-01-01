@@ -9,6 +9,7 @@ import {
   VinylProduct,
   VinylProductFormSubmission
 } from './types';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 
 interface ProductFormState {
   brand: string;
@@ -228,16 +229,20 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     }
   };
 
+  // Shared input classes for consistent styling
+  const inputClass = `w-full px-3 py-2 border ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} ${PAGE_STYLES.input.placeholder} rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500`;
+  const labelClass = `block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`;
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-8 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+    <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50">
+      <div className={`relative top-8 mx-auto p-5 border ${PAGE_STYLES.panel.border} w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md ${PAGE_STYLES.panel.background}`}>
+        <div className={`flex justify-between items-center mb-4 pb-4 border-b ${PAGE_STYLES.panel.border}`}>
+          <h3 className={`text-lg font-bold ${PAGE_STYLES.panel.text}`}>{title}</h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className={`${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.text}`}
           >
             <X className="h-6 w-6" />
           </button>
@@ -270,7 +275,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className={labelClass}>
                 Color Number
               </label>
               <input
@@ -279,12 +284,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 value={formData.colour_number}
                 onChange={handleChange}
                 placeholder="e.g. 807, 123A"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                className={inputClass}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className={labelClass}>
                 Color Name
               </label>
               <input
@@ -293,14 +298,14 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 value={formData.colour_name}
                 onChange={handleChange}
                 placeholder="e.g. Unknown Color, Bright Red"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                className={inputClass}
               />
             </div>
           </div>
 
           {/* Default Width */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className={labelClass}>
               Default Width (inches)
             </label>
             <input
@@ -311,18 +316,18 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               step="0.01"
               min="0"
               placeholder="e.g. 48"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+              className={inputClass}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className={`${labelClass} mb-2`}>
               Suppliers (Optional)
             </label>
             {loadingSuppliers ? (
-              <div className="text-sm text-gray-500">Loading suppliers...</div>
+              <div className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>Loading suppliers...</div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-48 overflow-y-auto border border-gray-300 rounded-md p-3">
+              <div className={`grid grid-cols-1 md:grid-cols-2 gap-2 max-h-48 overflow-y-auto border ${PAGE_STYLES.panel.border} rounded-md p-3 ${PAGE_STYLES.header.background}`}>
                 {availableSuppliers.map((supplier) => (
                   <label key={supplier.supplier_id} className="flex items-center space-x-2">
                     <input
@@ -331,29 +336,29 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       onChange={(e) => handleSupplierChange(supplier.supplier_id, e.target.checked)}
                       className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
                     />
-                    <span className="text-sm text-gray-900">{supplier.name}</span>
+                    <span className={`text-sm ${PAGE_STYLES.panel.text}`}>{supplier.name}</span>
                   </label>
                 ))}
                 {availableSuppliers.length === 0 && (
-                  <div className="text-sm text-gray-500">No suppliers available</div>
+                  <div className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>No suppliers available</div>
                 )}
               </div>
             )}
           </div>
 
-          <div className="flex justify-end space-x-3 pt-4">
+          <div className={`flex justify-end space-x-3 pt-4 mt-4 border-t ${PAGE_STYLES.panel.border}`}>
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              className={`px-4 py-2 border ${PAGE_STYLES.panel.border} rounded-md text-sm font-medium ${PAGE_STYLES.panel.text} ${PAGE_STYLES.header.background} hover:bg-gray-500 disabled:opacity-50`}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50"
+              className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${MODULE_COLORS.vinyls.base} ${MODULE_COLORS.vinyls.hover} disabled:opacity-50`}
             >
               {loading ? 'Saving...' : (initialData ? 'Update' : 'Add')} Product
             </button>

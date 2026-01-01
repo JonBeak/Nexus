@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw, ChevronUp, ChevronDown, Loader2, Check, Mail, MailX, Clock } from 'lucide-react';
 import { InvoiceListingOrder, InvoiceFilters, invoicesApi } from '../../services/api/invoicesApi';
+import { PAGE_STYLES } from '../../constants/moduleColors';
 
 interface Props {
   orders: InvoiceListingOrder[];
@@ -126,7 +127,7 @@ export const InvoiceTable: React.FC<Props> = ({
 
   const getDepositBadge = (order: InvoiceListingOrder) => {
     if (!order.deposit_required) {
-      return <span className="text-gray-400 text-xs">N/A</span>;
+      return <span className={`${PAGE_STYLES.panel.textMuted} text-xs`}>N/A</span>;
     }
     if (order.deposit_paid) {
       return <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">Paid</span>;
@@ -143,7 +144,7 @@ export const InvoiceTable: React.FC<Props> = ({
       );
     }
     return (
-      <div className="text-gray-400" title="Not sent">
+      <div className={PAGE_STYLES.panel.textMuted} title="Not sent">
         <MailX className="w-4 h-4" />
       </div>
     );
@@ -152,22 +153,24 @@ export const InvoiceTable: React.FC<Props> = ({
   if (loading && orders.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-green-600" />
       </div>
     );
   }
 
+  const thClass = `px-4 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider cursor-pointer hover:bg-gray-500`;
+
   return (
-    <div className="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
+    <div className={`${PAGE_STYLES.panel.background} shadow-sm rounded-lg ${PAGE_STYLES.panel.border} border overflow-hidden`}>
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50">
-        <div className="text-sm text-gray-600">
+      <div className={`px-4 py-3 ${PAGE_STYLES.panel.border} border-b flex items-center justify-between ${PAGE_STYLES.header.background}`}>
+        <div className={`text-sm ${PAGE_STYLES.panel.textSecondary}`}>
           {orders.length} orders
         </div>
         <button
           onClick={handleSyncAll}
           disabled={syncing}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors disabled:opacity-50"
+          className="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors disabled:opacity-50"
         >
           <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
           Sync All Balances
@@ -177,10 +180,10 @@ export const InvoiceTable: React.FC<Props> = ({
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className={`${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.border} border-b`}>
             <tr>
               <th
-                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                className={thClass}
                 onClick={() => handleSort('order_number')}
               >
                 <div className="flex items-center gap-1">
@@ -188,18 +191,18 @@ export const InvoiceTable: React.FC<Props> = ({
                 </div>
               </th>
               <th
-                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                className={thClass}
                 onClick={() => handleSort('customer_name')}
               >
                 <div className="flex items-center gap-1">
                   Customer <SortIcon column="customer_name" />
                 </div>
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className={`px-4 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider`}>
                 Status
               </th>
               <th
-                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                className={thClass}
                 onClick={() => handleSort('invoice_number')}
               >
                 <div className="flex items-center gap-1">
@@ -207,7 +210,7 @@ export const InvoiceTable: React.FC<Props> = ({
                 </div>
               </th>
               <th
-                className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                className={`px-4 py-3 text-right text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider cursor-pointer hover:bg-gray-500`}
                 onClick={() => handleSort('total')}
               >
                 <div className="flex items-center justify-end gap-1">
@@ -215,25 +218,25 @@ export const InvoiceTable: React.FC<Props> = ({
                 </div>
               </th>
               <th
-                className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                className={`px-4 py-3 text-right text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider cursor-pointer hover:bg-gray-500`}
                 onClick={() => handleSort('balance')}
               >
                 <div className="flex items-center justify-end gap-1">
                   Balance <SortIcon column="balance" />
                 </div>
               </th>
-              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className={`px-4 py-3 text-center text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider`}>
                 Sent
               </th>
-              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className={`px-4 py-3 text-center text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider`}>
                 Deposit
               </th>
-              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
+              <th className={`px-4 py-3 text-center text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider w-12`}>
                 Sync
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className={PAGE_STYLES.panel.divider}>
             {orders.map(order => {
               const total = order.cached_invoice_total ?? order.calculated_total;
               const isSyncing = syncingOrderIds.has(order.order_id);
@@ -242,23 +245,23 @@ export const InvoiceTable: React.FC<Props> = ({
                 <tr
                   key={order.order_id}
                   onClick={() => handleRowClick(order.order_number)}
-                  className="hover:bg-gray-50 cursor-pointer"
+                  className="hover:bg-[var(--theme-hover-bg)] cursor-pointer"
                 >
-                  <td className="px-4 py-3 text-sm font-medium text-indigo-600">
+                  <td className="px-4 py-3 text-sm font-medium text-green-600">
                     #{order.order_number}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-900">
+                  <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.text}`}>
                     {order.customer_name}
                   </td>
                   <td className="px-4 py-3">
                     {getStatusBadge(order.status)}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
+                  <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.textSecondary}`}>
                     {order.qb_invoice_doc_number || (
-                      <span className="text-gray-400">Not Invoiced</span>
+                      <span className={PAGE_STYLES.panel.textMuted}>Not Invoiced</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-900 text-right font-medium">
+                  <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.text} text-right font-medium`}>
                     {formatCurrency(total)}
                   </td>
                   <td className="px-4 py-3 text-sm text-right font-medium">
@@ -273,11 +276,11 @@ export const InvoiceTable: React.FC<Props> = ({
                         )}
                       </span>
                     ) : order.qb_invoice_id ? (
-                      <span className="text-gray-400 flex items-center justify-end gap-1">
+                      <span className={`${PAGE_STYLES.panel.textMuted} flex items-center justify-end gap-1`}>
                         <Clock className="w-3 h-3" /> Pending
                       </span>
                     ) : (
-                      <span className="text-gray-400">-</span>
+                      <span className={PAGE_STYLES.panel.textMuted}>-</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-center">
@@ -291,7 +294,7 @@ export const InvoiceTable: React.FC<Props> = ({
                       <button
                         onClick={(e) => handleSyncBalance(order.order_id, e)}
                         disabled={isSyncing}
-                        className="p-1 text-gray-400 hover:text-indigo-600 transition-colors disabled:opacity-50"
+                        className={`p-1 ${PAGE_STYLES.panel.textMuted} hover:text-green-600 transition-colors disabled:opacity-50`}
                         title="Sync balance from QuickBooks"
                       >
                         <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
@@ -306,7 +309,7 @@ export const InvoiceTable: React.FC<Props> = ({
       </div>
 
       {orders.length === 0 && !loading && (
-        <div className="text-center py-12 text-gray-500">
+        <div className={`text-center py-12 ${PAGE_STYLES.panel.textMuted}`}>
           No orders found matching your filters
         </div>
       )}

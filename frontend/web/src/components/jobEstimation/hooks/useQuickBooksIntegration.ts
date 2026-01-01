@@ -4,6 +4,7 @@ import { jobVersioningApi } from '../../../services/jobVersioningApi';
 import { EstimateVersion, EmailSummaryConfig } from '../types';
 import { EstimatePreviewData } from '../core/layers/CalculationLayer';
 import { PointPersonEntry } from '../EstimatePointPersonsEditor';
+import { EmailRecipients } from '../components/EstimateEmailPreviewModal';
 
 interface UseQuickBooksIntegrationParams {
   currentEstimate: EstimateVersion | null;
@@ -221,7 +222,7 @@ export const useQuickBooksIntegration = ({
   };
 
   // Phase 7: Send estimate to customer (creates QB estimate, sends email)
-  const handleSendToCustomer = async (selectedRecipients?: string[]) => {
+  const handleSendToCustomer = async (recipients?: EmailRecipients) => {
     if (!currentEstimate || !estimatePreviewData) return;
 
     try {
@@ -239,7 +240,7 @@ export const useQuickBooksIntegration = ({
       const result = await jobVersioningApi.sendEstimateToCustomer(
         currentEstimate.id,
         enrichedPreviewData,
-        selectedRecipients
+        recipients
       );
 
       if (result.success) {
@@ -264,7 +265,10 @@ export const useQuickBooksIntegration = ({
       }
     } catch (error: any) {
       console.error('Error sending estimate:', error);
-      alert(`Error sending estimate: ${error.message || 'Unknown error'}`);
+      // Extract backend error message if available
+      const backendMessage = error.response?.data?.message;
+      const errorMessage = backendMessage || error.message || 'Unknown error';
+      alert(`Error sending estimate: ${errorMessage}`);
     } finally {
       setIsSending(false);
     }

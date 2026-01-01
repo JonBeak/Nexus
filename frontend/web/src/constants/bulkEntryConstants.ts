@@ -49,19 +49,32 @@ export const ENTRY_TYPES = {
   DAMAGED: 'damaged',
 } as const;
 
-// Style classes for entry types
+// Style classes for entry types (row backgrounds removed - colors now on inputs)
 export const ENTRY_TYPE_STYLES = {
-  store: 'bg-green-50 border-l-4 border-green-300',
-  use: 'bg-red-50 border-l-4 border-red-300',
-  waste: 'bg-orange-50 border-l-4 border-orange-300',
-  returned: 'bg-blue-50 border-l-4 border-blue-300',
-  damaged: 'bg-purple-50 border-l-4 border-purple-300',
+  store: '',
+  use: '',
+  waste: '',
+  returned: '',
+  damaged: '',
 } as const;
 
-// Submission state styles
+// Input background colors for entry types (applied to Vinyl Product, Width, Length fields)
+// Includes black border for valid/enabled inputs
+export const ENTRY_TYPE_INPUT_STYLES = {
+  store: 'bg-green-100 border-gray-800',
+  use: 'bg-blue-100 border-gray-800',
+  waste: 'bg-orange-100 border-gray-800',
+  returned: 'bg-yellow-100 border-gray-800',
+  damaged: 'bg-purple-100 border-gray-800',
+} as const;
+
+// Disabled input background color (darker gray)
+export const DISABLED_INPUT_STYLE = 'bg-gray-200' as const;
+
+// Submission state styles (no borders)
 export const SUBMISSION_STATE_STYLES = {
-  submitting: 'bg-blue-50 border-l-4 border-blue-400',
-  success: 'bg-green-100 border-l-4 border-green-500',
-  error: 'bg-red-100 border-l-4 border-red-500',
-  validation_error: 'bg-red-50 border-l-4 border-red-400',
+  submitting: 'bg-blue-50',
+  success: 'bg-green-100',
+  error: 'bg-red-100',
+  validation_error: 'bg-red-50',
 } as const;

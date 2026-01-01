@@ -6,6 +6,7 @@
 import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Settings } from 'lucide-react';
+import { HomeButton } from '../common/HomeButton';
 
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -20,13 +21,17 @@ const SettingsPage: React.FC = () => {
       <div className="bg-white shadow-lg border-b-4 border-gray-500">
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center space-x-4">
-            <button
-              onClick={() => navigate(isSubPage ? '/settings' : '/dashboard')}
-              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              title={isSubPage ? 'Back to Settings' : 'Back to Dashboard'}
-            >
-              <ArrowLeft className="h-6 w-6" />
-            </button>
+            {isSubPage ? (
+              <button
+                onClick={() => navigate('/settings')}
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Back to Settings"
+              >
+                <ArrowLeft className="h-7 w-7" />
+              </button>
+            ) : (
+              <HomeButton />
+            )}
             <div className="w-12 h-12 bg-gray-600 rounded-xl flex items-center justify-center shadow-lg">
               <Settings className="h-6 w-6 text-white" />
             </div>

@@ -10,6 +10,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Mail, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import { jobVersioningApi } from '../../services/jobVersioningApi';
+import { PAGE_STYLES } from '../../constants/moduleColors';
 import {
   EmailSummaryConfig,
   DEFAULT_EMAIL_SUMMARY_CONFIG,
@@ -86,7 +87,7 @@ const HighlightedInput: React.FC<{
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className={`w-full px-2 py-1.5 text-xs border border-gray-300 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 bg-transparent ${className}`}
+        className={`w-full px-2 py-1.5 text-xs border ${PAGE_STYLES.input.border} focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-60 bg-transparent ${className}`}
         style={{ color: 'transparent', caretColor: 'black' }}
         placeholder={placeholder}
       />
@@ -133,7 +134,7 @@ const HighlightedTextarea: React.FC<{
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         rows={1}
-        className="w-full px-2 py-1.5 text-xs border border-gray-300 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 resize-none overflow-hidden bg-transparent"
+        className={`w-full px-2 py-1.5 text-xs border ${PAGE_STYLES.input.border} focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-60 resize-none overflow-hidden bg-transparent`}
         style={{ color: 'transparent', caretColor: 'black', minHeight }}
         placeholder={placeholder}
       />
@@ -314,7 +315,7 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
     <div className="space-y-3">
       {/* Subject */}
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">
+        <label className={`block text-xs font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>
           Email Subject
         </label>
         <input
@@ -322,14 +323,14 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
           value={subject}
           onChange={(e) => handleSubjectChange(e.target.value)}
           disabled={disabled || loadingTemplate}
-          className="w-full px-2 py-1.5 text-xs border border-gray-300 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
+          className={`w-full px-2 py-1.5 text-xs ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} ${PAGE_STYLES.input.placeholder} focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-50`}
           placeholder="Enter email subject..."
         />
       </div>
 
       {/* Beginning (Greeting) */}
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">
+        <label className={`block text-xs font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>
           Opening Message
         </label>
         <textarea
@@ -338,17 +339,17 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
           onChange={(e) => handleBeginningChange(e.target.value)}
           disabled={disabled || loadingTemplate}
           rows={1}
-          className="w-full px-2 py-1.5 text-xs border border-gray-300 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 resize-none overflow-hidden"
+          className={`w-full px-2 py-1.5 text-xs ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} ${PAGE_STYLES.input.placeholder} focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 resize-none overflow-hidden`}
           placeholder="Enter opening message..."
           style={{ minHeight: '60px' }}
         />
       </div>
 
       {/* Estimate Summary Section */}
-      <div className="border rounded-lg overflow-hidden">
+      <div className={`border ${PAGE_STYLES.border} rounded-lg overflow-hidden`}>
         {/* Summary Header */}
         <div
-          className="flex items-center justify-between px-3 py-2 bg-gray-50 cursor-pointer hover:bg-gray-100"
+          className={`flex items-center justify-between px-3 py-2 ${PAGE_STYLES.header.background} cursor-pointer ${PAGE_STYLES.interactive.hoverOnHeader}`}
           onClick={() => setSummaryExpanded(!summaryExpanded)}
         >
           <div className="flex items-center gap-2">
@@ -360,20 +361,20 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
                 handleToggleAllSummary(e.target.checked);
               }}
               disabled={disabled}
-              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              className={`rounded ${PAGE_STYLES.input.border} text-indigo-600 focus:ring-indigo-500`}
             />
-            <span className="text-xs font-medium text-gray-700">Include Estimate Summary</span>
+            <span className={`text-xs font-medium ${PAGE_STYLES.panel.textSecondary}`}>Include Estimate Summary</span>
           </div>
           {summaryExpanded ? (
-            <ChevronUp className="w-4 h-4 text-gray-400" />
+            <ChevronUp className={`w-4 h-4 ${PAGE_STYLES.panel.text}`} />
           ) : (
-            <ChevronDown className="w-4 h-4 text-gray-400" />
+            <ChevronDown className={`w-4 h-4 ${PAGE_STYLES.panel.text}`} />
           )}
         </div>
 
         {/* Summary Content */}
         {summaryExpanded && (
-          <div className="p-3 border-t">
+          <div className={`p-3 border-t ${PAGE_STYLES.border}`}>
             <div className="flex gap-4">
               {/* Checkboxes - Left Side (Single Column) */}
               <div className="flex flex-col gap-1.5">
@@ -383,7 +384,7 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
                     checked={summaryConfig.includeJobName}
                     onChange={(e) => handleConfigChange('includeJobName', e.target.checked)}
                     disabled={disabled}
-                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    className={`rounded ${PAGE_STYLES.input.border} text-indigo-600 focus:ring-indigo-500`}
                   />
                   <span>Job Name</span>
                 </label>
@@ -393,7 +394,7 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
                     checked={summaryConfig.includeCustomerRef}
                     onChange={(e) => handleConfigChange('includeCustomerRef', e.target.checked)}
                     disabled={disabled}
-                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    className={`rounded ${PAGE_STYLES.input.border} text-indigo-600 focus:ring-indigo-500`}
                   />
                   <span>Customer Ref #</span>
                 </label>
@@ -403,7 +404,7 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
                     checked={summaryConfig.includeQbEstimateNumber}
                     onChange={(e) => handleConfigChange('includeQbEstimateNumber', e.target.checked)}
                     disabled={disabled}
-                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    className={`rounded ${PAGE_STYLES.input.border} text-indigo-600 focus:ring-indigo-500`}
                   />
                   <span>QB Estimate #</span>
                 </label>
@@ -413,7 +414,7 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
                     checked={summaryConfig.includeEstimateDate}
                     onChange={(e) => handleConfigChange('includeEstimateDate', e.target.checked)}
                     disabled={disabled}
-                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    className={`rounded ${PAGE_STYLES.input.border} text-indigo-600 focus:ring-indigo-500`}
                   />
                   <span>Estimate Date</span>
                 </label>
@@ -423,7 +424,7 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
                     checked={summaryConfig.includeValidUntilDate}
                     onChange={(e) => handleConfigChange('includeValidUntilDate', e.target.checked)}
                     disabled={disabled}
-                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    className={`rounded ${PAGE_STYLES.input.border} text-indigo-600 focus:ring-indigo-500`}
                   />
                   <span>Valid Until</span>
                 </label>
@@ -433,7 +434,7 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
                     checked={summaryConfig.includeSubtotal}
                     onChange={(e) => handleConfigChange('includeSubtotal', e.target.checked)}
                     disabled={disabled}
-                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    className={`rounded ${PAGE_STYLES.input.border} text-indigo-600 focus:ring-indigo-500`}
                   />
                   <span>Subtotal</span>
                 </label>
@@ -443,7 +444,7 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
                     checked={summaryConfig.includeTax}
                     onChange={(e) => handleConfigChange('includeTax', e.target.checked)}
                     disabled={disabled}
-                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    className={`rounded ${PAGE_STYLES.input.border} text-indigo-600 focus:ring-indigo-500`}
                   />
                   <span>Tax</span>
                 </label>
@@ -453,7 +454,7 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
                     checked={summaryConfig.includeTotal}
                     onChange={(e) => handleConfigChange('includeTotal', e.target.checked)}
                     disabled={disabled}
-                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    className={`rounded ${PAGE_STYLES.input.border} text-indigo-600 focus:ring-indigo-500`}
                   />
                   <span>Total</span>
                 </label>
@@ -461,55 +462,55 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
 
               {/* Live Preview - Right Side */}
               {anySummaryEnabled && estimateData && (
-                <div className="w-64 ml-auto p-2 bg-gray-50 rounded border text-xs">
-                  <div className="text-gray-500 mb-1.5 font-medium">Preview</div>
+                <div className={`w-64 ml-auto p-2 ${PAGE_STYLES.input.background} rounded ${PAGE_STYLES.panel.border} text-xs`}>
+                  <div className={`${PAGE_STYLES.panel.textMuted} mb-1.5 font-medium`}>Preview</div>
                   <div className="space-y-0.5">
                     {summaryConfig.includeJobName && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Job Name:</span>
+                        <span className={PAGE_STYLES.panel.textMuted}>Job Name:</span>
                         <span className="font-medium">{estimateData.jobName || '-'}</span>
                       </div>
                     )}
                     {summaryConfig.includeCustomerRef && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Customer Ref #:</span>
+                        <span className={PAGE_STYLES.panel.textMuted}>Customer Ref #:</span>
                         <span className="font-medium">{estimateData.customerJobNumber || '-'}</span>
                       </div>
                     )}
                     {summaryConfig.includeQbEstimateNumber && estimateData.qbEstimateNumber && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600">QB Estimate #:</span>
+                        <span className={PAGE_STYLES.panel.textMuted}>QB Estimate #:</span>
                         <span className="font-medium">{estimateData.qbEstimateNumber}</span>
                       </div>
                     )}
                     {summaryConfig.includeEstimateDate && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Estimate Date:</span>
+                        <span className={PAGE_STYLES.panel.textMuted}>Estimate Date:</span>
                         <span className="font-medium">{formatDate(estimateData.estimateDate)}</span>
                       </div>
                     )}
                     {summaryConfig.includeValidUntilDate && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Valid Until:</span>
+                        <span className={PAGE_STYLES.panel.textMuted}>Valid Until:</span>
                         <span className="font-medium">{validUntilDate}</span>
                       </div>
                     )}
                     {summaryConfig.includeSubtotal && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Subtotal:</span>
+                        <span className={PAGE_STYLES.panel.textMuted}>Subtotal:</span>
                         <span className="font-medium">{formatCurrency(estimateData.subtotal)}</span>
                       </div>
                     )}
                     {summaryConfig.includeTax && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Tax:</span>
+                        <span className={PAGE_STYLES.panel.textMuted}>Tax:</span>
                         <span className="font-medium">{formatCurrency(estimateData.tax)}</span>
                       </div>
                     )}
                     {summaryConfig.includeTotal && (
-                      <div className="flex justify-between border-t pt-1 mt-1">
-                        <span className="text-gray-700 font-medium">Total:</span>
-                        <span className="font-bold text-gray-900">{formatCurrency(estimateData.total)}</span>
+                      <div className={`flex justify-between border-t ${PAGE_STYLES.border} pt-1 mt-1`}>
+                        <span className={`${PAGE_STYLES.panel.textSecondary} font-medium`}>Total:</span>
+                        <span className={`font-bold ${PAGE_STYLES.panel.text}`}>{formatCurrency(estimateData.total)}</span>
                       </div>
                     )}
                   </div>
@@ -522,7 +523,7 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
 
       {/* End (Closing) */}
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">
+        <label className={`block text-xs font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>
           Closing Message
         </label>
         <textarea
@@ -531,7 +532,7 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
           onChange={(e) => handleEndChange(e.target.value)}
           disabled={disabled || loadingTemplate}
           rows={1}
-          className="w-full px-2 py-1.5 text-xs border border-gray-300 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 resize-none overflow-hidden"
+          className={`w-full px-2 py-1.5 text-xs ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} ${PAGE_STYLES.input.placeholder} focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 resize-none overflow-hidden`}
           placeholder="Enter closing message..."
           style={{ minHeight: '60px' }}
         />
@@ -552,7 +553,7 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
         <button
           type="button"
           onClick={() => setShowVariables(!showVariables)}
-          className="flex items-center gap-1 text-gray-500 hover:text-gray-700"
+          className={`flex items-center gap-1 ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.textSecondary}`}
         >
           <Info className="w-3.5 h-3.5" />
           Variables
@@ -561,25 +562,25 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
 
       {/* Variables Help */}
       {showVariables && (
-        <div className="p-2 bg-gray-50 rounded text-xs text-gray-600">
+        <div className={`p-2 ${PAGE_STYLES.header.background} rounded text-xs ${PAGE_STYLES.panel.textMuted}`}>
           <div className="font-medium mb-1">Available variables (for subject line):</div>
           <div className="grid grid-cols-2 gap-1">
-            <span><code className="bg-gray-200 px-1 rounded">{'{{customerName}}'}</code></span>
-            <span><code className="bg-gray-200 px-1 rounded">{'{{jobName}}'}</code></span>
-            <span><code className="bg-gray-200 px-1 rounded">{'{{customerJobNumber}}'}</code></span>
-            <span><code className="bg-gray-200 px-1 rounded">{'{{jobNameWithRef}}'}</code></span>
-            <span><code className="bg-gray-200 px-1 rounded">{'{{qbEstimateNumber}}'}</code></span>
-            <span><code className="bg-gray-200 px-1 rounded">{'{{estimateNumber}}'}</code></span>
-            <span><code className="bg-gray-200 px-1 rounded">{'{{total}}'}</code></span>
+            <span><code className={`${PAGE_STYLES.input.background} px-1 rounded`}>{'{{customerName}}'}</code></span>
+            <span><code className={`${PAGE_STYLES.input.background} px-1 rounded`}>{'{{jobName}}'}</code></span>
+            <span><code className={`${PAGE_STYLES.input.background} px-1 rounded`}>{'{{customerJobNumber}}'}</code></span>
+            <span><code className={`${PAGE_STYLES.input.background} px-1 rounded`}>{'{{jobNameWithRef}}'}</code></span>
+            <span><code className={`${PAGE_STYLES.input.background} px-1 rounded`}>{'{{qbEstimateNumber}}'}</code></span>
+            <span><code className={`${PAGE_STYLES.input.background} px-1 rounded`}>{'{{estimateNumber}}'}</code></span>
+            <span><code className={`${PAGE_STYLES.input.background} px-1 rounded`}>{'{{total}}'}</code></span>
           </div>
-          <div className="mt-1 text-gray-500 italic">
+          <div className={`mt-1 ${PAGE_STYLES.panel.textMuted} italic`}>
             Variables are replaced with actual values when email is sent
           </div>
         </div>
       )}
 
       {/* Footer Note */}
-      <div className="text-xs text-gray-400 italic">
+      <div className={`text-xs ${PAGE_STYLES.panel.textMuted} italic`}>
         Company contact information will be added to the footer automatically.
       </div>
     </div>

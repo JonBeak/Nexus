@@ -3,6 +3,7 @@
  */
 
 import React from 'react';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface GridLoadingStatesProps {
   productTypesLoading: boolean;
@@ -22,9 +23,9 @@ export const GridLoadingStates: React.FC<GridLoadingStatesProps> = ({
   // Product types loading
   if (productTypesLoading) {
     return (
-      <div className="bg-white rounded-lg shadow p-6 text-center">
+      <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow p-6 text-center border ${PAGE_STYLES.border}`}>
         <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-        <p className="mt-2 text-gray-600">Loading product types...</p>
+        <p className={`mt-2 ${PAGE_STYLES.panel.textMuted}`}>Loading product types...</p>
       </div>
     );
   }
@@ -32,7 +33,7 @@ export const GridLoadingStates: React.FC<GridLoadingStatesProps> = ({
   // Product types error
   if (productTypesError) {
     return (
-      <div className="bg-white rounded-lg shadow p-6 text-center">
+      <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow p-6 text-center border ${PAGE_STYLES.border}`}>
         <div className="text-red-500 mb-4">
           <p className="font-semibold">Error loading product types</p>
           <p className="text-sm">{productTypesError}</p>
@@ -50,9 +51,9 @@ export const GridLoadingStates: React.FC<GridLoadingStatesProps> = ({
   // Grid data loading
   if (!displayRowsLength) {
     return (
-      <div className="bg-white rounded-lg shadow p-6 text-center">
+      <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow p-6 text-center border ${PAGE_STYLES.border}`}>
         <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-        <p className="mt-2 text-gray-600">Loading grid...</p>
+        <p className={`mt-2 ${PAGE_STYLES.panel.textMuted}`}>Loading grid...</p>
       </div>
     );
   }

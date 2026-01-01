@@ -32,6 +32,7 @@ interface CombinedVinylDropdownProps {
   loading?: boolean;
   disabled?: boolean;
   className?: string;
+  inputClassName?: string;
   name?: string;
   onTab?: () => void;
   onSuggestionsNeeded?: () => void;
@@ -47,6 +48,7 @@ export const CombinedVinylDropdown: React.FC<CombinedVinylDropdownProps> = ({
   loading = false,
   disabled = false,
   className = '',
+  inputClassName = '',
   name,
   onTab,
   onSuggestionsNeeded
@@ -301,7 +303,7 @@ export const CombinedVinylDropdown: React.FC<CombinedVinylDropdownProps> = ({
           placeholder={placeholder}
           required={required}
           disabled={disabled}
-          className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
+          className={`w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500 disabled:cursor-not-allowed ${inputClassName || 'disabled:bg-gray-50'}`}
         />
         
         <div

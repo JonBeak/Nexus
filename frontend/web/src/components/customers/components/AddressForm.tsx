@@ -1,6 +1,7 @@
 import React from 'react';
 import { Address, ProvinceState } from '../../../types';
 import TaxInfoSection from './TaxInfoSection';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface AddressFormProps {
   address: Address;
@@ -27,11 +28,14 @@ const AddressForm: React.FC<AddressFormProps> = ({
   onTaxDisplayValueChange,
   onTaxDisplayValueBlur
 }) => {
+  const inputClass = `w-full px-3 py-2 border ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} ${PAGE_STYLES.input.placeholder} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`;
+  const labelClass = `text-sm font-semibold ${PAGE_STYLES.panel.textSecondary}`;
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {/* Address Type Checkboxes */}
       <div className="md:col-span-2">
-        <label className="text-sm font-semibold text-gray-600 mb-2 block">Address Types</label>
+        <label className={`${labelClass} mb-2 block`}>Address Types</label>
         <div className="flex flex-wrap gap-4">
           <label className="flex items-center">
             <input
@@ -73,41 +77,41 @@ const AddressForm: React.FC<AddressFormProps> = ({
       </div>
 
       <div>
-        <label className="text-sm font-semibold text-gray-600">Address Line 1</label>
+        <label className={labelClass}>Address Line 1</label>
         <input
           type="text"
           value={address.address_line1 || ''}
           onChange={(e) => onAddressChange(addressIndex, 'address_line1', e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-red focus:border-primary-red"
+          className={inputClass}
         />
       </div>
-      
+
       <div>
-        <label className="text-sm font-semibold text-gray-600">Address Line 2</label>
+        <label className={labelClass}>Address Line 2</label>
         <input
           type="text"
           value={address.address_line2 || ''}
           onChange={(e) => onAddressChange(addressIndex, 'address_line2', e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-red focus:border-primary-red"
+          className={inputClass}
         />
       </div>
-      
+
       <div>
-        <label className="text-sm font-semibold text-gray-600">City</label>
+        <label className={labelClass}>City</label>
         <input
           type="text"
           value={address.city || ''}
           onChange={(e) => onAddressChange(addressIndex, 'city', e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-red focus:border-primary-red"
+          className={inputClass}
         />
       </div>
-      
+
       <div>
-        <label className="text-sm font-semibold text-gray-600">Province/State *</label>
+        <label className={labelClass}>Province/State *</label>
         <select
           value={address.province_state_short || ''}
           onChange={(e) => onAddressChange(addressIndex, 'province_state_short', e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-red focus:border-primary-red"
+          className={inputClass}
           required
         >
           <option value="">Select Province/State</option>
@@ -143,30 +147,30 @@ const AddressForm: React.FC<AddressFormProps> = ({
           </optgroup>
         </select>
       </div>
-      
+
       <div>
-        <label className="text-sm font-semibold text-gray-600">Postal/Zip Code</label>
+        <label className={labelClass}>Postal/Zip Code</label>
         <input
           type="text"
           value={address.postal_zip || ''}
           onChange={(e) => onAddressChange(addressIndex, 'postal_zip', e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-red focus:border-primary-red"
+          className={inputClass}
         />
       </div>
-      
+
       <div>
-        <label className="text-sm font-semibold text-gray-600">Country</label>
+        <label className={labelClass}>Country</label>
         <select
           value={address.country || 'Canada'}
           onChange={(e) => onAddressChange(addressIndex, 'country', e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-red focus:border-primary-red"
+          className={inputClass}
         >
           <option value="Canada">Canada</option>
           <option value="USA">USA</option>
           <option value="Mexico">Mexico</option>
         </select>
       </div>
-      
+
       <TaxInfoSection
         address={address}
         addressIndex={addressIndex}
@@ -178,12 +182,12 @@ const AddressForm: React.FC<AddressFormProps> = ({
       />
 
       <div className="md:col-span-2">
-        <label className="text-sm font-semibold text-gray-600">Comments</label>
+        <label className={labelClass}>Comments</label>
         <textarea
           rows={2}
           value={address.comments || ''}
           onChange={(e) => onAddressChange(addressIndex, 'comments', e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-red focus:border-primary-red"
+          className={inputClass}
           placeholder="Any special delivery instructions or notes..."
         />
       </div>

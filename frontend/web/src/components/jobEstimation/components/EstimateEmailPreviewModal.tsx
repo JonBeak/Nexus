@@ -21,11 +21,19 @@ import { EstimatePdfPreview } from './EstimatePdfPreview';
 import { EstimateVersion } from '../../../types';
 import { PointPersonEntry } from '../../../types/estimatePointPerson';
 import { EmailSummaryConfig, EstimateEmailData } from '../types';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
+import { COMPANY_BCC_EMAIL, RecipientType } from '../../../constants/emailSettings';
+
+export interface EmailRecipients {
+  to: string[];
+  cc: string[];
+  bcc: string[];
+}
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (selectedRecipients: string[]) => void;
+  onConfirm: (recipients: EmailRecipients) => void;
   estimate: EstimateVersion;
   pointPersons: PointPersonEntry[];
   isSending: boolean;
@@ -50,51 +58,80 @@ export const EstimateEmailPreviewModal: React.FC<Props> = ({
   emailSummaryConfig,
   estimateData
 }) => {
-  const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(
-    new Set(pointPersons.filter(p => p.contact_email).map(p => p.contact_email))
+  // Track recipient type for each email: 'to', 'cc', 'bcc', or undefined (not selected)
+  const [recipientTypes, setRecipientTypes] = useState<Map<string, RecipientType>>(
+    new Map(pointPersons.filter(p => p.contact_email).map(p => [p.contact_email, 'to' as RecipientType]))
   );
   const [pdfLoadError, setPdfLoadError] = useState(false);
 
-  // Sync selectedRecipients when pointPersons changes or modal opens
+  // Sync recipientTypes when pointPersons changes or modal opens
   useEffect(() => {
     if (isOpen) {
-      setSelectedRecipients(
-        new Set(pointPersons.filter(p => p.contact_email).map(p => p.contact_email))
+      setRecipientTypes(
+        new Map(pointPersons.filter(p => p.contact_email).map(p => [p.contact_email, 'to' as RecipientType]))
       );
     }
   }, [isOpen, pointPersons]);
 
-  const selectedEmails = useMemo(() => {
-    return Array.from(selectedRecipients).filter(email => email && email.trim());
-  }, [selectedRecipients]);
+  // Compute recipients by type
+  const { toRecipients, ccRecipients, bccRecipients, allSelectedEmails } = useMemo(() => {
+    const to: string[] = [];
+    const cc: string[] = [];
+    const bcc: string[] = [];
 
-  const handleToggleRecipient = (email: string) => {
-    const newSelected = new Set(selectedRecipients);
-    if (newSelected.has(email)) {
-      newSelected.delete(email);
+    recipientTypes.forEach((type, email) => {
+      if (email && email.trim()) {
+        if (type === 'to') to.push(email);
+        else if (type === 'cc') cc.push(email);
+        else if (type === 'bcc') bcc.push(email);
+      }
+    });
+
+    return {
+      toRecipients: to,
+      ccRecipients: cc,
+      bccRecipients: bcc,
+      allSelectedEmails: [...to, ...cc, ...bcc]
+    };
+  }, [recipientTypes]);
+
+  const handleSetRecipientType = (email: string, type: RecipientType | null) => {
+    const newTypes = new Map(recipientTypes);
+    if (type === null) {
+      newTypes.delete(email);
     } else {
-      newSelected.add(email);
+      newTypes.set(email, type);
     }
-    setSelectedRecipients(newSelected);
+    setRecipientTypes(newTypes);
   };
 
-  const handleSelectAll = () => {
-    const allEmails = pointPersons
-      .filter(p => p.contact_email)
-      .map(p => p.contact_email);
-    setSelectedRecipients(new Set(allEmails));
+  const handleSelectAllTo = () => {
+    const newTypes = new Map<string, RecipientType>();
+    pointPersons.filter(p => p.contact_email).forEach(p => {
+      newTypes.set(p.contact_email, 'to');
+    });
+    setRecipientTypes(newTypes);
   };
 
   const handleDeselectAll = () => {
-    setSelectedRecipients(new Set());
+    setRecipientTypes(new Map());
   };
 
   const handleConfirm = () => {
-    if (selectedEmails.length === 0) {
-      alert('Please select at least one recipient');
+    if (toRecipients.length === 0) {
+      alert('Please select at least one recipient in the To: field');
       return;
     }
-    onConfirm(selectedEmails);
+    // Always include company BCC email
+    const finalBcc = [...bccRecipients];
+    if (COMPANY_BCC_EMAIL && !finalBcc.includes(COMPANY_BCC_EMAIL)) {
+      finalBcc.push(COMPANY_BCC_EMAIL);
+    }
+    onConfirm({
+      to: toRecipients,
+      cc: ccRecipients,
+      bcc: finalBcc
+    });
   };
 
   if (!isOpen) return null;
@@ -112,25 +149,25 @@ export const EstimateEmailPreviewModal: React.FC<Props> = ({
 
       {/* Modal - wider layout with side-by-side columns */}
       <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-        <div className={`bg-white rounded-lg shadow-xl w-full max-h-[92vh] overflow-hidden flex ${hasQbEstimate ? 'max-w-[1400px]' : 'max-w-2xl flex-col'}`}>
+        <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow-xl w-full max-h-[92vh] overflow-hidden flex ${hasQbEstimate ? 'max-w-[1600px]' : 'max-w-3xl flex-col'}`}>
 
           {hasQbEstimate ? (
             <>
               {/* Left Column: Header + Content + Footer */}
-              <div className="w-[500px] flex-shrink-0 flex flex-col border-r border-gray-200">
+              <div className={`w-[700px] flex-shrink-0 flex flex-col border-r ${PAGE_STYLES.border}`}>
                 {/* Header */}
-                <div className="flex items-center justify-between border-b border-gray-200 p-5">
+                <div className={`flex items-center justify-between border-b ${PAGE_STYLES.border} p-5`}>
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
+                    <h2 className={`text-lg font-semibold ${PAGE_STYLES.panel.text}`}>
                       Send Estimate to Customer
                     </h2>
-                    <p className="text-sm text-gray-500 mt-0.5">
+                    <p className={`text-sm ${PAGE_STYLES.panel.textMuted} mt-0.5`}>
                       Review and confirm before sending
                     </p>
                   </div>
                   <button
                     onClick={onClose}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                    className={`${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.text} transition-colors`}
                     aria-label="Close"
                   >
                     <X className="w-5 h-5" />
@@ -158,64 +195,100 @@ export const EstimateEmailPreviewModal: React.FC<Props> = ({
                   )}
 
                   {/* Recipient Selection */}
-                  <div className="border border-gray-200 rounded-lg p-3">
+                  <div className={`border ${PAGE_STYLES.border} rounded-lg p-3`}>
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-medium text-gray-900 text-sm">Select Recipients</h3>
+                      <h3 className={`font-medium ${PAGE_STYLES.panel.text} text-sm`}>Select Recipients</h3>
                       <div className="space-x-2 text-xs">
                         <button
-                          onClick={handleSelectAll}
+                          onClick={handleSelectAllTo}
                           className="text-indigo-600 hover:text-indigo-700 font-medium"
                         >
-                          Select All
+                          All To
                         </button>
-                        <span className="text-gray-300">|</span>
+                        <span className={PAGE_STYLES.panel.textMuted}>|</span>
                         <button
                           onClick={handleDeselectAll}
                           className="text-indigo-600 hover:text-indigo-700 font-medium"
                         >
-                          Deselect All
+                          Clear All
                         </button>
                       </div>
                     </div>
 
                     {pointPersonsWithEmail.length > 0 ? (
                       <div className="space-y-1">
-                        {pointPersonsWithEmail.map((person) => (
-                          <label key={person.id} className="flex items-center gap-2 p-1.5 hover:bg-gray-50 rounded cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={selectedRecipients.has(person.contact_email)}
-                              onChange={() => handleToggleRecipient(person.contact_email)}
-                              className="rounded border-gray-300"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-900">
-                                {person.contact_name || person.contact_email}
-                              </p>
-                              {person.contact_name && person.contact_name !== person.contact_email && (
-                                <p className="text-xs text-gray-500 truncate">
-                                  {person.contact_email}
+                        {/* Header row with column labels */}
+                        <div className={`flex items-center gap-2 px-1.5 pb-1 border-b ${PAGE_STYLES.border}`}>
+                          <div className="flex-1" />
+                          <div className={`flex items-center gap-4 text-xs font-medium ${PAGE_STYLES.panel.textMuted}`}>
+                            <span className={`w-8 text-center ${PAGE_STYLES.panel.textMuted}`}>To</span>
+                            <span className={`w-8 text-center ${PAGE_STYLES.panel.textMuted}`}>CC</span>
+                            <span className={`w-8 text-center ${PAGE_STYLES.panel.textMuted}`}>BCC</span>
+                          </div>
+                        </div>
+                        {pointPersonsWithEmail.map((person) => {
+                          const currentType = recipientTypes.get(person.contact_email);
+                          return (
+                            <div key={person.id} className={`flex items-center gap-2 p-1.5 ${PAGE_STYLES.interactive.hover} rounded`}>
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm font-medium ${PAGE_STYLES.panel.text}`}>
+                                  {person.contact_name || person.contact_email}
                                 </p>
-                              )}
+                                {person.contact_name && person.contact_name !== person.contact_email && (
+                                  <p className={`text-xs ${PAGE_STYLES.panel.textMuted} truncate`}>
+                                    {person.contact_email}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-4">
+                                <label className="w-8 flex justify-center cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={currentType === 'to'}
+                                    onChange={() => handleSetRecipientType(person.contact_email, currentType === 'to' ? null : 'to')}
+                                    className={`rounded ${PAGE_STYLES.border}`}
+                                  />
+                                </label>
+                                <label className="w-8 flex justify-center cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={currentType === 'cc'}
+                                    onChange={() => handleSetRecipientType(person.contact_email, currentType === 'cc' ? null : 'cc')}
+                                    className={`rounded ${PAGE_STYLES.border}`}
+                                  />
+                                </label>
+                                <label className="w-8 flex justify-center cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={currentType === 'bcc'}
+                                    onChange={() => handleSetRecipientType(person.contact_email, currentType === 'bcc' ? null : 'bcc')}
+                                    className={`rounded ${PAGE_STYLES.border}`}
+                                  />
+                                </label>
+                              </div>
                             </div>
-                          </label>
-                        ))}
+                          );
+                        })}
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500 py-2">
+                      <p className={`text-sm ${PAGE_STYLES.panel.textMuted} py-2`}>
                         No point persons with email addresses
                       </p>
                     )}
                   </div>
 
                   {/* Email Preview - Always in DOM to prevent screen shake */}
-                  <div className={`border-t pt-4 transition-opacity duration-200 ${selectedEmails.length > 0 ? 'opacity-100' : 'hidden'}`}>
-                    <h3 className="font-medium text-gray-900 text-sm mb-2">Email Preview</h3>
-                    {selectedEmails.length > 0 && (
+                  <div className={`border-t ${PAGE_STYLES.border} pt-4 transition-opacity duration-200 ${allSelectedEmails.length > 0 ? 'opacity-100' : 'hidden'}`}>
+                    <h3 className={`font-medium ${PAGE_STYLES.panel.text} text-sm mb-2`}>Email Preview</h3>
+                    {allSelectedEmails.length > 0 && (
                       <EstimateEmailPreview
                         estimateId={estimate.id}
                         estimateName={estimate.estimate_name}
-                        recipients={selectedEmails}
+                        recipients={allSelectedEmails}
+                        toRecipients={toRecipients}
+                        ccRecipients={ccRecipients}
+                        bccRecipients={bccRecipients}
+                        companyBccEmail={COMPANY_BCC_EMAIL}
                         emailSubject={emailSubject}
                         emailBeginning={emailBeginning}
                         emailEnd={emailEnd}
@@ -227,20 +300,20 @@ export const EstimateEmailPreviewModal: React.FC<Props> = ({
                 </div>
 
                 {/* Footer */}
-                <div className="border-t border-gray-200 p-4 bg-gray-50 flex items-center justify-end gap-3">
+                <div className={`border-t ${PAGE_STYLES.border} p-4 ${PAGE_STYLES.header.background} flex items-center justify-end gap-3`}>
                   <button
                     onClick={onClose}
                     disabled={isSending}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className={`px-4 py-2 text-sm font-medium ${PAGE_STYLES.panel.text} ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.border} rounded-lg ${PAGE_STYLES.interactive.hover} disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleConfirm}
-                    disabled={isSending || selectedEmails.length === 0}
+                    disabled={isSending || toRecipients.length === 0}
                     className={`px-5 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm ${
-                      isSending || selectedEmails.length === 0
-                        ? 'bg-gray-400 text-white cursor-not-allowed opacity-50'
+                      isSending || toRecipients.length === 0
+                        ? `${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.textMuted} cursor-not-allowed opacity-50`
                         : 'bg-green-600 text-white hover:bg-green-700'
                     }`}
                   >
@@ -260,7 +333,7 @@ export const EstimateEmailPreviewModal: React.FC<Props> = ({
               </div>
 
               {/* Right Column: Full-height PDF Preview */}
-              <div className="flex-1 overflow-y-auto bg-gray-100 p-4">
+              <div className={`flex-1 overflow-y-auto ${PAGE_STYLES.header.background} p-4`}>
                 <EstimatePdfPreview
                   estimateId={estimate.id}
                   onLoadError={() => setPdfLoadError(true)}
@@ -271,18 +344,18 @@ export const EstimateEmailPreviewModal: React.FC<Props> = ({
             /* No QB Estimate - Single column layout */
             <>
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-gray-200 p-6">
+              <div className={`flex items-center justify-between border-b ${PAGE_STYLES.border} p-6`}>
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-900">
+                  <h2 className={`text-xl font-semibold ${PAGE_STYLES.panel.text}`}>
                     Send Estimate to Customer
                   </h2>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className={`text-sm ${PAGE_STYLES.panel.textMuted} mt-1`}>
                     Review and confirm the estimate email before sending
                   </p>
                 </div>
                 <button
                   onClick={onClose}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  className={`${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.text} transition-colors`}
                   aria-label="Close"
                 >
                   <X className="w-6 h-6" />
@@ -301,65 +374,101 @@ export const EstimateEmailPreviewModal: React.FC<Props> = ({
                 )}
 
                 {/* Recipient Selection */}
-                <div className="border border-gray-200 rounded-lg p-4">
+                <div className={`border ${PAGE_STYLES.border} rounded-lg p-4`}>
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-medium text-gray-900">Select Recipients</h3>
+                    <h3 className={`font-medium ${PAGE_STYLES.panel.text}`}>Select Recipients</h3>
                     <div className="space-x-2">
                       <button
-                        onClick={handleSelectAll}
+                        onClick={handleSelectAllTo}
                         className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
                       >
-                        Select All
+                        All To
                       </button>
-                      <span className="text-gray-300">|</span>
+                      <span className={PAGE_STYLES.panel.textMuted}>|</span>
                       <button
                         onClick={handleDeselectAll}
                         className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
                       >
-                        Deselect All
+                        Clear All
                       </button>
                     </div>
                   </div>
 
                   {pointPersonsWithEmail.length > 0 ? (
                     <div className="space-y-2">
-                      {pointPersonsWithEmail.map((person) => (
-                        <label key={person.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={selectedRecipients.has(person.contact_email)}
-                            onChange={() => handleToggleRecipient(person.contact_email)}
-                            className="rounded border-gray-300"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900">
-                              {person.contact_name || person.contact_email}
-                            </p>
-                            {person.contact_name && person.contact_name !== person.contact_email && (
-                              <p className="text-xs text-gray-500 truncate">
-                                {person.contact_email}
+                      {/* Header row with column labels */}
+                      <div className={`flex items-center gap-3 px-2 pb-2 border-b ${PAGE_STYLES.border}`}>
+                        <div className="flex-1" />
+                        <div className={`flex items-center gap-4 text-xs font-medium ${PAGE_STYLES.panel.textMuted}`}>
+                          <span className={`w-8 text-center ${PAGE_STYLES.panel.textMuted}`}>To</span>
+                          <span className={`w-8 text-center ${PAGE_STYLES.panel.textMuted}`}>CC</span>
+                          <span className={`w-8 text-center ${PAGE_STYLES.panel.textMuted}`}>BCC</span>
+                        </div>
+                      </div>
+                      {pointPersonsWithEmail.map((person) => {
+                        const currentType = recipientTypes.get(person.contact_email);
+                        return (
+                          <div key={person.id} className={`flex items-center gap-3 p-2 ${PAGE_STYLES.interactive.hover} rounded`}>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-medium ${PAGE_STYLES.panel.text}`}>
+                                {person.contact_name || person.contact_email}
                               </p>
-                            )}
+                              {person.contact_name && person.contact_name !== person.contact_email && (
+                                <p className={`text-xs ${PAGE_STYLES.panel.textMuted} truncate`}>
+                                  {person.contact_email}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <label className="w-8 flex justify-center cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={currentType === 'to'}
+                                  onChange={() => handleSetRecipientType(person.contact_email, currentType === 'to' ? null : 'to')}
+                                  className={`rounded ${PAGE_STYLES.border}`}
+                                />
+                              </label>
+                              <label className="w-8 flex justify-center cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={currentType === 'cc'}
+                                  onChange={() => handleSetRecipientType(person.contact_email, currentType === 'cc' ? null : 'cc')}
+                                  className={`rounded ${PAGE_STYLES.border}`}
+                                />
+                              </label>
+                              <label className="w-8 flex justify-center cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={currentType === 'bcc'}
+                                  onChange={() => handleSetRecipientType(person.contact_email, currentType === 'bcc' ? null : 'bcc')}
+                                  className={`rounded ${PAGE_STYLES.border}`}
+                                />
+                              </label>
+                            </div>
                           </div>
-                        </label>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500 py-2">
+                    <p className={`text-sm ${PAGE_STYLES.panel.textMuted} py-2`}>
                       No point persons with email addresses
                     </p>
                   )}
                 </div>
 
                 {/* Email Preview - Always in DOM to prevent screen shake */}
-                <div className={`transition-opacity duration-200 ${selectedEmails.length > 0 ? 'opacity-100' : 'hidden'}`}>
-                  <div className="border-t pt-6">
-                    <h3 className="font-medium text-gray-900 mb-3">Email Preview</h3>
-                    {selectedEmails.length > 0 && (
+                <div className={`transition-opacity duration-200 ${allSelectedEmails.length > 0 ? 'opacity-100' : 'hidden'}`}>
+                  <div className={`border-t ${PAGE_STYLES.border} pt-6`}>
+                    <h3 className={`font-medium ${PAGE_STYLES.panel.text} mb-3`}>Email Preview</h3>
+                    {allSelectedEmails.length > 0 && (
                       <EstimateEmailPreview
                         estimateId={estimate.id}
                         estimateName={estimate.estimate_name}
-                        recipients={selectedEmails}
+                        recipients={allSelectedEmails}
+                        toRecipients={toRecipients}
+                        ccRecipients={ccRecipients}
+                        bccRecipients={bccRecipients}
+                        companyBccEmail={COMPANY_BCC_EMAIL}
                         emailSubject={emailSubject}
                         emailBeginning={emailBeginning}
                         emailEnd={emailEnd}
@@ -372,20 +481,20 @@ export const EstimateEmailPreviewModal: React.FC<Props> = ({
               </div>
 
               {/* Footer */}
-              <div className="border-t border-gray-200 p-6 bg-gray-50 flex items-center justify-end gap-3">
+              <div className={`border-t ${PAGE_STYLES.border} p-6 ${PAGE_STYLES.header.background} flex items-center justify-end gap-3`}>
                 <button
                   onClick={onClose}
                   disabled={isSending}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className={`px-4 py-2 text-sm font-medium ${PAGE_STYLES.panel.text} ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.border} rounded-lg ${PAGE_STYLES.interactive.hover} disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleConfirm}
-                  disabled={isSending || selectedEmails.length === 0}
+                  disabled={isSending || toRecipients.length === 0}
                   className={`px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
-                    isSending || selectedEmails.length === 0
-                      ? 'bg-gray-400 text-white cursor-not-allowed opacity-50'
+                    isSending || toRecipients.length === 0
+                      ? `${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.textMuted} cursor-not-allowed opacity-50`
                       : 'bg-green-600 text-white hover:bg-green-700'
                   }`}
                 >

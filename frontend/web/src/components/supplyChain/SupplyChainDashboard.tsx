@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { HomeButton } from '../common/HomeButton';
 import { useNavigate } from 'react-router-dom';
 import type { DashboardStats } from '../../services/supplyChainApi';
 import api from '../../services/api';
@@ -14,6 +14,7 @@ import { ProductArchetypesManager } from './ProductArchetypesManager';
 import { InventoryTab } from '../inventory/InventoryTab';
 import { ShoppingCartProvider } from '../../contexts/ShoppingCartContext';
 import type { User as AccountUser } from '../accounts/hooks/useAccountAPI';
+import { PAGE_STYLES } from '../../constants/moduleColors';
 
 interface SupplyChainDashboardProps {
   user: AccountUser | null;
@@ -119,7 +120,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
 
   if (!user || (user.role !== 'manager' && user.role !== 'owner')) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className={`${PAGE_STYLES.fullPage} flex items-center justify-center`}>
         <div className="text-center">
           <div className="text-red-600 text-xl font-semibold mb-2">Access Denied</div>
           <p className="text-gray-500 mb-4">Supply Chain Management is available to managers and owners only.</p>
@@ -135,18 +136,13 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={PAGE_STYLES.fullPage}>
       {/* Header */}
       <div className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="mr-4 p-2 text-gray-600 hover:text-gray-900"
-              >
-                <ArrowLeft className="h-6 w-6" />
-              </button>
+            <div className="flex items-center space-x-4">
+              <HomeButton />
               <h1 className="text-3xl font-bold text-gray-900">Supply Chain Management</h1>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DollarSign, ArrowLeft, FileText } from 'lucide-react';
+import { DollarSign, FileText } from 'lucide-react';
+import { HomeButton } from '../common/HomeButton';
 import { UserWageData, PaymentRecord, DeductionOverrides, EditingField, PayPeriodOverrides, WageEntry } from './types/WageTypes';
 import { AccountUser } from '../../types/user';
 import { PendingChange } from './hooks/useAutoSave';
@@ -22,6 +23,7 @@ import {
   deletePaymentRecord as apiDeletePaymentRecord,
   reactivatePaymentRecord as apiReactivatePaymentRecord
 } from './services/WageApi';
+import { PAGE_STYLES } from '../../constants/moduleColors';
 import { useAutoSave } from './hooks/useAutoSave';
 import { PaySummaryTable } from './components/PaySummaryTable';
 import { DailyTimeGrid } from './components/DailyTimeGrid';
@@ -386,26 +388,20 @@ export const WageManagement: React.FC = () => {
   // Show loading state if biWeekStart is not initialized
   if (!biWeekStart) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className={`${PAGE_STYLES.fullPage} flex items-center justify-center`}>
         <div className="text-gray-600">Loading wage data...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={PAGE_STYLES.fullPage}>
       {/* Header */}
       <header className="bg-white shadow">
         <div className="max-w-full mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-4">
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
-                title="Return to Dashboard"
-              >
-                <ArrowLeft className="h-6 w-6" />
-              </button>
+              <HomeButton />
               <DollarSign className="h-8 w-8 text-green-600" />
               <h1 className="text-2xl font-bold text-gray-900">Wage Management</h1>
             </div>

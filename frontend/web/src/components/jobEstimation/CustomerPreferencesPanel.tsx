@@ -2,6 +2,7 @@ import React from 'react';
 import { FileText, AlertTriangle, Edit2 } from 'lucide-react';
 import { CustomerPreferencesData, CustomerPreferencesValidationResult } from './types/customerPreferences';
 import { formatNumber } from './core/calculations/utils/priceFormatter';
+import { PAGE_STYLES } from '../../constants/moduleColors';
 
 interface CustomerPreferencesPanelProps {
   customerData: CustomerPreferencesData | null;
@@ -149,9 +150,9 @@ export const CustomerPreferencesPanel: React.FC<CustomerPreferencesPanelProps> =
                 }`}
               />
             )}
-            <span className="font-bold text-gray-900 whitespace-nowrap text-right">{label}:</span>
+            <span className={`font-bold ${PAGE_STYLES.panel.text} whitespace-nowrap text-right`}>{label}:</span>
           </div>
-          <span className="text-gray-600 flex-1 text-left">{value}</span>
+          <span className={`${PAGE_STYLES.panel.textMuted} flex-1 text-left`}>{value}</span>
         </div>
         {validationError && validationMessage && (
           <div
@@ -167,16 +168,16 @@ export const CustomerPreferencesPanel: React.FC<CustomerPreferencesPanelProps> =
   };
 
   return (
-    <div className="bg-white rounded-lg shadow mb-4 w-full">
+    <div className={`${PAGE_STYLES.composites.panelContainer} mb-4 w-full`}>
       {/* Header */}
-      <div className="flex items-center justify-between p-2 border-b">
+      <div className={`flex items-center justify-between p-2 border-b ${PAGE_STYLES.border}`}>
         <div className="flex items-center gap-2">
-          <FileText className="w-4 h-4 text-gray-600" />
-          <h3 className="text-base font-medium text-gray-900">Customer Preferences</h3>
+          <FileText className={`w-4 h-4 ${PAGE_STYLES.panel.textMuted}`} />
+          <h3 className={`text-base font-medium ${PAGE_STYLES.panel.text}`}>Customer Preferences</h3>
         </div>
         <button
           onClick={onEditCustomer}
-          className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 transition-colors"
+          className={`flex items-center gap-1 px-2 py-1 text-xs ${PAGE_STYLES.header.background} ${PAGE_STYLES.header.text} rounded ${PAGE_STYLES.interactive.hoverOnHeader} hover:${PAGE_STYLES.page.text} transition-colors`}
         >
           <Edit2 className="w-3.5 h-3.5" />
           Edit Customer
@@ -185,7 +186,7 @@ export const CustomerPreferencesPanel: React.FC<CustomerPreferencesPanelProps> =
 
       {/* Content - 2 Column Layout */}
       <div className="p-3">
-        <div className="grid grid-cols-[45%_55%] gap-6 divide-x divide-gray-200">
+        <div className={`grid grid-cols-[45%_55%] gap-6 divide-x ${PAGE_STYLES.divider}`}>
           {/* Left Column - Items with Validation */}
           <div className="space-y-0.5 pr-1">
             {/* LEDs */}

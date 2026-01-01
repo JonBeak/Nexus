@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface EstimateLineDescriptionCellProps {
   lineIndex: number;
@@ -68,7 +69,7 @@ export const EstimateLineDescriptionCell: React.FC<EstimateLineDescriptionCellPr
   if (readOnly) {
     // Display with proper newline formatting when finalized
     return (
-      <div className="text-xs text-gray-700 px-1">
+      <div className={`text-xs ${PAGE_STYLES.panel.textSecondary} px-1`}>
         {value ? (
           value.split('\n').map((line, i) => (
             <div key={i} className="leading-tight">
@@ -76,7 +77,7 @@ export const EstimateLineDescriptionCell: React.FC<EstimateLineDescriptionCellPr
             </div>
           ))
         ) : (
-          <span className="text-gray-400">-</span>
+          <span className={PAGE_STYLES.panel.textMuted}>-</span>
         )}
       </div>
     );

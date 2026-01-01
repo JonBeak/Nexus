@@ -9,7 +9,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft,
   Server,
   RefreshCw,
   HardDrive,
@@ -19,6 +18,7 @@ import {
   Check,
   X
 } from 'lucide-react';
+import { HomeButton } from '../common/HomeButton';
 import { StatusCard } from './components/StatusCard';
 import { BackupTable } from './components/BackupTable';
 import {
@@ -220,12 +220,7 @@ export const ServerManagement: React.FC = () => {
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <ArrowLeft className="h-6 w-6" />
-              </button>
+              <HomeButton />
               <div className="w-12 h-12 bg-slate-600 rounded-xl flex items-center justify-center shadow-lg">
                 <Server className="h-6 w-6 text-white" />
               </div>

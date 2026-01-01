@@ -241,8 +241,11 @@ export class EstimateWorkflowService {
     estimateId: number,
     userId: number,
     estimatePreviewData?: any,
-    recipientEmails?: string[]
+    recipients?: { to: string[]; cc: string[]; bcc: string[] }
   ): Promise<SendEstimateResult> {
+    console.log(`📧 [SendEstimate] Starting for estimate ${estimateId}`);
+    console.log(`📧 [SendEstimate] Recipients received:`, JSON.stringify(recipients));
+
     const estimate = await this.estimateRepository.getEstimateWithPreparedCheck(estimateId);
     if (!estimate) {
       throw new Error('Estimate not found or not prepared');
@@ -258,13 +261,27 @@ export class EstimateWorkflowService {
     }
 
     // Determine recipients
-    let finalRecipientEmails: string[];
-    if (recipientEmails && recipientEmails.length > 0) {
-      finalRecipientEmails = recipientEmails;
+    let toRecipients: string[];
+    let ccRecipients: string[] = [];
+    let bccRecipients: string[] = [];
+
+    if (recipients && recipients.to && recipients.to.length > 0) {
+      console.log(`📧 [SendEstimate] Using provided recipients`);
+      toRecipients = recipients.to;
+      ccRecipients = recipients.cc || [];
+      bccRecipients = recipients.bcc || [];
     } else {
+      // Fallback to point persons if no recipients specified
+      console.log(`📧 [SendEstimate] Falling back to point persons`);
       const pointPersons = await estimatePointPersonRepository.getPointPersonsByEstimateId(estimateId);
-      finalRecipientEmails = pointPersons.filter(p => p.contact_email).map(p => p.contact_email);
+      toRecipients = pointPersons.filter(p => p.contact_email).map(p => p.contact_email);
     }
+    console.log(`📧 [SendEstimate] To: ${toRecipients.join(', ')}`);
+    console.log(`📧 [SendEstimate] CC: ${ccRecipients.join(', ')}`);
+    console.log(`📧 [SendEstimate] BCC: ${bccRecipients.join(', ')}`);
+
+    // For backwards compatibility, create combined list for validation
+    const allRecipients = [...toRecipients, ...ccRecipients, ...bccRecipients];
 
     let qbEstimateId: string | undefined;
     let qbEstimateUrl: string | undefined;
@@ -272,8 +289,8 @@ export class EstimateWorkflowService {
     let qbEstimateDateStr: string | undefined;
 
     try {
-      if (finalRecipientEmails.length === 0) {
-        throw new Error('No point persons with email addresses configured');
+      if (toRecipients.length === 0) {
+        throw new Error('No recipients specified in To: field');
       }
 
       // Create QB estimate if needed
@@ -373,7 +390,9 @@ export class EstimateWorkflowService {
 
       // Send email
       const emailResult = await sendEstimateEmail({
-        recipients: finalRecipientEmails,
+        recipients: toRecipients,
+        ccRecipients: ccRecipients.length > 0 ? ccRecipients : undefined,
+        bccRecipients: bccRecipients.length > 0 ? bccRecipients : undefined,
         estimateId,
         estimateNumber: estimateData.job_code,
         estimateName: estimateData.job_name,
@@ -402,7 +421,7 @@ export class EstimateWorkflowService {
         qbEstimateId,
         qbEstimateUrl,
         estimateDate: qbEstimateDateStr,
-        emailSentTo: finalRecipientEmails,
+        emailSentTo: allRecipients,
         message: estimate.is_sent ? '⚠️ This estimate was previously sent.' : undefined
       };
 

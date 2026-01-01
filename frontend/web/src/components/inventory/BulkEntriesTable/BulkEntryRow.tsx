@@ -11,6 +11,8 @@ import {
   getRowBackgroundColor
 } from '../../../services/bulkEntry/bulkEntryLogic';
 import { hasMatchingInventory } from '../../../services/bulkEntry/bulkEntryValidation';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
+import { ENTRY_TYPE_INPUT_STYLES, DISABLED_INPUT_STYLE } from '../../../constants/bulkEntryConstants';
 
 interface BulkEntryRowProps {
   entry: BulkEntry;
@@ -63,8 +65,15 @@ export const BulkEntryRow: React.FC<BulkEntryRowProps> = ({
   const hasValidationError = entry.type === 'use' && inventoryMatch === false;
   const rowBgColor = getRowBackgroundColor(entry, hasValidationError);
 
+  // Get type-based input background color
+  const typeInputBg = entry.type ? ENTRY_TYPE_INPUT_STYLES[entry.type as keyof typeof ENTRY_TYPE_INPUT_STYLES] : '';
+
+  // Input styling for dark theme compatibility
+  const inputBaseClass = `px-2 py-1 text-sm border ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.text} rounded focus:outline-none focus:ring-1 focus:ring-purple-500`;
+  const inputClass = `${inputBaseClass} ${PAGE_STYLES.input.background}`;
+
   return (
-    <tr className={`hover:bg-gray-50 ${rowBgColor}`}>
+    <tr className={`hover:bg-[var(--theme-hover-bg)] ${rowBgColor}`}>
       {/* Type Field */}
       <td className="px-2 py-1 whitespace-nowrap">
         <TypeButtonGroup
@@ -86,6 +95,7 @@ export const BulkEntryRow: React.FC<BulkEntryRowProps> = ({
           onSpecificSelect={onSpecificVinylSelect}
           onTab={() => onTabPress('vinyl_product')}
           onSuggestionsNeeded={onSuggestionsNeeded}
+          inputClassName={typeInputBg}
         />
       </td>
 
@@ -102,6 +112,7 @@ export const BulkEntryRow: React.FC<BulkEntryRowProps> = ({
           onTab={() => onTabPress('width')}
           onSuggestionsNeeded={onSuggestionsNeeded}
           disabled={USE_AUTOFILL_TYPES.has(entry.type)}
+          inputClassName={USE_AUTOFILL_TYPES.has(entry.type) ? DISABLED_INPUT_STYLE : typeInputBg}
         />
       </td>
 
@@ -119,6 +130,7 @@ export const BulkEntryRow: React.FC<BulkEntryRowProps> = ({
             onTab={() => onTabPress('length_yards')}
             onSuggestionsNeeded={onSuggestionsNeeded}
             disabled={true}
+            inputClassName={DISABLED_INPUT_STYLE}
           />
         ) : (
           <input
@@ -128,7 +140,7 @@ export const BulkEntryRow: React.FC<BulkEntryRowProps> = ({
             placeholder="Length"
             data-field={`${entry.id}-length_yards`}
             onKeyDown={(e) => e.key === 'Tab' && !e.shiftKey && (e.preventDefault(), onTabPress('length_yards'))}
-            className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-500"
+            className={`w-20 px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${typeInputBg}`}
           />
         )}
       </td>
@@ -142,7 +154,7 @@ export const BulkEntryRow: React.FC<BulkEntryRowProps> = ({
           placeholder="Location"
           data-field={`${entry.id}-location`}
           onKeyDown={(e) => e.key === 'Tab' && !e.shiftKey && (e.preventDefault(), onTabPress('location'))}
-          className="w-24 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-500"
+          className={`w-24 ${inputClass}`}
         />
       </td>
 
@@ -154,7 +166,7 @@ export const BulkEntryRow: React.FC<BulkEntryRowProps> = ({
               <select
                 value={jobId || ''}
                 onChange={(e) => onJobChange(jobIndex, e.target.value)}
-                className="flex-1 min-w-0 max-w-[250px] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-500 truncate"
+                className={`flex-1 min-w-0 max-w-[250px] truncate ${inputClass}`}
               >
                 <option value="">Select job...</option>
                 {availableJobs.map(availableJob => (
@@ -185,7 +197,7 @@ export const BulkEntryRow: React.FC<BulkEntryRowProps> = ({
           placeholder={entry.type ? `${getNotePlaceholder(entry.type)}Notes` : "Notes"}
           data-field={`${entry.id}-notes`}
           onKeyDown={(e) => e.key === 'Tab' && !e.shiftKey && (e.preventDefault(), onTabPress('notes'))}
-          className="w-32 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-500"
+          className={`w-32 ${inputClass}`}
         />
       </td>
 

@@ -5,6 +5,7 @@ import { BulkEntryHeader } from './BulkEntryHeader';
 import { BulkEntryActions } from './BulkEntryActions';
 import { BulkEntryRow } from './BulkEntryRow';
 import { useBulkEntryTable } from './hooks/useBulkEntryTable';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface BulkEntriesTableProps {
   bulkEntries: BulkEntry[];
@@ -66,13 +67,13 @@ export const BulkEntriesTable: React.FC<BulkEntriesTableProps> = ({
     <div className="space-y-4">
       {/* Auto-save indicator */}
       {isSaving && (
-        <div className="text-sm text-gray-600 italic">
+        <div className={`text-sm ${PAGE_STYLES.panel.textSecondary} italic`}>
           Saving changes...
         </div>
       )}
 
       {/* Bulk Entries Table */}
-      <div className="bg-white shadow rounded-lg overflow-hidden">
+      <div className={`${PAGE_STYLES.panel.background} shadow rounded-lg overflow-hidden border ${PAGE_STYLES.panel.border}`}>
         <BulkEntryActions
           bulkEntries={bulkEntries}
           isSaving={isSaving}
@@ -81,10 +82,10 @@ export const BulkEntriesTable: React.FC<BulkEntriesTableProps> = ({
 
         <div className="overflow-x-auto">
           <div className="inline-block min-w-full align-middle">
-            <table className="w-full divide-y divide-gray-200 text-sm" style={{ minWidth: '1200px' }}>
+            <table className={`w-full ${PAGE_STYLES.panel.divider} text-sm`} style={{ minWidth: '1200px' }}>
               <BulkEntryHeader onBulkTypeChange={handleBulkTypeChange} />
 
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className={`${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.divider}`}>
                 {bulkEntries.map((entry) => (
                   <BulkEntryRow
                     key={entry.id}

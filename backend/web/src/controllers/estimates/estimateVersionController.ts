@@ -309,13 +309,15 @@ export const sendEstimate = async (req: AuthRequest, res: Response) => {
     const validated = validateEstimateRequest(req, res);
     if (!validated) return;
 
-    const { estimatePreviewData, recipientEmails } = req.body;
+    const { estimatePreviewData, recipients } = req.body;
+    console.log(`📧 [Controller] sendEstimate called for estimate ${validated.estimateId}`);
+    console.log(`📧 [Controller] Recipients from body:`, JSON.stringify(recipients));
 
     const result = await versioningService.sendEstimateToCustomer(
       validated.estimateId,
       validated.userId,
       estimatePreviewData,
-      recipientEmails
+      recipients
     );
 
     res.json(result);

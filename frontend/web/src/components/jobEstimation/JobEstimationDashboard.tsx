@@ -1,11 +1,13 @@
 import React from 'react';
-import { ArrowLeft, FileText } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CustomerPanel } from './CustomerPanel';
 import { JobPanel } from './JobPanel';
 import { VersionManager } from './VersionManager';
+import { HomeButton } from '../common/HomeButton';
 import { jobVersioningApi } from '../../services/api';
 import { User } from '../../types';
+import { PAGE_STYLES } from '../../constants/moduleColors';
 import './JobEstimation.css';
 
 interface JobEstimationDashboardProps {
@@ -71,13 +73,13 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
   // Access denied check
   if (!user || (user.role !== 'manager' && user.role !== 'owner')) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className={`${PAGE_STYLES.fullPage} flex items-center justify-center`}>
         <div className="text-center">
           <div className="text-red-600 text-xl font-semibold mb-2">Access Denied</div>
-          <p className="text-gray-500 mb-4">Job Estimation is available to managers and owners only.</p>
+          <p className={`${PAGE_STYLES.panel.textMuted} mb-4`}>Job Estimation is available to managers and owners only.</p>
           <button
             onClick={() => navigate('/dashboard')}
-            className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 text-sm"
+            className="bg-emerald-500 text-white px-4 py-2 rounded hover:bg-emerald-600 text-sm"
           >
             Return to Dashboard
           </button>
@@ -87,22 +89,16 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1920px] mx-auto p-6">
-        {/* Header */}
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span>Back to Dashboard</span>
-            </button>
-            <h1 className="text-2xl font-bold text-gray-900">Job Estimation</h1>
-          </div>
+    <div className={PAGE_STYLES.fullPage}>
+      {/* Header Bar */}
+      <div className={`${PAGE_STYLES.header.background} shadow-sm border-b border-black`}>
+        <div className="max-w-[1920px] mx-auto px-6 py-3 flex items-center space-x-4">
+          <HomeButton />
+          <h1 className={`text-2xl font-bold ${PAGE_STYLES.panel.text}`}>Job Estimation</h1>
         </div>
+      </div>
 
+      <div className="max-w-[1920px] mx-auto p-6">
         {/* 3-Panel Layout */}
         <div className="three-panel-container">
           <CustomerPanel
@@ -126,9 +122,9 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
               user={user}
             />
           ) : (
-            <div className="bg-white rounded shadow-sm border border-gray-200 p-6 h-full flex items-center justify-center">
-              <div className="text-center text-gray-500">
-                <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+            <div className={`${PAGE_STYLES.panel.background} rounded shadow-sm border ${PAGE_STYLES.border} p-6 h-full flex items-center justify-center`}>
+              <div className={`text-center ${PAGE_STYLES.panel.textMuted}`}>
+                <FileText className={`w-12 h-12 mx-auto mb-4 ${PAGE_STYLES.panel.textMuted}`} />
                 <p className="text-sm">Select a job to view versions</p>
               </div>
             </div>

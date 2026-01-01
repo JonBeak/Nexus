@@ -1,5 +1,6 @@
 import React from 'react';
 import { CheckCircle, X, Mail, AlertTriangle } from 'lucide-react';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface EstimateSentSuccessModalProps {
   isOpen: boolean;
@@ -26,16 +27,16 @@ export const EstimateSentSuccessModal: React.FC<EstimateSentSuccessModalProps> =
         />
 
         {/* Modal */}
-        <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md transform transition-all">
+        <div className={`relative ${PAGE_STYLES.panel.background} rounded-lg shadow-xl w-full max-w-md transform transition-all`}>
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div className={`flex items-center justify-between p-6 border-b ${PAGE_STYLES.border}`}>
             <div className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-green-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Estimate Sent!</h3>
+              <h3 className={`text-lg font-semibold ${PAGE_STYLES.panel.text}`}>Estimate Sent!</h3>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className={`${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.textSecondary} transition-colors`}
             >
               <X className="h-5 w-5" />
             </button>
@@ -70,7 +71,7 @@ export const EstimateSentSuccessModal: React.FC<EstimateSentSuccessModalProps> =
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end px-6 py-4 bg-gray-50 rounded-b-lg">
+          <div className={`flex items-center justify-end px-6 py-4 ${PAGE_STYLES.header.background} rounded-b-lg`}>
             <button
               onClick={onClose}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"

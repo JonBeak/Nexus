@@ -13,6 +13,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 export interface EditableCellProps {
   value: string | number | null;
@@ -85,7 +86,7 @@ export const EditableCell: React.FC<EditableCellProps> = ({
     // For textarea type, preserve newlines in read-only mode
     if (type === 'textarea' && value) {
       return (
-        <div className="text-gray-600 text-xs px-1">
+        <div className={`${PAGE_STYLES.panel.textMuted} text-xs px-1`}>
           {String(value).split('\n').map((line, i) => (
             <div key={i} className="leading-tight">
               {line || '\u00A0'}
@@ -96,14 +97,14 @@ export const EditableCell: React.FC<EditableCellProps> = ({
     }
 
     return (
-      <span className="text-gray-600 text-xs px-1">
+      <span className={`${PAGE_STYLES.panel.textMuted} text-xs px-1`}>
         {type === 'currency' ? (value ? `$${value}` : '') : value || ''}
       </span>
     );
   }
 
-  const baseClasses = `w-full px-1 py-0.5 text-xs border-2 rounded
-    ${isDirty ? 'border-blue-500 bg-blue-50' : 'border-green-500 bg-green-50 hover:border-green-600'}
+  const baseClasses = `w-full px-1 py-0.5 text-xs border-2 rounded ${PAGE_STYLES.input.text} ${PAGE_STYLES.input.placeholder}
+    ${isDirty ? 'border-blue-500 bg-blue-50' : `border-green-500 ${PAGE_STYLES.input.background} hover:border-green-600`}
     focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-500`;
 
   if (type === 'textarea') {
@@ -118,8 +119,8 @@ export const EditableCell: React.FC<EditableCellProps> = ({
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         rows={1}
-        className={`w-full px-2 py-1.5 text-xs border-2 rounded resize-none overflow-hidden
-          ${isDirty ? 'border-blue-500 bg-blue-50' : 'border-green-500 bg-green-50 hover:border-green-600'}
+        className={`w-full px-2 py-1.5 text-xs border-2 rounded resize-none overflow-hidden ${PAGE_STYLES.input.text} ${PAGE_STYLES.input.placeholder}
+          ${isDirty ? 'border-blue-500 bg-blue-50' : `border-green-500 ${PAGE_STYLES.input.background} hover:border-green-600`}
           focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-500 ${className}`}
         placeholder={placeholder}
         style={{ minHeight: '32px' }}

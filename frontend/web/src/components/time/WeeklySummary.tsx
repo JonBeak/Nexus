@@ -1,6 +1,8 @@
 import React from 'react';
 import type { WeeklyData, WeeklyEntry } from '../../types/time';
 import { formatTimeForDisplay } from '../../lib/timeUtils';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
+import '../jobEstimation/JobEstimation.css';
 
 interface WeeklySummaryProps {
   weeklyData: WeeklyData | null;
@@ -58,32 +60,32 @@ function WeeklySummary({
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-4 sm:p-8">
+    <div className={`${PAGE_STYLES.composites.panelContainer} p-4 sm:p-8`}>
       {/* Mobile-friendly header */}
       <div className="mb-6">
-        <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-0">Weekly Summary</h3>
-        
+        <h3 className={`text-xl sm:text-2xl font-bold ${PAGE_STYLES.panel.text} mb-4 sm:mb-0`}>Weekly Summary</h3>
+
         {/* Week range - full width on mobile */}
         <div className="text-center mb-4">
-          <span className="font-semibold text-gray-700 text-sm sm:text-base">
+          <span className={`font-semibold ${PAGE_STYLES.panel.text} text-sm sm:text-base`}>
             {weeklyData && formatWeekRange(weeklyData.weekStart, weeklyData.weekEnd)}
           </span>
         </div>
-        
+
         {/* Navigation buttons - full width on mobile */}
         <div className="flex justify-center space-x-2 sm:space-x-4">
           <button
             onClick={() => onWeekChange(weekOffset - 1)}
-            className="bg-gray-200 hover:bg-gray-300 p-2 sm:p-3 rounded-lg transition-colors flex-1 sm:flex-initial"
+            className={`${PAGE_STYLES.header.background} ${PAGE_STYLES.interactive.hover} p-2 sm:p-3 rounded-lg transition-colors flex-1 sm:flex-initial border ${PAGE_STYLES.panel.border}`}
           >
-            <span className="text-gray-700 text-sm sm:text-base">← Previous</span>
+            <span className={`${PAGE_STYLES.panel.text} text-sm sm:text-base`}>← Previous</span>
           </button>
           <button
             onClick={() => onWeekChange(weekOffset + 1)}
             disabled={weekOffset >= 0}
-            className="bg-gray-200 hover:bg-gray-300 p-2 sm:p-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-initial"
+            className={`${PAGE_STYLES.header.background} ${PAGE_STYLES.interactive.hover} p-2 sm:p-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-initial border ${PAGE_STYLES.panel.border}`}
           >
-            <span className="text-gray-700 text-sm sm:text-base">Next →</span>
+            <span className={`${PAGE_STYLES.panel.text} text-sm sm:text-base`}>Next →</span>
           </button>
         </div>
       </div>
@@ -93,27 +95,27 @@ function WeeklySummary({
           {/* Mobile card layout - show on small screens */}
           <div className="block sm:hidden space-y-4">
             {weeklyData.entries.map((entry: WeeklyEntry) => (
-              <div key={entry.entry_id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <div key={entry.entry_id} className={`${PAGE_STYLES.header.background} rounded-lg p-4 border ${PAGE_STYLES.panel.border}`}>
                 <div className="flex justify-between items-start mb-3">
                   <div>
-                    <div className="font-semibold text-gray-800">{formatDate(entry.clock_in)}</div>
-                    <div className="text-sm text-gray-600">
+                    <div className={`font-semibold ${PAGE_STYLES.panel.text}`}>{formatDate(entry.clock_in)}</div>
+                    <div className={`text-sm ${PAGE_STYLES.panel.textSecondary}`}>
                       {formatTimeForDisplay(entry.clock_in)} - {formatTimeForDisplay(entry.clock_out)}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-bold text-lg text-primary-blue">{formatHours(entry.total_hours)}h</div>
+                    <div className={`font-bold text-lg ${MODULE_COLORS.timeTracking.text}`}>{formatHours(entry.total_hours)}h</div>
                     {entry.break_minutes > 0 && (
-                      <div className="text-xs text-gray-500">{entry.break_minutes}min break</div>
+                      <div className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>{entry.break_minutes}min break</div>
                     )}
                   </div>
                 </div>
-                
+
                 {(entry.status === 'completed' && !entry.request_id) && (
-                  <div className="flex space-x-2 pt-2 border-t border-gray-300">
+                  <div className={`flex space-x-2 pt-2 border-t ${PAGE_STYLES.panel.border}`}>
                     <button
                       onClick={() => onRequestEdit(entry)}
-                      className="flex-1 bg-primary-blue hover:bg-primary-blue-dark text-white text-xs py-2 px-3 rounded font-semibold transition-colors"
+                      className={`flex-1 ${MODULE_COLORS.timeTracking.base} ${MODULE_COLORS.timeTracking.hover} text-white text-xs py-2 px-3 rounded font-semibold transition-colors`}
                     >
                       Request Edit
                     </button>
@@ -126,18 +128,18 @@ function WeeklySummary({
                   </div>
                 )}
                 {entry.request_id && (
-                  <div className="pt-2 border-t border-gray-300">
-                    <span className="text-yellow-600 font-semibold text-sm">Edit Pending</span>
+                  <div className={`pt-2 border-t ${PAGE_STYLES.panel.border}`}>
+                    <span className={`${MODULE_COLORS.timeTracking.text} font-semibold text-sm`}>Edit Pending</span>
                   </div>
                 )}
               </div>
             ))}
-            
+
             {/* Week total for mobile */}
-            <div className="border-2 border-primary-blue rounded-lg p-4 bg-primary-blue/5">
+            <div className={`border-2 ${MODULE_COLORS.timeTracking.border} rounded-lg p-4 ${MODULE_COLORS.timeTracking.light}`}>
               <div className="flex justify-between items-center">
-                <span className="font-bold text-gray-700">Week Total:</span>
-                <span className="font-bold text-xl text-primary-blue">{formatHours(weeklyData.weekTotal)}h</span>
+                <span className={`font-bold ${PAGE_STYLES.panel.text}`}>Week Total:</span>
+                <span className={`font-bold text-xl ${MODULE_COLORS.timeTracking.text}`}>{formatHours(weeklyData.weekTotal)}h</span>
               </div>
             </div>
           </div>
@@ -145,30 +147,30 @@ function WeeklySummary({
           {/* Desktop table layout - show on larger screens */}
           <div className="hidden sm:block overflow-x-auto">
             <table className="w-full">
-              <thead>
-                <tr className="border-b-2 border-gray-200">
-                  <th className="text-left py-3 px-2 font-semibold text-gray-700">Date</th>
-                  <th className="text-left py-3 px-2 font-semibold text-gray-700">Clock In</th>
-                  <th className="text-left py-3 px-2 font-semibold text-gray-700">Clock Out</th>
-                  <th className="text-left py-3 px-2 font-semibold text-gray-700">Break (min)</th>
-                  <th className="text-left py-3 px-2 font-semibold text-gray-700">Total Hours</th>
-                  <th className="text-left py-3 px-2 font-semibold text-gray-700">Actions</th>
+              <thead className={PAGE_STYLES.header.background}>
+                <tr className={`border-b-2 ${PAGE_STYLES.panel.border}`}>
+                  <th className={`text-left py-3 px-2 font-semibold ${PAGE_STYLES.panel.text}`}>Date</th>
+                  <th className={`text-left py-3 px-2 font-semibold ${PAGE_STYLES.panel.text}`}>Clock In</th>
+                  <th className={`text-left py-3 px-2 font-semibold ${PAGE_STYLES.panel.text}`}>Clock Out</th>
+                  <th className={`text-left py-3 px-2 font-semibold ${PAGE_STYLES.panel.text}`}>Break (min)</th>
+                  <th className={`text-left py-3 px-2 font-semibold ${PAGE_STYLES.panel.text}`}>Total Hours</th>
+                  <th className={`text-left py-3 px-2 font-semibold ${PAGE_STYLES.panel.text}`}>Actions</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className={PAGE_STYLES.composites.tableBody}>
                 {weeklyData.entries.map((entry: WeeklyEntry) => (
-                  <tr key={entry.entry_id} className="border-b hover:bg-gray-50">
-                    <td className="py-3 px-2">{formatDate(entry.clock_in)}</td>
-                    <td className="py-3 px-2">{formatTimeForDisplay(entry.clock_in)}</td>
-                    <td className="py-3 px-2">{formatTimeForDisplay(entry.clock_out)}</td>
-                    <td className="py-3 px-2">{entry.break_minutes || 0}</td>
-                    <td className="py-3 px-2 font-semibold">{formatHours(entry.total_hours)}</td>
+                  <tr key={entry.entry_id} className={PAGE_STYLES.interactive.hover}>
+                    <td className={`py-3 px-2 ${PAGE_STYLES.panel.text}`}>{formatDate(entry.clock_in)}</td>
+                    <td className={`py-3 px-2 ${PAGE_STYLES.panel.text}`}>{formatTimeForDisplay(entry.clock_in)}</td>
+                    <td className={`py-3 px-2 ${PAGE_STYLES.panel.text}`}>{formatTimeForDisplay(entry.clock_out)}</td>
+                    <td className={`py-3 px-2 ${PAGE_STYLES.panel.text}`}>{entry.break_minutes || 0}</td>
+                    <td className={`py-3 px-2 font-semibold ${PAGE_STYLES.panel.text}`}>{formatHours(entry.total_hours)}</td>
                     <td className="py-3 px-2">
                       {entry.status === 'completed' && !entry.request_id && (
                         <div className="flex flex-col space-y-1">
                           <button
                             onClick={() => onRequestEdit(entry)}
-                            className="text-primary-blue hover:text-primary-blue-dark font-semibold text-sm"
+                            className={`${MODULE_COLORS.timeTracking.text} hover:text-yellow-600 font-semibold text-sm`}
                           >
                             Request Edit
                           </button>
@@ -181,16 +183,16 @@ function WeeklySummary({
                         </div>
                       )}
                       {entry.request_id && (
-                        <span className="text-yellow-600 font-semibold">Edit Pending</span>
+                        <span className={`${MODULE_COLORS.timeTracking.text} font-semibold`}>Edit Pending</span>
                       )}
                     </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 border-gray-300">
-                  <td colSpan={4} className="py-3 px-2 font-bold text-gray-700">Week Total:</td>
-                  <td className="py-3 px-2 font-bold text-xl text-primary-blue">{formatHours(weeklyData.weekTotal)}</td>
+                <tr className={`border-t-2 ${PAGE_STYLES.panel.border}`}>
+                  <td colSpan={4} className={`py-3 px-2 font-bold ${PAGE_STYLES.panel.text}`}>Week Total:</td>
+                  <td className={`py-3 px-2 font-bold text-xl ${MODULE_COLORS.timeTracking.text}`}>{formatHours(weeklyData.weekTotal)}</td>
                   <td></td>
                 </tr>
               </tfoot>
@@ -198,7 +200,7 @@ function WeeklySummary({
           </div>
         </>
       ) : (
-        <p className="text-center text-gray-500 py-8">No time entries for this week</p>
+        <p className={`text-center ${PAGE_STYLES.panel.textMuted} py-8`}>No time entries for this week</p>
       )}
     </div>
   );

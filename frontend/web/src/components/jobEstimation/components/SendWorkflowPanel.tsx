@@ -3,6 +3,7 @@ import { Mail, Users } from 'lucide-react';
 import EstimatePointPersonsEditor, { PointPersonEntry, EstimatePointPersonsEditorHandle } from '../EstimatePointPersonsEditor';
 import EstimateEmailComposer from '../EstimateEmailComposer';
 import { EmailSummaryConfig, EstimateEmailData } from '../types';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 export interface SendWorkflowPanelHandle {
   savePointPersons: () => Promise<void>;
@@ -68,20 +69,20 @@ export const SendWorkflowPanel = React.forwardRef<SendWorkflowPanelHandle, SendW
   }, [pointPersons]);
 
   return (
-    <div className="bg-white rounded-lg shadow h-full flex flex-col">
+    <div className={`${PAGE_STYLES.composites.panelContainer} h-full flex flex-col`}>
       {/* Header */}
-      <div className="flex items-center gap-2 p-3 border-b bg-gray-50">
+      <div className={`flex items-center gap-2 p-3 ${PAGE_STYLES.composites.tableHeader}`}>
         <Mail className="w-4 h-4 text-purple-600" />
-        <h3 className="text-sm font-medium text-gray-900">Send to Customer</h3>
+        <h3 className={`text-sm font-medium ${PAGE_STYLES.panel.text}`}>Send to Customer</h3>
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Point Persons Section */}
-        <div className="border-2 border-gray-400 rounded-lg p-3">
+        <div className={`border-2 ${PAGE_STYLES.border} rounded-lg p-3`}>
           <div className="flex items-center gap-2 mb-3">
-            <Users className="w-4 h-4 text-gray-600" />
-            <h4 className="text-xs font-medium text-gray-700">Point Person(s)</h4>
+            <Users className={`w-4 h-4 ${PAGE_STYLES.panel.textMuted}`} />
+            <h4 className={`text-xs font-medium ${PAGE_STYLES.header.text}`}>Point Person(s)</h4>
           </div>
           <EstimatePointPersonsEditor
             ref={pointPersonsEditorRef}
@@ -95,10 +96,10 @@ export const SendWorkflowPanel = React.forwardRef<SendWorkflowPanelHandle, SendW
         </div>
 
         {/* Email Composer Section */}
-        <div className="border-2 border-gray-400 rounded-lg p-3">
+        <div className={`border-2 ${PAGE_STYLES.border} rounded-lg p-3`}>
           <div className="flex items-center gap-2 mb-3">
-            <Mail className="w-4 h-4 text-gray-600" />
-            <h4 className="text-xs font-medium text-gray-700">Email to Customer</h4>
+            <Mail className={`w-4 h-4 ${PAGE_STYLES.panel.textMuted}`} />
+            <h4 className={`text-xs font-medium ${PAGE_STYLES.header.text}`}>Email to Customer</h4>
           </div>
           <EstimateEmailComposer
             initialSubject={emailSubject}

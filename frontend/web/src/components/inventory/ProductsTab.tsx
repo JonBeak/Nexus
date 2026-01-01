@@ -4,6 +4,7 @@ import { useProductsData } from './hooks/useProductsData';
 import { ProductsTableHeader } from './components/ProductsTableHeader';
 import { ProductsTableRow } from './components/ProductsTableRow';
 import { InventoryUser, VinylProduct } from './types';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 
 interface ProductsTabProps {
   user: InventoryUser;
@@ -60,7 +61,7 @@ export const ProductsTab: React.FC<ProductsTabProps> = ({
         {getActiveFilterCount() > 0 && (
           <button
             onClick={clearAllFilters}
-            className="px-4 py-2 text-sm rounded-md transition-colors flex items-center bg-gray-100 text-gray-700 hover:bg-gray-200"
+            className={`px-4 py-2 text-sm rounded-md transition-colors flex items-center ${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.text} hover:bg-gray-500`}
             title={`Clear ${getActiveFilterCount()} active filter(s)`}
           >
             <X className="w-4 h-4 mr-1" />
@@ -74,7 +75,7 @@ export const ProductsTab: React.FC<ProductsTabProps> = ({
           {/* Add Product Button - Backend RBAC controls actual permissions */}
           <button
             onClick={onShowAddModal}
-            className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+            className={`flex items-center space-x-2 ${MODULE_COLORS.vinyls.base} ${MODULE_COLORS.vinyls.hover} text-white px-4 py-2 rounded-lg`}
           >
             <Plus className="h-4 w-4" />
             <span>Add Product</span>
@@ -83,26 +84,26 @@ export const ProductsTab: React.FC<ProductsTabProps> = ({
       </div>
 
       {/* Products Table */}
-      <div className="bg-white shadow rounded-lg overflow-hidden">
+      <div className={`${PAGE_STYLES.panel.background} shadow rounded-lg overflow-hidden border ${PAGE_STYLES.panel.border}`}>
         {productsLoading ? (
           <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-            <p className="mt-2 text-gray-600">Loading products...</p>
+            <div className={`inline-block animate-spin rounded-full h-8 w-8 border-b-2 ${MODULE_COLORS.vinyls.border}`}></div>
+            <p className={`mt-2 ${PAGE_STYLES.panel.textSecondary}`}>Loading products...</p>
           </div>
         ) : productsError ? (
           <div className="text-center py-12">
             <div className="text-red-600 text-lg font-medium mb-2">Error</div>
-            <p className="text-gray-500 mb-4">{productsError}</p>
+            <p className={`${PAGE_STYLES.panel.textMuted} mb-4`}>{productsError}</p>
             <button
               onClick={refreshProducts}
-              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+              className={`${MODULE_COLORS.vinyls.base} ${MODULE_COLORS.vinyls.hover} text-white px-4 py-2 rounded-lg`}
             >
               Retry
             </button>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+            <table className={`min-w-full ${PAGE_STYLES.panel.divider}`}>
               <ProductsTableHeader
                 user={user}
                 sortField={sortField}
@@ -117,7 +118,7 @@ export const ProductsTab: React.FC<ProductsTabProps> = ({
                 getSupplierOptions={getSupplierOptions}
                 getStatusOptions={getStatusOptions}
               />
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className={`${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.divider}`}>
                 {filteredAndSortedProducts.map((product) => (
                   <ProductsTableRow
                     key={product.product_id}
@@ -129,7 +130,7 @@ export const ProductsTab: React.FC<ProductsTabProps> = ({
                 ))}
                 {filteredAndSortedProducts.length === 0 && !productsLoading && (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={7} className={`px-6 py-12 text-center ${PAGE_STYLES.panel.textMuted}`}>
                       No products found matching your criteria.
                     </td>
                   </tr>

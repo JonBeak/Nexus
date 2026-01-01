@@ -3,6 +3,7 @@
  */
 
 import React from 'react';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface GridConfirmationModalsProps {
   // Clear confirmation modal state
@@ -45,13 +46,13 @@ export const GridConfirmationModals: React.FC<GridConfirmationModalsProps> = ({
       {/* Grid-level clear confirmation modal */}
       {showClearConfirmation && clearModalType && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className={`${PAGE_STYLES.panel.background} rounded-lg p-6 max-w-md w-full mx-4`}>
+            <h3 className={`text-lg font-semibold ${PAGE_STYLES.panel.text} mb-4`}>
               {clearModalType === 'reset' && 'Reset Grid to Default Template?'}
               {clearModalType === 'clearAll' && 'Clear All Items?'}
               {clearModalType === 'clearEmpty' && 'Clear Empty Rows?'}
             </h3>
-            <p className="text-gray-600 mb-6">
+            <p className={`${PAGE_STYLES.panel.textMuted} mb-6`}>
               {clearModalType === 'reset' && 'This will reset all items to the default template configuration. Your current data will be lost.'}
               {clearModalType === 'clearAll' && 'This will permanently delete all items in the grid. This action cannot be undone.'}
               {clearModalType === 'clearEmpty' && 'This will remove all empty rows with no input data.'}
@@ -59,7 +60,7 @@ export const GridConfirmationModals: React.FC<GridConfirmationModalsProps> = ({
             <div className="flex justify-end space-x-3">
               <button
                 onClick={onClearCancel}
-                className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
+                className={`px-4 py-2 ${PAGE_STYLES.panel.textMuted} border ${PAGE_STYLES.border} rounded ${PAGE_STYLES.interactive.hover}`}
               >
                 Cancel
               </button>
@@ -83,19 +84,19 @@ export const GridConfirmationModals: React.FC<GridConfirmationModalsProps> = ({
       {/* Row-level confirmation modal for clear and delete actions */}
       {showRowConfirmation && rowConfirmationType && pendingRowIndex !== null && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className={`${PAGE_STYLES.panel.background} rounded-lg p-6 max-w-md w-full mx-4`}>
+            <h3 className={`text-lg font-semibold ${PAGE_STYLES.panel.text} mb-4`}>
               {rowConfirmationType === 'clear' && 'Clear Row Data?'}
               {rowConfirmationType === 'delete' && 'Delete Row?'}
             </h3>
-            <p className="text-gray-600 mb-6">
+            <p className={`${PAGE_STYLES.panel.textMuted} mb-6`}>
               {rowConfirmationType === 'clear' && 'This will reset all editable fields in this row. The product type selection will remain.'}
               {rowConfirmationType === 'delete' && 'This will permanently remove this row from the grid. This action cannot be undone.'}
             </p>
             <div className="flex justify-end space-x-3">
               <button
                 onClick={onRowCancel}
-                className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
+                className={`px-4 py-2 ${PAGE_STYLES.panel.textMuted} border ${PAGE_STYLES.border} rounded ${PAGE_STYLES.interactive.hover}`}
               >
                 Cancel
               </button>

@@ -22,6 +22,7 @@ import { EstimateVersion, EmailSummaryConfig, DEFAULT_EMAIL_SUMMARY_CONFIG, Esti
 import { PointPersonEntry } from './EstimatePointPersonsEditor';
 import { EstimateLineItem, EstimatePreviewData } from './core/layers/CalculationLayer';
 import './JobEstimation.css';
+import { PAGE_STYLES } from '../../constants/moduleColors';
 
 // Custom hooks
 import { useCustomerContext } from './hooks/useCustomerContext';
@@ -555,13 +556,13 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
   // Access denied check
   if (!user || (user.role !== 'manager' && user.role !== 'owner')) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className={`${PAGE_STYLES.fullPage} flex items-center justify-center`}>
         <div className="text-center">
           <div className="text-red-600 text-xl font-semibold mb-2">Access Denied</div>
-          <p className="text-gray-500 mb-4">Job Estimation is available to managers and owners only.</p>
+          <p className={`${PAGE_STYLES.panel.textMuted} mb-4`}>Job Estimation is available to managers and owners only.</p>
           <button
             onClick={() => navigate('/dashboard')}
-            className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 text-sm"
+            className="bg-emerald-500 text-white px-4 py-2 rounded hover:bg-emerald-600 text-sm"
           >
             Return to Dashboard
           </button>
@@ -573,10 +574,10 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className={`${PAGE_STYLES.fullPage} flex items-center justify-center`}>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading estimate...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto"></div>
+          <p className={`mt-4 ${PAGE_STYLES.panel.textMuted}`}>Loading estimate...</p>
         </div>
       </div>
     );
@@ -585,12 +586,12 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
   // Error state
   if (error || !currentEstimate) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className={`${PAGE_STYLES.fullPage} flex items-center justify-center`}>
         <div className="text-center">
           <div className="text-red-600 text-xl font-semibold mb-2">{error || 'Estimate not found'}</div>
           <button
             onClick={() => navigate('/estimates')}
-            className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 text-sm mt-4"
+            className="bg-emerald-500 text-white px-4 py-2 rounded hover:bg-emerald-600 text-sm mt-4"
           >
             Back to Estimates
           </button>
@@ -600,7 +601,7 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 job-estimation-builder-mode">
+    <div className={`${PAGE_STYLES.fullPage} job-estimation-builder-mode`}>
       <div className="max-w-[1920px] mx-auto estimate-builder-mobile-unified">
         <BreadcrumbNavigation
           customerName={customerPreferencesData?.customerName || currentEstimate.customer_name || undefined}
@@ -755,7 +756,7 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
                               setShowPreparedEmailPreview(true);
                             }}
                             disabled={isSending || pointPersons.length === 0}
-                            className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                            className="px-3 py-1.5 text-sm bg-emerald-500 text-white rounded hover:bg-emerald-600 disabled:opacity-50"
                             title={pointPersons.length === 0 ? 'Add point persons first' : undefined}
                           >
                             Send to Customer
@@ -954,9 +955,9 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
         <EstimateEmailPreviewModal
           isOpen={showPreparedEmailPreview}
           onClose={() => setShowPreparedEmailPreview(false)}
-          onConfirm={(selectedRecipients: string[]) => {
+          onConfirm={(recipients) => {
             setShowPreparedEmailPreview(false);
-            handleSendToCustomer(selectedRecipients);
+            handleSendToCustomer(recipients);
           }}
           estimate={currentEstimate}
           pointPersons={pointPersons}

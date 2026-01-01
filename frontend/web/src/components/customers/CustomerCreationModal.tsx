@@ -5,12 +5,13 @@ import { customerApi, provincesApi } from '../../services/api';
 import { CustomerFormCreate } from './creation/CustomerFormCreate';
 import { AddressManagerCreate } from './creation/AddressManagerCreate';
 import { CustomerCreationValidation } from './creation/CustomerCreationValidation';
-import { 
-  CustomerCreationModalProps, 
-  CustomerCreateData, 
+import {
+  CustomerCreationModalProps,
+  CustomerCreateData,
   ProvinceState,
-  DEFAULT_CUSTOMER_VALUES 
+  DEFAULT_CUSTOMER_VALUES
 } from './creation/CustomerCreationTypes';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 
 export const CustomerCreationModal: React.FC<CustomerCreationModalProps> = ({
   isOpen,
@@ -172,14 +173,14 @@ export const CustomerCreationModal: React.FC<CustomerCreationModalProps> = ({
     <div className="fixed inset-0 z-50 overflow-hidden">
       <div className="flex items-center justify-center min-h-screen px-4">
         <div className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" onClick={onClose} />
-        
-        <div className="relative flex flex-col bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[95vh] overflow-hidden">
+
+        <div className={`relative flex flex-col ${PAGE_STYLES.panel.background} rounded-lg shadow-xl max-w-4xl w-full max-h-[95vh] overflow-hidden`}>
           {/* Header */}
-          <div className="flex-shrink-0 flex items-center justify-between p-6 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">Create New Customer</h3>
+          <div className={`flex-shrink-0 flex items-center justify-between p-6 border-b ${PAGE_STYLES.panel.border}`}>
+            <h3 className={`text-lg font-semibold ${PAGE_STYLES.panel.text}`}>Create New Customer</h3>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className={`${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.text} transition-colors`}
             >
               <X className="w-6 h-6" />
             </button>
@@ -218,19 +219,19 @@ export const CustomerCreationModal: React.FC<CustomerCreationModalProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="flex-shrink-0 flex justify-end items-center gap-4 px-6 py-5 border-t border-gray-200 rounded-b-lg bg-white">
+          <div className={`flex-shrink-0 flex justify-end items-center gap-4 px-6 py-5 border-t ${PAGE_STYLES.panel.border} rounded-b-lg ${PAGE_STYLES.panel.background}`}>
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
+              className={`px-4 py-2 text-sm font-medium ${PAGE_STYLES.panel.text} ${PAGE_STYLES.header.background} border ${PAGE_STYLES.panel.border} rounded-md hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50`}
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
               disabled={isSubmitting || !formData.company_name?.trim()}
-              className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white bg-purple-600 border border-transparent rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
+              className={`flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white ${MODULE_COLORS.customers.base} border border-transparent rounded-md ${MODULE_COLORS.customers.hover} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50`}
             >
               {isSubmitting && <Loader className="w-4 h-4 animate-spin" />}
               <Save className="w-4 h-4" />

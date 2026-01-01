@@ -1,8 +1,11 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FileText, DollarSign, Home } from 'lucide-react';
+import { FileText, DollarSign } from 'lucide-react';
+import { HomeButton } from '../common/HomeButton';
 import InvoicesOverview from './InvoicesOverview';
 import PaymentsTab from './PaymentsTab';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
+import '../jobEstimation/JobEstimation.css';
 
 type TabId = 'overview' | 'payments';
 
@@ -36,28 +39,22 @@ export const InvoicesPage: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className={`${PAGE_STYLES.fullPage} flex flex-col`}>
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className={`${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.border} border-b px-6 py-4`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Back to Dashboard"
-            >
-              <Home className="w-7 h-7" />
-            </button>
+            <HomeButton />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
-              <p className="text-sm text-gray-600 mt-1">View invoice status, balances, and record payments</p>
+              <h1 className={`text-2xl font-bold ${PAGE_STYLES.panel.text}`}>Invoices</h1>
+              <p className={`text-sm ${PAGE_STYLES.panel.textSecondary} mt-1`}>View invoice status, balances, and record payments</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="bg-white border-b border-gray-200">
+      <div className={`${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.border} border-b`}>
         <div className="px-6">
           <div className="flex space-x-8">
             {TABS.map((tab) => (
@@ -67,8 +64,8 @@ export const InvoicesPage: React.FC = () => {
                 className={`
                   flex items-center space-x-2 px-1 py-4 border-b-2 font-medium text-sm transition-colors
                   ${activeTab === tab.id
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? `${MODULE_COLORS.invoices.border} ${MODULE_COLORS.invoices.text}`
+                    : `border-transparent text-[var(--theme-text-muted)] hover:text-[var(--theme-text-primary)] hover:border-gray-500`
                   }
                 `}
               >

@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { customerContactsApi } from '../../services/api';
+import { PAGE_STYLES } from '../../constants/moduleColors';
 
 export interface PointPersonEntry {
   id: string;
@@ -241,20 +242,20 @@ const EstimatePointPersonsEditor = React.forwardRef<EstimatePointPersonsEditorHa
   };
 
   if (loading) {
-    return <div className="text-xs text-gray-500">Loading contacts...</div>;
+    return <div className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>Loading contacts...</div>;
   }
 
   return (
     <div className="space-y-2">
       {pointPersons.length === 0 ? (
-        <div className="text-xs text-gray-500 italic">No point persons added</div>
+        <div className={`text-xs ${PAGE_STYLES.panel.textMuted} italic`}>No point persons added</div>
       ) : (
         pointPersons.map((person) => {
           const availableContacts = getAvailableContacts(person.id);
           const canUseExisting = availableContacts.length > 0 || person.mode === 'existing';
 
           return (
-            <div key={person.id} className="flex items-start gap-2 p-2 bg-gray-50 rounded text-xs">
+            <div key={person.id} className={`flex items-start gap-2 p-2 ${PAGE_STYLES.input.background} border ${PAGE_STYLES.border} rounded text-xs`}>
               {/* Mode Toggle */}
               <div className="flex flex-col gap-0.5 min-w-[55px]">
                 {canUseExisting && (
@@ -267,7 +268,7 @@ const EstimatePointPersonsEditor = React.forwardRef<EstimatePointPersonsEditorHa
                       disabled={disabled || saving}
                       className="w-3 h-3 text-indigo-600"
                     />
-                    <span className="text-[10px] text-gray-600">Existing</span>
+                    <span className={`text-[10px] ${PAGE_STYLES.panel.textMuted}`}>Existing</span>
                   </label>
                 )}
                 <label className="flex items-center gap-1 cursor-pointer">
@@ -279,7 +280,7 @@ const EstimatePointPersonsEditor = React.forwardRef<EstimatePointPersonsEditorHa
                     disabled={disabled || saving}
                     className="w-3 h-3 text-indigo-600"
                   />
-                  <span className="text-[10px] text-gray-600">New</span>
+                  <span className={`text-[10px] ${PAGE_STYLES.panel.textMuted}`}>New</span>
                 </label>
               </div>
 
@@ -290,7 +291,7 @@ const EstimatePointPersonsEditor = React.forwardRef<EstimatePointPersonsEditorHa
                     value={person.contact_id || ''}
                     onChange={(e) => handleExistingContactChange(person.id, e.target.value ? parseInt(e.target.value) : null)}
                     disabled={disabled || saving}
-                    className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500"
+                    className={`w-full px-2 py-1 text-xs border ${PAGE_STYLES.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} rounded focus:ring-1 focus:ring-indigo-500`}
                   >
                     <option value="">Select contact...</option>
                     {availableContacts.map(contact => (
@@ -307,7 +308,7 @@ const EstimatePointPersonsEditor = React.forwardRef<EstimatePointPersonsEditorHa
                         value={person.contact_email}
                         onChange={(e) => handleCustomFieldChange(person.id, 'contact_email', e.target.value)}
                         disabled={disabled || saving}
-                        className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500"
+                        className={`flex-1 px-2 py-1 text-xs border ${PAGE_STYLES.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} ${PAGE_STYLES.input.placeholder} rounded focus:ring-1 focus:ring-indigo-500`}
                         placeholder="Email *"
                       />
                       <input
@@ -315,7 +316,7 @@ const EstimatePointPersonsEditor = React.forwardRef<EstimatePointPersonsEditorHa
                         value={person.contact_name || ''}
                         onChange={(e) => handleCustomFieldChange(person.id, 'contact_name', e.target.value)}
                         disabled={disabled || saving}
-                        className="w-24 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500"
+                        className={`w-24 px-2 py-1 text-xs border ${PAGE_STYLES.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} ${PAGE_STYLES.input.placeholder} rounded focus:ring-1 focus:ring-indigo-500`}
                         placeholder="Name"
                       />
                     </div>
@@ -327,7 +328,7 @@ const EstimatePointPersonsEditor = React.forwardRef<EstimatePointPersonsEditorHa
                         disabled={disabled || saving}
                         className="w-3 h-3 text-indigo-600 rounded"
                       />
-                      <span className="text-[10px] text-gray-500">Save to contacts</span>
+                      <span className={`text-[10px] ${PAGE_STYLES.panel.textMuted}`}>Save to contacts</span>
                     </label>
                   </div>
                 )}
@@ -338,7 +339,7 @@ const EstimatePointPersonsEditor = React.forwardRef<EstimatePointPersonsEditorHa
                 type="button"
                 onClick={() => handleRemovePointPerson(person.id)}
                 disabled={disabled || saving}
-                className="p-1 text-gray-400 hover:text-red-500 disabled:opacity-50"
+                className={`p-1 ${PAGE_STYLES.panel.textMuted} hover:text-red-500 disabled:opacity-50`}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -373,7 +374,7 @@ const EstimatePointPersonsEditor = React.forwardRef<EstimatePointPersonsEditorHa
             type="button"
             onClick={handleReset}
             disabled={disabled || saving}
-            className="flex-1 px-2 py-1 bg-gray-300 text-gray-700 text-xs rounded hover:bg-gray-400 disabled:opacity-50"
+            className={`flex-1 px-2 py-1 ${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.text} text-xs rounded ${PAGE_STYLES.interactive.hoverOnHeader} disabled:opacity-50`}
           >
             Reset Changes
           </button>

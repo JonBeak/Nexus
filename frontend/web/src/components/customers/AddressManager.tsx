@@ -3,6 +3,7 @@ import { Address, Customer } from '../../types';
 import { useAddressManagement } from './hooks/useAddressManagement';
 import AddressForm from './components/AddressForm';
 import AddressDisplay from './components/AddressDisplay';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 
 interface AddressManagerProps {
   customer: Customer;
@@ -61,7 +62,7 @@ function AddressManager({
     <div>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-4">
-          <h4 className="text-lg font-bold text-gray-800 border-b border-gray-200 pb-2">
+          <h4 className={`text-lg font-bold ${PAGE_STYLES.panel.text} border-b ${PAGE_STYLES.panel.border} pb-2`}>
             Addresses ({addresses.filter(addr => addr.is_active !== false).length})
           </h4>
           <label className="flex items-center space-x-2 text-sm">
@@ -71,13 +72,13 @@ function AddressManager({
               onChange={(e) => setShowDeactivated(e.target.checked)}
               className="rounded"
             />
-            <span className="text-gray-600">Show Deactivated</span>
+            <span className={PAGE_STYLES.panel.textSecondary}>Show Deactivated</span>
           </label>
         </div>
         {!isEditing && (
           <button
             onClick={handleAddAddress}
-            className="bg-primary-red hover:bg-primary-red-dark text-white px-4 py-2 rounded-lg font-semibold transition-colors text-sm"
+            className={`${MODULE_COLORS.customers.base} ${MODULE_COLORS.customers.hover} text-white px-4 py-2 rounded-lg font-semibold transition-colors text-sm`}
           >
             + Add Address
           </button>
@@ -88,9 +89,9 @@ function AddressManager({
         {addresses.map((address, index) => {
           const isDeactivated = !address.is_active;
           return (
-          <div key={`${address.address_id}-${index}`} className={`border rounded-lg p-4 ${isDeactivated ? 'border-gray-300 bg-gray-100 opacity-60' : 'border-gray-200 bg-gray-50'}`}>
+          <div key={`${address.address_id}-${index}`} className={`border rounded-lg p-4 ${isDeactivated ? `${PAGE_STYLES.panel.border} ${PAGE_STYLES.header.background} opacity-60` : `${PAGE_STYLES.panel.border} ${PAGE_STYLES.header.background}`}`}>
             <div className="flex items-center justify-between mb-3">
-              <h5 className={`font-semibold ${isDeactivated ? 'text-gray-500' : 'text-gray-800'}`}>
+              <h5 className={`font-semibold ${isDeactivated ? PAGE_STYLES.panel.textMuted : PAGE_STYLES.panel.text}`}>
                 {getAddressTypeLabels(address)}
                 {isDeactivated && <span className="text-red-500 text-sm ml-2">(Deactivated)</span>}
               </h5>
@@ -107,7 +108,7 @@ function AddressManager({
                   !address.isEditing && (
                     <button
                       onClick={() => startEditing(index)}
-                      className="bg-primary-blue hover:bg-primary-blue-dark text-white px-3 py-1 rounded text-sm font-semibold transition-colors"
+                      className={`${MODULE_COLORS.customers.base} ${MODULE_COLORS.customers.hover} text-white px-3 py-1 rounded text-sm font-semibold transition-colors`}
                       disabled={loading}
                     >
                       Edit
@@ -137,7 +138,7 @@ function AddressManager({
                     {!address.is_primary && (
                       <button
                         onClick={() => handleMakePrimary(address.address_id)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm font-semibold transition-colors"
+                        className={`${MODULE_COLORS.customers.base} ${MODULE_COLORS.customers.hover} text-white px-3 py-1 rounded text-sm font-semibold transition-colors`}
                         disabled={loading}
                       >
                         Make Primary
@@ -174,11 +175,11 @@ function AddressManager({
         })}
 
         {addresses.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
+          <div className={`text-center py-8 ${PAGE_STYLES.panel.textMuted}`}>
             <p>No addresses found.</p>
             <button
               onClick={handleAddAddress}
-              className="mt-2 bg-primary-red hover:bg-primary-red-dark text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+              className={`mt-2 ${MODULE_COLORS.customers.base} ${MODULE_COLORS.customers.hover} text-white px-4 py-2 rounded-lg font-semibold transition-colors`}
             >
               Add First Address
             </button>

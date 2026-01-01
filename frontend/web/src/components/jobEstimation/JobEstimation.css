@@ -1,3 +1,68 @@
+/* ============================================
+   THEME SYSTEM - CSS Variables
+   Default: "industrial" (current grayscale)
+   Switch themes via: document.documentElement.dataset.theme = 'light'
+   ============================================ */
+
+:root,
+[data-theme="industrial"] {
+  /* Page level (darkest layer) */
+  --theme-page-bg: #6b7280;           /* gray-500 */
+  --theme-text-on-dark: #f3f4f6;      /* gray-100 */
+
+  /* Panel level (cards, containers) */
+  --theme-panel-bg: #d1d5db;          /* gray-300 */
+  --theme-panel-gradient-start: #d1d5db;
+  --theme-panel-gradient-end: #9ca3af;
+
+  /* Header level (table headers, nav bars) */
+  --theme-header-bg: #9ca3af;         /* gray-400 */
+  --theme-header-hover: #6b7280;      /* gray-500 */
+
+  /* Input fields */
+  --theme-input-bg: #b5bdc6;          /* gray-350 custom */
+
+  /* Borders & dividers */
+  --theme-border: #6b7280;            /* gray-500 */
+
+  /* Text colors */
+  --theme-text-primary: #111827;      /* gray-900 */
+  --theme-text-secondary: #374151;    /* gray-700 */
+  --theme-text-muted: #6b7280;        /* gray-500 */
+
+  /* Interactive states */
+  --theme-hover-bg: #f9fafb;          /* gray-50 */
+  --theme-selected-bg: #f9fafb;       /* gray-50 */
+
+  /* Scrollbar */
+  --theme-scrollbar-track: #f3f4f6;   /* gray-100 */
+  --theme-scrollbar-thumb: #9ca3af;   /* gray-400 */
+  --theme-scrollbar-thumb-hover: #6b7280; /* gray-500 */
+}
+
+/* Future light theme (placeholder) */
+[data-theme="light"] {
+  --theme-page-bg: #f3f4f6;
+  --theme-text-on-dark: #111827;
+  --theme-panel-bg: #ffffff;
+  --theme-panel-gradient-start: #ffffff;
+  --theme-panel-gradient-end: #f3f4f6;
+  --theme-header-bg: #e5e7eb;
+  --theme-header-hover: #d1d5db;
+  --theme-input-bg: #f9fafb;
+  --theme-border: #d1d5db;
+  --theme-text-primary: #111827;
+  --theme-text-secondary: #374151;
+  --theme-text-muted: #6b7280;
+  --theme-hover-bg: #f3f4f6;
+  --theme-selected-bg: #e5e7eb;
+  --theme-scrollbar-track: #ffffff;
+  --theme-scrollbar-thumb: #d1d5db;
+  --theme-scrollbar-thumb-hover: #9ca3af;
+}
+
+/* ============================================ */
+
 /* 3-Panel Layout Styles */
 .three-panel-container {
   display: grid;
@@ -5,7 +70,11 @@
   gap: 1rem;
   width: 100%;
   overflow: hidden;
-  height: calc(100vh - 120px); /* Full page height for consistent panel sizing */
+  height: calc(100vh - 140px); /* Full page height for consistent panel sizing (header bar + content padding) */
+  /* Fix GPU rendering artifacts (diagonal white lines) from subpixel grid calculations */
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 /* Responsive Layout for Tablets */
@@ -77,7 +146,7 @@
 /* Ensure panels don't overflow */
 .three-panel-container .overflow-y-auto {
   scrollbar-width: thin;
-  scrollbar-color: #9ca3af #f3f4f6;
+  scrollbar-color: var(--theme-scrollbar-thumb) var(--theme-scrollbar-track);
 }
 
 .three-panel-container .overflow-y-auto::-webkit-scrollbar {
@@ -85,17 +154,17 @@
 }
 
 .three-panel-container .overflow-y-auto::-webkit-scrollbar-track {
-  background: #f3f4f6;
+  background: var(--theme-scrollbar-track);
   border-radius: 3px;
 }
 
 .three-panel-container .overflow-y-auto::-webkit-scrollbar-thumb {
-  background: #9ca3af;
+  background: var(--theme-scrollbar-thumb);
   border-radius: 3px;
 }
 
 .three-panel-container .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
+  background: var(--theme-scrollbar-thumb-hover);
 }
 
 /* Ensure proper spacing in builder mode */
@@ -108,7 +177,7 @@
 /* Breadcrumb styling */
 .breadcrumb-navigation {
   padding-bottom: 1rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--theme-border);
   margin-bottom: 1rem;
 }
 
@@ -173,6 +242,10 @@ body:has(.job-estimation-builder-mode) {
   flex-direction: column;
   gap: 1rem; /* Gap between elements */
   min-width: 1100px; /* Wider minimum for mobile */
+  /* Fix GPU rendering artifacts (diagonal white lines) from subpixel grid calculations */
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .estimate-builder-grid-wrapper {
@@ -289,7 +362,7 @@ body:has(.job-estimation-builder-mode) {
 
   /* Breadcrumb nav matches grid width */
   .estimate-builder-mobile-unified nav {
-    border-bottom: 1px solid #e5e7eb !important;
+    border-bottom: 1px solid var(--theme-border) !important;
     border-radius: 0 !important;
     margin-bottom: 1rem !important;
     min-width: 1100px;
@@ -341,8 +414,8 @@ body:has(.job-estimation-builder-mode) {
   min-width: 40px;
   height: 100%;
   min-height: 400px;
-  background: linear-gradient(to bottom, #f3e8ff, #ede9fe);
-  border: 1px solid #c4b5fd;
+  background: linear-gradient(to bottom, var(--theme-panel-gradient-start), var(--theme-panel-gradient-end));
+  border: 1px solid var(--theme-border);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -352,11 +425,11 @@ body:has(.job-estimation-builder-mode) {
 }
 
 .collapsible-panel-collapsed:hover {
-  background: linear-gradient(to bottom, #ede9fe, #ddd6fe);
+  background: linear-gradient(to bottom, var(--theme-panel-gradient-end), var(--theme-header-hover));
 }
 
 .collapsible-panel-collapsed:focus {
-  outline: 2px solid #7c3aed;
+  outline: 2px solid var(--theme-text-secondary);
   outline-offset: -2px;
 }
 
@@ -367,7 +440,7 @@ body:has(.job-estimation-builder-mode) {
   transform: rotate(180deg);
   font-size: 0.75rem;
   font-weight: 500;
-  color: #6b21a8;
+  color: var(--theme-text-secondary);
   white-space: nowrap;
   user-select: none;
 }
@@ -388,6 +461,10 @@ body:has(.job-estimation-builder-mode) {
   gap: 0.75rem;
   align-items: stretch;
   min-height: 600px;
+  /* Fix GPU rendering artifacts (diagonal white lines) from subpixel grid calculations */
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 /* In 3-col mode, the preview wrapper takes 65% (increased from 60%) */

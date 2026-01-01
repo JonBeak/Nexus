@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, Trash2, Check, X, Loader2 } from 'lucide-react';
 import { customerContactsApi } from '../../services/api';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 
 interface Contact {
   contact_id: number;
@@ -155,11 +156,13 @@ const ContactsEditor: React.FC<ContactsEditorProps> = ({ customerId }) => {
     }
   };
 
+  const inputClass = `px-2 py-1.5 text-sm border ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500`;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-4">
-        <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-        <span className="ml-2 text-sm text-gray-500">Loading contacts...</span>
+        <Loader2 className={`w-5 h-5 animate-spin ${MODULE_COLORS.customers.text}`} />
+        <span className={`ml-2 text-sm ${PAGE_STYLES.panel.textMuted}`}>Loading contacts...</span>
       </div>
     );
   }
@@ -175,21 +178,21 @@ const ContactsEditor: React.FC<ContactsEditorProps> = ({ customerId }) => {
 
       {/* Contacts List */}
       {contacts.length === 0 && editingId !== 'new' ? (
-        <p className="text-sm text-gray-500 italic">No contacts added yet</p>
+        <p className={`text-sm ${PAGE_STYLES.panel.textMuted} italic`}>No contacts added yet</p>
       ) : (
         <div className="space-y-1">
           {contacts.map((contact) => (
             <div key={contact.contact_id}>
               {editingId === contact.contact_id ? (
                 // Editing Mode
-                <div className="bg-blue-50 rounded-lg p-3 space-y-2">
+                <div className="bg-blue-100 rounded-lg p-3 space-y-2">
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       type="text"
                       value={editForm.contact_name}
                       onChange={(e) => setEditForm({ ...editForm, contact_name: e.target.value })}
                       placeholder="Name *"
-                      className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      className={inputClass}
                       disabled={saving}
                     />
                     <input
@@ -197,7 +200,7 @@ const ContactsEditor: React.FC<ContactsEditorProps> = ({ customerId }) => {
                       value={editForm.contact_email}
                       onChange={(e) => setEditForm({ ...editForm, contact_email: e.target.value })}
                       placeholder="Email *"
-                      className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      className={inputClass}
                       disabled={saving}
                     />
                     <input
@@ -205,7 +208,7 @@ const ContactsEditor: React.FC<ContactsEditorProps> = ({ customerId }) => {
                       value={editForm.contact_phone}
                       onChange={(e) => setEditForm({ ...editForm, contact_phone: e.target.value })}
                       placeholder="Phone"
-                      className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      className={inputClass}
                       disabled={saving}
                     />
                     <input
@@ -213,7 +216,7 @@ const ContactsEditor: React.FC<ContactsEditorProps> = ({ customerId }) => {
                       value={editForm.contact_role}
                       onChange={(e) => setEditForm({ ...editForm, contact_role: e.target.value })}
                       placeholder="Role"
-                      className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      className={inputClass}
                       disabled={saving}
                     />
                   </div>
@@ -238,17 +241,17 @@ const ContactsEditor: React.FC<ContactsEditorProps> = ({ customerId }) => {
                 </div>
               ) : (
                 // View Mode
-                <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                <div className={`flex items-center justify-between py-2 px-3 ${PAGE_STYLES.header.background} rounded-lg hover:bg-[var(--theme-hover-bg)]`}>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm text-gray-900">{contact.contact_name}</span>
+                      <span className={`font-medium text-sm ${PAGE_STYLES.panel.text}`}>{contact.contact_name}</span>
                       {contact.contact_role && (
-                        <span className="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">
+                        <span className={`text-xs ${PAGE_STYLES.panel.textMuted} ${PAGE_STYLES.header.background} px-1.5 py-0.5 rounded`}>
                           {contact.contact_role}
                         </span>
                       )}
                     </div>
-                    <div className="text-sm text-gray-600 truncate">
+                    <div className={`text-sm ${PAGE_STYLES.panel.textSecondary} truncate`}>
                       {contact.contact_email}
                       {contact.contact_phone && ` | ${contact.contact_phone}`}
                     </div>
@@ -257,7 +260,7 @@ const ContactsEditor: React.FC<ContactsEditorProps> = ({ customerId }) => {
                     <button
                       onClick={() => handleEdit(contact)}
                       disabled={saving || editingId !== null}
-                      className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-50"
+                      className={`p-1.5 ${PAGE_STYLES.panel.textMuted} hover:${MODULE_COLORS.customers.text} hover:${MODULE_COLORS.customers.light} rounded disabled:opacity-50`}
                       title="Edit"
                     >
                       <Pencil className="w-4 h-4" />
@@ -265,7 +268,7 @@ const ContactsEditor: React.FC<ContactsEditorProps> = ({ customerId }) => {
                     <button
                       onClick={() => handleDelete(contact.contact_id)}
                       disabled={saving || editingId !== null}
-                      className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-50"
+                      className={`p-1.5 ${PAGE_STYLES.panel.textMuted} hover:text-red-600 hover:bg-red-100 rounded disabled:opacity-50`}
                       title="Delete"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -280,7 +283,7 @@ const ContactsEditor: React.FC<ContactsEditorProps> = ({ customerId }) => {
 
       {/* New Contact Form */}
       {editingId === 'new' && (
-        <div className="bg-green-50 rounded-lg p-3 space-y-2">
+        <div className="bg-green-100 rounded-lg p-3 space-y-2">
           <div className="text-sm font-medium text-green-800 mb-2">Add New Contact</div>
           <div className="grid grid-cols-2 gap-2">
             <input
@@ -288,7 +291,7 @@ const ContactsEditor: React.FC<ContactsEditorProps> = ({ customerId }) => {
               value={editForm.contact_name}
               onChange={(e) => setEditForm({ ...editForm, contact_name: e.target.value })}
               placeholder="Name *"
-              className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500"
+              className={inputClass}
               disabled={saving}
               autoFocus
             />
@@ -297,7 +300,7 @@ const ContactsEditor: React.FC<ContactsEditorProps> = ({ customerId }) => {
               value={editForm.contact_email}
               onChange={(e) => setEditForm({ ...editForm, contact_email: e.target.value })}
               placeholder="Email *"
-              className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500"
+              className={inputClass}
               disabled={saving}
             />
             <input
@@ -305,7 +308,7 @@ const ContactsEditor: React.FC<ContactsEditorProps> = ({ customerId }) => {
               value={editForm.contact_phone}
               onChange={(e) => setEditForm({ ...editForm, contact_phone: e.target.value })}
               placeholder="Phone"
-              className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500"
+              className={inputClass}
               disabled={saving}
             />
             <input
@@ -313,7 +316,7 @@ const ContactsEditor: React.FC<ContactsEditorProps> = ({ customerId }) => {
               value={editForm.contact_role}
               onChange={(e) => setEditForm({ ...editForm, contact_role: e.target.value })}
               placeholder="Role"
-              className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500"
+              className={inputClass}
               disabled={saving}
             />
           </div>
@@ -343,7 +346,7 @@ const ContactsEditor: React.FC<ContactsEditorProps> = ({ customerId }) => {
         <button
           onClick={handleAdd}
           disabled={saving}
-          className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50 mt-2"
+          className={`flex items-center gap-1.5 text-sm ${MODULE_COLORS.customers.text} ${MODULE_COLORS.customers.hover.replace('hover:bg-', 'hover:text-')} disabled:opacity-50 mt-2`}
         >
           <Plus className="w-4 h-4" />
           Add Contact

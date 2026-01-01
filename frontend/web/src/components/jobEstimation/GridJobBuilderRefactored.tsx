@@ -37,6 +37,9 @@ import { convertProductTypeToConfig } from './utils/productTypeHelpers';
 // Import the save API
 import { jobVersioningApi } from '../../services/jobVersioningApi';
 
+// Theme constants
+import { PAGE_STYLES } from '../../constants/moduleColors';
+
 
 const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
   user,
@@ -338,16 +341,16 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
   // Check loading conditions directly
   if (productTypesLoading) {
     return (
-      <div className="bg-white rounded-lg shadow p-6 text-center">
+      <div className={`${PAGE_STYLES.composites.panelContainer} p-6 text-center`}>
         <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-        <p className="mt-2 text-gray-600">Loading product types...</p>
+        <p className={`mt-2 ${PAGE_STYLES.panel.textMuted}`}>Loading product types...</p>
       </div>
     );
   }
 
   if (productTypesError) {
     return (
-      <div className="bg-white rounded-lg shadow p-6 text-center">
+      <div className={`${PAGE_STYLES.composites.panelContainer} p-6 text-center`}>
         <div className="text-red-500 mb-4">
           <p className="font-semibold">Error loading product types</p>
           <p className="text-sm">{productTypesError}</p>
@@ -364,19 +367,19 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
 
   if (!displayRows.length) {
     return (
-      <div className="bg-white rounded-lg shadow p-6 text-center">
+      <div className={`${PAGE_STYLES.composites.panelContainer} p-6 text-center`}>
         <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-        <p className="mt-2 text-gray-600">Loading grid...</p>
+        <p className={`mt-2 ${PAGE_STYLES.panel.textMuted}`}>Loading grid...</p>
       </div>
     );
   }
 
   // === MAIN RENDER ===
   return (
-    <div className="bg-white rounded-lg shadow w-full" data-testid="grid-job-builder">
+    <div className={`${PAGE_STYLES.composites.panelContainer} w-full`} data-testid="grid-job-builder">
       {/* Edit Lock Indicator */}
       {versioningMode && estimateId && !isReadOnly && editLock.lockStatus && (
-        <div className="p-4 border-b border-gray-200">
+        <div className={`p-4 border-b ${PAGE_STYLES.border}`}>
           <EditLockIndicator
             lockStatus={editLock.lockStatus}
             hasLock={editLock.hasLock}
@@ -424,8 +427,8 @@ const GridJobBuilderRefactored: React.FC<GridJobBuilderProps> = ({
       />
 
       {/* Footer Section - Simple for now */}
-      <div className="p-4 border-t bg-gray-50">
-        <div className="flex justify-between items-center text-sm text-gray-600">
+      <div className={`p-4 border-t ${PAGE_STYLES.border} ${PAGE_STYLES.header.background}`}>
+        <div className={`flex justify-between items-center text-sm ${PAGE_STYLES.header.text}`}>
           <span>Total rows: {displayRows.length}</span>
           {gridState.lastSaved && (
             <span>Last saved: {gridState.lastSaved.toLocaleTimeString()}</span>

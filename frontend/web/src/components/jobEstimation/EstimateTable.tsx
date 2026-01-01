@@ -6,9 +6,10 @@ import { EstimateVersion, EmailSummaryConfig } from './types';
 import EstimatePointPersonsEditor, { PointPersonEntry } from './EstimatePointPersonsEditor';
 import EstimateEmailComposer from './EstimateEmailComposer';
 import { EstimateLineDescriptionCell } from './components/EstimateLineDescriptionCell';
-import { EstimateEmailPreviewModal } from './components/EstimateEmailPreviewModal';
+import { EstimateEmailPreviewModal, EmailRecipients } from './components/EstimateEmailPreviewModal';
 import { EstimateTableHeader } from './components/EstimateTableHeader';
 import { jobVersioningApi } from '@/services/jobVersioningApi';
+import { PAGE_STYLES } from '@/constants/moduleColors';
 
 interface EstimateTableProps {
   estimate: EstimateVersion | null; // Used to check is_draft for QB integration
@@ -44,7 +45,7 @@ interface EstimateTableProps {
   onEmailChange?: (subject: string, beginning: string, end: string, summaryConfig: EmailSummaryConfig) => void;
   // Phase 7: Workflow handlers
   onPrepareEstimate?: () => void;
-  onSendToCustomer?: () => void;
+  onSendToCustomer?: (recipients?: EmailRecipients) => void;
   isPreparing?: boolean;
   isSending?: boolean;
   // Hide send workflow sections when displayed in separate panel
@@ -283,7 +284,7 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow mb-8 w-full">
+    <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow mb-8 w-full border ${PAGE_STYLES.border}`}>
       {/* Header */}
       <EstimateTableHeader
         isDraft={estimate?.is_draft ?? false}
@@ -310,14 +311,14 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
       {/* Content */}
       <div ref={contentRef} className="p-3">
         {!estimatePreviewData ? (
-          <div className="text-center py-6 text-gray-500">
-            <FileText className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+          <div className={`text-center py-6 ${PAGE_STYLES.panel.textMuted}`}>
+            <FileText className={`w-8 h-8 mx-auto mb-2 ${PAGE_STYLES.panel.textMuted}`} />
             <p className="text-sm font-medium mb-1">No estimate data</p>
             <p className="text-xs">Complete the grid to see estimate preview</p>
           </div>
         ) : estimatePreviewData.items.length === 0 ? (
-          <div className="text-center py-6 text-gray-500">
-            <FileText className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+          <div className={`text-center py-6 ${PAGE_STYLES.panel.textMuted}`}>
+            <FileText className={`w-8 h-8 mx-auto mb-2 ${PAGE_STYLES.panel.textMuted}`} />
             <p className="text-sm font-medium mb-1">No items calculated</p>
             <p className="text-xs">Add products to the grid to see pricing</p>
           </div>
@@ -341,7 +342,7 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
               <>
                 {/* Customer Info */}
                 {(estimatePreviewData.customerName || estimatePreviewData.estimateId) && (
-                  <div className="bg-gray-50 p-2 rounded-lg">
+                  <div className={`${PAGE_STYLES.header.background} p-2 rounded-lg`}>
                     {estimatePreviewData.customerName && (
                       <div className="text-xs"><strong>Customer:</strong> {estimatePreviewData.customerName}</div>
                     )}
@@ -355,22 +356,22 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                 )}
 
                 {/* Line Items Table */}
-                <div className={`rounded-lg overflow-hidden ${estimate?.is_draft ? 'border' : 'border-2 border-gray-400'}`}>
+                <div className={`rounded-lg overflow-hidden ${estimate?.is_draft ? `border ${PAGE_STYLES.border}` : `border-2 ${PAGE_STYLES.border}`}`}>
                   <table className="w-full text-xs">
-                    <thead className="bg-gray-50">
+                    <thead className={PAGE_STYLES.header.background}>
                       <tr>
-                        <th className="px-2 py-1 text-left font-medium text-gray-900 w-6 border-r border-gray-200">#</th>
-                        <th className="px-2 py-1 text-left font-medium text-gray-900 w-52">Item</th>
+                        <th className={`px-2 py-1 text-left font-medium ${PAGE_STYLES.panel.text} w-6 border-r ${PAGE_STYLES.border}`}>#</th>
+                        <th className={`px-2 py-1 text-left font-medium ${PAGE_STYLES.panel.text} w-52`}>Item</th>
                         {!estimate?.is_draft && (
-                          <th className="px-2 py-1 text-left font-medium text-gray-900 border-l border-gray-200">QB Description</th>
+                          <th className={`px-2 py-1 text-left font-medium ${PAGE_STYLES.panel.text} border-l ${PAGE_STYLES.border}`}>QB Description</th>
                         )}
-                        <th className="px-2 py-1 text-left font-medium text-gray-900 w-64">Details</th>
-                        <th className="px-2 py-1 text-center font-medium text-gray-900 w-10 border-l border-gray-200">Qty</th>
-                        <th className="px-2 py-1 text-center font-medium text-gray-900 w-20 border-l border-gray-200">Unit Price</th>
-                        <th className="px-2 py-1 text-center font-medium text-gray-900 w-20 border-l border-gray-200">Ext. Price</th>
+                        <th className={`px-2 py-1 text-left font-medium ${PAGE_STYLES.panel.text} w-64`}>Details</th>
+                        <th className={`px-2 py-1 text-center font-medium ${PAGE_STYLES.panel.text} w-10 border-l ${PAGE_STYLES.border}`}>Qty</th>
+                        <th className={`px-2 py-1 text-center font-medium ${PAGE_STYLES.panel.text} w-20 border-l ${PAGE_STYLES.border}`}>Unit Price</th>
+                        <th className={`px-2 py-1 text-center font-medium ${PAGE_STYLES.panel.text} w-20 border-l ${PAGE_STYLES.border}`}>Ext. Price</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className={`divide-y ${PAGE_STYLES.divider}`}>
                       {estimatePreviewData.items.map((item, index) => {
                         // Check if this is an Empty Row (Product Type 27) or description-only Custom item
                         const isEmptyRow = item.productTypeId === 27 || item.isDescriptionOnly;
@@ -380,25 +381,25 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                         return (
                           <tr
                             key={`${item.rowId}-${index}`}
-                            className={`hover:bg-gray-50 ${
+                            className={`${PAGE_STYLES.interactive.hover} ${
                               hoveredRowId === item.rowId
-                                ? 'relative z-10 outline outline-2 outline-blue-300 bg-gray-50'
+                                ? `relative z-10 outline outline-2 outline-blue-300 ${PAGE_STYLES.interactive.selected}`
                                 : ''
                             }`}
                             onMouseEnter={() => onRowHover(item.rowId)}
                             onMouseLeave={() => onRowHover(null)}
                           >
-                            <td className="px-2 py-1 text-gray-600 text-sm border-r border-gray-200">{item.estimatePreviewDisplayNumber || item.inputGridDisplayNumber}</td>
+                            <td className={`px-2 py-1 ${PAGE_STYLES.panel.textMuted} text-sm border-r ${PAGE_STYLES.border}`}>{item.estimatePreviewDisplayNumber || item.inputGridDisplayNumber}</td>
                             <td className="px-2 py-1">
                               {isSubtotal ? (
                                 <div></div>
                               ) : (
-                                <div className="font-medium text-gray-900 text-sm">{item.itemName}</div>
+                                <div className={`font-medium ${PAGE_STYLES.panel.text} text-sm`}>{item.itemName}</div>
                               )}
                             </td>
                             {/* QB Description Column - Shown for all non-draft states */}
                             {!estimate?.is_draft && (
-                              <td className="px-2 py-1 border-l border-gray-200 min-w-[200px]">
+                              <td className={`px-2 py-1 border-l ${PAGE_STYLES.border} min-w-[200px]`}>
                                 <EstimateLineDescriptionCell
                                   lineIndex={index}
                                   initialValue={lineDescriptions.get(index) || ''}
@@ -410,16 +411,16 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                             )}
                             <td className="px-2 py-1 w-64">
                               {item.calculationDisplay && (
-                                <div className={`text-[11px] ${isSubtotal ? 'text-gray-700 font-medium' : 'text-gray-500'} whitespace-pre-wrap`}>{item.calculationDisplay}</div>
+                                <div className={`text-[11px] ${isSubtotal ? `${PAGE_STYLES.panel.textSecondary} font-medium` : PAGE_STYLES.panel.textMuted} whitespace-pre-wrap`}>{item.calculationDisplay}</div>
                               )}
                             </td>
                             <td
-                              className={`px-2 py-1 text-center text-sm text-gray-900 border-l border-gray-200 ${!isEmptyRow && !isSubtotal && item.quantity !== 1 ? 'font-bold' : ''}`}
+                              className={`px-2 py-1 text-center text-sm ${PAGE_STYLES.panel.text} border-l ${PAGE_STYLES.border} ${!isEmptyRow && !isSubtotal && item.quantity !== 1 ? 'font-bold' : ''}`}
                               style={{ backgroundColor: (isEmptyRow || isSubtotal) ? 'transparent' : getQuantityBackground(item.quantity) }}
                             >
                               {(isEmptyRow || isSubtotal) ? '' : item.quantity}
                             </td>
-                            <td className="pl-2 pr-1 py-1 text-gray-900 text-xs border-l border-gray-200">
+                            <td className={`pl-2 pr-1 py-1 ${PAGE_STYLES.panel.text} text-xs border-l ${PAGE_STYLES.border}`}>
                               {(isEmptyRow || isSubtotal) ? (
                                 <div className="flex items-baseline">
                                   <span className="flex-1 text-right text-sm"></span>
@@ -427,11 +428,11 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                               ) : (
                                 <div className="flex items-baseline">
                                   <span className="flex-1 text-right text-sm">{splitNumber(item.unitPrice).whole}</span>
-                                  <span className="text-gray-500 w-7 text-left ml-0.5">{splitNumber(item.unitPrice).decimal}</span>
+                                  <span className={`${PAGE_STYLES.panel.textMuted} w-7 text-left ml-0.5`}>{splitNumber(item.unitPrice).decimal}</span>
                                 </div>
                               )}
                             </td>
-                            <td className="pl-2 pr-1 py-1 text-gray-900 font-semibold text-xs border-l border-gray-200">
+                            <td className={`pl-2 pr-1 py-1 ${PAGE_STYLES.panel.text} font-semibold text-xs border-l ${PAGE_STYLES.border}`}>
                               {(isEmptyRow || isSubtotal) ? (
                                 <div className="flex items-baseline">
                                   <span className="flex-1 text-right text-sm"></span>
@@ -439,7 +440,7 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                               ) : (
                                 <div className="flex items-baseline">
                                   <span className="flex-1 text-right text-sm">{splitNumber(item.extendedPrice).whole}</span>
-                                  <span className="text-gray-500 w-7 text-left ml-0.5">{splitNumber(item.extendedPrice).decimal}</span>
+                                  <span className={`${PAGE_STYLES.panel.textMuted} w-7 text-left ml-0.5`}>{splitNumber(item.extendedPrice).decimal}</span>
                                 </div>
                               )}
                             </td>
@@ -451,27 +452,27 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                 </div>
 
                 {/* Totals */}
-                <div className="border-t pt-2">
+                <div className={`border-t ${PAGE_STYLES.border} pt-2`}>
                   <div className="space-y-1 w-64 ml-auto text-sm">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Subtotal:</span>
+                      <span className={PAGE_STYLES.panel.textMuted}>Subtotal:</span>
                       <span className="font-semibold text-right">${formatCurrencyValue(estimatePreviewData.subtotal)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Tax ({formatPercent(estimatePreviewData.taxRate)}):</span>
+                      <span className={PAGE_STYLES.panel.textMuted}>Tax ({formatPercent(estimatePreviewData.taxRate)}):</span>
                       <span className="font-semibold text-right">${formatCurrencyValue(estimatePreviewData.taxAmount)}</span>
                     </div>
-                    <div className="flex justify-between border-t pt-1.5">
-                      <span className="font-semibold text-gray-900">Total:</span>
-                      <span className="font-bold text-base text-gray-900 text-right">${formatCurrencyValue(estimatePreviewData.total)}</span>
+                    <div className={`flex justify-between border-t ${PAGE_STYLES.border} pt-1.5`}>
+                      <span className={`font-semibold ${PAGE_STYLES.panel.text}`}>Total:</span>
+                      <span className={`font-bold text-base ${PAGE_STYLES.panel.text} text-right`}>${formatCurrencyValue(estimatePreviewData.total)}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Point Persons Section - hidden when using separate SendWorkflowPanel */}
-                {!hideSendWorkflow && customerId && (
-                  <div className="border-t pt-3 mt-3">
-                    <h4 className="text-xs font-medium text-gray-700 mb-2">Point Person(s)</h4>
+                {/* Point Persons Section - only show in Prepare to Send stage (not draft) */}
+                {!hideSendWorkflow && customerId && !estimate?.is_draft && (
+                  <div className={`border-t ${PAGE_STYLES.border} pt-3 mt-3`}>
+                    <h4 className={`text-xs font-medium ${PAGE_STYLES.panel.textSecondary} mb-2`}>Point Person(s)</h4>
                     <EstimatePointPersonsEditor
                       customerId={customerId}
                       initialPointPersons={pointPersons?.map(pp => ({
@@ -492,10 +493,10 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                   </div>
                 )}
 
-                {/* Email Composer Section - hidden when using separate SendWorkflowPanel */}
-                {!hideSendWorkflow && estimate && customerId && (
-                  <div className="border-t pt-3 mt-3">
-                    <h4 className="text-xs font-medium text-gray-700 mb-2">Email to Customer</h4>
+                {/* Email Composer Section - only show in Prepare to Send stage (not draft) */}
+                {!hideSendWorkflow && estimate && customerId && !estimate?.is_draft && (
+                  <div className={`border-t ${PAGE_STYLES.border} pt-3 mt-3`}>
+                    <h4 className={`text-xs font-medium ${PAGE_STYLES.panel.textSecondary} mb-2`}>Email to Customer</h4>
                     <EstimateEmailComposer
                       initialSubject={emailSubject}
                       initialBeginning={emailBeginning}
@@ -541,9 +542,9 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
         <EstimateEmailPreviewModal
           isOpen={showEmailPreview}
           onClose={() => setShowEmailPreview(false)}
-          onConfirm={() => {
+          onConfirm={(recipients) => {
             setShowEmailPreview(false);
-            onSendToCustomer?.();
+            onSendToCustomer?.(recipients);
           }}
           estimate={estimate}
           pointPersons={pointPersons}

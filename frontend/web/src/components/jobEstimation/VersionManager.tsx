@@ -15,6 +15,7 @@ import { formatCurrency, formatDate } from './utils/versionUtils';
 import { VersionStatusBadges } from './components/VersionStatusBadges';
 import { VersionNotesModal } from './components/VersionNotesModal';
 import { useVersionLocking } from './hooks/useVersionLocking';
+import { MODULE_COLORS, PAGE_STYLES } from '../../constants/moduleColors';
 
 export const VersionManager: React.FC<VersionManagerProps> = ({
   jobId,
@@ -158,7 +159,7 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
             type="text"
             value={notesValue}
             onChange={(e) => setNotesValue(e.target.value)}
-            className="flex-1 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-purple-500"
+            className="flex-1 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-emerald-500"
             autoFocus
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleSaveNotes(version.id);
@@ -175,7 +176,7 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
             </button>
             <button
               onClick={handleCancelEdit}
-              className="px-2 py-1 bg-gray-600 text-white text-xs rounded hover:bg-gray-700"
+              className={`px-2 py-1 ${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.text} text-xs rounded ${PAGE_STYLES.interactive.hoverOnHeader}`}
               title="Cancel"
             >
               ✕
@@ -187,11 +188,11 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
 
     return (
       <div
-        className="group/notes text-base text-gray-700 font-medium cursor-pointer hover:bg-gray-100 px-2 py-1 rounded min-h-[28px]"
+        className={`group/notes text-base ${PAGE_STYLES.panel.textSecondary} font-medium cursor-pointer ${PAGE_STYLES.interactive.hover} px-2 py-1 rounded min-h-[28px]`}
         onClick={() => handleEditNotes(version)}
         title="Click to edit description"
       >
-        {version.notes || <span className="text-sm text-gray-400 italic font-normal opacity-0 group-hover/notes:opacity-100 transition-opacity">Click to add description...</span>}
+        {version.notes || <span className={`text-sm ${PAGE_STYLES.panel.textMuted} italic font-normal opacity-0 group-hover/notes:opacity-100 transition-opacity`}>Click to add description...</span>}
       </div>
     );
   };
@@ -220,7 +221,7 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
           ) : (
             <button
               onClick={() => handleVersionSelect(version)}
-              className="flex items-center justify-center space-x-1 px-2 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 flex-1"
+              className={`flex items-center justify-center space-x-1 px-2 py-1 ${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.text} text-sm rounded ${PAGE_STYLES.interactive.hoverOnHeader} flex-1`}
               title="View Final"
             >
               <Eye className="w-3 h-3" />
@@ -240,7 +241,7 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
         {orderNumber && (
           <button
             onClick={() => handleGoToOrder(orderNumber)}
-            className="flex items-center justify-center space-x-1 px-2 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 w-full"
+            className={`flex items-center justify-center space-x-1 px-2 py-1 ${MODULE_COLORS.orders.base} text-white text-sm rounded ${MODULE_COLORS.orders.hover} w-full`}
             title={`Go to Order #${orderNumber}`}
           >
             <ArrowRight className="w-3 h-3" />
@@ -252,17 +253,17 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
   };
 
   return (
-    <div className="bg-white rounded shadow">
+    <div className={`${PAGE_STYLES.panel.background} rounded shadow`}>
       {/* Header */}
-      <div className="flex items-center justify-between p-6 border-b">
+      <div className={`flex items-center justify-between p-6 border-b ${PAGE_STYLES.border}`}>
         <div className="flex items-center">
-          <FileText className="w-5 h-5 text-purple-600 mr-2" />
-          <h2 className="text-xl font-semibold">Estimate Versions</h2>
-          <span className="ml-2 text-sm text-gray-500">({versions.length})</span>
+          <FileText className="w-5 h-5 text-emerald-600 mr-2" />
+          <h2 className={`text-xl font-semibold ${PAGE_STYLES.panel.text}`}>Estimate Versions</h2>
+          <span className={`ml-2 text-sm ${PAGE_STYLES.panel.textMuted}`}>({versions.length})</span>
         </div>
         <button
           onClick={() => setShowNewVersionModal(true)}
-          className="flex items-center space-x-2 bg-purple-600 text-white px-2 py-1 rounded hover:bg-purple-700"
+          className="flex items-center space-x-2 bg-emerald-500 text-white px-2 py-1 rounded hover:bg-emerald-600"
         >
           <Plus className="w-4 h-4" />
           <span>New Version</span>
@@ -272,21 +273,21 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
       {/* Table View - Desktop */}
       <div className="version-table-view overflow-x-auto">
         <table className="w-full table-fixed">
-          <thead className="bg-gray-50">
+          <thead className={`${PAGE_STYLES.header.background} border-b ${PAGE_STYLES.border}`}>
             <tr>
-              <th className="text-left p-4 font-medium text-gray-700 w-44">Version</th>
-              <th className="text-left p-4 font-medium text-gray-700 w-56">Description</th>
-              <th className="text-left p-4 font-medium text-gray-700 w-28">Status</th>
-              <th className="text-right p-4 font-medium text-gray-700 w-24">Total</th>
-              <th className="text-center p-4 font-medium text-gray-700 w-32">Actions</th>
+              <th className={`text-left p-4 font-medium ${PAGE_STYLES.panel.textSecondary} w-44`}>Version</th>
+              <th className={`text-left p-4 font-medium ${PAGE_STYLES.panel.textSecondary} w-56`}>Description</th>
+              <th className={`text-center p-4 font-medium ${PAGE_STYLES.panel.textSecondary} w-28`}>Status</th>
+              <th className={`text-right p-4 font-medium ${PAGE_STYLES.panel.textSecondary} w-24`}>Total</th>
+              <th className={`text-center p-4 font-medium ${PAGE_STYLES.panel.textSecondary} w-32`}>Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className={`divide-y ${PAGE_STYLES.divider} border-b ${PAGE_STYLES.border}`}>
             {loading ? (
               <tr>
                 <td colSpan={5} className="p-8 text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
-                  <p className="mt-4 text-gray-500">Loading versions...</p>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto"></div>
+                  <p className={`mt-4 ${PAGE_STYLES.panel.textMuted}`}>Loading versions...</p>
                 </td>
               </tr>
             ) : error ? (
@@ -296,7 +297,7 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
                   <p className="text-red-600">{error}</p>
                   <button
                     onClick={fetchVersions}
-                    className="mt-4 px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700"
+                    className="mt-4 px-2 py-1 bg-emerald-500 text-white rounded hover:bg-emerald-600"
                   >
                     Retry
                   </button>
@@ -305,28 +306,28 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
             ) : versions.length === 0 ? (
               <tr>
                 <td colSpan={5} className="p-12 text-center">
-                  <FileText className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-                  <p className="text-gray-500">No estimate versions yet</p>
-                  <p className="text-sm text-gray-400">Click "New Version" to create the first estimate</p>
+                  <FileText className={`w-12 h-12 mx-auto ${PAGE_STYLES.panel.textMuted} mb-4`} />
+                  <p className={PAGE_STYLES.panel.textMuted}>No estimate versions yet</p>
+                  <p className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>Click "New Version" to create the first estimate</p>
                 </td>
               </tr>
             ) : (
               versions.map((version) => (
                 <tr
                   key={version.id}
-                  className="hover:bg-gray-50"
+                  className={PAGE_STYLES.interactive.hover}
                 >
                   <td className="p-4">
                     <div className="flex items-baseline gap-2">
                       <span className="font-medium">v{version.version_number}</span>
-                      <span className="text-xs text-gray-500">
-                        {formatDate(version.updated_at).date} <span className="text-gray-400">{formatDate(version.updated_at).time}</span>
+                      <span className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>
+                        {formatDate(version.updated_at).date} <span className={PAGE_STYLES.panel.textMuted}>{formatDate(version.updated_at).time}</span>
                       </span>
                     </div>
                     {getLockIndicator(version)}
                   </td>
                   <td className="p-4">{renderNotesCell(version)}</td>
-                  <td className="p-4">
+                  <td className="p-4 text-center">
                     <VersionStatusBadges version={version} />
                   </td>
                   <td className="p-4 text-right font-medium">
@@ -345,14 +346,14 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
         {versions.map((version) => (
           <div
             key={version.id}
-            className="border rounded-lg p-4 bg-white border-gray-200"
+            className={`border rounded-lg p-4 ${PAGE_STYLES.panel.background} ${PAGE_STYLES.border}`}
           >
             <div className="flex items-start justify-between mb-3">
               <div className="flex-shrink-0">
                 <div className="flex items-baseline gap-2">
                   <span className="font-semibold text-lg">v{version.version_number}</span>
-                  <span className="text-xs text-gray-500">
-                    {formatDate(version.updated_at).date} <span className="text-gray-400">{formatDate(version.updated_at).time}</span>
+                  <span className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>
+                    {formatDate(version.updated_at).date} <span className={PAGE_STYLES.panel.textMuted}>{formatDate(version.updated_at).time}</span>
                   </span>
                 </div>
                 {getLockIndicator(version)}
@@ -363,12 +364,12 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
             </div>
             <div className="mb-2">{renderNotesCell(version)}</div>
             <div className="mb-3">
-              <div className="text-sm text-gray-500">Total</div>
+              <div className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>Total</div>
               <div className="font-semibold text-lg">
                 {formatCurrency(parseFloat(version.total_amount) || 0)}
               </div>
             </div>
-            <div className="flex flex-col gap-2 pt-3 border-t border-gray-200">
+            <div className={`flex flex-col gap-2 pt-3 border-t ${PAGE_STYLES.border}`}>
               {renderActionButtons(version)}
             </div>
           </div>

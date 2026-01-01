@@ -3,6 +3,7 @@ import { invoicesApi, InvoiceFilters, InvoiceListingOrder, InvoiceAnalytics } fr
 import InvoiceAnalyticsCards from './InvoiceAnalyticsCards';
 import InvoiceFiltersComponent from './InvoiceFilters';
 import InvoiceTable from './InvoiceTable';
+import { PAGE_STYLES } from '../../constants/moduleColors';
 
 export const InvoicesOverview: React.FC = () => {
   const [orders, setOrders] = useState<InvoiceListingOrder[]>([]);
@@ -86,7 +87,7 @@ export const InvoicesOverview: React.FC = () => {
         {/* Pagination */}
         {totalPages > 1 && (
           <div className="mt-4 flex items-center justify-between">
-            <div className="text-sm text-gray-600">
+            <div className={`text-sm ${PAGE_STYLES.panel.textSecondary}`}>
               Showing {((filters.page || 1) - 1) * (filters.limit || 50) + 1} to{' '}
               {Math.min((filters.page || 1) * (filters.limit || 50), total)} of {total} orders
             </div>
@@ -94,17 +95,17 @@ export const InvoicesOverview: React.FC = () => {
               <button
                 onClick={() => handlePageChange((filters.page || 1) - 1)}
                 disabled={(filters.page || 1) <= 1}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`px-3 py-1.5 text-sm ${PAGE_STYLES.panel.border} border ${PAGE_STYLES.header.background} rounded-lg hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed ${PAGE_STYLES.panel.text}`}
               >
                 Previous
               </button>
-              <span className="text-sm text-gray-600">
+              <span className={`text-sm ${PAGE_STYLES.panel.textSecondary}`}>
                 Page {filters.page || 1} of {totalPages}
               </span>
               <button
                 onClick={() => handlePageChange((filters.page || 1) + 1)}
                 disabled={(filters.page || 1) >= totalPages}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`px-3 py-1.5 text-sm ${PAGE_STYLES.panel.border} border ${PAGE_STYLES.header.background} rounded-lg hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed ${PAGE_STYLES.panel.text}`}
               >
                 Next
               </button>

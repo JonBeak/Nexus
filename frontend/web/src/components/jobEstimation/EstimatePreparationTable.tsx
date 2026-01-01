@@ -20,6 +20,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
+import { PAGE_STYLES } from '../../constants/moduleColors';
 
 // ============================================================================
 // Types
@@ -98,7 +99,7 @@ const SortableRow: React.FC<SortableRowProps> = ({
     <tr
       ref={setNodeRef}
       style={style}
-      className={`border-b hover:bg-gray-50 ${saving === item.id ? 'opacity-50' : ''} ${isDragging ? 'bg-blue-50' : ''}`}
+      className={`border-b ${PAGE_STYLES.interactive.hover} ${saving === item.id ? 'opacity-50' : ''} ${isDragging ? 'bg-blue-50' : ''}`}
     >
       {/* Drag Handle */}
       {!readOnly && (
@@ -106,9 +107,9 @@ const SortableRow: React.FC<SortableRowProps> = ({
           <div
             {...attributes}
             {...listeners}
-            className="cursor-grab active:cursor-grabbing p-0.5 hover:bg-gray-200 rounded inline-flex"
+            className={`cursor-grab active:cursor-grabbing p-0.5 ${PAGE_STYLES.interactive.hover} rounded inline-flex`}
           >
-            <GripVertical className="w-4 h-4 text-gray-400" />
+            <GripVertical className={`w-4 h-4 ${PAGE_STYLES.panel.textMuted}`} />
           </div>
         </td>
       )}
@@ -139,7 +140,7 @@ const SortableRow: React.FC<SortableRowProps> = ({
       </td>
 
       {/* Row number */}
-      <td className="px-2 py-1 text-gray-400">
+      <td className={`px-2 py-1 ${PAGE_STYLES.panel.textMuted}`}>
         {index + 1}
       </td>
 
@@ -173,7 +174,7 @@ const SortableRow: React.FC<SortableRowProps> = ({
       {/* Calculation Display (read-only) */}
       <td className="px-2 py-1">
         {item.calculation_display && (
-          <div className="text-xs text-gray-400 px-1 whitespace-pre-wrap break-words">
+          <div className={`text-xs ${PAGE_STYLES.panel.textMuted} px-1 whitespace-pre-wrap break-words`}>
             {item.calculation_display}
           </div>
         )}
@@ -427,7 +428,7 @@ export const EstimatePreparationTable: React.FC<EstimatePreparationTableProps> =
 
   if (loading) {
     return (
-      <div className="p-4 text-center text-gray-500">
+      <div className={`p-4 text-center ${PAGE_STYLES.panel.textMuted}`}>
         Loading preparation table...
       </div>
     );
@@ -455,12 +456,12 @@ export const EstimatePreparationTable: React.FC<EstimatePreparationTableProps> =
   const total = subtotal + tax;
 
   return (
-    <div className="border rounded-lg overflow-hidden bg-white">
+    <div className={`${PAGE_STYLES.composites.panelContainer} overflow-hidden`}>
       {/* Header */}
-      <div className="bg-gray-50 px-3 py-2 border-b flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">
+      <div className={`${PAGE_STYLES.composites.tableHeader} px-3 py-2 flex items-center justify-between`}>
+        <h3 className={`text-sm font-semibold ${PAGE_STYLES.header.text}`}>
           Preparation Table
-          {readOnly && <span className="ml-2 text-xs text-gray-400">(Read-only)</span>}
+          {readOnly && <span className={`ml-2 text-xs ${PAGE_STYLES.panel.textMuted}`}>(Read-only)</span>}
         </h3>
         {!readOnly && (
           <button
@@ -480,7 +481,7 @@ export const EstimatePreparationTable: React.FC<EstimatePreparationTableProps> =
       >
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
-            <thead className="bg-gray-100">
+            <thead className={PAGE_STYLES.header.background}>
               <tr>
                 {!readOnly && <th className="px-1 py-1 w-6"></th>}
                 <th className="px-2 py-1 text-center w-14">Type</th>
@@ -519,14 +520,14 @@ export const EstimatePreparationTable: React.FC<EstimatePreparationTableProps> =
       </DndContext>
 
       {/* Footer with totals */}
-      <div className="bg-gray-50 px-3 py-2 border-t flex justify-between items-center">
-        <span className="text-xs text-gray-500">
+      <div className={`${PAGE_STYLES.header.background} px-3 py-2 border-t ${PAGE_STYLES.border} flex justify-between items-center`}>
+        <span className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>
           {items.length} item{items.length !== 1 ? 's' : ''}
         </span>
         <div className="text-sm text-right">
-          <div className="text-gray-600">Subtotal: {formatCurrency(subtotal)}</div>
-          <div className="text-gray-600">Tax ({(taxRate * 100).toFixed(0)}%): {formatCurrency(tax)}</div>
-          <div className="font-semibold text-gray-900">Total: {formatCurrency(total)}</div>
+          <div className={PAGE_STYLES.panel.textMuted}>Subtotal: {formatCurrency(subtotal)}</div>
+          <div className={PAGE_STYLES.panel.textMuted}>Tax ({(taxRate * 100).toFixed(0)}%): {formatCurrency(tax)}</div>
+          <div className={`font-semibold ${PAGE_STYLES.panel.text}`}>Total: {formatCurrency(total)}</div>
         </div>
       </div>
     </div>

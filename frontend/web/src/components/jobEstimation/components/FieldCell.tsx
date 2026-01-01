@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ExpandableFieldInput } from './ExpandableFieldInput';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface FieldCellProps {
   fieldName: string;
@@ -165,7 +166,7 @@ export const FieldCell: React.FC<FieldCellProps> = ({
     // Show prompt text if available (for informational display)
     if (fieldPrompt && fieldPrompt.trim() !== '') {
       return (
-        <div className="w-full px-2 py-1 text-xs text-gray-500 text-center italic">
+        <div className={`w-full px-2 py-1 text-xs ${PAGE_STYLES.panel.textMuted} text-center italic`}>
           {fieldPrompt}
         </div>
       );
@@ -177,7 +178,7 @@ export const FieldCell: React.FC<FieldCellProps> = ({
   if (!isEditable) {
     // Read-only display
     return (
-      <div className="w-full px-2 py-1 text-xs text-gray-600 text-center">
+      <div className={`w-full px-2 py-1 text-xs ${PAGE_STYLES.panel.textMuted} text-center`}>
         {fieldValue || '-'}
       </div>
     );
@@ -193,7 +194,7 @@ export const FieldCell: React.FC<FieldCellProps> = ({
       return {
         borderClass: 'border border-red-500',
         bgClass: 'bg-red-100',
-        textClass: hasValue ? 'text-black' : 'text-gray-400'
+        textClass: hasValue ? 'text-black' : PAGE_STYLES.panel.textMuted
       };
     }
 
@@ -283,16 +284,16 @@ export const FieldCell: React.FC<FieldCellProps> = ({
       };
     }
 
-    // Default styling (no value or regular field)
+    // Default styling (no value or regular field) - uses theme input background
     return {
-      borderClass: 'border border-gray-300',
-      bgClass: 'bg-white',
-      textClass: hasValue ? 'text-black' : 'text-gray-400'
+      borderClass: PAGE_STYLES.input.border,
+      bgClass: PAGE_STYLES.input.background,
+      textClass: hasValue ? PAGE_STYLES.input.text : PAGE_STYLES.input.placeholder.replace('placeholder:', '')
     };
   };
 
   const styling = getFieldStyling();
-  const fieldClasses = `w-full px-2 py-1 text-xs ${styling.borderClass} ${styling.bgClass} ${styling.textClass} rounded focus:bg-white focus:border focus:border-blue-300 text-center placeholder-gray-400`;
+  const fieldClasses = `w-full px-2 py-1 text-xs ${styling.borderClass} ${styling.bgClass} ${styling.textClass} rounded focus:${PAGE_STYLES.interactive.selected} focus:border focus:border-blue-300 text-center ${PAGE_STYLES.input.placeholder}`;
 
   // Use fieldPrompt as placeholder - no fallback, should fail clearly if missing
   const displayPlaceholder = fieldPrompt ?? placeholder ?? '';

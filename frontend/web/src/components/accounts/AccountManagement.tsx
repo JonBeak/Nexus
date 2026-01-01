@@ -1,5 +1,6 @@
 import React from 'react';
-import { Users, Shield, Activity, Calendar, ArrowLeft } from 'lucide-react';
+import { Users, Shield, Activity, Calendar } from 'lucide-react';
+import { HomeButton } from '../common/HomeButton';
 import { useNavigate } from 'react-router-dom';
 import { UserModal } from './modals/UserModal';
 import { PasswordModal } from './modals/PasswordModal';
@@ -71,13 +72,7 @@ export const AccountManagement: React.FC<AccountManagementProps> = ({ user }) =>
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
-                title="Return to Dashboard"
-              >
-                <ArrowLeft className="h-6 w-6" />
-              </button>
+              <HomeButton />
               <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center">
                 <Shield className="h-6 w-6 text-white" />
               </div>

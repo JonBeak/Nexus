@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ChevronRight, Home, Copy, Check, CheckCircle } from 'lucide-react';
 import { BreadcrumbNavigationProps } from './types';
 import { getStatusColorClasses } from './utils/statusUtils';
+import { MODULE_COLORS, PAGE_STYLES } from '../../constants/moduleColors';
 
 export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
   customerName,
@@ -22,7 +23,7 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
   onConvertToOrder
 }) => {
   const getStatusColor = (status?: string) => {
-    if (!status) return 'text-gray-700';
+    if (!status) return PAGE_STYLES.panel.textSecondary;
 
     const colorClasses = getStatusColorClasses(status);
     const textColorMatch = colorClasses.match(/text-([a-z]+)-([0-9]+)/);
@@ -32,7 +33,7 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
       return `text-${color}-600`;
     }
 
-    return 'text-gray-700';
+    return PAGE_STYLES.panel.textSecondary;
   };
 
   const getStatusBadge = (status?: string) => {
@@ -48,7 +49,7 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
   };
 
   return (
-    <nav className="bg-white border-b border-gray-200 px-4 py-4">
+    <nav className={`${PAGE_STYLES.composites.navBar} px-4 py-4`}>
       <div className="flex items-center justify-between mb-2 sm:mb-0">
         {/* LEFT: Breadcrumb navigation */}
         <div className="flex flex-wrap items-center gap-2 text-sm flex-1">
@@ -61,13 +62,13 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
               onNavigateToHome();
             }
           }}
-          className="p-1 text-gray-500 hover:text-purple-600 transition-colors"
+          className={`p-1 ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.text} transition-colors`}
           title="Back to Dashboard"
         >
           <Home className="w-5 h-5" />
         </Link>
 
-        <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+        <ChevronRight className={`w-4 h-4 ${PAGE_STYLES.panel.textMuted} flex-shrink-0`} />
 
         {/* Job Estimation - leads to navigation page */}
         <Link
@@ -78,7 +79,7 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
               onNavigateToEstimates();
             }
           }}
-          className="text-gray-500 hover:text-purple-600 transition-colors"
+          className={`${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.text} transition-colors`}
         >
           Job Estimation
         </Link>
@@ -86,7 +87,7 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
         {/* Customer - leads to customer's jobs */}
         {customerName && (
           <>
-            <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <ChevronRight className={`w-4 h-4 ${PAGE_STYLES.panel.textMuted} flex-shrink-0`} />
             {jobName && customerId ? (
               <Link
                 to={`/estimates?cid=${customerId}`}
@@ -96,12 +97,12 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
                     onNavigateToCustomer();
                   }
                 }}
-                className="truncate max-w-[150px] md:max-w-xs text-gray-500 hover:text-purple-600 transition-colors"
+                className={`truncate max-w-[150px] md:max-w-xs ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.text} transition-colors`}
               >
                 {customerName}
               </Link>
             ) : (
-              <span className={`truncate max-w-[150px] md:max-w-xs font-medium ${status ? getStatusColor(status) : 'text-purple-600'}`}>
+              <span className={`truncate max-w-[150px] md:max-w-xs font-medium ${status ? getStatusColor(status) : PAGE_STYLES.panel.text}`}>
                 {customerName}
               </span>
             )}
@@ -111,7 +112,7 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
         {/* Job - leads to job's versions */}
         {jobName && (
           <>
-            <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <ChevronRight className={`w-4 h-4 ${PAGE_STYLES.panel.textMuted} flex-shrink-0`} />
             {version && customerId && jobId ? (
               <Link
                 to={`/estimates?cid=${customerId}&jid=${jobId}`}
@@ -121,12 +122,12 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
                     onNavigateToJob();
                   }
                 }}
-                className="truncate max-w-[150px] md:max-w-xs text-gray-500 hover:text-purple-600 transition-colors"
+                className={`truncate max-w-[150px] md:max-w-xs ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.text} transition-colors`}
               >
                 {jobName}
               </Link>
             ) : (
-              <span className={`truncate max-w-[150px] md:max-w-xs font-medium ${status ? getStatusColor(status) : 'text-purple-600'}`}>
+              <span className={`truncate max-w-[150px] md:max-w-xs font-medium ${status ? getStatusColor(status) : PAGE_STYLES.panel.text}`}>
                 {jobName}
               </span>
             )}
@@ -136,8 +137,8 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
         {/* Version - current page, no click */}
         {version && (
           <>
-            <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
-            <span className={`font-medium ${status ? getStatusColor(status) : 'text-purple-600'}`}>
+            <ChevronRight className={`w-4 h-4 ${PAGE_STYLES.panel.textMuted} flex-shrink-0`} />
+            <span className={`font-medium ${status ? getStatusColor(status) : PAGE_STYLES.panel.text}`}>
               {version}
             </span>
             {status && getStatusBadge(status)}
@@ -152,10 +153,10 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
             {showCopySvg && (
               <button
                 onClick={onCopySvg}
-                className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded transition-colors flex-shrink-0 ${
+                className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded transition-colors flex-shrink-0 border ${
                   copySvgSuccess
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                    ? 'bg-green-100 text-green-700 border-green-400'
+                    : 'bg-purple-100 text-purple-700 border-purple-400 hover:bg-purple-200'
                 }`}
               >
                 {copySvgSuccess ? (
@@ -166,7 +167,7 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
                 ) : (
                   <>
                     <Copy className="w-4 h-4 flex-shrink-0" />
-                    Copy SVG
+                    Copy for Illustrator
                   </>
                 )}
               </button>
@@ -176,7 +177,7 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
             {showConvertToOrder && (
               <button
                 onClick={onConvertToOrder}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors flex-shrink-0"
+                className={`flex items-center gap-1 px-3 py-1.5 text-sm ${MODULE_COLORS.orders.light} ${MODULE_COLORS.orders.lightButtonText} rounded border border-orange-400 ${MODULE_COLORS.orders.lightHover} transition-colors flex-shrink-0`}
               >
                 <CheckCircle className="w-4 h-4 flex-shrink-0" />
                 Convert to Order
@@ -188,7 +189,7 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
 
       {/* Additional context information */}
       {version && status && (
-        <div className="mt-2 text-xs text-gray-500">
+        <div className={`mt-2 text-xs ${PAGE_STYLES.panel.textMuted}`}>
           {status === 'Draft' && (
             <span className="flex items-center">
               <div className="w-2 h-2 bg-yellow-400 rounded-full mr-2"></div>
@@ -197,7 +198,7 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
           )}
           {status !== 'Draft' && (
             <span className="flex items-center">
-              <div className="w-2 h-2 bg-gray-400 rounded-full mr-2"></div>
+              <div className={`w-2 h-2 ${PAGE_STYLES.header.background} rounded-full mr-2`}></div>
               This estimate is finalized and cannot be edited
             </span>
           )}

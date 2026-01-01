@@ -1,5 +1,6 @@
 // File Clean up Finished: 2025-11-25
 import { api } from './apiClient';
+import { EmailRecipients } from '../components/jobEstimation/components/EstimateEmailPreviewModal';
 
 // Job Estimation Versioning API
 export const jobVersioningApi = {
@@ -259,10 +260,10 @@ export const jobVersioningApi = {
    * - Creates QB estimate
    * - Sends email to point persons
    */
-  sendEstimateToCustomer: async (estimateId: number, estimatePreviewData?: any, recipientEmails?: string[]) => {
+  sendEstimateToCustomer: async (estimateId: number, estimatePreviewData?: any, recipients?: EmailRecipients) => {
     const response = await api.post(`/job-estimation/estimates/${estimateId}/send-to-customer`, {
       estimatePreviewData,
-      recipientEmails
+      recipients
     });
     return response.data;
   },

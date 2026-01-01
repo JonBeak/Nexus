@@ -1,6 +1,7 @@
 import React from 'react';
 import { BulkEntry } from '../../../hooks/useBulkEntries';
 import { TypeButtonGroup } from './TypeButtonGroup';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface BulkEntryHeaderProps {
   onBulkTypeChange?: (type: BulkEntry['type']) => void;
@@ -12,10 +13,12 @@ interface BulkEntryHeaderProps {
 export const BulkEntryHeader: React.FC<BulkEntryHeaderProps> = ({
   onBulkTypeChange
 }) => {
+  const thClass = `px-2 py-1 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`;
+
   return (
-    <thead className="bg-gray-50">
+    <thead className={PAGE_STYLES.header.background}>
       <tr>
-        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <th className={thClass}>
           <div className="flex flex-col gap-1">
             <span>Type<span className="text-red-500 ml-1">*</span></span>
             {onBulkTypeChange && (
@@ -29,25 +32,25 @@ export const BulkEntryHeader: React.FC<BulkEntryHeaderProps> = ({
             )}
           </div>
         </th>
-        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '280px' }}>
+        <th className={thClass} style={{ minWidth: '280px' }}>
           Vinyl Product<span className="text-red-500 ml-1">*</span>
         </th>
-        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <th className={thClass}>
           Width (in)<span className="text-red-500 ml-1">*</span>
         </th>
-        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <th className={thClass}>
           Length (yds)<span className="text-red-500 ml-1">*</span>
         </th>
-        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <th className={thClass}>
           Location
         </th>
-        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+        <th className={thClass} style={{ minWidth: '120px' }}>
           Jobs
         </th>
-        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <th className={thClass}>
           Notes
         </th>
-        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <th className={thClass}>
           Actions
         </th>
       </tr>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Address } from '../../../types';
 import { provincesApi } from '../../../services/api';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface AddressDisplayProps {
   address: Address;
@@ -53,20 +54,20 @@ const AddressDisplay: React.FC<AddressDisplayProps> = ({ address }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div className="md:col-span-2">
-        <p className="text-gray-800">
+        <p className={PAGE_STYLES.panel.text}>
           <strong>{address.address_line1}</strong>
           {address.address_line2 && <>, {address.address_line2}</>}
         </p>
-        <p className="text-gray-800">
+        <p className={PAGE_STYLES.panel.text}>
           {address.city}, {address.province_state_short} {address.postal_zip}
         </p>
-        <p className="text-gray-600">{address.country}</p>
+        <p className={PAGE_STYLES.panel.textSecondary}>{address.country}</p>
 
         {/* Tax Information Display */}
         {taxDisplay && (
-          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
-            <p className="text-sm font-semibold text-blue-800 mb-1">Tax Information:</p>
-            <div className="text-sm text-blue-700">
+          <div className={`mt-3 p-3 bg-blue-100 border ${MODULE_COLORS.customers.border} rounded-md`}>
+            <p className={`text-sm font-semibold ${MODULE_COLORS.customers.text} mb-1`}>Tax Information:</p>
+            <div className={`text-sm ${MODULE_COLORS.customers.text}`}>
               <div>{taxDisplay.label}: {taxDisplay.value}</div>
               {taxDisplay.reason && (
                 <div className="mt-1">Reason: {taxDisplay.reason}</div>
@@ -76,7 +77,7 @@ const AddressDisplay: React.FC<AddressDisplayProps> = ({ address }) => {
         )}
 
         {address.comments && (
-          <p className="text-sm text-gray-600 mt-2 italic">{address.comments}</p>
+          <p className={`text-sm ${PAGE_STYLES.panel.textSecondary} mt-2 italic`}>{address.comments}</p>
         )}
       </div>
     </div>

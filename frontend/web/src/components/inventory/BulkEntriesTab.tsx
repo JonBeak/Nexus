@@ -4,6 +4,7 @@ import { useBulkEntries } from '../../hooks/useBulkEntries';
 import { BulkEntriesTable } from './BulkEntriesTable';
 import { validateBulkEntries } from '../../services/bulkEntry/bulkEntryValidation';
 import { submitBulkEntries } from '../../services/bulkEntrySubmission';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 
 interface BulkEntriesTabProps {
   vinylItems: VinylItem[];
@@ -155,21 +156,21 @@ export const BulkEntriesTab: React.FC<BulkEntriesTabProps> = ({
     <div className="max-w-7xl mx-auto px-4 py-3 space-y-3">
       {/* Header with summary and actions */}
       <div className="flex justify-between items-center">
-        <div className="text-sm text-gray-600">
+        <div className={`text-sm ${PAGE_STYLES.panel.textSecondary}`}>
           {validEntryCount} valid entries ready for submission
-          {isSaving && <span className="ml-2 text-purple-600 italic">Auto-saving...</span>}
+          {isSaving && <span className={`ml-2 ${MODULE_COLORS.vinyls.text} italic`}>Auto-saving...</span>}
         </div>
         <div className="flex gap-2">
           <button
             onClick={clearAllBulkEntries}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+            className={`px-4 py-2 text-sm font-medium ${PAGE_STYLES.panel.text} ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} rounded-md hover:bg-[var(--theme-hover-bg)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500`}
           >
             Clear All
           </button>
           <button
             onClick={handleSubmitBulkEntries}
             disabled={validEntryCount === 0}
-            className="px-4 py-2 text-sm font-medium text-white bg-purple-600 border border-transparent rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            className={`px-4 py-2 text-sm font-medium text-white ${MODULE_COLORS.vinyls.base} border border-transparent rounded-md ${MODULE_COLORS.vinyls.hover} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:bg-gray-300 disabled:cursor-not-allowed`}
           >
             Submit {validEntryCount} Entries
           </button>

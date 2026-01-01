@@ -7,6 +7,7 @@
 import React from 'react';
 import { GridRow } from '../core/types/LayerTypes';
 import { ProductType } from '../hooks/useProductTypes';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface ProductTypeSelectorProps {
   row: GridRow;
@@ -153,14 +154,14 @@ export const ProductTypeSelector: React.FC<ProductTypeSelectorProps> = ({
   const hasError = validationState === 'error';
 
   // Error styling takes priority, then special category styling (matches FieldCell pattern)
-  // Default uses transparent background to inherit row color
+  // Default uses theme input background for consistency
   const selectClassName = hasError
     ? 'w-full px-2 py-1 text-xs border border-red-500 bg-red-100 text-black rounded focus:border-red-600 appearance-none text-left'
     : isSubItem
       ? 'w-full px-2 py-1 text-xs border border-purple-300 bg-purple-50 text-purple-900 rounded focus:border-purple-400 appearance-none text-left'
       : isEmptyRow
         ? 'w-full px-2 py-1 text-xs border border-blue-500 bg-sky-50/25 text-black rounded focus:border-blue-300 appearance-none text-left'
-        : 'w-full px-2 py-1 text-xs border border-gray-300 bg-transparent text-black rounded focus:border-blue-300 appearance-none text-left';
+        : `w-full px-2 py-1 text-xs ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} rounded focus:border-blue-300 appearance-none text-left`;
 
   // Group product types by category
   const groupedProductTypes = productTypes.reduce((acc, pt) => {

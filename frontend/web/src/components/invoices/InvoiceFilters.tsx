@@ -1,6 +1,7 @@
 import React from 'react';
 import { Search, X } from 'lucide-react';
 import { InvoiceFilters as IInvoiceFilters } from '../../services/api/invoicesApi';
+import { PAGE_STYLES } from '../../constants/moduleColors';
 
 interface Props {
   filters: IInvoiceFilters;
@@ -31,18 +32,20 @@ export const InvoiceFilters: React.FC<Props> = ({ filters, onFiltersChange }) =>
     (filters.sentStatus && filters.sentStatus !== 'all') ||
     (filters.depositStatus && filters.depositStatus !== 'all');
 
+  const selectClass = `px-3 py-2 ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent ${PAGE_STYLES.input.text}`;
+
   return (
-    <div className="bg-white border-b border-gray-200 px-6 py-3">
+    <div className={`${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.border} border-b px-6 py-3`}>
       <div className="flex items-center gap-4">
         {/* Search */}
         <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--theme-text-muted)]" />
           <input
             type="text"
             placeholder="Search orders..."
             value={filters.search || ''}
             onChange={handleSearchChange}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className={`w-full pl-10 pr-4 py-2 ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent ${PAGE_STYLES.input.text} ${PAGE_STYLES.input.placeholder}`}
           />
         </div>
 
@@ -50,7 +53,7 @@ export const InvoiceFilters: React.FC<Props> = ({ filters, onFiltersChange }) =>
         <select
           value={filters.invoiceStatus || 'all'}
           onChange={(e) => handleFilterChange('invoiceStatus', e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className={selectClass}
         >
           <option value="all">All Invoice Status</option>
           <option value="invoiced">Invoiced</option>
@@ -61,7 +64,7 @@ export const InvoiceFilters: React.FC<Props> = ({ filters, onFiltersChange }) =>
         <select
           value={filters.balanceStatus || 'all'}
           onChange={(e) => handleFilterChange('balanceStatus', e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className={selectClass}
         >
           <option value="all">All Balance Status</option>
           <option value="open">Open Balance</option>
@@ -72,7 +75,7 @@ export const InvoiceFilters: React.FC<Props> = ({ filters, onFiltersChange }) =>
         <select
           value={filters.sentStatus || 'all'}
           onChange={(e) => handleFilterChange('sentStatus', e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className={selectClass}
         >
           <option value="all">All Sent Status</option>
           <option value="sent">Sent</option>
@@ -83,7 +86,7 @@ export const InvoiceFilters: React.FC<Props> = ({ filters, onFiltersChange }) =>
         <select
           value={filters.depositStatus || 'all'}
           onChange={(e) => handleFilterChange('depositStatus', e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className={selectClass}
         >
           <option value="all">All Deposit Status</option>
           <option value="required">Deposit Required</option>
@@ -95,7 +98,7 @@ export const InvoiceFilters: React.FC<Props> = ({ filters, onFiltersChange }) =>
         {hasActiveFilters && (
           <button
             onClick={clearFilters}
-            className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+            className={`flex items-center gap-1 px-3 py-2 text-sm ${PAGE_STYLES.panel.textSecondary} hover:${PAGE_STYLES.panel.text} hover:bg-gray-500 rounded-lg transition-colors`}
           >
             <X className="w-4 h-4" />
             Clear

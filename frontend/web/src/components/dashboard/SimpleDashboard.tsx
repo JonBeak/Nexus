@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Sun, Moon } from 'lucide-react';
 import TimeTracking from '../time/TimeTracking';
 import TimeApprovals from '../time/TimeApprovals';
 import type { AccountUser } from '../../types/user';
 import { apiClient } from '../../services/api';
+import { MODULE_COLORS, PAGE_STYLES, getModulePillClasses, getModuleCardClasses } from '../../constants/moduleColors';
+import '../jobEstimation/JobEstimation.css';
 
 // Backup Status Types
 interface BackupInfo {
@@ -35,6 +38,23 @@ function SimpleDashboard({ user, onLogout }: SimpleDashboardProps) {
   const [backupStatus, setBackupStatus] = useState<BackupStatusData | null>(null);
   const [backupLoading, setBackupLoading] = useState(false);
   const [backupError, setBackupError] = useState<string | null>(null);
+
+  // Theme state - 'industrial' (default) or 'light'
+  const [theme, setTheme] = useState<'industrial' | 'light'>(() => {
+    // Initialize from localStorage or default to 'industrial'
+    const saved = localStorage.getItem('signhouse-theme');
+    return (saved === 'light' ? 'light' : 'industrial') as 'industrial' | 'light';
+  });
+
+  // Apply theme on mount and when theme changes
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('signhouse-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'industrial' ? 'light' : 'industrial');
+  };
 
   // Fetch backup status for owners
   useEffect(() => {
@@ -97,8 +117,8 @@ Check backend logs for detailed comparison!`);
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-white shadow-lg border-b-4 border-primary-red">
+    <div className={PAGE_STYLES.fullPage}>
+      <header className={`${PAGE_STYLES.panel.background} shadow-lg border-b-4 border-primary-red`}>
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
@@ -106,16 +126,31 @@ Check backend logs for detailed comparison!`);
                 <span className="text-white font-bold text-xl">S</span>
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-800">Sign House Web</h1>
-                <p className="text-lg text-gray-600">Welcome back, {user.first_name}!</p>
+                <h1 className={`text-3xl font-bold ${PAGE_STYLES.panel.text}`}>Sign House Web</h1>
+                <p className={`text-lg ${PAGE_STYLES.panel.textSecondary}`}>Welcome back, {user.first_name}!</p>
               </div>
             </div>
-            <button 
-              onClick={onLogout}
-              className="bg-primary-red hover:bg-primary-red-dark text-white px-6 py-3 rounded-lg font-semibold transition-colors shadow-lg"
-            >
-              Sign Out
-            </button>
+            <div className="flex items-center gap-3">
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                className={`p-3 rounded-lg ${PAGE_STYLES.header.background} ${PAGE_STYLES.interactive.hover} ${PAGE_STYLES.panel.text} transition-colors shadow-lg`}
+                title={theme === 'industrial' ? 'Switch to Light Theme' : 'Switch to Industrial Theme'}
+              >
+                {theme === 'industrial' ? (
+                  <Sun className="w-5 h-5" />
+                ) : (
+                  <Moon className="w-5 h-5" />
+                )}
+              </button>
+
+              <button
+                onClick={onLogout}
+                className="bg-primary-red hover:bg-primary-red-dark text-white px-6 py-3 rounded-lg font-semibold transition-colors shadow-lg"
+              >
+                Sign Out
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -126,51 +161,51 @@ Check backend logs for detailed comparison!`);
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Left Column - Actions (1 column) */}
             <div className="lg:col-span-1">
-              <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-8">
-                <h3 className="text-2xl font-bold text-gray-800 mb-8">{user.role === 'designer' ? 'Designer Actions' : 'Staff Actions'}</h3>
+              <div className={`${PAGE_STYLES.composites.panelContainer} p-8`}>
+                <h3 className={`text-2xl font-bold ${PAGE_STYLES.panel.text} mb-8`}>{user.role === 'designer' ? 'Designer Actions' : 'Staff Actions'}</h3>
 
                 <div className="grid grid-cols-1 gap-6">
                   <button
                     onClick={() => navigate('/vinyl-inventory')}
-                    className="group p-6 bg-purple-600 hover:bg-purple-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
+                    className={getModuleCardClasses('vinyls')}
                   >
                     <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                        <span className="text-purple-600 text-2xl">📦</span>
+                      <div className={`w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg ${MODULE_COLORS.vinyls.text} text-2xl font-bold`}>
+                        V
                       </div>
                       <div>
-                        <h4 className="font-bold text-white text-lg">Vinyl Inventory</h4>
-                        <p className="text-purple-100">Manage vinyl stock</p>
+                        <h4 className="font-bold text-white text-lg">{MODULE_COLORS.vinyls.name}</h4>
+                        <p className={MODULE_COLORS.vinyls.lightText}>Manage vinyl stock</p>
                       </div>
                     </div>
                   </button>
 
                   <button
-                    className="group p-6 bg-gray-400 rounded-2xl transition-all duration-300 text-left shadow-lg cursor-not-allowed"
+                    className={`group p-6 ${PAGE_STYLES.header.background} rounded-2xl transition-all duration-300 text-left shadow-lg cursor-not-allowed`}
                     disabled
                   >
                     <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                        <span className="text-gray-400 text-2xl">📋</span>
+                      <div className={`w-12 h-12 ${PAGE_STYLES.panel.background} rounded-xl flex items-center justify-center shadow-lg`}>
+                        <span className={`${PAGE_STYLES.panel.textMuted} text-2xl`}>📋</span>
                       </div>
                       <div>
-                        <h4 className="font-bold text-white text-lg">Request Supplies</h4>
-                        <p className="text-gray-200">Coming soon</p>
+                        <h4 className={`font-bold ${PAGE_STYLES.panel.text} text-lg`}>Request Supplies</h4>
+                        <p className={PAGE_STYLES.panel.textMuted}>Coming soon</p>
                       </div>
                     </div>
                   </button>
 
                   <button
-                    className="group p-6 bg-gray-400 rounded-2xl transition-all duration-300 text-left shadow-lg cursor-not-allowed"
+                    className={`group p-6 ${PAGE_STYLES.header.background} rounded-2xl transition-all duration-300 text-left shadow-lg cursor-not-allowed`}
                     disabled
                   >
                     <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                        <span className="text-gray-400 text-2xl">📄</span>
+                      <div className={`w-12 h-12 ${PAGE_STYLES.panel.background} rounded-xl flex items-center justify-center shadow-lg`}>
+                        <span className={`${PAGE_STYLES.panel.textMuted} text-2xl`}>📄</span>
                       </div>
                       <div>
-                        <h4 className="font-bold text-white text-lg">Request Documents</h4>
-                        <p className="text-gray-200">Coming soon</p>
+                        <h4 className={`font-bold ${PAGE_STYLES.panel.text} text-lg`}>Request Documents</h4>
+                        <p className={PAGE_STYLES.panel.textMuted}>Coming soon</p>
                       </div>
                     </div>
                   </button>
@@ -188,74 +223,74 @@ Check backend logs for detailed comparison!`);
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Pages Navigation - Compact sidebar pills */}
             <div className="lg:col-span-1">
-              <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-6">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">Pages</h3>
+              <div className={`${PAGE_STYLES.composites.panelContainer} p-6`}>
+                <h3 className={`text-xl font-bold ${PAGE_STYLES.panel.text} mb-4`}>Pages</h3>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => navigate('/estimates')}
-                    className="px-3 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition-colors text-left"
+                    className={getModulePillClasses('estimates')}
                   >
-                    📋 Estimates
+                    {MODULE_COLORS.estimates.name}
                   </button>
                   <button
                     onClick={() => navigate('/orders')}
-                    className="px-3 py-3 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg transition-colors text-left"
+                    className={getModulePillClasses('orders')}
                   >
-                    📦 Orders
+                    {MODULE_COLORS.orders.name}
                   </button>
                   <button
                     onClick={() => navigate('/supply-chain')}
-                    className="px-3 py-3 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors text-left"
+                    className={getModulePillClasses('supplyChain')}
                   >
-                    🏭 Supply Chain
+                    {MODULE_COLORS.supplyChain.name}
                   </button>
                   <button
                     onClick={() => navigate('/invoices')}
-                    className="px-3 py-3 bg-teal-500 hover:bg-teal-600 text-white font-medium rounded-lg transition-colors text-left"
+                    className={getModulePillClasses('invoices')}
                   >
-                    📄 Invoices
+                    {MODULE_COLORS.invoices.name}
                   </button>
                   <button
                     onClick={() => navigate('/customers')}
-                    className="px-3 py-3 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-colors text-left"
+                    className={getModulePillClasses('customers')}
                   >
-                    👥 Customers
+                    {MODULE_COLORS.customers.name}
                   </button>
                   <button
                     onClick={() => navigate('/vinyl-inventory')}
-                    className="px-3 py-3 bg-purple-500 hover:bg-purple-600 text-white font-medium rounded-lg transition-colors text-left"
+                    className={getModulePillClasses('vinyls')}
                   >
-                    🎨 Vinyls
+                    {MODULE_COLORS.vinyls.name}
                   </button>
                   <button
                     onClick={() => navigate('/time-management')}
-                    className="px-3 py-3 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors text-left"
+                    className={getModulePillClasses('timeTracking')}
                   >
-                    ⏰ Time Tracking
+                    {MODULE_COLORS.timeTracking.name}
                   </button>
                   <button
                     onClick={() => navigate('/wages')}
-                    className="px-3 py-3 bg-pink-500 hover:bg-pink-600 text-white font-medium rounded-lg transition-colors text-left"
+                    className={getModulePillClasses('wages')}
                   >
-                    💰 Wages
+                    {MODULE_COLORS.wages.name}
                   </button>
                   <button
                     onClick={() => navigate('/account-management')}
-                    className="px-3 py-3 bg-indigo-500 hover:bg-indigo-600 text-white font-medium rounded-lg transition-colors text-left"
+                    className={getModulePillClasses('accounts')}
                   >
-                    🔐 Accounts
+                    {MODULE_COLORS.accounts.name}
                   </button>
                   <button
                     onClick={() => navigate('/settings')}
-                    className="px-3 py-3 bg-gray-500 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors text-left"
+                    className={getModulePillClasses('settings')}
                   >
-                    ⚙️ Settings
+                    {MODULE_COLORS.settings.name}
                   </button>
                   <button
                     onClick={() => navigate('/server-management')}
-                    className="px-3 py-3 bg-slate-600 hover:bg-slate-700 text-white font-medium rounded-lg transition-colors text-left"
+                    className={getModulePillClasses('servers')}
                   >
-                    🖥️ Servers
+                    {MODULE_COLORS.servers.name}
                   </button>
                 </div>
               </div>
@@ -266,9 +301,9 @@ Check backend logs for detailed comparison!`);
               <TimeApprovals />
 
               {/* Database Backup Status */}
-              <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-6 mt-8">
+              <div className={`${PAGE_STYLES.composites.panelContainer} p-6 mt-8`}>
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-gray-800">Database Backups</h3>
+                  <h3 className={`text-lg font-bold ${PAGE_STYLES.panel.text}`}>Database Backups</h3>
                   <button
                     onClick={fetchBackupStatus}
                     disabled={backupLoading}
@@ -293,7 +328,7 @@ Check backend logs for detailed comparison!`);
                     {backupStatus.backups.map((backup, index) => (
                       <div
                         key={index}
-                        className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg border border-gray-200"
+                        className={`flex items-center space-x-2 p-3 ${PAGE_STYLES.header.background} rounded-lg ${PAGE_STYLES.panel.border} border`}
                       >
                         <div
                           className={`w-3 h-3 rounded-full flex-shrink-0 ${
@@ -305,7 +340,7 @@ Check backend logs for detailed comparison!`);
                           }`}
                         ></div>
                         <div className="min-w-0">
-                          <p className="font-semibold text-gray-800 text-sm truncate">{backup.name}</p>
+                          <p className={`font-semibold ${PAGE_STYLES.panel.text} text-sm truncate`}>{backup.name}</p>
                           <p className={`text-xs ${
                             backup.status === 'healthy'
                               ? 'text-green-600'
@@ -323,198 +358,106 @@ Check backend logs for detailed comparison!`);
               </div>
 
               {/* System Development Progress */}
-              <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-6 mt-8">
-                <h3 className="text-lg font-bold text-gray-800 mb-4">Development Progress</h3>
+              <div className={`${PAGE_STYLES.composites.panelContainer} p-6 mt-8`}>
+                <h3 className={`text-lg font-bold ${PAGE_STYLES.panel.text} mb-4`}>Development Progress</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                  <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className={`flex items-center space-x-2 p-2 ${PAGE_STYLES.header.background} rounded-lg ${PAGE_STYLES.panel.border} border`}>
                     <div className="w-3 h-3 bg-green-500 rounded-full flex-shrink-0"></div>
-                    <span className="text-sm text-gray-800">Customers</span>
+                    <span className={`text-sm ${PAGE_STYLES.panel.text}`}>Customers</span>
                   </div>
-                  <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className={`flex items-center space-x-2 p-2 ${PAGE_STYLES.header.background} rounded-lg ${PAGE_STYLES.panel.border} border`}>
                     <div className="w-3 h-3 bg-green-500 rounded-full flex-shrink-0"></div>
-                    <span className="text-sm text-gray-800">Estimates</span>
+                    <span className={`text-sm ${PAGE_STYLES.panel.text}`}>Estimates</span>
                   </div>
-                  <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className={`flex items-center space-x-2 p-2 ${PAGE_STYLES.header.background} rounded-lg ${PAGE_STYLES.panel.border} border`}>
                     <div className="w-3 h-3 bg-green-500 rounded-full flex-shrink-0"></div>
-                    <span className="text-sm text-gray-800">Vinyl</span>
+                    <span className={`text-sm ${PAGE_STYLES.panel.text}`}>Vinyl</span>
                   </div>
-                  <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className={`flex items-center space-x-2 p-2 ${PAGE_STYLES.header.background} rounded-lg ${PAGE_STYLES.panel.border} border`}>
                     <div className="w-3 h-3 bg-yellow-500 rounded-full flex-shrink-0"></div>
-                    <span className="text-sm text-gray-800">Job Board</span>
+                    <span className={`text-sm ${PAGE_STYLES.panel.text}`}>Job Board</span>
                   </div>
-                  <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className={`flex items-center space-x-2 p-2 ${PAGE_STYLES.header.background} rounded-lg ${PAGE_STYLES.panel.border} border`}>
                     <div className="w-3 h-3 bg-yellow-500 rounded-full flex-shrink-0"></div>
-                    <span className="text-sm text-gray-800">Invoicing</span>
+                    <span className={`text-sm ${PAGE_STYLES.panel.text}`}>Invoicing</span>
                   </div>
-                  <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className={`flex items-center space-x-2 p-2 ${PAGE_STYLES.header.background} rounded-lg ${PAGE_STYLES.panel.border} border`}>
                     <div className="w-3 h-3 bg-red-500 rounded-full flex-shrink-0"></div>
-                    <span className="text-sm text-gray-800">Inventory</span>
+                    <span className={`text-sm ${PAGE_STYLES.panel.text}`}>Inventory</span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
         ) : (
-          // Manager Dashboard - Profile card and Quick Actions
+          // Manager Dashboard - Compact pages on left, Time Approvals on right (same layout as Owner)
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Profile Card */}
+            {/* Pages Navigation - Compact sidebar pills */}
             <div className="lg:col-span-1">
-              <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-8">
-                <div className="text-center">
-                  <div className="w-20 h-20 bg-primary-red rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
-                    <span className="text-white font-bold text-2xl">{user.first_name[0]}{user.last_name[0]}</span>
-                  </div>
-                  <h3 className="text-2xl font-bold text-gray-800">{user.first_name} {user.last_name}</h3>
+              <div className={`${PAGE_STYLES.composites.panelContainer} p-6`}>
+                <h3 className={`text-xl font-bold ${PAGE_STYLES.panel.text} mb-4`}>Pages</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => navigate('/estimates')}
+                    className={getModulePillClasses('estimates')}
+                  >
+                    {MODULE_COLORS.estimates.name}
+                  </button>
+                  <button
+                    onClick={() => navigate('/orders')}
+                    className={getModulePillClasses('orders')}
+                  >
+                    {MODULE_COLORS.orders.name}
+                  </button>
+                  <button
+                    onClick={() => navigate('/supply-chain')}
+                    className={getModulePillClasses('supplyChain')}
+                  >
+                    {MODULE_COLORS.supplyChain.name}
+                  </button>
+                  <button
+                    onClick={() => navigate('/invoices')}
+                    className={getModulePillClasses('invoices')}
+                  >
+                    {MODULE_COLORS.invoices.name}
+                  </button>
+                  <button
+                    onClick={() => navigate('/customers')}
+                    className={getModulePillClasses('customers')}
+                  >
+                    {MODULE_COLORS.customers.name}
+                  </button>
+                  <button
+                    onClick={() => navigate('/vinyl-inventory')}
+                    className={getModulePillClasses('vinyls')}
+                  >
+                    {MODULE_COLORS.vinyls.name}
+                  </button>
+                  <button
+                    onClick={() => navigate('/time-management')}
+                    className={getModulePillClasses('timeTracking')}
+                  >
+                    {MODULE_COLORS.timeTracking.name}
+                  </button>
+                  <button
+                    onClick={() => navigate('/account-management')}
+                    className={getModulePillClasses('accounts')}
+                  >
+                    {MODULE_COLORS.accounts.name}
+                  </button>
+                  <button
+                    onClick={() => navigate('/settings')}
+                    className={getModulePillClasses('settings')}
+                  >
+                    {MODULE_COLORS.settings.name}
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* Quick Actions */}
+            {/* Right Column - Time Approvals */}
             <div className="lg:col-span-2">
-              <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-8">
-                <h3 className="text-2xl font-bold text-gray-800 mb-8">Quick Actions</h3>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <button
-                    onClick={() => navigate('/orders')}
-                    className="group p-6 bg-amber-600 hover:bg-amber-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                        <span className="text-amber-600 text-2xl">📦</span>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-white text-lg">Orders</h4>
-                        <p className="text-amber-100">Manage production orders</p>
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => navigate('/supply-chain')}
-                    className="group p-6 bg-orange-600 hover:bg-orange-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                        <span className="text-orange-600 text-2xl">🏭</span>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-white text-lg">Supply Chain</h4>
-                        <p className="text-orange-100">Manage inventory & suppliers</p>
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => navigate('/estimates')}
-                    className="group p-6 bg-emerald-600 hover:bg-emerald-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                        <span className="text-emerald-600 text-2xl">📋</span>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-white text-lg">Estimates</h4>
-                        <p className="text-emerald-100">Create quotes & job specs</p>
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => navigate('/invoices')}
-                    className="group p-6 bg-teal-600 hover:bg-teal-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                        <span className="text-teal-600 text-2xl">📄</span>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-white text-lg">Invoices</h4>
-                        <p className="text-teal-100">View invoices & record payments</p>
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => navigate('/customers')}
-                    className="group p-6 bg-primary-blue hover:bg-primary-blue-dark rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                        <span className="text-primary-blue text-2xl">👥</span>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-white text-lg">Customers</h4>
-                        <p className="text-blue-100">Manage all customers</p>
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => navigate('/vinyl-inventory')}
-                    className="group p-6 bg-purple-600 hover:bg-purple-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                        <span className="text-purple-600 text-2xl">📦</span>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-white text-lg">Vinyl Inventory</h4>
-                        <p className="text-purple-100">Manage vinyl stock</p>
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => navigate('/time-management')}
-                    className="group p-6 bg-green-600 hover:bg-green-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                        <span className="text-green-600 text-2xl">⏰</span>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-white text-lg">Time Tracking</h4>
-                        <p className="text-green-100">Manage all time entries</p>
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => navigate('/account-management')}
-                    className="group p-6 bg-indigo-600 hover:bg-indigo-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                        <span className="text-indigo-600 text-2xl">🔐</span>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-white text-lg">User Accounts</h4>
-                        <p className="text-indigo-100">Manage user accounts & settings</p>
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => navigate('/settings')}
-                    className="group p-6 bg-gray-600 hover:bg-gray-700 rounded-2xl transition-all duration-300 text-left shadow-lg hover:shadow-xl transform hover:scale-105"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                        <span className="text-gray-600 text-2xl">⚙️</span>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-white text-lg">Settings</h4>
-                        <p className="text-gray-100">System configuration</p>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-8">
-                <TimeApprovals />
-              </div>
+              <TimeApprovals />
             </div>
           </div>
         )}
@@ -531,14 +474,14 @@ Check backend logs for detailed comparison!`);
         </button>
 
         {testResult && (
-          <div className="absolute bottom-16 right-0 bg-white rounded-lg shadow-2xl p-6 border-2 border-gray-300 min-w-96 max-w-2xl">
+          <div className={`absolute bottom-16 right-0 ${PAGE_STYLES.panel.background} rounded-lg shadow-2xl p-6 border-2 ${PAGE_STYLES.panel.border} min-w-96 max-w-2xl`}>
             <button
               onClick={() => setTestResult(null)}
-              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+              className={`absolute top-2 right-2 ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.text}`}
             >
               ✕
             </button>
-            <pre className="text-sm whitespace-pre-wrap">{testResult}</pre>
+            <pre className={`text-sm whitespace-pre-wrap ${PAGE_STYLES.panel.text}`}>{testResult}</pre>
           </div>
         )}
       </div>

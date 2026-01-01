@@ -1,5 +1,6 @@
 import React from 'react';
-import { Clock, ArrowLeft, Settings } from 'lucide-react';
+import { Clock, Settings } from 'lucide-react';
+import { HomeButton } from '../common/HomeButton';
 import { useNavigate } from 'react-router-dom';
 
 // Hooks
@@ -19,6 +20,7 @@ import { ScheduleManagement } from './ScheduleManagement';
 import { navigateDate } from './utils/timeCalculations';
 import { exportData } from './utils/exportUtils';
 import type { TimeUser } from '../../types/time';
+import { PAGE_STYLES } from '../../constants/moduleColors';
 
 interface TimeManagementProps {
   user: TimeUser;
@@ -104,19 +106,13 @@ export const TimeManagement: React.FC<TimeManagementProps> = ({ user }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={PAGE_STYLES.fullPage}>
       {/* Header */}
       <header className="bg-white shadow">
         <div className="max-w-none mx-auto px-4 sm:px-6 lg:px-8" style={{ maxWidth: '1408px' }}>
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center space-x-4">
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
-                title="Return to Dashboard"
-              >
-                <ArrowLeft className="h-6 w-6" />
-              </button>
+              <HomeButton />
               <Clock className="h-8 w-8 text-blue-600" />
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">Time Management</h1>

@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../../../services/apiClient';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface QBItem {
   id: number;
@@ -113,8 +114,8 @@ export const QBItemDropdown: React.FC<QBItemDropdownProps> = ({
 
   if (disabled) {
     return (
-      <span className="text-xs text-gray-600 px-1 truncate block max-w-[120px]" title={displayValue || ''}>
-        {displayValue || <span className="text-gray-600">Not set</span>}
+      <span className={`text-xs ${PAGE_STYLES.panel.textMuted} px-1 truncate block max-w-[120px]`} title={displayValue || ''}>
+        {displayValue || <span className={PAGE_STYLES.panel.textMuted}>Not set</span>}
       </span>
     );
   }
@@ -126,20 +127,20 @@ export const QBItemDropdown: React.FC<QBItemDropdownProps> = ({
         ref={triggerRef}
         onClick={() => setIsOpen(!isOpen)}
         className={`flex items-center justify-between px-1 py-0.5 text-xs border-2 rounded cursor-pointer flex-1
-          ${value ? 'border-green-500 bg-green-50' : 'border-yellow-400 bg-yellow-50'}
+          ${value ? 'border-green-500 bg-green-50' : `border-yellow-400 ${PAGE_STYLES.input.background}`}
           hover:border-green-600`}
       >
         <span className="truncate max-w-[100px]" title={displayValue || 'Select QB Item'}>
-          {displayValue || <span className="text-gray-400">Select...</span>}
+          {displayValue || <span className={PAGE_STYLES.panel.textMuted}>Select...</span>}
         </span>
-        <span className="text-gray-400 ml-1">▼</span>
+        <span className={`${PAGE_STYLES.panel.textMuted} ml-1`}>▼</span>
       </div>
 
       {/* Clear button outside dropdown */}
       {value && (
         <button
           onClick={handleClear}
-          className="text-gray-400 hover:text-red-500 text-lg font-bold"
+          className={`${PAGE_STYLES.panel.textMuted} hover:text-red-500 text-lg font-bold`}
           title="Clear"
         >
           ×
@@ -150,7 +151,7 @@ export const QBItemDropdown: React.FC<QBItemDropdownProps> = ({
       {isOpen && createPortal(
         <div
           ref={dropdownRef}
-          className="fixed bg-white border border-gray-300 rounded-lg shadow-lg z-[9999]"
+          className={`fixed ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.border} rounded-lg shadow-lg z-[9999]`}
           style={{
             top: dropdownPosition.top,
             left: dropdownPosition.left,
@@ -173,11 +174,11 @@ export const QBItemDropdown: React.FC<QBItemDropdownProps> = ({
           {/* Items list */}
           <div className="max-h-48 overflow-y-auto">
             {loading ? (
-              <div className="p-2 text-xs text-gray-500 text-center">Loading...</div>
+              <div className={`p-2 text-xs ${PAGE_STYLES.panel.textMuted} text-center`}>Loading...</div>
             ) : error ? (
               <div className="p-2 text-xs text-red-500 text-center">{error}</div>
             ) : filteredItems.length === 0 ? (
-              <div className="p-2 text-xs text-gray-500 text-center">
+              <div className={`p-2 text-xs ${PAGE_STYLES.panel.textMuted} text-center`}>
                 {search ? 'No matching items' : 'No QB items available'}
               </div>
             ) : (

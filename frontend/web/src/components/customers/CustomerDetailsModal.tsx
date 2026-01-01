@@ -6,6 +6,7 @@ import ContactsEditor from './ContactsEditor';
 import AccountingEmailsEditor from './AccountingEmailsEditor';
 import ConfirmationModals from './ConfirmationModals';
 import { Address, Customer, LedType, PowerSupplyType } from '../../types';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 
 interface DeleteConfirmation {
   show: boolean;
@@ -163,10 +164,10 @@ function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) 
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto modal-content">
-        <div className="sticky top-0 bg-white border-b-2 border-gray-200 p-6 rounded-t-2xl">
+      <div className={`${PAGE_STYLES.panel.background} rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto modal-content`}>
+        <div className={`sticky top-0 ${PAGE_STYLES.panel.background} border-b-2 ${PAGE_STYLES.panel.border} p-6 rounded-t-2xl`}>
           <div className="flex items-center justify-between">
-            <h2 className="text-3xl font-bold text-gray-800">Customer Details</h2>
+            <h2 className={`text-3xl font-bold ${PAGE_STYLES.panel.text}`}>Customer Details</h2>
             <div className="flex items-center space-x-2">
               {isEditing ? (
                 <>
@@ -189,7 +190,7 @@ function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) 
                 <>
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="bg-primary-blue hover:bg-primary-blue-dark text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                    className={`${MODULE_COLORS.customers.base} ${MODULE_COLORS.customers.hover} text-white px-4 py-2 rounded-lg font-semibold transition-colors`}
                   >
                     Edit
                   </button>
@@ -210,8 +211,8 @@ function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) 
               </button>
             </div>
           </div>
-          <h3 className="text-xl text-primary-blue font-semibold mt-2">{formData.company_name || customer.company_name}</h3>
-          
+          <h3 className={`text-xl ${MODULE_COLORS.customers.text} font-semibold mt-2`}>{formData.company_name || customer.company_name}</h3>
+
           {saveError && (
             <div className="mt-4 bg-red-100 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
               {saveError}
@@ -241,14 +242,14 @@ function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) 
 
           {/* Contacts Section */}
           <div className="mt-8">
-            <h4 className="text-lg font-bold text-gray-800 mb-4 border-b border-gray-200 pb-2">Contacts</h4>
+            <h4 className={`text-lg font-bold ${PAGE_STYLES.panel.text} mb-4 border-b ${PAGE_STYLES.panel.border} pb-2`}>Contacts</h4>
             <ContactsEditor customerId={customer.customer_id} />
           </div>
 
           {/* Accounting Emails Section */}
           <div className="mt-8">
-            <h4 className="text-lg font-bold text-gray-800 mb-4 border-b border-gray-200 pb-2">Accounting Emails</h4>
-            <p className="text-sm text-gray-500 mb-3">Email addresses for sending invoices. Set type (To/CC/BCC) for each recipient.</p>
+            <h4 className={`text-lg font-bold ${PAGE_STYLES.panel.text} mb-4 border-b ${PAGE_STYLES.panel.border} pb-2`}>Accounting Emails</h4>
+            <p className={`text-sm ${PAGE_STYLES.panel.textMuted} mb-3`}>Email addresses for sending invoices. Set type (To/CC/BCC) for each recipient.</p>
             <AccountingEmailsEditor customerId={customer.customer_id} />
           </div>
         </div>

@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { HomeButton } from '../common/HomeButton';
 import { useNavigate } from 'react-router-dom';
 import { vinylApi, vinylProductsApi } from '../../services/api';
+
+// Import theme CSS
+import '../jobEstimation/JobEstimation.css';
 
 // Import extracted components
 import { BulkEntriesTab } from './BulkEntriesTab';
@@ -22,6 +25,7 @@ import {
   VinylProduct,
   VinylProductFormSubmission
 } from './types';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 interface VinylInventoryProps {
   user: InventoryUser;
 }
@@ -316,31 +320,32 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={PAGE_STYLES.fullPage}>
       {/* Header */}
-      <div className="bg-white shadow">
+      <header className={`${PAGE_STYLES.panel.background} shadow-lg border-b-4 ${MODULE_COLORS.vinyls.border}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="mr-4 p-2 text-gray-600 hover:text-gray-900"
-              >
-                <ArrowLeft className="h-6 w-6" />
-              </button>
-              <h1 className="text-3xl font-bold text-gray-900">Vinyl Management</h1>
+            <div className="flex items-center space-x-4">
+              <HomeButton />
+              <div className={`w-12 h-12 ${MODULE_COLORS.vinyls.base} rounded-xl flex items-center justify-center shadow-lg`}>
+                <span className="text-white text-xl">🎨</span>
+              </div>
+              <div>
+                <h1 className={`text-3xl font-bold ${PAGE_STYLES.panel.text}`}>Vinyl Management</h1>
+                <p className={PAGE_STYLES.panel.textSecondary}>Inventory tracking and bulk entries</p>
+              </div>
             </div>
           </div>
 
           {/* Tab Navigation */}
-          <div className="border-b border-gray-200">
+          <div className={`border-b ${PAGE_STYLES.panel.border}`}>
             <nav className="-mb-px flex space-x-8">
               <button
                 onClick={() => setActiveTab('bulk')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'bulk'
-                    ? 'border-purple-500 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? `${MODULE_COLORS.vinyls.border} ${MODULE_COLORS.vinyls.text}`
+                    : `border-transparent ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.textSecondary} hover:border-gray-400`
                 }`}
               >
                 Bulk Entries
@@ -349,8 +354,8 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
                 onClick={() => setActiveTab('inventory')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'inventory'
-                    ? 'border-purple-500 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? `${MODULE_COLORS.vinyls.border} ${MODULE_COLORS.vinyls.text}`
+                    : `border-transparent ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.textSecondary} hover:border-gray-400`
                 }`}
               >
                 Inventory ({vinylItems.filter(item => item.disposition === 'in_stock').length})
@@ -359,8 +364,8 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
                 onClick={() => setActiveTab('products')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'products'
-                    ? 'border-purple-500 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? `${MODULE_COLORS.vinyls.border} ${MODULE_COLORS.vinyls.text}`
+                    : `border-transparent ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.textSecondary} hover:border-gray-400`
                 }`}
               >
                 Product Catalog
@@ -368,11 +373,11 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
             </nav>
           </div>
         </div>
-      </div>
+      </header>
 
       {/* Bulk Entries Tab - Full Width */}
       {activeTab === 'bulk' && (
-        <div className="w-full px-4 py-8">
+        <div className="w-full px-4 py-8" style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}>
           <BulkEntriesTab
             vinylItems={vinylItems}
             onSuccess={loadData}
@@ -386,7 +391,7 @@ const VinylInventory: React.FC<VinylInventoryProps> = ({ user }) => {
 
       {/* Inventory & Products Tabs - Normal Width */}
       {(activeTab === 'inventory' || activeTab === 'products') && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}>
           {activeTab === 'inventory' && (
             <InventoryTab
               user={user}

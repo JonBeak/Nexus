@@ -339,7 +339,7 @@ export class EstimateEmailService {
       : '';
 
     const logoHtml = logoBase64
-      ? `<div class="logo" style="margin-bottom: 20px;"><img src="data:image/png;base64,${logoBase64}" alt="Company Logo" style="max-width: 200px; height: auto;" /><hr style="border: none; border-top: 1px solid #ccc; margin: 15px auto 0; width: 80%;" /></div>`
+      ? `<div class="logo" style="margin-bottom: 20px; text-align: center;"><img src="data:image/png;base64,${logoBase64}" alt="Company Logo" style="max-width: 200px; height: auto; display: block; margin: 0 auto;" /><hr style="border: none; border-top: 1px solid #ccc; margin: 15px auto 0; width: 80%;" /></div>`
       : '';
 
     return `
@@ -416,7 +416,7 @@ export class EstimateEmailService {
 
     // Build logo HTML
     const logoHtml = companySettings.company_logo_base64
-      ? `<div class="logo" style="margin-bottom: 20px;"><img src="data:image/png;base64,${companySettings.company_logo_base64}" alt="Company Logo" style="max-width: 200px; height: auto;" /><hr style="border: none; border-top: 1px solid #ccc; margin: 15px auto 0; width: 80%;" /></div>`
+      ? `<div class="logo" style="margin-bottom: 20px; text-align: center;"><img src="data:image/png;base64,${companySettings.company_logo_base64}" alt="Company Logo" style="max-width: 200px; height: auto; display: block; margin: 0 auto;" /><hr style="border: none; border-top: 1px solid #ccc; margin: 15px auto 0; width: 80%;" /></div>`
       : '';
 
     // Build full HTML

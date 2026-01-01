@@ -6,6 +6,7 @@ import { InventoryStatsCards } from './components/InventoryStatsCards';
 import { InventoryTableHeader } from './components/InventoryTableHeader';
 import { InventoryTableRow } from './components/InventoryTableRow';
 import { InventoryStats, InventoryUser, VinylItem } from './types';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 
 interface InventoryTabProps {
   user: InventoryUser;
@@ -74,7 +75,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
         {getActiveFilterCount() > 0 && (
           <button
             onClick={clearAllFilters}
-            className="px-4 py-2 text-sm rounded-md transition-colors flex items-center bg-gray-100 text-gray-700 hover:bg-gray-200"
+            className={`px-4 py-2 text-sm rounded-md transition-colors flex items-center ${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.text} hover:bg-gray-500`}
             title={`Clear ${getActiveFilterCount()} active filter(s)`}
           >
             <X className="w-4 h-4 mr-1" />
@@ -88,7 +89,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
           {/* Add Item Button - Backend RBAC controls actual permissions */}
           <button
             onClick={onShowAddModal}
-            className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+            className={`flex items-center space-x-2 ${MODULE_COLORS.vinyls.base} ${MODULE_COLORS.vinyls.hover} text-white px-4 py-2 rounded-lg`}
           >
             <Plus className="h-4 w-4" />
             <span>Add Item</span>
@@ -97,22 +98,22 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
       </div>
 
       {/* Inventory Table */}
-      <div className="bg-white shadow rounded-lg overflow-hidden">
+      <div className={`${PAGE_STYLES.panel.background} shadow rounded-lg overflow-hidden border ${PAGE_STYLES.panel.border}`}>
         {loading ? (
           <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-            <p className="mt-2 text-gray-600">Loading inventory...</p>
+            <div className={`inline-block animate-spin rounded-full h-8 w-8 border-b-2 ${MODULE_COLORS.vinyls.border}`}></div>
+            <p className={`mt-2 ${PAGE_STYLES.panel.textSecondary}`}>Loading inventory...</p>
           </div>
         ) : error ? (
           <div className="text-center py-12">
             <div className="text-red-600 text-lg font-medium mb-2">Error</div>
-            <p className="text-gray-500 mb-4">{error}</p>
+            <p className={`${PAGE_STYLES.panel.textMuted} mb-4`}>{error}</p>
             {onDataLoad && (
               <button
                 onClick={() => {
                   onDataLoad();
                 }}
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+                className={`${MODULE_COLORS.vinyls.base} ${MODULE_COLORS.vinyls.hover} text-white px-4 py-2 rounded-lg`}
               >
                 Retry
               </button>
@@ -120,7 +121,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+            <table className={`min-w-full ${PAGE_STYLES.panel.divider}`}>
               <InventoryTableHeader
                 user={user}
                 columnFilters={columnFilters}
@@ -133,7 +134,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                 getColourNameOptions={getColourNameOptions}
                 getDispositionOptions={getDispositionOptions}
               />
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className={`${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.divider}`}>
                 {sortedItems.map((item) => (
                   <InventoryTableRow
                     key={item.id}
@@ -147,7 +148,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                 ))}
                 {sortedItems.length === 0 && !loading && (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={8} className={`px-6 py-12 text-center ${PAGE_STYLES.panel.textMuted}`}>
                       No vinyl items found matching your criteria.
                     </td>
                   </tr>

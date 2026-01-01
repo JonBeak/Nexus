@@ -201,9 +201,9 @@ export class EstimateService {
     estimateId: number,
     userId: number,
     estimatePreviewData?: any,
-    recipientEmails?: string[]
+    recipients?: { to: string[]; cc: string[]; bcc: string[] }
   ) {
-    return this.workflowService.sendEstimateToCustomer(estimateId, userId, estimatePreviewData, recipientEmails);
+    return this.workflowService.sendEstimateToCustomer(estimateId, userId, estimatePreviewData, recipients);
   }
 
   /**

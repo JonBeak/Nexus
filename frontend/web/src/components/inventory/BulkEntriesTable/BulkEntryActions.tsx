@@ -1,6 +1,7 @@
 import React from 'react';
 import { Plus } from 'lucide-react';
 import { BulkEntry } from '../../../hooks/useBulkEntries';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface BulkEntryActionsProps {
   bulkEntries: BulkEntry[];
@@ -20,13 +21,13 @@ export const BulkEntryActions: React.FC<BulkEntryActionsProps> = ({
   const errorCount = bulkEntries.filter(e => e.submissionState === 'error').length;
 
   return (
-    <div className="px-6 py-4 border-b border-gray-200">
+    <div className={`px-6 py-4 border-b ${PAGE_STYLES.panel.border}`}>
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <h3 className="text-lg font-medium text-gray-900">Bulk Entries</h3>
+          <h3 className={`text-lg font-medium ${PAGE_STYLES.panel.text}`}>Bulk Entries</h3>
 
           {/* Status counts */}
-          <div className="text-sm text-gray-600">
+          <div className={`text-sm ${PAGE_STYLES.panel.textSecondary}`}>
             {successCount > 0 && (
               <span className="text-green-600 font-medium">
                 {successCount} successful
@@ -38,7 +39,7 @@ export const BulkEntryActions: React.FC<BulkEntryActionsProps> = ({
               </span>
             )}
             {isSaving && (
-              <span className="text-gray-600 italic ml-2">
+              <span className={`${PAGE_STYLES.panel.textMuted} italic ml-2`}>
                 Saving changes...
               </span>
             )}
@@ -49,7 +50,7 @@ export const BulkEntryActions: React.FC<BulkEntryActionsProps> = ({
           {/* Add Entry Button */}
           <button
             onClick={onAddEntry}
-            className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+            className={`inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white ${MODULE_COLORS.vinyls.base} ${MODULE_COLORS.vinyls.hover} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500`}
           >
             <Plus className="h-4 w-4 mr-1" />
             Add Entry

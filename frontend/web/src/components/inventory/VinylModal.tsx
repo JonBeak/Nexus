@@ -11,6 +11,7 @@ import {
   VinylItem,
   VinylProduct
 } from './types';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 
 interface VinylFormState {
   brand: string;
@@ -295,16 +296,20 @@ export const VinylModal: React.FC<VinylModalProps> = ({
     return values.sort();
   };
 
+  // Shared input classes for consistent styling
+  const inputClass = `w-full px-3 py-2 border ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} ${PAGE_STYLES.input.placeholder} rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500`;
+  const labelClass = `block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`;
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-8 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+    <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50">
+      <div className={`relative top-8 mx-auto p-5 border ${PAGE_STYLES.panel.border} w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md ${PAGE_STYLES.panel.background}`}>
+        <div className={`flex justify-between items-center mb-4 pb-4 border-b ${PAGE_STYLES.panel.border}`}>
+          <h3 className={`text-lg font-bold ${PAGE_STYLES.panel.text}`}>{title}</h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className={`${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.text}`}
           >
             <X className="h-6 w-6" />
           </button>
@@ -363,7 +368,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
           {/* Dimensions */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className={labelClass}>
                 Width (inches) *
               </label>
               <input
@@ -374,12 +379,12 @@ export const VinylModal: React.FC<VinylModalProps> = ({
                 required
                 step="0.01"
                 min="0"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                className={inputClass}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className={labelClass}>
                 Length (yards) *
               </label>
               <input
@@ -390,7 +395,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
                 required
                 step="0.01"
                 min="0"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                className={inputClass}
               />
             </div>
           </div>
@@ -398,7 +403,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
           {/* Additional Details */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className={labelClass}>
                 Location
               </label>
               <input
@@ -406,12 +411,12 @@ export const VinylModal: React.FC<VinylModalProps> = ({
                 name="location"
                 value={formData.location}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                className={inputClass}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className={labelClass}>
                 Status *
               </label>
               <select
@@ -419,7 +424,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
                 value={formData.disposition}
                 onChange={handleChange}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                className={inputClass}
               >
                 <option value="in_stock">In Stock</option>
                 <option value="used">Used</option>
@@ -430,14 +435,14 @@ export const VinylModal: React.FC<VinylModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className={labelClass}>
                 Supplier
               </label>
               <select
                 name="supplier_id"
                 value={formData.supplier_id}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                className={inputClass}
               >
                 <option value="">Select Supplier (Optional)</option>
                 {availableSuppliers.map((supplier) => (
@@ -452,7 +457,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
           {/* Dates */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className={labelClass}>
                 Purchase Date
               </label>
               <input
@@ -460,12 +465,12 @@ export const VinylModal: React.FC<VinylModalProps> = ({
                 name="purchase_date"
                 value={formData.purchase_date}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                className={inputClass}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className={labelClass}>
                 Storage Date
               </label>
               <input
@@ -473,17 +478,17 @@ export const VinylModal: React.FC<VinylModalProps> = ({
                 name="storage_date"
                 value={formData.storage_date}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                className={inputClass}
               />
             </div>
           </div>
 
           {/* Job Associations */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className={`${labelClass} mb-2`}>
               Associated Jobs
             </label>
-            
+
             {/* Selected Jobs */}
             {selectedJobs.length > 0 && (
               <div className="mb-3">
@@ -491,12 +496,12 @@ export const VinylModal: React.FC<VinylModalProps> = ({
                   {selectedJobs.map(jobId => {
                     const job = availableJobs.find(j => j.job_id === jobId);
                     return job ? (
-                      <div key={jobId} className="bg-purple-100 text-purple-800 px-3 py-1 rounded-md text-sm flex items-center gap-2">
+                      <div key={jobId} className={`${MODULE_COLORS.vinyls.light} ${MODULE_COLORS.vinyls.text} px-3 py-1 rounded-md text-sm flex items-center gap-2`}>
                         <span>{job.job_number} - {job.job_name || 'No Name'}</span>
                         <button
                           type="button"
                           onClick={() => removeJob(jobId)}
-                          className="text-purple-600 hover:text-purple-800 ml-1"
+                          className={`${MODULE_COLORS.vinyls.text} hover:text-purple-800 ml-1`}
                         >
                           ×
                         </button>
@@ -506,7 +511,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
                 </div>
               </div>
             )}
-            
+
             {/* Job Selection Dropdown */}
             <select
               onChange={(e) => {
@@ -516,14 +521,14 @@ export const VinylModal: React.FC<VinylModalProps> = ({
                 }
                 e.target.value = '';
               }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+              className={inputClass}
             >
               <option value="">Select job to associate...</option>
               {availableJobs
                 .filter(job => !selectedJobs.includes(job.job_id))
                 .map(job => (
                   <option key={job.job_id} value={job.job_id}>
-                    {job.job_number} - {job.job_name || 'No Name'} 
+                    {job.job_number} - {job.job_name || 'No Name'}
                     {job.customer_name && ` (${job.customer_name})`}
                   </option>
                 ))
@@ -533,7 +538,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
 
           {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className={labelClass}>
               Notes
             </label>
             <textarea
@@ -541,25 +546,25 @@ export const VinylModal: React.FC<VinylModalProps> = ({
               value={formData.notes}
               onChange={handleChange}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+              className={inputClass}
               placeholder="Job name, condition, etc."
             />
           </div>
 
           {/* Buttons */}
-          <div className="flex justify-end space-x-3 pt-4">
+          <div className={`flex justify-end space-x-3 pt-4 mt-4 border-t ${PAGE_STYLES.panel.border}`}>
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              className={`px-4 py-2 border ${PAGE_STYLES.panel.border} rounded-md text-sm font-medium ${PAGE_STYLES.panel.text} ${PAGE_STYLES.header.background} hover:bg-gray-500 disabled:opacity-50`}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50"
+              className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${MODULE_COLORS.vinyls.base} ${MODULE_COLORS.vinyls.hover} disabled:opacity-50`}
             >
               {loading ? 'Saving...' : (initialData ? 'Update' : 'Add')} Vinyl
             </button>

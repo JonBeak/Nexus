@@ -4,6 +4,7 @@ import { jobVersioningApi } from '../../services/api';
 import { JobSummary, JobValidationResponse } from './types';
 import { User } from '../../types';
 import { validateJobOrOrderName } from '../../utils/folderNameValidation';
+import { PAGE_STYLES } from '../../constants/moduleColors';
 
 interface JobPanelProps {
   selectedCustomerId: number | null;
@@ -223,7 +224,7 @@ export const JobPanel: React.FC<JobPanelProps> = ({
 
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${
-        statusColors[job.job_status] || 'bg-gray-100 text-gray-800 border-gray-800'
+        statusColors[job.job_status] || `${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.text} ${PAGE_STYLES.border}`
       }`}>
         {statusLabels[job.job_status] || job.job_status}
       </span>
@@ -245,19 +246,19 @@ export const JobPanel: React.FC<JobPanelProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-full flex flex-col">
+    <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow-sm border ${PAGE_STYLES.border} p-6 h-full flex flex-col`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center">
-          <Calendar className="w-5 h-5 text-purple-600 mr-2" />
-          <h2 className="text-lg font-semibold truncate">{getHeaderText()}</h2>
+          <Calendar className="w-5 h-5 text-emerald-600 mr-2" />
+          <h2 className={`text-lg font-semibold truncate ${PAGE_STYLES.panel.text}`}>{getHeaderText()}</h2>
         </div>
         <button
           onClick={handleCreateNewJobClick}
           className={`flex items-center space-x-2 px-2 py-1 rounded text-sm whitespace-nowrap ${
-            selectedCustomerId 
-              ? 'bg-purple-600 text-white hover:bg-purple-700' 
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            selectedCustomerId
+              ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+              : `${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.textMuted} cursor-not-allowed`
           }`}
           disabled={!selectedCustomerId}
           title={selectedCustomerId ? 'Create new job' : 'Please select a customer first'}
@@ -269,46 +270,47 @@ export const JobPanel: React.FC<JobPanelProps> = ({
 
       {/* Search */}
       <div className="relative mb-4">
-        <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+        <Search className={`absolute left-3 top-3 h-4 w-4 ${PAGE_STYLES.panel.textMuted}`} />
         <input
           type="text"
           placeholder="Search jobs..."
-          className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+          className={`w-full pl-10 pr-4 py-2 ${PAGE_STYLES.input.background} border ${PAGE_STYLES.border} rounded-lg text-sm ${PAGE_STYLES.input.placeholder}`}
           value={jobSearchTerm}
           onChange={(e) => setJobSearchTerm(e.target.value)}
         />
       </div>
 
       {/* Jobs List */}
-      <div className="flex-1 overflow-y-auto">
-        {loading ? (
-          <div className="text-center py-8 text-gray-500 text-sm">
-            Loading jobs...
-          </div>
-        ) : filteredJobs.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-            <p className="text-sm">
-              {jobSearchTerm 
-                ? 'No jobs match your search' 
-                : selectedCustomerId 
-                  ? 'No jobs for this customer' 
-                  : 'No jobs found'}
-            </p>
-            {selectedCustomerId && !jobSearchTerm && (
-              <p className="text-xs mt-2">Click "New Job" to create the first job</p>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {filteredJobs.map((job) => (
-              <div
-                key={job.job_id}
-                className={`group p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                  selectedJobId === job.job_id
-                    ? 'bg-purple-100 border-purple-500'
-                    : 'border-gray-200 hover:bg-gray-50 hover:border-purple-200'
-                }`}
+      {loading ? (
+        <div className={`text-center py-8 ${PAGE_STYLES.panel.textMuted} text-sm`}>
+          Loading jobs...
+        </div>
+      ) : (
+        <div className="flex-1 overflow-hidden">
+          <div className={`max-h-[calc(100vh-300px)] overflow-y-auto border ${PAGE_STYLES.border}`}>
+            {filteredJobs.length === 0 ? (
+              <div className={`text-center py-8 ${PAGE_STYLES.panel.textMuted}`}>
+                <Calendar className={`w-12 h-12 mx-auto mb-4 ${PAGE_STYLES.panel.textMuted}`} />
+                <p className="text-sm">
+                  {jobSearchTerm
+                    ? 'No jobs match your search'
+                    : selectedCustomerId
+                      ? 'No jobs for this customer'
+                      : 'No jobs found'}
+                </p>
+                {selectedCustomerId && !jobSearchTerm && (
+                  <p className="text-xs mt-2">Click "New Job" to create the first job</p>
+                )}
+              </div>
+            ) : (
+              filteredJobs.map((job) => (
+                <div
+                  key={job.job_id}
+                  className={`group py-2 px-3 cursor-pointer transition-all ${
+                    selectedJobId === job.job_id
+                      ? `bg-emerald-100 ring-2 ring-inset ring-emerald-500 border-b ${PAGE_STYLES.border}`
+                      : `${PAGE_STYLES.interactive.hover} border-b ${PAGE_STYLES.border} last:border-b-0`
+                  }`}
                 onClick={() => onJobSelected(job.job_id, job.customer_id)}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -324,7 +326,7 @@ export const JobPanel: React.FC<JobPanelProps> = ({
                               onKeyDown={handleKeyDown}
                               autoFocus
                               disabled={editingLoading}
-                              className="w-full px-2 py-1 text-sm border border-purple-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                              className="w-full px-2 py-1 text-sm border border-emerald-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                               onClick={(e) => e.stopPropagation()}
                               placeholder="Job name"
                             />
@@ -334,7 +336,7 @@ export const JobPanel: React.FC<JobPanelProps> = ({
                               onChange={(e) => setEditingCustomerJobNumber(e.target.value)}
                               onKeyDown={handleKeyDown}
                               disabled={editingLoading}
-                              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                              className={`w-full px-2 py-1 text-xs border ${PAGE_STYLES.input.border} rounded focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent`}
                               onClick={(e) => e.stopPropagation()}
                               placeholder="Customer Ref (optional)"
                             />
@@ -370,7 +372,7 @@ export const JobPanel: React.FC<JobPanelProps> = ({
                             {job.job_name}
                           </span>
                           {job.customer_job_number && (
-                            <span className="text-xs text-gray-400 truncate" title={job.customer_job_number}>
+                            <span className={`text-xs ${PAGE_STYLES.panel.textMuted} truncate`} title={job.customer_job_number}>
                               {job.customer_job_number}
                             </span>
                           )}
@@ -380,7 +382,7 @@ export const JobPanel: React.FC<JobPanelProps> = ({
                                 e.stopPropagation();
                                 handleStartEdit(job);
                               }}
-                              className="p-1 text-gray-400 hover:text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                              className={`p-1 ${PAGE_STYLES.panel.textMuted} hover:text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity`}
                               title="Edit job name"
                             >
                               <Edit3 className="w-3 h-3" />
@@ -389,7 +391,7 @@ export const JobPanel: React.FC<JobPanelProps> = ({
                         </div>
                       )}
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>
                       #{job.job_number} • {job.customer_name}
                       {job.last_activity && (
                         <span> • {new Date(job.last_activity).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
@@ -401,24 +403,25 @@ export const JobPanel: React.FC<JobPanelProps> = ({
                   </div>
                 </div>
               </div>
-            ))}
+              ))
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* New Job Modal */}
       {showNewJobModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Create New Job</h3>
-            
+          <div className={`${PAGE_STYLES.panel.background} rounded-lg p-6 w-full max-w-md`}>
+            <h3 className={`text-lg font-semibold mb-4 ${PAGE_STYLES.panel.text}`}>Create New Job</h3>
+
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-2`}>
                 Job Name
               </label>
               <input
                 type="text"
-                className={`w-full px-2 py-1 border rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm ${
+                className={`w-full px-2 py-1 border rounded focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm ${
                   validationError ? 'border-red-300' : ''
                 }`}
                 value={newJobName}
@@ -437,19 +440,19 @@ export const JobPanel: React.FC<JobPanelProps> = ({
               )}
               
               {validationSuggestion && (
-                <div className="mt-2 text-sm text-gray-600">
+                <div className={`mt-2 text-sm ${PAGE_STYLES.panel.textMuted}`}>
                   <strong>Suggestion:</strong> {validationSuggestion}
                 </div>
               )}
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Customer Reference # <span className="text-gray-400 font-normal">(optional)</span>
+              <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-2`}>
+                Customer Reference # <span className={`${PAGE_STYLES.panel.textMuted} font-normal`}>(optional)</span>
               </label>
               <input
                 type="text"
-                className="w-full px-2 py-1 border rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                className="w-full px-2 py-1 border rounded focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
                 value={newCustomerJobNumber}
                 onChange={(e) => setNewCustomerJobNumber(e.target.value)}
                 placeholder="PO number, project code, etc."
@@ -460,14 +463,14 @@ export const JobPanel: React.FC<JobPanelProps> = ({
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setShowNewJobModal(false)}
-                className="px-2 py-1 text-gray-600 border rounded hover:bg-gray-50 text-sm"
+                className={`px-2 py-1 ${PAGE_STYLES.panel.textMuted} border ${PAGE_STYLES.border} rounded ${PAGE_STYLES.interactive.hover} text-sm`}
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateJob}
                 disabled={!newJobName.trim() || validationError !== null}
-                className="flex items-center space-x-2 px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                className="flex items-center space-x-2 px-2 py-1 bg-emerald-500 text-white rounded hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Create Job</span>

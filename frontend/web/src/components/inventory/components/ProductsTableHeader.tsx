@@ -3,6 +3,7 @@ import { ChevronUp, ChevronDown } from 'lucide-react';
 import { AutofillComboBox } from '../../common/AutofillComboBox';
 import { InventoryUser } from '../types';
 import { ProductsColumnFilters, ProductsSortField } from '../hooks/useProductsFiltering';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface ProductsTableHeaderProps {
   user: InventoryUser;
@@ -48,11 +49,13 @@ export const ProductsTableHeader: React.FC<ProductsTableHeaderProps> = ({
     }
   };
 
+  const thClass = `px-3 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider cursor-pointer hover:bg-[var(--theme-hover-bg)]`;
+
   return (
-    <thead className="bg-white">
+    <thead className={PAGE_STYLES.header.background}>
       <tr>
         <th
-          className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+          className={thClass}
           style={{width: '166px'}}
           onClick={() => onSort('brand')}
         >
@@ -69,7 +72,7 @@ export const ProductsTableHeader: React.FC<ProductsTableHeaderProps> = ({
           </div>
         </th>
         <th
-          className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+          className={thClass}
           style={{width: '166px'}}
           onClick={() => onSort('series')}
         >
@@ -86,7 +89,7 @@ export const ProductsTableHeader: React.FC<ProductsTableHeaderProps> = ({
           </div>
         </th>
         <th
-          className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-44"
+          className={`${thClass} w-44`}
           onClick={() => onSort('colour_number')}
         >
           Colour # {getSortIcon('colour_number')}
@@ -102,7 +105,7 @@ export const ProductsTableHeader: React.FC<ProductsTableHeaderProps> = ({
           </div>
         </th>
         <th
-          className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 flex-1"
+          className={`${thClass} flex-1`}
           onClick={() => onSort('colour_name')}
         >
           Colour Name {getSortIcon('colour_name')}
@@ -118,14 +121,14 @@ export const ProductsTableHeader: React.FC<ProductsTableHeaderProps> = ({
           </div>
         </th>
         <th
-          className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+          className={thClass}
           style={{width: '90px'}}
           onClick={() => onSort('default_width')}
         >
           Default Width {getSortIcon('default_width')}
         </th>
         <th
-          className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+          className={thClass}
           style={{width: '180px'}}
           onClick={() => onSort('suppliers')}
         >
@@ -142,7 +145,7 @@ export const ProductsTableHeader: React.FC<ProductsTableHeaderProps> = ({
           </div>
         </th>
         <th
-          className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-24"
+          className={`${thClass} w-24`}
           onClick={() => onSort('status')}
         >
           Status {getSortIcon('status')}
@@ -158,7 +161,7 @@ export const ProductsTableHeader: React.FC<ProductsTableHeaderProps> = ({
           </div>
         </th>
         {(user.role === 'manager' || user.role === 'owner') && (
-          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+          <th className={`px-3 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`}>Actions</th>
         )}
       </tr>
     </thead>

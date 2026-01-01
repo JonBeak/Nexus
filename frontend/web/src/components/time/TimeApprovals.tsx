@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { timeApi } from '../../services/api';
 import type { TimeEditRequest, EditRequestDraft } from '../../types/time';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
+import '../jobEstimation/JobEstimation.css';
 
 function TimeApprovals() {
   const [pendingRequests, setPendingRequests] = useState<TimeEditRequest[]>([]);
@@ -133,13 +135,13 @@ function TimeApprovals() {
 
   return (
     <>
-      <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-8">
+      <div className={`${PAGE_STYLES.composites.panelContainer} p-8`}>
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-2xl font-bold text-gray-800">Time Edit Requests</h3>
+          <h3 className={`text-2xl font-bold ${PAGE_STYLES.panel.text}`}>Time Edit Requests</h3>
           <span className={`px-3 py-1 rounded-full font-semibold ${
-            pendingRequests.length > 0 
-              ? 'bg-yellow-100 text-yellow-800' 
-              : 'bg-gray-100 text-gray-600'
+            pendingRequests.length > 0
+              ? `${MODULE_COLORS.timeTracking.light} ${MODULE_COLORS.timeTracking.text}`
+              : `${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.textMuted}`
           }`}>
             {pendingRequests.length} Pending
           </span>
@@ -148,25 +150,25 @@ function TimeApprovals() {
         {pendingRequests.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead>
-                <tr className="border-b-2 border-gray-200">
-                  <th className="text-left py-3 px-2 font-semibold text-gray-700">Employee</th>
-                  <th className="text-left py-3 px-2 font-semibold text-gray-700">Original</th>
-                  <th className="text-left py-3 px-2 font-semibold text-gray-700">Requested</th>
-                  <th className="text-left py-3 px-2 font-semibold text-gray-700">Reason</th>
-                  <th className="text-left py-3 px-2 font-semibold text-gray-700">Actions</th>
+              <thead className={PAGE_STYLES.header.background}>
+                <tr className={`border-b-2 ${PAGE_STYLES.panel.border}`}>
+                  <th className={`text-left py-3 px-2 font-semibold ${PAGE_STYLES.panel.text}`}>Employee</th>
+                  <th className={`text-left py-3 px-2 font-semibold ${PAGE_STYLES.panel.text}`}>Original</th>
+                  <th className={`text-left py-3 px-2 font-semibold ${PAGE_STYLES.panel.text}`}>Requested</th>
+                  <th className={`text-left py-3 px-2 font-semibold ${PAGE_STYLES.panel.text}`}>Reason</th>
+                  <th className={`text-left py-3 px-2 font-semibold ${PAGE_STYLES.panel.text}`}>Actions</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className={PAGE_STYLES.composites.tableBody}>
                 {pendingRequests.map((request) => (
-                <tr key={request.request_id} className="border-b hover:bg-gray-50">
-                  <td className="py-3 px-2">
+                <tr key={request.request_id} className={`${PAGE_STYLES.interactive.hover}`}>
+                  <td className={`py-3 px-2 ${PAGE_STYLES.panel.text}`}>
                     <div>
                       <p className="font-semibold">{request.first_name} {request.last_name}</p>
-                      <p className="text-sm text-gray-500">@{request.username}</p>
+                      <p className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>@{request.username}</p>
                     </div>
                   </td>
-                  <td className="py-3 px-2 text-sm">
+                  <td className={`py-3 px-2 text-sm ${PAGE_STYLES.panel.text}`}>
                     <div>
                       <p>In: {formatDateTime(request.original_clock_in)}</p>
                       <p>Out: {formatDateTime(request.original_clock_out)}</p>
@@ -179,14 +181,14 @@ function TimeApprovals() {
                         <p>DELETE REQUEST</p>
                       </div>
                     ) : (
-                      <div>
-                        <p className="text-primary-blue">In: {formatDateTime(request.requested_clock_in)}</p>
-                        <p className="text-primary-blue">Out: {formatDateTime(request.requested_clock_out)}</p>
-                        <p className="text-primary-blue">Break: {request.requested_break_minutes} min</p>
+                      <div className={MODULE_COLORS.timeTracking.text}>
+                        <p>In: {formatDateTime(request.requested_clock_in)}</p>
+                        <p>Out: {formatDateTime(request.requested_clock_out)}</p>
+                        <p>Break: {request.requested_break_minutes} min</p>
                       </div>
                     )}
                   </td>
-                  <td className="py-3 px-2">
+                  <td className={`py-3 px-2 ${PAGE_STYLES.panel.text}`}>
                     <p className="text-sm">{request.reason}</p>
                   </td>
                   <td className="py-3 px-2">
@@ -198,7 +200,7 @@ function TimeApprovals() {
                         setReviewerNotes('');
                         setIsModifyMode(false);
                       }}
-                      className="bg-primary-blue hover:bg-primary-blue-dark text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors"
+                      className={`${MODULE_COLORS.timeTracking.base} ${MODULE_COLORS.timeTracking.hover} text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors`}
                     >
                       Review
                     </button>
@@ -210,8 +212,8 @@ function TimeApprovals() {
         </div>
         ) : (
           <div className="text-center py-8">
-            <p className="text-gray-500">No pending time edit requests</p>
-            <p className="text-sm text-gray-400 mt-2">Requests from staff will appear here for approval</p>
+            <p className={PAGE_STYLES.panel.textMuted}>No pending time edit requests</p>
+            <p className={`text-sm ${PAGE_STYLES.panel.textMuted} mt-2`}>Requests from staff will appear here for approval</p>
           </div>
         )}
       </div>
@@ -219,59 +221,59 @@ function TimeApprovals() {
       {/* Approval Modal */}
       {showApprovalModal && selectedRequest && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-2xl font-bold text-gray-800 mb-6">
+          <div className={`${PAGE_STYLES.panel.background} rounded-2xl shadow-2xl max-w-2xl w-full p-8 max-h-[90vh] overflow-y-auto border ${PAGE_STYLES.panel.border}`}>
+            <h3 className={`text-2xl font-bold ${PAGE_STYLES.panel.text} mb-6`}>
               Review Time {selectedRequest.request_type === 'delete' ? 'Delete' : 'Edit'} Request
             </h3>
-            
+
             <div className="space-y-4 mb-6">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-semibold text-gray-700 mb-2">Employee</h4>
-                <p>{selectedRequest.first_name} {selectedRequest.last_name} (@{selectedRequest.username})</p>
+              <div className={`${PAGE_STYLES.header.background} p-4 rounded-lg border ${PAGE_STYLES.panel.border}`}>
+                <h4 className={`font-semibold ${PAGE_STYLES.panel.text} mb-2`}>Employee</h4>
+                <p className={PAGE_STYLES.panel.text}>{selectedRequest.first_name} {selectedRequest.last_name} (@{selectedRequest.username})</p>
               </div>
-              
+
               {selectedRequest.request_type === 'delete' ? (
                 <div className="bg-red-50 p-4 rounded-lg border-2 border-red-200">
                   <h4 className="font-semibold text-red-700 mb-2">Entry to be Deleted</h4>
-                  <p className="text-sm">In: {formatDateTime(selectedRequest.original_clock_in)}</p>
-                  <p className="text-sm">Out: {formatDateTime(selectedRequest.original_clock_out)}</p>
-                  <p className="text-sm">Break: {selectedRequest.original_break_minutes} min</p>
+                  <p className="text-sm text-red-800">In: {formatDateTime(selectedRequest.original_clock_in)}</p>
+                  <p className="text-sm text-red-800">Out: {formatDateTime(selectedRequest.original_clock_out)}</p>
+                  <p className="text-sm text-red-800">Break: {selectedRequest.original_break_minutes} min</p>
                   <p className="text-red-600 font-semibold mt-2">⚠️ This entry will be permanently marked as deleted</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h4 className="font-semibold text-gray-700 mb-2">Original Times</h4>
-                    <p className="text-sm">In: {formatDateTime(selectedRequest.original_clock_in)}</p>
-                    <p className="text-sm">Out: {formatDateTime(selectedRequest.original_clock_out)}</p>
-                    <p className="text-sm">Break: {selectedRequest.original_break_minutes} min</p>
+                  <div className={`${PAGE_STYLES.header.background} p-4 rounded-lg border ${PAGE_STYLES.panel.border}`}>
+                    <h4 className={`font-semibold ${PAGE_STYLES.panel.text} mb-2`}>Original Times</h4>
+                    <p className={`text-sm ${PAGE_STYLES.panel.text}`}>In: {formatDateTime(selectedRequest.original_clock_in)}</p>
+                    <p className={`text-sm ${PAGE_STYLES.panel.text}`}>Out: {formatDateTime(selectedRequest.original_clock_out)}</p>
+                    <p className={`text-sm ${PAGE_STYLES.panel.text}`}>Break: {selectedRequest.original_break_minutes} min</p>
                   </div>
-                  
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <h4 className="font-semibold text-primary-blue mb-2">Requested Times</h4>
-                    <p className="text-sm">In: {formatDateTime(selectedRequest.requested_clock_in)}</p>
-                    <p className="text-sm">Out: {formatDateTime(selectedRequest.requested_clock_out)}</p>
-                    <p className="text-sm">Break: {selectedRequest.requested_break_minutes} min</p>
+
+                  <div className={`${MODULE_COLORS.timeTracking.light} p-4 rounded-lg border ${MODULE_COLORS.timeTracking.border}`}>
+                    <h4 className={`font-semibold ${MODULE_COLORS.timeTracking.text} mb-2`}>Requested Times</h4>
+                    <p className={`text-sm ${PAGE_STYLES.panel.text}`}>In: {formatDateTime(selectedRequest.requested_clock_in)}</p>
+                    <p className={`text-sm ${PAGE_STYLES.panel.text}`}>Out: {formatDateTime(selectedRequest.requested_clock_out)}</p>
+                    <p className={`text-sm ${PAGE_STYLES.panel.text}`}>Break: {selectedRequest.requested_break_minutes} min</p>
                   </div>
                 </div>
               )}
-              
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-semibold text-gray-700 mb-2">Reason</h4>
-                <p>{selectedRequest.reason}</p>
+
+              <div className={`${PAGE_STYLES.header.background} p-4 rounded-lg border ${PAGE_STYLES.panel.border}`}>
+                <h4 className={`font-semibold ${PAGE_STYLES.panel.text} mb-2`}>Reason</h4>
+                <p className={PAGE_STYLES.panel.text}>{selectedRequest.reason}</p>
               </div>
               
               {selectedRequest.request_type !== 'delete' && (
                 <div>
                   <div className="flex justify-between items-center mb-2">
-                    <h4 className="font-semibold text-gray-700">Requested Times</h4>
+                    <h4 className={`font-semibold ${PAGE_STYLES.panel.text}`}>Requested Times</h4>
                     <button
                     type="button"
                     onClick={handleModifyToggle}
                     className={`px-3 py-1 rounded text-sm font-semibold transition-colors ${
-                      isModifyMode 
-                        ? 'bg-gray-600 hover:bg-gray-700 text-white' 
-                        : 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                      isModifyMode
+                        ? `${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.text} border ${PAGE_STYLES.panel.border}`
+                        : `${MODULE_COLORS.timeTracking.base} ${MODULE_COLORS.timeTracking.hover} text-white`
                     }`}
                   >
                     {isModifyMode ? 'Reset' : 'Modify'}
@@ -279,35 +281,35 @@ function TimeApprovals() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Clock In</label>
+                    <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>Clock In</label>
                     <input
                       type="datetime-local"
                       value={modifiedValues.clockIn || formatDateTimeForInput(selectedRequest.requested_clock_in)}
                       onChange={(e) => setModifiedValues({...modifiedValues, clockIn: e.target.value})}
                       disabled={!isModifyMode}
-                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 text-sm ${
-                        isModifyMode 
-                          ? 'border-gray-300 focus:ring-primary-blue bg-white' 
-                          : 'border-gray-200 bg-gray-50 text-gray-600'
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 text-sm ${
+                        isModifyMode
+                          ? `${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} focus:ring-yellow-500`
+                          : 'bg-gray-200 cursor-not-allowed text-gray-600'
                       }`}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Clock Out</label>
+                    <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>Clock Out</label>
                     <input
                       type="datetime-local"
                       value={modifiedValues.clockOut || formatDateTimeForInput(selectedRequest.requested_clock_out)}
                       onChange={(e) => setModifiedValues({...modifiedValues, clockOut: e.target.value})}
                       disabled={!isModifyMode}
-                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 text-sm ${
-                        isModifyMode 
-                          ? 'border-gray-300 focus:ring-primary-blue bg-white' 
-                          : 'border-gray-200 bg-gray-50 text-gray-600'
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 text-sm ${
+                        isModifyMode
+                          ? `${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} focus:ring-yellow-500`
+                          : 'bg-gray-200 cursor-not-allowed text-gray-600'
                       }`}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Break Minutes</label>
+                    <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>Break Minutes</label>
                   <input
                     type="number"
                     min={0}
@@ -318,32 +320,32 @@ function TimeApprovals() {
                       breakMinutes: Number(e.target.value)
                     })}
                     disabled={!isModifyMode}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 text-sm ${
-                      isModifyMode 
-                        ? 'border-gray-300 focus:ring-primary-blue bg-white' 
-                        : 'border-gray-200 bg-gray-50 text-gray-600'
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 text-sm ${
+                      isModifyMode
+                        ? `${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} focus:ring-yellow-500`
+                        : 'bg-gray-200 cursor-not-allowed text-gray-600'
                       }`}
                     />
                   </div>
                 </div>
                 {isModifyMode && (
-                  <p className="text-sm text-blue-600 mt-2">💡 Modify the times above, then click Approve to save changes</p>
+                  <p className={`text-sm ${MODULE_COLORS.timeTracking.text} mt-2`}>💡 Modify the times above, then click Approve to save changes</p>
                 )}
                 </div>
               )}
-              
+
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Reviewer Notes</label>
+                <label className={`block text-sm font-semibold ${PAGE_STYLES.panel.text} mb-2`}>Reviewer Notes</label>
                 <textarea
                   value={reviewerNotes}
                   onChange={(e) => setReviewerNotes(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-blue"
+                  className={`w-full px-3 py-2 border ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} rounded-md focus:outline-none focus:ring-1 focus:ring-yellow-500`}
                   rows={3}
                   placeholder="Optional notes about this decision..."
                 />
               </div>
             </div>
-            
+
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => {
@@ -353,7 +355,7 @@ function TimeApprovals() {
                   setReviewerNotes('');
                   setIsModifyMode(false);
                 }}
-                className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                className={`${PAGE_STYLES.header.background} ${PAGE_STYLES.interactive.hover} ${PAGE_STYLES.panel.text} px-6 py-2 rounded-lg font-semibold transition-colors border ${PAGE_STYLES.panel.border}`}
               >
                 Cancel
               </button>

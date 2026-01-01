@@ -3,6 +3,7 @@ import { X, Trash2 } from 'lucide-react';
 import { jobsApi } from '../../services/api';
 import { AutofillComboBox } from '../common/AutofillComboBox';
 import { JobSuggestion, StatusChangePayload, VinylItem } from './types';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 
 interface StatusChangeFormState {
   disposition: StatusChangePayload['disposition'];
@@ -186,25 +187,29 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
     });
   };
 
+  // Shared input classes for consistent styling
+  const inputClass = `w-full px-3 py-2 border ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} ${PAGE_STYLES.input.placeholder} rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500`;
+  const labelClass = `block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`;
+
   if (!isOpen || !item) return null;
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-8 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold text-gray-900">Change Item Status</h3>
+    <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50">
+      <div className={`relative top-8 mx-auto p-5 border ${PAGE_STYLES.panel.border} w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md ${PAGE_STYLES.panel.background}`}>
+        <div className={`flex justify-between items-center mb-4 pb-4 border-b ${PAGE_STYLES.panel.border}`}>
+          <h3 className={`text-lg font-bold ${PAGE_STYLES.panel.text}`}>Change Item Status</h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className={`${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.text}`}
           >
             <X className="h-6 w-6" />
           </button>
         </div>
 
         {/* Item Details */}
-        <div className="bg-gray-50 rounded-lg p-4 mb-4">
-          <h4 className="font-medium text-gray-900 mb-2">Item Details</h4>
-          <div className="text-sm text-gray-600">
+        <div className={`${PAGE_STYLES.header.background} rounded-lg p-4 mb-4 border ${PAGE_STYLES.panel.border}`}>
+          <h4 className={`font-medium ${PAGE_STYLES.panel.text} mb-2`}>Item Details</h4>
+          <div className={`text-sm ${PAGE_STYLES.panel.textSecondary}`}>
             <p><strong>Product:</strong> {item.brand} {item.series} {item.colour}</p>
             <p><strong>Dimensions:</strong> {item.width}" × {item.length_yards} yds</p>
             <p><strong>Location:</strong> {item.location || 'Not specified'}</p>
@@ -215,7 +220,7 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Status Dropdown */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className={labelClass}>
               Status *
             </label>
             <select
@@ -223,7 +228,7 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
               value={formData.disposition}
               onChange={handleDispositionChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+              className={inputClass}
             >
               <option value="in_stock">In Stock</option>
               <option value="used">Used</option>
@@ -235,7 +240,7 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
 
           {/* Status Change Date */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className={labelClass}>
               Date *
             </label>
             <input
@@ -244,13 +249,13 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
               value={formData.status_change_date}
               onChange={handleChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+              className={inputClass}
             />
           </div>
 
           {/* Jobs */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className={`${labelClass} mb-2`}>
               Associated Jobs
             </label>
             <div className="space-y-2">
@@ -263,7 +268,7 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
                       onChange={(value) => {
                         handleJobChange(index, value);
                         // Check if the value matches a suggestion and trigger selection
-                        const matchingSuggestion = jobSuggestions.find(j => 
+                        const matchingSuggestion = jobSuggestions.find(j =>
                           `${j.job_number} - ${j.job_title}` === value
                         );
                         if (matchingSuggestion) {
@@ -291,7 +296,7 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
 
           {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className={labelClass}>
               Notes
             </label>
             <textarea
@@ -299,30 +304,30 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
               value={formData.notes}
               onChange={handleChange}
               rows={4}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+              className={inputClass}
               placeholder={`Enter notes... ${getNotePlaceholder(formData.disposition)}`}
             />
             {item.notes && item.notes !== formData.notes && (
-              <div className="text-xs text-gray-500 mt-1">
+              <div className={`text-xs ${PAGE_STYLES.panel.textMuted} mt-1`}>
                 <strong>Previous notes:</strong> {item.notes}
               </div>
             )}
           </div>
 
           {/* Buttons */}
-          <div className="flex justify-end space-x-3 pt-4">
+          <div className={`flex justify-end space-x-3 pt-4 mt-4 border-t ${PAGE_STYLES.panel.border}`}>
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              className={`px-4 py-2 border ${PAGE_STYLES.panel.border} rounded-md text-sm font-medium ${PAGE_STYLES.panel.text} ${PAGE_STYLES.header.background} hover:bg-gray-500 disabled:opacity-50`}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50"
+              className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${MODULE_COLORS.vinyls.base} ${MODULE_COLORS.vinyls.hover} disabled:opacity-50`}
             >
               {loading ? 'Updating Status...' : 'Update Status'}
             </button>
