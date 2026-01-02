@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { formatTimeForDisplay, parse24HourTime, convert12To24Hour } from '@/lib/timeUtils';
+import { PAGE_STYLES, MODULE_COLORS } from '@/constants/moduleColors';
+
+const TIME_COLORS = MODULE_COLORS.timeTracking;
 
 interface TimeInputProps {
   value: string;           // MySQL datetime or ISO format
@@ -112,8 +115,9 @@ export const TimeInput = ({ value, onChange, className = '', isEdited = false }:
         onKeyDown={handleKeyDown}
         className={`
           w-full px-1 py-1 text-xs border text-left
-          ${isEdited ? 'bg-orange-100 border-orange-300' : 'border-gray-300 bg-white'}
-          hover:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-500
+          ${isEdited ? 'bg-orange-100 border-orange-300' : `${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background}`}
+          hover:border-yellow-400 focus:outline-none focus:ring-1 focus:ring-yellow-500
+          ${PAGE_STYLES.input.text}
           ${className}
         `}
       >
@@ -129,7 +133,7 @@ export const TimeInput = ({ value, onChange, className = '', isEdited = false }:
             left: `${position.left}px`,
             zIndex: 9999
           }}
-          className="bg-white border border-gray-300 rounded shadow-lg"
+          className={`${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.border} border rounded shadow-lg`}
           onKeyDown={handleKeyDown}
         >
           <div className="flex flex-col gap-2 p-3 min-w-[200px]">
@@ -137,11 +141,11 @@ export const TimeInput = ({ value, onChange, className = '', isEdited = false }:
             <div className="flex gap-2">
               {/* Hour Select */}
               <div className="flex-1">
-                <label className="block text-xs text-gray-600 mb-1">Hour</label>
+                <label className={`block text-xs ${PAGE_STYLES.panel.textSecondary} mb-1`}>Hour</label>
                 <select
                   value={hour}
                   onChange={(e) => setHour(parseInt(e.target.value))}
-                  className="w-full text-xs p-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  className={`w-full text-xs p-1 ${PAGE_STYLES.input.border} border rounded focus:ring-1 focus:ring-yellow-500 focus:outline-none ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text}`}
                 >
                   {[...Array(12)].map((_, i) => {
                     const h = i + 1;
@@ -156,11 +160,11 @@ export const TimeInput = ({ value, onChange, className = '', isEdited = false }:
 
               {/* Minute Select */}
               <div className="flex-1">
-                <label className="block text-xs text-gray-600 mb-1">Min</label>
+                <label className={`block text-xs ${PAGE_STYLES.panel.textSecondary} mb-1`}>Min</label>
                 <select
                   value={minute}
                   onChange={(e) => setMinute(parseInt(e.target.value))}
-                  className="w-full text-xs p-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  className={`w-full text-xs p-1 ${PAGE_STYLES.input.border} border rounded focus:ring-1 focus:ring-yellow-500 focus:outline-none ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text}`}
                 >
                   {minuteOptions.map((m) => (
                     <option key={m} value={m}>
@@ -172,13 +176,13 @@ export const TimeInput = ({ value, onChange, className = '', isEdited = false }:
 
               {/* Period Select */}
               <div className="w-16">
-                <label className="block text-xs text-gray-600 mb-1">
+                <label className={`block text-xs ${PAGE_STYLES.panel.textSecondary} mb-1`}>
                   {navigator.language.startsWith('ko') ? '시간' : 'Period'}
                 </label>
                 <select
                   value={period}
                   onChange={(e) => setPeriod(e.target.value as 'AM' | 'PM')}
-                  className="w-full text-xs p-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  className={`w-full text-xs p-1 ${PAGE_STYLES.input.border} border rounded focus:ring-1 focus:ring-yellow-500 focus:outline-none ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text}`}
                 >
                   <option value="AM">{getPeriodText('AM')}</option>
                   <option value="PM">{getPeriodText('PM')}</option>
@@ -187,18 +191,18 @@ export const TimeInput = ({ value, onChange, className = '', isEdited = false }:
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-2 justify-end pt-1 border-t border-gray-200">
+            <div className={`flex gap-2 justify-end pt-1 border-t ${PAGE_STYLES.panel.border}`}>
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
+                className={`px-3 py-1 text-xs ${PAGE_STYLES.panel.textSecondary} ${PAGE_STYLES.interactive.hover} rounded`}
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={applyTime}
-                className="px-3 py-1 text-xs text-white bg-blue-600 hover:bg-blue-700 rounded"
+                className={`px-3 py-1 text-xs text-white ${TIME_COLORS.base} ${TIME_COLORS.hover} rounded`}
               >
                 Apply
               </button>

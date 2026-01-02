@@ -167,7 +167,6 @@ const SortableRow: React.FC<SortableRowProps> = ({
           onChange={(val) => onUpdateItem(item.id, { qb_description: val })}
           type="textarea"
           disabled={readOnly}
-          placeholder="QB description"
         />
       </td>
 

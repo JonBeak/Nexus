@@ -5,6 +5,7 @@ import OrderList from './OrderList';
 import StatusFilter from './StatusFilter';
 import SearchBar from './SearchBar';
 import OrderStats from './OrderStats';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 export const OrderDashboard: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -49,9 +50,9 @@ export const OrderDashboard: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className={`h-full flex flex-col ${PAGE_STYLES.page.background}`}>
       {/* Filters & Search */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className={`${PAGE_STYLES.panel.background} border-b ${PAGE_STYLES.panel.border} px-6 py-4`}>
         <div className="flex items-center justify-between space-x-4">
           <StatusFilter
             selectedStatus={filters.status || 'all'}
@@ -72,7 +73,7 @@ export const OrderDashboard: React.FC = () => {
       <div className="flex-1 overflow-auto px-6 py-4">
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="text-gray-500">Loading orders...</div>
+            <div className={PAGE_STYLES.page.text}>Loading orders...</div>
           </div>
         ) : error ? (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -85,12 +86,12 @@ export const OrderDashboard: React.FC = () => {
             </button>
           </div>
         ) : orders.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <p className="text-gray-500">No orders found</p>
+          <div className={`${PAGE_STYLES.composites.panelContainer} p-8 text-center`}>
+            <p className={PAGE_STYLES.panel.textMuted}>No orders found</p>
             {filters.status !== 'all' || filters.search ? (
               <button
                 onClick={() => setFilters({ status: 'all', search: '' })}
-                className="mt-4 text-sm text-indigo-600 hover:text-indigo-800"
+                className={`mt-4 text-sm ${MODULE_COLORS.orders.text} hover:text-orange-600`}
               >
                 Clear filters
               </button>

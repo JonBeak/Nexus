@@ -9,6 +9,8 @@ import { authApi } from './services/api';
 import type { AccountUser } from './types/user';
 import { SessionProvider } from './contexts/SessionContext';
 import { SessionExpiredModal } from './components/common/SessionExpiredModal';
+import { ThemeProvider, useTheme } from './contexts/ThemeContext';
+import type { ThemePreference } from './types/user';
 
 // Lazy imports (loaded on demand)
 const SimpleCustomerList = lazy(() => import('./components/customers/SimpleCustomerList'));
@@ -47,6 +49,7 @@ function AppContent() {
   const [user, setUser] = useState<AccountUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const { setTheme } = useTheme();
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('access_token');
@@ -68,14 +71,19 @@ function AppContent() {
     try {
       // Use the authApi which will automatically handle refresh via interceptor
       const data = await authApi.getCurrentUser();
-      setUser(data.user as AccountUser);
+      const userData = data.user as AccountUser;
+      setUser(userData);
+      // Apply user's theme preference
+      if (userData.theme_preference) {
+        setTheme(userData.theme_preference);
+      }
     } catch (error) {
       console.error('Auth check failed:', error);
       handleLogout();
     } finally {
       setIsLoading(false);
     }
-  }, [handleLogout]);
+  }, [handleLogout, setTheme]);
 
   useEffect(() => {
     checkAuth();
@@ -83,6 +91,10 @@ function AppContent() {
 
   const handleLogin = (userData: AccountUser) => {
     setUser(userData);
+    // Apply user's theme preference on login
+    if (userData.theme_preference) {
+      setTheme(userData.theme_preference);
+    }
     navigate('/dashboard');
   };
 
@@ -204,10 +216,12 @@ function AppContent() {
 function App() {
   return (
     <SessionProvider>
-      <Router>
-        <AppContent />
-        <SessionExpiredModal />
-      </Router>
+      <ThemeProvider>
+        <Router>
+          <AppContent />
+          <SessionExpiredModal />
+        </Router>
+      </ThemeProvider>
     </SessionProvider>
   );
 }

@@ -28,6 +28,24 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
 
   return (
     <div className="space-y-8">
+      {/* QuickBooks Integration */}
+      <div className={`p-4 rounded-lg border ${PAGE_STYLES.panel.border} ${PAGE_STYLES.panel.background}`}>
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={formData.createInQB ?? true}
+            onChange={(e) => onInputChange('createInQB', e.target.checked)}
+            className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          <div>
+            <span className={`font-semibold ${PAGE_STYLES.panel.text}`}>Create in QuickBooks</span>
+            <p className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>
+              Customer will be synced to QuickBooks when created
+            </p>
+          </div>
+        </label>
+      </div>
+
       {/* Basic Information */}
       <div>
         <h4 className={`text-lg font-bold ${PAGE_STYLES.panel.text} mb-4 border-b ${PAGE_STYLES.panel.border} pb-2`}>Basic Information</h4>

@@ -153,15 +153,34 @@ export class CustomerController {
   static async createCustomer(req: AuthRequest, res: Response) {
     try {
       // Permissions enforced at route level via requirePermission() middleware
-      const { addresses = [] } = req.body;
+      const { addresses = [], createInQB = false } = req.body;
 
-      const newCustomer = await CustomerService.createCustomer(req.body);
+      // Find primary address for QB BillAddr and tax info
+      const primaryAddress = addresses.find((addr: any) => addr?.is_primary) || addresses[0];
+      const primaryAddressForQB = primaryAddress ? {
+        address_line1: getTrimmedString(primaryAddress?.address_line1),
+        address_line2: getTrimmedString(primaryAddress?.address_line2),
+        city: getTrimmedString(primaryAddress?.city),
+        province_state_short: primaryAddress?.province_state_short?.trim(),
+        postal_zip: getTrimmedString(primaryAddress?.postal_zip),
+        country: getTrimmedString(primaryAddress?.country) || 'Canada',
+        tax_type: getTrimmedString(primaryAddress?.tax_type) // For QB DefaultTaxCodeRef
+      } : undefined;
+
+      // Create customer with optional QB sync
+      const { customer: newCustomer, qbResult } = await CustomerService.createCustomer(
+        req.body,
+        { createInQB, primaryAddress: primaryAddressForQB }
+      );
 
       if (!newCustomer) {
         return sendErrorResponse(res, 'Failed to create customer', 'INTERNAL_ERROR');
       }
 
       if (Array.isArray(addresses) && addresses.length > 0) {
+        console.log(`[CustomerController] Processing ${addresses.length} address(es) for customer ${newCustomer.customer_id}`);
+        console.log('[CustomerController] Address data received:', JSON.stringify(addresses, null, 2));
+
         const createdBy = req.user?.username || 'system';
         const normalizedAddresses = addresses
           .filter((address: any) => address?.province_state_short && address.province_state_short.trim())
@@ -186,24 +205,59 @@ export class CustomerController {
             comments: getTrimmedString(address?.comments)
           }));
 
+        console.log(`[CustomerController] After filtering: ${normalizedAddresses.length} valid address(es)`);
+        if (normalizedAddresses.length > 0) {
+          console.log('[CustomerController] Normalized addresses:', JSON.stringify(normalizedAddresses, null, 2));
+        }
+
         const hasPrimaryAddress = normalizedAddresses.some(address => address.is_primary);
 
         if (!hasPrimaryAddress && normalizedAddresses.length > 0) {
           normalizedAddresses[0].is_primary = true;
         }
 
+        const addressErrors: string[] = [];
         for (const address of normalizedAddresses) {
-          await AddressService.addAddress(newCustomer.customer_id, address, createdBy);
+          const result = await AddressService.addAddress(newCustomer.customer_id, address, createdBy);
+          if (!result.success) {
+            console.error(`[CustomerController] Failed to create address for customer ${newCustomer.customer_id}:`, result.error);
+            addressErrors.push(result.error || 'Unknown address error');
+          }
+        }
+
+        if (addressErrors.length > 0) {
+          console.warn(`[CustomerController] Customer ${newCustomer.customer_id} created but ${addressErrors.length} address(es) failed`);
         }
       }
 
       const customerWithAddresses = await CustomerService.getCustomerById(newCustomer.customer_id);
 
-      res.status(201).json(customerWithAddresses);
+      // Check if addresses were created (should have at least one if provided)
+      const addressWarnings: string[] = [];
+      if (addresses.length > 0 && (!customerWithAddresses?.addresses || customerWithAddresses.addresses.length === 0)) {
+        addressWarnings.push('Address was provided but not saved. Please add the address manually.');
+      }
+
+      // Include QB result in response so frontend knows sync status
+      res.status(201).json({
+        ...customerWithAddresses,
+        qbResult: qbResult ? {
+          success: qbResult.success,
+          qbCustomerId: qbResult.qbCustomerId,
+          existingCustomer: qbResult.existingCustomer,
+          error: qbResult.error
+        } : undefined,
+        addressWarnings: addressWarnings.length > 0 ? addressWarnings : undefined
+      });
     } catch (error) {
       console.error('Error creating customer:', error);
-      if (error instanceof Error && error.message === 'Company name is required') {
-        return sendErrorResponse(res, error.message, 'VALIDATION_ERROR');
+      if (error instanceof Error) {
+        if (error.message === 'Company name is required') {
+          return sendErrorResponse(res, error.message, 'VALIDATION_ERROR');
+        }
+        if ((error as any).code === 'DUPLICATE_ENTRY') {
+          return sendErrorResponse(res, error.message, 'DUPLICATE_ENTRY');
+        }
       }
       return sendErrorResponse(res, 'Failed to create customer', 'INTERNAL_ERROR');
     }

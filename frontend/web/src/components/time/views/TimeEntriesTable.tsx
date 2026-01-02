@@ -2,6 +2,9 @@ import React from 'react';
 import { Clock, AlertTriangle } from 'lucide-react';
 import { formatTime, formatDate, getStatusColor } from '../utils/timeCalculations';
 import type { TimeEntry, EditValues } from '../../../types/time';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
+
+const TIME_COLORS = MODULE_COLORS.timeTracking;
 
 interface TimeEntriesTableProps {
   timeEntries: TimeEntry[];
@@ -35,18 +38,18 @@ export const TimeEntriesTable: React.FC<TimeEntriesTableProps> = ({
   if (loading) {
     return (
       <div className="text-center py-12">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <p className="mt-2 text-gray-500">Loading time entries...</p>
+        <div className={`inline-block animate-spin rounded-full h-8 w-8 border-b-2 ${TIME_COLORS.border}`}></div>
+        <p className={`mt-2 ${PAGE_STYLES.panel.textMuted}`}>Loading time entries...</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white shadow rounded-lg overflow-hidden">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
+    <div className={`${PAGE_STYLES.panel.background} shadow rounded-lg overflow-hidden`}>
+      <table className={`min-w-full ${PAGE_STYLES.panel.divider}`}>
+        <thead className={PAGE_STYLES.header.background}>
           <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`}>
               <input
                 type="checkbox"
                 checked={selectedEntries.length === timeEntries.length && timeEntries.length > 0}
@@ -54,35 +57,35 @@ export const TimeEntriesTable: React.FC<TimeEntriesTableProps> = ({
                 className="rounded"
               />
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`}>
               Employee
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`}>
               Date
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`}>
               Clock In
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`}>
               Clock Out
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`}>
               Break (min)
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`}>
               Total Hours
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`}>
               Status
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`}>
               Actions
             </th>
           </tr>
         </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
+        <tbody className={`${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.divider}`}>
           {timeEntries.map((entry) => (
-            <tr key={entry.entry_id} className={getStatusColor(entry)}>
+            <tr key={entry.entry_id} className={`${getStatusColor(entry)} ${PAGE_STYLES.interactive.hover}`}>
               <td className="px-6 py-4 whitespace-nowrap">
                 <input
                   type="checkbox"
@@ -93,7 +96,7 @@ export const TimeEntriesTable: React.FC<TimeEntriesTableProps> = ({
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="flex items-center">
-                  <div className="text-sm font-medium text-gray-900">
+                  <div className={`text-sm font-medium ${PAGE_STYLES.panel.text}`}>
                     {entry.first_name} {entry.last_name}
                   </div>
                   {entry.has_multiple_entries && (
@@ -101,34 +104,34 @@ export const TimeEntriesTable: React.FC<TimeEntriesTableProps> = ({
                   )}
                 </div>
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              <td className={`px-6 py-4 whitespace-nowrap text-sm ${PAGE_STYLES.panel.textMuted}`}>
                 {formatDate(entry.clock_in)}
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+              <td className={`px-6 py-4 whitespace-nowrap text-sm ${PAGE_STYLES.panel.text}`}>
                 {editingEntry === entry.entry_id ? (
                   <input
                     type="datetime-local"
                     value={editValues.clock_in}
                     onChange={(e) => onEditValuesChange({ ...editValues, clock_in: e.target.value })}
-                    className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                    className={`w-full px-2 py-1 ${PAGE_STYLES.input.border} rounded text-xs ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text}`}
                   />
                 ) : (
                   formatTime(entry.clock_in)
                 )}
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+              <td className={`px-6 py-4 whitespace-nowrap text-sm ${PAGE_STYLES.panel.text}`}>
                 {editingEntry === entry.entry_id ? (
                   <input
                     type="datetime-local"
                     value={editValues.clock_out}
                     onChange={(e) => onEditValuesChange({ ...editValues, clock_out: e.target.value })}
-                    className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                    className={`w-full px-2 py-1 ${PAGE_STYLES.input.border} rounded text-xs ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text}`}
                   />
                 ) : (
                   formatTime(entry.clock_out)
                 )}
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+              <td className={`px-6 py-4 whitespace-nowrap text-sm ${PAGE_STYLES.panel.text}`}>
                 {editingEntry === entry.entry_id ? (
                   <input
                     type="number"
@@ -136,13 +139,13 @@ export const TimeEntriesTable: React.FC<TimeEntriesTableProps> = ({
                     max="480"
                     value={editValues.break_minutes}
                     onChange={(e) => onEditValuesChange({ ...editValues, break_minutes: Number(e.target.value) })}
-                    className="w-16 px-2 py-1 border border-gray-300 rounded text-xs"
+                    className={`w-16 px-2 py-1 ${PAGE_STYLES.input.border} rounded text-xs ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text}`}
                   />
                 ) : (
                   entry.break_minutes
                 )}
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+              <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${PAGE_STYLES.panel.text}`}>
                 {Number(entry.total_hours).toFixed(2)}
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
@@ -155,28 +158,28 @@ export const TimeEntriesTable: React.FC<TimeEntriesTableProps> = ({
               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                 {editingEntry === entry.entry_id ? (
                   <div className="flex space-x-2">
-                    <button 
+                    <button
                       onClick={() => onSaveEdit(entry.entry_id)}
                       className="text-green-600 hover:text-green-900"
                     >
                       Save
                     </button>
-                    <button 
+                    <button
                       onClick={onCancelEditing}
-                      className="text-gray-600 hover:text-gray-900"
+                      className={`${PAGE_STYLES.panel.textSecondary} hover:${PAGE_STYLES.panel.text}`}
                     >
                       Cancel
                     </button>
                   </div>
                 ) : (
                   <div className="flex space-x-2">
-                    <button 
+                    <button
                       onClick={() => onStartEditing(entry)}
-                      className="text-indigo-600 hover:text-indigo-900"
+                      className={`${TIME_COLORS.textDark} ${TIME_COLORS.textHover}`}
                     >
                       Edit
                     </button>
-                    <button 
+                    <button
                       onClick={() => onDeleteEntry(entry.entry_id)}
                       className="text-red-600 hover:text-red-900"
                     >
@@ -192,8 +195,8 @@ export const TimeEntriesTable: React.FC<TimeEntriesTableProps> = ({
       
       {timeEntries.length === 0 && !loading && (
         <div className="text-center py-12">
-          <Clock className="mx-auto h-12 w-12 text-gray-400" />
-          <p className="mt-2 text-sm text-gray-500">No time entries found</p>
+          <Clock className={`mx-auto h-12 w-12 ${PAGE_STYLES.panel.textMuted}`} />
+          <p className={`mt-2 text-sm ${PAGE_STYLES.panel.textMuted}`}>No time entries found</p>
         </div>
       )}
     </div>

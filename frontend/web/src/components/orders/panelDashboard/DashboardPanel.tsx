@@ -10,6 +10,7 @@ import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { PanelWithData, PanelActionType, PanelOrderRow } from '../../../types/dashboardPanel';
 import CompactOrderRow from './CompactOrderRow';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface Props {
   panel: PanelWithData;
@@ -39,7 +40,7 @@ export const DashboardPanel: React.FC<Props> = ({ panel, onToggleCollapse, onAct
   const hasActions = panel.filters?.actions && panel.filters.actions.length > 0;
 
   return (
-    <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+    <div className={`${PAGE_STYLES.composites.panelContainer} overflow-hidden`}>
       {/* Header */}
       <div
         className={`flex items-center justify-between px-4 py-3 cursor-pointer ${panel.color_class}`}
@@ -70,14 +71,14 @@ export const DashboardPanel: React.FC<Props> = ({ panel, onToggleCollapse, onAct
       {!isCollapsed && (
         <div className="px-4 py-2">
           {panel.orders.length === 0 ? (
-            <div className="py-6 text-center text-gray-500">
+            <div className={`py-6 text-center ${PAGE_STYLES.panel.textMuted}`}>
               No orders match this filter
             </div>
           ) : (
             <>
               <table className="w-full">
-                <thead className="text-xs text-gray-500 uppercase">
-                  <tr className="border-b border-gray-200">
+                <thead className={`text-xs ${PAGE_STYLES.panel.textMuted} uppercase`}>
+                  <tr className={`border-b ${PAGE_STYLES.panel.border}`}>
                     <th className="py-2 px-3 text-left font-medium">Order</th>
                     <th className="py-2 px-3 text-left font-medium">Customer</th>
                     <th className="py-2 px-3 text-left font-medium">Name</th>
@@ -111,10 +112,10 @@ export const DashboardPanel: React.FC<Props> = ({ panel, onToggleCollapse, onAct
 
               {/* View All Link */}
               {panel.total_count > panel.orders.length && (
-                <div className="py-2 text-center border-t border-gray-100 mt-2">
+                <div className={`py-2 text-center border-t ${PAGE_STYLES.panel.border} mt-2`}>
                   <a
                     href={`/orders/table?panel=${panel.panel_key}`}
-                    className="text-sm text-indigo-600 hover:text-indigo-800 inline-flex items-center space-x-1"
+                    className={`text-sm ${MODULE_COLORS.orders.text} hover:text-orange-600 inline-flex items-center space-x-1`}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <span>View all {panel.total_count} orders</span>

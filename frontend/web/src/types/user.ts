@@ -1,4 +1,5 @@
 export type UserRole = 'manager' | 'designer' | 'production_staff' | 'owner';
+export type ThemePreference = 'industrial' | 'light';
 
 export interface AccountUser {
   user_id: number;
@@ -11,6 +12,7 @@ export interface AccountUser {
   hourly_wage?: number;
   is_active: boolean;
   show_in_time_calendar: boolean;
+  theme_preference: ThemePreference;
   auto_clock_in?: string;
   auto_clock_out?: string;
   created_at?: string;

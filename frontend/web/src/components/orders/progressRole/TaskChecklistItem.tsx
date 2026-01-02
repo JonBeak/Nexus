@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Play, Check } from 'lucide-react';
 import { ordersApi } from '../../../services/api';
 import type { UserRole } from '../../../types/user';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface TaskUpdate {
   task_id: number;
@@ -104,14 +105,14 @@ export const TaskChecklistItem: React.FC<Props> = ({
     <div
       className={`border rounded p-2 transition-all ${
         hasChanges
-          ? 'border-indigo-400 bg-indigo-50'
-          : 'border-gray-200 bg-white hover:bg-gray-50'
+          ? 'border-orange-400 bg-orange-50'
+          : `${PAGE_STYLES.panel.border} ${PAGE_STYLES.panel.background} ${PAGE_STYLES.interactive.hover}`
       }`}
     >
       {/* Top row: Order info + Start/Complete buttons */}
       <div className="flex items-start justify-between gap-1">
         <div className="flex-1 min-w-0">
-          <div className="text-sm text-gray-900 truncate" title={orderDisplay}>
+          <div className={`text-sm ${PAGE_STYLES.panel.text} truncate`} title={orderDisplay}>
             {orderDisplay}
           </div>
         </div>
@@ -148,9 +149,9 @@ export const TaskChecklistItem: React.FC<Props> = ({
       </div>
 
       {/* Product Type [Scope] + Task name */}
-      <div className="text-xs text-gray-800 bg-gray-100 px-1.5 py-0.5 rounded mb-1 flex items-center justify-between gap-1">
+      <div className={`text-xs ${PAGE_STYLES.panel.text} ${PAGE_STYLES.header.background} px-1.5 py-0.5 rounded mb-1 flex items-center justify-between gap-1`}>
         <span className="truncate" title={productDisplay}>{productDisplay}</span>
-        <span className="text-gray-600 flex-shrink-0">{task.task_name}</span>
+        <span className={`${PAGE_STYLES.header.text} flex-shrink-0`}>{task.task_name}</span>
       </div>
 
       {/* Editable task notes */}
@@ -162,12 +163,12 @@ export const TaskChecklistItem: React.FC<Props> = ({
           onBlur={handleNotesBlur}
           placeholder="Add note..."
           disabled={savingNotes}
-          className={`w-full text-xs px-2 py-1 border border-gray-200 rounded
-            focus:outline-none focus:ring-1 focus:ring-indigo-400 focus:border-indigo-400
-            placeholder:text-gray-400 ${savingNotes ? 'bg-gray-100' : 'bg-white'}`}
+          className={`w-full text-xs px-2 py-1 border ${PAGE_STYLES.panel.border} rounded
+            focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400
+            ${PAGE_STYLES.input.placeholder} ${savingNotes ? PAGE_STYLES.header.background : PAGE_STYLES.panel.background}`}
         />
         {savingNotes && (
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+          <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs ${PAGE_STYLES.panel.textMuted}`}>
             Saving...
           </span>
         )}
@@ -175,7 +176,7 @@ export const TaskChecklistItem: React.FC<Props> = ({
 
       {/* Show timestamps if completed */}
       {showCompleted && task.completed_at && (
-        <div className="mt-2 text-xs text-gray-500">
+        <div className={`mt-2 text-xs ${PAGE_STYLES.panel.textMuted}`}>
           Completed: {new Date(task.completed_at).toLocaleString()}
         </div>
       )}

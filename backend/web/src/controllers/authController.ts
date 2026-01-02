@@ -216,3 +216,26 @@ export const refreshToken = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export const updateThemePreference = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const { theme } = req.body;
+
+    // Validate theme value
+    if (!theme || !['industrial', 'light'].includes(theme)) {
+      return res.status(400).json({ error: 'Invalid theme. Must be "industrial" or "light"' });
+    }
+
+    // Update theme preference in database
+    await query(
+      'UPDATE users SET theme_preference = ? WHERE user_id = ?',
+      [theme, user.user_id]
+    );
+
+    res.json({ success: true, theme_preference: theme });
+  } catch (error) {
+    console.error('Update theme preference error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

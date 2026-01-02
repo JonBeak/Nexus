@@ -1,5 +1,6 @@
 import React from 'react';
 import TaskItem from './TaskItem';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface Props {
   tasks: any[];
@@ -11,7 +12,7 @@ interface Props {
 export const TaskList: React.FC<Props> = ({ tasks, orderNumber, canRemove = false, onTaskUpdated }) => {
   if (tasks.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">
+      <div className={`text-center py-8 ${PAGE_STYLES.panel.textMuted}`}>
         No tasks
       </div>
     );

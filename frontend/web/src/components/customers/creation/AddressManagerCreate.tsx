@@ -1,5 +1,4 @@
 import React, { useCallback, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
 import { AddressManagerCreateProps } from './CustomerCreationTypes';
 import { Address } from '../../../types';
 import { provincesApi } from '../../../services/api';
@@ -134,122 +133,21 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
     });
   };
 
-  const addAddress = () => {
-    setAddresses([...addresses, {
-      address_line1: '',
-      address_line2: '',
-      city: '',
-      province_state_short: '',
-      postal_zip: '',
-      is_primary: false,
-      is_billing: false,
-      is_shipping: false,
-      is_jobsite: false,
-      is_mailing: false
-    }]);
-  };
-
-  const removeAddress = (index: number) => {
-    if (addresses.length > 1) {
-      setAddresses(addresses.filter((_, i) => i !== index));
-    }
-  };
-
-  const handlePrimaryChange = (index: number, checked: boolean) => {
-    if (checked) {
-      // Set this as primary and unset all others
-      const newAddresses = addresses.map((addr, idx) => ({
-        ...addr,
-        is_primary: idx === index
-      }));
-      setAddresses(newAddresses);
-    } else {
-      handleAddressChange(index, 'is_primary', false);
-    }
-  };
+  // For creation, we only show the first address (always primary + billing)
+  const address = addresses[0] || {};
+  const index = 0;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h4 className={`text-lg font-bold ${PAGE_STYLES.panel.text} border-b ${PAGE_STYLES.panel.border} pb-2`}>Addresses *</h4>
-        <button
-          type="button"
-          onClick={addAddress}
-          className="flex items-center space-x-1 bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add Address</span>
-        </button>
+      <div className="mb-4">
+        <h4 className={`text-lg font-bold ${PAGE_STYLES.panel.text} border-b ${PAGE_STYLES.panel.border} pb-2`}>Primary Address (Billing)</h4>
+        <p className={`text-sm ${PAGE_STYLES.panel.textMuted} mt-1`}>
+          Add additional addresses after customer is created
+        </p>
       </div>
-      
-      {addresses.map((address, index) => (
-        <div key={index} className={`mb-6 p-4 border ${PAGE_STYLES.panel.border} rounded-lg ${PAGE_STYLES.header.background}`}>
-          <div className="flex items-center justify-between mb-3">
-            <h5 className={`font-semibold ${PAGE_STYLES.panel.text}`}>Address {index + 1}</h5>
-            {addresses.length > 1 && (
-              <button
-                type="button"
-                onClick={() => removeAddress(index)}
-                className="text-red-600 hover:text-red-800 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-          
-          {/* Address Types - Moved to top */}
-          <div className="mb-4">
-            <label className={`block text-sm font-semibold ${PAGE_STYLES.panel.textSecondary} mb-2`}>Address Types</label>
-            <div className="flex flex-wrap gap-4">
-              <label className={`flex items-center ${PAGE_STYLES.panel.text}`}>
-                <input
-                  type="checkbox"
-                  checked={address.is_primary || false}
-                  onChange={(e) => handlePrimaryChange(index, e.target.checked)}
-                  className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                Primary
-              </label>
-              <label className={`flex items-center ${PAGE_STYLES.panel.text}`}>
-                <input
-                  type="checkbox"
-                  checked={address.is_billing || false}
-                  onChange={(e) => handleAddressChange(index, 'is_billing', e.target.checked)}
-                  className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                Billing
-              </label>
-              <label className={`flex items-center ${PAGE_STYLES.panel.text}`}>
-                <input
-                  type="checkbox"
-                  checked={address.is_shipping || false}
-                  onChange={(e) => handleAddressChange(index, 'is_shipping', e.target.checked)}
-                  className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                Shipping
-              </label>
-              <label className={`flex items-center ${PAGE_STYLES.panel.text}`}>
-                <input
-                  type="checkbox"
-                  checked={address.is_jobsite || false}
-                  onChange={(e) => handleAddressChange(index, 'is_jobsite', e.target.checked)}
-                  className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                Jobsite
-              </label>
-              <label className={`flex items-center ${PAGE_STYLES.panel.text}`}>
-                <input
-                  type="checkbox"
-                  checked={address.is_mailing || false}
-                  onChange={(e) => handleAddressChange(index, 'is_mailing', e.target.checked)}
-                  className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                Mailing
-              </label>
-            </div>
-          </div>
 
-          {/* Address Fields */}
+      <div className={`p-4 border ${PAGE_STYLES.panel.border} rounded-lg ${PAGE_STYLES.header.background}`}>
+        {/* Address Fields */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>
@@ -349,66 +247,7 @@ export const AddressManagerCreate: React.FC<AddressManagerCreateProps> = ({
             onTaxDisplayValueBlur={handleTaxDisplayValueBlur}
           />
 
-          {/* Address-specific contact info */}
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>Contact Name</label>
-              <input
-                type="text"
-                value={address.contact_name || ''}
-                onChange={(e) => handleAddressChange(index, 'contact_name', e.target.value)}
-                className={inputClass}
-                placeholder="Contact person at this address"
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Phone</label>
-              <input
-                type="text"
-                value={address.phone || ''}
-                onChange={(e) => handleAddressChange(index, 'phone', e.target.value)}
-                className={inputClass}
-                placeholder="Phone number for this address"
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Email</label>
-              <input
-                type="email"
-                value={address.email || ''}
-                onChange={(e) => handleAddressChange(index, 'email', e.target.value)}
-                className={inputClass}
-                placeholder="Email for this address"
-              />
-            </div>
-          </div>
-
-          {/* Address Instructions */}
-          <div className="mt-4">
-            <label className={labelClass}>Delivery Instructions</label>
-            <textarea
-              rows={2}
-              value={address.instructions || ''}
-              onChange={(e) => handleAddressChange(index, 'instructions', e.target.value)}
-              className={inputClass}
-              placeholder="Special delivery or access instructions for this address..."
-            />
-          </div>
         </div>
-      ))}
-
-      {addresses.length === 0 && (
-        <div className={`text-center py-8 ${PAGE_STYLES.panel.textMuted} border border-dashed ${PAGE_STYLES.panel.border} rounded-lg`}>
-          <p className="mb-2">No addresses added yet.</p>
-          <button
-            type="button"
-            onClick={addAddress}
-            className={`${MODULE_COLORS.customers.base} ${MODULE_COLORS.customers.hover} text-white px-4 py-2 rounded-lg font-semibold transition-colors`}
-          >
-            Add First Address
-          </button>
-        </div>
-      )}
 
       {/* Validation hint */}
       <div className={`mt-4 text-sm ${PAGE_STYLES.panel.textSecondary} ${PAGE_STYLES.header.background} p-3 rounded-lg border-l-4 border-blue-400`}>

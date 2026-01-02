@@ -19,8 +19,9 @@ const dbConfig = {
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  charset: 'utf8mb4',
-  timezone: 'Z'  // Prevent mysql2 from doing timezone conversion (treat all as UTC)
+  charset: 'utf8mb4'
+  // Note: timezone setting removed - was causing 5-hour offset in time calculations
+  // MySQL2 now returns dates in server's local timezone, matching getCurrentEasternTime()
 };
 
 /**

@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { FileText, AlertCircle, Clock, Truck, Package, Mail, CheckCircle, FileCheck } from 'lucide-react';
 import { PanelOrderRow, PanelFilters, PanelActionType } from '../../../types/dashboardPanel';
 import { OrderStatus, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../../types/orders';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface Props {
   order: PanelOrderRow;
@@ -73,7 +74,7 @@ export const CompactOrderRow: React.FC<Props> = ({ order, filters, onAction }) =
     switch (order.invoice_status) {
       case 'no_invoice':
         return (
-          <span title="No Invoice" className="text-gray-400">
+          <span title="No Invoice" className={PAGE_STYLES.panel.textMuted}>
             <FileText className="w-4 h-4" />
           </span>
         );
@@ -104,15 +105,15 @@ export const CompactOrderRow: React.FC<Props> = ({ order, filters, onAction }) =
   const statusColor = ORDER_STATUS_COLORS[order.status as OrderStatus] || 'bg-gray-100 text-gray-800';
 
   return (
-    <tr className="hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0">
+    <tr className={`${PAGE_STYLES.interactive.hover} transition-colors border-b ${PAGE_STYLES.panel.border} last:border-b-0`}>
       {/* Order Number */}
       <td className="py-2 px-3">
-        <span className="font-medium text-gray-700">#{order.order_number}</span>
+        <span className={`font-medium ${PAGE_STYLES.header.text}`}>#{order.order_number}</span>
       </td>
 
       {/* Customer */}
       <td className="py-2 px-3">
-        <span className="text-gray-700 truncate block max-w-[150px]" title={order.customer_name}>
+        <span className={`${PAGE_STYLES.header.text} truncate block max-w-[150px]`} title={order.customer_name}>
           {order.customer_name}
         </span>
       </td>
@@ -121,7 +122,7 @@ export const CompactOrderRow: React.FC<Props> = ({ order, filters, onAction }) =
       <td className="py-2 px-3">
         <button
           onClick={handleOpenOrder}
-          className="text-indigo-600 hover:text-indigo-800 hover:underline truncate block max-w-[200px] text-left font-medium"
+          className={`${MODULE_COLORS.orders.text} hover:text-orange-600 hover:underline truncate block max-w-[200px] text-left font-medium`}
           title={`Open ${order.order_name}`}
         >
           {order.order_name}
@@ -134,7 +135,7 @@ export const CompactOrderRow: React.FC<Props> = ({ order, filters, onAction }) =
           {order.hard_due_date_time && (
             <Clock className="w-3 h-3 text-purple-500" title={`Hard due: ${order.hard_due_date_time}`} />
           )}
-          <span className={`text-sm ${isOverdue() ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+          <span className={`text-sm ${isOverdue() ? 'text-red-600 font-medium' : PAGE_STYLES.panel.textMuted}`}>
             {formatDate(order.due_date)}
           </span>
         </div>
@@ -168,7 +169,7 @@ export const CompactOrderRow: React.FC<Props> = ({ order, filters, onAction }) =
           <span className={`text-sm font-medium ${
             order.days_in_status! > 7 ? 'text-red-600' :
             order.days_in_status! > 3 ? 'text-amber-600' :
-            'text-gray-600'
+            PAGE_STYLES.panel.textMuted
           }`}>
             {order.days_in_status} {order.days_in_status === 1 ? 'day' : 'days'}
           </span>

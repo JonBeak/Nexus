@@ -7,6 +7,7 @@ import OrdersTable from './table/OrdersTable';
 import ProgressRoleView from './progressRole/ProgressRoleView';
 import TasksTable from './tasksTable/TasksTable';
 import CalendarView from './calendarView/CalendarView';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 
 type TabId = 'dashboard' | 'progress' | 'table' | 'tasksTable' | 'calendar';
 
@@ -46,22 +47,22 @@ export const OrdersPage: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className={`h-full flex flex-col ${PAGE_STYLES.page.background}`}>
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className={`${PAGE_STYLES.panel.background} border-b ${PAGE_STYLES.panel.border} px-6 py-4`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <HomeButton />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
-              <p className="text-sm text-gray-600 mt-1">Manage production orders and track progress</p>
+              <h1 className={`text-2xl font-bold ${PAGE_STYLES.panel.text}`}>Orders</h1>
+              <p className={`text-sm ${PAGE_STYLES.panel.textMuted} mt-1`}>Manage production orders and track progress</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="bg-white border-b border-gray-200">
+      <div className={`${PAGE_STYLES.panel.background} border-b ${PAGE_STYLES.panel.border}`}>
         <div className="px-6">
           <div className="flex space-x-8">
             {TABS.map((tab) => (
@@ -71,8 +72,8 @@ export const OrdersPage: React.FC = () => {
                 className={`
                   flex items-center space-x-2 px-1 py-4 border-b-2 font-medium text-sm transition-colors
                   ${activeTab === tab.id
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? `${MODULE_COLORS.orders.border} ${MODULE_COLORS.orders.text}`
+                    : `border-transparent ${PAGE_STYLES.panel.textMuted} hover:text-orange-600 hover:border-orange-300`
                   }
                 `}
               >
@@ -85,7 +86,7 @@ export const OrdersPage: React.FC = () => {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className={`flex-1 overflow-hidden ${PAGE_STYLES.page.background}`}>
         {activeTab === 'dashboard' && <PanelDashboard />}
         {activeTab === 'progress' && <ProgressRoleView />}
         {activeTab === 'table' && <OrdersTable />}

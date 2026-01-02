@@ -9,7 +9,8 @@ import {
   CustomerCreationModalProps,
   CustomerCreateData,
   ProvinceState,
-  DEFAULT_CUSTOMER_VALUES
+  DEFAULT_CUSTOMER_VALUES,
+  QBCreationResult
 } from './creation/CustomerCreationTypes';
 import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 
@@ -24,6 +25,9 @@ export const CustomerCreationModal: React.FC<CustomerCreationModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [provincesStates, setProvincesStates] = useState<ProvinceState[]>([]);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [qbError, setQbError] = useState<QBCreationResult['error'] | null>(null);
+  const [showQbErrorDialog, setShowQbErrorDialog] = useState(false);
+  const [pendingCustomerData, setPendingCustomerData] = useState<any>(null);
   
   const [addresses, setAddresses] = useState<Partial<Address>[]>([{
     address_line1: '',
@@ -32,7 +36,7 @@ export const CustomerCreationModal: React.FC<CustomerCreationModalProps> = ({
     province_state_short: '',
     postal_zip: '',
     is_primary: true,
-    is_billing: false,
+    is_billing: true, // Primary address is also billing
     is_shipping: false,
     is_jobsite: false,
     is_mailing: false
@@ -93,11 +97,11 @@ export const CustomerCreationModal: React.FC<CustomerCreationModalProps> = ({
     });
   }, [formData.company_name]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, forceLocalOnly = false) => {
     e.preventDefault();
     // Comprehensive validation using the new validation system
     const validation = CustomerCreationValidation.validateCustomerData(formData, addresses);
-    
+
     if (!validation.isValid) {
       const errorMessages = validation.errors.map(error => error.message);
       setValidationErrors(errorMessages);
@@ -106,11 +110,14 @@ export const CustomerCreationModal: React.FC<CustomerCreationModalProps> = ({
     }
 
     setIsSubmitting(true);
-    
+    setQbError(null);
+
     try {
       // Prepare customer data with CORRECTED field names
       const customerData = {
         ...formData,
+        // Override createInQB if forcing local-only
+        createInQB: forceLocalOnly ? false : formData.createInQB,
         quickbooks_name: formData.quickbooks_name || formData.company_name,
         discount: formData.discount || 0,
         wire_length: formData.wire_length,
@@ -134,19 +141,76 @@ export const CustomerCreationModal: React.FC<CustomerCreationModalProps> = ({
         throw new Error('Customer payload missing identifier');
       }
 
-      showNotification('Customer created successfully', 'success');
+      // Check for address warnings
+      const addressWarnings = response?.addressWarnings as string[] | undefined;
+      if (addressWarnings && addressWarnings.length > 0) {
+        showNotification(addressWarnings[0], 'error');
+      }
+
+      // Check for QB sync result
+      const qbResult = response?.qbResult as QBCreationResult | undefined;
+      if (qbResult && !qbResult.success && qbResult.error) {
+        // QB creation failed - handle based on error type
+        if (qbResult.error.type === 'VALIDATION' || qbResult.error.type === 'DUPLICATE') {
+          // Fixable error - show inline, customer was still created locally
+          showNotification(
+            `Customer created locally. QuickBooks: ${qbResult.error.message}`,
+            'error'
+          );
+        } else {
+          // System error - customer was created but QB sync failed
+          showNotification(
+            `Customer created locally but QuickBooks sync failed: ${qbResult.error.message}`,
+            'error'
+          );
+        }
+      } else if (qbResult?.success) {
+        if (!addressWarnings?.length) {
+          showNotification('Customer created and synced to QuickBooks', 'success');
+        }
+      } else {
+        if (!addressWarnings?.length) {
+          showNotification('Customer created successfully', 'success');
+        }
+      }
+
       onCustomerCreated(createdCustomer);
       onClose();
-      
+
       // Reset form
       resetForm();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating customer:', error);
-      const message = error instanceof Error ? error.message : 'Failed to create customer';
+      // Extract error message from API response or fall back to generic message
+      const message = error?.response?.data?.error
+        || (error instanceof Error ? error.message : 'Failed to create customer');
       showNotification(message, 'error');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleCreateLocalOnly = async () => {
+    setShowQbErrorDialog(false);
+    if (pendingCustomerData) {
+      // Create a synthetic event for handleSubmit
+      const syntheticEvent = { preventDefault: () => {} } as React.FormEvent;
+      await handleSubmit(syntheticEvent, true);
+    }
+  };
+
+  const handleRetryQb = () => {
+    setShowQbErrorDialog(false);
+    setQbError(null);
+    // Re-trigger submit with QB enabled
+    const syntheticEvent = { preventDefault: () => {} } as React.FormEvent;
+    handleSubmit(syntheticEvent, false);
+  };
+
+  const handleCancelQbError = () => {
+    setShowQbErrorDialog(false);
+    setQbError(null);
+    setPendingCustomerData(null);
   };
 
   const resetForm = () => {
@@ -159,12 +223,15 @@ export const CustomerCreationModal: React.FC<CustomerCreationModalProps> = ({
       province_state_short: '',
       postal_zip: '',
       is_primary: true,
-      is_billing: false,
+      is_billing: true, // Primary address is also billing
       is_shipping: false,
       is_jobsite: false,
       is_mailing: false
     }]);
     setValidationErrors([]);
+    setQbError(null);
+    setShowQbErrorDialog(false);
+    setPendingCustomerData(null);
   };
 
   if (!isOpen) return null;

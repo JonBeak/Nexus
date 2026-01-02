@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { OrderFilters, OrderStatus, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../../types/orders';
 import { Search, ChevronDown } from 'lucide-react';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface Props {
   filters: OrderFilters;
@@ -71,12 +72,12 @@ export const TableFilters: React.FC<Props> = ({ filters, onFiltersChange }) => {
             }
             setStatusDropdownOpen(!statusDropdownOpen);
           }}
-          className="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className={`flex items-center space-x-2 px-3 py-2 border ${PAGE_STYLES.panel.border} rounded-lg text-sm ${PAGE_STYLES.panel.background} ${PAGE_STYLES.interactive.hover} focus:outline-none focus:ring-2 focus:ring-orange-500`}
         >
-          <span className="text-gray-700">
+          <span className={PAGE_STYLES.header.text}>
             Status ({displayStatuses.length})
           </span>
-          <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${statusDropdownOpen ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-4 h-4 ${PAGE_STYLES.panel.textMuted} transition-transform ${statusDropdownOpen ? 'rotate-180' : ''}`} />
         </button>
 
         {statusDropdownOpen && (
@@ -88,15 +89,15 @@ export const TableFilters: React.FC<Props> = ({ filters, onFiltersChange }) => {
             />
             {/* Dropdown panel - fixed positioning to escape overflow */}
             <div
-              className="fixed w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto"
+              className={`fixed w-72 ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto`}
               style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
             >
-              <div className="p-2 border-b border-gray-100">
+              <div className={`p-2 border-b ${PAGE_STYLES.panel.border}`}>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-gray-500 uppercase">Filter by Status</span>
+                  <span className={`text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase`}>Filter by Status</span>
                   <button
                     onClick={handleResetToDefaults}
-                    className="text-xs text-indigo-600 hover:text-indigo-800"
+                    className={`text-xs ${MODULE_COLORS.orders.text} hover:text-orange-600`}
                   >
                     Reset to defaults
                   </button>
@@ -106,13 +107,13 @@ export const TableFilters: React.FC<Props> = ({ filters, onFiltersChange }) => {
                 {ALL_STATUSES.map(status => (
                   <label
                     key={status}
-                    className="flex items-center space-x-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer"
+                    className={`flex items-center space-x-2 px-2 py-1.5 rounded ${PAGE_STYLES.interactive.hover} cursor-pointer`}
                   >
                     <input
                       type="checkbox"
                       checked={displayStatuses.includes(status)}
                       onChange={() => handleStatusToggle(status)}
-                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                      className={`h-4 w-4 text-orange-500 focus:ring-orange-500 ${PAGE_STYLES.panel.border} rounded`}
                     />
                     <span className={`text-xs px-2 py-0.5 rounded ${ORDER_STATUS_COLORS[status]}`}>
                       {ORDER_STATUS_LABELS[status]}
@@ -129,14 +130,14 @@ export const TableFilters: React.FC<Props> = ({ filters, onFiltersChange }) => {
       <div className="flex-1 max-w-md">
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
+            <Search className={`h-5 w-5 ${PAGE_STYLES.panel.textMuted}`} />
           </div>
           <input
             type="text"
             value={filters.search || ''}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Search orders, customers..."
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            className={`block w-full pl-10 pr-3 py-2 border ${PAGE_STYLES.panel.border} rounded-md leading-5 ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.placeholder} focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 sm:text-sm`}
           />
         </div>
       </div>

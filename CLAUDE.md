@@ -17,6 +17,18 @@
       <WhenToReference>When working from home environment or troubleshooting home dev setup</WhenToReference>
       <Note>Home uses different encryption keys and QB credentials stored in .env instead of encrypted database</Note>
     </Document>
+    <Document name="CSS_PATTERNS_GUIDE.md">
+      <Path>/home/jon/Nexus/docs/CSS_PATTERNS_GUIDE.md</Path>
+      <Purpose>CSS layout patterns and fixes - scrolling backgrounds, GPU rendering, scrollbar reservation</Purpose>
+      <WhenToReference>When implementing layouts with horizontal scroll, grids, or fixing rendering issues</WhenToReference>
+      <Note>References INDUSTRIAL_STYLING_GUIDE.md for theme colors and PAGE_STYLES</Note>
+    </Document>
+    <Document name="INDUSTRIAL_STYLING_GUIDE.md">
+      <Path>/home/jon/Nexus/docs/INDUSTRIAL_STYLING_GUIDE.md</Path>
+      <Purpose>Industrial theme colors, PAGE_STYLES constants, CSS variables for theming</Purpose>
+      <WhenToReference>When styling components - always use PAGE_STYLES, never hardcode colors</WhenToReference>
+      <Note>Defines the industrial gray palette and theme system</Note>
+    </Document>
   </KeyDocumentation>
 
   <ProductionSafetyRules>

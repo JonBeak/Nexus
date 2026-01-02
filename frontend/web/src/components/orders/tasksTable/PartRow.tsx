@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { PartWithTasks, PartTask } from './types';
 import TaskCell from './TaskCell';
 import { OrderStatus } from '../../../types/orders';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface Props {
   part: PartWithTasks;
@@ -91,26 +92,26 @@ export const PartRow: React.FC<Props> = ({
   }
 
   return (
-    <tr className="border-b border-gray-300 group">
+    <tr className={`border-b ${PAGE_STYLES.panel.border} group`}>
       {/* Order / Part - Three line display: Order#: Name / Part Type: Scope / Customer - sticky, fixed width */}
       <td
-        className="px-2 py-1 border-r border-gray-300 overflow-hidden sticky z-10 group-hover:!bg-gray-50"
-        style={{ left: 0, width: '280px', backgroundColor: '#ffffff' }}
+        className={`px-2 py-1 border-r ${PAGE_STYLES.panel.border} overflow-hidden sticky z-10 group-hover:!bg-gray-50`}
+        style={{ left: 0, width: '280px', backgroundColor: 'var(--theme-panel-bg)' }}
       >
         <div className="truncate">
           <a
             href={`/orders/${part.orderNumber}`}
             onClick={handleOrderClick}
-            className="text-sm font-medium text-gray-900 hover:text-blue-400 cursor-pointer"
+            className={`text-sm font-medium ${PAGE_STYLES.panel.text} hover:text-orange-500 cursor-pointer`}
           >
             {line1}
           </a>
         </div>
-        <div className="text-xs text-gray-600 truncate">
+        <div className={`text-xs ${PAGE_STYLES.panel.textMuted} truncate`}>
           {line2}
         </div>
         {line3 && (
-          <div className="text-xs text-gray-400 truncate">
+          <div className={`text-xs ${PAGE_STYLES.panel.textMuted} truncate opacity-70`}>
             {line3}
           </div>
         )}
@@ -118,12 +119,12 @@ export const PartRow: React.FC<Props> = ({
 
       {/* Status column - clickable to change - sticky, fixed width */}
       <td
-        className="px-1 py-1 whitespace-nowrap text-center border-r border-gray-300 sticky z-10 group-hover:!bg-gray-50"
-        style={{ left: '280px', width: '120px', backgroundColor: '#ffffff' }}
+        className={`px-1 py-1 whitespace-nowrap text-center border-r ${PAGE_STYLES.panel.border} sticky z-10 group-hover:!bg-gray-50`}
+        style={{ left: '280px', width: '120px', backgroundColor: 'var(--theme-panel-bg)' }}
       >
         <button
           onClick={() => onStatusClick(part.orderNumber, part.orderName, part.orderStatus)}
-          className={`inline-block px-2 py-1 text-xs font-medium rounded cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-gray-400 transition-all ${statusInfo.color}`}
+          className={`inline-block px-2 py-1 text-xs font-medium rounded cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-orange-400 transition-all ${statusInfo.color}`}
           title="Click to change status"
         >
           {statusInfo.label}
@@ -132,20 +133,20 @@ export const PartRow: React.FC<Props> = ({
 
       {/* Due Date (Day, Mon d format) - red background if hard due - sticky, fixed width */}
       <td
-        className={`px-1 py-1 whitespace-nowrap text-xs border-r border-gray-300 text-center sticky z-10 ${
-          isHardDue ? 'text-red-800 font-semibold' : 'group-hover:!bg-gray-50 text-gray-600'
+        className={`px-1 py-1 whitespace-nowrap text-xs border-r ${PAGE_STYLES.panel.border} text-center sticky z-10 ${
+          isHardDue ? 'text-red-800 font-semibold' : `group-hover:!bg-gray-50 ${PAGE_STYLES.panel.textMuted}`
         }`}
-        style={{ left: '400px', width: '80px', backgroundColor: isHardDue ? '#fee2e2' : '#ffffff' }}
+        style={{ left: '400px', width: '80px', backgroundColor: isHardDue ? '#fee2e2' : 'var(--theme-panel-bg)' }}
       >
         {formatDate(part.dueDate)}
       </td>
 
       {/* Hard Due Time - red background if set - sticky, fixed width */}
       <td
-        className={`px-1 py-1 whitespace-nowrap text-xs text-center border-r border-gray-300 sticky z-10 ${
-          isHardDue ? 'text-red-800 font-semibold' : 'group-hover:!bg-gray-50 text-gray-400'
+        className={`px-1 py-1 whitespace-nowrap text-xs text-center border-r ${PAGE_STYLES.panel.border} sticky z-10 ${
+          isHardDue ? 'text-red-800 font-semibold' : `group-hover:!bg-gray-50 ${PAGE_STYLES.panel.textMuted}`
         }`}
-        style={{ left: '480px', width: '64px', backgroundColor: isHardDue ? '#fee2e2' : '#ffffff' }}
+        style={{ left: '480px', width: '64px', backgroundColor: isHardDue ? '#fee2e2' : 'var(--theme-panel-bg)' }}
       >
         {isHardDue ? formatTime(part.hardDueTime) : '-'}
       </td>

@@ -1,3 +1,8 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Enable full-height layouts - required for h-full to work in components */
+html, body, #root {
+  height: 100%;
+}

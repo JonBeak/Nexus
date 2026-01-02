@@ -1,3 +1,4 @@
+import React from 'react';
 import { Customer, Address, LedType, PowerSupplyType, ProvinceState } from '../../../types/index';
 
 export interface CustomerCreateData {
@@ -14,6 +15,8 @@ export interface CustomerCreateData {
   cash_yes_or_no?: boolean;
   notes?: string;
   active?: boolean;
+  // QuickBooks integration
+  createInQB?: boolean;
   // Product preferences with CORRECTED field names
   leds_yes_or_no?: boolean;
   led_id?: string;
@@ -50,7 +53,7 @@ export interface CustomerFormCreateProps {
 
 export interface AddressManagerCreateProps {
   addresses: Partial<Address>[];
-  setAddresses: (addresses: Partial<Address>[]) => void;
+  setAddresses: React.Dispatch<React.SetStateAction<Partial<Address>[]>>;
   provincesStates: ProvinceState[];
 }
 
@@ -79,6 +82,19 @@ export interface ValidationResult {
   errors: ValidationError[];
 }
 
+// QuickBooks creation result from backend
+export interface QBCreationResult {
+  success: boolean;
+  qbCustomerId?: string;
+  existingCustomer?: boolean;
+  error?: {
+    type: 'VALIDATION' | 'DUPLICATE' | 'CONNECTION' | 'NOT_CONNECTED' | 'UNKNOWN';
+    message: string;
+    canRetry: boolean;
+    canProceedLocal: boolean;
+  };
+}
+
 // Default values aligned with database schema
 export const DEFAULT_CUSTOMER_VALUES: CustomerCreateData = {
   company_name: '',
@@ -94,6 +110,8 @@ export const DEFAULT_CUSTOMER_VALUES: CustomerCreateData = {
   cash_yes_or_no: false,
   notes: '',
   active: true,
+  // QuickBooks - checked by default
+  createInQB: true,
   // Product preferences - CORRECTED defaults to match DB
   leds_yes_or_no: true, // DB default: 1
   led_id: '',

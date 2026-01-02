@@ -1,6 +1,8 @@
-# Grayscale Styling Guide
+# Industrial Styling Guide
 
-This document describes the grayscale color scheme and theming system used in the Job Estimation page. The system uses CSS variables for easy theme switching and centralized PAGE_STYLES constants for type-safe usage.
+This document describes the industrial theme color scheme and theming system used throughout the application. The system uses CSS variables for easy theme switching and centralized PAGE_STYLES constants for type-safe usage.
+
+For CSS layout patterns (scrolling, GPU fixes, etc.), see [CSS_PATTERNS_GUIDE.md](./CSS_PATTERNS_GUIDE.md).
 
 ## Theme System Overview
 
@@ -10,7 +12,7 @@ The theming system consists of:
 3. **Theme switching** via `data-theme` attribute on the document root
 
 ### Current Themes
-- **industrial** (default) - Current grayscale look with dark page background
+- **industrial** (default) - Gray-toned industrial look with dark page background
 - **light** (placeholder) - Light theme for future use
 
 ### Switching Themes
@@ -24,7 +26,7 @@ document.documentElement.dataset.theme = 'industrial';
 
 ## Color Hierarchy
 
-The grayscale palette creates visual depth through layering:
+The industrial palette creates visual depth through layering:
 
 | Element | CSS Variable | Hex Value | Purpose |
 |---------|-------------|-----------|---------|
@@ -197,19 +199,11 @@ All CSS variables are defined in `JobEstimation.css`:
 
 ## GPU Rendering Fix (Diagonal Lines)
 
-When using CSS Grid with percentage-based columns, GPU rendering can cause diagonal white lines. Apply this fix:
-
-```css
-.grid-container {
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-  transform: translateZ(0);
-}
-```
+When using CSS Grid with percentage-based columns, GPU rendering can cause diagonal white lines. See [CSS_PATTERNS_GUIDE.md](./CSS_PATTERNS_GUIDE.md#gpu-rendering-fixes) for the solution.
 
 ## Accent Colors
 
-For interactive elements (buttons, badges, selection states), use the module-specific colors from `MODULE_COLORS` in `moduleColors.ts`. The grayscale palette is specifically for structural/background elements.
+For interactive elements (buttons, badges, selection states), use the module-specific colors from `MODULE_COLORS` in `moduleColors.ts`. The industrial palette is specifically for structural/background elements.
 
 ## Best Practices
 
@@ -218,7 +212,7 @@ For interactive elements (buttons, badges, selection states), use the module-spe
 3. **Use composites for common patterns** - `PAGE_STYLES.composites.panelContainer` etc.
 4. **Use semantic names** - Choose the appropriate level (page, panel, header, input)
 5. **Transitions** - Add `transition-all` or `transition-colors` for smooth hover effects
-6. **GPU Fix** - Apply backface-visibility fix proactively to grid containers
+6. **CSS Patterns** - See [CSS_PATTERNS_GUIDE.md](./CSS_PATTERNS_GUIDE.md) for layout fixes
 
 ## Migration from Hardcoded Classes
 

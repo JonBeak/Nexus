@@ -6,6 +6,7 @@
 import React from 'react';
 import { CalendarOrder, ProgressColor } from './types';
 import { getProgressColor } from './utils';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface OrderCardProps {
   order: CalendarOrder;
@@ -55,29 +56,29 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, showDaysLate = fals
       title={`Order #${order.order_number} - ${order.customer_name || 'Unknown'}`}
     >
       {/* Order Name - Primary */}
-      <div className="text-sm font-bold text-gray-900 break-words">
+      <div className={`text-sm font-bold ${PAGE_STYLES.panel.text} break-words`}>
         {order.order_name}
       </div>
 
       {/* Customer Name */}
-      <div className="text-xs text-gray-600 break-words">
+      <div className={`text-xs ${PAGE_STYLES.header.text} break-words`}>
         {order.customer_name || '-'}
       </div>
 
       {/* Order Number */}
-      <div className="text-xs text-gray-500">
+      <div className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>
         #{order.order_number}
       </div>
 
       {/* Progress Bar */}
       <div className="mt-1 flex items-center space-x-1">
-        <div className="flex-1 bg-gray-200 rounded-full h-1">
+        <div className={`flex-1 ${PAGE_STYLES.header.background} rounded-full h-1`}>
           <div
             className={`h-1 rounded-full ${colors.progress}`}
             style={{ width: `${order.progress_percent}%` }}
           />
         </div>
-        <span className="text-xs text-gray-500 w-7 text-right">
+        <span className={`text-xs ${PAGE_STYLES.panel.textMuted} w-7 text-right`}>
           {order.progress_percent}%
         </span>
       </div>

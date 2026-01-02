@@ -6,6 +6,7 @@ import TimeApprovals from '../time/TimeApprovals';
 import type { AccountUser } from '../../types/user';
 import { apiClient } from '../../services/api';
 import { MODULE_COLORS, PAGE_STYLES, getModulePillClasses, getModuleCardClasses } from '../../constants/moduleColors';
+import { useTheme } from '../../contexts/ThemeContext';
 import '../jobEstimation/JobEstimation.css';
 
 // Backup Status Types
@@ -39,22 +40,8 @@ function SimpleDashboard({ user, onLogout }: SimpleDashboardProps) {
   const [backupLoading, setBackupLoading] = useState(false);
   const [backupError, setBackupError] = useState<string | null>(null);
 
-  // Theme state - 'industrial' (default) or 'light'
-  const [theme, setTheme] = useState<'industrial' | 'light'>(() => {
-    // Initialize from localStorage or default to 'industrial'
-    const saved = localStorage.getItem('signhouse-theme');
-    return (saved === 'light' ? 'light' : 'industrial') as 'industrial' | 'light';
-  });
-
-  // Apply theme on mount and when theme changes
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem('signhouse-theme', theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'industrial' ? 'light' : 'industrial');
-  };
+  // Theme from global context (persisted to database)
+  const { theme, toggleTheme } = useTheme();
 
   // Fetch backup status for owners
   useEffect(() => {

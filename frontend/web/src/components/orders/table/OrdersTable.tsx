@@ -6,6 +6,7 @@ import TableRow from './TableRow';
 import TableFilters, { DEFAULT_ORDER_STATUSES } from './TableFilters';
 import Pagination from './Pagination';
 import StatusSelectModal from '../tasksTable/StatusSelectModal';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 type SortField = 'order_number' | 'order_name' | 'customer_name' | 'status' | 'due_date' | 'created_at' | 'progress_percent' | 'work_days_left';
 type SortDirection = 'asc' | 'desc';
@@ -261,9 +262,9 @@ export const OrdersTable: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className={`h-full flex flex-col ${PAGE_STYLES.page.background}`}>
       {/* Filters */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className={`${PAGE_STYLES.panel.background} border-b ${PAGE_STYLES.panel.border} px-6 py-4`}>
         <TableFilters filters={filters} onFiltersChange={setFilters} />
       </div>
 
@@ -271,7 +272,7 @@ export const OrdersTable: React.FC = () => {
       <div className="flex-1 overflow-auto px-6 py-4">
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="text-gray-500">Loading orders...</div>
+            <div className={PAGE_STYLES.page.text}>Loading orders...</div>
           </div>
         ) : error ? (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -284,20 +285,20 @@ export const OrdersTable: React.FC = () => {
             </button>
           </div>
         ) : orders.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <p className="text-gray-500">No orders found</p>
+          <div className={`${PAGE_STYLES.composites.panelContainer} p-8 text-center`}>
+            <p className={PAGE_STYLES.panel.textMuted}>No orders found</p>
           </div>
         ) : (
           <>
-            <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className={`${PAGE_STYLES.composites.panelContainer} overflow-hidden`}>
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 table-fixed">
+                <table className={`min-w-full ${PAGE_STYLES.composites.tableBody} table-fixed`}>
                   <TableHeader
                     sortField={sortField}
                     sortDirection={sortDirection}
                     onSort={handleSort}
                   />
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className={`${PAGE_STYLES.panel.background} ${PAGE_STYLES.composites.tableBody}`}>
                     {paginatedOrders.map((order) => (
                       <TableRow
                         key={order.order_id}

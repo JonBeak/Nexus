@@ -5,7 +5,6 @@ import { generateEstimateSVG } from './utils/svgEstimateExporter';
 import { EstimateVersion, EmailSummaryConfig } from './types';
 import EstimatePointPersonsEditor, { PointPersonEntry } from './EstimatePointPersonsEditor';
 import EstimateEmailComposer from './EstimateEmailComposer';
-import { EstimateLineDescriptionCell } from './components/EstimateLineDescriptionCell';
 import { EstimateEmailPreviewModal, EmailRecipients } from './components/EstimateEmailPreviewModal';
 import { EstimateTableHeader } from './components/EstimateTableHeader';
 import { jobVersioningApi } from '@/services/jobVersioningApi';
@@ -50,9 +49,8 @@ interface EstimateTableProps {
   isSending?: boolean;
   // Hide send workflow sections when displayed in separate panel
   hideSendWorkflow?: boolean;
-  // QB line descriptions (lifted to parent for QB integration)
-  lineDescriptions?: Map<number, string>;
-  onLineDescriptionChange?: (lineIndex: number, value: string) => void;
+  // Hide all QB buttons in header (for Estimate Preview mode)
+  hideQBButtons?: boolean;
 }
 
 // Split number into whole and decimal parts for alignment
@@ -149,47 +147,12 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
   isPreparing = false,
   isSending = false,
   hideSendWorkflow = false,
-  lineDescriptions: lineDescriptionsProp,
-  onLineDescriptionChange
+  hideQBButtons = false
 }) => {
   const [copySuccess, setCopySuccess] = useState(false);
-  // Use prop if provided (lifted state), otherwise use local state
-  const [localLineDescriptions, setLocalLineDescriptions] = useState<Map<number, string>>(new Map());
-  const lineDescriptions = lineDescriptionsProp || localLineDescriptions;
   const [isConvertedToOrder, setIsConvertedToOrder] = useState(false);
   const [showEmailPreview, setShowEmailPreview] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
-
-  // Load QB descriptions for non-draft estimates (only if using local state)
-  useEffect(() => {
-    // Skip if parent is providing lineDescriptions via prop
-    if (lineDescriptionsProp) return;
-
-    if (!estimate?.id || estimate.is_draft) {
-      setLocalLineDescriptions(new Map());
-      return;
-    }
-
-    const loadDescriptions = async () => {
-      try {
-        const response = await jobVersioningApi.getEstimateLineDescriptions(estimate.id);
-        const descMap = new Map<number, string>();
-        // Note: apiClient interceptor unwraps { success, data } to just the data array
-        if (Array.isArray(response)) {
-          response.forEach((desc: any) => {
-            if (desc.qb_description) {
-              descMap.set(desc.line_index, desc.qb_description);
-            }
-          });
-        }
-        setLocalLineDescriptions(descMap);
-      } catch (error) {
-        console.error('Failed to load QB descriptions:', error);
-      }
-    };
-
-    loadDescriptions();
-  }, [estimate?.id, estimate?.is_draft, lineDescriptionsProp]);
 
   // Check if estimate is converted to order
   useEffect(() => {
@@ -260,29 +223,6 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
     }
   };
 
-  const handleQBDescriptionUpdate = async (lineIndex: number, value: string) => {
-    if (!estimate?.id) return;
-
-    try {
-      await jobVersioningApi.updateEstimateLineDescriptions(estimate.id, [
-        { line_index: lineIndex, qb_description: value }
-      ]);
-
-      // Update state - use parent callback if provided, otherwise local state
-      if (onLineDescriptionChange) {
-        onLineDescriptionChange(lineIndex, value);
-      } else {
-        const newDescriptions = new Map(localLineDescriptions);
-        newDescriptions.set(lineIndex, value);
-        setLocalLineDescriptions(newDescriptions);
-      }
-
-    } catch (error) {
-      console.error('Failed to save QB description:', error);
-      // Non-critical - user can retry on next blur; console log is adequate
-    }
-  };
-
   return (
     <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow mb-8 w-full border ${PAGE_STYLES.border}`}>
       {/* Header */}
@@ -295,6 +235,7 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
         qbConnected={qbConnected}
         qbCheckingStatus={qbCheckingStatus}
         qbCreatingEstimate={qbCreatingEstimate}
+        hideQBButtons={hideQBButtons}
         hasValidationErrors={hasValidationErrors}
         hasEstimateData={!!estimatePreviewData && estimatePreviewData.items.length > 0}
         pointPersonsCount={pointPersons?.length ?? 0}
@@ -362,9 +303,6 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                       <tr>
                         <th className={`px-2 py-1 text-left font-medium ${PAGE_STYLES.panel.text} w-6 border-r ${PAGE_STYLES.border}`}>#</th>
                         <th className={`px-2 py-1 text-left font-medium ${PAGE_STYLES.panel.text} w-52`}>Item</th>
-                        {!estimate?.is_draft && (
-                          <th className={`px-2 py-1 text-left font-medium ${PAGE_STYLES.panel.text} border-l ${PAGE_STYLES.border}`}>QB Description</th>
-                        )}
                         <th className={`px-2 py-1 text-left font-medium ${PAGE_STYLES.panel.text} w-64`}>Details</th>
                         <th className={`px-2 py-1 text-center font-medium ${PAGE_STYLES.panel.text} w-10 border-l ${PAGE_STYLES.border}`}>Qty</th>
                         <th className={`px-2 py-1 text-center font-medium ${PAGE_STYLES.panel.text} w-20 border-l ${PAGE_STYLES.border}`}>Unit Price</th>
@@ -397,18 +335,6 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                                 <div className={`font-medium ${PAGE_STYLES.panel.text} text-sm`}>{item.itemName}</div>
                               )}
                             </td>
-                            {/* QB Description Column - Shown for all non-draft states */}
-                            {!estimate?.is_draft && (
-                              <td className={`px-2 py-1 border-l ${PAGE_STYLES.border} min-w-[200px]`}>
-                                <EstimateLineDescriptionCell
-                                  lineIndex={index}
-                                  initialValue={lineDescriptions.get(index) || ''}
-                                  estimateId={estimate.id}
-                                  readOnly={isConvertedToOrder || !!estimate?.qb_estimate_id}
-                                  onUpdate={handleQBDescriptionUpdate}
-                                />
-                              </td>
-                            )}
                             <td className="px-2 py-1 w-64">
                               {item.calculationDisplay && (
                                 <div className={`text-[11px] ${isSubtotal ? `${PAGE_STYLES.panel.textSecondary} font-medium` : PAGE_STYLES.panel.textMuted} whitespace-pre-wrap`}>{item.calculationDisplay}</div>

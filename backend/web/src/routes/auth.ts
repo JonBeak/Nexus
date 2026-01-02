@@ -7,7 +7,7 @@
  * - Migration plan: Frontend should eventually use /api/users instead
  */
 import { Router } from 'express';
-import { login, getCurrentUser, refreshToken } from '../controllers/authController';
+import { login, getCurrentUser, refreshToken, updateThemePreference } from '../controllers/authController';
 import { authenticateToken } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
 import { userController } from '../controllers/userController';
@@ -17,6 +17,7 @@ const router = Router();
 router.post('/login', login);
 router.post('/refresh', refreshToken);
 router.get('/me', authenticateToken, getCurrentUser);
+router.patch('/me/theme', authenticateToken, updateThemePreference);
 
 /**
  * Get all users (requires users.read permission)

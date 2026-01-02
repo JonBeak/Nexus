@@ -20,6 +20,7 @@
 import { customerRepository } from '../../repositories/customerRepository';
 import { convertBooleanFieldsArray, convertBooleanFields } from '../../utils/databaseUtils';
 import { RowDataPacket } from 'mysql2';
+import { qbCustomerService, QBCustomerCreationResult } from '../qbCustomerService';
 
 // Interface for customer data
 export interface Customer extends RowDataPacket {
@@ -78,6 +79,24 @@ export interface CustomerData {
   shipping_flat?: number;
   comments?: string;
   special_instructions?: string;
+}
+
+export interface CreateCustomerOptions {
+  createInQB?: boolean;
+  primaryAddress?: {
+    address_line1?: string;
+    address_line2?: string;
+    city?: string;
+    province_state_short?: string;
+    postal_zip?: string;
+    country?: string;
+    tax_type?: string; // Tax name for QB DefaultTaxCodeRef (e.g., "GST", "HST Ontario")
+  };
+}
+
+export interface CreateCustomerResult {
+  customer: (Customer & { addresses: any[] }) | null;
+  qbResult?: QBCustomerCreationResult;
 }
 
 export class CustomerService {
@@ -280,10 +299,17 @@ export class CustomerService {
   }
 
   /**
-   * Create customer
-   * Business logic: Validate required fields, apply defaults, build field/value arrays
+   * Create customer with optional QuickBooks sync
+   * Business logic: Validate required fields, apply defaults, optionally sync to QB
+   *
+   * @param customerData - Customer fields
+   * @param options.createInQB - Whether to create customer in QuickBooks
+   * @param options.primaryAddress - Primary address for QB BillAddr
    */
-  static async createCustomer(customerData: CustomerData) {
+  static async createCustomer(
+    customerData: CustomerData,
+    options?: CreateCustomerOptions
+  ): Promise<CreateCustomerResult> {
     // Business logic: Apply defaults and validate
     const safeData = {
       company_name: customerData.company_name || null,
@@ -322,6 +348,14 @@ export class CustomerService {
       throw new Error('Company name is required');
     }
 
+    // Check for duplicate company name
+    const existingCustomer = await customerRepository.getCustomerByName(safeData.company_name);
+    if (existingCustomer) {
+      const error = new Error(`A customer with the name "${safeData.company_name}" already exists`);
+      (error as any).code = 'DUPLICATE_ENTRY';
+      throw error;
+    }
+
     // Business logic: Build dynamic INSERT fields array
     const fields = [
       'company_name', 'quickbooks_name', 'quickbooks_name_search', 'contact_first_name', 'contact_last_name',
@@ -356,8 +390,35 @@ export class CustomerService {
     // Delegate database access to repository
     const newCustomerId = await customerRepository.createCustomer(fields, values);
 
-    // Return the created customer
-    return await this.getCustomerById(newCustomerId);
+    // Get the created customer
+    const customer = await this.getCustomerById(newCustomerId);
+
+    // If createInQB option is enabled, sync to QuickBooks
+    let qbResult: QBCustomerCreationResult | undefined;
+    if (options?.createInQB && customer) {
+      console.log('[CustomerService] Creating customer in QuickBooks...');
+      qbResult = await qbCustomerService.createCustomerInQuickBooks(
+        {
+          company_name: safeData.company_name!,
+          quickbooks_name: safeData.quickbooks_name || undefined,
+          contact_first_name: safeData.contact_first_name || undefined,
+          contact_last_name: safeData.contact_last_name || undefined,
+          email: safeData.email || undefined,
+          phone: safeData.phone || undefined,
+          address: options.primaryAddress,
+          tax_type: options.primaryAddress?.tax_type
+        },
+        newCustomerId
+      );
+
+      if (qbResult.success) {
+        console.log(`[CustomerService] Customer synced to QuickBooks: ${qbResult.qbCustomerId}`);
+      } else {
+        console.warn('[CustomerService] QuickBooks sync failed:', qbResult.error);
+      }
+    }
+
+    return { customer, qbResult };
   }
 
   /**

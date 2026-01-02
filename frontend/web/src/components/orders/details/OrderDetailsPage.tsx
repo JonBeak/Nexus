@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import ProgressView from '../progress/ProgressView';
 import DualTableLayout from './DualTableLayout';
 import OrderImage from '../common/OrderImage';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 // Import the new custom hooks
 import { useOrderDetails } from './hooks/useOrderDetails';
@@ -544,7 +545,7 @@ export const OrderDetailsPage: React.FC = () => {
   }
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className={`h-full flex flex-col ${PAGE_STYLES.page.background}`}>
       {/* Header with Tabs */}
       <OrderHeader
         order={orderData.order}
@@ -589,18 +590,18 @@ export const OrderDetailsPage: React.FC = () => {
                 </div>
 
                 {/* Panel 2: General Order Details */}
-                <div className="flex-shrink-0 bg-white rounded-lg shadow p-4" style={{ width: '320px', height: '280px' }}>
-                  <div className="divide-y divide-gray-100">
+                <div className={`flex-shrink-0 ${PAGE_STYLES.composites.panelContainer} p-4`} style={{ width: '320px', height: '280px' }}>
+                  <div className={`${PAGE_STYLES.composites.tableBody}`}>
                     {/* Order Date */}
-                    <div className="flex justify-between items-center py-1 px-1 bg-gray-50">
-                      <span className="text-gray-500 text-xs">Order Date</span>
-                      <span className="italic text-gray-900 text-sm pr-6">
+                    <div className={`flex justify-between items-center py-1 px-1 ${PAGE_STYLES.header.background}`}>
+                      <span className={`${PAGE_STYLES.panel.textMuted} text-xs`}>Order Date</span>
+                      <span className={`italic ${PAGE_STYLES.panel.text} text-sm pr-6`}>
                         {FIELD_CONFIGS.due_date.displayFormatter(orderData.order.order_date)}
                       </span>
                     </div>
                     {/* PO # */}
                     <div className="flex justify-between items-center py-1 px-1">
-                      <span className="text-gray-500 text-xs">PO #</span>
+                      <span className={`${PAGE_STYLES.panel.textMuted} text-xs`}>PO #</span>
                       <EditableField
                         field="customer_po"
                         value={orderData.order.customer_po}
@@ -616,8 +617,8 @@ export const OrderDetailsPage: React.FC = () => {
                       />
                     </div>
                     {/* Job # */}
-                    <div className="flex justify-between items-center py-1 px-1 bg-gray-50">
-                      <span className="text-gray-500 text-xs">Job #</span>
+                    <div className={`flex justify-between items-center py-1 px-1 ${PAGE_STYLES.header.background}`}>
+                      <span className={`${PAGE_STYLES.panel.textMuted} text-xs`}>Job #</span>
                       <EditableField
                         field="customer_job_number"
                         value={orderData.order.customer_job_number}
@@ -634,7 +635,7 @@ export const OrderDetailsPage: React.FC = () => {
                     </div>
                     {/* Due Date */}
                     <div className="flex justify-between items-center py-1 px-1">
-                      <span className="text-gray-500 text-xs">Due Date</span>
+                      <span className={`${PAGE_STYLES.panel.textMuted} text-xs`}>Due Date</span>
                       <EditableField
                         field="due_date"
                         value={orderData.order.due_date}
@@ -651,8 +652,8 @@ export const OrderDetailsPage: React.FC = () => {
                       />
                     </div>
                     {/* Hard Due Time */}
-                    <div className="flex justify-between items-center py-1 px-1 bg-gray-50">
-                      <span className="text-gray-500 text-xs">Hard Due Time</span>
+                    <div className={`flex justify-between items-center py-1 px-1 ${PAGE_STYLES.header.background}`}>
+                      <span className={`${PAGE_STYLES.panel.textMuted} text-xs`}>Hard Due Time</span>
                       <EditableField
                         field="hard_due_date_time"
                         value={orderData.order.hard_due_date_time}
@@ -670,21 +671,21 @@ export const OrderDetailsPage: React.FC = () => {
                     </div>
                     {/* Turnaround Time (calculated) */}
                     <div className="flex justify-between items-center py-1 px-1">
-                      <span className="text-gray-500 text-xs">Turnaround</span>
-                      <span className="italic text-gray-900 text-sm pr-6">
+                      <span className={`${PAGE_STYLES.panel.textMuted} text-xs`}>Turnaround</span>
+                      <span className={`italic ${PAGE_STYLES.panel.text} text-sm pr-6`}>
                         {calculatedValues.turnaroundDays !== null ? `${calculatedValues.turnaroundDays} days` : '-'}
                       </span>
                     </div>
                     {/* Due In (calculated) */}
-                    <div className="flex justify-between items-center py-1 px-1 bg-gray-50">
-                      <span className="text-gray-500 text-xs">Due In</span>
-                      <span className="italic text-gray-900 text-sm pr-6">
+                    <div className={`flex justify-between items-center py-1 px-1 ${PAGE_STYLES.header.background}`}>
+                      <span className={`${PAGE_STYLES.panel.textMuted} text-xs`}>Due In</span>
+                      <span className={`italic ${PAGE_STYLES.panel.text} text-sm pr-6`}>
                         {calculatedValues.daysUntilDue !== null ? `${calculatedValues.daysUntilDue} days left` : '-'}
                       </span>
                     </div>
                     {/* Shipping */}
                     <div className="flex justify-between items-center py-1 px-1">
-                      <span className="text-gray-500 text-xs">Shipping Method</span>
+                      <span className={`${PAGE_STYLES.panel.textMuted} text-xs`}>Shipping Method</span>
                       <EditableField
                         field="shipping_required"
                         value={orderData.order.shipping_required}
@@ -705,11 +706,11 @@ export const OrderDetailsPage: React.FC = () => {
                 </div>
 
                 {/* Panel 3: Notes */}
-                <div className="flex-shrink-0 bg-white rounded-lg shadow p-4" style={{ width: '380px', height: '280px' }}>
+                <div className={`flex-shrink-0 ${PAGE_STYLES.composites.panelContainer} p-4`} style={{ width: '380px', height: '280px' }}>
                   <div className="h-full flex flex-col gap-1">
                     {/* Special Instructions */}
                     <div className="flex-1">
-                      <h3 className="text-xs font-semibold text-gray-700 mb-1">Special Instructions</h3>
+                      <h3 className={`text-xs font-semibold ${PAGE_STYLES.header.text} mb-1`}>Special Instructions</h3>
                       <EditableField
                         field="manufacturing_note"
                         value={orderData.order.manufacturing_note}
@@ -729,7 +730,7 @@ export const OrderDetailsPage: React.FC = () => {
                     </div>
                     {/* Internal Notes */}
                     <div className="flex-1">
-                      <h3 className="text-xs font-semibold text-gray-700 mb-1">Internal Notes (Hidden)</h3>
+                      <h3 className={`text-xs font-semibold ${PAGE_STYLES.header.text} mb-1`}>Internal Notes (Hidden)</h3>
                       <EditableField
                         field="internal_note"
                         value={orderData.order.internal_note}
@@ -749,7 +750,7 @@ export const OrderDetailsPage: React.FC = () => {
                     </div>
                     {/* Invoice Notes */}
                     <div className="flex-1">
-                      <h3 className="text-xs font-semibold text-gray-700 mb-1">Invoice Notes</h3>
+                      <h3 className={`text-xs font-semibold ${PAGE_STYLES.header.text} mb-1`}>Invoice Notes</h3>
                       <EditableField
                         field="invoice_notes"
                         value={orderData.order.invoice_notes}
@@ -771,12 +772,12 @@ export const OrderDetailsPage: React.FC = () => {
                 </div>
 
                 {/* Panel 4: Contact & Invoice Settings */}
-                <div className="flex-shrink-0 bg-white rounded-lg shadow p-4" style={{ width: '700px', height: '280px' }}>
+                <div className={`flex-shrink-0 ${PAGE_STYLES.composites.panelContainer} p-4`} style={{ width: '700px', height: '280px' }}>
                   <div className="h-full flex gap-4">
                     {/* Left Column: Accounting Emails & Point Persons */}
                     <div className="overflow-y-auto" style={{ width: '430px' }}>
                       {/* Accounting Emails */}
-                      <h3 className="text-xs font-semibold text-gray-700 mb-2">Accounting Emails</h3>
+                      <h3 className={`text-xs font-semibold ${PAGE_STYLES.header.text} mb-2`}>Accounting Emails</h3>
                       <AccountingEmailsEditor
                         customerId={orderData.order.customer_id}
                         orderId={orderData.order.order_id}
@@ -784,7 +785,7 @@ export const OrderDetailsPage: React.FC = () => {
                         onSave={handleAccountingEmailsSave}
                         disabled={uiState.saving}
                       />
-                      <h3 className="text-xs font-semibold text-gray-700 mb-2 border-t border-gray-100 pt-2 mt-3">Point Persons</h3>
+                      <h3 className={`text-xs font-semibold ${PAGE_STYLES.header.text} mb-2 border-t ${PAGE_STYLES.panel.border} pt-2 mt-3`}>Point Persons</h3>
                       <PointPersonsEditor
                         customerId={orderData.order.customer_id}
                         orderId={orderData.order.order_id}
@@ -794,10 +795,10 @@ export const OrderDetailsPage: React.FC = () => {
                       />
                     </div>
                     {/* Right Column: Invoice Settings */}
-                    <div className="divide-y divide-gray-100" style={{ width: '222px' }}>
+                    <div className={`${PAGE_STYLES.composites.tableBody}`} style={{ width: '222px' }}>
                       {/* Terms */}
-                      <div className="flex justify-between items-center py-1 px-1 bg-gray-50">
-                        <span className="text-gray-500 text-xs">Terms</span>
+                      <div className={`flex justify-between items-center py-1 px-1 ${PAGE_STYLES.header.background}`}>
+                        <span className={`${PAGE_STYLES.panel.textMuted} text-xs`}>Terms</span>
                         <EditableField
                           field="terms"
                           value={orderData.order.terms}
@@ -818,7 +819,7 @@ export const OrderDetailsPage: React.FC = () => {
                       </div>
                       {/* Deposit Required - Yes/No Dropdown */}
                       <div className="flex justify-between items-center py-1 px-1">
-                        <span className="text-gray-500 text-xs">Deposit</span>
+                        <span className={`${PAGE_STYLES.panel.textMuted} text-xs`}>Deposit</span>
                         <EditableField
                           field="deposit_required"
                           value={orderData.order.deposit_required ? 'Yes' : 'No'}
@@ -838,8 +839,8 @@ export const OrderDetailsPage: React.FC = () => {
                         />
                       </div>
                       {/* Cash Job - Yes/No Dropdown */}
-                      <div className="flex justify-between items-center py-1 px-1 bg-gray-50">
-                        <span className="text-gray-500 text-xs">Cash Job</span>
+                      <div className={`flex justify-between items-center py-1 px-1 ${PAGE_STYLES.header.background}`}>
+                        <span className={`${PAGE_STYLES.panel.textMuted} text-xs`}>Cash Job</span>
                         <EditableField
                           field="cash"
                           value={orderData.order.cash ? 'Yes' : 'No'}
@@ -860,16 +861,16 @@ export const OrderDetailsPage: React.FC = () => {
                       </div>
                       {/* Discount */}
                       <div className="flex justify-between items-center py-1 px-1">
-                        <span className="text-gray-500 text-xs">Discount</span>
-                        <span className="italic text-gray-900 text-sm pr-6">
+                        <span className={`${PAGE_STYLES.panel.textMuted} text-xs`}>Discount</span>
+                        <span className={`italic ${PAGE_STYLES.panel.text} text-sm pr-6`}>
                           {orderData.customerDiscount && parseFloat(String(orderData.customerDiscount)) > 0
                             ? `${parseFloat(String(orderData.customerDiscount))}%`
                             : '-'}
                         </span>
                       </div>
                       {/* Tax */}
-                      <div className="flex justify-between items-center py-1 px-1 bg-gray-50">
-                        <span className="text-gray-500 text-xs">Tax</span>
+                      <div className={`flex justify-between items-center py-1 px-1 ${PAGE_STYLES.header.background}`}>
+                        <span className={`${PAGE_STYLES.panel.textMuted} text-xs`}>Tax</span>
                         <TaxDropdown
                           currentTaxName={orderData.order.tax_name}
                           taxRules={orderData.taxRules}

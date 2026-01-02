@@ -75,9 +75,14 @@ export const MODULE_COLORS = {
     base: 'bg-yellow-500',
     hover: 'hover:bg-yellow-600',
     text: 'text-yellow-500',
+    textDark: 'text-yellow-600',
+    textHover: 'hover:text-yellow-700',
     light: 'bg-yellow-100',
+    lightHover: 'hover:bg-yellow-50',
     lightText: 'text-yellow-100',
+    lightTextDark: 'text-yellow-700',
     border: 'border-yellow-500',
+    lightBorder: 'border-yellow-300',
     name: 'Time Tracking'
   },
   wages: {

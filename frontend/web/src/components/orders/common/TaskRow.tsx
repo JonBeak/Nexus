@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, PlayCircle, CheckCircle2 } from 'lucide-react';
 import { OrderTask } from '../../../types/orders';
 import ConfirmModal from '../progress/ConfirmModal';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface TaskRowProps {
   task: OrderTask;
@@ -137,7 +138,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               className="hover:opacity-70 transition-opacity"
               title="Mark as completed"
             >
-              <div className="w-5 h-5 rounded-full border-2 border-gray-300 hover:border-emerald-400" />
+              <div className={`w-5 h-5 rounded-full border-2 ${PAGE_STYLES.panel.border} hover:border-emerald-400`} />
             </button>
           )}
         </div>
@@ -145,7 +146,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         {/* Task name */}
         <span className={`
           flex-shrink-0
-          ${localTask.completed ? 'text-gray-500 line-through' : localTask.started_at ? 'text-blue-700 font-medium' : 'text-gray-700'}
+          ${localTask.completed ? `${PAGE_STYLES.panel.textMuted} line-through` : localTask.started_at ? 'text-blue-700 font-medium' : PAGE_STYLES.header.text}
         `}>
           {localTask.task_name}
         </span>
@@ -160,15 +161,15 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               onChange={(e) => setNotesValue(e.target.value)}
               onBlur={handleSaveNotes}
               onKeyDown={handleNotesKeyDown}
-              className="flex-1 text-xs px-1.5 py-0.5 border border-indigo-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+              className={`flex-1 text-xs px-1.5 py-0.5 border border-orange-300 rounded focus:outline-none focus:ring-1 focus:ring-orange-500 ${PAGE_STYLES.panel.background}`}
               placeholder="Add notes..."
             />
           ) : (
             <span
               onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }}
               className={`
-                text-xs italic cursor-pointer hover:bg-gray-100 px-1 rounded truncate
-                ${task.notes ? 'text-gray-500' : 'text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity'}
+                text-xs italic cursor-pointer ${PAGE_STYLES.interactive.hover} px-1 rounded truncate
+                ${task.notes ? PAGE_STYLES.panel.textMuted : `${PAGE_STYLES.panel.textMuted} opacity-0 group-hover:opacity-100 transition-opacity`}
               `}
               title={task.notes ? task.notes : 'Click to add notes'}
             >
@@ -194,7 +195,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           {onRemove && (
             <button
               onClick={handleRemoveClick}
-              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+              className={`opacity-0 group-hover:opacity-100 transition-opacity p-0.5 ${PAGE_STYLES.panel.textMuted} hover:text-red-600 hover:bg-red-50 rounded`}
               title="Remove task"
             >
               <X className="w-5 h-5" />

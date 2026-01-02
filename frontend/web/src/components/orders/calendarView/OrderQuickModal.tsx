@@ -21,6 +21,7 @@ import { ordersApi, orderStatusApi, orderTasksApi } from '../../../services/api'
 import { TaskTemplateDropdown } from '../progress/TaskTemplateDropdown';
 import { TaskMetadataResource } from '../../../services/taskMetadataResource';
 import { TaskRow } from '../common/TaskRow';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface OrderQuickModalProps {
   isOpen: boolean;
@@ -290,19 +291,19 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
       className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
       onClick={handleBackdropClick}
     >
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[85vh] flex flex-col">
+      <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow-xl max-w-3xl w-full max-h-[85vh] flex flex-col`}>
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200">
+        <div className={`px-6 py-4 border-b ${PAGE_STYLES.panel.border}`}>
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">{order.order_name}</h2>
-              <p className="text-sm text-gray-600">
+              <h2 className={`text-xl font-bold ${PAGE_STYLES.panel.text}`}>{order.order_name}</h2>
+              <p className={`text-sm ${PAGE_STYLES.header.text}`}>
                 {order.customer_name} &bull; #{order.order_number}
               </p>
             </div>
             <button
               onClick={onClose}
-              className="p-1 text-gray-400 hover:text-gray-600 rounded"
+              className={`p-1 ${PAGE_STYLES.panel.textMuted} hover:text-orange-600 rounded`}
             >
               <X className="w-6 h-6" />
             </button>
@@ -313,7 +314,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="flex items-center justify-center h-48">
-              <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+              <Loader2 className={`w-8 h-8 animate-spin ${PAGE_STYLES.panel.textMuted}`} />
             </div>
           ) : (
             <div className="flex gap-6">
@@ -321,7 +322,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
               <div className="flex-1 space-y-6">
                 {/* Status Section */}
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                  <h3 className={`text-sm font-semibold ${PAGE_STYLES.header.text} uppercase tracking-wide mb-2`}>
                     Status
                   </h3>
                   <div className="relative">
@@ -358,12 +359,12 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                           onClick={() => setShowStatusDropdown(false)}
                         />
                         <div
-                          className="fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[70] max-h-96 overflow-y-auto"
+                          className={`fixed ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} rounded-lg shadow-lg z-[70] max-h-96 overflow-y-auto`}
                           style={{ top: dropdownPosition.top, left: dropdownPosition.left, width: dropdownPosition.width }}
                         >
                           {STATUS_GROUPS.map(group => (
                             <div key={group.label}>
-                              <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase bg-gray-50">
+                              <div className={`px-3 py-1.5 text-xs font-semibold ${PAGE_STYLES.panel.textMuted} uppercase ${PAGE_STYLES.page.background}`}>
                                 {group.label}
                               </div>
                               {group.statuses.map(status => (
@@ -372,8 +373,8 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                                   onClick={() => handleStatusChange(status)}
                                   disabled={status === currentStatus}
                                   className={`
-                                    w-full px-3 py-2 text-left text-sm hover:bg-gray-50
-                                    ${status === currentStatus ? 'bg-gray-100 font-medium' : ''}
+                                    w-full px-3 py-2 text-left text-sm ${PAGE_STYLES.interactive.hover}
+                                    ${status === currentStatus ? `${PAGE_STYLES.header.background} font-medium` : ''}
                                   `}
                                 >
                                   <span className={`inline-block px-2 py-0.5 rounded text-xs ${ORDER_STATUS_COLORS[status]}`}>
@@ -391,24 +392,24 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
 
                 {/* Tasks Section */}
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                  <h3 className={`text-sm font-semibold ${PAGE_STYLES.header.text} uppercase tracking-wide mb-2`}>
                     Tasks
                   </h3>
                   {parts.filter(p => p.is_parent).length === 0 ? (
-                    <p className="text-sm text-gray-500">No parts found</p>
+                    <p className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>No parts found</p>
                   ) : (
                     <div className="space-y-4">
                       {parts.filter(p => p.is_parent).map((part, idx) => (
-                        <div key={part.part_id} className="border border-gray-200 rounded-lg">
-                          <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 rounded-t-lg">
-                            <span className="text-sm font-medium text-gray-700">
+                        <div key={part.part_id} className={`border ${PAGE_STYLES.panel.border} rounded-lg`}>
+                          <div className={`px-3 py-2 ${PAGE_STYLES.page.background} border-b ${PAGE_STYLES.panel.border} rounded-t-lg`}>
+                            <span className={`text-sm font-medium ${PAGE_STYLES.header.text}`}>
                               Part {idx + 1}: {part.product_type}
                               {part.part_scope && ` - ${part.part_scope}`}
                             </span>
                           </div>
                           <div className="p-2">
                             {!part.tasks || part.tasks.length === 0 ? (
-                              <p className="text-xs text-gray-400 px-2 py-1">No tasks</p>
+                              <p className={`text-xs ${PAGE_STYLES.panel.textMuted} px-2 py-1`}>No tasks</p>
                             ) : (
                               <div className="space-y-0">
                                 {sortTasks(part.tasks).map(task => (
@@ -429,7 +430,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                             {/* Add Task Button */}
                             <button
                               onClick={() => setShowAddTaskForPart(part.part_id)}
-                              className="mt-2 flex items-center gap-1 px-2 py-1 text-xs text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                              className={`mt-2 flex items-center gap-1 px-2 py-1 text-xs ${MODULE_COLORS.orders.text} hover:bg-orange-50 rounded transition-colors`}
                             >
                               <Plus className="w-3 h-3" />
                               Add Task
@@ -456,14 +457,14 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
 
               {/* Right Column - Actions */}
               <div className="w-48 space-y-2">
-                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                <h3 className={`text-sm font-semibold ${PAGE_STYLES.header.text} uppercase tracking-wide mb-2`}>
                   Actions
                 </h3>
 
                 {/* Go to Order */}
                 <button
                   onClick={handleGoToOrder}
-                  className="w-full flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+                  className={`w-full flex items-center gap-2 px-4 py-2 ${MODULE_COLORS.orders.base} text-white ${MODULE_COLORS.orders.hover} transition-colors text-sm font-medium rounded-lg`}
                 >
                   <ExternalLink className="w-4 h-4" />
                   Go to Order
@@ -476,7 +477,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                       type="date"
                       value={newDueDate}
                       onChange={(e) => setNewDueDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      className={`w-full px-3 py-2 border ${PAGE_STYLES.panel.border} rounded-lg text-sm`}
                     />
                     <div className="flex gap-1">
                       <button
@@ -487,7 +488,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                       </button>
                       <button
                         onClick={() => setShowDatePicker(false)}
-                        className="flex-1 px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs font-medium hover:bg-gray-300"
+                        className={`flex-1 px-2 py-1 ${PAGE_STYLES.header.background} ${PAGE_STYLES.header.text} rounded text-xs font-medium ${PAGE_STYLES.interactive.hover}`}
                       >
                         Cancel
                       </button>
@@ -496,7 +497,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                 ) : (
                   <button
                     onClick={() => setShowDatePicker(true)}
-                    className="w-full flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                    className={`w-full flex items-center gap-2 px-4 py-2 ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} ${PAGE_STYLES.header.text} rounded-lg ${PAGE_STYLES.interactive.hover} transition-colors text-sm font-medium`}
                   >
                     <Calendar className="w-4 h-4" />
                     Change Due Date
@@ -510,8 +511,8 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                   className={`
                     w-full flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors
                     ${orderDetails?.folder_name && orderDetails.folder_location !== 'none'
-                      ? 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      ? `${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} ${PAGE_STYLES.header.text} ${PAGE_STYLES.interactive.hover}`
+                      : `${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.textMuted} cursor-not-allowed`
                     }
                   `}
                 >
@@ -527,7 +528,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                       onChange={(e) => setNoteText(e.target.value)}
                       placeholder="Internal note..."
                       rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none"
+                      className={`w-full px-3 py-2 border ${PAGE_STYLES.panel.border} rounded-lg text-sm resize-none`}
                     />
                     <div className="flex gap-1">
                       <button
@@ -542,7 +543,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                           setShowNoteInput(false);
                           setNoteText(orderDetails?.internal_note || '');
                         }}
-                        className="flex-1 px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs font-medium hover:bg-gray-300"
+                        className={`flex-1 px-2 py-1 ${PAGE_STYLES.header.background} ${PAGE_STYLES.header.text} rounded text-xs font-medium ${PAGE_STYLES.interactive.hover}`}
                       >
                         Cancel
                       </button>
@@ -551,7 +552,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                 ) : (
                   <button
                     onClick={() => setShowNoteInput(true)}
-                    className="w-full flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                    className={`w-full flex items-center gap-2 px-4 py-2 ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} ${PAGE_STYLES.header.text} rounded-lg ${PAGE_STYLES.interactive.hover} transition-colors text-sm font-medium`}
                   >
                     <FileText className="w-4 h-4" />
                     Add Note

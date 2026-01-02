@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface CalendarNavigationProps {
   viewStartDate: Date;
@@ -27,7 +28,7 @@ export const CalendarNavigation: React.FC<CalendarNavigationProps> = ({
       {/* Prev Week Button */}
       <button
         onClick={() => onNavigate('prev')}
-        className="flex items-center px-3 py-1.5 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+        className={`flex items-center px-3 py-1.5 text-sm ${PAGE_STYLES.header.text} ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} rounded-lg ${PAGE_STYLES.interactive.hover} transition-colors`}
         title="Previous week"
       >
         <ChevronLeft className="w-4 h-4 mr-1" />
@@ -37,7 +38,7 @@ export const CalendarNavigation: React.FC<CalendarNavigationProps> = ({
       {/* Today Button */}
       <button
         onClick={() => onNavigate('today')}
-        className="px-3 py-1.5 text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
+        className={`px-3 py-1.5 text-sm font-medium ${MODULE_COLORS.orders.text} ${MODULE_COLORS.orders.light} border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors`}
       >
         Today
       </button>
@@ -45,7 +46,7 @@ export const CalendarNavigation: React.FC<CalendarNavigationProps> = ({
       {/* Next Week Button */}
       <button
         onClick={() => onNavigate('next')}
-        className="flex items-center px-3 py-1.5 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+        className={`flex items-center px-3 py-1.5 text-sm ${PAGE_STYLES.header.text} ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} rounded-lg ${PAGE_STYLES.interactive.hover} transition-colors`}
         title="Next week"
       >
         Next
@@ -53,7 +54,7 @@ export const CalendarNavigation: React.FC<CalendarNavigationProps> = ({
       </button>
 
       {/* Current Date Range Display */}
-      <span className="text-sm text-gray-500 ml-4">
+      <span className={`text-sm ${PAGE_STYLES.panel.textMuted} ml-4`}>
         Starting: {formatDate(viewStartDate)}
       </span>
     </div>

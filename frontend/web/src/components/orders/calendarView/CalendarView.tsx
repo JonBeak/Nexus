@@ -18,6 +18,7 @@ import {
 import CalendarColumn from './CalendarColumn';
 import CalendarNavigation from './CalendarNavigation';
 import OrderQuickModal from './OrderQuickModal';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 const TOTAL_DAYS_TO_SCAN = 90;
 // When overdue column is shown: 8 date columns + overdue = 9 total
@@ -188,9 +189,9 @@ export const CalendarView: React.FC = () => {
   }, [fetchOrders]);
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className={`min-h-full h-full flex flex-col ${PAGE_STYLES.page.background}`}>
       {/* Filters Bar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className={`${PAGE_STYLES.panel.background} border-b ${PAGE_STYLES.panel.border} px-6 py-4`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             {/* Search */}
@@ -200,7 +201,7 @@ export const CalendarView: React.FC = () => {
                 placeholder="Search orders..."
                 value={searchTerm}
                 onChange={handleSearchChange}
-                className="pl-3 pr-10 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-64"
+                className={`pl-3 pr-10 py-2 border ${PAGE_STYLES.panel.border} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent w-64`}
               />
             </div>
 
@@ -210,13 +211,13 @@ export const CalendarView: React.FC = () => {
                 type="checkbox"
                 checked={showAllOrders}
                 onChange={(e) => setShowAllOrders(e.target.checked)}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                className={`h-4 w-4 text-orange-500 focus:ring-orange-500 ${PAGE_STYLES.panel.border} rounded`}
               />
-              <span className="text-sm text-gray-700">Show all orders</span>
+              <span className={`text-sm ${PAGE_STYLES.header.text}`}>Show all orders</span>
             </label>
 
             {/* Order count */}
-            <span className="text-sm text-gray-500">
+            <span className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>
               {overdueOrders.length} overdue, {futureOrders.length} upcoming
             </span>
           </div>
@@ -230,10 +231,10 @@ export const CalendarView: React.FC = () => {
       </div>
 
       {/* Calendar Grid */}
-      <div className="flex-1 overflow-hidden px-6 py-4">
+      <div className={`flex-1 overflow-hidden px-6 py-4 ${PAGE_STYLES.page.background}`}>
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="text-gray-500">Loading orders...</div>
+            <div className={PAGE_STYLES.page.text}>Loading orders...</div>
           </div>
         ) : error ? (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -246,7 +247,7 @@ export const CalendarView: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow h-full overflow-hidden">
+          <div className={`${PAGE_STYLES.panel.background} rounded-lg border ${PAGE_STYLES.panel.border} h-full overflow-hidden`}>
             <div
               ref={scrollContainerRef}
               className="flex h-full"
@@ -271,7 +272,7 @@ export const CalendarView: React.FC = () => {
               {dateColumns.map(column => (
                 <div
                   key={column.dateKey}
-                  className="border-r border-gray-200 flex-shrink-0 last:border-r-0"
+                  className={`border-r ${PAGE_STYLES.panel.border} flex-shrink-0 last:border-r-0`}
                   style={{ width: 'calc(100% / 9)' }}
                 >
                   <CalendarColumn
@@ -286,7 +287,7 @@ export const CalendarView: React.FC = () => {
 
               {/* Empty state if no columns */}
               {dateColumns.length === 0 && !showOverdueColumn && (
-                <div className="flex-1 flex items-center justify-center text-gray-500">
+                <div className={`flex-1 flex items-center justify-center ${PAGE_STYLES.panel.textMuted}`}>
                   No upcoming dates with orders
                 </div>
               )}

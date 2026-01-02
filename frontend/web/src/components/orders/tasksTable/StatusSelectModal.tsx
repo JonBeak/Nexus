@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { OrderStatus, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../../types/orders';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface Props {
   isOpen: boolean;
@@ -79,17 +80,17 @@ export const StatusSelectModal: React.FC<Props> = ({
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
       onClick={handleBackdropClick}
     >
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[80vh] overflow-hidden">
+      <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[80vh] overflow-hidden`}>
         {/* Header */}
-        <div className="px-4 py-3 border-b border-gray-200">
+        <div className={`px-4 py-3 border-b ${PAGE_STYLES.panel.border}`}>
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-medium text-gray-900">Change Status</h3>
-              <p className="text-sm text-gray-500">{orderNumber}: {orderName}</p>
+              <h3 className={`text-lg font-medium ${PAGE_STYLES.panel.text}`}>Change Status</h3>
+              <p className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>{orderNumber}: {orderName}</p>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600"
+              className={`${PAGE_STYLES.panel.textMuted} hover:text-orange-600`}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -102,7 +103,7 @@ export const StatusSelectModal: React.FC<Props> = ({
         <div className="p-4 overflow-y-auto max-h-[60vh]">
           {STATUS_GROUPS.map((group) => (
             <div key={group.label} className="mb-4 last:mb-0">
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+              <h4 className={`text-xs font-semibold ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider mb-2`}>
                 {group.label}
               </h4>
               <div className="space-y-1">
@@ -144,10 +145,10 @@ export const StatusSelectModal: React.FC<Props> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
+        <div className={`px-4 py-3 border-t ${PAGE_STYLES.panel.border} ${PAGE_STYLES.page.background}`}>
           <button
             onClick={onClose}
-            className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            className={`w-full px-4 py-2 text-sm font-medium ${PAGE_STYLES.header.text} ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} rounded-md ${PAGE_STYLES.interactive.hover}`}
           >
             Cancel
           </button>

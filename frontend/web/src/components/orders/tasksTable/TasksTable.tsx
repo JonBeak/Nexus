@@ -15,6 +15,7 @@ import Pagination from '../table/Pagination';
 import { orderTasksApi, orderStatusApi, api } from '../../../services/api';
 import { OrderStatus, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../../types/orders';
 import { ChevronDown } from 'lucide-react';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 export const TasksTable: React.FC = () => {
   // Data state
@@ -446,9 +447,9 @@ export const TasksTable: React.FC = () => {
   }, []);
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className={`h-full flex flex-col ${PAGE_STYLES.page.background}`}>
       {/* Filters Bar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className={`${PAGE_STYLES.panel.background} border-b ${PAGE_STYLES.panel.border} px-6 py-4`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             {/* Search */}
@@ -458,7 +459,7 @@ export const TasksTable: React.FC = () => {
                 placeholder="Search orders..."
                 value={filters.search}
                 onChange={(e) => handleSearchChange(e.target.value)}
-                className="pl-3 pr-10 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-64"
+                className={`pl-3 pr-10 py-2 border ${PAGE_STYLES.panel.border} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent w-64`}
               />
             </div>
 
@@ -476,12 +477,12 @@ export const TasksTable: React.FC = () => {
                   }
                   setStatusDropdownOpen(!statusDropdownOpen);
                 }}
-                className="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className={`flex items-center space-x-2 px-3 py-2 border ${PAGE_STYLES.panel.border} rounded-lg text-sm ${PAGE_STYLES.panel.background} ${PAGE_STYLES.interactive.hover} focus:outline-none focus:ring-2 focus:ring-orange-500`}
               >
-                <span className="text-gray-700">
+                <span className={PAGE_STYLES.header.text}>
                   Status ({displayStatuses.length})
                 </span>
-                <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${statusDropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-4 h-4 ${PAGE_STYLES.panel.textMuted} transition-transform ${statusDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {statusDropdownOpen && (
@@ -493,15 +494,15 @@ export const TasksTable: React.FC = () => {
                   />
                   {/* Dropdown panel - fixed positioning to escape overflow */}
                   <div
-                    className="fixed w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-80 overflow-y-auto"
+                    className={`fixed w-64 ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} rounded-lg shadow-lg z-50 max-h-80 overflow-y-auto`}
                     style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
                   >
-                    <div className="p-2 border-b border-gray-100">
+                    <div className={`p-2 border-b ${PAGE_STYLES.panel.border}`}>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-gray-500 uppercase">Filter by Status</span>
+                        <span className={`text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase`}>Filter by Status</span>
                         <button
                           onClick={() => setFilters(prev => ({ ...prev, statuses: [] }))}
-                          className="text-xs text-indigo-600 hover:text-indigo-800"
+                          className={`text-xs ${MODULE_COLORS.orders.text} hover:text-orange-600`}
                         >
                           Reset to defaults
                         </button>
@@ -511,13 +512,13 @@ export const TasksTable: React.FC = () => {
                       {AVAILABLE_STATUSES.map(status => (
                         <label
                           key={status}
-                          className="flex items-center space-x-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer"
+                          className={`flex items-center space-x-2 px-2 py-1.5 rounded ${PAGE_STYLES.interactive.hover} cursor-pointer`}
                         >
                           <input
                             type="checkbox"
                             checked={displayStatuses.includes(status)}
                             onChange={() => handleStatusToggle(status)}
-                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                            className={`h-4 w-4 text-orange-500 focus:ring-orange-500 ${PAGE_STYLES.panel.border} rounded`}
                           />
                           <span className={`text-xs px-2 py-0.5 rounded ${ORDER_STATUS_COLORS[status]}`}>
                             {ORDER_STATUS_LABELS[status]}
@@ -536,9 +537,9 @@ export const TasksTable: React.FC = () => {
                 type="checkbox"
                 checked={filters.hideCompleted}
                 onChange={(e) => handleHideCompletedChange(e.target.checked)}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                className={`h-4 w-4 text-orange-500 focus:ring-orange-500 ${PAGE_STYLES.panel.border} rounded`}
               />
-              <span className="text-sm text-gray-700">Hide completed</span>
+              <span className={`text-sm ${PAGE_STYLES.header.text}`}>Hide completed</span>
             </label>
 
             {/* Hide Empty Tasks Toggle */}
@@ -547,9 +548,9 @@ export const TasksTable: React.FC = () => {
                 type="checkbox"
                 checked={filters.hideEmptyTasks}
                 onChange={(e) => { setFilters(prev => ({ ...prev, hideEmptyTasks: e.target.checked })); setCurrentPage(1); }}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                className={`h-4 w-4 text-orange-500 focus:ring-orange-500 ${PAGE_STYLES.panel.border} rounded`}
               />
-              <span className="text-sm text-gray-700">Hide empty tasks</span>
+              <span className={`text-sm ${PAGE_STYLES.header.text}`}>Hide empty tasks</span>
             </label>
           </div>
 
@@ -567,7 +568,7 @@ export const TasksTable: React.FC = () => {
       <div className="flex-1 overflow-auto px-6 py-4">
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="text-gray-500">Loading parts...</div>
+            <div className={PAGE_STYLES.page.text}>Loading parts...</div>
           </div>
         ) : error ? (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -580,12 +581,12 @@ export const TasksTable: React.FC = () => {
             </button>
           </div>
         ) : parts.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <p className="text-gray-500">No parts found</p>
+          <div className={`${PAGE_STYLES.composites.panelContainer} p-8 text-center`}>
+            <p className={PAGE_STYLES.panel.textMuted}>No parts found</p>
           </div>
         ) : (
           <>
-            <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className={`${PAGE_STYLES.composites.panelContainer} overflow-hidden`}>
               <div
                 ref={scrollContainerRef}
                 className={`overflow-auto max-h-[calc(100vh-120px)] ${isDragging ? 'cursor-grabbing select-none' : ''}`}
@@ -606,12 +607,12 @@ export const TasksTable: React.FC = () => {
                     ))}
                   </colgroup>
                   {/* Header */}
-                  <thead className="bg-gray-200 sticky top-0 z-30">
+                  <thead className={`${PAGE_STYLES.header.background} sticky top-0 z-30`}>
                     <tr>
                       {/* Order / Part column - sticky, fixed width */}
                       <th
-                        className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-r border-gray-300 cursor-pointer hover:bg-gray-100 sticky z-20"
-                        style={{ left: 0, width: '280px', backgroundColor: '#e5e7eb' }}
+                        className={`px-2 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider border-b border-r ${PAGE_STYLES.panel.border} cursor-pointer ${PAGE_STYLES.interactive.hoverOnHeader} sticky z-20`}
+                        style={{ left: 0, width: '280px', backgroundColor: 'var(--theme-header-bg)' }}
                         onClick={() => handleSort('orderNumber')}
                       >
                         Order / Part
@@ -622,16 +623,16 @@ export const TasksTable: React.FC = () => {
 
                       {/* Status column - sticky, fixed width */}
                       <th
-                        className="px-1 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-r border-gray-300 sticky z-20"
-                        style={{ left: '280px', width: '120px', backgroundColor: '#e5e7eb' }}
+                        className={`px-1 py-3 text-center text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider border-b border-r ${PAGE_STYLES.panel.border} sticky z-20`}
+                        style={{ left: '280px', width: '120px', backgroundColor: 'var(--theme-header-bg)' }}
                       >
                         Status
                       </th>
 
                       {/* Due Date column - sticky, fixed width */}
                       <th
-                        className="px-1 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-r border-gray-300 cursor-pointer hover:bg-gray-100 sticky z-20"
-                        style={{ left: '400px', width: '80px', backgroundColor: '#e5e7eb' }}
+                        className={`px-1 py-3 text-center text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider border-b border-r ${PAGE_STYLES.panel.border} cursor-pointer ${PAGE_STYLES.interactive.hoverOnHeader} sticky z-20`}
+                        style={{ left: '400px', width: '80px', backgroundColor: 'var(--theme-header-bg)' }}
                         onClick={() => handleSort('dueDate')}
                       >
                         Due
@@ -642,8 +643,8 @@ export const TasksTable: React.FC = () => {
 
                       {/* Hard Due Time column - sticky, fixed width */}
                       <th
-                        className="px-1 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-r border-gray-300 sticky z-20"
-                        style={{ left: '480px', width: '64px', backgroundColor: '#e5e7eb' }}
+                        className={`px-1 py-3 text-center text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider border-b border-r ${PAGE_STYLES.panel.border} sticky z-20`}
+                        style={{ left: '480px', width: '64px', backgroundColor: 'var(--theme-header-bg)' }}
                       >
                         Time
                       </th>

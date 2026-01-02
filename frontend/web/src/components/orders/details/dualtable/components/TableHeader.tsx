@@ -6,52 +6,56 @@
  */
 
 import React from 'react';
+import { PAGE_STYLES } from '../../../../../constants/moduleColors';
 
 export const TableHeader: React.FC = () => {
+  const headerCell = `text-xs font-semibold ${PAGE_STYLES.header.text} uppercase tracking-wider py-2`;
+  const dividerBorder = `border-l-2 ${PAGE_STYLES.panel.border}`;
+
   return (
     <div
-      className="bg-gray-200 border-b-2 border-gray-400 grid gap-2 px-2"
+      className={`${PAGE_STYLES.header.background} border-b-2 ${PAGE_STYLES.panel.border} grid gap-2 px-2`}
       style={{
         gridTemplateColumns: '40px 165px 115px 123px 123px 123px 62px 140px 380px 270px 55px 75px 85px'
       }}
     >
-      <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider text-center py-2">
+      <div className={`${headerCell} text-center`}>
         Row
       </div>
-      <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider border-l-2 border-gray-400 pl-2 py-2">
+      <div className={`${headerCell} ${dividerBorder} pl-2`}>
         Item Name
       </div>
-      <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider py-2">
+      <div className={headerCell}>
         Specifications
       </div>
-      <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider py-2">
+      <div className={headerCell}>
         Spec 1
       </div>
-      <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider py-2">
+      <div className={headerCell}>
         Spec 2
       </div>
-      <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider py-2">
+      <div className={headerCell}>
         Spec 3
       </div>
-      <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider text-center py-2">
+      <div className={`${headerCell} text-center`}>
         Specs
       </div>
-      <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider border-l-2 border-gray-400 pl-2 py-2">
+      <div className={`${headerCell} ${dividerBorder} pl-2`}>
         QB Item
       </div>
-      <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider py-2">
+      <div className={headerCell}>
         QB Description
       </div>
-      <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider py-2">
+      <div className={headerCell}>
         Price Calculation
       </div>
-      <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider py-2">
+      <div className={headerCell}>
         Qty
       </div>
-      <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider text-right py-2">
+      <div className={`${headerCell} text-right`}>
         Unit Price
       </div>
-      <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider text-right py-2">
+      <div className={`${headerCell} text-right`}>
         Extended
       </div>
     </div>

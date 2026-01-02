@@ -5,6 +5,9 @@ import type { TimeEntry, TimeUser } from '../../types/time';
 import { calendarHelpers, type UserTimeData as HelperUserTimeData } from './utils/calendarHelpers';
 import { getPreviousSaturdayOfWeek, getSaturdayOfWeek, createNoonDate, toDateString } from '../../lib/timeUtils';
 import { TimeInput } from './TimeInput';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
+
+const TIME_COLORS = MODULE_COLORS.timeTracking;
 
 interface CalendarViewProps {
   selectedDate: string;
@@ -330,25 +333,25 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   if (!weekStart) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-gray-600">Initializing calendar...</div>
+        <div className={PAGE_STYLES.panel.textSecondary}>Initializing calendar...</div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white shadow rounded-lg overflow-hidden">
+    <div className={`${PAGE_STYLES.panel.background} shadow rounded-lg overflow-hidden`}>
       {/* Header with Week Navigation */}
-      <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+      <div className={`${PAGE_STYLES.header.background} px-6 py-4 border-b ${PAGE_STYLES.panel.border}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Bi-Weekly Time Calendar</h2>
-              <p className="text-sm text-gray-600 mt-1">
+              <h2 className={`text-lg font-semibold ${TIME_COLORS.lightTextDark}`}>Bi-Weekly Time Calendar</h2>
+              <p className={`text-sm ${PAGE_STYLES.panel.text} mt-1`}>
                 Note: Employees will see these time changes reflected on their dashboards
               </p>
             </div>
           </div>
-          
+
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
               <button
@@ -356,13 +359,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 disabled={loading}
                 className={`p-2 rounded ${
                   loading
-                    ? 'text-gray-400 cursor-not-allowed'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    ? `${PAGE_STYLES.panel.textMuted} cursor-not-allowed`
+                    : `${PAGE_STYLES.panel.textSecondary} ${PAGE_STYLES.interactive.hover}`
                 }`}
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
-              <span className="px-3 py-2 border border-gray-300 rounded-md min-w-[250px] text-center">
+              <span className={`px-3 py-2 ${PAGE_STYLES.input.border} border rounded-md min-w-[250px] text-center ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text}`}>
                 {weekStart} to {dates[13] || ''}
               </span>
               <button
@@ -370,33 +373,33 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 disabled={loading}
                 className={`p-2 rounded ${
                   loading
-                    ? 'text-gray-400 cursor-not-allowed'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    ? `${PAGE_STYLES.panel.textMuted} cursor-not-allowed`
+                    : `${PAGE_STYLES.panel.textSecondary} ${PAGE_STYLES.interactive.hover}`
                 }`}
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
             </div>
-            
+
             <div className="flex space-x-2">
               <button
                 onClick={saveChanges}
                 disabled={editedCells.size === 0}
                 className={`px-4 py-2 rounded flex items-center space-x-2 ${
-                  editedCells.size > 0 
-                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  editedCells.size > 0
+                    ? `${TIME_COLORS.base} text-white ${TIME_COLORS.hover}`
+                    : `${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.textMuted} cursor-not-allowed`
                 }`}
               >
                 <Save className="h-4 w-4" />
                 <span>Save Changes</span>
                 {editedCells.size > 0 && (
-                  <span className="bg-white text-blue-600 px-2 py-1 rounded-full text-xs">
+                  <span className={`bg-white ${TIME_COLORS.textDark} px-2 py-1 rounded-full text-xs`}>
                     {editedCells.size}
                   </span>
                 )}
               </button>
-              
+
               <button
                 onClick={() => {
                   setEditedCells(new Set());
@@ -404,9 +407,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 }}
                 disabled={editedCells.size === 0}
                 className={`px-4 py-2 rounded flex items-center space-x-2 ${
-                  editedCells.size > 0 
-                    ? 'bg-gray-600 text-white hover:bg-gray-700' 
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  editedCells.size > 0
+                    ? 'bg-gray-600 text-white hover:bg-gray-700'
+                    : `${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.textMuted} cursor-not-allowed`
                 }`}
               >
                 <span>Reset Changes</span>
@@ -418,27 +421,27 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
       {/* Calendar Table */}
       <div className={`overflow-x-auto transition-opacity duration-200 ${loading ? 'opacity-50' : 'opacity-100'}`}>
-        <table className="min-w-full divide-y divide-gray-200 table-fixed">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="sticky left-0 bg-gray-50 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r" style={{ width: '140px', minWidth: '140px', maxWidth: '140px' }}>
+        <table className={`min-w-full ${PAGE_STYLES.panel.divider} table-fixed`}>
+          <thead className={PAGE_STYLES.header.background}>
+            <tr className={`border-b-2 ${PAGE_STYLES.panel.border}`}>
+              <th className={`sticky left-0 ${PAGE_STYLES.header.background} px-4 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.text} uppercase tracking-wider border-r ${PAGE_STYLES.panel.border}`} style={{ width: '140px', minWidth: '140px', maxWidth: '140px' }}>
                 Employee
               </th>
               {dayLabels.map((label, idx) => (
-                <th key={idx} className="px-1 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}>
+                <th key={idx} className={`px-1 py-3 text-center text-xs font-medium ${PAGE_STYLES.panel.text} uppercase tracking-wider`} style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}>
                   <div>{label.day}</div>
-                  <div className="text-gray-400">{label.date}</div>
+                  <div className={PAGE_STYLES.panel.textSecondary}>{label.date}</div>
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className={`${PAGE_STYLES.panel.background}`}>
             {timeData.map(userData => (
-              <tr key={userData.user_id} className="hover:bg-gray-50">
-                <td className="sticky left-0 bg-white px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border-r" style={{ width: '140px', minWidth: '140px', maxWidth: '140px' }}>
+              <tr key={userData.user_id} className={`${PAGE_STYLES.interactive.hover} border-b ${PAGE_STYLES.panel.border}`}>
+                <td className={`sticky left-0 ${PAGE_STYLES.panel.background} px-4 py-4 whitespace-nowrap text-sm font-medium ${PAGE_STYLES.panel.text} border-r ${PAGE_STYLES.panel.border}`} style={{ width: '140px', minWidth: '140px', maxWidth: '140px' }}>
                   <div>
                     <div className="font-semibold">{userData.first_name} {userData.last_name}</div>
-                    <div className="text-xs text-gray-600 mt-1">
+                    <div className={`text-xs ${PAGE_STYLES.panel.textSecondary} mt-1`}>
                       {calendarHelpers.calculateTotalHours(userData).toFixed(2)} hrs
                     </div>
                   </div>
@@ -449,10 +452,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   const dateObj = createNoonDate(date);
                   const dayOfWeek = dateObj.getDay();
                   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                  const cellBg = isWeekend ? 'bg-gray-50' : 'bg-white';
+                  const cellBg = isWeekend ? PAGE_STYLES.header.background : PAGE_STYLES.panel.background;
                   
                   return (
-                    <td key={date} className={`text-center text-xs ${cellBg} border-l relative`} style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}>
+                    <td key={date} className={`text-center text-xs ${cellBg} border-l ${PAGE_STYLES.panel.border} relative`} style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}>
                       {hasMultipleEntries && (
                         <div className="absolute inset-0 flex items-center justify-center z-10" title="Multiple time entries found for this date">
                           <AlertTriangle className="h-8 w-8 text-amber-500 fill-amber-100" />
@@ -489,13 +492,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             onFocus={() => setFocusedBreakCell(calendarHelpers.generateCellKey(userData.user_id, date, 'break'))}
                             onBlur={() => setFocusedBreakCell(null)}
                             placeholder="No break"
-                            className={`w-full max-w-[90px] px-1 py-1 text-xs border border-gray-300 ${
+                            className={`w-full max-w-[90px] px-1 py-1 text-xs border ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} hover:border-yellow-400 focus:outline-none focus:ring-1 focus:ring-yellow-500 ${
                               editedCells.has(calendarHelpers.generateCellKey(userData.user_id, date, 'break'))
                                 ? 'bg-orange-100 border-orange-300'
                                 : ''
                             }`}
                           />
-                          <div className="font-bold text-xs mt-2 pl-1 pb-1 text-gray-700 text-left truncate max-w-[90px]">
+                          <div className={`font-bold text-xs mt-2 pl-1 pb-1 ${PAGE_STYLES.panel.textSecondary} text-left truncate max-w-[90px]`}>
                             {(parseFloat(entry.total_hours) || 0).toFixed(2)} hrs
                           </div>
 
@@ -550,13 +553,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       ) : (
                         <div className="group relative h-24 flex items-center justify-center">
                           {/* Empty state */}
-                          <div className="text-gray-400">-</div>
+                          <div className={PAGE_STYLES.panel.textMuted}>-</div>
 
                           {/* Hover overlay with Add button - now shows on all days including weekends */}
                           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                             <button
                               onClick={() => handleAddEntry(userData.user_id, date)}
-                              className="p-2 text-blue-600 bg-white rounded-full shadow-md hover:bg-blue-50 hover:scale-110 transition-all"
+                              className={`p-2 ${TIME_COLORS.textDark} ${PAGE_STYLES.panel.background} rounded-full shadow-md ${TIME_COLORS.lightHover} hover:scale-110 transition-all`}
                               aria-label={`Add time entry for ${userData.first_name} ${userData.last_name} on ${date}`}
                             >
                               <Plus className="h-4 w-4" />

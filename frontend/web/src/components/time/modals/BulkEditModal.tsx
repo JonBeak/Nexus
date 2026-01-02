@@ -1,5 +1,8 @@
 import React from 'react';
 import type { BulkEditValues } from '../../../types/time';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
+
+const TIME_COLORS = MODULE_COLORS.timeTracking;
 
 interface BulkEditModalProps {
   selectedEntries: number[];
@@ -18,40 +21,40 @@ export const BulkEditModal: React.FC<BulkEditModalProps> = ({
 }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-        <div className="px-6 py-4 border-b">
-          <h3 className="text-lg font-medium text-gray-900">
+      <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow-xl max-w-md w-full mx-4`}>
+        <div className={`px-6 py-4 border-b ${PAGE_STYLES.panel.border}`}>
+          <h3 className={`text-lg font-medium ${PAGE_STYLES.panel.text}`}>
             Bulk Edit {selectedEntries.length} Entries
           </h3>
         </div>
-        
+
         <div className="px-6 py-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>
               Clock In (Leave empty to keep current)
             </label>
             <input
               type="datetime-local"
               value={bulkEditValues.clock_in || ''}
               onChange={(e) => onBulkEditValuesChange({ ...bulkEditValues, clock_in: e.target.value || undefined })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              className={`w-full px-3 py-2 ${PAGE_STYLES.input.border} rounded-md ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text}`}
             />
           </div>
-          
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>
               Clock Out (Leave empty to keep current)
             </label>
             <input
               type="datetime-local"
               value={bulkEditValues.clock_out || ''}
               onChange={(e) => onBulkEditValuesChange({ ...bulkEditValues, clock_out: e.target.value || undefined })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              className={`w-full px-3 py-2 ${PAGE_STYLES.input.border} rounded-md ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text}`}
             />
           </div>
-          
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>
               Break Minutes (Leave empty to keep current)
             </label>
             <input
@@ -60,25 +63,25 @@ export const BulkEditModal: React.FC<BulkEditModalProps> = ({
               max="480"
               placeholder="e.g. 30"
               value={bulkEditValues.break_minutes || ''}
-              onChange={(e) => onBulkEditValuesChange({ 
-                ...bulkEditValues, 
-                break_minutes: e.target.value ? Number(e.target.value) : undefined 
+              onChange={(e) => onBulkEditValuesChange({
+                ...bulkEditValues,
+                break_minutes: e.target.value ? Number(e.target.value) : undefined
               })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              className={`w-full px-3 py-2 ${PAGE_STYLES.input.border} rounded-md ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} ${PAGE_STYLES.input.placeholder}`}
             />
           </div>
         </div>
-        
-        <div className="px-6 py-4 bg-gray-50 flex justify-end space-x-3 rounded-b-lg">
+
+        <div className={`px-6 py-4 ${PAGE_STYLES.header.background} flex justify-end space-x-3 rounded-b-lg`}>
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            className={`px-4 py-2 text-sm font-medium ${PAGE_STYLES.panel.textSecondary} ${PAGE_STYLES.panel.background} ${PAGE_STYLES.input.border} border rounded-md ${PAGE_STYLES.interactive.hover}`}
           >
             Cancel
           </button>
           <button
             onClick={onApplyChanges}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+            className={`px-4 py-2 text-sm font-medium text-white ${TIME_COLORS.base} rounded-md ${TIME_COLORS.hover}`}
           >
             Apply Changes
           </button>

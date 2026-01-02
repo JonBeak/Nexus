@@ -4,6 +4,7 @@ import { ArrowLeft, FileText, Printer, FolderOpen, Settings, CheckCircle, FileCh
 import { Order, DEPOSIT_TRACKING_STATUSES } from '../../../../types/orders';
 import StatusBadge from '../../common/StatusBadge';
 import InvoiceButton, { InvoiceAction } from './InvoiceButton';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../../constants/moduleColors';
 
 interface OrderHeaderProps {
   order: Order;
@@ -47,21 +48,21 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
   };
 
   return (
-    <div className="bg-white border-b border-gray-200">
+    <div className={`${PAGE_STYLES.panel.background} border-b ${PAGE_STYLES.panel.border}`}>
       <div className="px-6 py-4">
         <div className="flex items-center justify-between">
           {/* Left: Order Info */}
           <div className="flex items-center space-x-4 flex-1">
             <button
               onClick={handleBack}
-              className="flex items-center space-x-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md transition-colors text-gray-700"
+              className={`flex items-center space-x-1 px-3 py-1.5 ${PAGE_STYLES.header.background} ${PAGE_STYLES.interactive.hoverOnHeader} border ${PAGE_STYLES.panel.border} rounded-md transition-colors ${PAGE_STYLES.header.text}`}
             >
               <ArrowLeft className="w-4 h-4" />
               <span className="text-sm font-medium">Orders</span>
             </button>
             <div>
               <div className="flex items-center space-x-3">
-                <h1 className="text-2xl font-bold text-gray-900">
+                <h1 className={`text-2xl font-bold ${PAGE_STYLES.panel.text}`}>
                   {order.order_name}
                 </h1>
                 <StatusBadge status={order.status} />
@@ -92,8 +93,8 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
                   );
                 })()}
               </div>
-              <p className="text-lg font-semibold text-gray-800 mt-1">{order.customer_name}</p>
-              <p className="text-sm text-gray-600">Order #{order.order_number}</p>
+              <p className={`text-lg font-semibold ${PAGE_STYLES.panel.text} mt-1`}>{order.customer_name}</p>
+              <p className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>Order #{order.order_number}</p>
             </div>
           </div>
 
@@ -103,8 +104,8 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
               onClick={() => onTabChange('specs')}
               className={`py-4 px-1 font-medium text-base transition-colors ${
                 activeTab === 'specs'
-                  ? 'border-b-4 border-indigo-600 text-indigo-600'
-                  : 'border-b-2 border-gray-300 text-gray-500 hover:text-gray-700 hover:border-gray-400'
+                  ? `border-b-4 ${MODULE_COLORS.orders.border} ${MODULE_COLORS.orders.text}`
+                  : `border-b-2 ${PAGE_STYLES.panel.border} ${PAGE_STYLES.panel.textMuted} hover:text-orange-600 hover:border-orange-400`
               }`}
             >
               Specs & Invoice
@@ -113,8 +114,8 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
               onClick={() => onTabChange('progress')}
               className={`py-4 px-1 font-medium text-base transition-colors ${
                 activeTab === 'progress'
-                  ? 'border-b-4 border-indigo-600 text-indigo-600'
-                  : 'border-b-2 border-gray-300 text-gray-500 hover:text-gray-700 hover:border-gray-400'
+                  ? `border-b-4 ${MODULE_COLORS.orders.border} ${MODULE_COLORS.orders.text}`
+                  : `border-b-2 ${PAGE_STYLES.panel.border} ${PAGE_STYLES.panel.textMuted} hover:text-orange-600 hover:border-orange-400`
               }`}
             >
               Job Progress
@@ -126,7 +127,7 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
             {/* Open Folder - Always visible */}
             <button
               onClick={onOpenFolder}
-              className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-700"
+              className={`flex items-center space-x-2 px-4 py-2 ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} rounded-lg ${PAGE_STYLES.interactive.hover} text-sm font-medium ${PAGE_STYLES.header.text}`}
             >
               <FolderOpen className="w-4 h-4" />
               <span>Open Folder</span>
@@ -193,7 +194,7 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
               <button
                 onClick={onOpenPrint}
                 disabled={printingForm}
-                className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium"
+                className={`flex items-center space-x-2 px-4 py-2 ${MODULE_COLORS.orders.base} text-white rounded-lg ${MODULE_COLORS.orders.hover} disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium`}
               >
                 <Printer className="w-4 h-4" />
                 <span>{printingForm ? 'Printing...' : 'Print Forms'}</span>

@@ -3,6 +3,7 @@ import { CheckCircle, Clock, RotateCcw, ChevronDown } from 'lucide-react';
 import { ordersApi, authApi } from '../../../services/api';
 import RoleCard from './RoleCard';
 import type { UserRole } from '../../../types/user';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface TaskUpdate {
   task_id: number;
@@ -145,7 +146,7 @@ export const ProgressRoleView: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-gray-500">Loading production tasks...</div>
+        <div className={PAGE_STYLES.panel.textMuted}>Loading production tasks...</div>
       </div>
     );
   }
@@ -153,11 +154,18 @@ export const ProgressRoleView: React.FC = () => {
   const hasUpdates = stagedUpdates.size > 0;
 
   return (
-    <div className="h-full flex flex-col bg-gray-50 relative">
+    <div className={`h-full flex flex-col ${PAGE_STYLES.page.background} relative`}>
       {/* Scrollable content area */}
       <div className="flex-1 overflow-auto p-3">
         {/* Role cards - organized by workflow rows */}
-        <div className="space-y-2">
+        <div
+          className="space-y-2"
+          style={{
+            WebkitBackfaceVisibility: 'hidden',
+            backfaceVisibility: 'hidden',
+            transform: 'translateZ(0)'
+          }}
+        >
           {ROLE_ROWS.map((row, rowIndex) => (
             <div key={rowIndex} className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-2">
               {row.map(({ role, label }) => (
@@ -201,16 +209,16 @@ export const ProgressRoleView: React.FC = () => {
             <select
               value={hoursBack}
               onChange={(e) => setHoursBack(Number(e.target.value))}
-              className="appearance-none px-3 py-2 pr-8 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer transition-colors"
+              className={`appearance-none px-3 py-2 pr-8 rounded-lg text-sm font-medium ${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.text} border ${PAGE_STYLES.panel.border} cursor-pointer transition-colors ${PAGE_STYLES.interactive.hover}`}
               style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
             >
               {TIME_WINDOWS.map((tw) => (
-                <option key={tw.value} value={tw.value} className="bg-gray-800">
+                <option key={tw.value} value={tw.value}>
                   {tw.label}
                 </option>
               ))}
             </select>
-            <ChevronDown className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-white" />
+            <ChevronDown className={`w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none ${PAGE_STYLES.panel.textMuted}`} />
           </div>
         )}
         <button
@@ -219,7 +227,7 @@ export const ProgressRoleView: React.FC = () => {
           className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
             hasUpdates
               ? 'bg-red-600 text-white hover:bg-red-700'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              : `${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.textMuted} border ${PAGE_STYLES.panel.border} cursor-not-allowed`
           }`}
           style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
         >
@@ -231,8 +239,8 @@ export const ProgressRoleView: React.FC = () => {
           disabled={!hasUpdates || saving}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             hasUpdates && !saving
-              ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              ? `${MODULE_COLORS.orders.base} text-white ${MODULE_COLORS.orders.hover}`
+              : `${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.textMuted} border ${PAGE_STYLES.panel.border} cursor-not-allowed`
           }`}
           style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
         >

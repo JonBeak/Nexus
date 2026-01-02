@@ -20,7 +20,9 @@ import { ScheduleManagement } from './ScheduleManagement';
 import { navigateDate } from './utils/timeCalculations';
 import { exportData } from './utils/exportUtils';
 import type { TimeUser } from '../../types/time';
-import { PAGE_STYLES } from '../../constants/moduleColors';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
+
+const TIME_COLORS = MODULE_COLORS.timeTracking;
 
 interface TimeManagementProps {
   user: TimeUser;
@@ -108,15 +110,15 @@ export const TimeManagement: React.FC<TimeManagementProps> = ({ user }) => {
   return (
     <div className={PAGE_STYLES.fullPage}>
       {/* Header */}
-      <header className="bg-white shadow">
+      <header className={`${PAGE_STYLES.panel.background} shadow`}>
         <div className="max-w-none mx-auto px-4 sm:px-6 lg:px-8" style={{ maxWidth: '1408px' }}>
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center space-x-4">
               <HomeButton />
-              <Clock className="h-8 w-8 text-blue-600" />
+              <Clock className={`h-8 w-8 ${TIME_COLORS.text}`} />
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Time Management</h1>
-                <p className="mt-1 text-sm text-gray-500">
+                <h1 className={`text-3xl font-bold ${PAGE_STYLES.panel.text}`}>Time Management</h1>
+                <p className={`mt-1 text-sm ${PAGE_STYLES.panel.textMuted}`}>
                   Manage employee time entries and schedules
                 </p>
               </div>
@@ -124,7 +126,7 @@ export const TimeManagement: React.FC<TimeManagementProps> = ({ user }) => {
             <div className="flex space-x-3">
               <button
                 onClick={() => container.setShowScheduleManagement(true)}
-                className="px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-300 rounded-md hover:bg-blue-100"
+                className={`px-4 py-2 text-sm font-medium ${TIME_COLORS.lightTextDark} ${TIME_COLORS.light} border ${TIME_COLORS.lightBorder} rounded-md hover:bg-yellow-200`}
               >
                 <Settings className="inline w-4 h-4 mr-2" />
                 Manage Schedules
@@ -182,45 +184,45 @@ export const TimeManagement: React.FC<TimeManagementProps> = ({ user }) => {
             onEditValuesChange={entryActions.setEditValues}
           />
         ) : container.viewMode === 'summary' ? (
-          <div className="bg-white shadow rounded-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">
+          <div className={`${PAGE_STYLES.panel.background} shadow rounded-lg overflow-hidden`}>
+            <div className={`px-6 py-4 border-b ${PAGE_STYLES.panel.border}`}>
+              <h3 className={`text-lg font-medium ${PAGE_STYLES.panel.text}`}>
                 Time Summary
-                <span className="ml-3 text-sm font-normal text-gray-500">
+                <span className={`ml-3 text-sm font-normal ${PAGE_STYLES.panel.textMuted}`}>
                   ({container.displayStartDate} to {container.displayEndDate})
                 </span>
               </h3>
             </div>
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className={`min-w-full ${PAGE_STYLES.panel.divider}`}>
+              <thead className={PAGE_STYLES.header.background}>
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`}>
                     Employee
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`}>
                     Total Hours
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`}>
                     Regular Hours
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`}>
                     Overtime Hours
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`}>
                     Days Worked
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`}>
                     Late Days
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`}>
                     Edited Entries
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider`}>
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className={`${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.divider}`}>
                 {container.weeklySummary.map((summary) => {
                   const totalHours = parseFloat(summary.total_hours) || 0;
                   const overtimeHours = parseFloat(summary.overtime_hours) || 0;
@@ -230,21 +232,21 @@ export const TimeManagement: React.FC<TimeManagementProps> = ({ user }) => {
                   const hasEdits = Number(summary.edited_entries) > 0;
                   
                   return (
-                    <tr key={summary.user_id} className={`${hasOvertime || hasLateEntries ? 'bg-yellow-50' : ''}`}>
+                    <tr key={summary.user_id} className={`${hasOvertime || hasLateEntries ? 'bg-yellow-50' : ''} ${PAGE_STYLES.interactive.hover}`}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <div className="text-sm font-medium text-gray-900">
+                          <div className={`text-sm font-medium ${PAGE_STYLES.panel.text}`}>
                             {summary.first_name} {summary.last_name}
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${PAGE_STYLES.panel.text}`}>
                         {totalHours.toFixed(2)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${PAGE_STYLES.panel.text}`}>
                         {regularHours.toFixed(2)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${PAGE_STYLES.panel.text}`}>
                         {hasOvertime ? (
                           <span className="text-blue-600 font-medium">
                             🔵 {overtimeHours.toFixed(2)}
@@ -253,10 +255,10 @@ export const TimeManagement: React.FC<TimeManagementProps> = ({ user }) => {
                           '0.00'
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${PAGE_STYLES.panel.text}`}>
                         {summary.days_worked}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${PAGE_STYLES.panel.text}`}>
                         {hasLateEntries ? (
                           <span className="text-red-600 font-medium">
                             🔴 {summary.late_days}
@@ -265,9 +267,9 @@ export const TimeManagement: React.FC<TimeManagementProps> = ({ user }) => {
                           '0'
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${PAGE_STYLES.panel.text}`}>
                         {hasEdits ? (
-                          <span className="text-gray-600 font-medium">
+                          <span className={PAGE_STYLES.panel.textSecondary}>
                             ⚫ {summary.edited_entries}
                           </span>
                         ) : (
@@ -275,7 +277,7 @@ export const TimeManagement: React.FC<TimeManagementProps> = ({ user }) => {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button 
+                        <button
                           onClick={() => {
                             container.setSelectedGroup(summary.user_id.toString());
                             container.setViewMode('single');
@@ -293,8 +295,8 @@ export const TimeManagement: React.FC<TimeManagementProps> = ({ user }) => {
             
             {container.weeklySummary.length === 0 && (
               <div className="text-center py-12">
-                <Clock className="mx-auto h-12 w-12 text-gray-400" />
-                <p className="mt-2 text-sm text-gray-500">No data found for this period</p>
+                <Clock className={`mx-auto h-12 w-12 ${PAGE_STYLES.panel.textMuted}`} />
+                <p className={`mt-2 text-sm ${PAGE_STYLES.panel.textMuted}`}>No data found for this period</p>
               </div>
             )}
           </div>
@@ -315,27 +317,27 @@ export const TimeManagement: React.FC<TimeManagementProps> = ({ user }) => {
       
       {/* Bulk Actions Bar */}
       {container.selectedEntries.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
+        <div className={`fixed bottom-0 left-0 right-0 ${PAGE_STYLES.panel.background} border-t ${PAGE_STYLES.panel.border} shadow-lg p-4`}>
           <div className="max-w-none mx-auto flex justify-between items-center" style={{ maxWidth: '1408px' }}>
-            <span className="text-sm text-gray-700">
+            <span className={`text-sm ${PAGE_STYLES.panel.textSecondary}`}>
               {container.selectedEntries.length} entries selected
             </span>
             <div className="space-x-2">
-              <button 
+              <button
                 onClick={() => container.setShowBulkEditModal(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                className={`px-4 py-2 ${TIME_COLORS.base} text-white rounded-md ${TIME_COLORS.hover}`}
               >
                 Bulk Edit
               </button>
-              <button 
+              <button
                 onClick={handleBulkDelete}
                 className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
               >
                 Bulk Delete
               </button>
-              <button 
+              <button
                 onClick={() => container.setSelectedEntries([])}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                className={`px-4 py-2 ${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.textSecondary} rounded-md ${PAGE_STYLES.interactive.hover}`}
               >
                 Cancel
               </button>

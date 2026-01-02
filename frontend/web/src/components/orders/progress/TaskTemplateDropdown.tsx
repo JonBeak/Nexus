@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ordersApi } from '../../../services/api';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface Props {
   orderNumber: number;
@@ -112,18 +113,18 @@ export const TaskTemplateDropdown: React.FC<Props> = ({
       {/* Dropdown - rendered via portal at document body level */}
       <div
         ref={dropdownRef}
-        className="fixed w-72 bg-white border-2 border-gray-300 rounded-lg shadow-xl ring-1 ring-black/5 z-[9999] max-h-[500px] overflow-y-auto"
+        className={`fixed w-72 ${PAGE_STYLES.panel.background} border-2 ${PAGE_STYLES.panel.border} rounded-lg shadow-xl ring-1 ring-black/5 z-[9999] max-h-[500px] overflow-y-auto`}
         style={centered || !triggerRef?.current ? { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' } : { top: position.top, left: position.left }}
       >
         {loading ? null : templates.length === 0 ? (
-          <div className="p-4 text-center text-sm text-gray-500">
+          <div className={`p-4 text-center text-sm ${PAGE_STYLES.panel.textMuted}`}>
             No task templates available
           </div>
         ) : (
           <div>
             {roles.map((role, index) => (
               <div key={role}>
-                <div className={`sticky top-0 px-3 py-1.5 text-xs font-bold text-gray-600 uppercase tracking-wide bg-gray-100 border-b border-gray-200 ${index > 0 ? 'border-t mt-1' : ''}`}>
+                <div className={`sticky top-0 px-3 py-1.5 text-xs font-bold ${PAGE_STYLES.header.text} uppercase tracking-wide ${PAGE_STYLES.header.background} border-b ${PAGE_STYLES.panel.border} ${index > 0 ? 'border-t mt-1' : ''}`}>
                   {role.replace(/_/g, ' ')}
                 </div>
                 {groupedTemplates[role].map(template => {
@@ -136,7 +137,7 @@ export const TaskTemplateDropdown: React.FC<Props> = ({
                       className={`w-full text-left px-4 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
                         alreadyExists
                           ? 'bg-red-50 text-red-700 hover:bg-red-100'
-                          : 'text-gray-700 hover:bg-indigo-50 hover:text-indigo-900'
+                          : `${PAGE_STYLES.header.text} hover:bg-orange-50 hover:text-orange-900`
                       }`}
                     >
                       {template.task_name}

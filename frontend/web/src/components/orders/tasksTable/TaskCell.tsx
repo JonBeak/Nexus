@@ -8,6 +8,7 @@ import React from 'react';
 import { Check, Minus } from 'lucide-react';
 import { PartTask } from './types';
 import { getRoleColors } from './roleColors';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface Props {
   task: PartTask | undefined;  // undefined = N/A (task doesn't apply to this part)
@@ -19,9 +20,9 @@ export const TaskCell: React.FC<Props> = ({ task, onToggle, disabled = false }) 
   // N/A state - task doesn't exist for this part (darker gray, grabbable for scrolling)
   if (!task) {
     return (
-      <td className="px-1 py-1 text-center border-r border-gray-300 bg-gray-200 cursor-grab" data-task-cell>
+      <td className={`px-1 py-1 text-center border-r ${PAGE_STYLES.panel.border} ${PAGE_STYLES.header.background} cursor-grab`} data-task-cell>
         <div className="flex items-center justify-center pointer-events-none">
-          <Minus className="w-3 h-3 text-gray-500" />
+          <Minus className={`w-3 h-3 ${PAGE_STYLES.panel.textMuted}`} />
         </div>
       </td>
     );
@@ -40,7 +41,7 @@ export const TaskCell: React.FC<Props> = ({ task, onToggle, disabled = false }) 
   if (task.completed) {
     return (
       <td
-        className={`px-1 py-1 text-center border-r border-gray-300 bg-emerald-100 ring-2 ring-inset ring-emerald-400 ${isClickable ? 'cursor-pointer hover:bg-emerald-200' : ''}`}
+        className={`px-1 py-1 text-center border-r ${PAGE_STYLES.panel.border} bg-emerald-100 ring-2 ring-inset ring-emerald-400 ${isClickable ? 'cursor-pointer hover:bg-emerald-200' : ''}`}
         onClick={handleClick}
         title={task.notes || task.taskName}
         data-task-cell
@@ -57,13 +58,13 @@ export const TaskCell: React.FC<Props> = ({ task, onToggle, disabled = false }) 
   // Pending state - role color with empty checkbox and inset ring outline
   return (
     <td
-      className={`px-1 py-1 text-center border-r border-gray-300 ${colors.cellBg} ring-2 ring-inset ${colors.ring} ${isClickable ? 'cursor-pointer hover:opacity-80' : ''}`}
+      className={`px-1 py-1 text-center border-r ${PAGE_STYLES.panel.border} ${colors.cellBg} ring-2 ring-inset ${colors.ring} ${isClickable ? 'cursor-pointer hover:opacity-80' : ''}`}
       onClick={handleClick}
       title={task.notes || task.taskName}
       data-task-cell
     >
       <div className="flex items-center justify-center">
-        <div className="w-5 h-5 rounded border-2 border-gray-600 bg-white" />
+        <div className={`w-5 h-5 rounded border-2 ${PAGE_STYLES.panel.border} ${PAGE_STYLES.panel.background}`} />
       </div>
     </td>
   );

@@ -11,6 +11,7 @@ import { dashboardPanelsApi, orderStatusApi } from '../../../services/api';
 import { PanelWithData, DashboardPanelDefinition, PanelActionType, PanelOrderRow } from '../../../types/dashboardPanel';
 import DashboardPanel from './DashboardPanel';
 import PanelSelectionModal from './PanelSelectionModal';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 // Action modal state type
 interface ActionModalState {
@@ -245,7 +246,7 @@ export const PanelDashboard: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="flex items-center space-x-2 text-gray-500">
+        <div className={`flex items-center space-x-2 ${PAGE_STYLES.panel.textMuted}`}>
           <RefreshCw className="w-5 h-5 animate-spin" />
           <span>Loading dashboard...</span>
         </div>
@@ -260,7 +261,7 @@ export const PanelDashboard: React.FC = () => {
         <p className="text-red-600 mb-4">{error}</p>
         <button
           onClick={fetchDashboardData}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          className={`px-4 py-2 ${MODULE_COLORS.orders.base} text-white rounded-lg ${MODULE_COLORS.orders.hover} transition-colors`}
         >
           Try Again
         </button>
@@ -269,24 +270,24 @@ export const PanelDashboard: React.FC = () => {
   }
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className={`h-full flex flex-col ${PAGE_STYLES.page.background}`}>
       {/* Toolbar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
-        <div className="text-sm text-gray-600">
+      <div className={`${PAGE_STYLES.panel.background} border-b ${PAGE_STYLES.panel.border} px-6 py-3 flex items-center justify-between`}>
+        <div className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>
           {panels.length} panel{panels.length !== 1 ? 's' : ''} configured
         </div>
         <div className="flex items-center space-x-3">
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+            className={`p-2 ${PAGE_STYLES.panel.textMuted} hover:text-orange-600 ${PAGE_STYLES.interactive.hover} rounded-lg transition-colors disabled:opacity-50`}
             title="Refresh"
           >
             <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
           <button
             onClick={() => setShowConfigModal(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            className={`flex items-center space-x-2 px-4 py-2 ${MODULE_COLORS.orders.base} text-white rounded-lg ${MODULE_COLORS.orders.hover} transition-colors`}
           >
             <Settings className="w-4 h-4" />
             <span>Configure Panels</span>
@@ -297,12 +298,12 @@ export const PanelDashboard: React.FC = () => {
       {/* Panels Grid */}
       <div className="flex-1 overflow-auto p-6">
         {panels.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 bg-white rounded-lg shadow">
-            <Settings className="w-12 h-12 text-gray-400 mb-4" />
-            <p className="text-gray-600 mb-4">No panels configured</p>
+          <div className={`flex flex-col items-center justify-center h-64 ${PAGE_STYLES.composites.panelContainer}`}>
+            <Settings className={`w-12 h-12 ${PAGE_STYLES.panel.textMuted} mb-4`} />
+            <p className={`${PAGE_STYLES.panel.textMuted} mb-4`}>No panels configured</p>
             <button
               onClick={() => setShowConfigModal(true)}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              className={`px-4 py-2 ${MODULE_COLORS.orders.base} text-white rounded-lg ${MODULE_COLORS.orders.hover} transition-colors`}
             >
               Configure Your Dashboard
             </button>
@@ -334,12 +335,12 @@ export const PanelDashboard: React.FC = () => {
       {/* Action Modal */}
       {actionModal.isOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-              <span className="text-sm text-gray-500">Action</span>
+          <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow-xl max-w-md w-full mx-4`}>
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${PAGE_STYLES.panel.border}`}>
+              <span className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>Action</span>
               <button
                 onClick={closeActionModal}
-                className="p-1 text-gray-400 hover:text-gray-600 rounded"
+                className={`p-1 ${PAGE_STYLES.panel.textMuted} hover:text-orange-600 rounded`}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -347,10 +348,10 @@ export const PanelDashboard: React.FC = () => {
             <div className="px-6 py-4">
               {renderActionModalContent()}
             </div>
-            <div className="flex items-center justify-end space-x-3 px-6 py-4 bg-gray-50 rounded-b-lg">
+            <div className={`flex items-center justify-end space-x-3 px-6 py-4 ${PAGE_STYLES.header.background} rounded-b-lg`}>
               <button
                 onClick={closeActionModal}
-                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                className={`px-4 py-2 ${PAGE_STYLES.header.text} ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} rounded-lg ${PAGE_STYLES.interactive.hover} transition-colors`}
               >
                 Cancel
               </button>

@@ -104,7 +104,7 @@ export const EditableCell: React.FC<EditableCellProps> = ({
   }
 
   const baseClasses = `w-full px-1 py-0.5 text-xs border-2 rounded ${PAGE_STYLES.input.text} ${PAGE_STYLES.input.placeholder}
-    ${isDirty ? 'border-blue-500 bg-blue-50' : `border-green-500 ${PAGE_STYLES.input.background} hover:border-green-600`}
+    ${isDirty ? 'border-blue-500 bg-blue-50' : 'border-green-500 bg-green-50 hover:border-green-600'}
     focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-500`;
 
   if (type === 'textarea') {
@@ -120,7 +120,7 @@ export const EditableCell: React.FC<EditableCellProps> = ({
         onKeyDown={handleKeyDown}
         rows={1}
         className={`w-full px-2 py-1.5 text-xs border-2 rounded resize-none overflow-hidden ${PAGE_STYLES.input.text} ${PAGE_STYLES.input.placeholder}
-          ${isDirty ? 'border-blue-500 bg-blue-50' : `border-green-500 ${PAGE_STYLES.input.background} hover:border-green-600`}
+          ${isDirty ? 'border-blue-500 bg-blue-50' : 'border-green-500 bg-green-50 hover:border-green-600'}
           focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-500 ${className}`}
         placeholder={placeholder}
         style={{ minHeight: '32px' }}
