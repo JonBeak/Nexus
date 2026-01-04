@@ -2,6 +2,7 @@ import React from 'react';
 import { CustomerTableRow } from './CustomerTableRow';
 import { Customer } from '../../../types';
 import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
+import { Pagination } from '../../orders/table/Pagination';
 
 interface SearchBarProps {
   searchTerm: string;
@@ -16,20 +17,20 @@ const SearchBar: React.FC<SearchBarProps> = ({
   onSearch,
   onClearSearch
 }) => (
-  <div className={`${PAGE_STYLES.panel.background} rounded-2xl shadow-xl border-2 ${PAGE_STYLES.panel.border} p-6 mb-8`}>
-    <form onSubmit={onSearch} className="flex gap-4">
+  <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow border ${PAGE_STYLES.panel.border} p-3 mb-4`}>
+    <form onSubmit={onSearch} className="flex gap-2">
       <div className="flex-1">
         <input
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Search customers by company name, contact, email, or phone..."
-          className={`w-full px-4 py-3 border-2 ${PAGE_STYLES.input.border} rounded-xl focus:outline-none focus:ring-4 focus:ring-opacity-20 transition-all duration-200 ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} ${PAGE_STYLES.input.placeholder} text-lg focus:${MODULE_COLORS.customers.border}`}
+          placeholder="Search customers..."
+          className={`w-full px-3 py-2 border ${PAGE_STYLES.input.border} rounded-lg focus:outline-none focus:ring-2 focus:ring-opacity-20 transition-all ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} ${PAGE_STYLES.input.placeholder} text-sm focus:${MODULE_COLORS.customers.border}`}
         />
       </div>
       <button
         type="submit"
-        className={`${MODULE_COLORS.customers.base} ${MODULE_COLORS.customers.hover} text-white px-8 py-3 rounded-xl font-semibold transition-colors shadow-lg`}
+        className={`${MODULE_COLORS.customers.base} ${MODULE_COLORS.customers.hover} text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm`}
       >
         Search
       </button>
@@ -37,7 +38,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
         <button
           type="button"
           onClick={onClearSearch}
-          className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors"
+          className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-lg font-medium transition-colors text-sm"
         >
           Clear
         </button>
@@ -56,6 +57,11 @@ interface CustomerTableProps {
   onClearSearch: () => void;
   onCustomerDetails: (customer: Customer) => Promise<void>;
   onReactivateCustomer: (customerId: number) => Promise<void>;
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+  onPageChange: (page: number) => void;
 }
 
 export const CustomerTable: React.FC<CustomerTableProps> = ({
@@ -67,10 +73,15 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
   onSearch,
   onClearSearch,
   onCustomerDetails,
-  onReactivateCustomer
+  onReactivateCustomer,
+  currentPage,
+  totalPages,
+  totalItems,
+  itemsPerPage,
+  onPageChange
 }) => {
   return (
-    <main className="max-w-full mx-auto px-2 py-4 md:py-8">
+    <main className="max-w-7xl mx-auto px-2 py-2">
       <SearchBar
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
@@ -90,9 +101,9 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
           <p className={`text-xl ${PAGE_STYLES.panel.textSecondary} font-semibold`}>Loading customers...</p>
         </div>
       ) : (
-        <div className={`${PAGE_STYLES.panel.background} rounded-2xl shadow-xl border-2 ${PAGE_STYLES.panel.border} overflow-hidden`}>
-          <div className={`p-6 ${MODULE_COLORS.customers.base} border-b-2 ${PAGE_STYLES.panel.border}`}>
-            <h2 className="text-2xl font-bold text-white">Customer Directory ({customers.length} customers)</h2>
+        <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow border ${PAGE_STYLES.panel.border} overflow-hidden`}>
+          <div className={`px-3 py-2 ${MODULE_COLORS.customers.base} border-b ${PAGE_STYLES.panel.border}`}>
+            <h2 className="text-lg font-bold text-white">Customer Directory ({totalItems} customers)</h2>
           </div>
 
           {customers.length === 0 ? (
@@ -109,45 +120,38 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
             <div className="overflow-x-auto">
               <table className="min-w-full">
                 <thead className={`${PAGE_STYLES.header.background} border-b ${PAGE_STYLES.panel.border}`}>
-                  <tr>
-                    <th className={`px-2 py-2 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider w-48`}>
+                  <tr className="align-bottom">
+                    <th className={`px-2 py-1 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider align-bottom`}>
                       Company
                     </th>
-                    <th className={`px-2 py-2 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider w-28`}>
-                      Invoice Email
-                    </th>
-                    <th className={`px-2 py-2 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider w-20`}>
-                      Invoice Instructions
-                    </th>
-                    <th className={`px-2 py-2 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider w-24`}>
+                    <th className={`px-2 py-1 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider align-bottom`}>
                       Location
                     </th>
-                    <th className={`px-2 py-2 text-center text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider w-16`}>
+                    <th className={`px-1 py-1 text-center text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider align-bottom`}>
                       Cash
                     </th>
-                    <th className={`px-2 py-2 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider w-20`}>
+                    <th className={`px-2 py-1 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider align-bottom`}>
                       LEDs
                     </th>
-                    <th className={`px-2 py-2 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider w-20`}>
-                      Power Supply
+                    <th className={`px-2 py-1 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider align-bottom`}>
+                      Power<br/>Supply
                     </th>
-                    <th className={`px-2 py-2 text-center text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider w-16`}>
+                    <th className={`px-1 py-1 text-center text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider align-bottom`}>
                       UL
                     </th>
-                    <th className={`px-2 py-2 text-center text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider w-20`}>
-                      Drain Holes
+                    <th className={`px-1 py-1 text-center text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider align-bottom`}>
+                      Drain<br/>Holes
                     </th>
-                    <th className={`px-2 py-2 text-center text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider w-20`}>
-                      Plug & Play
+                    <th className={`px-1 py-1 text-center text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider align-bottom`}>
+                      Plug &<br/>Play
                     </th>
-                    <th className={`px-2 py-2 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider w-20`}>
-                      Special Instructions
+                    <th className={`px-2 py-1 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider align-bottom`}>
+                      Instructions
                     </th>
-                    <th className={`px-2 py-2 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider w-20`}>
+                    <th className={`px-2 py-1 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider align-bottom`}>
                       Notes
                     </th>
-                    <th className={`px-2 py-2 text-right text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider w-16`}>
-                      Actions
+                    <th className={`px-1 py-1 text-right text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider align-bottom`}>
                     </th>
                   </tr>
                 </thead>
@@ -162,6 +166,19 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className={`p-4 border-t ${PAGE_STYLES.panel.border}`}>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+                onPageChange={onPageChange}
+              />
             </div>
           )}
         </div>

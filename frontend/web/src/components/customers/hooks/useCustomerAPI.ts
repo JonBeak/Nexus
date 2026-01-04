@@ -2,10 +2,24 @@ import { useState, useEffect, useCallback } from 'react';
 import { customerApi } from '../../../services/api';
 import { Customer, LedType, PowerSupplyType } from '../../../types';
 
+export interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
+interface FetchCustomersResult {
+  customers: Customer[];
+  pagination: PaginationInfo;
+}
+
 interface UseCustomerAPIReturn {
   ledTypes: LedType[];
   powerSupplyTypes: PowerSupplyType[];
-  fetchCustomers: (search?: string, includeInactive?: boolean) => Promise<Customer[]>;
+  fetchCustomers: (search?: string, includeInactive?: boolean, page?: number, limit?: number) => Promise<FetchCustomersResult>;
   reactivateCustomer: (customerId: number) => Promise<void>;
   fetchCustomerDetails: (customerId: number, fallbackCustomer: Customer) => Promise<Customer>;
   loading: boolean;
@@ -40,19 +54,32 @@ export const useCustomerAPI = (): UseCustomerAPIReturn => {
   // Centralized customer fetching with error handling
   const fetchCustomers = useCallback(async (
     search: string = '',
-    includeInactive: boolean = false
-  ): Promise<Customer[]> => {
+    includeInactive: boolean = false,
+    page: number = 1,
+    limit: number = 20
+  ): Promise<FetchCustomersResult> => {
     setLoading(true);
     setError('');
 
     try {
       const data = await customerApi.getCustomers({
-        limit: 100000,
+        page,
+        limit,
         search: search || undefined,
         include_inactive: includeInactive || undefined,
       });
-      // API returns { customers, total, ... }
-      return data.customers ?? [];
+      // API returns { customers, pagination }
+      return {
+        customers: data.customers ?? [],
+        pagination: data.pagination ?? {
+          page: 1,
+          limit: 20,
+          total: 0,
+          totalPages: 1,
+          hasNext: false,
+          hasPrev: false
+        }
+      };
     } catch (err) {
       const errorMessage = 'Failed to load customers. Please try again.';
       setError(errorMessage);

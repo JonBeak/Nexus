@@ -19,8 +19,7 @@ function SimpleCustomerList() {
     setSearchTerm,
     setShowDeactivatedCustomers,
     handleSearch,
-    handleClearSearch,
-    getActiveCustomerCount
+    handleClearSearch
   } = useCustomerListFiltering();
   
   const {
@@ -30,8 +29,11 @@ function SimpleCustomerList() {
     showAddCustomerModal,
     loading,
     error,
+    pagination,
+    currentPage,
     setShowAddCustomerModal,
     refreshCustomers,
+    handlePageChange,
     handleCustomerDetails,
     handleReactivateCustomer,
     handleCustomerCreated,
@@ -76,7 +78,7 @@ function SimpleCustomerList() {
       
       <div className={PAGE_STYLES.fullPage}>
         <CustomerListHeader
-          activeCustomerCount={getActiveCustomerCount(customers)}
+          activeCustomerCount={pagination.total}
           showDeactivatedCustomers={showDeactivatedCustomers}
           setShowDeactivatedCustomers={setShowDeactivatedCustomers}
           onAddCustomerClick={() => setShowAddCustomerModal(true)}
@@ -92,6 +94,11 @@ function SimpleCustomerList() {
           onClearSearch={handleClearSearchClick}
           onCustomerDetails={handleDetailsClick}
           onReactivateCustomer={handleReactivateClick}
+          currentPage={currentPage}
+          totalPages={pagination.totalPages}
+          totalItems={pagination.total}
+          itemsPerPage={pagination.limit}
+          onPageChange={handlePageChange}
         />
       
       {/* Add Customer Modal */}

@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useCustomerAPI } from './useCustomerAPI';
+import { useCustomerAPI, PaginationInfo } from './useCustomerAPI';
 import { Customer } from '../../../types';
+
+const ITEMS_PER_PAGE = 20;
 
 interface UseCustomerListDataReturn {
   customers: Customer[];
@@ -10,11 +12,14 @@ interface UseCustomerListDataReturn {
   scrollPosition: number;
   loading: boolean;
   error: string;
+  pagination: PaginationInfo;
+  currentPage: number;
   setSelectedCustomer: (customer: Customer | null) => void;
   setShowCustomerDetails: (show: boolean) => void;
   setShowAddCustomerModal: (show: boolean) => void;
   setScrollPosition: (position: number) => void;
-  refreshCustomers: (searchTerm?: string, includeInactive?: boolean) => Promise<void>;
+  refreshCustomers: (searchTerm?: string, includeInactive?: boolean, page?: number) => Promise<void>;
+  handlePageChange: (page: number) => void;
   handleCustomerDetails: (customer: Customer) => Promise<void>;
   handleReactivateCustomer: (customerId: number, searchTerm: string) => Promise<void>;
   handleCustomerCreated: (newCustomer: Customer, searchTerm: string) => void;
@@ -22,7 +27,7 @@ interface UseCustomerListDataReturn {
 }
 
 export const useCustomerListData = (
-  searchTerm: string, 
+  searchTerm: string,
   showDeactivatedCustomers: boolean
 ): UseCustomerListDataReturn => {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -30,25 +35,44 @@ export const useCustomerListData = (
   const [showCustomerDetails, setShowCustomerDetails] = useState(false);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [scrollPosition, setScrollPosition] = useState(0);
-  
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationInfo>({
+    page: 1,
+    limit: ITEMS_PER_PAGE,
+    total: 0,
+    totalPages: 1,
+    hasNext: false,
+    hasPrev: false
+  });
+
   const { fetchCustomers, fetchCustomerDetails, reactivateCustomer, loading, error } = useCustomerAPI();
 
   // Refresh customers with current filters
   const refreshCustomers = useCallback(async (
     search?: string,
-    includeInactive?: boolean
+    includeInactive?: boolean,
+    page?: number
   ) => {
     try {
-      const customerData = await fetchCustomers(
-        search ?? searchTerm, 
-        includeInactive ?? showDeactivatedCustomers
+      const result = await fetchCustomers(
+        search ?? '',
+        includeInactive ?? false,
+        page ?? 1,
+        ITEMS_PER_PAGE
       );
-      setCustomers(customerData);
+      setCustomers(result.customers);
+      setPagination(result.pagination);
     } catch (error) {
       // Error is already handled in useCustomerAPI
       console.error('Failed to refresh customers:', error);
     }
-  }, [fetchCustomers, searchTerm, showDeactivatedCustomers]);
+  }, [fetchCustomers]);
+
+  // Handle page change
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+    refreshCustomers(searchTerm, showDeactivatedCustomers, page);
+  }, [refreshCustomers, searchTerm, showDeactivatedCustomers]);
 
   // Handle customer details modal opening
   const handleCustomerDetails = useCallback(async (customer: Customer) => {
@@ -106,10 +130,11 @@ export const useCustomerListData = (
     }, 100);
   }, [refreshCustomers, scrollPosition, showDeactivatedCustomers]);
 
-  // Load customers when search term or deactivated filter changes (debounced)
+  // Reset to page 1 and load customers when search term or deactivated filter changes (debounced)
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      refreshCustomers(searchTerm, showDeactivatedCustomers);
+      setCurrentPage(1);
+      refreshCustomers(searchTerm, showDeactivatedCustomers, 1);
     }, 300); // 300ms debounce delay
 
     return () => clearTimeout(timeoutId);
@@ -123,11 +148,14 @@ export const useCustomerListData = (
     scrollPosition,
     loading,
     error,
+    pagination,
+    currentPage,
     setSelectedCustomer,
     setShowCustomerDetails,
     setShowAddCustomerModal,
     setScrollPosition,
     refreshCustomers,
+    handlePageChange,
     handleCustomerDetails,
     handleReactivateCustomer,
     handleCustomerCreated,
