@@ -17,7 +17,7 @@ export const CustomerListHeader: React.FC<CustomerListHeaderProps> = ({
 }) => {
   return (
     <header className={`${PAGE_STYLES.panel.background} shadow-lg border-b-4 ${MODULE_COLORS.customers.border}`}>
-      <div className="max-w-full mx-auto px-2 py-4 md:py-6">
+      <div className="max-w-7xl mx-auto px-2 py-4 md:py-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <HomeButton />
