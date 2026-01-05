@@ -74,21 +74,21 @@ const TaxDropdown: React.FC<TaxDropdownProps> = ({
   }
 
   return (
-    <div className="flex items-center space-x-2 group h-6">
-      <p className="font-medium text-gray-900 text-sm">
+    <span className="inline-flex items-center space-x-2 group">
+      <span className="font-medium text-gray-900 text-sm">
         {currentTaxName ? (
           <>
             {currentTaxName} ({((taxRules.find(r => r.tax_name === currentTaxName)?.tax_percent || 0) * 100).toFixed(1)}%)
           </>
         ) : '-'}
-      </p>
+      </span>
       <button
         onClick={() => onEdit('tax_name', currentTaxName || '')}
         className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600"
       >
         <Pencil className="w-3.5 h-3.5" />
       </button>
-    </div>
+    </span>
   );
 };
 

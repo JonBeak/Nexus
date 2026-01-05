@@ -239,11 +239,39 @@ function shouldIncludePattern(prefs: CustomerPackingPreferences): boolean {
 
 /**
  * Determine if Wiring Diagram should be included
- * Based on customer preference wiring_diagram_yes_or_no
+ * Requires: customer preference enabled AND LEDs exist in specs
  */
 function shouldIncludeWiringDiagram(prefs: CustomerPackingPreferences, specs?: any): boolean {
+  // Customer must have preference enabled
   const wiringPref = prefs.wiring_diagram_yes_or_no;
-  return wiringPref === 1 || wiringPref === true;
+  if (wiringPref !== 1 && wiringPref !== true) {
+    return false;
+  }
+
+  // Must have LEDs in the specs with count > 0
+  if (!specs) return false;
+
+  return hasLEDsInSpecs(specs);
+}
+
+/**
+ * Check if LEDs template exists with count > 0
+ */
+function hasLEDsInSpecs(specs: any): boolean {
+  for (let i = 1; i <= 100; i++) {
+    const templateName = specs[`_template_${i}`];
+    if (!templateName) continue;
+
+    // Check for LEDs template with count > 0
+    if (templateName.toLowerCase() === 'leds') {
+      const count = specs[`row${i}_count`];
+      if (count && parseInt(count, 10) > 0) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 /**

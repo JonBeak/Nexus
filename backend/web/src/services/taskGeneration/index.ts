@@ -22,6 +22,7 @@ import {
   getTaskSortOrder
 } from './taskRules';
 import { calculateOrderDataHash } from '../../utils/orderDataHashService';
+import { shouldIncludePart } from '../pdf/generators/pdfHelpers';
 
 /**
  * Generate production tasks for an order
@@ -47,10 +48,21 @@ export async function generateTasksForOrder(orderId: number): Promise<TaskGenera
     return result;
   }
 
-  console.log(`[TaskGeneration] Found ${parts.length} parts`);
+  // Filter to only include parts with specs data (same logic as PDF generation)
+  // Excludes: header rows, empty rows, invoice-only rows
+  const productionParts = parts.filter(part =>
+    !part.is_header_row && shouldIncludePart(part, 'master')
+  );
+
+  console.log(`[TaskGeneration] Found ${parts.length} parts, ${productionParts.length} with specs`);
+
+  if (productionParts.length === 0) {
+    result.warnings.push('No parts with specifications found for order');
+    return result;
+  }
 
   // 2. Group parts by parent
-  const partGroups = groupPartsByParent(parts);
+  const partGroups = groupPartsByParent(productionParts);
   console.log(`[TaskGeneration] Grouped into ${partGroups.length} part groups`);
 
   // 3. Delete existing tasks for this order

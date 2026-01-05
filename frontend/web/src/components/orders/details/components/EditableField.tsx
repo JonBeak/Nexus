@@ -229,17 +229,17 @@ const EditableField: React.FC<EditableFieldProps> = ({
   }
 
   return (
-    <div className="flex items-center space-x-2 group h-6">
-      <p className={`font-medium text-gray-900 ${textSizeClass}`}>
+    <span className="inline-flex items-center space-x-2 group">
+      <span className={`font-medium text-gray-900 ${textSizeClass}`}>
         {displayValue}
-      </p>
+      </span>
       <button
         onClick={() => onEdit(field, String(value || ''))}
         className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600"
       >
         <Pencil className="w-3.5 h-3.5" />
       </button>
-    </div>
+    </span>
   );
 };
 

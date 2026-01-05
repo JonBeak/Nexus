@@ -380,9 +380,9 @@ export const PartRow: React.FC<PartRowProps> = ({
           isParentOrRegular={isParent}
           applyGrayBackground={allSpecRowsEmpty}
         />
-        {!!isParent && (
+        {!!isParent && !!displayName && (
           <>
-            {/* Part Scope - inline editable text input (only for parent parts) */}
+            {/* Part Scope - inline editable text input (only for parent parts with item selected) */}
             <input
               type="text"
               value={localPartScope}
