@@ -220,7 +220,11 @@ export async function downloadEstimatePDF(
     console.log(`   QB API response status: ${response.status}, data length: ${(response.data as Buffer)?.length || 0} bytes`);
 
     // 4. Try to get order data for folder path and name
-    const order = await orderPrepRepo.getOrderByOrderNumber(orderNumber);
+    // Handle case where orderNumber might be undefined/0 (estimate not yet converted to order)
+    let order = null;
+    if (orderNumber && orderNumber > 0) {
+      order = await orderPrepRepo.getOrderByOrderNumber(orderNumber);
+    }
     console.log(`   Order lookup result: ${order ? `found (folder: ${order.folder_name}, location: ${order.folder_location})` : 'not found'}`);
 
     let pdfPath: string;

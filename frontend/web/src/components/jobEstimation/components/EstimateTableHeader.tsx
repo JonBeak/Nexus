@@ -63,11 +63,8 @@ export const EstimateTableHeader: React.FC<EstimateTableHeaderProps> = ({
   const [isSavingPointPersons, setIsSavingPointPersons] = useState(false);
 
   const handleSendClick = async () => {
-    // Validate point persons
-    if (pointPersonsCount === 0) {
-      alert('Please add at least one point person before sending');
-      return;
-    }
+    // Button is disabled when pointPersonsCount === 0, so this shouldn't happen
+    if (pointPersonsCount === 0) return;
 
     // Save point persons first
     try {
@@ -112,9 +109,9 @@ export const EstimateTableHeader: React.FC<EstimateTableHeaderProps> = ({
               {!isApproved && (
                 <button
                   onClick={handleSendClick}
-                  disabled={isSending || isSavingPointPersons}
-                  className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors disabled:opacity-50"
-                  title="Send estimate to customer via email"
+                  disabled={isSending || isSavingPointPersons || pointPersonsCount === 0}
+                  className="flex items-center gap-1 px-2 py-1 text-xs rounded whitespace-nowrap bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={pointPersonsCount === 0 ? 'Add point person(s) first' : 'Send estimate to customer via email'}
                 >
                   <Mail className="w-3.5 h-3.5" />
                   {isSavingPointPersons ? 'Saving...' : isSending ? 'Sending...' : 'Send to Customer'}

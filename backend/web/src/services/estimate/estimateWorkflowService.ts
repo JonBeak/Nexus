@@ -311,7 +311,7 @@ export class EstimateWorkflowService {
         qbEstimateDateStr = estimate.estimate_date;
       }
 
-      // Get PDF (check cache first)
+      // Get PDF (check cache first, then download with retry)
       let pdfPath: string | null = null;
       const cachePath = `${PDF_CACHE_DIR}/estimate-${estimateId}.pdf`;
 
@@ -320,13 +320,36 @@ export class EstimateWorkflowService {
         pdfPath = cachePath;
         console.log(`📎 Using cached PDF for estimate ${estimateId}`);
       } catch {
-        if (qbEstimateId) {
+        // Cache miss - need to download from QB
+        if (!qbEstimateId) {
+          throw new Error('Cannot send estimate email: No QuickBooks estimate exists. Please sync to QuickBooks first.');
+        }
+
+        // Retry logic with exponential backoff
+        const MAX_RETRIES = 3;
+        let lastError: Error | null = null;
+
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
           try {
-            const pdfResult = await downloadEstimatePDF(qbEstimateId, estimate.job_id);
+            console.log(`📎 Downloading PDF (attempt ${attempt}/${MAX_RETRIES})...`);
+            const pdfResult = await downloadEstimatePDF(qbEstimateId, estimate.job_id || 0);
             pdfPath = pdfResult.pdfPath;
+            console.log(`✅ PDF downloaded successfully: ${pdfPath}`);
+            break;
           } catch (pdfError) {
-            console.error('⚠️ Failed to download QB PDF:', pdfError);
+            lastError = pdfError instanceof Error ? pdfError : new Error(String(pdfError));
+            console.error(`⚠️ PDF download attempt ${attempt} failed:`, lastError.message);
+
+            if (attempt < MAX_RETRIES) {
+              const delayMs = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
+              console.log(`   Retrying in ${delayMs/1000}s...`);
+              await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
           }
+        }
+
+        if (!pdfPath) {
+          throw new Error(`Failed to attach PDF after ${MAX_RETRIES} attempts: ${lastError?.message || 'Unknown error'}. Please try again.`);
         }
       }
 

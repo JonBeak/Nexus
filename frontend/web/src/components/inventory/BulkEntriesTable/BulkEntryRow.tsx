@@ -197,7 +197,7 @@ export const BulkEntryRow: React.FC<BulkEntryRowProps> = ({
           placeholder={entry.type ? `${getNotePlaceholder(entry.type)}Notes` : "Notes"}
           data-field={`${entry.id}-notes`}
           onKeyDown={(e) => e.key === 'Tab' && !e.shiftKey && (e.preventDefault(), onTabPress('notes'))}
-          className={`w-32 ${inputClass}`}
+          className={`w-32 ${inputClass} ${entry.type !== 'store' ? typeInputBg : ''}`}
         />
       </td>
 
@@ -215,12 +215,9 @@ export const BulkEntryRow: React.FC<BulkEntryRowProps> = ({
             <XCircle className="h-4 w-4 text-red-500" title={entry.submissionError || "Submission failed"} />
           )}
 
-          {/* Validation Icons */}
+          {/* Validation Warning */}
           {!entry.submissionState && hasValidationError && (
             <AlertTriangle className="h-4 w-4 text-red-500" title="No matching inventory" />
-          )}
-          {!entry.submissionState && entry.type === 'use' && inventoryMatch === true && (
-            <span className="text-green-500 text-sm">✓</span>
           )}
 
           {/* Delete Button */}
@@ -231,6 +228,11 @@ export const BulkEntryRow: React.FC<BulkEntryRowProps> = ({
           >
             <Trash2 className="h-4 w-4" />
           </button>
+
+          {/* Valid Entry Checkmark */}
+          {!entry.submissionState && USE_AUTOFILL_TYPES.has(entry.type) && inventoryMatch === true && (
+            <CheckCircle className="h-5 w-5 text-green-500" title="Matching inventory found" />
+          )}
         </div>
       </td>
     </tr>

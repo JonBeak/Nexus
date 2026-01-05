@@ -92,13 +92,13 @@ export const JobEstimationDashboard: React.FC<JobEstimationDashboardProps> = ({ 
     <div className={PAGE_STYLES.fullPage}>
       {/* Header Bar */}
       <div className={`${PAGE_STYLES.header.background} shadow-sm border-b border-black`}>
-        <div className="max-w-[1920px] mx-auto px-6 py-3 flex items-center space-x-4">
+        <div className="max-w-[1700px] mx-auto px-4 py-3 flex items-center space-x-4">
           <HomeButton />
           <h1 className={`text-2xl font-bold ${PAGE_STYLES.panel.text}`}>Job Estimation</h1>
         </div>
       </div>
 
-      <div className="max-w-[1920px] mx-auto p-6">
+      <div className="max-w-[1700px] mx-auto p-4">
         {/* 3-Panel Layout */}
         <div className="three-panel-container">
           <CustomerPanel

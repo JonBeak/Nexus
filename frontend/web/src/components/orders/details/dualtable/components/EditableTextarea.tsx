@@ -18,6 +18,7 @@ interface EditableTextareaProps {
   placeholder: string;
   hasValue: boolean;
   applyGrayBackground?: boolean;
+  applyGreenHighlight?: boolean;
 }
 
 export const EditableTextarea = React.memo<EditableTextareaProps>(({
@@ -27,7 +28,8 @@ export const EditableTextarea = React.memo<EditableTextareaProps>(({
   onSave,
   placeholder,
   hasValue,
-  applyGrayBackground = false
+  applyGrayBackground = false,
+  applyGreenHighlight = false
 }) => {
   const [localValue, setLocalValue] = useState(currentValue ?? '');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -62,9 +64,14 @@ export const EditableTextarea = React.memo<EditableTextareaProps>(({
     ? INPUT_STYLES.textarea({ variant: 'invoice', applyGrayBackground })
     : INPUT_STYLES.textarea({ variant: 'qb', applyGrayBackground });
 
-  const className = field === 'qb_description'
-    ? getValidInputClass(hasValue, baseClass)
-    : baseClass;
+  // Apply green highlight for valid invoice rows, otherwise use normal styling
+  const greenHighlightClass = 'w-full px-2 py-1 text-sm text-black bg-green-50 border-2 border-green-500 rounded resize-none overflow-hidden';
+
+  const className = applyGreenHighlight
+    ? greenHighlightClass
+    : field === 'qb_description'
+      ? getValidInputClass(hasValue, baseClass)
+      : baseClass;
 
   return (
     <div className="py-1 w-full">
@@ -93,7 +100,8 @@ export const EditableTextarea = React.memo<EditableTextareaProps>(({
   return prevProps.currentValue === nextProps.currentValue &&
          prevProps.hasValue === nextProps.hasValue &&
          prevProps.partId === nextProps.partId &&
-         prevProps.applyGrayBackground === nextProps.applyGrayBackground;
+         prevProps.applyGrayBackground === nextProps.applyGrayBackground &&
+         prevProps.applyGreenHighlight === nextProps.applyGreenHighlight;
 });
 
 EditableTextarea.displayName = 'EditableTextarea';

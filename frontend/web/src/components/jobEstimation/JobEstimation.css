@@ -81,11 +81,11 @@
 /* 3-Panel Layout Styles */
 .three-panel-container {
   display: grid;
-  grid-template-columns: 24% 30% 44%;
+  grid-template-columns: 21% 27% 50%;
   gap: 1rem;
   width: 100%;
   overflow: hidden;
-  height: calc(100vh - 140px); /* Full page height for consistent panel sizing (header bar + content padding) */
+  height: calc(100vh - 110px); /* Full page height for consistent panel sizing (header bar + content padding) */
   /* Fix GPU rendering artifacts (diagonal white lines) from subpixel grid calculations */
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;

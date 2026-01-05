@@ -255,7 +255,7 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
   return (
     <div className={`${PAGE_STYLES.panel.background} rounded shadow`}>
       {/* Header */}
-      <div className={`flex items-center justify-between p-6 border-b ${PAGE_STYLES.border}`}>
+      <div className={`flex items-center justify-between p-4 border-b ${PAGE_STYLES.border}`}>
         <div className="flex items-center">
           <FileText className="w-5 h-5 text-emerald-600 mr-2" />
           <h2 className={`text-xl font-semibold ${PAGE_STYLES.panel.text}`}>Estimate Versions</h2>
@@ -275,11 +275,11 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
         <table className="w-full table-fixed">
           <thead className={`${PAGE_STYLES.header.background} border-b ${PAGE_STYLES.border}`}>
             <tr>
-              <th className={`text-left p-4 font-medium ${PAGE_STYLES.panel.textSecondary} w-44`}>Version</th>
-              <th className={`text-left p-4 font-medium ${PAGE_STYLES.panel.textSecondary} w-56`}>Description</th>
-              <th className={`text-center p-4 font-medium ${PAGE_STYLES.panel.textSecondary} w-28`}>Status</th>
-              <th className={`text-right p-4 font-medium ${PAGE_STYLES.panel.textSecondary} w-24`}>Total</th>
-              <th className={`text-center p-4 font-medium ${PAGE_STYLES.panel.textSecondary} w-32`}>Actions</th>
+              <th className={`text-left p-3 font-medium ${PAGE_STYLES.panel.textSecondary} w-36`}>Version</th>
+              <th className={`text-left p-3 font-medium ${PAGE_STYLES.panel.textSecondary} w-44`}>Description</th>
+              <th className={`text-center p-3 font-medium ${PAGE_STYLES.panel.textSecondary} w-24`}>Status</th>
+              <th className={`text-right p-3 font-medium ${PAGE_STYLES.panel.textSecondary} w-20`}>Total</th>
+              <th className={`text-center p-3 font-medium ${PAGE_STYLES.panel.textSecondary} w-28`}>Actions</th>
             </tr>
           </thead>
           <tbody className={`divide-y ${PAGE_STYLES.divider} border-b ${PAGE_STYLES.border}`}>
@@ -317,7 +317,7 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
                   key={version.id}
                   className={PAGE_STYLES.interactive.hover}
                 >
-                  <td className="p-4">
+                  <td className="p-3">
                     <div className="flex items-baseline gap-2">
                       <span className="font-medium">v{version.version_number}</span>
                       <span className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>
@@ -326,14 +326,14 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
                     </div>
                     {getLockIndicator(version)}
                   </td>
-                  <td className="p-4">{renderNotesCell(version)}</td>
-                  <td className="p-4 text-center">
+                  <td className="p-3">{renderNotesCell(version)}</td>
+                  <td className="p-3 text-center">
                     <VersionStatusBadges version={version} />
                   </td>
-                  <td className="p-4 text-right font-medium">
+                  <td className="p-3 text-right font-medium">
                     {formatCurrency(parseFloat(version.total_amount) || 0)}
                   </td>
-                  <td className="py-4 px-2">{renderActionButtons(version)}</td>
+                  <td className="py-3 px-2">{renderActionButtons(version)}</td>
                 </tr>
               ))
             )}

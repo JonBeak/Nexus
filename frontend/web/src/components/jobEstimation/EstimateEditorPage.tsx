@@ -808,8 +808,8 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
                                   setShowPreparedEmailPreview(true);
                                 }}
                                 disabled={isSending || pointPersons.length === 0}
-                                className="px-3 py-1.5 text-sm bg-emerald-500 text-white rounded hover:bg-emerald-600 disabled:opacity-50"
-                                title={pointPersons.length === 0 ? 'Add point persons first' : undefined}
+                                className="px-3 py-1.5 text-sm bg-emerald-500 text-white rounded hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={pointPersons.length === 0 ? 'Add point person(s) first' : undefined}
                               >
                                 Send to Customer
                               </button>

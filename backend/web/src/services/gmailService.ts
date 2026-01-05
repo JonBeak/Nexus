@@ -967,7 +967,9 @@ async function createEstimateEmailMessage(data: EstimateEmailData): Promise<stri
 
       console.log(`   📎 PDF attachment added: ${pdfFilename}`);
     } catch (err) {
-      console.error('   ⚠️ Could not load PDF attachment:', err instanceof Error ? err.message : 'Unknown error');
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      console.error('   ❌ Could not load PDF attachment:', errorMsg);
+      throw new Error(`Failed to load PDF attachment: ${errorMsg}`);
     }
   } else {
     console.log('   ⚠️ No PDF path provided - email will be sent without attachment');

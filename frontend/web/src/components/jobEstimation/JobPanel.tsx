@@ -246,12 +246,12 @@ export const JobPanel: React.FC<JobPanelProps> = ({
   };
 
   return (
-    <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow-sm border ${PAGE_STYLES.border} p-6 h-full flex flex-col`}>
+    <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow-sm border ${PAGE_STYLES.border} p-4 h-full flex flex-col`}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center">
-          <Calendar className="w-5 h-5 text-emerald-600 mr-2" />
-          <h2 className={`text-lg font-semibold truncate ${PAGE_STYLES.panel.text}`}>{getHeaderText()}</h2>
+      <div className="flex items-center justify-between mb-4 gap-2">
+        <div className="flex items-center min-w-0 flex-1">
+          <Calendar className="w-5 h-5 text-emerald-600 mr-2 flex-shrink-0" />
+          <h2 className={`text-lg font-semibold truncate ${PAGE_STYLES.panel.text}`} title={getHeaderText()}>{getHeaderText()}</h2>
         </div>
         <button
           onClick={handleCreateNewJobClick}
@@ -287,7 +287,7 @@ export const JobPanel: React.FC<JobPanelProps> = ({
         </div>
       ) : (
         <div className="flex-1 overflow-hidden">
-          <div className={`max-h-[calc(100vh-300px)] overflow-y-auto border ${PAGE_STYLES.border}`}>
+          <div className={`max-h-[calc(100vh-245px)] overflow-y-auto border ${PAGE_STYLES.border}`}>
             {filteredJobs.length === 0 ? (
               <div className={`text-center py-8 ${PAGE_STYLES.panel.textMuted}`}>
                 <Calendar className={`w-12 h-12 mx-auto mb-4 ${PAGE_STYLES.panel.textMuted}`} />

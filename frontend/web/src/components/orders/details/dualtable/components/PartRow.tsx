@@ -74,43 +74,36 @@ export const PartRow: React.FC<PartRowProps> = ({
           gridTemplateColumns:'40px 165px 115px 123px 123px 123px 62px 140px 380px 270px 55px 75px 85px'
         }}
       >
-        {/* Row Controls placeholder - grayed out */}
-        <div className="flex flex-row items-start justify-center pt-1 space-x-1 bg-gray-200 -ml-2 pl-2 -mr-2 pr-2">
-          <span className="text-xs text-gray-400 font-medium pt-1">HDR</span>
-        </div>
+        {/* Row Controls - empty */}
+        <div className="bg-gray-200 -ml-2 pl-2 -mr-2 pr-2" />
 
-        {/* Item Name - shows "Header" */}
-        <div className="flex flex-col h-full border-l-2 border-gray-300 pl-2 py-1">
-          <span className="text-sm font-semibold text-gray-500 italic">Header</span>
-        </div>
+        {/* Item Name - empty */}
+        <div className="border-l-2 border-gray-300" />
 
-        {/* Spec columns - empty/grayed out, spans 4 columns */}
-        <div className="col-span-4 flex items-center justify-center text-gray-400 text-xs italic bg-gray-50 border-l border-gray-200">
-          — Auto-generated from order details —
-        </div>
+        {/* Spec columns - empty, spans 5 columns */}
+        <div className="col-span-5" />
 
-        {/* QB Item - disabled */}
-        <div className="flex items-start border-l-2 border-gray-300 pl-2 h-full py-1">
-          <span className="text-xs text-gray-400">—</span>
-        </div>
+        {/* QB Item - empty */}
+        <div className="border-l-2 border-gray-300" />
 
-        {/* QB Description - shows header text (readonly) */}
-        <div className="h-full py-1 col-span-2">
-          <div className="w-full h-full px-2 py-1 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded whitespace-pre-wrap">
-            {part.qb_description || '(Header text will appear here)'}
+        {/* QB Description - shows header text with green border */}
+        <div className="h-full py-1">
+          <div className="w-full h-full px-2 py-1 text-sm text-black bg-gray-100 border-2 border-green-500 rounded whitespace-pre-wrap">
+            {part.qb_description || ''}
           </div>
         </div>
 
-        {/* Quantity/Price columns - empty for header */}
-        <div className="flex items-start h-full py-1">
-          <span className="text-xs text-gray-400">—</span>
-        </div>
-        <div className="flex items-start text-right h-full py-1">
-          <span className="text-xs text-gray-400">—</span>
-        </div>
-        <div className="flex items-start justify-end h-full py-1">
-          <span className="text-xs text-gray-400">—</span>
-        </div>
+        {/* Price Calculation - empty */}
+        <div />
+
+        {/* Qty - empty */}
+        <div />
+
+        {/* Unit Price - empty */}
+        <div />
+
+        {/* Extended - empty */}
+        <div />
       </div>
     );
   }
@@ -207,6 +200,15 @@ export const PartRow: React.FC<PartRowProps> = ({
 
     return !hasQBItem && !hasQBDescription && !hasUnitPrice;
   }, [part.qb_item_name, qbDescription, part.unit_price]);
+
+  // Check if this is a valid invoice row (has QB Item, Quantity, and Unit Price)
+  const isValidInvoiceRow = useMemo(() => {
+    const hasQBItem = !!part.qb_item_name && part.qb_item_name.trim() !== '';
+    const hasQuantity = part.quantity !== null && part.quantity !== undefined && part.quantity > 0;
+    const hasUnitPrice = part.unit_price !== null && part.unit_price !== undefined && part.unit_price !== 0;
+
+    return hasQBItem && hasQuantity && hasUnitPrice;
+  }, [part.qb_item_name, part.quantity, part.unit_price]);
 
   // Render QB Item dropdown
   const renderQBItemDropdown = () => {
@@ -429,9 +431,10 @@ export const PartRow: React.FC<PartRowProps> = ({
           field="qb_description"
           currentValue={qbDescription}
           onSave={onFieldSave}
-          placeholder="QB Description..."
+          placeholder=""
           hasValue={!!qbDescription && qbDescription.trim() !== ''}
           applyGrayBackground={isQBDataEmpty}
+          applyGreenHighlight={isValidInvoiceRow}
         />
       </div>
 
@@ -442,7 +445,7 @@ export const PartRow: React.FC<PartRowProps> = ({
           field="invoice_description"
           currentValue={part.invoice_description || ''}
           onSave={onFieldSave}
-          placeholder="Description..."
+          placeholder=""
           hasValue={false} // invoice_description doesn't use highlighting
           applyGrayBackground={isQBDataEmpty}
         />
