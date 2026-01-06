@@ -16,6 +16,7 @@
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import type { OrderDataForPDF } from '../../../types/orders';
+import { checkFileWritable, FileBusyError } from '../utils/safeFileWriter';
 import {
   FormType,
   COLORS,
@@ -378,6 +379,9 @@ export async function generateOrderForm(
 
   return new Promise(async (resolve, reject) => {
     try {
+      // Check if file is writable before attempting generation
+      await checkFileWritable(outputPath);
+
       const doc = new PDFDocument({
         size: 'LETTER',
         layout: 'landscape',
@@ -390,6 +394,16 @@ export async function generateOrderForm(
       });
 
       const stream = fs.createWriteStream(outputPath);
+
+      // Attach error handler immediately to catch EBUSY during write
+      stream.on('error', (error: NodeJS.ErrnoException) => {
+        if (error.code === 'EBUSY') {
+          reject(new FileBusyError(outputPath));
+        } else {
+          reject(error);
+        }
+      });
+
       doc.pipe(stream);
 
       const pageWidth = doc.page.width;

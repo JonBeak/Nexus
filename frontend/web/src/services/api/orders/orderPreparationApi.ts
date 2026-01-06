@@ -111,7 +111,7 @@ export const orderPreparationApi = {
   },
 
   /**
-   * Get email preview HTML
+   * Get email preview HTML (legacy - simple recipients list)
    * (Phase 1.5.c.6.3 - Send to Customer)
    */
   getEmailPreview: async (orderNumber: number, recipients: string[]) => {
@@ -127,12 +127,56 @@ export const orderPreparationApi = {
   },
 
   /**
+   * Get order email preview with customizable content
+   * Uses new navy-styled template with company logo
+   */
+  getOrderEmailPreview: async (orderNumber: number, data: {
+    recipients: {
+      to: string[];
+      cc: string[];
+      bcc: string[];
+    };
+    emailContent: {
+      subject: string;
+      beginning: string;
+      includeActionRequired: boolean;
+      includeAttachments: boolean;
+      end: string;
+    };
+    customerName?: string;
+    orderName?: string;
+    pdfUrls?: {
+      specsOrderForm: string | null;
+      qbEstimate: string | null;
+    };
+  }) => {
+    const response = await api.post(
+      `/order-preparation/${orderNumber}/email-preview`,
+      data
+    );
+    return response.data;
+  },
+
+  /**
    * Finalize order and optionally send to customer
+   * Supports To/CC/BCC recipients and customizable email content
    * (Phase 1.5.c.6.3 - Send to Customer)
    */
   finalizeOrder: async (orderNumber: number, data: {
     sendEmail: boolean;
-    recipients: string[];
+    recipients?: string[];  // Legacy: simple list (all To)
+    recipientSelection?: {  // New: To/CC/BCC
+      to: string[];
+      cc: string[];
+      bcc: string[];
+    };
+    emailContent?: {
+      subject: string;
+      beginning: string;
+      includeActionRequired: boolean;
+      includeAttachments: boolean;
+      end: string;
+    };
     orderName?: string;
     pdfUrls?: {
       orderForm: string | null;

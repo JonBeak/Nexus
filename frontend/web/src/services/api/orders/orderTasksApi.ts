@@ -101,6 +101,15 @@ export const orderTasksApi = {
   },
 
   /**
+   * Remove all tasks for a specific part
+   * Used to exclude a part from Job Progress view
+   */
+  async removeTasksForPart(partId: number): Promise<{ deletedCount: number }> {
+    const response = await api.delete(`/orders/parts/${partId}/tasks`);
+    return response.data;
+  },
+
+  /**
    * Update task notes
    */
   async updateTaskNotes(taskId: number, notes: string): Promise<void> {

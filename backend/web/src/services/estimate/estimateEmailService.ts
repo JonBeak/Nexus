@@ -77,6 +77,7 @@ export interface EmailVariables {
   customerName?: string;
   jobName?: string;
   customerJobNumber?: string;
+  versionDescription?: string;
   qbEstimateNumber?: string;
   estimateNumber?: string;
   total?: string;
@@ -118,6 +119,8 @@ export interface EmailPreviewEstimateData {
   job_name?: string;
   job_code?: string;
   customer_job_number?: string;
+  version_description?: string;
+  notes?: string;
   qb_doc_number?: string;
   subtotal?: number;
   tax_amount?: number;
@@ -188,10 +191,15 @@ export class EstimateEmailService {
    *            {{jobNameWithRef}}, {{qbEstimateNumber}}, {{estimateNumber}}, {{total}}
    */
   substituteEmailVariables(template: string, variables: EmailVariables): string {
-    // Build jobNameWithRef: "Job Name - Customer Ref" or just "Job Name"
-    const jobNameWithRef = variables.customerJobNumber
-      ? `${variables.jobName || ''} - ${variables.customerJobNumber}`
-      : (variables.jobName || '');
+    // Build jobNameWithRef: "Job Name - Customer Ref - Version Description"
+    // Include customer ref and version description if they exist, separated by " - "
+    let jobNameWithRef = variables.jobName || '';
+    if (variables.customerJobNumber) {
+      jobNameWithRef += ` - ${variables.customerJobNumber}`;
+    }
+    if (variables.versionDescription) {
+      jobNameWithRef += ` - ${variables.versionDescription}`;
+    }
 
     const allVariables: Record<string, string> = {
       customerName: variables.customerName || '',
@@ -374,15 +382,26 @@ export class EstimateEmailService {
     estimate: EmailPreviewEstimateData | Record<string, any>,
     emailContent?: EmailPreviewContent
   ): Promise<{ subject: string; html: string }> {
+    // Build jobNameWithRef: "Job Name - Customer Ref - Version Description"
+    const jobName = emailContent?.estimateData?.jobName || estimate.job_name || '';
+    const customerRef = emailContent?.estimateData?.customerJobNumber || estimate.customer_job_number || '';
+    const versionDescription = estimate.version_description || estimate.notes || '';
+
+    let jobNameWithRef = jobName;
+    if (customerRef) {
+      jobNameWithRef += ` - ${customerRef}`;
+    }
+    if (versionDescription) {
+      jobNameWithRef += ` - ${versionDescription}`;
+    }
+
     // Build template variables for substitution
     const templateVars: Record<string, string> = {
       customerName: estimate.customer_name || 'Valued Customer',
-      jobName: emailContent?.estimateData?.jobName || estimate.job_name || '',
+      jobName,
       qbEstimateNumber: emailContent?.estimateData?.qbEstimateNumber || estimate.qb_doc_number || '',
-      customerRef: emailContent?.estimateData?.customerJobNumber || estimate.customer_job_number || '',
-      jobNameWithRef: emailContent?.estimateData?.customerJobNumber
-        ? `${emailContent?.estimateData?.jobName || estimate.job_name} - ${emailContent?.estimateData?.customerJobNumber}`
-        : (emailContent?.estimateData?.jobName || estimate.job_name || '')
+      customerRef,
+      jobNameWithRef
     };
 
     // Process subject with variable substitution

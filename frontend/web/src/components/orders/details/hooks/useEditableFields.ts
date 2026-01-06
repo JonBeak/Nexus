@@ -15,13 +15,17 @@ interface OrderData {
   customerDiscount: number;
 }
 
+// Fields that affect the header row and require a parts refetch
+const HEADER_AFFECTING_FIELDS = ['customer_po', 'customer_job_number', 'order_name'];
+
 export function useEditableFields(
   orderData: OrderData,
   setOrderData: (updater: (prev: OrderData) => OrderData) => void,
   uiState: any,
   setUiState: (updater: (prev: any) => any) => void,
   setCalculatedValues: (updater: (prev: any) => any) => void,
-  scrollContainerRef: React.RefObject<HTMLDivElement>
+  scrollContainerRef: React.RefObject<HTMLDivElement>,
+  refetch?: () => Promise<void>
 ) {
   // Edit State
   const [editState, setEditState] = useState<EditState>({
@@ -83,6 +87,11 @@ export function useEditableFields(
       const updatedOrder = { ...orderData.order, [field]: valueToSave };
       setOrderData(prev => ({ ...prev, order: updatedOrder }));
       setEditState({ editingField: null, editValue: '' });
+
+      // Refetch parts if header-affecting field changed (updates header row in dual table)
+      if (HEADER_AFFECTING_FIELDS.includes(field) && refetch) {
+        await refetch();
+      }
 
       // Recalculate turnaround days and days until if specified in field config
       if (fieldConfig && fieldConfig.recalculateDays && rawValue) {

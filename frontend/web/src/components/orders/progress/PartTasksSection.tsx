@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import TaskList from './TaskList';
 import TaskTemplateDropdown from './TaskTemplateDropdown';
+import { orderTasksApi } from '../../../services/api';
 
 interface Props {
   part: any;
@@ -13,6 +14,7 @@ interface Props {
 
 export const PartTasksSection: React.FC<Props> = ({ part, partIndex, orderNumber, orderStatus, onTaskUpdated }) => {
   const [showAddDropdown, setShowAddDropdown] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const addButtonRef = useRef<HTMLButtonElement>(null);
   const completedTasks = part.completed_tasks || 0;
   const totalTasks = part.total_tasks || 0;
@@ -24,6 +26,23 @@ export const PartTasksSection: React.FC<Props> = ({ part, partIndex, orderNumber
   const handleTaskAdded = () => {
     setShowAddDropdown(false);
     onTaskUpdated();
+  };
+
+  const handleRemovePart = async () => {
+    if (!confirm(`Remove all tasks for Part ${partIndex}? This part will no longer appear in Job Progress.`)) {
+      return;
+    }
+
+    try {
+      setRemoving(true);
+      await orderTasksApi.removeTasksForPart(part.part_id);
+      onTaskUpdated();
+    } catch (error) {
+      console.error('Error removing part tasks:', error);
+      alert('Failed to remove part. Please try again.');
+    } finally {
+      setRemoving(false);
+    }
   };
 
   return (
@@ -43,16 +62,26 @@ export const PartTasksSection: React.FC<Props> = ({ part, partIndex, orderNumber
             Part {partIndex}: {part.specs_display_name}
           </h3>
 
-          {/* Add Task Button */}
+          {/* Action Buttons */}
           {canEditTasks && (
-            <button
-              ref={addButtonRef}
-              onClick={() => setShowAddDropdown(!showAddDropdown)}
-              className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-              title="Add task"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                ref={addButtonRef}
+                onClick={() => setShowAddDropdown(!showAddDropdown)}
+                className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                title="Add task"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleRemovePart}
+                disabled={removing}
+                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                title="Remove part from tasks"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           )}
         </div>
         <div className="flex items-center justify-between text-base text-gray-500 mb-1.5">

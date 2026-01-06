@@ -42,6 +42,7 @@ export interface ValidationResult {
   isValid: boolean;
   errors: ValidationError[];
   standardizedSpecs?: StandardizedOrderSpecs;  // Available for additional validation or processing
+  cleanedSpecRows?: number;  // Count of empty spec rows removed during validation
 }
 
 export class OrderValidationService {
@@ -57,6 +58,8 @@ export class OrderValidationService {
    * Returns validation result with access to BOTH:
    * - Raw part specifications (validated via extractTemplateRows)
    * - Standardized specifications (sorted, grouped, ready for PDF/tasks)
+   *
+   * Also cleans up empty spec rows before validation (removes specs with no values)
    */
   async validateOrderForPreparation(orderId: number): Promise<ValidationResult> {
     const errors: ValidationError[] = [];
@@ -70,6 +73,21 @@ export class OrderValidationService {
         message: 'Order has no parts to validate'
       });
       return { isValid: false, errors };
+    }
+
+    // Clean up empty spec rows BEFORE validation
+    // This removes spec templates that have no filled-in values
+    let cleanedSpecRows = 0;
+    for (const part of parts) {
+      const wasClean = await orderPartRepository.cleanEmptySpecRows(part.part_id);
+      if (wasClean) cleanedSpecRows++;
+    }
+    if (cleanedSpecRows > 0) {
+      console.log(`[VALIDATION] Cleaned empty specs from ${cleanedSpecRows} part(s)`);
+      // Re-fetch parts after cleanup to validate clean data
+      const cleanedParts = await orderPartRepository.getOrderParts(orderId);
+      parts.length = 0;
+      parts.push(...cleanedParts);
     }
 
     // Validate each part's raw specifications
@@ -91,7 +109,8 @@ export class OrderValidationService {
     return {
       isValid: errors.length === 0,
       errors,
-      standardizedSpecs  // Available for PrepareOrderModal or future enhancements
+      standardizedSpecs,  // Available for PrepareOrderModal or future enhancements
+      cleanedSpecRows     // Report how many parts had empty specs removed
     };
   }
 

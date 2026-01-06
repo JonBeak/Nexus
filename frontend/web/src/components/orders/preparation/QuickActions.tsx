@@ -53,15 +53,20 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
           currentSteps = updateStepStatus(currentSteps, nextStep.id, 'completed');
           currentState = { ...currentState, steps: currentSteps };
           onStateChange(currentState);
-        } catch (error) {
+        } catch (error: any) {
           console.error(`Error executing step ${nextStep.id}:`, error);
+
+          // Extract the actual error message from axios response (backend uses 'error' field)
+          const errorMessage = error?.response?.data?.error
+            || error?.response?.data?.message
+            || (error instanceof Error ? error.message : 'Step failed');
 
           // Update status to failed
           currentSteps = updateStepStatus(
             currentSteps,
             nextStep.id,
             'failed',
-            error instanceof Error ? error.message : 'Step failed'
+            errorMessage
           );
           currentState = { ...currentState, steps: currentSteps };
           onStateChange(currentState);

@@ -7,7 +7,7 @@
  * - Generates all order forms and saves to SMB folder
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CompactStepRow } from '../common/CompactStepRow';
 import { CompactStepButton } from '../common/CompactStepButton';
 import { PrepareStep, PreparationState } from '@/types/orderPreparation';
@@ -38,12 +38,18 @@ export const GeneratePDFsStep: React.FC<GeneratePDFsStepProps> = ({
   const [isChecking, setIsChecking] = useState(true);
   const [pdfIsStale, setPdfIsStale] = useState(false);
 
-  // Check staleness when modal opens or reopens
+  // Check staleness AFTER validation completes (when canRun becomes true)
+  // This ensures empty spec rows are cleaned up before staleness is calculated
+  const canRun = canRunStep(step, steps);
+  const prevCanRunRef = useRef(false);
+
   useEffect(() => {
-    if (isOpen) {
+    // Only check when canRun transitions from false to true (validation just completed)
+    if (canRun && !prevCanRunRef.current && isOpen) {
       checkPDFStaleness();
     }
-  }, [isOpen]);
+    prevCanRunRef.current = canRun;
+  }, [canRun, isOpen]);
 
   const checkPDFStaleness = async () => {
     try {
@@ -126,20 +132,23 @@ export const GeneratePDFsStep: React.FC<GeneratePDFsStepProps> = ({
 
       await checkPDFStaleness();
       setMessage('✓ PDFs generated and saved to SMB folder');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating PDFs:', error);
+      // Extract the actual error message from axios response (backend uses 'error' field)
+      const errorMessage = error?.response?.data?.error
+        || error?.response?.data?.message
+        || (error instanceof Error ? error.message : 'Failed to generate PDFs');
       const failedSteps = updateStepStatus(
         steps,
         step.id,
         'failed',
-        error instanceof Error ? error.message : 'Failed to generate PDFs'
+        errorMessage
       );
       onStateChange({ ...state, steps: failedSteps });
       setMessage('');
     }
   };
 
-  const canRun = canRunStep(step, steps);
   const buttonLabel = pdfIsStale ? 'Regenerate PDFs (Stale)' : 'Generate PDFs';
 
   return (

@@ -44,6 +44,7 @@ export {
   batchUpdateTasks,
   addTaskToOrderPart,
   removeTask,
+  removeTasksForPart,
   getTaskTemplates,
   updateTaskNotes
 } from './OrderTasksController';

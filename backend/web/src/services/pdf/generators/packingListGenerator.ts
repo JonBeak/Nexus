@@ -15,6 +15,7 @@
 
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
+import { checkFileWritable, FileBusyError } from '../utils/safeFileWriter';
 import { getPackingItemsForProduct } from '../packingItemsMapper';
 import { combineSpecifications, flattenCombinedSpecs } from '../specificationCombiner';
 import type { OrderDataForPDF } from '../../../types/orders';
@@ -68,6 +69,9 @@ export async function generatePackingList(
 
   return new Promise(async (resolve, reject) => {
     try {
+      // Check if file is writable before attempting generation
+      await checkFileWritable(outputPath);
+
       const doc = new PDFDocument({
         size: 'LETTER',
         layout: 'landscape',
@@ -80,6 +84,16 @@ export async function generatePackingList(
       });
 
       const stream = fs.createWriteStream(outputPath);
+
+      // Attach error handler immediately to catch EBUSY during write
+      stream.on('error', (error: NodeJS.ErrnoException) => {
+        if (error.code === 'EBUSY') {
+          reject(new FileBusyError(outputPath));
+        } else {
+          reject(error);
+        }
+      });
+
       doc.pipe(stream);
 
       const pageWidth = doc.page.width;

@@ -264,6 +264,34 @@ export const getTaskTemplates = async (req: Request, res: Response) => {
 };
 
 /**
+ * Remove all tasks for a specific part
+ * DELETE /api/orders/parts/:partId/tasks
+ * Permission: orders.update (Manager+ only)
+ * Used to exclude a part from Job Progress view
+ */
+export const removeTasksForPart = async (req: Request, res: Response) => {
+  try {
+    const { partId } = req.params;
+    const partIdNum = parseIntParam(partId, 'part ID');
+
+    if (partIdNum === null) {
+      return sendErrorResponse(res, 'Invalid part ID', 'VALIDATION_ERROR');
+    }
+
+    const deletedCount = await orderTaskService.removeTasksForPart(partIdNum);
+
+    res.json({
+      success: true,
+      message: `Removed ${deletedCount} tasks for part`,
+      deletedCount
+    });
+  } catch (error) {
+    console.error('Error removing tasks for part:', error);
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to remove tasks', 'INTERNAL_ERROR');
+  }
+};
+
+/**
  * Update task notes
  * PUT /api/orders/tasks/:taskId/notes
  * Permission: orders.update (Manager+ only)

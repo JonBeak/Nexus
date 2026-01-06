@@ -9,7 +9,7 @@
  * - Regenerating replaces all existing tasks
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CompactStepRow } from '../common/CompactStepRow';
 import { CompactStepButton } from '../common/CompactStepButton';
 import { PrepareStep, PreparationState } from '@/types/orderPreparation';
@@ -51,12 +51,18 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
   const [taskCount, setTaskCount] = useState(0);
   const [paintingWarnings, setPaintingWarnings] = useState<PaintingWarning[]>([]);
 
-  // Check staleness when modal opens or reopens
+  // Check staleness AFTER validation completes (when canRun becomes true)
+  // This ensures empty spec rows are cleaned up before staleness is calculated
+  const canRun = canRunStep(step, steps);
+  const prevCanRunRef = useRef(false);
+
   useEffect(() => {
-    if (isOpen) {
+    // Only check when canRun transitions from false to true (validation just completed)
+    if (canRun && !prevCanRunRef.current && isOpen) {
       checkTaskStaleness();
     }
-  }, [isOpen]);
+    prevCanRunRef.current = canRun;
+  }, [canRun, isOpen]);
 
   const checkTaskStaleness = async () => {
     try {
@@ -129,7 +135,6 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
     }
   };
 
-  const canRun = canRunStep(step, steps);
   const buttonLabel = taskCount > 0
     ? (taskIsStale ? 'Regenerate Tasks (Stale)' : 'Regenerate Tasks')
     : 'Generate Tasks';

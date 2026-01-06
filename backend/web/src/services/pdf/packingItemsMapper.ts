@@ -42,6 +42,13 @@ export const PACKING_ITEM_TYPES = [
 ] as const;
 
 /**
+ * Display name overrides for packing items
+ */
+const DISPLAY_NAME_MAP: Record<string, string> = {
+  'Transformer': 'Power Supply'
+};
+
+/**
  * Product type to packing items mapping
  */
 const PRODUCT_PACKING_MAP: Record<string, string[]> = {
@@ -160,8 +167,11 @@ export function getPackingItemsForProduct(
 
   console.log(`[Packing Items] Filtered items (${filteredItems.length}):`, filteredItems.map(i => `${i.name}${i.required ? '' : ' (No)'}`));
 
-  // Remove the extra properties before returning
-  return filteredItems.map(({ name, required }) => ({ name, required }));
+  // Remove the extra properties before returning and apply display name overrides
+  return filteredItems.map(({ name, required }) => ({
+    name: DISPLAY_NAME_MAP[name] || name,
+    required
+  }));
 }
 
 /**

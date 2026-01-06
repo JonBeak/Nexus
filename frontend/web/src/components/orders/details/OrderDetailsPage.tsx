@@ -92,7 +92,8 @@ export const OrderDetailsPage: React.FC = () => {
     uiState,
     setUiState,
     setCalculatedValues,
-    scrollContainerRef
+    scrollContainerRef,
+    refetch
   );
 
   const {
@@ -939,6 +940,7 @@ export const OrderDetailsPage: React.FC = () => {
         onClose={handleClosePrepareModal}
         order={orderData.order}
         onComplete={handlePreparationComplete}
+        onDataChanged={refetch}
       />
 
       {/* Confirmation Modals for Phase Transitions */}

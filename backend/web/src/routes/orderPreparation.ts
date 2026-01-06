@@ -120,13 +120,24 @@ router.get(
 
 /**
  * GET /api/order-preparation/:orderNumber/email-preview
- * Get email preview HTML for Send to Customer step
+ * Get email preview HTML for Send to Customer step (legacy)
  */
 router.get(
   '/:orderNumber/email-preview',
   authenticateToken,
   requirePermission('orders.view'),
   orderPrepController.getEmailPreview
+);
+
+/**
+ * POST /api/order-preparation/:orderNumber/email-preview
+ * Get styled email preview with customizable content
+ */
+router.post(
+  '/:orderNumber/email-preview',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderPrepController.getOrderEmailPreviewWithContent
 );
 
 /**

@@ -369,6 +369,99 @@ export class OrderPartRepository {
   }
 
   /**
+   * Clean empty spec rows from a part's specifications JSON
+   * Removes _template_N entries where all row{N}_ fields are empty
+   * Re-indexes remaining specs to close gaps (so no empty rows appear in UI)
+   * Returns true if any specs were removed
+   */
+  async cleanEmptySpecRows(partId: number): Promise<boolean> {
+    const part = await this.getOrderPartById(partId);
+    if (!part || !part.specifications) return false;
+
+    const specs = part.specifications;
+    if (!specs || typeof specs !== 'object') return false;
+
+    // Find all template keys (both _template_N and _template formats) and sort by number
+    const templateKeys = Object.keys(specs)
+      .filter(key => key.match(/^_template(_\d+)?$/))
+      .sort((a, b) => {
+        const numA = parseInt(a.replace('_template_', '') || '0');
+        const numB = parseInt(b.replace('_template_', '') || '0');
+        return numA - numB;
+      });
+
+    if (templateKeys.length === 0) return false;
+
+    // Collect valid specs (ones with values) for re-indexing
+    const validSpecs: Array<{ templateName: string; fields: Record<string, any> }> = [];
+
+    for (const templateKey of templateKeys) {
+      // Handle both _template_N and _template (no number) formats
+      const rowNum = templateKey === '_template' ? '' : templateKey.replace('_template_', '');
+      const rowPrefix = rowNum ? `row${rowNum}_` : 'row_';
+      const templateName = specs[templateKey];
+
+      // Collect all fields for this row
+      const fields: Record<string, any> = {};
+      let hasValues = false;
+
+      Object.keys(specs).forEach(key => {
+        if (key.startsWith(rowPrefix)) {
+          const fieldName = key.replace(rowPrefix, '');
+          const value = specs[key];
+          fields[fieldName] = value;
+          if (value !== null && value !== undefined && value !== '') {
+            hasValues = true;
+          }
+        }
+      });
+
+      // Only keep specs that:
+      // 1. Have a template name selected (not empty/null)
+      // 2. Have at least one non-empty field value
+      const hasTemplateName = templateName && templateName.trim() !== '';
+      if (hasTemplateName && hasValues) {
+        validSpecs.push({ templateName, fields });
+      }
+    }
+
+    // Check if anything was removed
+    if (validSpecs.length === templateKeys.length) {
+      return false; // No empty specs found
+    }
+
+    // Rebuild specs with sequential numbering (no gaps)
+    const cleanedSpecs: Record<string, any> = {};
+
+    // Copy non-spec fields (like metadata) EXCEPT _row_count which we'll recalculate
+    Object.keys(specs).forEach(key => {
+      if (!key.startsWith('_template_') && !key.match(/^row\d+_/) && key !== '_row_count') {
+        cleanedSpecs[key] = specs[key];
+      }
+    });
+
+    // Re-index valid specs starting from 1
+    validSpecs.forEach((spec, index) => {
+      const newRowNum = index + 1;
+      cleanedSpecs[`_template_${newRowNum}`] = spec.templateName;
+
+      Object.entries(spec.fields).forEach(([fieldName, value]) => {
+        cleanedSpecs[`row${newRowNum}_${fieldName}`] = value;
+      });
+    });
+
+    // Update _row_count to match actual valid spec count (minimum 1 for UI)
+    cleanedSpecs._row_count = Math.max(validSpecs.length, 1);
+
+    // Update the database
+    const removedCount = templateKeys.length - validSpecs.length;
+    await this.updateOrderPart(partId, { specifications: cleanedSpecs });
+    console.log(`[SpecCleanup] Removed ${removedCount} empty spec row(s) from part ${partId}, re-indexed ${validSpecs.length} remaining`);
+
+    return true;
+  }
+
+  /**
    * Check if production tasks are stale (order data changed since tasks were generated)
    * Returns staleness info including whether tasks exist and if they're stale
    * Uses same hash as QB estimates and PDFs - shared staleness detection

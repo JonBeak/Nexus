@@ -18,9 +18,13 @@
 import { createGmailClient } from './gmailAuthService';
 import axios from 'axios';
 import MailComposer from 'nodemailer/lib/mail-composer';
+import { query } from '../config/database';
+import { RowDataPacket } from 'mysql2';
 
 export interface EmailData {
   recipients: string[];
+  ccRecipients?: string[];
+  bccRecipients?: string[];
   orderNumber: number;
   orderName: string;
   customerName?: string;
@@ -28,6 +32,28 @@ export interface EmailData {
     orderForm: string | null;
     qbEstimate: string | null;
   };
+  // New: customizable email content
+  emailContent?: OrderEmailContent;
+}
+
+// Order confirmation email content structure
+export interface OrderEmailContent {
+  subject: string;
+  beginning: string;
+  includeActionRequired: boolean;
+  includeAttachments: boolean;
+  end: string;
+}
+
+// Company settings loaded from database
+interface CompanySettings {
+  company_name: string | null;
+  company_phone: string | null;
+  company_email: string | null;
+  company_address: string | null;
+  company_website: string | null;
+  company_business_hours: string | null;
+  company_logo_base64: string | null;
 }
 
 export interface EmailResult {
@@ -60,13 +86,83 @@ const SENDER_NAME = process.env.GMAIL_SENDER_NAME || 'Sign House';
 // Future enhancement: Support multiple BCC emails (comma-separated)
 const BCC_EMAIL = process.env.GMAIL_BCC_EMAIL || '';
 
-// Company Contact Information (Email Footer)
+// Company Contact Information (Email Footer) - Fallback from env
 const COMPANY_NAME = process.env.COMPANY_NAME;
 const COMPANY_PHONE = process.env.COMPANY_PHONE;
 const COMPANY_EMAIL = process.env.COMPANY_EMAIL;
 const COMPANY_WEBSITE = process.env.COMPANY_WEBSITE;
 const COMPANY_ADDRESS = process.env.COMPANY_ADDRESS;
 const COMPANY_BUSINESS_HOURS = process.env.COMPANY_BUSINESS_HOURS;
+
+// Navy blue color scheme for orders
+const ORDER_COLORS = {
+  primary: '#1e3a5f',      // Navy blue - main border/accent
+  primaryLight: '#2d4a6f', // Lighter navy for hover
+  header: '#1e3a5f',       // Navy header background
+  headerText: '#ffffff',   // White text on header
+  border: '#1e3a5f',       // Navy border
+  accent: '#3b5998',       // Slightly lighter accent
+  footer: '#f8fafc',       // Light footer background
+  urgency: '#dc2626',      // Red for action required
+  attachments: '#1e3a5f'   // Navy for attachments section
+};
+
+/**
+ * Load company settings from database (rbac_settings table)
+ * Falls back to environment variables if database values not found
+ */
+async function loadCompanySettings(): Promise<CompanySettings> {
+  try {
+    const rows = await query(
+      `SELECT setting_name, setting_value FROM rbac_settings
+       WHERE setting_name IN ('company_name', 'company_phone', 'company_email', 'company_address', 'company_website', 'company_business_hours', 'company_logo_base64')`,
+      []
+    ) as RowDataPacket[];
+
+    const settings: CompanySettings = {
+      company_name: COMPANY_NAME || null,
+      company_phone: COMPANY_PHONE || null,
+      company_email: COMPANY_EMAIL || null,
+      company_address: COMPANY_ADDRESS || null,
+      company_website: COMPANY_WEBSITE || null,
+      company_business_hours: COMPANY_BUSINESS_HOURS || null,
+      company_logo_base64: null
+    };
+
+    // Override with database values if present
+    for (const row of rows) {
+      const key = row.setting_name as keyof CompanySettings;
+      if (row.setting_value) {
+        settings[key] = row.setting_value;
+      }
+    }
+
+    return settings;
+  } catch (error) {
+    console.error('[Gmail] Error loading company settings:', error);
+    // Return fallback from env vars
+    return {
+      company_name: COMPANY_NAME || null,
+      company_phone: COMPANY_PHONE || null,
+      company_email: COMPANY_EMAIL || null,
+      company_address: COMPANY_ADDRESS || null,
+      company_website: COMPANY_WEBSITE || null,
+      company_business_hours: COMPANY_BUSINESS_HOURS || null,
+      company_logo_base64: null
+    };
+  }
+}
+
+/**
+ * Substitute template variables in email content
+ * Variables: {{customerName}}, {{orderNumber}}, {{orderName}}
+ */
+function substituteOrderVariables(template: string, data: EmailData): string {
+  return template
+    .replace(/\{\{customerName\}\}/g, data.customerName || 'Valued Customer')
+    .replace(/\{\{orderNumber\}\}/g, String(data.orderNumber))
+    .replace(/\{\{orderName\}\}/g, data.orderName || '');
+}
 
 /**
  * Build email template for order finalization
@@ -424,7 +520,160 @@ ${content.footer.businessHours ? `Hours: ${content.footer.businessHours}` : ''}
 }
 
 /**
+ * Build order confirmation email template with navy blue styling and company logo
+ *
+ * Features:
+ * - Company logo from database
+ * - Customizable beginning/end text
+ * - Optional "Action Required" section
+ * - Optional "Attached Documents" section (dynamic based on available PDFs)
+ * - Navy blue color scheme
+ * - Proper company footer with divider
+ *
+ * @param data - Email data including order info and attachments
+ * @param settings - Company settings from database
+ * @returns HTML email template with subject and plain text version
+ */
+function buildOrderConfirmationEmailTemplate(
+  data: EmailData,
+  settings: CompanySettings
+): { subject: string; html: string; text: string } {
+  const emailContent = data.emailContent;
+
+  // Substitute variables in content
+  const subject = emailContent
+    ? substituteOrderVariables(emailContent.subject, data)
+    : `[Requires Confirmation] ${data.orderName} - #${data.orderNumber}`;
+
+  const beginning = emailContent
+    ? substituteOrderVariables(emailContent.beginning, data)
+    : `Dear ${data.customerName || 'Valued Customer'},\n\nThe details for your order #${data.orderNumber} - ${data.orderName} have been prepared and are ready for your review and confirmation.`;
+
+  const end = emailContent
+    ? substituteOrderVariables(emailContent.end, data)
+    : `If you have any questions or need changes, please reply to this email or contact us directly.\n\nThank you for your business!\n\nBest regards,\nThe Sign House Team`;
+
+  const includeActionRequired = emailContent?.includeActionRequired ?? true;
+  const includeAttachments = emailContent?.includeAttachments ?? true;
+
+  // Build attachments list dynamically
+  const attachmentsList: string[] = [];
+  if (data.pdfUrls.orderForm) attachmentsList.push('Specifications Order Form');
+  if (data.pdfUrls.qbEstimate) attachmentsList.push('QuickBooks Estimate');
+
+  // Build logo HTML
+  const logoHtml = settings.company_logo_base64
+    ? `<div style="text-align: center; margin-bottom: 20px;">
+        <img src="data:image/png;base64,${settings.company_logo_base64}"
+             alt="${settings.company_name || 'Company Logo'}"
+             style="max-width: 200px; height: auto; display: block; margin: 0 auto;" />
+        <hr style="border: none; border-top: 1px solid #ccc; margin: 15px auto 0; width: 80%;" />
+       </div>`
+    : '';
+
+  // Build Action Required section (full border, centered, light background)
+  const actionRequiredHtml = includeActionRequired
+    ? `<div style="background: #fef2f2; border: 1px solid #fecaca; padding: 16px 18px; margin: 24px 0; border-radius: 8px; text-align: center;">
+        <strong style="color: ${ORDER_COLORS.urgency};">Action Required</strong><br>
+        <span style="color: #7f1d1d;">Please review and confirm your order promptly so we can begin production.</span>
+       </div>`
+    : '';
+
+  // Build Attachments section (full border, centered, light background)
+  const attachmentsHtml = includeAttachments && attachmentsList.length > 0
+    ? `<div style="background: #f0f9ff; border: 1px solid #bae6fd; padding: 16px 18px; margin: 24px 0; border-radius: 8px; text-align: center;">
+        <strong style="color: ${ORDER_COLORS.primary};">Attached Documents</strong><br>
+        <span style="color: #374151;">${attachmentsList.join('<br>')}</span>
+       </div>`
+    : '';
+
+  // Build footer (match Estimate Email exactly - no icons, simple layout)
+  const footerParts: string[] = [];
+  if (settings.company_name) footerParts.push(`<p style="margin: 0 0 5px 0;"><strong>${settings.company_name}</strong></p>`);
+  if (settings.company_phone) footerParts.push(`<p style="margin: 0 0 5px 0;">${settings.company_phone}</p>`);
+  if (settings.company_email) footerParts.push(`<p style="margin: 0 0 5px 0;">${settings.company_email}</p>`);
+  if (settings.company_address) footerParts.push(`<p style="margin: 0 0 5px 0;">${settings.company_address}</p>`);
+  if (settings.company_website) {
+    const displayUrl = settings.company_website.replace(/^https?:\/\//, '');
+    footerParts.push(`<p style="margin: 0 0 5px 0;"><a href="${settings.company_website}" style="color: #0066cc;">${displayUrl}</a></p>`);
+  }
+  if (settings.company_business_hours) footerParts.push(`<p style="margin: 0;">${settings.company_business_hours}</p>`);
+
+  const footerHtml = footerParts.length > 0
+    ? `<hr style="border: none; border-top: 1px solid #ccc; margin: 30px auto 0; width: 80%;" />
+       <div style="margin-top: 15px; font-size: 12px; color: #666;">
+         ${footerParts.join('')}
+       </div>`
+    : '';
+
+  // Build complete HTML email (match Estimate Email structure)
+  const html = `
+<html>
+  <head>
+    <style>
+      body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
+      .container { max-width: 600px; margin: 0 auto; padding: 20px; text-align: center; border: 2px solid ${ORDER_COLORS.border}; border-radius: 24px; background-color: #f5f5f5; }
+      .logo { text-align: center; }
+      .content { margin: 20px 0; white-space: pre-wrap; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      ${logoHtml}
+      <div class="content">${beginning.replace(/\n/g, '<br>')}</div>
+      ${actionRequiredHtml}
+      ${attachmentsHtml}
+      <div class="content">${end.replace(/\n/g, '<br>')}</div>
+      ${footerHtml}
+    </div>
+  </body>
+</html>`;
+
+  // Build plain text version (no emojis)
+  const text = [
+    beginning,
+    '',
+    includeActionRequired ? 'ACTION REQUIRED:\nPlease review and confirm your order promptly so we can begin production.' : '',
+    '',
+    includeAttachments && attachmentsList.length > 0 ? `ATTACHED DOCUMENTS:\n${attachmentsList.map(a => `- ${a}`).join('\n')}` : '',
+    '',
+    end,
+    '',
+    '-'.repeat(50),
+    settings.company_name || '',
+    settings.company_phone || '',
+    settings.company_email || '',
+    settings.company_address || '',
+    settings.company_website || '',
+    settings.company_business_hours || ''
+  ].filter(line => line !== '').join('\n').trim();
+
+  return { subject, html, text };
+}
+
+/**
  * Get email preview HTML for frontend display
+ * Uses order confirmation template if emailContent is provided,
+ * otherwise falls back to legacy template.
+ *
+ * @param data - Email data
+ * @returns HTML preview with subject and body
+ */
+export async function getOrderEmailPreviewHtml(data: EmailData): Promise<{ subject: string; html: string }> {
+  // Load company settings for logo and footer
+  const settings = await loadCompanySettings();
+
+  // Build using new order confirmation template
+  const template = buildOrderConfirmationEmailTemplate(data, settings);
+
+  return {
+    subject: template.subject,
+    html: template.html
+  };
+}
+
+/**
+ * Get email preview HTML for frontend display (legacy - synchronous)
  * Uses same template as actual email sending - guaranteed consistency
  *
  * @param data - Email data
@@ -563,8 +812,25 @@ async function createEmailMessage(
   }
 
   // Part 2+: PDF attachments (in the outer mixed section)
+  // IMPORTANT: Fail if attachments cannot be fetched (per user requirement - no silent failures)
   for (const attachment of attachments) {
-    const pdfBase64 = await fetchPDFAsBase64(attachment.url);
+    let pdfBase64: string | null = null;
+    let lastError: Error | null = null;
+
+    // Retry logic for attachment fetching (3 attempts with exponential backoff)
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        pdfBase64 = await fetchPDFAsBase64(attachment.url);
+        if (pdfBase64) break;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error('Unknown error');
+        console.warn(`⚠️ [Gmail] Attachment fetch attempt ${attempt}/3 failed: ${attachment.name}`);
+        if (attempt < 3) {
+          const delay = Math.pow(2, attempt) * 1000; // 2s, 4s
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
 
     if (pdfBase64) {
       bodyParts.push(
@@ -576,7 +842,8 @@ async function createEmailMessage(
         pdfBase64
       );
     } else {
-      console.warn(`⚠️ [Gmail] Skipping attachment: ${attachment.name} (fetch failed)`);
+      // FAIL the email send - don't silently skip attachments
+      throw new Error(`Failed to attach "${attachment.name}" after 3 attempts. Email not sent.`);
     }
   }
 
@@ -639,26 +906,44 @@ async function sendWithRetry(
 
 /**
  * Send finalization email to customer point persons
+ * Uses the new order confirmation template with company logo and customizable content
  *
- * @param data - Email data including recipients and order info
+ * @param data - Email data including recipients, order info, and optional email content
  * @returns Email result with success status and message ID
  */
 export async function sendFinalizationEmail(data: EmailData): Promise<EmailResult> {
+  // Load company settings for logo and footer
+  const settings = await loadCompanySettings();
+
+  // Build email template using new order confirmation template
+  const template = data.emailContent
+    ? buildOrderConfirmationEmailTemplate(data, settings)
+    : buildEmailTemplate(data);
+
+  // Build complete BCC list
+  const allBccRecipients: string[] = [...(data.bccRecipients || [])];
+  if (BCC_EMAIL && BCC_EMAIL.trim() !== '' && !allBccRecipients.includes(BCC_EMAIL)) {
+    allBccRecipients.push(BCC_EMAIL);
+  }
+
   // Check if Gmail is enabled
   if (!GMAIL_ENABLED) {
     console.log('\n' + '='.repeat(80));
     console.log('[GMAIL DISABLED] Email would be sent with the following details:');
     console.log('='.repeat(80));
 
-    const template = buildEmailTemplate(data);
-
     console.log('\n📧 EMAIL DETAILS:');
     console.log(`  From: ${SENDER_NAME} <${SENDER_EMAIL}>`);
     console.log(`  To: ${data.recipients.join(', ')}`);
-    if (BCC_EMAIL && BCC_EMAIL.trim() !== '') {
-      console.log(`  Bcc: ${BCC_EMAIL}`);
+    if (data.ccRecipients && data.ccRecipients.length > 0) {
+      console.log(`  CC: ${data.ccRecipients.join(', ')}`);
+    }
+    if (allBccRecipients.length > 0) {
+      console.log(`  Bcc: ${allBccRecipients.join(', ')}`);
     }
     console.log(`  Subject: ${template.subject}`);
+    console.log(`  Using new template: ${data.emailContent ? 'Yes' : 'No (legacy)'}`);
+    console.log(`  Company logo: ${settings.company_logo_base64 ? 'Yes' : 'No'}`);
 
     console.log('\n📎 ATTACHMENTS:');
     if (data.pdfUrls.orderForm) {
@@ -706,16 +991,18 @@ export async function sendFinalizationEmail(data: EmailData): Promise<EmailResul
   }
 
   try {
-    // Build email template
-    const template = buildEmailTemplate(data);
-
-    console.log('\n📧 [Gmail] Preparing to send email...');
+    console.log('\n📧 [Gmail] Preparing to send order confirmation email...');
     console.log(`   From: ${SENDER_NAME} <${SENDER_EMAIL}>`);
     console.log(`   To: ${data.recipients.join(', ')}`);
-    if (BCC_EMAIL && BCC_EMAIL.trim() !== '') {
-      console.log(`   Bcc: ${BCC_EMAIL}`);
+    if (data.ccRecipients && data.ccRecipients.length > 0) {
+      console.log(`   CC: ${data.ccRecipients.join(', ')}`);
+    }
+    if (allBccRecipients.length > 0) {
+      console.log(`   Bcc: ${allBccRecipients.join(', ')}`);
     }
     console.log(`   Subject: ${template.subject}`);
+    console.log(`   Using new template: ${data.emailContent ? 'Yes' : 'No (legacy)'}`);
+    console.log(`   Company logo: ${settings.company_logo_base64 ? 'Yes' : 'No'}`);
     console.log(`   Attachments: ${[data.pdfUrls.orderForm, data.pdfUrls.qbEstimate].filter(Boolean).length}`);
 
     // Create Gmail client

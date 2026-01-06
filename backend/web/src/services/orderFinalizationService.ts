@@ -10,14 +10,22 @@
 
 import { pool } from '../config/database';
 import { orderService } from './orderService';
-import { sendFinalizationEmail } from './gmailService';
+import { sendFinalizationEmail, OrderEmailContent } from './gmailService';
 import { PoolConnection } from 'mysql2/promise';
 import * as orderPrepRepo from '../repositories/orderPreparationRepository';
+
+export interface RecipientSelection {
+  to: string[];
+  cc: string[];
+  bcc: string[];
+}
 
 export interface FinalizationOptions {
   orderNumber: number;
   sendEmail: boolean;
-  recipients: string[];
+  recipients?: string[];  // Legacy: simple list (all To)
+  recipientSelection?: RecipientSelection;  // New: To/CC/BCC
+  emailContent?: OrderEmailContent;  // New: customizable email content
   userId: number;
   orderName?: string;
   pdfUrls?: {
@@ -78,11 +86,23 @@ export async function finalizeOrderToCustomer(
   try {
     await connection.beginTransaction();
 
+    // Normalize recipients (support both old and new format)
+    const recipients: RecipientSelection = options.recipientSelection || {
+      to: options.recipients || [],
+      cc: [],
+      bcc: []
+    };
+
+    const totalRecipients = recipients.to.length + recipients.cc.length + recipients.bcc.length;
+
     // Build status history notes
     let notes = '';
-    if (options.sendEmail && options.recipients.length > 0) {
-      const recipientList = options.recipients.join(', ');
-      notes = `Order finalized and sent to ${options.recipients.length} recipient${options.recipients.length > 1 ? 's' : ''}: ${recipientList}`;
+    if (options.sendEmail && totalRecipients > 0) {
+      const parts: string[] = [];
+      if (recipients.to.length > 0) parts.push(`To: ${recipients.to.join(', ')}`);
+      if (recipients.cc.length > 0) parts.push(`CC: ${recipients.cc.join(', ')}`);
+      if (recipients.bcc.length > 0) parts.push(`BCC: ${recipients.bcc.length} recipient(s)`);
+      notes = `Order finalized and sent to ${totalRecipients} recipient${totalRecipients > 1 ? 's' : ''}: ${parts.join('; ')}`;
     } else {
       notes = 'Order finalized (email skipped)';
     }
@@ -101,16 +121,20 @@ export async function finalizeOrderToCustomer(
 
     // Send email (placeholder - doesn't block finalization)
     let emailSent = false;
-    if (options.sendEmail && options.recipients.length > 0) {
+    if (options.sendEmail && totalRecipients > 0) {
       try {
         // Get customer name for email personalization
         const orderData = await orderPrepRepo.getOrderDataForQBEstimate(orderId);
 
+        // Frontend builds orderName with Job # and PO # already included
         const emailResult = await sendFinalizationEmail({
-          recipients: options.recipients,
+          recipients: recipients.to,  // To recipients
+          ccRecipients: recipients.cc,  // CC recipients
+          bccRecipients: recipients.bcc,  // BCC recipients
           orderNumber: options.orderNumber,
           orderName: options.orderName || `Order #${options.orderNumber}`,
           customerName: orderData?.customer_name || undefined,
+          emailContent: options.emailContent,
           pdfUrls: options.pdfUrls || { orderForm: null, qbEstimate: null }
         });
 
@@ -126,8 +150,8 @@ export async function finalizeOrderToCustomer(
       success: true,
       emailSent,
       statusUpdated: true,
-      message: options.sendEmail && options.recipients.length > 0
-        ? `Order finalized successfully. Email ${emailSent ? 'sent' : 'queued'} to ${options.recipients.length} recipient(s).`
+      message: options.sendEmail && totalRecipients > 0
+        ? `Order finalized successfully. Email ${emailSent ? 'sent' : 'queued'} to ${totalRecipients} recipient(s).`
         : 'Order finalized successfully (email skipped).'
     };
 

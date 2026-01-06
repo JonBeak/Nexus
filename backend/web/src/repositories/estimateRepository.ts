@@ -846,6 +846,7 @@ export class EstimateRepository {
         j.job_name,
         j.job_number,
         j.customer_job_number,
+        e.notes as version_description,
         c.company_name as customer_name,
         c.quickbooks_name
        FROM job_estimates e

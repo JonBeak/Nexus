@@ -102,11 +102,12 @@ export async function renderNotesAndImage(
       return;
     }
 
-    // Draw separator line above notes/image section
+    // Draw separator line above notes/image section (centered in the IMAGE_AFTER_PARTS gap)
+    const separatorY = maxPartY + (SPACING.IMAGE_AFTER_PARTS / 2);
     doc.strokeColor(COLORS.DIVIDER_LIGHT)
       .lineWidth(0.5)
-      .moveTo(marginLeft, actualImageStartY - SPACING.ITEM_GAP)
-      .lineTo(pageWidth - marginRight, actualImageStartY - SPACING.ITEM_GAP)
+      .moveTo(marginLeft, separatorY)
+      .lineTo(pageWidth - marginRight, separatorY)
       .stroke();
 
     let notesY = actualImageStartY;
@@ -121,7 +122,7 @@ export async function renderNotesAndImage(
     // Calculate notes column width
     const notesColumnWidth = contentWidth * LAYOUT.NOTES_LEFT_WIDTH_PERCENT;
 
-    // Order Notes (left side) - manufacturing_note with spec-row styling
+    // Order Notes (left side) - manufacturing_note with compound path styling
     let orderNotesHeight = 0;
     if (orderData.manufacturing_note) {
       const labelText = 'Order Notes';
@@ -140,9 +141,12 @@ export async function renderNotesAndImage(
       const actualTextWidth = doc.widthOfString(labelText);
       const textLeftPadding = (standardLabelWidth - actualTextWidth) / 2;
 
-      // Calculate value position and width (to the RIGHT of label)
-      const valueX = notesLeftX - SPACING.LABEL_PADDING + standardLabelWidth + doc.widthOfString('  ');
-      const availableValueWidth = notesColumnWidth - (standardLabelWidth + doc.widthOfString('  '));
+      // Fixed value box width (fills available column width)
+      const valueBoxPaddingLeft = 6;
+      const valueBoxWidth = notesColumnWidth - standardLabelWidth;
+      const valueBoxStartX = notesLeftX - SPACING.LABEL_PADDING + standardLabelWidth;
+      const valueTextX = valueBoxStartX + valueBoxPaddingLeft;
+      const availableValueWidth = valueBoxWidth - valueBoxPaddingLeft - 6; // 6px right padding
 
       // Calculate value height based on wrapped text
       const valueHeight = calculateAccurateTextHeight(doc, noteText, availableValueWidth, 12, 'Helvetica');
@@ -160,22 +164,30 @@ export async function renderNotesAndImage(
       const maxContentHeight = Math.max(labelHeight, paddedValueHeight);
       const labelBoxHeight = maxContentHeight + topTextPadding + bottomTextPadding;
 
-      // === STEP 2: Draw label box ===
+      // === STEP 2: Draw compound path (label + value borders) ===
 
       const labelBoxStartY = notesY;
-      doc.fillColor(COLORS.LABEL_BG_DEFAULT)
-        .rect(
-          notesLeftX - SPACING.LABEL_PADDING,
-          labelBoxStartY,
-          standardLabelWidth,
-          labelBoxHeight
-        )
-        .fill();
+      const labelBoxStartX = notesLeftX - SPACING.LABEL_PADDING;
+      const borderWidth = 1;
+
+      // Outer rect covers label + value area
+      const outerWidth = standardLabelWidth + valueBoxWidth;
+
+      // Cutout: inset by borderWidth on top/right/bottom, no inset on left (connects to label)
+      const cutoutX = valueBoxStartX;
+      const cutoutY = labelBoxStartY + borderWidth;
+      const cutoutWidth = valueBoxWidth - borderWidth;
+      const cutoutHeight = labelBoxHeight - (borderWidth * 2);
+
+      // Create compound path and fill with evenOdd rule
+      doc.rect(labelBoxStartX, labelBoxStartY, outerWidth, labelBoxHeight)  // Outer rect
+        .rect(cutoutX, cutoutY, cutoutWidth, cutoutHeight);                  // Inner cutout
+      doc.fillColor(COLORS.LABEL_BG_DEFAULT).fill('evenodd');
 
       // === STEP 3: Render label text (centered in box) ===
 
       const labelTextY = labelBoxStartY + (labelBoxHeight - labelHeight) / 2;
-      const centeredX = notesLeftX - SPACING.LABEL_PADDING + textLeftPadding;
+      const centeredX = labelBoxStartX + textLeftPadding;
 
       doc.fillColor(COLORS.BLACK)
         .fontSize(11)
@@ -186,29 +198,17 @@ export async function renderNotesAndImage(
           lineBreak: false
         });
 
-      // === STEP 4: Render value text (to the right of label) ===
+      // === STEP 4: Render value text (inside cutout area) ===
 
       const valueY = labelBoxStartY + topTextPadding + valuePadding;
 
       doc.fillColor(COLORS.BLACK)
         .fontSize(12)
         .font('Helvetica')
-        .text(noteText, valueX, valueY, {
+        .text(noteText, valueTextX, valueY, {
           width: availableValueWidth,
           lineBreak: true
         });
-
-      // === STEP 5: Draw horizontal line at bottom ===
-
-      const lineY = labelBoxStartY + labelBoxHeight;
-      doc.fillColor(COLORS.LABEL_BG_DEFAULT)
-        .rect(
-          notesLeftX - SPACING.LABEL_PADDING,
-          lineY - 1,
-          notesColumnWidth,
-          1
-        )
-        .fill();
 
       // Track the height used by Order Notes row
       orderNotesHeight = labelBoxHeight + SPACING.SPEC_ROW_GAP;
@@ -233,9 +233,12 @@ export async function renderNotesAndImage(
       const actualTextWidth = doc.widthOfString(labelText);
       const textLeftPadding = (standardLabelWidth - actualTextWidth) / 2;
 
-      // Calculate value position and width (to the RIGHT of label)
-      const valueX = notesRightX - SPACING.LABEL_PADDING + standardLabelWidth + doc.widthOfString('  ');
-      const availableValueWidth = notesColumnWidth - (standardLabelWidth + doc.widthOfString('  '));
+      // Fixed value box width (fills available column width)
+      const valueBoxPaddingLeft = 6;
+      const valueBoxWidth = notesColumnWidth - standardLabelWidth;
+      const valueBoxStartX = notesRightX - SPACING.LABEL_PADDING + standardLabelWidth;
+      const valueTextX = valueBoxStartX + valueBoxPaddingLeft;
+      const availableValueWidth = valueBoxWidth - valueBoxPaddingLeft - 6; // 6px right padding
 
       // Calculate value height based on wrapped text
       const valueHeight = calculateAccurateTextHeight(doc, noteText, availableValueWidth, 12, 'Helvetica');
@@ -253,22 +256,30 @@ export async function renderNotesAndImage(
       const maxContentHeight = Math.max(labelHeight, paddedValueHeight);
       const labelBoxHeight = maxContentHeight + topTextPadding + bottomTextPadding;
 
-      // === STEP 2: Draw label box ===
+      // === STEP 2: Draw compound path (label + value borders) ===
 
       const labelBoxStartY = notesY;
-      doc.fillColor(COLORS.LABEL_BG_DEFAULT)
-        .rect(
-          notesRightX - SPACING.LABEL_PADDING,
-          labelBoxStartY,
-          standardLabelWidth,
-          labelBoxHeight
-        )
-        .fill();
+      const labelBoxStartX = notesRightX - SPACING.LABEL_PADDING;
+      const borderWidth = 1;
+
+      // Outer rect covers label + value area
+      const outerWidth = standardLabelWidth + valueBoxWidth;
+
+      // Cutout: inset by borderWidth on top/right/bottom, no inset on left (connects to label)
+      const cutoutX = valueBoxStartX;
+      const cutoutY = labelBoxStartY + borderWidth;
+      const cutoutWidth = valueBoxWidth - borderWidth;
+      const cutoutHeight = labelBoxHeight - (borderWidth * 2);
+
+      // Create compound path and fill with evenOdd rule
+      doc.rect(labelBoxStartX, labelBoxStartY, outerWidth, labelBoxHeight)  // Outer rect
+        .rect(cutoutX, cutoutY, cutoutWidth, cutoutHeight);                  // Inner cutout
+      doc.fillColor(COLORS.LABEL_BG_DEFAULT).fill('evenodd');
 
       // === STEP 3: Render label text (centered in box) ===
 
       const labelTextY = labelBoxStartY + (labelBoxHeight - labelHeight) / 2;
-      const centeredX = notesRightX - SPACING.LABEL_PADDING + textLeftPadding;
+      const centeredX = labelBoxStartX + textLeftPadding;
 
       doc.fillColor(COLORS.BLACK)
         .fontSize(11)
@@ -279,29 +290,17 @@ export async function renderNotesAndImage(
           lineBreak: false
         });
 
-      // === STEP 4: Render value text (to the right of label) ===
+      // === STEP 4: Render value text (inside cutout area) ===
 
       const valueY = labelBoxStartY + topTextPadding + valuePadding;
 
       doc.fillColor(COLORS.BLACK)
         .fontSize(12)
         .font('Helvetica')
-        .text(noteText, valueX, valueY, {
+        .text(noteText, valueTextX, valueY, {
           width: availableValueWidth,
           lineBreak: true
         });
-
-      // === STEP 5: Draw horizontal line at bottom ===
-
-      const lineY = labelBoxStartY + labelBoxHeight;
-      doc.fillColor(COLORS.LABEL_BG_DEFAULT)
-        .rect(
-          notesRightX - SPACING.LABEL_PADDING,
-          lineY - 1,
-          notesColumnWidth,
-          1
-        )
-        .fill();
 
       // Track the height used by Internal Note row
       internalNoteHeight = labelBoxHeight + SPACING.SPEC_ROW_GAP;

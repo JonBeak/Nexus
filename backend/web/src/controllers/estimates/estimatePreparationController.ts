@@ -10,8 +10,11 @@ import { AuthRequest } from '../../types';
 import {
   estimatePreparationRepository,
   UpdatePreparationItemData,
-  CreatePreparationItemData
+  CreatePreparationItemData,
+  ImportInstruction
 } from '../../repositories/estimatePreparationRepository';
+import { query } from '../../config/database';
+import { RowDataPacket } from 'mysql2';
 
 /**
  * Validate estimate ID parameter
@@ -333,6 +336,143 @@ export const getPreparationTotals = async (req: AuthRequest, res: Response) => {
     res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'Failed to calculate totals'
+    });
+  }
+};
+
+// =============================================
+// IMPORT QB DESCRIPTIONS ENDPOINTS
+// =============================================
+
+/**
+ * Get list of estimates that can be used as import sources
+ * Returns estimates with preparation table data, prioritizing same-job versions
+ * @route GET /estimates/:estimateId/import-sources
+ */
+export const getImportSources = async (req: AuthRequest, res: Response) => {
+  try {
+    const validation = validateEstimateId(req.params.estimateId, res);
+    if (!validation.isValid) return;
+    const estimateId = validation.value!;
+
+    // Get the job_id for the current estimate
+    const rows = await query(
+      `SELECT job_id FROM job_estimates WHERE id = ?`,
+      [estimateId]
+    ) as RowDataPacket[];
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Estimate not found'
+      });
+    }
+
+    const jobId = rows[0].job_id;
+    const sources = await estimatePreparationRepository.getImportSources(estimateId, jobId);
+
+    // Separate same-job and other estimates for easier frontend handling
+    const sameJobSources = sources.filter(s => s.job_id === jobId);
+    const otherSources = sources.filter(s => s.job_id !== jobId);
+
+    res.json({
+      success: true,
+      data: {
+        sameJobEstimates: sameJobSources,
+        otherEstimates: otherSources
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching import sources:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch import sources'
+    });
+  }
+};
+
+/**
+ * Import QB descriptions (and optionally qty/price) from other estimates
+ * Handles both updating existing items and creating new items
+ * @route POST /estimates/:estimateId/preparation-items/import
+ */
+export const importPreparationItems = async (req: AuthRequest, res: Response) => {
+  try {
+    const validation = validateEstimateId(req.params.estimateId, res);
+    if (!validation.isValid) return;
+    const estimateId = validation.value!;
+
+    const { imports } = req.body;
+
+    if (!Array.isArray(imports) || imports.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'imports array is required and must not be empty'
+      });
+    }
+
+    // Validate import instructions
+    const validatedImports: ImportInstruction[] = imports.map((imp: any) => {
+      const instruction: ImportInstruction = {};
+
+      // Either targetItemId or we're creating a new item
+      if (imp.targetItemId !== undefined) {
+        instruction.targetItemId = parseInt(imp.targetItemId, 10);
+        if (isNaN(instruction.targetItemId)) {
+          throw new Error('Invalid targetItemId');
+        }
+      }
+
+      // Copyable fields
+      if (imp.qb_description !== undefined) {
+        instruction.qb_description = imp.qb_description;
+      }
+      if (imp.quantity !== undefined) {
+        instruction.quantity = parseFloat(imp.quantity);
+        if (isNaN(instruction.quantity)) {
+          throw new Error('Invalid quantity');
+        }
+      }
+      if (imp.unit_price !== undefined) {
+        instruction.unit_price = parseFloat(imp.unit_price);
+        if (isNaN(instruction.unit_price)) {
+          throw new Error('Invalid unit_price');
+        }
+      }
+
+      // For new items only
+      if (!instruction.targetItemId) {
+        instruction.item_name = imp.item_name || 'Imported Item';
+        instruction.calculation_display = imp.calculation_display || null;
+        instruction.is_description_only = Boolean(imp.is_description_only);
+        instruction.qb_item_id = imp.qb_item_id || null;
+        instruction.qb_item_name = imp.qb_item_name || null;
+      }
+
+      return instruction;
+    });
+
+    const result = await estimatePreparationRepository.batchImportItems(
+      estimateId,
+      validatedImports
+    );
+
+    // Return updated items list
+    const items = await estimatePreparationRepository.getItemsByEstimateId(estimateId);
+
+    res.json({
+      success: true,
+      data: {
+        updated: result.updated,
+        created: result.created,
+        items
+      }
+    });
+  } catch (error) {
+    console.error('Error importing preparation items:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to import items'
     });
   }
 };

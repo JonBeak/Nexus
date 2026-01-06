@@ -13,7 +13,7 @@
  * Layout: Landscape Letter (11" x 8.5")
  * - Top Left (~70%): Line items table (QB Item, Description, Qty, Unit Price, Extended)
  * - Top Right (~30%): Order info (Order #, Job Name, Customer, Date) and totals (Subtotal, Tax, Total)
- * - Bottom: Cropped job image (max 50% of page height)
+ * - Bottom: Cropped job image (max 40% of page height)
  *
  * Note: If more than 25 line items, table is hidden and message shown instead
  */
@@ -23,6 +23,7 @@ import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 import { OrderDataForPDF } from '../../../types/orders';
+import { checkFileWritable, FileBusyError } from '../utils/safeFileWriter';
 import { COLORS, FONT_SIZES, SPACING } from './pdfConstants';
 import { getImageFullPath } from './pdfHelpers';
 
@@ -32,7 +33,7 @@ import { getImageFullPath } from './pdfHelpers';
 
 const MAX_LINE_ITEMS = 25;  // Hide table if more than this
 const TABLE_WIDTH_PERCENT = 0.55;  // Table takes 58% of page width
-const MAX_IMAGE_HEIGHT_PERCENT = 0.50;  // Image max height is 50% of page
+const MAX_IMAGE_HEIGHT_PERCENT = 0.40;  // Image max height is 40% of page
 
 // =============================================
 // MAIN GENERATOR FUNCTION
@@ -47,6 +48,9 @@ export async function generateEstimateForm(
 ): Promise<string> {
   return new Promise(async (resolve, reject) => {
     try {
+      // Check if file is writable before attempting generation
+      await checkFileWritable(outputPath);
+
       const doc = new PDFDocument({
         size: 'LETTER',
         layout: 'landscape',
@@ -54,6 +58,16 @@ export async function generateEstimateForm(
       });
 
       const stream = fs.createWriteStream(outputPath);
+
+      // Attach error handler immediately to catch EBUSY during write
+      stream.on('error', (error: NodeJS.ErrnoException) => {
+        if (error.code === 'EBUSY') {
+          reject(new FileBusyError(outputPath));
+        } else {
+          reject(error);
+        }
+      });
+
       doc.pipe(stream);
 
       const pageWidth = doc.page.width;
@@ -100,10 +114,11 @@ export async function generateEstimateForm(
       renderTotalsBox(doc, pricingData, marginLeft, tableWidth, rightSideStartY);
 
       // Render job image at bottom of page (if space available and image exists)
-      // Calculate position: bottom of page, working upward with max 50% height
+      // Calculate position: bottom of page, working upward with max 40% height
+      const imageBottomMargin = 36;  // Bottom margin for image area
       const maxImageHeight = pageHeight * MAX_IMAGE_HEIGHT_PERCENT;
-      const imageStartY = pageHeight - marginBottom - maxImageHeight;
-      await renderJobImage(doc, orderData, imageStartY, marginLeft, contentWidth, pageHeight, marginBottom);
+      const imageStartY = pageHeight - imageBottomMargin - maxImageHeight;
+      await renderJobImage(doc, orderData, imageStartY, marginLeft, contentWidth, pageHeight, imageBottomMargin);
 
       doc.end();
 
@@ -449,7 +464,7 @@ async function cropImage(
 }
 
 /**
- * Render job image at bottom of page with cropping support (max 50% of page height)
+ * Render job image at bottom of page with cropping support (max 40% of page height)
  */
 async function renderJobImage(
   doc: any,
@@ -487,11 +502,14 @@ async function renderJobImage(
       return;
     }
 
-    const maxWidth = contentWidth;
+    const maxWidth = contentWidth * 0.90;  // 90% width, centered
     const maxHeight = maxImageHeight;
 
     // Check if image has crop coordinates
     const hasCrop = orderData.crop_top || orderData.crop_right || orderData.crop_bottom || orderData.crop_left;
+
+    // Center the image horizontally (90% width leaves 5% on each side)
+    const imageX = marginLeft + (contentWidth - maxWidth) / 2;
 
     if (hasCrop) {
       try {
@@ -506,28 +524,28 @@ async function renderJobImage(
         });
 
         // Embed cropped image
-        doc.image(croppedBuffer, marginLeft, startY, {
+        doc.image(croppedBuffer, imageX, startY, {
           fit: [maxWidth, maxHeight],
           align: 'center',
-          valign: 'top'
+          valign: 'bottom'
         });
         console.log(`[Estimate PDF] Successfully loaded cropped image`);
       } catch (cropError) {
         console.error('[Estimate PDF] Crop failed, using original:', cropError);
         // Fall back to original image
-        doc.image(imagePath, marginLeft, startY, {
+        doc.image(imagePath, imageX, startY, {
           fit: [maxWidth, maxHeight],
           align: 'center',
-          valign: 'top'
+          valign: 'bottom'
         });
         console.log(`[Estimate PDF] Successfully loaded image (crop failed, using original)`);
       }
     } else {
       // No crop coordinates, use original image
-      doc.image(imagePath, marginLeft, startY, {
+      doc.image(imagePath, imageX, startY, {
         fit: [maxWidth, maxHeight],
         align: 'center',
-        valign: 'top'
+        valign: 'bottom'
       });
       console.log(`[Estimate PDF] Successfully loaded image (no crop)`);
     }

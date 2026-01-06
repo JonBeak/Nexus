@@ -427,7 +427,7 @@ export function renderSpecifications(
 
     // Critical specs: always show them (unless exempt)
     if (isCriticalSpec) {
-      const valueStr = formatSpecValues(row.template, row.specs, formType) || 'No';
+      const valueStr = formatSpecValues(row.template, row.specs, formType) || 'None';
       currentY = renderSpecRow(doc, row.template, valueStr, x, currentY, width);
     } else if (Object.keys(row.specs).length > 0) {
       // Other specs: only show if there are values
@@ -531,24 +531,30 @@ function renderSpecRow(
   const actualTextWidth = doc.widthOfString(labelText);
   const textLeftPadding = (standardLabelWidth - actualTextWidth) / 2;
 
-  // Calculate value position and width
-  const valueX = x - SPACING.LABEL_PADDING + standardLabelWidth + doc.widthOfString('  ');
-  const availableValueWidth = width - (valueX - x);
+  // Value box positioning - starts immediately after label box (connected)
+  const valueBoxStartX = x - SPACING.LABEL_PADDING + standardLabelWidth;
+  const valueBoxPaddingLeft = 6;  // Left padding inside value box
+  const valueBoxPaddingRight = 6; // Equal right padding
+
+  // Maximum available width for value box (from label end to column edge)
+  const maxValueBoxWidth = width - standardLabelWidth + SPACING.LABEL_PADDING;
+  // Maximum text width inside value box
+  const maxTextWidth = maxValueBoxWidth - valueBoxPaddingLeft - valueBoxPaddingRight;
 
   // Calculate value height based on content and font - ACCURATELY
   let valueHeight = 0;
   let valueLineHeight = 0;
 
-  if (trimmedValue === 'No') {
-    // "No" values use 12pt font
-    doc.fontSize(12).font('Helvetica-Bold');
+  if (trimmedValue === 'None') {
+    // "None" values use 12pt regular font (matches other values)
+    doc.fontSize(12).font('Helvetica');
     valueLineHeight = doc.currentLineHeight();
     valueHeight = valueLineHeight;
   } else {
     // Normal values use 12pt font
     if (trimmedValue) {
-      // Use accurate calculation for wrapped text
-      valueHeight = calculateAccurateTextHeight(doc, trimmedValue, availableValueWidth, 12, 'Helvetica');
+      // Use accurate calculation for wrapped text (using max text width for wrapping)
+      valueHeight = calculateAccurateTextHeight(doc, trimmedValue, maxTextWidth, 12, 'Helvetica');
       doc.fontSize(12).font('Helvetica');
       valueLineHeight = doc.currentLineHeight();
     } else {
@@ -581,95 +587,122 @@ function renderSpecRow(
     labelBgColor = COLORS.LABEL_BG_PAINTING;
   }
 
-  // === STEP 3: Draw extended label box ===
+  // === STEP 3: Calculate positions ===
 
   const labelBoxStartY = currentY;
-  doc.fillColor(labelBgColor)
-    .rect(
-      x - SPACING.LABEL_PADDING,
-      labelBoxStartY,
-      standardLabelWidth,
-      labelBoxHeight
-    )
-    .fill();
+  const labelBoxStartX = x - SPACING.LABEL_PADDING;
+  const borderWidth = 1;
 
-  // === STEP 4: Render label text (centered vertically in extended box) ===
-
-  const labelTextY = labelBoxStartY + (labelBoxHeight - labelHeight) / 2;
-  const centeredX = x - SPACING.LABEL_PADDING + textLeftPadding;
-
-  doc.fillColor(COLORS.BLACK)
-    .fontSize(11)
-    .font('Helvetica-Bold')
-    .text(labelText, centeredX, labelTextY, {
-      continued: false,
-      width: standardLabelWidth,
-      lineBreak: false
-    });
-
-  // === STEP 5: Render value (with top padding + value padding) ===
-
+  // Calculate value text X position (with left padding)
+  const valueTextX = valueBoxStartX + valueBoxPaddingLeft;
   const valueY = labelBoxStartY + topTextPadding + valuePadding;
 
-  if (trimmedValue === 'No') {
-    // Special styling for "No" values - centered vertically in the box
-    doc.fontSize(11).font('Helvetica-Bold');
+  // === STEP 4: Draw label + value box using compound path ===
+
+  if (trimmedValue === 'None') {
+    // Special styling for "None" values - same compound path structure, then fill cutout with NO_BG
+    doc.fontSize(12).font('Helvetica');
     const noTextWidth = doc.widthOfString(value);
-    const noLineHeight = doc.currentLineHeight();
 
-    const leftPadding = 12;
-    const rightPadding = 12;
-    const highlightWidth = noTextWidth + leftPadding + rightPadding;
+    // Value box width based on text + padding
+    const valueBoxWidth = valueBoxPaddingLeft + noTextWidth + valueBoxPaddingRight;
 
-    // Position "No" with top padding + value padding (same as other text)
-    const noY = labelBoxStartY + topTextPadding + valuePadding;
-    const noBgStartY = noY - 2;
-    const noBgHeight = noLineHeight + 3;
-    const rectStartX = valueX - SPACING.LABEL_PADDING + 6;
+    // Compound path: outer rect (label + value + borders) with inner cutout (value content)
+    const outerWidth = standardLabelWidth + valueBoxWidth;
 
-    // Draw red background for "No"
+    // Cutout: inset by borderWidth on top/right/bottom, no inset on left (connects to label)
+    const cutoutX = valueBoxStartX;
+    const cutoutY = labelBoxStartY + borderWidth;
+    const cutoutWidth = valueBoxWidth - borderWidth;
+    const cutoutHeight = labelBoxHeight - (borderWidth * 2);
+
+    // Create compound path and fill with evenOdd rule (label + borders)
+    doc.rect(labelBoxStartX, labelBoxStartY, outerWidth, labelBoxHeight)  // Outer rect
+      .rect(cutoutX, cutoutY, cutoutWidth, cutoutHeight);                  // Inner cutout
+    doc.fillColor(labelBgColor).fill('evenodd');
+
+    // Fill the cutout area with NO_BG
     doc.fillColor(COLORS.NO_BG)
-      .rect(
-        rectStartX,
-        noBgStartY,
-        highlightWidth,
-        noBgHeight
-      )
+      .rect(cutoutX, cutoutY, cutoutWidth, cutoutHeight)
       .fill();
 
-    // Render "No" text in black
-    const noTextX = rectStartX + leftPadding;
+    // Render label text (centered vertically in box)
+    const labelTextY = labelBoxStartY + (labelBoxHeight - labelHeight) / 2;
+    const centeredX = labelBoxStartX + textLeftPadding;
     doc.fillColor(COLORS.BLACK)
       .fontSize(11)
       .font('Helvetica-Bold')
-      .text(value, noTextX, noY, {
+      .text(labelText, centeredX, labelTextY, {
+        continued: false,
+        width: standardLabelWidth,
+        lineBreak: false
+      });
+
+    // Render "None" text in black, vertically centered in cutout
+    const noLineHeight = doc.currentLineHeight();
+    const noY = cutoutY + (cutoutHeight - noLineHeight) / 2;
+    doc.fillColor(COLORS.BLACK)
+      .fontSize(12)
+      .font('Helvetica')
+      .text(value, valueTextX, noY, {
         width: noTextWidth,
         lineBreak: false
       });
   } else {
-    // Render normal value (12pt font, can wrap)
+    // Normal value: use compound path with inset cutout for borders
+    doc.fontSize(12).font('Helvetica');
+
+    // Calculate value text width for dynamic box sizing
+    const valueTextWidth = doc.widthOfString(trimmedValue || '');
+    const needsWrapping = valueTextWidth > maxTextWidth;
+
+    let valueBoxWidth: number;
+    if (needsWrapping || !trimmedValue) {
+      // Multi-line or empty: use max available width
+      valueBoxWidth = maxValueBoxWidth;
+    } else {
+      // Single line: dynamic width based on text
+      valueBoxWidth = valueBoxPaddingLeft + valueTextWidth + valueBoxPaddingRight;
+    }
+
+    // Compound path: outer rect (label + value + borders) with inner cutout (value content)
+    // The fill creates the label background AND the value borders in one shape
+    const outerWidth = standardLabelWidth + valueBoxWidth;
+
+    // Cutout: inset by borderWidth on top/right/bottom, no inset on left (connects to label)
+    const cutoutX = valueBoxStartX;
+    const cutoutY = labelBoxStartY + borderWidth;
+    const cutoutWidth = valueBoxWidth - borderWidth;
+    const cutoutHeight = labelBoxHeight - (borderWidth * 2);
+
+    // Create compound path and fill with evenOdd rule
+    doc.rect(labelBoxStartX, labelBoxStartY, outerWidth, labelBoxHeight)  // Outer rect
+      .rect(cutoutX, cutoutY, cutoutWidth, cutoutHeight);                  // Inner cutout
+    doc.fillColor(labelBgColor).fill('evenodd');
+
+    // Render label text (centered vertically in box)
+    const labelTextY = labelBoxStartY + (labelBoxHeight - labelHeight) / 2;
+    const centeredX = labelBoxStartX + textLeftPadding;
+    doc.fillColor(COLORS.BLACK)
+      .fontSize(11)
+      .font('Helvetica-Bold')
+      .text(labelText, centeredX, labelTextY, {
+        continued: false,
+        width: standardLabelWidth,
+        lineBreak: false
+      });
+
+    // Render value text (use maxTextWidth for consistent wrapping)
     doc.fillColor(COLORS.BLACK)
       .fontSize(12)
       .font('Helvetica')
-      .text(value, valueX, valueY, {
-        width: availableValueWidth,
+      .text(value, valueTextX, valueY, {
+        width: maxTextWidth,
         lineBreak: true
       });
   }
 
-  // === STEP 6: Draw horizontal line at BOTTOM of label box ===
-
-  const lineY = labelBoxStartY + labelBoxHeight;
-  doc.fillColor(labelBgColor)
-    .rect(
-      x - SPACING.LABEL_PADDING,
-      lineY-1,
-      width,
-      1
-    )
-    .fill();
-
-  // === STEP 7: Return bottom of row + gap ===
+  // === STEP 6: Return bottom of row + gap ===
 
   const rowBottom = labelBoxStartY + labelBoxHeight;
   return rowBottom + SPACING.SPEC_ROW_GAP;

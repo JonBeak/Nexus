@@ -180,7 +180,7 @@ export const LivePDFPreviewPanel: React.FC<LivePDFPreviewPanelProps> = ({
   ];
 
   return (
-    <div className="h-full overflow-y-auto space-y-4">
+    <div className="space-y-4">
       {pdfs.map((pdf) => (
         <PDFDocument
           key={`${pdf.label}-${pdf.url || 'empty'}`}

@@ -86,6 +86,8 @@ export const ServerManagement: React.FC = () => {
   ) => {
     setButtonStates(prev => ({ ...prev, [key]: 'running' }));
     setAutoRefresh(false); // Pause auto-refresh during operation
+    // Clear previous output and show running state
+    setLastOutput({ command: commandName, output: 'Running...' });
 
     try {
       const result = await action();

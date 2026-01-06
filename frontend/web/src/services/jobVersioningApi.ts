@@ -509,5 +509,73 @@ export const jobVersioningApi = {
       `/job-estimation/estimates/${estimateId}/preparation-items/${itemId}/toggle-type`
     );
     return response.data;
+  },
+
+  // =============================================
+  // IMPORT QB DESCRIPTIONS
+  // =============================================
+
+  /**
+   * Get list of estimates that can be used as import sources
+   * Returns estimates with preparation table data, prioritizing same-job versions
+   */
+  getImportSources: async (estimateId: number): Promise<{
+    success: boolean;
+    data: {
+      sameJobEstimates: Array<{
+        id: number;
+        job_id: number;
+        job_name: string;
+        customer_name: string;
+        version_number: number;
+        qb_doc_number: string | null;
+        status: string;
+      }>;
+      otherEstimates: Array<{
+        id: number;
+        job_id: number;
+        job_name: string;
+        customer_name: string;
+        version_number: number;
+        qb_doc_number: string | null;
+        status: string;
+      }>;
+    };
+  }> => {
+    const response = await api.get(`/job-estimation/estimates/${estimateId}/import-sources`);
+    return response.data;
+  },
+
+  /**
+   * Import QB descriptions (and optionally qty/price) from other estimates
+   * Handles both updating existing items and creating new items
+   */
+  importPreparationItems: async (
+    estimateId: number,
+    imports: Array<{
+      targetItemId?: number;      // If provided, update this existing item
+      qb_description?: string | null;
+      quantity?: number;
+      unit_price?: number;
+      // For new items only:
+      item_name?: string;
+      calculation_display?: string | null;
+      is_description_only?: boolean;
+      qb_item_id?: string | null;
+      qb_item_name?: string | null;
+    }>
+  ): Promise<{
+    success: boolean;
+    data: {
+      updated: number;
+      created: number;
+      items: Array<any>;
+    };
+  }> => {
+    const response = await api.post(
+      `/job-estimation/estimates/${estimateId}/preparation-items/import`,
+      { imports }
+    );
+    return response.data;
   }
 };

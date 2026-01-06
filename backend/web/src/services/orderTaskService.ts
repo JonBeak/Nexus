@@ -316,6 +316,18 @@ export class OrderTaskService {
   }
 
   /**
+   * Remove all tasks for a specific part
+   * Used to exclude a part from Job Progress view
+   */
+  async removeTasksForPart(partId: number): Promise<number> {
+    const result = await query(
+      'DELETE FROM order_tasks WHERE part_id = ?',
+      [partId]
+    ) as any;
+    return result.affectedRows || 0;
+  }
+
+  /**
    * Get available task templates from database
    */
   async getTaskTemplates(): Promise<{ task_name: string; assigned_role: string | null }[]> {

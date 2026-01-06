@@ -608,7 +608,9 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
           jobName={currentEstimate.customer_job_number
             ? `${currentEstimate.job_name} - ${currentEstimate.customer_job_number}`
             : currentEstimate.job_name || undefined}
-          version={`v${currentEstimate.version_number}`}
+          version={currentEstimate.notes
+            ? `v${currentEstimate.version_number} - ${currentEstimate.notes}`
+            : `v${currentEstimate.version_number}`}
           status={getEstimateStatusText(currentEstimate)}
           customerId={currentEstimate.customer_id}
           jobId={currentEstimate.job_id}
@@ -754,6 +756,7 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
                         {/* Preparation Table - editable rows for QB */}
                         <EstimatePreparationTable
                           estimateId={currentEstimate.id}
+                          jobId={currentEstimate.job_id}
                           readOnly={currentEstimate.status === 'ordered' || !!currentEstimate.qb_estimate_id}
                           taxRate={taxRate}
                           onTotalsChange={(totals) => {

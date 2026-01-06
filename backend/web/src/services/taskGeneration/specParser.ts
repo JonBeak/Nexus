@@ -42,10 +42,14 @@ export function parseSpecifications(specifications: Record<string, any>): Parsed
       }
     }
 
-    specs.push({
-      templateName,
-      values
-    });
+    // Only add spec if it has meaningful values (matches PDF generation filtering)
+    // Empty specs (no filled-in fields) should be ignored
+    if (Object.keys(values).length > 0) {
+      specs.push({
+        templateName,
+        values
+      });
+    }
   }
 
   return specs;

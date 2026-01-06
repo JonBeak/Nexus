@@ -30,7 +30,7 @@ import { orderFormRepository } from '../repositories/orderFormRepository';
 import { orderPartRepository } from '../repositories/orderPartRepository';
 import { validateOrderAndGetId } from './helpers/orderHelpers';
 import * as orderFinalizationService from '../services/orderFinalizationService';
-import { getEmailPreviewHtml } from '../services/gmailService';
+import { getEmailPreviewHtml, getOrderEmailPreviewHtml, OrderEmailContent } from '../services/gmailService';
 
 /**
  * GET /api/order-preparation/:orderNumber/qb-estimate/staleness
@@ -179,6 +179,7 @@ export const downloadQBEstimatePDF = async (req: Request, res: Response) => {
 /**
  * GET /api/order-preparation/:orderNumber/validate
  * Validate order for preparation
+ * Also cleans up empty spec rows as part of validation
  */
 export const validateForPreparation = async (req: Request, res: Response) => {
   try {
@@ -186,7 +187,7 @@ export const validateForPreparation = async (req: Request, res: Response) => {
     const orderId = await validateOrderAndGetId(orderNumber, res);
     if (!orderId) return;
 
-    // Validate order specifications
+    // Validate order specifications (also cleans up empty spec rows)
     const validationResult = await orderValidationService.validateOrderForPreparation(orderId);
 
     if (!validationResult.isValid) {
@@ -198,7 +199,8 @@ export const validateForPreparation = async (req: Request, res: Response) => {
 
     sendSuccessResponse(res, {
       valid: true,
-      message: 'Order validated successfully'
+      message: 'Order validated successfully',
+      cleanedSpecRows: validationResult.cleanedSpecRows || 0  // Report how many parts had empty specs removed
     });
   } catch (error) {
     console.error('Error validating order:', error);
@@ -342,6 +344,68 @@ export const getEmailPreview = async (req: Request, res: Response) => {
 };
 
 /**
+ * POST /api/order-preparation/:orderNumber/email-preview
+ * Get styled email preview with customizable content
+ */
+export const getOrderEmailPreviewWithContent = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const { recipients, emailContent, customerName, orderName, pdfUrls } = req.body;
+
+    const orderNumberNum = parseIntParam(orderNumber, 'order number');
+    if (orderNumberNum === null) {
+      return sendErrorResponse(res, 'Invalid order number', 'VALIDATION_ERROR');
+    }
+
+    // Get order info
+    const order = await orderPrepRepo.getOrderByOrderNumber(orderNumberNum);
+    let finalOrderName = orderName;
+    let finalCustomerName = customerName;
+    let orderNameWithRef = orderName || '';
+
+    if (order) {
+      const orderData = await orderPrepRepo.getOrderDataForQBEstimate(order.order_id);
+      finalOrderName = finalOrderName || order.order_name;
+      finalCustomerName = finalCustomerName || orderData?.customer_name;
+
+      // Build orderNameWithRef: "Order Name - Job # XXX - PO # YYY"
+      orderNameWithRef = order.order_name || '';
+      if (orderData?.customer_job_number) {
+        orderNameWithRef += ` - Job # ${orderData.customer_job_number}`;
+      }
+      if (orderData?.customer_po) {
+        orderNameWithRef += ` - PO # ${orderData.customer_po}`;
+      }
+    }
+
+    // Build email preview with content
+    // Map frontend field names (specsOrderForm) to backend field names (orderForm)
+    const preview = await getOrderEmailPreviewHtml({
+      recipients: recipients?.to || [],
+      ccRecipients: recipients?.cc || [],
+      bccRecipients: recipients?.bcc || [],
+      orderNumber: orderNumberNum,
+      orderName: orderNameWithRef || finalOrderName || `Order #${orderNumberNum}`,
+      customerName: finalCustomerName,
+      emailContent: emailContent as OrderEmailContent,
+      pdfUrls: {
+        orderForm: pdfUrls?.specsOrderForm || null,
+        qbEstimate: pdfUrls?.qbEstimate || null
+      }
+    });
+
+    sendSuccessResponse(res, {
+      subject: preview.subject,
+      html: preview.html
+    });
+  } catch (error) {
+    console.error('Error generating styled email preview:', error);
+    const message = error instanceof Error ? error.message : 'Failed to generate email preview';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
  * POST /api/order-preparation/:orderNumber/finalize
  * Finalize order and optionally send to customer
  * (Phase 1.5.c.6.3 - Send to Customer)
@@ -349,7 +413,7 @@ export const getEmailPreview = async (req: Request, res: Response) => {
 export const finalizeOrder = async (req: Request, res: Response) => {
   try {
     const { orderNumber } = req.params;
-    const { sendEmail, recipients, orderName, pdfUrls } = req.body;
+    const { sendEmail, recipients, recipientSelection, emailContent, orderName, pdfUrls } = req.body;
     const user = (req as AuthRequest).user;
 
     if (!user) {
@@ -366,17 +430,35 @@ export const finalizeOrder = async (req: Request, res: Response) => {
       return sendErrorResponse(res, 'sendEmail flag is required', 'VALIDATION_ERROR');
     }
 
-    // Validate recipients if sending email
+    // Validate recipients if sending email (support both old and new format)
     if (sendEmail) {
-      if (!Array.isArray(recipients) || recipients.length === 0) {
-        return sendErrorResponse(res, 'At least one recipient is required when sending email', 'VALIDATION_ERROR');
-      }
-
-      // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const invalidEmails = recipients.filter((email: string) => !emailRegex.test(email));
-      if (invalidEmails.length > 0) {
-        return sendErrorResponse(res, `Invalid email addresses: ${invalidEmails.join(', ')}`, 'VALIDATION_ERROR');
+
+      if (recipientSelection) {
+        // New format: To/CC/BCC
+        const allRecipients = [
+          ...(recipientSelection.to || []),
+          ...(recipientSelection.cc || []),
+          ...(recipientSelection.bcc || [])
+        ];
+        if (allRecipients.length === 0) {
+          return sendErrorResponse(res, 'At least one recipient is required when sending email', 'VALIDATION_ERROR');
+        }
+        const invalidEmails = allRecipients.filter((email: string) => !emailRegex.test(email));
+        if (invalidEmails.length > 0) {
+          return sendErrorResponse(res, `Invalid email addresses: ${invalidEmails.join(', ')}`, 'VALIDATION_ERROR');
+        }
+      } else if (recipients) {
+        // Legacy format: simple array
+        if (!Array.isArray(recipients) || recipients.length === 0) {
+          return sendErrorResponse(res, 'At least one recipient is required when sending email', 'VALIDATION_ERROR');
+        }
+        const invalidEmails = recipients.filter((email: string) => !emailRegex.test(email));
+        if (invalidEmails.length > 0) {
+          return sendErrorResponse(res, `Invalid email addresses: ${invalidEmails.join(', ')}`, 'VALIDATION_ERROR');
+        }
+      } else {
+        return sendErrorResponse(res, 'Recipients are required when sending email', 'VALIDATION_ERROR');
       }
     }
 
@@ -385,6 +467,8 @@ export const finalizeOrder = async (req: Request, res: Response) => {
       orderNumber: orderNumberNum,
       sendEmail,
       recipients: recipients || [],
+      recipientSelection,
+      emailContent,
       userId: user.user_id,
       orderName,
       pdfUrls

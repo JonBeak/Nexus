@@ -309,6 +309,18 @@ router.delete(
 );
 
 /**
+ * Remove all tasks for a specific part
+ * DELETE /api/orders/parts/:partId/tasks
+ * Used to exclude a part from Job Progress view
+ */
+router.delete(
+  '/parts/:partId/tasks',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.removeTasksForPart
+);
+
+/**
  * Update task notes
  * PUT /api/orders/tasks/:taskId/notes
  */

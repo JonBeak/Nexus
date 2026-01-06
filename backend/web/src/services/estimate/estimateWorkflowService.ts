@@ -358,6 +358,7 @@ export class EstimateWorkflowService {
         customerName: estimateData.customer_name,
         jobName: estimateData.job_name,
         customerJobNumber: estimateData.customer_job_number,
+        versionDescription: estimateData.version_description,
         qbEstimateNumber: qbDocNumber || estimateData.qb_doc_number,
         estimateNumber: estimateData.job_code,
         total: estimateData.total_amount

@@ -19,6 +19,7 @@ interface StepListProps {
   onStateChange: (state: PreparationState) => void;
   order: Order;
   isOpen: boolean;
+  onDataChanged?: () => void;  // Called when order data changes (e.g., spec cleanup during validation)
 }
 
 export const StepList: React.FC<StepListProps> = ({
@@ -26,7 +27,8 @@ export const StepList: React.FC<StepListProps> = ({
   state,
   onStateChange,
   order,
-  isOpen
+  isOpen,
+  onDataChanged
 }) => {
   const getStepComponent = (step: PrepareStep) => {
     const commonProps = {
@@ -40,7 +42,7 @@ export const StepList: React.FC<StepListProps> = ({
 
     switch (step.id) {
       case 'validation':
-        return <ValidationStep key={step.id} {...commonProps} />;
+        return <ValidationStep key={step.id} {...commonProps} onDataChanged={onDataChanged} />;
 
       case 'create_qb_estimate':
         return <QBEstimateStep key={step.id} {...commonProps} />;

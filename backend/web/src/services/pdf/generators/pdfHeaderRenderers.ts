@@ -16,49 +16,31 @@ import { formatDueDateTime, getStandardLabelWidth } from './pdfHelpers';
 // ============================================
 
 /**
- * Render a header label with black background (standardized width, centered text)
+ * Render a header label text only (background is drawn by drawHeaderValueBox compound path)
  */
 export function renderHeaderLabel(doc: any, label: string, x: number, y: number): number {
   doc.fontSize(FONT_SIZES.HEADER_LABEL).font('Helvetica-Bold');
   const labelHeight = doc.currentLineHeight();
 
-  // Standardize label width based on longest header labels "Customer" and "Job Name"
+  // Standardize label width based on longest header label "Start Date"
   // Add extra padding to ensure they fit comfortably
-  const maxLabelWidth = doc.widthOfString('Customer');
+  const maxLabelWidth = doc.widthOfString('Start Date');
   const standardLabelWidth = maxLabelWidth + (SPACING.LABEL_PADDING * 2) + 8;
 
   // Calculate actual text width for centering
   const actualTextWidth = doc.widthOfString(label);
   const textLeftPadding = (standardLabelWidth - actualTextWidth) / 2;
 
-  const boxHeight = labelHeight + 3;
-  const boxY = y - 2;
+  // Taller box with vertically centered text
+  const boxHeight = labelHeight + 8;  // Increased from +3 to +8
+  const boxY = y - 4;  // Adjusted to center vertically
 
-  // Draw light gray background behind label (standardized width)
-  doc.fillColor(COLORS.LABEL_BG_DEFAULT)
-    .rect(
-      x - SPACING.LABEL_PADDING,
-      boxY,
-      standardLabelWidth,
-      boxHeight
-    )
-    .fill();
-
-  // Render label text in black, centered
+  // Render label text in black, centered horizontally and vertically
+  // (Background is drawn separately by drawHeaderValueBox compound path)
   const centeredX = x - SPACING.LABEL_PADDING + textLeftPadding;
+  const centeredY = boxY + (boxHeight - labelHeight) / 2;
   doc.fillColor(COLORS.BLACK)
-    .text(label, centeredX, y);
-
-  // Draw 1px bottom line (like spec rows)
-  const lineY = boxY + boxHeight;
-  doc.fillColor(COLORS.LABEL_BG_DEFAULT)
-    .rect(
-      x - SPACING.LABEL_PADDING,
-      lineY - 1,
-      standardLabelWidth,
-      1
-    )
-    .fill();
+    .text(label, centeredX, centeredY);
 
   // Reset color
   doc.fillColor(COLORS.BLACK);
@@ -68,28 +50,103 @@ export function renderHeaderLabel(doc: any, label: string, x: number, y: number)
 }
 
 /**
- * Draw 1px bottom line extending from label across value area
- * Includes small gap before next label box
+ * Draw header label + value box using compound path with inset cutout
+ * Creates label background and value borders in one fill operation
  */
-function drawHeaderRowBottomLine(doc: any, x: number, y: number, width: number): void {
-  const GAP_BEFORE_NEXT_LABEL = 8; // Small gap between line end and next label box
-  doc.fillColor(COLORS.LABEL_BG_DEFAULT)
-    .rect(x, y, width - GAP_BEFORE_NEXT_LABEL, 1)
-    .fill();
+function drawHeaderValueBox(
+  doc: any,
+  labelBoxX: number,
+  labelBoxY: number,
+  labelBoxHeight: number,
+  standardLabelWidth: number,
+  columnWidth: number
+): void {
+  const GAP_BEFORE_NEXT_LABEL = 8;
+  const borderWidth = 1;
+
+  // Value box starts where label box ends
+  const valueBoxStartX = labelBoxX + standardLabelWidth;
+  // Value box ends at column width minus gap
+  const valueBoxEndX = labelBoxX + columnWidth - GAP_BEFORE_NEXT_LABEL;
+  const valueBoxWidth = valueBoxEndX - valueBoxStartX;
+
+  // Outer rect covers label + value area
+  const outerWidth = standardLabelWidth + valueBoxWidth;
+
+  // Cutout: inset by borderWidth on top/right/bottom, no inset on left (connects to label)
+  const cutoutX = valueBoxStartX;
+  const cutoutY = labelBoxY + borderWidth;
+  const cutoutWidth = valueBoxWidth - borderWidth;
+  const cutoutHeight = labelBoxHeight - (borderWidth * 2);
+
+  // Create compound path and fill with evenOdd rule
+  doc.rect(labelBoxX, labelBoxY, outerWidth, labelBoxHeight)  // Outer rect
+    .rect(cutoutX, cutoutY, cutoutWidth, cutoutHeight);        // Inner cutout
+  doc.fillColor(COLORS.LABEL_BG_DEFAULT).fill('evenodd');
+
   doc.fillColor(COLORS.BLACK);
 }
 
 /**
- * Render due date label and value with optional time
+ * Draw header label + value box using compound path, then fill cutout with color
+ * Same as drawHeaderValueBox but fills the value content area with a background color
  */
-export function renderDueDate(doc: any, orderData: any, x: number, y: number, valueWidth?: number): void {
+function drawHeaderValueBoxFilled(
+  doc: any,
+  labelBoxX: number,
+  labelBoxY: number,
+  labelBoxHeight: number,
+  standardLabelWidth: number,
+  columnWidth: number,
+  fillColor: string
+): void {
+  const GAP_BEFORE_NEXT_LABEL = 8;
+  const borderWidth = 1;
+
+  // Value box starts where label box ends
+  const valueBoxStartX = labelBoxX + standardLabelWidth;
+  // Value box ends at column width minus gap
+  const valueBoxEndX = labelBoxX + columnWidth - GAP_BEFORE_NEXT_LABEL;
+  const valueBoxWidth = valueBoxEndX - valueBoxStartX;
+
+  // Outer rect covers label + value area
+  const outerWidth = standardLabelWidth + valueBoxWidth;
+
+  // Cutout: inset by borderWidth on top/right/bottom, no inset on left (connects to label)
+  const cutoutX = valueBoxStartX;
+  const cutoutY = labelBoxY + borderWidth;
+  const cutoutWidth = valueBoxWidth - borderWidth;
+  const cutoutHeight = labelBoxHeight - (borderWidth * 2);
+
+  // Create compound path and fill with evenOdd rule (label + borders)
+  doc.rect(labelBoxX, labelBoxY, outerWidth, labelBoxHeight)  // Outer rect
+    .rect(cutoutX, cutoutY, cutoutWidth, cutoutHeight);        // Inner cutout
+  doc.fillColor(COLORS.LABEL_BG_DEFAULT).fill('evenodd');
+
+  // Fill the cutout area with the specified color
+  doc.fillColor(fillColor)
+    .rect(cutoutX, cutoutY, cutoutWidth, cutoutHeight)
+    .fill();
+
+  doc.fillColor(COLORS.BLACK);
+}
+
+/**
+ * Render due date label and value text only (background is drawn separately)
+ */
+export function renderDueDate(
+  doc: any,
+  orderData: any,
+  x: number,
+  y: number
+): void {
   if (!orderData.due_date) return;
 
   const dueDate = new Date(orderData.due_date);
   const dueDateStr = formatDueDateTime(dueDate, orderData.hard_due_date_time);
-  const dueLabel = 'Due';
+  const dueLabel = 'Due Date';
 
-  // Always use black background label
+  // Render label text (background already drawn by drawHeaderValueBox)
   const dueLabelWidth = renderHeaderLabel(doc, dueLabel, x, y);
 
   // If hard deadline, make date value RED and BOLD
@@ -101,14 +158,6 @@ export function renderDueDate(doc: any, orderData: any, x: number, y: number, va
     // Normal due date - regular black text
     doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
     doc.text(dueDateStr, x + dueLabelWidth + SPACING.HEADER_LABEL_TO_VALUE, y - SPACING.HEADER_VALUE_RAISE);
-  }
-
-  // Draw bottom line if width provided - extending from label box to column end
-  if (valueWidth) {
-    doc.fontSize(FONT_SIZES.HEADER_LABEL).font('Helvetica-Bold');
-    const labelHeight = doc.currentLineHeight();
-    const lineY = y - 2 + labelHeight + 3;
-    drawHeaderRowBottomLine(doc, x - SPACING.LABEL_PADDING, lineY, valueWidth);
   }
 }
 
@@ -137,7 +186,6 @@ export function renderQuantityBox(
   const labelTextColor = COLORS.BLACK; // Always black text on label
   const fontSize = FONT_SIZES.QTY_STANDARD; // Same size for both (14pt)
   const boxHeight = 18; // Same height for both
-  const bottomLineHeight = 2; // Same line thickness for both
 
   // === STEP 1: Calculate label box width (same as spec labels) ===
 
@@ -149,26 +197,48 @@ export function renderQuantityBox(
   const labelTextWidth = doc.widthOfString(labelText);
   const textLeftPadding = (standardLabelWidth - labelTextWidth) / 2;
 
-  // === STEP 2: Calculate value position and text ===
+  // === STEP 2: Calculate value text ===
 
   const qtyUnit = qtyValue <= 1 ? 'set' : 'sets';
   // Format as integer unless decimal is present
   const formattedQty = Number.isInteger(qtyValue) ? qtyValue.toString() : specsQty.toString();
   const valueText = `${formattedQty} ${qtyUnit}`;
-  const valueX = partX - SPACING.LABEL_PADDING + standardLabelWidth + doc.widthOfString('  ');
 
-  // === STEP 3: Draw label background box ===
+  // === STEP 3: Calculate dimensions ===
 
   const labelBoxStartY = partY - 1;
   const boxX = partX - SPACING.LABEL_PADDING;
+  const borderWidth = 1;
 
-  doc.fillColor(labelBgColor)
-    .rect(boxX, labelBoxStartY, standardLabelWidth, boxHeight)
-    .fill();
+  // Value box starts immediately after label box (connected)
+  const valueBoxStartX = boxX + standardLabelWidth;
+  const valueBoxPaddingLeft = 6;  // Left padding inside value box
+  const valueBoxPaddingRight = 6; // Equal right padding
 
-  // === STEP 4: Render label text (centered in box, white/black based on standard) ===
+  // Calculate value text width for dynamic box sizing
+  doc.fontSize(fontSize).font('Helvetica-Bold');
+  const valueTextWidth = doc.widthOfString(valueText);
+  const valueBoxWidth = valueBoxPaddingLeft + valueTextWidth + valueBoxPaddingRight;
 
-  const labelTextY = labelBoxStartY + (boxHeight - doc.currentLineHeight()) / 2;
+  // === STEP 4: Draw label + value using compound path with inset cutout ===
+
+  // Outer rect covers label + value + borders
+  const outerWidth = standardLabelWidth + valueBoxWidth;
+
+  // Cutout: inset by borderWidth on top/right/bottom, no inset on left (connects to label)
+  const cutoutX = valueBoxStartX;
+  const cutoutY = labelBoxStartY + borderWidth;
+  const cutoutWidth = valueBoxWidth - borderWidth;
+  const cutoutHeight = boxHeight - (borderWidth * 2);
+
+  // Create compound path and fill with evenOdd rule
+  doc.rect(boxX, labelBoxStartY, outerWidth, boxHeight)  // Outer rect
+    .rect(cutoutX, cutoutY, cutoutWidth, cutoutHeight);   // Inner cutout
+  doc.fillColor(labelBgColor).fill('evenodd');
+
+  // === STEP 5: Render label text (centered in box) ===
+
+  const labelTextY = labelBoxStartY + (boxHeight - doc.currentLineHeight()) / 2 + 1; // +1 for optical centering
   const centeredX = boxX + textLeftPadding;
 
   doc.fillColor(labelTextColor)
@@ -179,32 +249,23 @@ export function renderQuantityBox(
       lineBreak: false
     });
 
-  // === STEP 5: Render value text (black, aligned with spec values) ===
+  // === STEP 6: Render value text (vertically centered in box) ===
 
-  const valueY = labelBoxStartY + (boxHeight - doc.currentLineHeight()) / 2;
+  const valueTextX = valueBoxStartX + valueBoxPaddingLeft;
+  const valueY = labelBoxStartY + (boxHeight - doc.currentLineHeight()) / 2 + 1; // +1 for optical centering
 
   doc.fillColor(COLORS.BLACK)
     .fontSize(fontSize)
     .font('Helvetica-Bold')
-    .text(valueText, valueX, valueY, {
+    .text(valueText, valueTextX, valueY, {
       continued: false,
       lineBreak: false
     });
 
-  // === STEP 6: Draw bottom line (2px for standard, 3px for non-standard) ===
+  // Reset colors
+  doc.fillColor(COLORS.BLACK);
 
   const lineY = labelBoxStartY + boxHeight;
-  doc.fillColor(labelBgColor)
-    .rect(
-      boxX,
-      lineY - bottomLineHeight,
-      partColumnWidth + SPACING.LABEL_PADDING,
-      bottomLineHeight
-    )
-    .fill();
-
-  // Reset colors
-  doc.fillColor(COLORS.BLACK).strokeColor(COLORS.BLACK);
 
   // Return updated Y position (add spacing after quantity box)
   return lineY + SPACING.SPEC_ROW_GAP;
@@ -216,9 +277,9 @@ export function renderQuantityBox(
 
 /**
  * Render master/customer form header info rows (3-row)
- * Row 1: Order # | Date | Customer
+ * Row 1: Order # | Start Date | Customer
  * Row 2: Job # | PO# | Job Name
- * Row 3: (blank) | Due | Delivery
+ * Row 3: (blank) | Due Date | Delivery
  *
  * REFACTORED: Now accepts optional deliveryBgColor parameter to support packing list styling
  * This eliminates code duplication with renderMasterCustomerPageHeader
@@ -239,127 +300,109 @@ export function renderMasterCustomerInfoRows(
   pageWidth?: number,
   marginRight?: number
 ): number {
-  let currentY = startY;
-
-  // Calculate column widths for full-width bottom lines
+  // Calculate column widths for value boxes
   const col1Width = col2X - col1X;
   const col2Width = col3X - col2X;
   const col3Width = pageWidth && marginRight ? (pageWidth - marginRight - col3X + SPACING.LABEL_PADDING) : 150; // fallback width
 
-  // Row 1: Order # | Date | Customer
-  const rowStartY = currentY;
+  // Calculate standard label width (same as in renderHeaderLabel)
+  doc.fontSize(FONT_SIZES.HEADER_LABEL).font('Helvetica-Bold');
+  const maxLabelWidth = doc.widthOfString('Start Date');
+  const standardLabelWidth = maxLabelWidth + (SPACING.LABEL_PADDING * 2) + 8;
+  const labelHeight = doc.currentLineHeight();
+  const labelBoxHeight = labelHeight + 8;  // Match renderHeaderLabel
 
+  // Calculate row Y positions upfront
+  const row1Y = startY;
+  const row1BoxY = row1Y - 4;
+  const row2Y = row1Y + SPACING.HEADER_ROW;
+  const row2BoxY = row2Y - 4;
+  const row3Y = row2Y + SPACING.HEADER_ROW;
+  const row3BoxY = row3Y - 4;
+
+  // === STEP 1: Draw all backgrounds FIRST (compound paths) ===
+
+  // Row 1 backgrounds
+  drawHeaderValueBox(doc, col1X - SPACING.LABEL_PADDING, row1BoxY, labelBoxHeight, standardLabelWidth, col1Width);
+  drawHeaderValueBox(doc, col2X - SPACING.LABEL_PADDING, row1BoxY, labelBoxHeight, standardLabelWidth, col2Width);
+  drawHeaderValueBox(doc, col3X - SPACING.LABEL_PADDING, row1BoxY, labelBoxHeight, standardLabelWidth, col3Width);
+
+  // Row 2 backgrounds
+  drawHeaderValueBox(doc, col1X - SPACING.LABEL_PADDING, row2BoxY, labelBoxHeight, standardLabelWidth, col1Width);
+  drawHeaderValueBox(doc, col2X - SPACING.LABEL_PADDING, row2BoxY, labelBoxHeight, standardLabelWidth, col2Width);
+  drawHeaderValueBox(doc, col3X - SPACING.LABEL_PADDING, row2BoxY, labelBoxHeight, standardLabelWidth, col3Width);
+
+  // Row 3 backgrounds (Due Date + Delivery)
+  if (showDueDate) {
+    drawHeaderValueBox(doc, col2X - SPACING.LABEL_PADDING, row3BoxY, labelBoxHeight, standardLabelWidth, col2Width);
+  }
+  if (deliveryBgColor) {
+    drawHeaderValueBoxFilled(doc, col3X - SPACING.LABEL_PADDING, row3BoxY, labelBoxHeight, standardLabelWidth, col3Width, deliveryBgColor);
+  } else {
+    drawHeaderValueBox(doc, col3X - SPACING.LABEL_PADDING, row3BoxY, labelBoxHeight, standardLabelWidth, col3Width);
+  }
+
+  // === STEP 2: Render all text ON TOP of backgrounds ===
+
+  // Row 1: Order # | Date | Customer
   let label = 'Order #';
-  let labelWidth = renderHeaderLabel(doc, label, col1X, currentY);
+  let labelWidth = renderHeaderLabel(doc, label, col1X, row1Y);
   doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
   const orderNumX = col1X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE;
-  doc.text(orderData.order_number, orderNumX, currentY - SPACING.HEADER_VALUE_RAISE);
-  const orderNumWidth = doc.widthOfString(orderData.order_number.toString());
+  doc.text(orderData.order_number, orderNumX, row1Y - SPACING.HEADER_VALUE_RAISE);
 
   const orderDateStr = new Date(orderData.order_date).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
   });
-  label = 'Date';
-  labelWidth = renderHeaderLabel(doc, label, col2X, currentY);
+  label = 'Start Date';
+  labelWidth = renderHeaderLabel(doc, label, col2X, row1Y);
   doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
   const dateX = col2X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE;
-  doc.text(orderDateStr, dateX, currentY - SPACING.HEADER_VALUE_RAISE);
-  const dateWidth = doc.widthOfString(orderDateStr);
+  doc.text(orderDateStr, dateX, row1Y - SPACING.HEADER_VALUE_RAISE);
 
   label = 'Customer';
-  labelWidth = renderHeaderLabel(doc, label, col3X, currentY);
+  labelWidth = renderHeaderLabel(doc, label, col3X, row1Y);
   doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
   const customerX = col3X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE;
-  doc.text(orderData.company_name, customerX, currentY - SPACING.HEADER_VALUE_RAISE);
-  const customerWidth = doc.widthOfString(orderData.company_name);
-
-  // Draw 1px bottom lines for values - extending from label box to column end
-  doc.fontSize(FONT_SIZES.HEADER_LABEL).font('Helvetica-Bold');
-  const labelHeight = doc.currentLineHeight();
-  const lineY = rowStartY - 2 + labelHeight + 3;
-
-  drawHeaderRowBottomLine(doc, col1X - SPACING.LABEL_PADDING, lineY, col1Width);
-  drawHeaderRowBottomLine(doc, col2X - SPACING.LABEL_PADDING, lineY, col2Width);
-  drawHeaderRowBottomLine(doc, col3X - SPACING.LABEL_PADDING, lineY, col3Width);
-
-  currentY += SPACING.HEADER_ROW;
+  doc.text(orderData.company_name, customerX, row1Y - SPACING.HEADER_VALUE_RAISE);
 
   // Row 2: Job # | PO# | Job Name
-  const row2StartY = currentY;
-
   label = 'Job #';
-  labelWidth = renderHeaderLabel(doc, label, col1X, currentY);
+  labelWidth = renderHeaderLabel(doc, label, col1X, row2Y);
   doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
   const jobNumX = col1X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE;
   const jobNumValue = orderData.customer_job_number || '';
-  doc.text(jobNumValue, jobNumX, currentY - SPACING.HEADER_VALUE_RAISE);
-  const jobNumWidth = doc.widthOfString(jobNumValue);
+  doc.text(jobNumValue, jobNumX, row2Y - SPACING.HEADER_VALUE_RAISE);
 
   label = 'PO #';
-  labelWidth = renderHeaderLabel(doc, label, col2X, currentY);
+  labelWidth = renderHeaderLabel(doc, label, col2X, row2Y);
   doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
   const poX = col2X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE;
   const poValue = orderData.customer_po || '';
-  doc.text(poValue, poX, currentY - SPACING.HEADER_VALUE_RAISE);
-  const poWidth = doc.widthOfString(poValue);
+  doc.text(poValue, poX, row2Y - SPACING.HEADER_VALUE_RAISE);
 
   label = 'Job Name';
-  labelWidth = renderHeaderLabel(doc, label, col3X, currentY);
+  labelWidth = renderHeaderLabel(doc, label, col3X, row2Y);
   doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
   const jobNameX = col3X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE;
-  doc.text(orderData.order_name, jobNameX, currentY - SPACING.HEADER_VALUE_RAISE);
-  const jobNameWidth = doc.widthOfString(orderData.order_name);
-
-  // Draw 1px bottom lines for values - extending from label box to column end
-  doc.fontSize(FONT_SIZES.HEADER_LABEL).font('Helvetica-Bold');
-  const labelHeight2 = doc.currentLineHeight();
-  const lineY2 = row2StartY - 2 + labelHeight2 + 3;
-
-  drawHeaderRowBottomLine(doc, col1X - SPACING.LABEL_PADDING, lineY2, col1Width);
-  drawHeaderRowBottomLine(doc, col2X - SPACING.LABEL_PADDING, lineY2, col2Width);
-  drawHeaderRowBottomLine(doc, col3X - SPACING.LABEL_PADDING, lineY2, col3Width);
-
-  currentY += SPACING.HEADER_ROW;
+  doc.text(orderData.order_name, jobNameX, row2Y - SPACING.HEADER_VALUE_RAISE);
 
   // Row 3: (blank) | Due | Delivery
-  const row3StartY = currentY;
-
   if (showDueDate) {
-    renderDueDate(doc, orderData, col2X, currentY, col2Width);
+    renderDueDate(doc, orderData, col2X, row3Y);
   }
 
   const shippingText = orderData.shipping_required ? 'Shipping' : 'Pick Up';
   label = 'Delivery';
-  labelWidth = renderHeaderLabel(doc, label, col3X, currentY);
+  labelWidth = renderHeaderLabel(doc, label, col3X, row3Y);
   const deliveryX = col3X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE;
+  doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
+  doc.text(shippingText, deliveryX, row3Y - SPACING.HEADER_VALUE_RAISE);
 
-  // Render Delivery field (with optional background color for packing list)
-  if (deliveryBgColor) {
-    // Packing list style: draw background rectangle behind text (no bottom line)
-    doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica');
-    const deliveryTextY = currentY - SPACING.HEADER_VALUE_RAISE;
-    const deliveryTextWidth = doc.widthOfString(shippingText);
-    doc.rect(deliveryX, currentY - 4, deliveryTextWidth + 8, 16)
-      .fillAndStroke(deliveryBgColor, COLORS.DIVIDER_DARK);
-    doc.fillColor(COLORS.BLACK).font('Helvetica');
-    doc.text(shippingText, deliveryX + 4, deliveryTextY);
-  } else {
-    // Order form style: plain text with bottom line
-    doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
-    doc.text(shippingText, deliveryX, currentY - SPACING.HEADER_VALUE_RAISE);
-
-    // Draw bottom line for order forms (not packing lists)
-    doc.fontSize(FONT_SIZES.HEADER_LABEL).font('Helvetica-Bold');
-    const labelHeight3 = doc.currentLineHeight();
-    const lineY3 = row3StartY - 2 + labelHeight3 + 3;
-    drawHeaderRowBottomLine(doc, col3X - SPACING.LABEL_PADDING, lineY3, col3Width);
-  }
-
-  currentY += SPACING.HEADER_ROW;
-
-  return currentY;
+  // Return position at the bottom of the last row's box (not a full HEADER_ROW gap)
+  return row3BoxY + labelBoxHeight;
 }
 
 /**
@@ -453,8 +496,8 @@ export function renderMasterCustomerPageHeader(
 
 /**
  * Render shop form header info rows (2-row)
- * Row 1: Order # | Date | Job
- * Row 2: (blank) | Due | Delivery
+ * Row 1: Order # | Start Date | Job Name
+ * Row 2: (blank) | Due Date | Delivery
  *
  * @returns Y position after rows
  */
@@ -468,65 +511,67 @@ export function renderShopInfoRows(
   pageWidth?: number,
   marginRight?: number
 ): number {
-  let currentY = startY;
-
-  // Calculate column widths for full-width bottom lines
+  // Calculate column widths for value boxes
   const col1Width = col2X - col1X;
   const col2Width = col3X - col2X;
   const col3Width = pageWidth && marginRight ? (pageWidth - marginRight - col3X + SPACING.LABEL_PADDING) : 150; // fallback width
 
-  // Row 1: Order # | Date | Job
-  const row1StartY = currentY;
+  // Calculate standard label width (same as in renderHeaderLabel)
+  doc.fontSize(FONT_SIZES.HEADER_LABEL).font('Helvetica-Bold');
+  const maxLabelWidth = doc.widthOfString('Start Date');
+  const standardLabelWidth = maxLabelWidth + (SPACING.LABEL_PADDING * 2) + 8;
+  const labelHeight = doc.currentLineHeight();
+  const labelBoxHeight = labelHeight + 8;  // Match renderHeaderLabel
 
+  // Calculate row Y positions upfront
+  const row1Y = startY;
+  const row1BoxY = row1Y - 4;
+  const row2Y = row1Y + SPACING.HEADER_ROW;
+  const row2BoxY = row2Y - 4;
+
+  // === STEP 1: Draw all backgrounds FIRST (compound paths) ===
+
+  // Row 1 backgrounds
+  drawHeaderValueBox(doc, col1X - SPACING.LABEL_PADDING, row1BoxY, labelBoxHeight, standardLabelWidth, col1Width);
+  drawHeaderValueBox(doc, col2X - SPACING.LABEL_PADDING, row1BoxY, labelBoxHeight, standardLabelWidth, col2Width);
+  drawHeaderValueBox(doc, col3X - SPACING.LABEL_PADDING, row1BoxY, labelBoxHeight, standardLabelWidth, col3Width);
+
+  // Row 2 backgrounds (Due Date + Delivery)
+  drawHeaderValueBox(doc, col2X - SPACING.LABEL_PADDING, row2BoxY, labelBoxHeight, standardLabelWidth, col2Width);
+  drawHeaderValueBox(doc, col3X - SPACING.LABEL_PADDING, row2BoxY, labelBoxHeight, standardLabelWidth, col3Width);
+
+  // === STEP 2: Render all text ON TOP of backgrounds ===
+
+  // Row 1: Order # | Date | Job
   let label = 'Order #';
-  let labelWidth = renderHeaderLabel(doc, label, col1X, currentY);
+  let labelWidth = renderHeaderLabel(doc, label, col1X, row1Y);
   doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
-  doc.text(orderData.order_number, col1X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+  doc.text(orderData.order_number, col1X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, row1Y - SPACING.HEADER_VALUE_RAISE);
 
   const orderDateStr = new Date(orderData.order_date).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
   });
-  label = 'Date';
-  labelWidth = renderHeaderLabel(doc, label, col2X, currentY);
+  label = 'Start Date';
+  labelWidth = renderHeaderLabel(doc, label, col2X, row1Y);
   doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
-  doc.text(orderDateStr, col2X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+  doc.text(orderDateStr, col2X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, row1Y - SPACING.HEADER_VALUE_RAISE);
 
-  label = 'Job';
-  labelWidth = renderHeaderLabel(doc, label, col3X, currentY);
+  label = 'Job Name';
+  labelWidth = renderHeaderLabel(doc, label, col3X, row1Y);
   doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
-  doc.text(orderData.order_name, col3X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
-
-  // Draw 1px bottom lines for values - extending from label box to column end
-  doc.fontSize(FONT_SIZES.HEADER_LABEL).font('Helvetica-Bold');
-  const labelHeight = doc.currentLineHeight();
-  const lineY = row1StartY - 2 + labelHeight + 3;
-
-  drawHeaderRowBottomLine(doc, col1X - SPACING.LABEL_PADDING, lineY, col1Width);
-  drawHeaderRowBottomLine(doc, col2X - SPACING.LABEL_PADDING, lineY, col2Width);
-  drawHeaderRowBottomLine(doc, col3X - SPACING.LABEL_PADDING, lineY, col3Width);
-
-  currentY += SPACING.HEADER_ROW;
+  doc.text(orderData.order_name, col3X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, row1Y - SPACING.HEADER_VALUE_RAISE);
 
   // Row 2: (blank) | Due | Delivery
-  const row2StartY = currentY;
-
-  renderDueDate(doc, orderData, col2X, currentY, col2Width);
+  renderDueDate(doc, orderData, col2X, row2Y);
 
   const shippingText = orderData.shipping_required ? 'Shipping' : 'Pick Up';
   label = 'Delivery';
-  labelWidth = renderHeaderLabel(doc, label, col3X, currentY);
+  labelWidth = renderHeaderLabel(doc, label, col3X, row2Y);
   doc.fontSize(FONT_SIZES.HEADER_VALUE).font('Helvetica').fillColor(COLORS.BLACK);
-  doc.text(shippingText, col3X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, currentY - SPACING.HEADER_VALUE_RAISE);
+  doc.text(shippingText, col3X + labelWidth + SPACING.HEADER_LABEL_TO_VALUE, row2Y - SPACING.HEADER_VALUE_RAISE);
 
-  // Draw bottom line for Delivery value in shop forms
-  doc.fontSize(FONT_SIZES.HEADER_LABEL).font('Helvetica-Bold');
-  const labelHeight2 = doc.currentLineHeight();
-  const lineY2 = row2StartY - 2 + labelHeight2 + 3;
-  drawHeaderRowBottomLine(doc, col3X - SPACING.LABEL_PADDING, lineY2, col3Width);
-
-  currentY += SPACING.HEADER_ROW;
-
-  return currentY;
+  // Return position at the bottom of the last row's box (not a full HEADER_ROW gap)
+  return row2BoxY + labelBoxHeight;
 }

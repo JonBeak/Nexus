@@ -74,7 +74,11 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
 
   /**
    * Detect white background borders and calculate crop coordinates
-   * Uses Canvas API to analyze pixel data
+   * Uses Canvas API to analyze pixel data with STRICT matching:
+   * - Samples actual background color from corner pixel
+   * - Requires 100% of pixels in row/column to match background
+   * - Uses tight tolerance (±3) for JPG compression only
+   * - Adds safety margin to avoid edge artifacts
    */
   const detectWhiteBorders = (img: HTMLImageElement): CropCoordinates => {
     const canvas = document.createElement('canvas');
@@ -94,67 +98,96 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
     const width = canvas.width;
     const height = canvas.height;
 
-    // Threshold for "white" detection - more lenient for JPG compression artifacts
-    const isWhite = (r: number, g: number, b: number, a: number): boolean => {
-      return r > 235 && g > 235 && b > 235 && a > 200;
+    // Sample the top-left corner pixel to get the actual background color
+    // This handles images with off-white backgrounds (#FAFAFA, #F5F5F5, etc.)
+    const bgColor = {
+      r: pixels[0],
+      g: pixels[1],
+      b: pixels[2],
+      a: pixels[3]
     };
 
-    // Check if row is at least 98% white (tolerates minor artifacts)
-    const isRowMostlyWhite = (y: number, startX: number, endX: number): boolean => {
-      let whiteCount = 0;
-      const totalPixels = endX - startX;
-      for (let x = startX; x < endX; x++) {
+    console.log(`[AutoCrop] Detected background color: rgb(${bgColor.r}, ${bgColor.g}, ${bgColor.b})`);
+
+    // Only proceed with auto-crop if background appears to be white/near-white
+    // This prevents cropping images with colored backgrounds
+    if (bgColor.r < 240 || bgColor.g < 240 || bgColor.b < 240) {
+      console.log('[AutoCrop] Background is not white, skipping auto-crop');
+      return { top: 0, right: 0, bottom: 0, left: 0 };
+    }
+
+    // Very strict matching - pixel must be within ±3 of background color
+    // This only allows for minor JPG compression variance
+    const tolerance = 3;
+    const isBackground = (r: number, g: number, b: number, a: number): boolean => {
+      return Math.abs(r - bgColor.r) <= tolerance &&
+             Math.abs(g - bgColor.g) <= tolerance &&
+             Math.abs(b - bgColor.b) <= tolerance &&
+             a > 250;
+    };
+
+    // 100% strict - ALL pixels in the row must be background color
+    const isRowAllBackground = (y: number): boolean => {
+      for (let x = 0; x < width; x++) {
         const idx = (y * width + x) * 4;
-        if (isWhite(pixels[idx], pixels[idx + 1], pixels[idx + 2], pixels[idx + 3])) {
-          whiteCount++;
+        if (!isBackground(pixels[idx], pixels[idx + 1], pixels[idx + 2], pixels[idx + 3])) {
+          return false;
         }
       }
-      return (whiteCount / totalPixels) >= 0.98;
+      return true;
     };
 
-    const isColMostlyWhite = (x: number, startY: number, endY: number): boolean => {
-      let whiteCount = 0;
-      const totalPixels = endY - startY;
+    // 100% strict - ALL pixels in the column must be background color
+    const isColAllBackground = (x: number, startY: number, endY: number): boolean => {
       for (let y = startY; y < endY; y++) {
         const idx = (y * width + x) * 4;
-        if (isWhite(pixels[idx], pixels[idx + 1], pixels[idx + 2], pixels[idx + 3])) {
-          whiteCount++;
+        if (!isBackground(pixels[idx], pixels[idx + 1], pixels[idx + 2], pixels[idx + 3])) {
+          return false;
         }
       }
-      return (whiteCount / totalPixels) >= 0.98;
+      return true;
     };
 
-    // Find top border
+    // Find top border - scan from top until we hit non-background row
     let top = 0;
     for (let y = 0; y < height; y++) {
-      if (!isRowMostlyWhite(y, 0, width)) break;
+      if (!isRowAllBackground(y)) break;
       top = y + 1;
     }
 
-    // Find bottom border
+    // Find bottom border - scan from bottom until we hit non-background row
     let bottom = 0;
     for (let y = height - 1; y >= top; y--) {
-      if (!isRowMostlyWhite(y, 0, width)) break;
+      if (!isRowAllBackground(y)) break;
       bottom = height - y;
     }
 
-    // Find left border
+    // Find left border - scan columns within content area only
     let left = 0;
     for (let x = 0; x < width; x++) {
-      if (!isColMostlyWhite(x, top, height - bottom)) break;
+      if (!isColAllBackground(x, top, height - bottom)) break;
       left = x + 1;
     }
 
-    // Find right border
+    // Find right border - scan columns within content area only
     let right = 0;
     for (let x = width - 1; x >= left; x--) {
-      if (!isColMostlyWhite(x, top, height - bottom)) break;
+      if (!isColAllBackground(x, top, height - bottom)) break;
       right = width - x;
     }
 
-    const crop = { top, right, bottom, left };
-    console.log(`[AutoCrop] Image: ${width}x${height}, Detected borders:`, crop);
-    console.log(`[AutoCrop] Content area: ${width - left - right}x${height - top - bottom}`);
+    // Apply safety margin to avoid cutting into content due to edge artifacts
+    const safetyMargin = 1;
+    const crop = {
+      top: Math.max(0, top - safetyMargin),
+      right: Math.max(0, right - safetyMargin),
+      bottom: Math.max(0, bottom - safetyMargin),
+      left: Math.max(0, left - safetyMargin)
+    };
+
+    console.log(`[AutoCrop] Image: ${width}x${height}, Detected borders:`, { top, right, bottom, left });
+    console.log(`[AutoCrop] After safety margin:`, crop);
+    console.log(`[AutoCrop] Content area: ${width - crop.left - crop.right}x${height - crop.top - crop.bottom}`);
     return crop;
   };
 
@@ -313,11 +346,11 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
                       } ${selecting !== null ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                     >
                       {/* Image Preview */}
-                      <div className="aspect-square bg-gray-100 flex items-center justify-center overflow-hidden">
+                      <div className="aspect-[4/3] bg-gray-100 flex items-center justify-center overflow-hidden">
                         <img
                           src={getImageUrl(image.filename)}
                           alt={image.filename}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             target.style.display = 'none';

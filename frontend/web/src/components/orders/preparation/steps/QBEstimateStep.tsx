@@ -45,11 +45,10 @@ export const QBEstimateStep: React.FC<QBEstimateStepProps> = ({
   const [isConnecting, setIsConnecting] = useState(false);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Check QB connection and staleness when modal opens
+  // Check QB connection when modal opens
   useEffect(() => {
     if (isOpen) {
       checkQBConnection();
-      checkStaleness();
     }
 
     // Cleanup polling on unmount
@@ -59,6 +58,19 @@ export const QBEstimateStep: React.FC<QBEstimateStepProps> = ({
       }
     };
   }, [isOpen]);
+
+  // Check staleness AFTER validation completes (when canRun becomes true)
+  // This ensures empty spec rows are cleaned up before staleness is calculated
+  const canRun = canRunStep(step, steps);
+  const prevCanRunRef = useRef(false);
+
+  useEffect(() => {
+    // Only check when canRun transitions from false to true (validation just completed)
+    if (canRun && !prevCanRunRef.current && isOpen) {
+      checkStaleness();
+    }
+    prevCanRunRef.current = canRun;
+  }, [canRun, isOpen]);
 
   const checkQBConnection = async () => {
     try {
@@ -229,7 +241,6 @@ export const QBEstimateStep: React.FC<QBEstimateStepProps> = ({
     }
   };
 
-  const canRun = canRunStep(step, steps);
   const buttonLabel = qbEstimate?.exists ? 'Recreate Estimate' : 'Create Estimate';
 
   // Determine what to show based on QB connection status

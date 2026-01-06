@@ -17,13 +17,15 @@ interface PrepareStepsPanelProps {
   onStateChange: (state: PreparationState) => void;
   order: Order;
   isOpen: boolean;
+  onDataChanged?: () => void;  // Called when order data changes (e.g., spec cleanup during validation)
 }
 
 export const PrepareStepsPanel: React.FC<PrepareStepsPanelProps> = ({
   state,
   onStateChange,
   order,
-  isOpen
+  isOpen,
+  onDataChanged
 }) => {
   const progress = calculateProgress(state.steps);
 
@@ -67,6 +69,7 @@ export const PrepareStepsPanel: React.FC<PrepareStepsPanelProps> = ({
           onStateChange={onStateChange}
           order={order}
           isOpen={isOpen}
+          onDataChanged={onDataChanged}
         />
       </div>
     </div>

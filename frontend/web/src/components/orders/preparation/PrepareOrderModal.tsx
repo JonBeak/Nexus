@@ -9,6 +9,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Loader2 } from 'lucide-react';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 import { PreparationState, PreparationPhase } from '../../../types/orderPreparation';
 import { Order } from '../../../types/orders';
 import { initializeSteps, areRequiredStepsComplete } from '../../../utils/stepOrchestration';
@@ -17,22 +18,31 @@ import { LivePDFPreviewPanel } from './LivePDFPreviewPanel';
 import { SendToCustomerPanel, SendToCustomerPanelRef } from './send/SendToCustomerPanel';
 import { buildPdfUrls } from '../../../utils/pdfUrls';
 import { orderPreparationApi } from '../../../services/api/orders/orderPreparationApi';
+import { RecipientSelection } from './send/PointPersonSelector';
+import { OrderEmailContent, DEFAULT_ORDER_EMAIL_CONTENT } from './send/OrderEmailComposer';
+import { OrderEmailPreviewPanel } from './send/OrderEmailPreviewPanel';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   order: Order;
   onComplete: () => void;
+  onDataChanged?: () => void;  // Called when order data changes (e.g., spec cleanup during validation)
 }
 
 export const PrepareOrderModal: React.FC<Props> = ({
   isOpen,
   onClose,
   order,
-  onComplete
+  onComplete,
+  onDataChanged
 }) => {
   const [phase, setPhase] = useState<PreparationPhase>('prepare');
   const [isSending, setIsSending] = useState(false);
+
+  // State for email preview (lifted from SendToCustomerPanel for sharing with preview)
+  const [currentRecipients, setCurrentRecipients] = useState<RecipientSelection>({ to: [], cc: [], bcc: [] });
+  const [currentEmailContent, setCurrentEmailContent] = useState<OrderEmailContent>(DEFAULT_ORDER_EMAIL_CONTENT);
   const [preparationState, setPreparationState] = useState<PreparationState>({
     orderId: order.order_id,
     orderNumber: order.order_number,
@@ -125,6 +135,18 @@ export const PrepareOrderModal: React.FC<Props> = ({
 
   const sendPanelRef = useRef<SendToCustomerPanelRef>(null);
 
+  // Build orderNameWithRef: "Order Name - Job # XXX - PO # YYY"
+  const buildOrderNameWithRef = () => {
+    let name = order.order_name || '';
+    if (order.customer_job_number) {
+      name += ` - Job # ${order.customer_job_number}`;
+    }
+    if (order.customer_po) {
+      name += ` - PO # ${order.customer_po}`;
+    }
+    return name;
+  };
+
   const handleSendAndFinalize = async () => {
     // Prevent duplicate submissions
     if (isSending) return;
@@ -132,19 +154,16 @@ export const PrepareOrderModal: React.FC<Props> = ({
     try {
       setIsSending(true);
 
-      // Get selected recipients from SendToCustomerPanel
-      const selectedRecipients = sendPanelRef.current?.getSelectedRecipients() || [];
+      // Get recipients and email content from SendToCustomerPanel
+      const recipients = sendPanelRef.current?.getRecipients();
+      const emailContent = sendPanelRef.current?.getEmailContent();
 
-      if (selectedRecipients.length === 0) {
-        alert('Please select at least one recipient or use "Skip Email & Finalize" button.');
-        return;
-      }
-
-      // Finalize with email
+      // Finalize with email using new format
       const result = await orderPreparationApi.finalizeOrder(order.order_number, {
         sendEmail: true,
-        recipients: selectedRecipients,
-        orderName: order.order_name,
+        recipientSelection: recipients,
+        emailContent: emailContent,
+        orderName: buildOrderNameWithRef(),
         pdfUrls: {
           orderForm: preparationState.pdfs.specsOrderForm?.url || null,
           qbEstimate: preparationState.pdfs.qbEstimate.url
@@ -185,7 +204,7 @@ export const PrepareOrderModal: React.FC<Props> = ({
       const result = await orderPreparationApi.finalizeOrder(order.order_number, {
         sendEmail: false,
         recipients: [],
-        orderName: order.order_name
+        orderName: buildOrderNameWithRef()
       });
 
       // API client unwraps the response, so result is the data object directly
@@ -211,25 +230,25 @@ export const PrepareOrderModal: React.FC<Props> = ({
         !isOpen ? 'hidden' : ''
       }`}
     >
-      <div className="bg-white rounded-lg shadow-2xl w-[95%] h-[95vh] flex">
+      <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow-2xl w-[95%] h-[95vh] flex`}>
         {/* LEFT PANEL (40%) - Header, Steps, and Footer */}
-        <div className="w-[40%] border-r border-gray-200 flex flex-col">
+        <div className={`w-[40%] border-r ${PAGE_STYLES.border} flex flex-col`}>
           {/* Header Section - Order Info */}
-          <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
+          <div className={`px-6 py-4 border-b ${PAGE_STYLES.border} ${PAGE_STYLES.header.background} flex-shrink-0`}>
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <h2 className="text-xl font-semibold text-gray-900">
+                <h2 className={`text-xl font-semibold ${PAGE_STYLES.panel.text}`}>
                   {phase === 'prepare' ? 'Prepare Order' : 'Send to Customer'}
                 </h2>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className={`text-sm ${PAGE_STYLES.panel.textMuted} mt-1`}>
                   #{order.order_number} - {order.order_name}
                 </p>
               </div>
               <button
                 onClick={onClose}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+                className={`p-2 ${PAGE_STYLES.interactive.hover} rounded-lg transition-colors flex-shrink-0`}
               >
-                <X className="w-5 h-5 text-gray-600" />
+                <X className={`w-5 h-5 ${PAGE_STYLES.panel.textMuted}`} />
               </button>
             </div>
           </div>
@@ -242,29 +261,32 @@ export const PrepareOrderModal: React.FC<Props> = ({
                 onStateChange={setPreparationState}
                 order={order}
                 isOpen={isOpen}
+                onDataChanged={onDataChanged}
               />
             ) : (
               <SendToCustomerPanel
                 ref={sendPanelRef}
                 orderNumber={order.order_number}
-                orderName={order.order_name}
+                orderName={buildOrderNameWithRef()}
                 pdfUrls={{
                   specsOrderForm: preparationState.pdfs.specsOrderForm?.url || null,
                   qbEstimate: preparationState.pdfs.qbEstimate.url
                 }}
                 qbEstimateNumber={preparationState.qbEstimate.number}
+                onRecipientsChange={setCurrentRecipients}
+                onEmailContentChange={setCurrentEmailContent}
               />
             )}
           </div>
 
           {/* Footer Actions */}
-          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+          <div className={`px-6 py-4 border-t ${PAGE_STYLES.border} ${PAGE_STYLES.header.background} flex-shrink-0`}>
             {phase === 'prepare' ? (
               <div className="grid grid-cols-4 gap-3">
                 {/* 1st Quarter - Cancel */}
                 <button
                   onClick={onClose}
-                  className="px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  className={`px-6 py-2 ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.border} ${PAGE_STYLES.panel.text} rounded-lg ${PAGE_STYLES.interactive.hover}`}
                 >
                   Cancel
                 </button>
@@ -282,7 +304,7 @@ export const PrepareOrderModal: React.FC<Props> = ({
                   className={`px-6 py-2.5 rounded-lg font-medium ${
                     preparationState.canProceedToSend
                       ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-gray-400 text-gray-200 cursor-not-allowed'
                   }`}
                 >
                   Next: Send to Customer →
@@ -293,7 +315,7 @@ export const PrepareOrderModal: React.FC<Props> = ({
                 {/* 1st Quarter - Back */}
                 <button
                   onClick={handleBackToPrepare}
-                  className="px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  className={`px-6 py-2 ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.border} ${PAGE_STYLES.panel.text} rounded-lg ${PAGE_STYLES.interactive.hover}`}
                 >
                   ← Back
                 </button>
@@ -305,10 +327,10 @@ export const PrepareOrderModal: React.FC<Props> = ({
                 <button
                   onClick={handleSkipEmail}
                   disabled={isSending}
-                  className={`px-6 py-2 bg-white border border-gray-300 rounded-lg transition-colors ${
+                  className={`px-6 py-2 ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.border} rounded-lg transition-colors ${
                     isSending
                       ? 'text-gray-400 cursor-not-allowed opacity-50'
-                      : 'text-gray-700 hover:bg-gray-50'
+                      : `${PAGE_STYLES.panel.text} ${PAGE_STYLES.interactive.hover}`
                   }`}
                 >
                   {isSending ? (
@@ -345,9 +367,23 @@ export const PrepareOrderModal: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* RIGHT PANEL (60%) - PDF Previews - Full Height */}
-        <div className="w-[60%] overflow-y-auto bg-gray-50 p-6">
-          <LivePDFPreviewPanel state={preparationState} />
+        {/* RIGHT PANEL (60%) - PDF Previews or Email Preview */}
+        <div className={`w-[60%] overflow-y-auto ${PAGE_STYLES.page.background} p-6`}>
+          {phase === 'prepare' ? (
+            <LivePDFPreviewPanel state={preparationState} />
+          ) : (
+            <OrderEmailPreviewPanel
+              orderNumber={order.order_number}
+              orderName={order.order_name}
+              customerName={order.customer_name}
+              recipients={currentRecipients}
+              emailContent={currentEmailContent}
+              pdfUrls={{
+                specsOrderForm: preparationState.pdfs.specsOrderForm?.url || null,
+                qbEstimate: preparationState.pdfs.qbEstimate.url
+              }}
+            />
+          )}
         </div>
       </div>
     </div>

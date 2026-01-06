@@ -16,10 +16,11 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { jobVersioningApi } from '../../services/jobVersioningApi';
 import { QBItemDropdown } from './components/QBItemDropdown';
 import { EditableCell } from './components/EditableCell';
+import { ImportQBDescriptionsModal } from './modals/ImportQBDescriptionsModal';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, Download } from 'lucide-react';
 import { PAGE_STYLES } from '../../constants/moduleColors';
 
 // ============================================================================
@@ -49,6 +50,7 @@ export interface PreparationTotals {
 
 interface EstimatePreparationTableProps {
   estimateId: number;
+  jobId?: number;
   readOnly?: boolean;
   taxRate?: number;
   onTotalsChange?: (totals: PreparationTotals) => void;
@@ -244,15 +246,20 @@ const SortableRow: React.FC<SortableRowProps> = ({
 
 export const EstimatePreparationTable: React.FC<EstimatePreparationTableProps> = ({
   estimateId,
+  jobId,
   readOnly = false,
   taxRate = 0,
   onTotalsChange,
   onItemsChange
 }) => {
+  // Debug: check if jobId is being passed
+  console.log('[PrepTable] Props:', { estimateId, jobId, readOnly });
+
   const [items, setItems] = useState<PreparationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<number | null>(null); // Item ID being saved
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // Use ref for callback to avoid infinite re-render loop
   // (callback changes reference on parent re-render, which would trigger loadItems recreation)
@@ -463,12 +470,24 @@ export const EstimatePreparationTable: React.FC<EstimatePreparationTableProps> =
           {readOnly && <span className={`ml-2 text-xs ${PAGE_STYLES.panel.textMuted}`}>(Read-only)</span>}
         </h3>
         {!readOnly && (
-          <button
-            onClick={() => handleAddRow()}
-            className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
-          >
-            + Add Row
-          </button>
+          <div className="flex items-center gap-2">
+            {jobId && (
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"
+                title="Import QB descriptions from other estimates"
+              >
+                <Download className="w-3 h-3" />
+                Import
+              </button>
+            )}
+            <button
+              onClick={() => handleAddRow()}
+              className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
+            >
+              + Add Row
+            </button>
+          </div>
         )}
       </div>
 
@@ -529,6 +548,27 @@ export const EstimatePreparationTable: React.FC<EstimatePreparationTableProps> =
           <div className={`font-semibold ${PAGE_STYLES.panel.text}`}>Total: {formatCurrency(total)}</div>
         </div>
       </div>
+
+      {/* Import QB Descriptions Modal */}
+      {jobId && (
+        <ImportQBDescriptionsModal
+          isOpen={showImportModal}
+          onClose={() => setShowImportModal(false)}
+          estimateId={estimateId}
+          jobId={jobId}
+          targetItems={items}
+          onImportComplete={(updatedItems) => {
+            setItems(updatedItems);
+            // Recalculate totals
+            const newSubtotal = updatedItems
+              .filter((item: PreparationItem) => !item.is_description_only)
+              .reduce((sum: number, item: PreparationItem) => sum + (Number(item.extended_price) || 0), 0);
+            const newTax = newSubtotal * (taxRate || 0);
+            const newTotal = newSubtotal + newTax;
+            onTotalsChangeRef.current?.({ subtotal: newSubtotal, tax: newTax, total: newTotal });
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -130,6 +130,10 @@ router.delete('/estimates/:estimateId/preparation-items/:itemId', authenticateTo
 router.post('/estimates/:estimateId/preparation-items/reorder', authenticateToken, estimatePreparationController.reorderPreparationItems);
 router.post('/estimates/:estimateId/preparation-items/:itemId/toggle-type', authenticateToken, estimatePreparationController.togglePreparationItemType);
 
+// Import QB Descriptions from other estimates
+router.get('/estimates/:estimateId/import-sources', authenticateToken, estimatePreparationController.getImportSources);
+router.post('/estimates/:estimateId/preparation-items/import', authenticateToken, estimatePreparationController.importPreparationItems);
+
 // QB Estimate PDF (Phase 4.c - PDF Preview in Send Modal)
 router.get('/estimates/:estimateId/qb-pdf', authenticateToken, estimateVersionController.getEstimatePdf);
 

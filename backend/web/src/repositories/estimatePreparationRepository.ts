@@ -55,6 +55,30 @@ export interface UpdatePreparationItemData {
   qb_item_name?: string | null;
 }
 
+export interface ImportSourceEstimate {
+  id: number;
+  job_id: number;
+  job_name: string;
+  customer_name: string;
+  version_number: number;
+  qb_doc_number: string | null;
+  status: string;
+}
+
+export interface ImportInstruction {
+  targetItemId?: number;      // If provided, update this existing item
+  targetDisplayOrder?: number; // If no targetItemId, position for new item
+  qb_description?: string | null;
+  quantity?: number;
+  unit_price?: number;
+  // For new items only:
+  item_name?: string;
+  calculation_display?: string | null;
+  is_description_only?: boolean;
+  qb_item_id?: string | null;
+  qb_item_name?: string | null;
+}
+
 // ============================================================================
 // Repository Class
 // ============================================================================
@@ -438,6 +462,148 @@ class EstimatePreparationRepository {
     ) as RowDataPacket[];
 
     return rows.length > 0 ? rows[0].estimate_id : null;
+  }
+
+  /**
+   * Get estimates that can be used as import sources
+   * Returns estimates that have preparation table data, prioritizing same-job versions
+   */
+  async getImportSources(
+    currentEstimateId: number,
+    currentJobId: number
+  ): Promise<ImportSourceEstimate[]> {
+    const rows = await query(
+      `SELECT
+        e.id,
+        e.job_id,
+        j.job_name,
+        c.company_name as customer_name,
+        e.version_number,
+        e.qb_doc_number,
+        e.status
+      FROM job_estimates e
+      JOIN jobs j ON e.job_id = j.job_id
+      JOIN customers c ON j.customer_id = c.customer_id
+      WHERE e.id != ?
+        AND e.uses_preparation_table = 1
+        AND e.is_active = 1
+      ORDER BY
+        CASE WHEN e.job_id = ? THEN 0 ELSE 1 END,
+        e.updated_at DESC
+      LIMIT 100`,
+      [currentEstimateId, currentJobId]
+    ) as RowDataPacket[];
+
+    return rows as ImportSourceEstimate[];
+  }
+
+  /**
+   * Batch import items into preparation table
+   * Handles both updates to existing items and creation of new items
+   */
+  async batchImportItems(
+    estimateId: number,
+    imports: ImportInstruction[]
+  ): Promise<{ updated: number; created: number }> {
+    if (imports.length === 0) {
+      return { updated: 0, created: 0 };
+    }
+
+    const conn = await pool.getConnection();
+    let updated = 0;
+    let created = 0;
+
+    try {
+      await conn.beginTransaction();
+
+      // Get current max display_order for new items
+      const [maxRows] = await conn.execute<RowDataPacket[]>(
+        `SELECT COALESCE(MAX(display_order), 0) as max_order
+         FROM estimate_preparation_items WHERE estimate_id = ?`,
+        [estimateId]
+      );
+      let nextOrder = (maxRows[0].max_order || 0) + 1;
+
+      for (const instruction of imports) {
+        if (instruction.targetItemId) {
+          // Update existing item
+          const setClauses: string[] = [];
+          const values: any[] = [];
+
+          if (instruction.qb_description !== undefined) {
+            setClauses.push('qb_description = ?');
+            values.push(instruction.qb_description);
+          }
+          if (instruction.quantity !== undefined) {
+            setClauses.push('quantity = ?');
+            values.push(instruction.quantity);
+          }
+          if (instruction.unit_price !== undefined) {
+            setClauses.push('unit_price = ?');
+            values.push(instruction.unit_price);
+          }
+
+          // Auto-calculate extended_price
+          if (instruction.quantity !== undefined || instruction.unit_price !== undefined) {
+            // Get current values for calculation
+            const [itemRows] = await conn.execute<RowDataPacket[]>(
+              `SELECT quantity, unit_price FROM estimate_preparation_items WHERE id = ?`,
+              [instruction.targetItemId]
+            );
+            if (itemRows.length > 0) {
+              const qty = instruction.quantity ?? itemRows[0].quantity;
+              const price = instruction.unit_price ?? itemRows[0].unit_price;
+              setClauses.push('extended_price = ?');
+              values.push(qty * price);
+            }
+          }
+
+          if (setClauses.length > 0) {
+            values.push(instruction.targetItemId);
+            await conn.execute(
+              `UPDATE estimate_preparation_items
+               SET ${setClauses.join(', ')}, updated_at = CURRENT_TIMESTAMP
+               WHERE id = ?`,
+              values
+            );
+            updated++;
+          }
+        } else {
+          // Create new item
+          const extendedPrice = (instruction.quantity ?? 1) * (instruction.unit_price ?? 0);
+
+          await conn.execute(
+            `INSERT INTO estimate_preparation_items
+               (estimate_id, display_order, item_name, qb_description, calculation_display,
+                quantity, unit_price, extended_price, is_description_only,
+                qb_item_id, qb_item_name, source_row_id, source_product_type_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)`,
+            [
+              estimateId,
+              nextOrder++,
+              instruction.item_name || 'Imported Item',
+              instruction.qb_description || null,
+              instruction.calculation_display || null,
+              instruction.quantity ?? 1,
+              instruction.unit_price ?? 0,
+              extendedPrice,
+              instruction.is_description_only ? 1 : 0,
+              instruction.qb_item_id || null,
+              instruction.qb_item_name || null
+            ]
+          );
+          created++;
+        }
+      }
+
+      await conn.commit();
+      return { updated, created };
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    } finally {
+      conn.release();
+    }
   }
 }
 

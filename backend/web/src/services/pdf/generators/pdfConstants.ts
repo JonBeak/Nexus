@@ -62,20 +62,20 @@ export const STANDARD_LABEL_REFERENCE = 'Internal Note'; // Longest label used f
 export const SPACING = {
   PAGE_MARGIN: 16,
   SECTION_GAP: 12,
-  HEADER_ROW: 16,
+  HEADER_ROW: 20,  // Increased from 16 for taller header boxes
   HEADER_START_OFFSET: 4,
   AFTER_TITLE: 16,
   AFTER_SCOPE: 14,
   AFTER_SEPARATOR: 4, // reduced from 8 for compact layout
   AFTER_PRODUCT_NAME: 18,
   BEFORE_DIVIDER: 3,
-  ITEM_GAP: 5,
+  ITEM_GAP: 36,
   SPEC_ROW_GAP: 2, // reduced from 4 for compact layout
   LABEL_PADDING: 2,
   QTY_BOX_PADDING: 5,
   IMAGE_AFTER_PARTS: 8,
-  IMAGE_BOTTOM_MARGIN: 20,
-  HEADER_VALUE_RAISE: 2,
+  IMAGE_BOTTOM_MARGIN: 36,
+  HEADER_VALUE_RAISE: 0,  // Reduced from 2 for taller header boxes
   HEADER_LABEL_TO_VALUE: 6,
 };
 
@@ -91,7 +91,7 @@ export const LAYOUT = {
   COL2_PERCENT: 0.27,
   COL3_PERCENT: 0.57,
   PARTS_HEIGHT_PERCENT: 0.35,
-  IMAGE_WIDTH_PERCENT: 0.95,
+  IMAGE_WIDTH_PERCENT: 0.90,
   NOTES_LEFT_WIDTH_PERCENT: 0.48,
   NOTES_RIGHT_START_PERCENT: 0.52,
   PART_COLUMN_INNER_PADDING: 5,

@@ -27,6 +27,7 @@ interface ValidationStepProps {
   onStateChange: (state: PreparationState) => void;
   order: Order;
   isOpen: boolean;
+  onDataChanged?: () => void;  // Called when order data changes (e.g., spec cleanup)
 }
 
 export const ValidationStep: React.FC<ValidationStepProps> = ({
@@ -35,7 +36,8 @@ export const ValidationStep: React.FC<ValidationStepProps> = ({
   state,
   onStateChange,
   order,
-  isOpen
+  isOpen,
+  onDataChanged
 }) => {
   const orderNumber = order.order_number;
   const [message, setMessage] = useState<string>('');
@@ -52,14 +54,22 @@ export const ValidationStep: React.FC<ValidationStepProps> = ({
       setMessage('Validating order data...');
       setValidationErrors([]);
 
-      await ordersApi.validateForPreparation(orderNumber);
+      const result = await ordersApi.validateForPreparation(orderNumber);
 
       // Use functional update to preserve other state (e.g., PDF URLs)
       onStateChange(prev => ({
         ...prev,
         steps: updateStepStatus(prev.steps, step.id, 'completed')
       }));
-      setMessage('✓ Order validation successful');
+
+      // If specs were cleaned up during validation, refresh the parent data
+      if (result?.cleanedSpecRows && result.cleanedSpecRows > 0) {
+        setMessage(`✓ Validation successful (cleaned ${result.cleanedSpecRows} empty spec row${result.cleanedSpecRows > 1 ? 's' : ''})`);
+        // Trigger parent to refetch order data so dual table shows cleaned specs
+        onDataChanged?.();
+      } else {
+        setMessage('✓ Order validation successful');
+      }
     } catch (error: any) {
       console.error('Error validating order:', error);
 
@@ -77,11 +87,20 @@ export const ValidationStep: React.FC<ValidationStepProps> = ({
     }
   };
 
-  // Auto-run validation when modal opens (isOpen transitions false → true)
+  // ALWAYS run validation when modal opens (isOpen transitions false → true)
+  // This ensures empty spec rows are cleaned up before staleness checks in other steps
   useEffect(() => {
     if (isOpen && !prevIsOpenRef.current) {
-      // Modal just opened, simulate button press
-      handleValidate();
+      // Modal just opened - reset state and run validation
+      setMessage('');
+      setValidationErrors([]);
+      // Reset step status to pending before running
+      onStateChange(prev => ({
+        ...prev,
+        steps: updateStepStatus(prev.steps, step.id, 'pending')
+      }));
+      // Small delay to ensure state is reset before validation runs
+      setTimeout(() => handleValidate(), 50);
     }
     prevIsOpenRef.current = isOpen;
   }, [isOpen]);

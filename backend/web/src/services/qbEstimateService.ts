@@ -345,8 +345,8 @@ async function mapOrderToQBEstimate(
   }
 
   // Build QB estimate payload (no CustomerMemo - moved to line #1)
+  // NOTE: Do NOT include DocNumber - QuickBooks will auto-generate the estimate number
   const estimatePayload: any = {
-    DocNumber: 'AUTO_GENERATE', // Required when Custom Transaction Numbers is enabled in QB
     CustomerRef: {
       value: qbCustomerId
     },
