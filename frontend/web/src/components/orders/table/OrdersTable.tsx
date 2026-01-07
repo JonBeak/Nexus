@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Order, OrderFilters, OrderStatus } from '../../../types/orders';
 import { ordersApi, orderStatusApi, timeSchedulesApi } from '../../../services/api';
+import { calculateWorkDaysLeft } from '../calendarView/utils';
 import TableHeader from './TableHeader';
 import TableRow from './TableRow';
 import TableFilters, { DEFAULT_ORDER_STATUSES } from './TableFilters';
@@ -92,68 +93,6 @@ export const OrdersTable: React.FC = () => {
     return orders.filter(order => activeStatuses.includes(order.status));
   }, [orders, filters.statuses]);
 
-  // Calculate work days left for an order
-  const calculateWorkDaysLeft = (dueDate: string | null | undefined, dueTime: string | null | undefined): number | null => {
-    if (!dueDate) return null;
-
-    const WORK_START = 7.5;  // 7:30am
-    const WORK_END = 16;     // 4pm
-    const WORK_HOURS_PER_DAY = 8.5;
-
-    const now = new Date();
-    const dueDateTime = new Date(dueDate);
-
-    if (dueTime) {
-      const [h, m] = dueTime.split(':').map(Number);
-      dueDateTime.setHours(h, m, 0, 0);
-    } else {
-      dueDateTime.setHours(16, 0, 0, 0);
-    }
-
-    const isPastDue = now >= dueDateTime;
-    const startTime = isPastDue ? new Date(dueDateTime) : new Date(now);
-    const endTime = isPastDue ? new Date(now) : new Date(dueDateTime);
-
-    let workHours = 0;
-    const current = new Date(startTime);
-    current.setHours(0, 0, 0, 0);
-
-    while (current <= endTime) {
-      const dateStr = current.toISOString().split('T')[0];
-      const dayOfWeek = current.getDay();
-
-      if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidays.has(dateStr)) {
-        const isFirstDay = current.toDateString() === startTime.toDateString();
-        const isLastDay = current.toDateString() === endTime.toDateString();
-
-        let dayStart = WORK_START;
-        let dayEnd = WORK_END;
-
-        if (isFirstDay) {
-          const startHour = startTime.getHours() + startTime.getMinutes() / 60;
-          dayStart = Math.max(startHour, WORK_START);
-          if (dayStart >= WORK_END) dayStart = WORK_END;
-        }
-
-        if (isLastDay) {
-          const endHour = endTime.getHours() + endTime.getMinutes() / 60;
-          dayEnd = Math.min(endHour, WORK_END);
-          if (dayEnd <= WORK_START) dayEnd = WORK_START;
-        }
-
-        if (dayEnd > dayStart) {
-          workHours += dayEnd - dayStart;
-        }
-      }
-
-      current.setDate(current.getDate() + 1);
-    }
-
-    const workDays = workHours / WORK_HOURS_PER_DAY;
-    const result = Math.round(workDays * 10) / 10;
-    return isPastDue ? -result : result;
-  };
-
   // Enhance orders with progress_percent and work_days_left for sorting
   const ordersWithProgress = useMemo((): OrderWithProgress[] => {
     return filteredOrders.map(order => ({
@@ -161,7 +100,7 @@ export const OrdersTable: React.FC = () => {
       progress_percent: order.total_tasks && order.total_tasks > 0
         ? Math.round(((order.completed_tasks || 0) / order.total_tasks) * 100)
         : 0,
-      work_days_left: calculateWorkDaysLeft(order.due_date, order.hard_due_date_time)
+      work_days_left: calculateWorkDaysLeft(order.due_date, order.hard_due_date_time, holidays)
     }));
   }, [filteredOrders, holidays]);
 

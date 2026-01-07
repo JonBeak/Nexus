@@ -469,25 +469,15 @@ export const EstimatePreparationTable: React.FC<EstimatePreparationTableProps> =
           Preparation Table
           {readOnly && <span className={`ml-2 text-xs ${PAGE_STYLES.panel.textMuted}`}>(Read-only)</span>}
         </h3>
-        {!readOnly && (
-          <div className="flex items-center gap-2">
-            {jobId && (
-              <button
-                onClick={() => setShowImportModal(true)}
-                className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"
-                title="Import QB descriptions from other estimates"
-              >
-                <Download className="w-3 h-3" />
-                Import
-              </button>
-            )}
-            <button
-              onClick={() => handleAddRow()}
-              className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
-            >
-              + Add Row
-            </button>
-          </div>
+        {!readOnly && jobId && (
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"
+            title="Import QB descriptions from other estimates"
+          >
+            <Download className="w-3 h-3" />
+            Import
+          </button>
         )}
       </div>
 
@@ -538,13 +528,23 @@ export const EstimatePreparationTable: React.FC<EstimatePreparationTableProps> =
       </DndContext>
 
       {/* Footer with totals */}
-      <div className={`${PAGE_STYLES.header.background} px-3 py-2 border-t ${PAGE_STYLES.border} flex justify-between items-center`}>
-        <span className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>
-          {items.length} item{items.length !== 1 ? 's' : ''}
-        </span>
+      <div className={`${PAGE_STYLES.header.background} px-3 py-2 border-t ${PAGE_STYLES.border} flex justify-between items-start`}>
+        {/* Add Row Button - Left Side */}
+        {!readOnly && (
+          <button
+            onClick={() => handleAddRow()}
+            className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-md shadow-sm flex items-center gap-2"
+            title="Add row"
+          >
+            <span className="text-lg font-bold">+</span>
+            Add Row
+          </button>
+        )}
+
+        {/* Totals - Right Side */}
         <div className="text-sm text-right">
-          <div className={PAGE_STYLES.panel.textMuted}>Subtotal: {formatCurrency(subtotal)}</div>
-          <div className={PAGE_STYLES.panel.textMuted}>Tax ({(taxRate * 100).toFixed(0)}%): {formatCurrency(tax)}</div>
+          <div className={PAGE_STYLES.panel.text}>Subtotal: {formatCurrency(subtotal)}</div>
+          <div className={PAGE_STYLES.panel.text}>Tax ({(taxRate * 100).toFixed(0)}%): {formatCurrency(tax)}</div>
           <div className={`font-semibold ${PAGE_STYLES.panel.text}`}>Total: {formatCurrency(total)}</div>
         </div>
       </div>

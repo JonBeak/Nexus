@@ -776,7 +776,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
               </button>
             </div>
             {/* Open in QuickBooks button - shown whenever invoice is linked */}
-            {order.qb_invoice_id && (
+            {!!order.qb_invoice_id && (
               <button
                 onClick={() => window.open(`https://qbo.intuit.com/app/invoice?txnId=${order.qb_invoice_id}`, '_blank')}
                 className="flex items-center space-x-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors mt-3"

@@ -1,88 +1,12 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Order, OrderStatus, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../../types/orders';
+import { calculateWorkDaysLeft } from '../calendarView/utils';
 
 interface Props {
   order: Order & { progress_percent?: number };
   onStatusClick: (orderNumber: number, orderName: string, currentStatus: OrderStatus) => void;
   holidays: Set<string>;  // Set of 'YYYY-MM-DD' strings
-}
-
-// Work day calculation constants
-const WORK_START = 7.5;  // 7:30am as decimal hours
-const WORK_END = 16;     // 4pm as decimal hours
-const WORK_HOURS_PER_DAY = 8.5;
-
-/**
- * Calculate work days remaining until due date/time
- * Returns negative values for overdue orders
- */
-function calculateWorkDaysLeft(
-  dueDate: string | null | undefined,
-  dueTime: string | null | undefined,
-  holidays: Set<string>
-): number | null {
-  if (!dueDate) return null;
-
-  const now = new Date();
-  const dueDateTime = new Date(dueDate);
-
-  // Set due time (default 4pm if not specified)
-  if (dueTime) {
-    const [h, m] = dueTime.split(':').map(Number);
-    dueDateTime.setHours(h, m, 0, 0);
-  } else {
-    dueDateTime.setHours(16, 0, 0, 0);  // 4pm default
-  }
-
-  // Determine if past due and set start/end times accordingly
-  const isPastDue = now >= dueDateTime;
-  const startTime = isPastDue ? new Date(dueDateTime) : new Date(now);
-  const endTime = isPastDue ? new Date(now) : new Date(dueDateTime);
-
-  let workHours = 0;
-  const current = new Date(startTime);
-  current.setHours(0, 0, 0, 0);  // Start at beginning of day
-
-  while (current <= endTime) {
-    const dateStr = current.toISOString().split('T')[0];
-    const dayOfWeek = current.getDay();
-
-    // Skip weekends (0 = Sunday, 6 = Saturday) and holidays
-    if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidays.has(dateStr)) {
-      const isFirstDay = current.toDateString() === startTime.toDateString();
-      const isLastDay = current.toDateString() === endTime.toDateString();
-
-      let dayStart = WORK_START;
-      let dayEnd = WORK_END;
-
-      if (isFirstDay) {
-        const startHour = startTime.getHours() + startTime.getMinutes() / 60;
-        dayStart = Math.max(startHour, WORK_START);
-        // If start time is after work end, no hours this day
-        if (dayStart >= WORK_END) dayStart = WORK_END;
-      }
-
-      if (isLastDay) {
-        const endHour = endTime.getHours() + endTime.getMinutes() / 60;
-        dayEnd = Math.min(endHour, WORK_END);
-        // If end time is before work start, no hours this day
-        if (dayEnd <= WORK_START) dayEnd = WORK_START;
-      }
-
-      if (dayEnd > dayStart) {
-        workHours += dayEnd - dayStart;
-      }
-    }
-
-    // Move to next day
-    current.setDate(current.getDate() + 1);
-  }
-
-  const workDays = workHours / WORK_HOURS_PER_DAY;
-  const result = Math.round(workDays * 10) / 10;
-
-  return isPastDue ? -result : result;
 }
 
 export const TableRow: React.FC<Props> = ({ order, onStatusClick, holidays }) => {

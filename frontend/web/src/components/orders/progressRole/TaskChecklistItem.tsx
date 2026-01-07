@@ -55,17 +55,8 @@ export const TaskChecklistItem: React.FC<Props> = ({
   const canViewCustomer = ROLES_WITH_CUSTOMER_VIEW.includes(userRole);
 
   const handleStartToggle = () => {
-    if (isCompleted) {
-      // Already complete - do nothing (use complete button to uncomplete)
-      return;
-    }
-    if (isStarted) {
-      // Started but not complete -> mark as complete
-      onUpdate(task.task_id, 'completed', true, originalStarted, originalCompleted);
-    } else {
-      // Not started -> mark as started
-      onUpdate(task.task_id, 'started', true, originalStarted, originalCompleted);
-    }
+    // Toggle started state (independent of completed)
+    onUpdate(task.task_id, 'started', !isStarted, originalStarted, originalCompleted);
   };
 
   const handleCompleteToggle = () => {
@@ -103,49 +94,45 @@ export const TaskChecklistItem: React.FC<Props> = ({
 
   return (
     <div
-      className={`border rounded p-2 transition-all ${
+      className={`border rounded p-2 transition-all relative ${
         hasChanges
           ? 'border-orange-400 bg-orange-50'
           : `${PAGE_STYLES.panel.border} ${PAGE_STYLES.panel.background} ${PAGE_STYLES.interactive.hover}`
       }`}
     >
-      {/* Top row: Order info + Start/Complete buttons */}
-      <div className="flex items-start justify-between gap-1">
-        <div className="flex-1 min-w-0">
-          <div className={`text-sm ${PAGE_STYLES.panel.text} truncate`} title={orderDisplay}>
-            {orderDisplay}
-          </div>
-        </div>
+      {/* Small icon-only buttons (top-right corner of card) */}
+      <div className="absolute top-1.5 right-1 flex items-center space-x-1">
+        {/* Start button */}
+        <button
+          onClick={handleStartToggle}
+          title={isStarted ? 'Mark as not started' : 'Mark as started'}
+          className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+            isStarted
+              ? 'bg-blue-600 text-white'
+              : 'bg-white border-2 border-blue-400 text-blue-400 hover:bg-blue-50'
+          }`}
+        >
+          <Play className="w-3 h-3" style={{ marginLeft: '1px' }} />
+        </button>
 
-        {/* Small icon-only buttons (top-right) */}
-        <div className="flex items-center space-x-1 flex-shrink-0">
-          {/* Start button */}
-          <button
-            onClick={handleStartToggle}
-            title={isStarted ? 'Mark as not started' : 'Mark as started'}
-            className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-              isStarted
-                ? 'bg-blue-600 text-white'
-                : 'bg-white border-2 border-blue-400 text-blue-400 hover:bg-blue-50'
-            }`}
-          >
-            <Play className="w-3 h-3" style={{ marginLeft: '1px' }} />
-          </button>
+        {/* Complete button */}
+        <button
+          onClick={handleCompleteToggle}
+          disabled={false}
+          title={isCompleted ? 'Mark as incomplete' : 'Mark as complete'}
+          className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+            isCompleted
+              ? 'bg-green-600 text-white'
+              : 'bg-white border-2 border-green-400 text-green-400 hover:bg-green-50'
+          }`}
+        >
+          <Check className="w-3 h-3" />
+        </button>
+      </div>
 
-          {/* Complete button */}
-          <button
-            onClick={handleCompleteToggle}
-            disabled={false}
-            title={isCompleted ? 'Mark as incomplete' : 'Mark as complete'}
-            className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-              isCompleted
-                ? 'bg-green-600 text-white'
-                : 'bg-white border-2 border-green-400 text-green-400 hover:bg-green-50'
-            }`}
-          >
-            <Check className="w-3 h-3" />
-          </button>
-        </div>
+      {/* Order info row */}
+      <div className={`text-sm ${PAGE_STYLES.panel.text} truncate pr-14 mb-1`} title={orderDisplay}>
+        {orderDisplay}
       </div>
 
       {/* Product Type [Scope] + Task name */}

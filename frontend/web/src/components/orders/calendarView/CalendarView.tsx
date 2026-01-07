@@ -29,7 +29,6 @@ const VISIBLE_BUSINESS_DAYS_WITHOUT_OVERDUE = 9;
 export const CalendarView: React.FC = () => {
   // Data state
   const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [holidays, setHolidays] = useState<Set<string>>(new Set());
 
@@ -69,18 +68,15 @@ export const CalendarView: React.FC = () => {
     fetchHolidays();
   }, []);
 
-  // Fetch orders
+  // Fetch orders (silent - no loading spinner for smooth UX)
   const fetchOrders = useCallback(async () => {
     try {
-      setLoading(true);
       setError(null);
       const data = await ordersApi.getOrders({ search: searchTerm || undefined });
       setOrders(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch orders');
       console.error('Error fetching orders:', err);
-    } finally {
-      setLoading(false);
     }
   }, [searchTerm]);
 
@@ -232,11 +228,7 @@ export const CalendarView: React.FC = () => {
 
       {/* Calendar Grid */}
       <div className={`flex-1 overflow-hidden px-6 py-4 ${PAGE_STYLES.page.background}`}>
-        {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className={PAGE_STYLES.page.text}>Loading orders...</div>
-          </div>
-        ) : error ? (
+        {error ? (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <p className="text-red-800">{error}</p>
             <button

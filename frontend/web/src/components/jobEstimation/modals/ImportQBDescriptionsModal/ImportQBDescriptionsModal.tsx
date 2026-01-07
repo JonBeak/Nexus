@@ -56,6 +56,20 @@ export const ImportQBDescriptionsModal: React.FC<ImportQBDescriptionsModalProps>
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
 
+  // Disable body scrolling when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      // Save current overflow value to restore later
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+
+      // Cleanup: restore original overflow when modal closes
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isOpen]);
+
   // Reset state when modal closes, auto-open selector when modal opens
   useEffect(() => {
     if (isOpen) {

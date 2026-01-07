@@ -51,32 +51,28 @@ export const OrdersPage: React.FC = () => {
 
   return (
     <div className={`h-full flex flex-col ${PAGE_STYLES.page.background}`}>
-      {/* Header */}
-      <div className={`${PAGE_STYLES.panel.background} border-b ${PAGE_STYLES.panel.border} px-6 py-4`}>
+      {/* Header with Tabs */}
+      <div className={`${PAGE_STYLES.panel.background} border-b ${PAGE_STYLES.panel.border} px-6`}>
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+          {/* Left: Home + Title */}
+          <div className="flex items-center space-x-4 py-3">
             <HomeButton />
             <div>
-              <h1 className={`text-2xl font-bold ${PAGE_STYLES.panel.text}`}>Orders</h1>
-              <p className={`text-sm ${PAGE_STYLES.panel.textMuted} mt-1`}>Manage production orders and track progress</p>
+              <h1 className={`text-xl font-bold ${PAGE_STYLES.panel.text}`}>Orders</h1>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Tabs */}
-      <div className={`${PAGE_STYLES.panel.background} border-b ${PAGE_STYLES.panel.border}`}>
-        <div className="px-6">
-          <div className="flex space-x-8">
+          {/* Right: Tabs */}
+          <div className="flex space-x-1 self-end">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => handleTabClick(tab)}
                 className={`
-                  flex items-center space-x-2 px-1 py-4 border-b-2 font-medium text-sm transition-colors
+                  flex items-center space-x-1.5 px-3 pt-4 pb-2 rounded-t-lg font-medium text-sm transition-colors
                   ${activeTab === tab.id
-                    ? `${MODULE_COLORS.orders.border} ${MODULE_COLORS.orders.text}`
-                    : `border-transparent ${PAGE_STYLES.panel.textMuted} hover:text-orange-600 hover:border-orange-300`
+                    ? `bg-orange-100 ${MODULE_COLORS.orders.text}`
+                    : `${PAGE_STYLES.panel.textMuted} hover:text-orange-600 hover:bg-orange-50`
                   }
                 `}
               >
@@ -95,6 +91,7 @@ export const OrdersPage: React.FC = () => {
         {activeTab === 'table' && <OrdersTable />}
         {activeTab === 'tasksTable' && <TasksTable />}
         {activeTab === 'calendar' && <CalendarView />}
+        {activeTab === 'kanban' && <KanbanView />}
       </div>
     </div>
   );
