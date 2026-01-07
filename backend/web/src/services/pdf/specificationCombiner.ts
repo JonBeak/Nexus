@@ -124,11 +124,20 @@ export function flattenCombinedSpecs(templateRowsMap: Map<string, string[]>): an
 
       case 'Mounting':
       case 'Pins': // Legacy - renamed to Mounting
-        if (values.length > 0) {
-          flatSpecs[`row${rowIndex}_count`] = values[0];
-        }
-        if (values.length > 1) {
-          flatSpecs[`row${rowIndex}_spacers`] = values[1];
+        // Mounting template fields: count, pins, spacers
+        // Detect by content since Object.keys() order is not guaranteed
+        for (const val of values) {
+          const lowerVal = val.toLowerCase();
+          if (/^\d+$/.test(val)) {
+            // Numeric value is count
+            flatSpecs[`row${rowIndex}_count`] = val;
+          } else if (lowerVal.includes('pin') || lowerVal.includes('nylon') || lowerVal.includes('ss ')) {
+            // Pin type value
+            flatSpecs[`row${rowIndex}_pins`] = val;
+          } else if (lowerVal.includes('spacer') || lowerVal.includes('insert') || lowerVal.includes('rivnut') || lowerVal.includes('stand')) {
+            // Spacer type value
+            flatSpecs[`row${rowIndex}_spacers`] = val;
+          }
         }
         break;
 

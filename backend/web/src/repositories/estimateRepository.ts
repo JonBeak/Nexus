@@ -238,6 +238,7 @@ export class EstimateRepository {
         CAST(e.is_sent AS UNSIGNED) as is_sent,
         CAST(e.is_approved AS UNSIGNED) as is_approved,
         CAST(e.is_retracted AS UNSIGNED) as is_retracted,
+        CAST(e.uses_preparation_table AS UNSIGNED) as uses_preparation_table,
         j.job_name,
         j.job_number,
         j.customer_job_number,

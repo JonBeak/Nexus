@@ -151,7 +151,7 @@ export async function finalizeOrderToCustomer(
       emailSent,
       statusUpdated: true,
       message: options.sendEmail && totalRecipients > 0
-        ? `Order finalized successfully. Email ${emailSent ? 'sent' : 'queued'} to ${totalRecipients} recipient(s).`
+        ? `Order finalized successfully. Email ${emailSent ? 'sent' : 'failed'} to ${totalRecipients} recipient(s).`
         : 'Order finalized successfully (email skipped).'
     };
 

@@ -395,11 +395,11 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                   <h3 className={`text-sm font-semibold ${PAGE_STYLES.header.text} uppercase tracking-wide mb-2`}>
                     Tasks
                   </h3>
-                  {parts.filter(p => p.is_parent).length === 0 ? (
+                  {parts.filter(p => p.is_parent && p.specs_display_name?.trim()).length === 0 ? (
                     <p className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>No parts found</p>
                   ) : (
                     <div className="space-y-4">
-                      {parts.filter(p => p.is_parent).map((part, idx) => (
+                      {parts.filter(p => p.is_parent && p.specs_display_name?.trim()).map((part, idx) => (
                         <div key={part.part_id} className={`border ${PAGE_STYLES.panel.border} rounded-lg`}>
                           <div className={`px-3 py-2 ${PAGE_STYLES.page.background} border-b ${PAGE_STYLES.panel.border} rounded-t-lg`}>
                             <span className={`text-sm font-medium ${PAGE_STYLES.header.text}`}>

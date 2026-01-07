@@ -411,6 +411,8 @@ export const importPreparationItems = async (req: AuthRequest, res: Response) =>
       });
     }
 
+    console.log('[importPreparationItems] Received imports:', JSON.stringify(imports, null, 2));
+
     // Validate import instructions
     const validatedImports: ImportInstruction[] = imports.map((imp: any) => {
       const instruction: ImportInstruction = {};
@@ -423,7 +425,13 @@ export const importPreparationItems = async (req: AuthRequest, res: Response) =>
         }
       }
 
-      // Copyable fields
+      // Copyable fields (can update existing items)
+      if (imp.qb_item_id !== undefined) {
+        instruction.qb_item_id = imp.qb_item_id || null;
+      }
+      if (imp.qb_item_name !== undefined) {
+        instruction.qb_item_name = imp.qb_item_name || null;
+      }
       if (imp.qb_description !== undefined) {
         instruction.qb_description = imp.qb_description;
       }
@@ -445,12 +453,12 @@ export const importPreparationItems = async (req: AuthRequest, res: Response) =>
         instruction.item_name = imp.item_name || 'Imported Item';
         instruction.calculation_display = imp.calculation_display || null;
         instruction.is_description_only = Boolean(imp.is_description_only);
-        instruction.qb_item_id = imp.qb_item_id || null;
-        instruction.qb_item_name = imp.qb_item_name || null;
       }
 
       return instruction;
     });
+
+    console.log('[importPreparationItems] Validated imports:', JSON.stringify(validatedImports, null, 2));
 
     const result = await estimatePreparationRepository.batchImportItems(
       estimateId,

@@ -68,6 +68,9 @@ export interface ImportSourceEstimate {
 export interface ImportInstruction {
   targetItemId?: number;      // If provided, update this existing item
   targetDisplayOrder?: number; // If no targetItemId, position for new item
+  // Copyable fields (can update existing items)
+  qb_item_id?: string | null;
+  qb_item_name?: string | null;
   qb_description?: string | null;
   quantity?: number;
   unit_price?: number;
@@ -75,8 +78,6 @@ export interface ImportInstruction {
   item_name?: string;
   calculation_display?: string | null;
   is_description_only?: boolean;
-  qb_item_id?: string | null;
-  qb_item_name?: string | null;
 }
 
 // ============================================================================
@@ -530,6 +531,14 @@ class EstimatePreparationRepository {
           const setClauses: string[] = [];
           const values: any[] = [];
 
+          if (instruction.qb_item_id !== undefined) {
+            setClauses.push('qb_item_id = ?');
+            values.push(instruction.qb_item_id);
+          }
+          if (instruction.qb_item_name !== undefined) {
+            setClauses.push('qb_item_name = ?');
+            values.push(instruction.qb_item_name);
+          }
           if (instruction.qb_description !== undefined) {
             setClauses.push('qb_description = ?');
             values.push(instruction.qb_description);

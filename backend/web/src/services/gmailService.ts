@@ -749,19 +749,36 @@ async function createEmailMessage(
   const mixedBoundary = '----=_Part_Mixed_' + Date.now() + '_' + Math.random().toString(36).substring(7);
   const altBoundary = '----=_Part_Alt_' + Date.now() + '_' + Math.random().toString(36).substring(7);
 
-  // Email headers
+  // Email headers - build dynamically based on available recipients
   const headers = [
-    `From: ${SENDER_NAME} <${SENDER_EMAIL}>`,
-    `To: ${data.recipients.join(', ')}`,
+    `From: ${SENDER_NAME} <${SENDER_EMAIL}>`
+  ];
+
+  // Add To header if there are To recipients
+  if (data.recipients && data.recipients.length > 0) {
+    headers.push(`To: ${data.recipients.join(', ')}`);
+  }
+
+  // Add CC header if provided
+  if (data.ccRecipients && data.ccRecipients.length > 0) {
+    headers.push(`Cc: ${data.ccRecipients.join(', ')}`);
+  }
+
+  // Add BCC header if configured
+  const allBccRecipients: string[] = [...(data.bccRecipients || [])];
+  if (BCC_EMAIL && BCC_EMAIL.trim() !== '' && !allBccRecipients.includes(BCC_EMAIL)) {
+    allBccRecipients.push(BCC_EMAIL);
+  }
+  if (allBccRecipients.length > 0) {
+    headers.push(`Bcc: ${allBccRecipients.join(', ')}`);
+  }
+
+  // Add remaining headers
+  headers.push(
     `Subject: ${template.subject}`,
     `MIME-Version: 1.0`,
     `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`
-  ];
-
-  // Add BCC header if configured
-  if (BCC_EMAIL && BCC_EMAIL.trim() !== '') {
-    headers.splice(3, 0, `Bcc: ${BCC_EMAIL}`); // Insert after "To" header
-  }
+  );
 
   // Email body parts
   const bodyParts: string[] = [];
@@ -981,19 +998,25 @@ export async function sendFinalizationEmail(data: EmailData): Promise<EmailResul
     };
   }
 
-  // Validate recipients
-  if (!data.recipients || data.recipients.length === 0) {
+  // Validate recipients - need at least one in To, CC, or BCC
+  const hasToRecipients = data.recipients && data.recipients.length > 0;
+  const hasCcRecipients = data.ccRecipients && data.ccRecipients.length > 0;
+  const hasBccRecipients = (data.bccRecipients && data.bccRecipients.length > 0) || (allBccRecipients.length > 0);
+
+  if (!hasToRecipients && !hasCcRecipients && !hasBccRecipients) {
     return {
       success: false,
       message: 'No recipients specified',
-      error: 'Recipients array is empty'
+      error: 'At least one recipient (To, CC, or BCC) is required'
     };
   }
 
   try {
     console.log('\n📧 [Gmail] Preparing to send order confirmation email...');
     console.log(`   From: ${SENDER_NAME} <${SENDER_EMAIL}>`);
-    console.log(`   To: ${data.recipients.join(', ')}`);
+    if (data.recipients && data.recipients.length > 0) {
+      console.log(`   To: ${data.recipients.join(', ')}`);
+    }
     if (data.ccRecipients && data.ccRecipients.length > 0) {
       console.log(`   CC: ${data.ccRecipients.join(', ')}`);
     }

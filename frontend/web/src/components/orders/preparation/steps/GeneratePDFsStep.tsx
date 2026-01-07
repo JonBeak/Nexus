@@ -58,6 +58,12 @@ export const GeneratePDFsStep: React.FC<GeneratePDFsStepProps> = ({
 
       setPdfIsStale(staleness.isStale);
 
+      // Don't overwrite failed or running status with staleness check results
+      if (step.status === 'failed' || step.status === 'running') {
+        setIsChecking(false);
+        return;
+      }
+
       // Determine correct step status based on staleness
       let newStatus: 'pending' | 'completed' = 'pending';
       let newMessage = '';
@@ -138,13 +144,11 @@ export const GeneratePDFsStep: React.FC<GeneratePDFsStepProps> = ({
       const errorMessage = error?.response?.data?.error
         || error?.response?.data?.message
         || (error instanceof Error ? error.message : 'Failed to generate PDFs');
-      const failedSteps = updateStepStatus(
-        steps,
-        step.id,
-        'failed',
-        errorMessage
-      );
-      onStateChange({ ...state, steps: failedSteps });
+      // Use functional update to prevent race conditions
+      onStateChange(prev => ({
+        ...prev,
+        steps: updateStepStatus(prev.steps, step.id, 'failed', errorMessage)
+      }));
       setMessage('');
     }
   };

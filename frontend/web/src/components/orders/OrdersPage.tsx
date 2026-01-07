@@ -1,15 +1,16 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ListChecks, Table, CheckSquare, Calendar } from 'lucide-react';
+import { LayoutDashboard, ListChecks, Table, CheckSquare, Calendar, Kanban } from 'lucide-react';
 import { HomeButton } from '../common/HomeButton';
 import { PanelDashboard } from './panelDashboard';
 import OrdersTable from './table/OrdersTable';
 import ProgressRoleView from './progressRole/ProgressRoleView';
 import TasksTable from './tasksTable/TasksTable';
 import CalendarView from './calendarView/CalendarView';
+import KanbanView from './kanbanView/KanbanView';
 import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 
-type TabId = 'dashboard' | 'progress' | 'table' | 'tasksTable' | 'calendar';
+type TabId = 'dashboard' | 'progress' | 'table' | 'tasksTable' | 'calendar' | 'kanban';
 
 interface Tab {
   id: TabId;
@@ -23,6 +24,7 @@ const TABS: Tab[] = [
   { id: 'table', label: 'Orders Table', icon: <Table className="w-5 h-5" />, path: '/orders/table' },
   { id: 'tasksTable', label: 'Tasks Table', icon: <CheckSquare className="w-5 h-5" />, path: '/orders/tasks' },
   { id: 'calendar', label: 'Calendar', icon: <Calendar className="w-5 h-5" />, path: '/orders/calendar' },
+  { id: 'kanban', label: 'Kanban', icon: <Kanban className="w-5 h-5" />, path: '/orders/kanban' },
   { id: 'progress', label: 'Role-based Tasks', icon: <ListChecks className="w-5 h-5" />, path: '/orders/role-tasks' }
 ];
 
@@ -32,6 +34,7 @@ const pathToTab: Record<string, TabId> = {
   '/orders/table': 'table',
   '/orders/tasks': 'tasksTable',
   '/orders/calendar': 'calendar',
+  '/orders/kanban': 'kanban',
   '/orders/role-tasks': 'progress'
 };
 

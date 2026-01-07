@@ -38,7 +38,7 @@ export interface SourcePreparationItem {
 // Staged Row Types (Middle Column)
 // ============================================================================
 
-export type CopyableColumn = 'qb_description' | 'quantity' | 'unit_price';
+export type CopyableColumn = 'qb_item' | 'qb_description' | 'quantity' | 'unit_price';
 
 export interface StagedRow {
   id: string;  // UUID for React key
@@ -47,6 +47,7 @@ export interface StagedRow {
   sourceLineIndex: number;
   data: SourcePreparationItem;
   selectedCells: Set<CopyableColumn>;
+  targetSlotIndex: number;  // Which slot/position this staged row is assigned to
 }
 
 // ============================================================================
@@ -63,6 +64,8 @@ export interface TargetPreparationItem {
   unit_price: number;
   extended_price: number;
   is_description_only: boolean;
+  qb_item_id: string | null;
+  qb_item_name: string | null;
 }
 
 // ============================================================================
@@ -93,6 +96,9 @@ export interface ImportModalState {
 
 export interface ImportInstruction {
   targetItemId?: number;      // If provided, update this existing item
+  // Copyable fields (can update existing items)
+  qb_item_id?: string | null;
+  qb_item_name?: string | null;
   qb_description?: string | null;
   quantity?: number;
   unit_price?: number;
@@ -100,8 +106,6 @@ export interface ImportInstruction {
   item_name?: string;
   calculation_display?: string | null;
   is_description_only?: boolean;
-  qb_item_id?: string | null;
-  qb_item_name?: string | null;
 }
 
 // ============================================================================
@@ -118,28 +122,23 @@ export interface ImportQBDescriptionsModalProps {
 }
 
 export interface SourceEstimatePanelProps {
-  estimateId: number;
-  jobId: number;
   selectedSourceId: number | null;
-  onSourceSelect: (estimate: ImportSourceEstimate) => void;
+  selectedSourceName: string;
   sourceItems: SourcePreparationItem[];
   sourceLoading: boolean;
   onStagedRowsAdd: (rows: StagedRow[]) => void;
   defaultSelectedColumns: Set<CopyableColumn>;
 }
 
-export interface StagingPanelProps {
+export interface CombinedStagingTargetPanelProps {
   stagedRows: StagedRow[];
-  onStagedRowsChange: (rows: StagedRow[]) => void;
+  targetItems: TargetPreparationItem[];
   onCellSelectionChange: (rowId: string, column: CopyableColumn, selected: boolean) => void;
   onColumnHeaderClick: (column: CopyableColumn) => void;
   onRowRemove: (rowId: string) => void;
+  onSlotDrop: (rowIds: string[], newSlotIndex: number) => void;
+  onSourceDrop: (sourceIndices: number[], targetSlotIndex: number) => void;
   onClearAll: () => void;
-}
-
-export interface TargetPreviewPanelProps {
-  targetItems: TargetPreparationItem[];
-  stagedRows: StagedRow[];
 }
 
 // ============================================================================
@@ -148,11 +147,11 @@ export interface TargetPreviewPanelProps {
 
 export const COLUMN_CONFIG = {
   lineNumber: { header: '#', copyable: false, width: 'w-10' },
-  productType: { header: 'Type', copyable: false, width: 'w-24' },
+  qb_item: { header: 'QB Item', copyable: true, width: 'w-32' },
   qb_description: { header: 'QB Description', copyable: true, width: 'flex-1' },
   calculation_display: { header: 'Calculation', copyable: false, width: 'w-32' },
   quantity: { header: 'Qty', copyable: true, width: 'w-16' },
   unit_price: { header: 'Unit Price', copyable: true, width: 'w-20' },
 } as const;
 
-export const COPYABLE_COLUMNS: CopyableColumn[] = ['qb_description', 'quantity', 'unit_price'];
+export const COPYABLE_COLUMNS: CopyableColumn[] = ['qb_item', 'qb_description', 'quantity', 'unit_price'];

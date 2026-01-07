@@ -155,6 +155,9 @@ export const TasksTable: React.FC = () => {
       );
     }
 
+    // Always exclude parts without a product type (they can't have tasks)
+    result = result.filter(part => part.specsDisplayName?.trim());
+
     // Filter out parts with no tasks
     if (filters.hideEmptyTasks) {
       result = result.filter(part => part.tasks.length > 0);

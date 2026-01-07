@@ -187,8 +187,8 @@ function hasTemplateInSpecs(templateName: string, specs: any): boolean {
   // Map packing item names to template names
   const templateMap: Record<string, string[]> = {
     'Transformer': ['Power Supply'],
-    'Pins': ['Pins'],
-    'Spacers': ['Pins'],  // Spacers are part of Pins template
+    'Pins': ['Mounting'],
+    'Spacers': ['Mounting'],  // Spacers are part of Mounting template
     'UL Stickers': ['UL'],
     'Drainholes': ['Drain Holes'],
     'D-Tape': ['D-Tape', 'D-tape', 'Dtape', 'DTape', 'D tape'],  // Check variations
@@ -305,17 +305,17 @@ function shouldIncludePowerSupply(specs: any): boolean {
 
 /**
  * Determine if Pins should be included
- * Include if Pins specs exist with count > 0 AND pin type is specified
+ * Include if Mounting specs exist with count > 0 AND pin type is specified
  */
 function shouldIncludePins(specs: any): boolean {
   if (!specs) return false;
 
-  // Check for Pins template
+  // Check for Mounting template
   for (let i = 1; i <= 10; i++) {
     const templateName = specs[`_template_${i}`];
-    if (templateName === 'Pins') {
+    if (templateName === 'Mounting') {
       const count = specs[`row${i}_count`];
-      const pinType = specs[`row${i}_type`] || specs[`row${i}_pin_type`] || specs[`row${i}_pinType`];
+      const pinType = specs[`row${i}_pins`];
 
       // Only include if count > 0 AND pin type is specified
       const hasCount = count && parseInt(count, 10) > 0;
@@ -330,17 +330,17 @@ function shouldIncludePins(specs: any): boolean {
 
 /**
  * Determine if Spacers should be included
- * Include if Pins template has count > 0 AND spacers type is specified
+ * Include if Mounting template has count > 0 AND spacers type is specified
  */
 function shouldIncludeSpacers(specs: any): boolean {
   if (!specs) return false;
 
-  // Check for Pins template with spacers
+  // Check for Mounting template with spacers
   for (let i = 1; i <= 10; i++) {
     const templateName = specs[`_template_${i}`];
-    if (templateName === 'Pins') {
+    if (templateName === 'Mounting') {
       const count = specs[`row${i}_count`];
-      const spacersValue = specs[`row${i}_spacers`] || specs[`row${i}_spacer_type`] || specs[`row${i}_spacerType`];
+      const spacersValue = specs[`row${i}_spacers`];
 
       // Only include if count > 0 AND spacer type is specified
       const hasCount = count && parseInt(count, 10) > 0;
