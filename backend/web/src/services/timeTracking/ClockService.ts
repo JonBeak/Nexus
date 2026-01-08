@@ -7,6 +7,7 @@
 
 import { TimeEntryRepository } from '../../repositories/timeTracking/TimeEntryRepository';
 import { TimeCalculationService } from './TimeCalculationService';
+import { taskSessionService } from '../taskSessionService';
 import { User } from '../../types';
 import {
   ClockStatusResponse,
@@ -103,6 +104,17 @@ export class ClockService {
     };
 
     await TimeEntryRepository.updateTimeEntry(activeEntry.entry_id, updateData);
+
+    // Auto-close any active task sessions (prevents orphaned sessions)
+    try {
+      const closedSessions = await taskSessionService.closeAllUserSessions(user.user_id);
+      if (closedSessions > 0) {
+        console.log(`Auto-closed ${closedSessions} task session(s) on clock-out for user ${user.user_id}`);
+      }
+    } catch (sessionError) {
+      // Log but don't fail clock-out if session cleanup fails
+      console.error('Error closing task sessions on clock-out:', sessionError);
+    }
 
     return {
       message: 'Clocked out successfully',

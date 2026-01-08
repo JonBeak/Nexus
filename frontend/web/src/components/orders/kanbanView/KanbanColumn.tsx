@@ -33,7 +33,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
       ref={setNodeRef}
       className={`
         w-72 h-full flex-shrink-0 flex flex-col rounded-lg border
-        ${PAGE_STYLES.panel.background}
+        ${colors.background || PAGE_STYLES.panel.background}
         ${isOver ? 'ring-2 ring-orange-400' : ''}
         ${colors.border}
       `}
@@ -59,7 +59,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
       {/* Cards Container */}
       <div className={`
         flex-1 overflow-y-auto p-2 space-y-2 min-h-[200px]
-        ${isOver && orders.length === 0 ? 'bg-orange-50' : ''}
+        ${isOver && orders.length === 0 ? 'bg-orange-50' : colors.background || ''}
       `}>
         {orders.map(order => (
           <KanbanCard

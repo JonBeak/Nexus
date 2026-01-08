@@ -277,6 +277,36 @@ export const qbInvoiceApi = {
   },
 
   /**
+   * Get styled email preview (4-part structure with logo/footer)
+   */
+  async getStyledEmailPreview(
+    orderNumber: number,
+    emailContent: {
+      subject?: string;
+      beginning?: string;
+      end?: string;
+      summaryConfig?: Record<string, boolean>;
+      includePayButton?: boolean;
+      invoiceData?: {
+        jobName?: string;
+        jobNumber?: string;
+        customerPO?: string;
+        invoiceNumber?: string;
+        invoiceDate?: string;
+        dueDate?: string;
+        subtotal?: number;
+        tax?: number;
+        total?: number;
+        balanceDue?: number;
+        qbInvoiceUrl?: string;
+      };
+    }
+  ): Promise<{ subject: string; html: string }> {
+    const response = await api.post(`/orders/${orderNumber}/invoice-email/styled-preview`, emailContent);
+    return response.data;
+  },
+
+  /**
    * Get all invoice emails for this order (history)
    */
   async getEmailHistory(orderNumber: number): Promise<ScheduledEmail[]> {

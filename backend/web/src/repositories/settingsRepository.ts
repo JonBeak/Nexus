@@ -513,6 +513,48 @@ export class SettingsRepository {
     const rows = await query(sql, params) as RowDataPacket[];
     return rows[0]?.total ?? 0;
   }
+
+  // =============================================================================
+  // Company Settings
+  // =============================================================================
+
+  /**
+   * Get company settings from rbac_settings table
+   */
+  async getCompanySettings(): Promise<{
+    company_name: string | null;
+    company_phone: string | null;
+    company_email: string | null;
+    company_address: string | null;
+    company_website: string | null;
+    company_business_hours: string | null;
+    company_logo_base64: string | null;
+  }> {
+    const rows = await query(
+      `SELECT setting_name, setting_value FROM rbac_settings
+       WHERE setting_name IN ('company_name', 'company_phone', 'company_email', 'company_address', 'company_website', 'company_business_hours', 'company_logo_base64')`,
+      []
+    ) as RowDataPacket[];
+
+    const settings = {
+      company_name: null as string | null,
+      company_phone: null as string | null,
+      company_email: null as string | null,
+      company_address: null as string | null,
+      company_website: null as string | null,
+      company_business_hours: null as string | null,
+      company_logo_base64: null as string | null
+    };
+
+    for (const row of rows) {
+      const key = row.setting_name as keyof typeof settings;
+      if (key in settings) {
+        settings[key] = row.setting_value;
+      }
+    }
+
+    return settings;
+  }
 }
 
 // Export singleton instance

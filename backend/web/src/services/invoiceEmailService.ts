@@ -10,6 +10,7 @@
 import { createGmailClient } from './gmailAuthService';
 import * as qbInvoiceRepo from '../repositories/qbInvoiceRepository';
 import * as orderPrepRepo from '../repositories/orderPreparationRepository';
+import { estimateEmailService } from './estimate/estimateEmailService';
 import {
   ScheduledEmailInput,
   ScheduledEmail,
@@ -278,7 +279,7 @@ export async function getEmailPreview(
       if (details.invoiceUrl) {
         qbInvoiceUrl = details.invoiceUrl;
       }
-      if (details.total) {
+      if (details.total !== null && details.total !== undefined) {
         invoiceTotal = details.total.toFixed(2);
       }
       // Show remaining balance if it differs from total (partial payment made)
@@ -299,6 +300,31 @@ export async function getEmailPreview(
     } catch (err) {
       console.error('Failed to get fresh QB invoice data for email preview:', err);
       // Fall back to stored data - no due date line if we can't fetch from QB
+    }
+  }
+
+  // If no QB invoice total yet, calculate from order parts
+  if (invoiceTotal === '0.00') {
+    try {
+      const orderParts = await orderPrepRepo.getOrderPartsForQBEstimate(orderId);
+      // Calculate subtotal from parts
+      const subtotal = orderParts.reduce((sum, part) => {
+        const extPrice = parseFloat(String(part.extended_price)) || 0;
+        return sum + extPrice;
+      }, 0);
+
+      // Get tax rate based on order tax_name (default 13% HST if not specified)
+      // Note: Tax is handled by QB on invoice creation, this is just for preview
+      const taxRate = order.tax_name?.toLowerCase().includes('exempt') ? 0 : 0.13;
+      const tax = subtotal * taxRate;
+      const total = subtotal + tax;
+
+      if (total > 0) {
+        invoiceTotal = total.toFixed(2);
+        console.log(`[Email Preview] Calculated total from parts: $${invoiceTotal} (subtotal: $${subtotal.toFixed(2)}, tax: $${tax.toFixed(2)})`);
+      }
+    } catch (err) {
+      console.error('Failed to calculate invoice total from parts:', err);
     }
   }
 
@@ -552,4 +578,283 @@ export async function processScheduledEmail(
     });
     return { success: false, error: error.message };
   }
+}
+
+// =============================================
+// STYLED EMAIL PREVIEW (4-part structure like estimates)
+// =============================================
+
+/**
+ * Invoice summary config - matches frontend InvoiceSummaryConfig
+ */
+export interface InvoiceSummaryConfig {
+  includeJobName: boolean;
+  includeJobNumber: boolean;
+  includePO: boolean;
+  includeInvoiceNumber: boolean;
+  includeInvoiceDate: boolean;
+  includeDueDate: boolean;
+  includeSubtotal: boolean;
+  includeTax: boolean;
+  includeTotal: boolean;
+  includeBalanceDue: boolean;
+}
+
+/**
+ * Invoice data for email preview
+ */
+export interface InvoiceEmailPreviewData {
+  jobName?: string;
+  jobNumber?: string;
+  customerPO?: string;
+  invoiceNumber?: string;
+  invoiceDate?: string;
+  dueDate?: string;
+  subtotal?: number;
+  tax?: number;
+  total?: number;
+  balanceDue?: number;
+  qbInvoiceUrl?: string;
+  customerName?: string;
+}
+
+/**
+ * Email content from frontend
+ */
+export interface InvoiceEmailContent {
+  subject?: string;
+  beginning?: string;
+  end?: string;
+  summaryConfig?: Partial<InvoiceSummaryConfig>;
+  includePayButton?: boolean;
+  invoiceData?: InvoiceEmailPreviewData;
+}
+
+/**
+ * Summary field definitions for invoice email
+ */
+interface InvoiceSummaryField {
+  key: keyof InvoiceSummaryConfig;
+  label: string;
+  dataKey: keyof InvoiceEmailPreviewData;
+  isTotal?: boolean;
+  requiresValue?: boolean;
+  formatAsCurrency?: boolean;
+}
+
+const INVOICE_SUMMARY_FIELDS: InvoiceSummaryField[] = [
+  { key: 'includeJobName', label: 'Job Name:', dataKey: 'jobName' },
+  { key: 'includeJobNumber', label: 'Job #:', dataKey: 'jobNumber', requiresValue: true },
+  { key: 'includePO', label: 'PO #:', dataKey: 'customerPO', requiresValue: true },
+  { key: 'includeInvoiceNumber', label: 'Invoice #:', dataKey: 'invoiceNumber' },
+  { key: 'includeInvoiceDate', label: 'Invoice Date:', dataKey: 'invoiceDate' },
+  { key: 'includeDueDate', label: 'Due Date:', dataKey: 'dueDate' },
+  { key: 'includeSubtotal', label: 'Subtotal:', dataKey: 'subtotal', formatAsCurrency: true },
+  { key: 'includeTax', label: 'Tax:', dataKey: 'tax', formatAsCurrency: true },
+  { key: 'includeTotal', label: 'Total:', dataKey: 'total', isTotal: true, formatAsCurrency: true },
+  { key: 'includeBalanceDue', label: 'Balance Due:', dataKey: 'balanceDue', formatAsCurrency: true }
+];
+
+/**
+ * Format currency for display
+ */
+function formatCurrency(amount: number | undefined | null): string {
+  if (amount === null || amount === undefined) return '-';
+  return `$${amount.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * Format date for display (e.g., "January 15, 2025")
+ */
+function formatDateForEmail(dateStr: string | undefined | null): string {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  } catch {
+    return '-';
+  }
+}
+
+/**
+ * Escape HTML special characters
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
+ * Build invoice summary box HTML (green theme)
+ */
+function buildInvoiceSummaryHtml(
+  config: Partial<InvoiceSummaryConfig> | null,
+  data: InvoiceEmailPreviewData
+): string {
+  if (!config) return '';
+
+  const rows: string[] = [];
+
+  for (const field of INVOICE_SUMMARY_FIELDS) {
+    if (!config[field.key]) continue;
+
+    const rawValue = data[field.dataKey];
+    if (field.requiresValue && !rawValue) continue;
+
+    let displayValue: string;
+    if (field.formatAsCurrency && typeof rawValue === 'number') {
+      displayValue = formatCurrency(rawValue);
+    } else if (field.dataKey === 'invoiceDate' || field.dataKey === 'dueDate') {
+      displayValue = formatDateForEmail(rawValue as string);
+    } else {
+      displayValue = String(rawValue ?? '-');
+    }
+
+    if (field.isTotal) {
+      // Total row with green background
+      rows.push(`<tr style="background-color: #86efac;"><td style="padding: 8px 12px; font-weight: 700; color: #166534; text-align: left;">${field.label}</td><td style="padding: 8px 12px; font-weight: 700; color: #166534; text-align: right;">${displayValue}</td></tr>`);
+    } else {
+      rows.push(`<tr style="border-bottom: 1px solid #ddd;"><td style="padding: 6px 12px; font-weight: 600; color: #555; width: 40%; text-align: left;">${field.label}</td><td style="padding: 6px 12px; color: #333; text-align: right;">${displayValue}</td></tr>`);
+    }
+  }
+
+  if (rows.length === 0) return '';
+
+  // Green-themed summary box (light green background)
+  return `
+    <div style="border: 1px solid #16a34a; border-radius: 6px; padding: 0; margin: 20px auto; max-width: 350px; background: #f0fdf4; overflow: hidden;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <tbody>
+          ${rows.join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+/**
+ * Build pay button HTML
+ * Shows button even without URL (for preview purposes)
+ */
+function buildPayButtonHtml(qbInvoiceUrl: string | undefined): string {
+  // Use the URL if available, otherwise use # as placeholder for preview
+  const href = qbInvoiceUrl || '#';
+
+  return `
+    <div style="text-align: center; margin: 25px 0;">
+      <a href="${href}"
+         style="display: inline-block; padding: 14px 32px; background-color: #16a34a; color: white; text-decoration: none; font-weight: 600; font-size: 16px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        View &amp; Pay Invoice
+      </a>
+    </div>
+  `;
+}
+
+/**
+ * Generate styled invoice email preview HTML
+ * Matches the 4-part estimate email structure but with green theme
+ */
+export async function generateInvoiceEmailPreview(
+  orderId: number,
+  emailContent?: InvoiceEmailContent
+): Promise<{ subject: string; html: string }> {
+  // Get order data
+  const order = await orderPrepRepo.getOrderDataForQBEstimate(orderId);
+  if (!order) {
+    throw new Error('Order not found');
+  }
+
+  // Get invoice record
+  const invoiceRecord = await qbInvoiceRepo.getOrderInvoiceRecord(orderId);
+
+  // Load company settings for logo and footer
+  const companySettings = await estimateEmailService.loadCompanySettings();
+  const footerHtml = estimateEmailService.buildEmailFooterHtml(companySettings);
+
+  // Build subject
+  const subject = emailContent?.subject || `Invoice for Order #${order.order_number} - ${order.order_name}`;
+
+  // Substitute template variables in beginning/end
+  const customerName = order.customer_name || 'Valued Customer';
+  const templateVars: Record<string, string> = {
+    customerName,
+    orderNumber: String(order.order_number),
+    orderName: order.order_name || '',
+    jobName: order.order_name || '',
+    invoiceNumber: invoiceRecord?.qb_invoice_doc_number || ''
+  };
+
+  const substituteVars = (text: string): string => {
+    return text.replace(/\{\{(\w+)\}\}/g, (match, key) => templateVars[key] ?? match);
+  };
+
+  const beginningText = substituteVars(emailContent?.beginning || '');
+  const endText = substituteVars(emailContent?.end || '');
+
+  // Prepare invoice data with defaults from order/invoice
+  const invoiceData: InvoiceEmailPreviewData = {
+    ...emailContent?.invoiceData,
+    jobName: emailContent?.invoiceData?.jobName || order.order_name || undefined,
+    jobNumber: emailContent?.invoiceData?.jobNumber || order.customer_job_number || undefined,
+    customerPO: emailContent?.invoiceData?.customerPO || order.customer_po || undefined,
+    invoiceNumber: emailContent?.invoiceData?.invoiceNumber || invoiceRecord?.qb_invoice_doc_number || undefined,
+    qbInvoiceUrl: emailContent?.invoiceData?.qbInvoiceUrl || invoiceRecord?.qb_invoice_url || undefined,
+    customerName
+  };
+
+  // Build summary HTML
+  const summaryHtml = buildInvoiceSummaryHtml(emailContent?.summaryConfig || null, invoiceData);
+
+  // Build pay button HTML
+  const payButtonHtml = emailContent?.includePayButton !== false
+    ? buildPayButtonHtml(invoiceData.qbInvoiceUrl)
+    : '';
+
+  // Build logo HTML
+  const logoHtml = companySettings.company_logo_base64
+    ? `<div style="margin-bottom: 20px; text-align: center;">
+        <img src="data:image/png;base64,${companySettings.company_logo_base64}" alt="Company Logo" style="max-width: 200px; height: auto; display: block; margin: 0 auto;" />
+        <hr style="border: none; border-top: 1px solid #ccc; margin: 15px auto 0; width: 80%;" />
+       </div>`
+    : '';
+
+  // Build beginning/end HTML
+  const beginningHtml = beginningText
+    ? `<div style="margin: 20px 0; text-align: center; white-space: pre-wrap;">${escapeHtml(beginningText).replace(/\n/g, '<br>')}</div>`
+    : '';
+  const endHtml = endText
+    ? `<div style="margin: 20px 0; text-align: center; white-space: pre-wrap;">${escapeHtml(endText).replace(/\n/g, '<br>')}</div>`
+    : '';
+
+  // Build full email HTML (green theme - border color #16a34a)
+  const html = `
+    <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; text-align: center; border: 2px solid #16a34a; border-radius: 24px; background-color: #f7f7f5; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          ${logoHtml}
+          ${beginningHtml}
+          ${summaryHtml}
+          ${payButtonHtml}
+          ${endHtml}
+          ${footerHtml}
+        </div>
+      </body>
+    </html>
+  `.trim();
+
+  return { subject, html };
 }

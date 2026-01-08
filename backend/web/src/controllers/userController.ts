@@ -152,7 +152,8 @@ export class UserController {
         hourly_wage: req.body.hourly_wage ?? null,
         auto_clock_in: req.body.auto_clock_in ?? null,
         auto_clock_out: req.body.auto_clock_out ?? null,
-        is_active: req.body.is_active ? 1 : 0
+        is_active: req.body.is_active ? 1 : 0,
+        production_roles: req.body.production_roles ?? null
       };
 
       // Update user via service (all business logic handled there)

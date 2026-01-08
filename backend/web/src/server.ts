@@ -48,6 +48,7 @@ import paymentsRoutes from './routes/payments';  // Multi-invoice payment system
 import invoicesRoutes from './routes/invoices';  // Invoices listing page (Dec 17, 2025)
 import dashboardPanelsRoutes from './routes/dashboardPanels';  // Customizable Orders Dashboard panels (Dec 17, 2025)
 import serverManagementRoutes from './routes/serverManagement';  // Server Management GUI (Dec 23, 2025)
+import staffTasksRoutes from './routes/staffTasks';  // Staff task sessions (Jan 7, 2026)
 
 // QuickBooks utilities for startup
 import { quickbooksOAuthRepository } from './repositories/quickbooksOAuthRepository';
@@ -133,6 +134,7 @@ app.use('/api/payments', paymentsRoutes);  // Multi-invoice payment system (Dec 
 app.use('/api/invoices', invoicesRoutes);  // Invoices listing page (Dec 17, 2025)
 app.use('/api/dashboard-panels', dashboardPanelsRoutes);  // Customizable Orders Dashboard panels (Dec 17, 2025)
 app.use('/api/server-management', serverManagementRoutes);  // Server Management GUI (Dec 23, 2025)
+app.use('/api/staff', staffTasksRoutes);  // Staff task sessions (Jan 7, 2026)
 
 // =============================================
 // STATIC FILE SERVING (Phase 1.5.g)

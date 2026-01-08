@@ -367,4 +367,23 @@ export const settingsApi = {
     const response = await api.get('/settings/audit-log', { params: filters });
     return response.data;
   },
+
+  // -------------------------------------------------------------------------
+  // Company Settings
+  // -------------------------------------------------------------------------
+
+  /**
+   * Get company settings (name, address, phone, etc.)
+   */
+  async getCompanySettings(): Promise<{
+    company_name: string | null;
+    company_phone: string | null;
+    company_email: string | null;
+    company_address: string | null;
+    company_website: string | null;
+    company_business_hours: string | null;
+  }> {
+    const response = await api.get('/settings/company');
+    return response.data;
+  },
 };

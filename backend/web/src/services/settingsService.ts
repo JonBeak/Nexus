@@ -589,6 +589,32 @@ export class SettingsService {
       return { success: false, error: 'Failed to fetch audit log', code: 'FETCH_ERROR' };
     }
   }
+
+  // =============================================================================
+  // Company Settings (for email headers/footers)
+  // =============================================================================
+
+  /**
+   * Get company settings for email templates
+   * Returns company name, phone, email, address, website, business hours, and logo
+   */
+  async getCompanySettings(): Promise<ServiceResult<{
+    company_name: string | null;
+    company_phone: string | null;
+    company_email: string | null;
+    company_address: string | null;
+    company_website: string | null;
+    company_business_hours: string | null;
+    company_logo_base64: string | null;
+  }>> {
+    try {
+      const settings = await settingsRepository.getCompanySettings();
+      return { success: true, data: settings };
+    } catch (error) {
+      console.error('Error fetching company settings:', error);
+      return { success: false, error: 'Failed to fetch company settings', code: 'FETCH_ERROR' };
+    }
+  }
 }
 
 // Export singleton instance

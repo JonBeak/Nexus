@@ -765,6 +765,17 @@ router.get(
   qbInvoiceController.getEmailPreview
 );
 
+/**
+ * Get styled email preview (4-part structure with logo/footer)
+ * POST /api/orders/:orderNumber/invoice-email/styled-preview
+ */
+router.post(
+  '/:orderNumber/invoice-email/styled-preview',
+  authenticateToken,
+  requirePermission('orders.view'),
+  qbInvoiceController.getStyledEmailPreview
+);
+
 // =============================================
 // EMAIL TEMPLATES (Phase 2.e)
 // =============================================

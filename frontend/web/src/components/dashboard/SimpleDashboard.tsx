@@ -152,6 +152,22 @@ Check backend logs for detailed comparison!`);
                 <h3 className={`text-2xl font-bold ${PAGE_STYLES.panel.text} mb-8`}>{user.role === 'designer' ? 'Designer Actions' : 'Staff Actions'}</h3>
 
                 <div className="grid grid-cols-1 gap-6">
+                  {/* My Production Tasks - Primary action for staff */}
+                  <button
+                    onClick={() => navigate('/jobs')}
+                    className="group p-6 bg-blue-600 hover:bg-blue-700 rounded-2xl transition-all duration-300 text-left shadow-lg"
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg text-blue-600 text-2xl font-bold">
+                        T
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-white text-lg">My Production Tasks</h4>
+                        <p className="text-blue-100">View and track your tasks</p>
+                      </div>
+                    </div>
+                  </button>
+
                   <button
                     onClick={() => navigate('/vinyl-inventory')}
                     className={getModuleCardClasses('vinyls')}

@@ -19,15 +19,49 @@ export function formatDateKey(date: Date): string {
 }
 
 /**
- * Get display label for a date (Today, Tomorrow, or 'Dec 15')
+ * Get "effective today" for calendar display
+ * If past work hours (4 PM), returns the next business day
+ * This ensures jobs due today appear only in Overdue after hours
  */
-function getDisplayLabel(date: Date, today: Date): string {
+export function getEffectiveToday(holidays: Set<string>): Date {
+  const WORK_END = 16; // 4:00 PM
+  const now = new Date();
+  const currentHour = now.getHours() + now.getMinutes() / 60;
+
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+
+  // If within business hours, effective today = actual today
+  if (currentHour < WORK_END) {
+    return today;
+  }
+
+  // Past work hours: find next business day
+  const nextDay = new Date(today);
+
+  let isWeekend: boolean;
+  let isHoliday: boolean;
+  do {
+    nextDay.setDate(nextDay.getDate() + 1);
+    const dateKey = formatDateKey(nextDay);
+    isWeekend = nextDay.getDay() === 0 || nextDay.getDay() === 6;
+    isHoliday = holidays.has(dateKey);
+  } while (isWeekend || isHoliday);
+
+  return nextDay;
+}
+
+/**
+ * Get display label for a date (Today, Tomorrow, or 'Dec 15')
+ * Uses effectiveToday (which shifts to next business day after 4 PM)
+ */
+function getDisplayLabel(date: Date, effectiveToday: Date): string {
   const dateKey = formatDateKey(date);
-  const todayKey = formatDateKey(today);
+  const effectiveTodayKey = formatDateKey(effectiveToday);
 
-  if (dateKey === todayKey) return 'Today';
+  if (dateKey === effectiveTodayKey) return 'Today';
 
-  const tomorrow = new Date(today);
+  const tomorrow = new Date(effectiveToday);
   tomorrow.setDate(tomorrow.getDate() + 1);
   if (dateKey === formatDateKey(tomorrow)) return 'Tomorrow';
 
@@ -49,6 +83,7 @@ function getDayAbbreviation(date: Date): string {
  * @param visibleBusinessDays - Number of business day columns to show (default 10)
  * @param holidays - Set of holiday dates in 'YYYY-MM-DD' format
  * @param ordersByDate - Map of orders grouped by due date
+ * @param effectiveToday - The "effective today" date (shifts to next business day after work hours)
  * @returns Array of DateColumn objects (only business days or days with orders)
  */
 export function generateDateColumns(
@@ -56,11 +91,11 @@ export function generateDateColumns(
   totalDays: number,
   visibleBusinessDays: number,
   holidays: Set<string>,
-  ordersByDate: Map<string, CalendarOrder[]>
+  ordersByDate: Map<string, CalendarOrder[]>,
+  effectiveToday: Date
 ): DateColumn[] {
   const columns: DateColumn[] = [];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const effectiveTodayKey = formatDateKey(effectiveToday);
 
   const current = new Date(startDate);
   current.setHours(0, 0, 0, 0);
@@ -83,11 +118,11 @@ export function generateDateColumns(
       columns.push({
         date: new Date(current),
         dateKey,
-        displayLabel: getDisplayLabel(current, today),
+        displayLabel: getDisplayLabel(current, effectiveToday),
         dayOfWeek: getDayAbbreviation(current),
         isWeekend,
         isHoliday,
-        isToday: dateKey === formatDateKey(today),
+        isToday: dateKey === effectiveTodayKey,
         orders
       });
 
@@ -218,7 +253,8 @@ export function navigateWeek(
   businessDaysToMove: number = 5
 ): Date {
   if (direction === 'today') {
-    return new Date();
+    // Use effective today (shifts to next business day after work hours)
+    return getEffectiveToday(holidays);
   }
 
   let moved = 0;

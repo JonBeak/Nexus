@@ -94,7 +94,7 @@ export const KANBAN_DEFAULT_STATUSES: OrderStatus[] = KANBAN_STATUS_ORDER.filter
 /**
  * Column header colors per status
  */
-export const KANBAN_COLUMN_COLORS: Record<OrderStatus, { header: string; border: string }> = {
+export const KANBAN_COLUMN_COLORS: Record<OrderStatus, { header: string; border: string; background?: string }> = {
   job_details_setup: { header: 'bg-amber-100', border: 'border-amber-300' },
   pending_confirmation: { header: 'bg-yellow-100', border: 'border-yellow-300' },
   pending_production_files_creation: { header: 'bg-orange-100', border: 'border-orange-300' },
@@ -107,8 +107,8 @@ export const KANBAN_COLUMN_COLORS: Record<OrderStatus, { header: string; border:
   shipping: { header: 'bg-cyan-100', border: 'border-cyan-300' },
   pick_up: { header: 'bg-teal-100', border: 'border-teal-300' },
   awaiting_payment: { header: 'bg-amber-100', border: 'border-amber-300' },
-  completed: { header: 'bg-green-100', border: 'border-green-300' },
-  cancelled: { header: 'bg-gray-200', border: 'border-gray-400' }
+  completed: { header: 'bg-green-200', border: 'border-green-400', background: 'bg-[var(--theme-header-bg)]' },
+  cancelled: { header: 'bg-gray-300', border: 'border-gray-500', background: 'bg-[var(--theme-header-bg)]' }
 };
 
 /**

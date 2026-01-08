@@ -8,12 +8,16 @@
  * - Schedule option for delayed send
  */
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { X, Loader2, Calendar, Send, FileText, RefreshCw, Clock, Mail, Eye, Truck, Package, AlertTriangle, Plus, UserCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { X, Loader2, Calendar, Send, FileText, RefreshCw, Clock, Mail, Eye, AlertTriangle, UserCircle, CheckCircle } from 'lucide-react';
 import { Order, OrderPart } from '../../../types/orders';
+import { Address } from '../../../types';
 import { qbInvoiceApi, EmailPreview, InvoiceDetails, InvoiceSyncStatus, InvoiceDifference, InvoiceSyncResult } from '../../../services/api/orders/qbInvoiceApi';
-import { customerContactsApi } from '../../../services/api';
+import { customerApi } from '../../../services/api/customerApi';
+import { settingsApi } from '../../../services/api/settings/settingsApi';
 import { InvoiceConflictModal } from './InvoiceConflictModal';
+import { InvoiceSentSuccessModal } from './InvoiceSentSuccessModal';
+import InvoiceEmailComposer, { InvoiceEmailConfig, InvoiceSummaryConfig, InvoiceEmailData, DEFAULT_INVOICE_SUMMARY_CONFIG, DEFAULT_INVOICE_BEGINNING, DEFAULT_INVOICE_END } from './InvoiceEmailComposer';
 
 interface InvoiceActionModalProps {
   isOpen: boolean;
@@ -42,23 +46,14 @@ interface InvoiceLineItem {
   amount: number;
 }
 
-// Recipient entry with mode (existing/custom) and email type (to/cc/bcc)
+// Unified recipient entry for the checkbox table
 interface RecipientEntry {
   id: string;
-  mode: 'existing' | 'custom' | 'accounting';  // accounting = auto-added invoice_email
-  contact_id?: number;
+  source: 'accounting' | 'point_person';  // Source of the recipient
   email: string;
   name?: string;
-  emailType: 'to' | 'cc' | 'bcc';
-  saveToDatabase?: boolean;
-}
-
-interface CustomerContact {
-  contact_id: number;
-  contact_email: string;
-  contact_name?: string;
-  contact_phone?: string;
-  contact_role?: string;
+  label?: string;  // e.g., "Accounting", role, etc.
+  emailType: 'to' | 'cc' | 'bcc' | null;  // null = not selected
 }
 
 export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
@@ -72,28 +67,39 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   // Form State
   const [recipientEntries, setRecipientEntries] = useState<RecipientEntry[]>([]);
   const [subject, setSubject] = useState('');
-  const [body, setBody] = useState('');
+  const [emailConfig, setEmailConfig] = useState<InvoiceEmailConfig>({
+    subject: '',
+    beginning: DEFAULT_INVOICE_BEGINNING,
+    end: DEFAULT_INVOICE_END,
+    summaryConfig: DEFAULT_INVOICE_SUMMARY_CONFIG,
+    includePayButton: true
+  });
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('09:00');
 
-  // Customer contacts for recipient selection
-  const [customerContacts, setCustomerContacts] = useState<CustomerContact[]>([]);
-  const [loadingContacts, setLoadingContacts] = useState(false);
+  // Success modal state
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successModalData, setSuccessModalData] = useState<{
+    recipients: { to: string[]; cc: string[]; bcc: string[] };
+    scheduledFor?: string;
+    wasResent?: boolean;
+  } | null>(null);
 
   // UI State
   const [loading, setLoading] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewTab, setPreviewTab] = useState<'invoice' | 'email'>('email');
-  const [htmlBody, setHtmlBody] = useState(''); // Full HTML for preview
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  // Email preview HTML fetched from backend (4-part structure with logo/footer)
+  const [previewHtml, setPreviewHtml] = useState<string>('');
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  // Note: iframeRef removed - now using dangerouslySetInnerHTML like estimate modal
 
-  // Custom message and subject prefix state
-  const [customMessage, setCustomMessage] = useState('');
+  // Subject prefix state
   const [pickupChecked, setPickupChecked] = useState(false);
   const [shippingChecked, setShippingChecked] = useState(false);
+  const [completedChecked, setCompletedChecked] = useState(false);
 
   // QB Invoice data for Invoice Details tab
   const [qbInvoiceData, setQbInvoiceData] = useState<InvoiceDetails | null>(null);
@@ -120,6 +126,14 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   const [invoicePdf, setInvoicePdf] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+
+  // Create mode: company and customer address data
+  const [companySettings, setCompanySettings] = useState<{
+    company_name: string | null;
+    company_address: string | null;
+  } | null>(null);
+  const [customerBillingAddress, setCustomerBillingAddress] = useState<Address | null>(null);
+  const [loadingCreateData, setLoadingCreateData] = useState(false);
 
   // Determine template based on order type and deposit payment status
   const templateKey = useMemo(() => {
@@ -165,38 +179,78 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     return { subtotal, tax, taxRate, total, deposit };
   }, [lineItems, order.cash, order.deposit_required]);
 
-  // Load customer contacts
-  const loadContacts = useCallback(async () => {
-    if (!order.customer_id) return;
-    try {
-      setLoadingContacts(true);
-      const contacts = await customerContactsApi.getContacts(order.customer_id);
-      setCustomerContacts(contacts || []);
-    } catch (error) {
-      console.error('Failed to load customer contacts:', error);
-      setCustomerContacts([]);
-    } finally {
-      setLoadingContacts(false);
-    }
-  }, [order.customer_id]);
+  // Build invoice data for email composer preview
+  const invoiceEmailData: InvoiceEmailData = useMemo(() => ({
+    jobName: order.order_name,
+    jobNumber: order.customer_job_number || undefined,  // Customer Job #
+    customerPO: order.customer_po || undefined,         // PO #
+    customerJobNumber: order.customer_job_number,       // Legacy alias
+    invoiceNumber: order.qb_invoice_number || undefined,
+    invoiceDate: new Date().toISOString(),
+    dueDate: qbInvoiceData?.dueDate || undefined,
+    subtotal: totals.subtotal,
+    tax: totals.tax,
+    total: totals.total,
+    balanceDue: qbInvoiceData?.balance ?? totals.total
+  }), [order, totals, qbInvoiceData]);
+
+  // Fetch styled email preview from backend
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchPreview = async () => {
+      try {
+        setLoadingPreview(true);
+        const result = await qbInvoiceApi.getStyledEmailPreview(order.order_number, {
+          subject: emailConfig.subject,
+          beginning: emailConfig.beginning,
+          end: emailConfig.end,
+          summaryConfig: emailConfig.summaryConfig,
+          includePayButton: emailConfig.includePayButton,
+          invoiceData: {
+            jobName: invoiceEmailData.jobName,
+            jobNumber: invoiceEmailData.jobNumber,
+            customerPO: invoiceEmailData.customerPO,
+            invoiceNumber: invoiceEmailData.invoiceNumber,
+            invoiceDate: invoiceEmailData.invoiceDate,
+            dueDate: invoiceEmailData.dueDate,
+            subtotal: invoiceEmailData.subtotal,
+            tax: invoiceEmailData.tax,
+            total: invoiceEmailData.total,
+            balanceDue: invoiceEmailData.balanceDue,
+            qbInvoiceUrl: qbInvoiceData?.invoiceUrl
+          }
+        });
+        setPreviewHtml(result.html);
+      } catch (err) {
+        console.error('Failed to fetch email preview:', err);
+        setPreviewHtml('');
+      } finally {
+        setLoadingPreview(false);
+      }
+    };
+
+    // Debounce the fetch to avoid too many requests while typing
+    const timeoutId = setTimeout(fetchPreview, 300);
+    return () => clearTimeout(timeoutId);
+  }, [isOpen, order.order_number, emailConfig, invoiceEmailData, qbInvoiceData?.invoiceUrl]);
 
   // Initialize recipients: accounting emails first, then point persons
   useEffect(() => {
     if (isOpen) {
-      loadContacts();
-
       const entries: RecipientEntry[] = [];
       const addedEmails = new Set<string>(); // Track added emails for deduplication
 
-      // Add accounting emails (use accounting_emails array if available, fallback to invoice_email)
+      // Add accounting emails with their default email_type from customer data
       if (order.accounting_emails && order.accounting_emails.length > 0) {
         order.accounting_emails.forEach((ae, idx) => {
           entries.push({
             id: `accounting-${idx}`,
-            mode: 'accounting',
+            source: 'accounting',
             email: ae.email,
             name: ae.label || 'Accounting',
-            emailType: ae.email_type  // Use stored type (to/cc/bcc)
+            label: 'Accounting',
+            emailType: ae.email_type || 'to'  // Use stored default preference
           });
           addedEmails.add(ae.email.toLowerCase());
         });
@@ -211,11 +265,11 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
 
             entries.push({
               id: `pp-${pp.id || idx}`,
-              mode: pp.contact_id ? 'existing' : 'custom',
-              contact_id: pp.contact_id,
+              source: 'point_person',
               email: pp.contact_email,
               name: pp.contact_name,
-              emailType: 'to'
+              label: pp.contact_role || 'Point Person',
+              emailType: 'to'  // Default point persons to "to"
             });
             addedEmails.add(pp.contact_email.toLowerCase());
           }
@@ -224,7 +278,38 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
 
       setRecipientEntries(entries);
     }
-  }, [isOpen, order.point_persons, order.invoice_email, order.accounting_emails, loadContacts]);
+  }, [isOpen, order.point_persons, order.accounting_emails]);
+
+  // Load company settings and customer billing address for create mode
+  useEffect(() => {
+    if (isOpen && mode === 'create') {
+      const loadCreateData = async () => {
+        setLoadingCreateData(true);
+        try {
+          // Fetch company settings and customer addresses in parallel
+          const [companyResult, addressesResult] = await Promise.all([
+            settingsApi.getCompanySettings(),
+            customerApi.getAddresses(order.customer_id)
+          ]);
+
+          setCompanySettings({
+            company_name: companyResult.company_name,
+            company_address: companyResult.company_address
+          });
+
+          // Find billing address, fallback to primary
+          const addresses = addressesResult as Address[];
+          const billingAddr = addresses.find(a => a.is_billing) || addresses.find(a => a.is_primary) || null;
+          setCustomerBillingAddress(billingAddr);
+        } catch (err) {
+          console.error('Failed to load create mode data:', err);
+        } finally {
+          setLoadingCreateData(false);
+        }
+      };
+      loadCreateData();
+    }
+  }, [isOpen, mode, order.customer_id]);
 
   // Load email preview/template
   useEffect(() => {
@@ -242,50 +327,36 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
       const preview = await qbInvoiceApi.getEmailPreview(order.order_number, templateKey);
       // Use subject from template (includes PO#, Job# if available)
       setSubject(preview.subject);
-      setHtmlBody(preview.body); // Store base HTML for preview (customMessage will be empty)
-      // Extract plain text version for simple editing (strip HTML tags)
-      const plainText = preview.body
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .substring(0, 500);
-      setBody(plainText);
+      // Set initial email config - composer will use defaults for beginning/end
+      setEmailConfig(prev => ({
+        ...prev,
+        subject: preview.subject
+      }));
     } catch (err) {
       console.error('Failed to load email preview:', err);
-      // Fallback to basic template
+      // Fallback to basic subject
       setSubject(defaultSubject);
-      setBody(`Please find attached invoice for order ${order.order_name}.`);
-      setHtmlBody('');
+      setEmailConfig(prev => ({
+        ...prev,
+        subject: defaultSubject
+      }));
     } finally {
       setLoadingPreview(false);
     }
   };
 
-  // Compute final HTML with custom message injected (for real-time preview)
-  const previewHtml = useMemo(() => {
-    if (!htmlBody) return '';
-
-    if (!customMessage || !customMessage.trim()) {
-      return htmlBody;
+  // Handle email config changes from composer
+  const handleEmailConfigChange = (config: InvoiceEmailConfig) => {
+    setEmailConfig(config);
+    // Sync subject with pickup/shipping prefixes
+    let finalSubject = config.subject;
+    if (pickupChecked && !finalSubject.startsWith('[Ready for Pickup]')) {
+      finalSubject = `[Ready for Pickup] ${finalSubject.replace(/^\[Ready for (Pickup|Shipping)\]\s*/i, '')}`;
+    } else if (shippingChecked && !finalSubject.startsWith('[Ready for Shipping]')) {
+      finalSubject = `[Ready for Shipping] ${finalSubject.replace(/^\[Ready for (Pickup|Shipping)\]\s*/i, '')}`;
     }
-
-    // Inject custom message before the highlight-box or urgency-box
-    // The template has {customMessage} placeholder which is empty,
-    // we inject a styled paragraph before the highlight/urgency box
-    const styledMessage = `<p class="custom-message" style="margin: 18px 0; font-size: 15px; color: #333;">${customMessage.trim()}</p>`;
-
-    // Insert before the highlight-box or urgency-box div
-    const insertPoint = htmlBody.indexOf('<div class="highlight-box">') !== -1
-      ? '<div class="highlight-box">'
-      : '<div class="urgency-box">';
-
-    if (htmlBody.includes(insertPoint)) {
-      return htmlBody.replace(insertPoint, styledMessage + insertPoint);
-    }
-
-    return htmlBody;
-  }, [htmlBody, customMessage]);
+    setSubject(finalSubject);
+  };
 
   // Load QB invoice data when switching to invoice tab (if invoice exists)
   useEffect(() => {
@@ -389,24 +460,6 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     }
   };
 
-  // Auto-check pickup/shipping based on order status when modal opens and subject is loaded
-  useEffect(() => {
-    if (isOpen && subject && !loadingPreview) {
-      // Only auto-apply if no prefix already exists
-      if (!subject.startsWith('[Ready for')) {
-        if (order.status === 'pick_up') {
-          setPickupChecked(true);
-          setShippingChecked(false);
-          setSubject(`[Ready for Pickup] ${subject}`);
-        } else if (order.status === 'shipping') {
-          setShippingChecked(true);
-          setPickupChecked(false);
-          setSubject(`[Ready for Shipping] ${subject}`);
-        }
-      }
-    }
-  }, [isOpen, loadingPreview]); // Only run when modal opens and preview finishes loading
-
   // Smart checkbox behavior - uncheck if prefix is manually removed
   useEffect(() => {
     if (pickupChecked && !subject.startsWith('[Ready for Pickup]')) {
@@ -415,14 +468,18 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     if (shippingChecked && !subject.startsWith('[Ready for Shipping]')) {
       setShippingChecked(false);
     }
+    if (completedChecked && !subject.startsWith('[Order Completed]')) {
+      setCompletedChecked(false);
+    }
   }, [subject]);
 
   // Checkbox handlers
   const handlePickupChange = (checked: boolean) => {
     if (checked) {
       setShippingChecked(false); // Mutually exclusive
+      setCompletedChecked(false);
       // Remove any existing prefix and add pickup prefix
-      const cleanSubject = subject.replace(/^\[Ready for (Pickup|Shipping)\]\s*/, '');
+      const cleanSubject = subject.replace(/^\[(Ready for Pickup|Ready for Shipping|Order Completed)\]\s*/, '');
       setSubject(`[Ready for Pickup] ${cleanSubject}`);
     } else {
       // Remove the prefix
@@ -434,14 +491,29 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   const handleShippingChange = (checked: boolean) => {
     if (checked) {
       setPickupChecked(false); // Mutually exclusive
+      setCompletedChecked(false);
       // Remove any existing prefix and add shipping prefix
-      const cleanSubject = subject.replace(/^\[Ready for (Pickup|Shipping)\]\s*/, '');
+      const cleanSubject = subject.replace(/^\[(Ready for Pickup|Ready for Shipping|Order Completed)\]\s*/, '');
       setSubject(`[Ready for Shipping] ${cleanSubject}`);
     } else {
       // Remove the prefix
       setSubject(subject.replace(/^\[Ready for Shipping\]\s*/, ''));
     }
     setShippingChecked(checked);
+  };
+
+  const handleCompletedChange = (checked: boolean) => {
+    if (checked) {
+      setPickupChecked(false); // Mutually exclusive
+      setShippingChecked(false);
+      // Remove any existing prefix and add completed prefix
+      const cleanSubject = subject.replace(/^\[(Ready for Pickup|Ready for Shipping|Order Completed)\]\s*/, '');
+      setSubject(`[Order Completed] ${cleanSubject}`);
+    } else {
+      // Remove the prefix
+      setSubject(subject.replace(/^\[Order Completed\]\s*/, ''));
+    }
+    setCompletedChecked(checked);
   };
 
   // Reset state when modal closes
@@ -452,9 +524,9 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
       setScheduledDate('');
       setScheduledTime('09:00');
       setShowScheduleModal(false);
-      setCustomMessage('');
       setPickupChecked(false);
       setShippingChecked(false);
+      setCompletedChecked(false);
       setQbInvoiceData(null);
       setEmailHistory([]);
       setIsStale(false);
@@ -465,7 +537,18 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
       setInvoicePdf(null);
       setPdfError(null);
       setRecipientEntries([]);
-      setCustomerContacts([]);
+      setShowSuccessModal(false);
+      setSuccessModalData(null);
+      setEmailConfig({
+        subject: '',
+        beginning: DEFAULT_INVOICE_BEGINNING,
+        end: DEFAULT_INVOICE_END,
+        summaryConfig: DEFAULT_INVOICE_SUMMARY_CONFIG,
+        includePayButton: true
+      });
+      // Reset create mode data
+      setCompanySettings(null);
+      setCustomerBillingAddress(null);
     }
   }, [isOpen]);
 
@@ -540,14 +623,14 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
 
   // Handle sending invoice email immediately
   const handleSendInvoice = async () => {
-    // Get valid recipients (have email)
-    const validEntries = recipientEntries.filter(r => r.email?.trim());
+    // Get valid recipients (have email and emailType selected)
+    const validEntries = recipientEntries.filter(r => r.email?.trim() && r.emailType);
     const toEmails = validEntries.filter(r => r.emailType === 'to').map(r => r.email);
     const ccEmails = validEntries.filter(r => r.emailType === 'cc').map(r => r.email);
     const bccEmails = validEntries.filter(r => r.emailType === 'bcc').map(r => r.email);
 
     if (toEmails.length === 0) {
-      setError('Please add at least one "To" recipient');
+      setError('Please select at least one "To" recipient');
       return;
     }
 
@@ -555,27 +638,50 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
       setLoading(true);
       setError(null);
 
-      // Create/update invoice first if needed
+      // Step 1: Create/update invoice first if needed
       if (mode === 'create' || mode === 'update') {
-        const result = mode === 'create'
-          ? await qbInvoiceApi.createInvoice(order.order_number)
-          : await qbInvoiceApi.updateInvoice(order.order_number);
-        console.log(`Invoice ${mode}d:`, result);
+        try {
+          const result = mode === 'create'
+            ? await qbInvoiceApi.createInvoice(order.order_number)
+            : await qbInvoiceApi.updateInvoice(order.order_number);
+          console.log(`Invoice ${mode}d:`, result);
+        } catch (invoiceErr) {
+          console.error(`Failed to ${mode} invoice:`, invoiceErr);
+          const errMsg = invoiceErr instanceof Error ? invoiceErr.message : `Failed to ${mode} invoice`;
+          setError(`Invoice ${mode} failed: ${errMsg}. Email not sent.`);
+          return;
+        }
       }
 
-      // Send email immediately - use previewHtml which has customMessage injected
-      const finalBody = previewHtml || body;
-      await qbInvoiceApi.sendEmail(order.order_number, {
-        recipientEmails: toEmails,
-        ccEmails: ccEmails.length > 0 ? ccEmails : undefined,
-        bccEmails: bccEmails.length > 0 ? bccEmails : undefined,
-        subject,
-        body: finalBody,
-        attachInvoicePdf: true
-      });
-      console.log('Email sent immediately');
+      // Step 2: Send email with PDF attachment
+      try {
+        await qbInvoiceApi.sendEmail(order.order_number, {
+          recipientEmails: toEmails,
+          ccEmails: ccEmails.length > 0 ? ccEmails : undefined,
+          bccEmails: bccEmails.length > 0 ? bccEmails : undefined,
+          subject,
+          body: previewHtml,
+          attachInvoicePdf: true
+        });
+        console.log('Email sent immediately');
+      } catch (emailErr) {
+        console.error('Failed to send email:', emailErr);
+        const errMsg = emailErr instanceof Error ? emailErr.message : 'Failed to send email';
+        // Check if it's a PDF attachment error
+        if (errMsg.toLowerCase().includes('pdf') || errMsg.toLowerCase().includes('attachment')) {
+          setError(`Failed to attach invoice PDF: ${errMsg}`);
+        } else {
+          setError(`Email send failed: ${errMsg}`);
+        }
+        return;
+      }
 
-      onSuccess();
+      // Show success modal instead of immediately closing
+      setSuccessModalData({
+        recipients: { to: toEmails, cc: ccEmails, bcc: bccEmails },
+        wasResent: mode === 'view' || mode === 'send'
+      });
+      setShowSuccessModal(true);
     } catch (err) {
       console.error('Failed to send invoice:', err);
       setError(err instanceof Error ? err.message : 'Failed to send invoice');
@@ -591,46 +697,69 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
       return;
     }
 
-    // Get valid recipients (have email)
-    const validEntries = recipientEntries.filter(r => r.email?.trim());
+    // Get valid recipients (have email and emailType selected)
+    const validEntries = recipientEntries.filter(r => r.email?.trim() && r.emailType);
     const toEmails = validEntries.filter(r => r.emailType === 'to').map(r => r.email);
     const ccEmails = validEntries.filter(r => r.emailType === 'cc').map(r => r.email);
     const bccEmails = validEntries.filter(r => r.emailType === 'bcc').map(r => r.email);
 
     if (toEmails.length === 0) {
-      setError('Please add at least one "To" recipient');
+      setError('Please select at least one "To" recipient');
       setShowScheduleModal(false);
       return;
     }
+
+    const scheduledFor = `${scheduledDate}T${scheduledTime}:00`;
 
     try {
       setLoading(true);
       setError(null);
 
-      // Create/update invoice first if needed
+      // Step 1: Create/update invoice first if needed
       if (mode === 'create' || mode === 'update') {
-        const result = mode === 'create'
-          ? await qbInvoiceApi.createInvoice(order.order_number)
-          : await qbInvoiceApi.updateInvoice(order.order_number);
-        console.log(`Invoice ${mode}d:`, result);
+        try {
+          const result = mode === 'create'
+            ? await qbInvoiceApi.createInvoice(order.order_number)
+            : await qbInvoiceApi.updateInvoice(order.order_number);
+          console.log(`Invoice ${mode}d:`, result);
+        } catch (invoiceErr) {
+          console.error(`Failed to ${mode} invoice:`, invoiceErr);
+          const errMsg = invoiceErr instanceof Error ? invoiceErr.message : `Failed to ${mode} invoice`;
+          setError(`Invoice ${mode} failed: ${errMsg}. Email not scheduled.`);
+          setShowScheduleModal(false);
+          return;
+        }
       }
 
-      // Schedule email - use previewHtml which has customMessage injected
-      const finalBody = previewHtml || body;
-      const scheduledFor = `${scheduledDate}T${scheduledTime}:00`;
-      await qbInvoiceApi.scheduleEmail(order.order_number, {
-        recipientEmails: toEmails,
-        ccEmails: ccEmails.length > 0 ? ccEmails : undefined,
-        bccEmails: bccEmails.length > 0 ? bccEmails : undefined,
-        subject,
-        body: finalBody,
-        scheduledFor,
-        attachInvoicePdf: true
-      });
-      console.log('Email scheduled for:', scheduledFor);
+      // Step 2: Schedule email with PDF attachment
+      try {
+        await qbInvoiceApi.scheduleEmail(order.order_number, {
+          recipientEmails: toEmails,
+          ccEmails: ccEmails.length > 0 ? ccEmails : undefined,
+          bccEmails: bccEmails.length > 0 ? bccEmails : undefined,
+          subject,
+          body: previewHtml,
+          scheduledFor,
+          attachInvoicePdf: true
+        });
+        console.log('Email scheduled for:', scheduledFor);
+      } catch (scheduleErr) {
+        console.error('Failed to schedule email:', scheduleErr);
+        const errMsg = scheduleErr instanceof Error ? scheduleErr.message : 'Failed to schedule email';
+        setError(`Email scheduling failed: ${errMsg}`);
+        setShowScheduleModal(false);
+        return;
+      }
 
       setShowScheduleModal(false);
-      onSuccess();
+
+      // Show success modal instead of immediately closing
+      setSuccessModalData({
+        recipients: { to: toEmails, cc: ccEmails, bcc: bccEmails },
+        scheduledFor,
+        wasResent: mode === 'view' || mode === 'send'
+      });
+      setShowSuccessModal(true);
     } catch (err) {
       console.error('Failed to schedule invoice:', err);
       setError(err instanceof Error ? err.message : 'Failed to schedule invoice');
@@ -649,88 +778,22 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     }
   };
 
-  // Recipient management functions
-  const getAvailableContacts = (currentEntryId: string) => {
-    const selectedContactIds = recipientEntries
-      .filter(r => r.contact_id)
-      .map(r => r.contact_id);
-    const currentEntry = recipientEntries.find(r => r.id === currentEntryId);
-    return customerContacts.filter(c =>
-      !selectedContactIds.includes(c.contact_id) ||
-      c.contact_id === currentEntry?.contact_id
-    );
+  // Handle success modal close - call onSuccess to refresh parent
+  const handleSuccessModalClose = () => {
+    setShowSuccessModal(false);
+    setSuccessModalData(null);
+    onSuccess();
   };
 
-  const hasAvailableContacts = () => {
-    const selectedContactIds = recipientEntries
-      .filter(r => r.contact_id)
-      .map(r => r.contact_id);
-    return customerContacts.some(c => !selectedContactIds.includes(c.contact_id));
-  };
-
-  const handleAddRecipient = () => {
-    const defaultMode = hasAvailableContacts() ? 'existing' : 'custom';
-    const newEntry: RecipientEntry = {
-      id: `new-${Date.now()}`,
-      mode: defaultMode,
-      email: '',
-      emailType: 'to',
-      saveToDatabase: defaultMode === 'custom' ? true : undefined
-    };
-    setRecipientEntries([...recipientEntries, newEntry]);
-  };
-
-  const handleRemoveRecipient = (id: string) => {
-    setRecipientEntries(recipientEntries.filter(r => r.id !== id));
-  };
-
-  const handleRecipientModeChange = (id: string, mode: 'existing' | 'custom') => {
+  // Handle email type change for a recipient (checkbox click)
+  const handleEmailTypeChange = (id: string, newType: 'to' | 'cc' | 'bcc') => {
     setRecipientEntries(recipientEntries.map(entry => {
       if (entry.id === id) {
+        // Toggle: if same type clicked, uncheck (set to null); otherwise set to new type
         return {
           ...entry,
-          mode,
-          contact_id: undefined,
-          email: '',
-          name: undefined,
-          saveToDatabase: mode === 'custom' ? true : undefined
+          emailType: entry.emailType === newType ? null : newType
         };
-      }
-      return entry;
-    }));
-  };
-
-  const handleExistingContactSelect = (id: string, contactId: number | null) => {
-    if (!contactId) {
-      setRecipientEntries(recipientEntries.map(entry => {
-        if (entry.id === id) {
-          return { ...entry, contact_id: undefined, email: '', name: undefined };
-        }
-        return entry;
-      }));
-      return;
-    }
-
-    const selectedContact = customerContacts.find(c => c.contact_id === contactId);
-    if (!selectedContact) return;
-
-    setRecipientEntries(recipientEntries.map(entry => {
-      if (entry.id === id) {
-        return {
-          ...entry,
-          contact_id: selectedContact.contact_id,
-          email: selectedContact.contact_email,
-          name: selectedContact.contact_name
-        };
-      }
-      return entry;
-    }));
-  };
-
-  const handleRecipientFieldChange = (id: string, field: keyof RecipientEntry, value: any) => {
-    setRecipientEntries(recipientEntries.map(entry => {
-      if (entry.id === id) {
-        return { ...entry, [field]: value };
       }
       return entry;
     }));
@@ -741,8 +804,211 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
 
   if (!isOpen) return null;
 
+  // Helper to format address for display
+  const formatAddress = (addr: Address | null): string => {
+    if (!addr) return 'No address on file';
+    const parts = [
+      addr.address_line1,
+      addr.address_line2,
+      [addr.city, addr.province_state_short, addr.postal_zip].filter(Boolean).join(', ')
+    ].filter(Boolean);
+    return parts.join('\n');
+  };
+
+  // Format date as "January 8, 2026"
+  const formattedDate = new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  // CREATE mode: Simple single-panel modal
+  if (mode === 'create') {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <FileText className="w-6 h-6 text-green-600" />
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Create QB Invoice</h2>
+                  <p className="text-sm text-gray-600">#{order.order_number} - {order.order_name}</p>
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+          </div>
+
+          {/* Body - Invoice Preview */}
+          <div className="flex-1 overflow-y-auto p-6">
+            {loadingCreateData ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                <span className="ml-2 text-gray-500">Loading...</span>
+              </div>
+            ) : (
+              <div className="bg-gray-50 rounded-lg border border-gray-200 p-6">
+                {/* From/To/Date Header */}
+                <div className="grid grid-cols-2 gap-6 mb-6">
+                  {/* From - Company */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">From</h4>
+                    <p className="text-sm font-medium text-gray-900">
+                      {companySettings?.company_name || 'Sign House'}
+                    </p>
+                    <p className="text-sm text-gray-600 whitespace-pre-line">
+                      {companySettings?.company_address || ''}
+                    </p>
+                  </div>
+
+                  {/* To - Customer */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Bill To</h4>
+                    <p className="text-sm font-medium text-gray-900">{order.customer_name}</p>
+                    <p className="text-sm text-gray-600 whitespace-pre-line">
+                      {formatAddress(customerBillingAddress)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Date */}
+                <div className="mb-6">
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Invoice Date</h4>
+                  <p className="text-sm text-gray-900">{formattedDate}</p>
+                </div>
+
+                {/* Line Items Table */}
+                <div className="mb-6">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-300">
+                        <th className="text-left py-2 font-medium text-gray-700">Item Name</th>
+                        <th className="text-left py-2 font-medium text-gray-700">QB Description</th>
+                        <th className="text-right py-2 font-medium text-gray-700 w-16">Qty</th>
+                        <th className="text-right py-2 font-medium text-gray-700 w-24">Price</th>
+                        <th className="text-right py-2 font-medium text-gray-700 w-24">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {order.parts?.filter(p => !p.is_header_row && p.quantity && p.quantity > 0).map((part, idx) => (
+                        <tr key={idx} className="border-b border-gray-100">
+                          <td className="py-2 text-gray-900">{part.qb_item_name || '-'}</td>
+                          <td className="py-2 text-gray-600">{part.qb_description || '-'}</td>
+                          <td className="py-2 text-right text-gray-600">{part.quantity}</td>
+                          <td className="py-2 text-right text-gray-600">
+                            ${Number(part.unit_price || 0).toFixed(2)}
+                          </td>
+                          <td className="py-2 text-right text-gray-900">
+                            ${Number(part.extended_price || 0).toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                      {(!order.parts || order.parts.filter(p => !p.is_header_row && p.quantity).length === 0) && (
+                        <tr>
+                          <td colSpan={5} className="py-4 text-center text-gray-500 italic">
+                            No line items
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Totals */}
+                <div className="border-t border-gray-300 pt-4 space-y-2">
+                  <div className="flex justify-end">
+                    <span className="w-32 text-gray-600 text-sm">Subtotal:</span>
+                    <span className="w-28 text-right font-medium text-sm">
+                      ${totals.subtotal.toFixed(2)}
+                    </span>
+                  </div>
+                  {!order.cash && (
+                    <div className="flex justify-end">
+                      <span className="w-32 text-gray-600 text-sm">
+                        Tax ({(totals.taxRate * 100).toFixed(0)}%):
+                      </span>
+                      <span className="w-28 text-right font-medium text-sm">
+                        ${totals.tax.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-end border-t border-gray-200 pt-2">
+                    <span className="w-32 font-semibold text-gray-900">Total:</span>
+                    <span className="w-28 text-right font-bold text-gray-900">
+                      ${totals.total.toFixed(2)}
+                    </span>
+                  </div>
+                  {!!order.deposit_required && (
+                    <div className="flex justify-end bg-green-50 px-3 py-2 rounded mt-2">
+                      <span className="w-32 font-semibold text-green-700">Deposit (50%):</span>
+                      <span className="w-28 text-right font-bold text-green-700">
+                        ${totals.deposit.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Error Message */}
+            {error && (
+              <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="px-6 py-4 border-t border-gray-200 bg-white flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={onSkip || onClose}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
+              >
+                {onSkip ? 'Skip' : 'Cancel'}
+              </button>
+              <button
+                onClick={handleInvoiceOnly}
+                disabled={loading}
+                className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium flex items-center gap-2 text-sm disabled:opacity-50"
+              >
+                {loading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <FileText className="w-4 h-4" />
+                    Create QB Invoice
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Success Modal */}
+        <InvoiceSentSuccessModal
+          isOpen={showSuccessModal}
+          onClose={handleSuccessModalClose}
+          orderNumber={order.order_number}
+          orderName={order.order_name}
+          invoiceNumber={order.qb_invoice_number || undefined}
+          recipients={successModalData?.recipients || { to: [], cc: [], bcc: [] }}
+          scheduledFor={successModalData?.scheduledFor}
+          wasResent={successModalData?.wasResent}
+        />
+      </div>
+    );
+  }
+
+  // UPDATE/SEND/VIEW modes: Full multi-panel modal
   const modalTitle = {
-    create: 'Create Invoice',
     update: 'Update Invoice',
     send: 'Send Invoice',
     view: 'View Invoice'
@@ -757,7 +1023,6 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
           <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
             <div className="flex items-start justify-between">
               <div className="flex items-center space-x-3">
-                {mode === 'create' && <FileText className="w-6 h-6 text-green-600" />}
                 {mode === 'update' && <RefreshCw className="w-6 h-6 text-orange-500" />}
                 {mode === 'send' && <Send className="w-6 h-6 text-blue-600" />}
                 {mode === 'view' && <Eye className="w-6 h-6 text-gray-600" />}
@@ -842,201 +1107,121 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                 </div>
               )}
 
-              {/* Recipients */}
+              {/* Recipients - Unified Table with TO/CC/BCC Checkboxes */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   <Mail className="w-4 h-4 inline-block mr-1" />
                   Recipients
-                  {loadingContacts && (
-                    <Loader2 className="w-3 h-3 inline-block ml-2 animate-spin text-gray-400" />
-                  )}
                 </label>
-                <div className="space-y-2">
-                  {recipientEntries.map((entry) => {
-                    const availableContacts = getAvailableContacts(entry.id);
-                    const canUseExisting = availableContacts.length > 0 || entry.mode === 'existing';
-                    const isAccounting = entry.mode === 'accounting';
 
-                    return (
-                      <div
-                        key={entry.id}
-                        className={`border rounded-lg p-2 ${
-                          isAccounting ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
-                        }`}
-                      >
-                        <div className="flex items-start gap-2">
-                          {/* Email Type Selector (To/CC/BCC) */}
-                          <select
-                            value={entry.emailType}
-                            onChange={(e) => handleRecipientFieldChange(entry.id, 'emailType', e.target.value)}
-                            className="w-16 px-1 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 bg-white"
+                {recipientEntries.length === 0 ? (
+                  <div className="text-sm text-gray-500 italic py-3 text-center border border-gray-200 rounded-lg bg-gray-50">
+                    No recipients configured. Add accounting emails or point persons on the order page.
+                  </div>
+                ) : (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    {/* Table Header */}
+                    <div className="grid grid-cols-[1fr_50px_50px_50px] bg-gray-100 border-b border-gray-200 text-xs font-medium text-gray-600">
+                      <div className="px-3 py-2">Contact</div>
+                      <div className="px-2 py-2 text-center">To</div>
+                      <div className="px-2 py-2 text-center">CC</div>
+                      <div className="px-2 py-2 text-center">BCC</div>
+                    </div>
+
+                    {/* Table Body */}
+                    <div className="divide-y divide-gray-100">
+                      {recipientEntries.map((entry) => {
+                        const isAccounting = entry.source === 'accounting';
+
+                        return (
+                          <div
+                            key={entry.id}
+                            className={`grid grid-cols-[1fr_50px_50px_50px] items-center ${
+                              isAccounting ? 'bg-green-50' : 'bg-white'
+                            } hover:bg-gray-50`}
                           >
-                            <option value="to">To</option>
-                            <option value="cc">CC</option>
-                            <option value="bcc">BCC</option>
-                          </select>
-
-                          {/* Content based on mode */}
-                          <div className="flex-1 min-w-0">
-                            {isAccounting ? (
-                              /* Accounting Email - Read-only display */
+                            {/* Contact Info - Read Only */}
+                            <div className="px-3 py-2 min-w-0">
                               <div className="flex items-center gap-2">
-                                <UserCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <span className="text-xs text-green-700 font-medium">Accounting</span>
-                                  <p className="text-sm text-gray-900 truncate">{entry.email}</p>
+                                <UserCircle className={`w-4 h-4 flex-shrink-0 ${
+                                  isAccounting ? 'text-green-600' : 'text-gray-400'
+                                }`} />
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm text-gray-900 truncate">
+                                      {entry.name || entry.email}
+                                    </span>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                                      isAccounting
+                                        ? 'bg-green-100 text-green-700'
+                                        : 'bg-gray-100 text-gray-600'
+                                    }`}>
+                                      {entry.label || (isAccounting ? 'Accounting' : 'Contact')}
+                                    </span>
+                                  </div>
+                                  {entry.name && (
+                                    <p className="text-xs text-gray-500 truncate">{entry.email}</p>
+                                  )}
                                 </div>
                               </div>
-                            ) : entry.mode === 'existing' ? (
-                              /* Existing Contact Dropdown */
-                              <select
-                                value={entry.contact_id || ''}
-                                onChange={(e) => handleExistingContactSelect(entry.id, e.target.value ? parseInt(e.target.value) : null)}
-                                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
-                              >
-                                <option value="">Select contact...</option>
-                                {availableContacts.map(contact => (
-                                  <option key={contact.contact_id} value={contact.contact_id}>
-                                    {contact.contact_name}{contact.contact_role && ` (${contact.contact_role})`} - {contact.contact_email}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              /* Custom Contact Input */
-                              <div className="space-y-1">
-                                <div className="flex gap-1">
-                                  <input
-                                    type="email"
-                                    value={entry.email}
-                                    onChange={(e) => handleRecipientFieldChange(entry.id, 'email', e.target.value)}
-                                    className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
-                                    placeholder="Email *"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={entry.name || ''}
-                                    onChange={(e) => handleRecipientFieldChange(entry.id, 'name', e.target.value)}
-                                    className="w-24 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
-                                    placeholder="Name"
-                                  />
-                                </div>
-                                <label className="flex items-center gap-1 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={entry.saveToDatabase || false}
-                                    onChange={(e) => handleRecipientFieldChange(entry.id, 'saveToDatabase', e.target.checked)}
-                                    className="w-3 h-3 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                  />
-                                  <span className="text-[10px] text-gray-500">Save to contacts</span>
-                                </label>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Mode Toggle (Existing/New) - only for non-accounting */}
-                          {!isAccounting && (
-                            <div className="flex flex-col items-start gap-0" style={{ minWidth: '55px' }}>
-                              {canUseExisting && (
-                                <label className="flex items-center gap-1 cursor-pointer">
-                                  <input
-                                    type="radio"
-                                    name={`mode-${entry.id}`}
-                                    checked={entry.mode === 'existing'}
-                                    onChange={() => handleRecipientModeChange(entry.id, 'existing')}
-                                    className="w-3 h-3 text-blue-600 focus:ring-blue-500"
-                                  />
-                                  <span className="text-[10px] text-gray-600">Existing</span>
-                                </label>
-                              )}
-                              <label className="flex items-center gap-1 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name={`mode-${entry.id}`}
-                                  checked={entry.mode === 'custom'}
-                                  onChange={() => handleRecipientModeChange(entry.id, 'custom')}
-                                  className="w-3 h-3 text-blue-600 focus:ring-blue-500"
-                                />
-                                <span className="text-[10px] text-gray-600">New</span>
-                              </label>
                             </div>
-                          )}
 
-                          {/* Remove Button */}
-                          <button
-                            onClick={() => handleRemoveRecipient(entry.id)}
-                            className="p-1 text-gray-400 hover:text-red-500 flex-shrink-0"
-                            title="Remove recipient"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                            {/* TO Checkbox */}
+                            <div className="px-2 py-2 text-center">
+                              <input
+                                type="checkbox"
+                                checked={entry.emailType === 'to'}
+                                onChange={() => handleEmailTypeChange(entry.id, 'to')}
+                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                              />
+                            </div>
 
-                  {/* Add Recipient Button */}
-                  <button
-                    type="button"
-                    onClick={handleAddRecipient}
-                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 pt-1"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Add Recipient
-                  </button>
-                </div>
+                            {/* CC Checkbox */}
+                            <div className="px-2 py-2 text-center">
+                              <input
+                                type="checkbox"
+                                checked={entry.emailType === 'cc'}
+                                onChange={() => handleEmailTypeChange(entry.id, 'cc')}
+                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                              />
+                            </div>
+
+                            {/* BCC Checkbox */}
+                            <div className="px-2 py-2 text-center">
+                              <input
+                                type="checkbox"
+                                checked={entry.emailType === 'bcc'}
+                                onChange={() => handleEmailTypeChange(entry.id, 'bcc')}
+                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Helper Text */}
+                <p className="text-xs text-gray-500 mt-1.5">
+                  Select TO, CC, or BCC for each recipient. Manage contacts on the order page.
+                </p>
               </div>
 
-              {/* Subject */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Subject
-                </label>
-                <input
-                  type="text"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  disabled={loadingPreview}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-                {/* Subject Prefix Checkboxes */}
-                <div className="flex gap-4 mt-2">
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={pickupChecked}
-                      onChange={(e) => handlePickupChange(e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <Package className="w-4 h-4 text-green-600" />
-                    <span className="text-gray-700">Ready for Pickup</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={shippingChecked}
-                      onChange={(e) => handleShippingChange(e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <Truck className="w-4 h-4 text-blue-600" />
-                    <span className="text-gray-700">Ready for Shipping</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Custom Message */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Additional Message (optional)
-                </label>
-                <textarea
-                  value={customMessage}
-                  onChange={(e) => setCustomMessage(e.target.value)}
-                  placeholder="Add a custom message that will appear in the email body..."
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                />
-              </div>
-
+              {/* Email Composer - Subject, Beginning, Summary, Pay Button, End */}
+              <InvoiceEmailComposer
+                config={emailConfig}
+                onChange={handleEmailConfigChange}
+                invoiceData={invoiceEmailData}
+                disabled={loadingPreview}
+                pickupChecked={pickupChecked}
+                shippingChecked={shippingChecked}
+                completedChecked={completedChecked}
+                onPickupChange={handlePickupChange}
+                onShippingChange={handleShippingChange}
+                onCompletedChange={handleCompletedChange}
+                orderStatus={order.status}
+              />
 
               {/* Email History - View Mode Only (at bottom) */}
               {mode === 'view' && (
@@ -1141,28 +1326,24 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
 
                 {/* Action Buttons - Right */}
                 <div className="flex items-center gap-2">
-                  {/* Invoice Only Button (for create/update modes) */}
-                  {(mode === 'create' || mode === 'update') && (
+                  {/* Update Button (update mode only) */}
+                  {mode === 'update' && (
                     <button
                       onClick={handleInvoiceOnly}
                       disabled={loading}
-                      className={`px-3 py-2 rounded-lg disabled:opacity-50 text-sm ${
-                        mode === 'update'
-                          ? 'bg-orange-500 hover:bg-orange-600 text-white font-medium'
-                          : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                      }`}
+                      className="px-3 py-2 rounded-lg disabled:opacity-50 text-sm bg-orange-500 hover:bg-orange-600 text-white font-medium"
                     >
                       {loading ? (
                         <span className="flex items-center gap-2">
                           <Loader2 className="w-4 h-4 animate-spin" />
                         </span>
                       ) : (
-                        mode === 'create' ? 'Create Only' : 'Update'
+                        'Update'
                       )}
                     </button>
                   )}
 
-                  {/* Schedule Button - disabled when update required */}
+                  {/* Schedule Button */}
                   <button
                     onClick={() => setShowScheduleModal(true)}
                     disabled={loading || !hasValidToRecipients || (mode === 'update' && !updateCompleted) || (mode === 'view' && isStale)}
@@ -1176,7 +1357,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                     Schedule
                   </button>
 
-                  {/* Send Button - disabled when update required */}
+                  {/* Send Button */}
                   <button
                     onClick={handleSendInvoice}
                     disabled={loading || !hasValidToRecipients || (mode === 'update' && !updateCompleted) || (mode === 'view' && isStale)}
@@ -1237,19 +1418,16 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                   : 'overflow-y-auto p-6'  // Local preview - with padding
             }`}>
               {previewTab === 'email' ? (
-                /* Email Preview - Rendered HTML (full height, no wrapper) */
+                /* Email Preview - Rendered HTML with dangerouslySetInnerHTML (like estimate) */
                 loadingPreview ? (
                   <div className="flex items-center justify-center h-full bg-white">
                     <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                     <span className="ml-2 text-gray-500">Loading preview...</span>
                   </div>
                 ) : previewHtml ? (
-                  <iframe
-                    ref={iframeRef}
-                    srcDoc={previewHtml}
-                    title="Email Preview"
-                    className="w-full h-full border-0 bg-white"
-                    sandbox="allow-same-origin"
+                  <div
+                    className="w-full h-full overflow-auto bg-white p-6"
+                    dangerouslySetInnerHTML={{ __html: previewHtml }}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full text-gray-500 bg-white">
@@ -1349,7 +1527,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                         <span className="w-32 font-semibold text-gray-900">Total:</span>
                         <span className="w-24 text-right font-bold text-gray-900">${totals.total.toFixed(2)}</span>
                       </div>
-                      {order.deposit_required && (
+                      {!!order.deposit_required && (
                         <div className="flex justify-end bg-green-50 px-3 py-2 rounded mt-2">
                           <span className="w-32 font-semibold text-green-700">Deposit Due:</span>
                           <span className="w-24 text-right font-bold text-green-700">${totals.deposit.toFixed(2)}</span>
@@ -1458,6 +1636,18 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
           // Re-check sync status
           await checkSyncStatus();
         }}
+      />
+
+      {/* Success Modal - shown after successful send/schedule */}
+      <InvoiceSentSuccessModal
+        isOpen={showSuccessModal}
+        onClose={handleSuccessModalClose}
+        orderNumber={order.order_number}
+        orderName={order.order_name}
+        invoiceNumber={order.qb_invoice_number || undefined}
+        recipients={successModalData?.recipients || { to: [], cc: [], bcc: [] }}
+        scheduledFor={successModalData?.scheduledFor}
+        wasResent={successModalData?.wasResent}
       />
     </div>
   );

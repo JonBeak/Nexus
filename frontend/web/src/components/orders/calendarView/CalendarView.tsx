@@ -13,7 +13,8 @@ import {
   groupOrdersByDate,
   navigateWeek,
   calculateProgress,
-  formatDateKey
+  formatDateKey,
+  getEffectiveToday
 } from './utils';
 import CalendarColumn from './CalendarColumn';
 import CalendarNavigation from './CalendarNavigation';
@@ -31,6 +32,7 @@ export const CalendarView: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [holidays, setHolidays] = useState<Set<string>>(new Set());
+  const [holidaysLoaded, setHolidaysLoaded] = useState(false);
 
   // View state
   const [viewStartDate, setViewStartDate] = useState<Date>(() => {
@@ -49,6 +51,9 @@ export const CalendarView: React.FC = () => {
   // Scroll container ref
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // Track if initial view has been set (to avoid overriding user navigation)
+  const initialViewSetRef = useRef(false);
+
   // Fetch holidays on mount
   useEffect(() => {
     const fetchHolidays = async () => {
@@ -60,9 +65,11 @@ export const CalendarView: React.FC = () => {
           )
         );
         setHolidays(holidayDates);
+        setHolidaysLoaded(true);
       } catch (err) {
         console.error('Error fetching holidays:', err);
         // Continue without holidays
+        setHolidaysLoaded(true);
       }
     };
     fetchHolidays();
@@ -101,16 +108,31 @@ export const CalendarView: React.FC = () => {
     }));
   }, [filteredOrders, holidays]);
 
+  // Compute "effective today" - shifts to next business day when past work hours (4 PM)
+  // This ensures jobs due today appear only in Overdue after business hours
+  const effectiveToday = useMemo(() => {
+    return getEffectiveToday(holidays);
+  }, [holidays]);
+
+  // Sync initial viewStartDate to effectiveToday once holidays are loaded
+  useEffect(() => {
+    if (!initialViewSetRef.current && holidaysLoaded) {
+      initialViewSetRef.current = true;
+      const effectiveTodayDate = getEffectiveToday(holidays);
+      setViewStartDate(effectiveTodayDate);
+    }
+  }, [holidays, holidaysLoaded]);
+
   // Determine if we should show the overdue column
-  // Show it when viewStartDate is today or in the past (viewing current/past dates)
-  // Hide it when viewStartDate is in the future
+  // Show it when viewStartDate is on or before effective today
+  // Hide it when viewStartDate is in the future (past effective today)
   const showOverdueColumn = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
     const viewStart = new Date(viewStartDate);
     viewStart.setHours(0, 0, 0, 0);
-    return viewStart <= today;
-  }, [viewStartDate]);
+    const effectiveTodayNormalized = new Date(effectiveToday);
+    effectiveTodayNormalized.setHours(0, 0, 0, 0);
+    return viewStart <= effectiveTodayNormalized;
+  }, [viewStartDate, effectiveToday]);
 
   // Separate overdue orders (work_days_left < 0)
   const overdueOrders = useMemo(() => {
@@ -123,19 +145,19 @@ export const CalendarView: React.FC = () => {
   }, [ordersWithProgress]);
 
   // Get future orders (not overdue, has due date)
+  // Overdue orders (work_days_left < 0) are excluded - they go to the Overdue column only
   const futureOrders = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayKey = formatDateKey(today);
+    const effectiveTodayKey = formatDateKey(effectiveToday);
 
     return ordersWithProgress.filter(order => {
+      // Exclude overdue orders - they belong in the Overdue column only
+      if (order.work_days_left !== null && order.work_days_left < 0) return false;
       if (!order.due_date) return false;
       const orderDateKey = order.due_date.split('T')[0];
-      // Include if due date is today or in the future
-      // OR if work_days_left is >= 0 (not overdue yet, even if due today)
-      return orderDateKey >= todayKey || (order.work_days_left !== null && order.work_days_left >= 0);
+      // Include if due date is on or after effective today
+      return orderDateKey >= effectiveTodayKey;
     });
-  }, [ordersWithProgress]);
+  }, [ordersWithProgress, effectiveToday]);
 
   // Group future orders by date
   const ordersByDate = useMemo(() => {
@@ -154,9 +176,10 @@ export const CalendarView: React.FC = () => {
       TOTAL_DAYS_TO_SCAN,
       visibleBusinessDays,
       holidays,
-      ordersByDate
+      ordersByDate,
+      effectiveToday
     );
-  }, [viewStartDate, holidays, ordersByDate, visibleBusinessDays]);
+  }, [viewStartDate, holidays, ordersByDate, visibleBusinessDays, effectiveToday]);
 
   // Handle navigation
   const handleNavigate = useCallback((direction: 'prev' | 'next' | 'today') => {

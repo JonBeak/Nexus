@@ -689,3 +689,35 @@ export const getEmailPreview = async (req: Request, res: Response) => {
     return sendErrorResponse(res, message, 'INTERNAL_ERROR');
   }
 };
+
+/**
+ * Get styled email preview (4-part structure with logo/footer)
+ * POST /api/orders/:orderNumber/invoice-email/styled-preview
+ *
+ * Body: { subject?, beginning?, end?, summaryConfig?, includePayButton?, invoiceData? }
+ */
+export const getStyledEmailPreview = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const emailContent = req.body;
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    const preview = await invoiceEmailService.generateInvoiceEmailPreview(
+      orderId,
+      emailContent
+    );
+
+    res.json({
+      success: true,
+      data: preview
+    });
+  } catch (error) {
+    console.error('Error getting styled email preview:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get preview';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};

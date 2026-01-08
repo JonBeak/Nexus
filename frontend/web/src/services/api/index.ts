@@ -86,3 +86,17 @@ export type {
   BackupFile,
   ScriptResult
 } from './serverManagementApi';
+
+// Staff Task Sessions (Jan 2026)
+export { staffTasksApi } from './staff';
+export type {
+  StaffTask,
+  TaskSession,
+  ActiveTaskResponse,
+  StartSessionResponse,
+  StopSessionResponse,
+  CompleteTaskResponse,
+  TaskSessionHistory,
+  StaffTaskFilters,
+  SessionUpdate
+} from './staff';

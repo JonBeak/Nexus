@@ -56,6 +56,7 @@ export interface UpdateUserData {
   auto_clock_in?: string | null;
   auto_clock_out?: string | null;
   is_active: number;
+  production_roles?: string[] | null;  // Array of role_key values (e.g., ["designer", "vinyl_applicator"])
 }
 
 export class UserService {
@@ -295,7 +296,8 @@ export class UserService {
           email: userData.email,
           role: userData.role,
           hourly_wage: userData.hourly_wage,
-          is_active: userData.is_active
+          is_active: userData.is_active,
+          production_roles: userData.production_roles
         })
       });
 

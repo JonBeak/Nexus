@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import api from '../../../services/api';
-import type { AccountUser } from '../../../types/user';
+import type { AccountUser, ProductionRole } from '../../../types/user';
 
 export interface LoginLog {
   log_id: number;
@@ -27,7 +27,10 @@ export const useAccountAPI = () => {
 
   const fetchUsers = useCallback(async (): Promise<AccountUser[]> => {
     try {
-      const response = await api.get('/accounts/users');
+      // Request full fields including production_roles
+      const response = await api.get('/accounts/users', {
+        params: { fields: 'full', includeInactive: 'true' }
+      });
       return response.data;
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -136,11 +139,22 @@ export const useAccountAPI = () => {
     }
   }, []);
 
+  const fetchProductionRoles = useCallback(async (): Promise<ProductionRole[]> => {
+    try {
+      const response = await api.get('/settings/roles');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching production roles:', error);
+      throw error;
+    }
+  }, []);
+
   return {
     apiLoading,
     fetchUsers,
     fetchLoginLogs,
     fetchVacationPeriods,
+    fetchProductionRoles,
     createUser,
     updateUser,
     changePassword,

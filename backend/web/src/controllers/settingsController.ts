@@ -328,6 +328,15 @@ export class SettingsController {
   }
 
   // ==========================================================================
+  // Company Settings
+  // ==========================================================================
+
+  async getCompanySettings(_req: AuthenticatedRequest, res: Response): Promise<void> {
+    const result = await settingsService.getCompanySettings();
+    handleServiceResult(res, result);
+  }
+
+  // ==========================================================================
   // Audit Log
   // ==========================================================================
 

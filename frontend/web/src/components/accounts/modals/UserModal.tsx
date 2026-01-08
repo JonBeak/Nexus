@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
-import type { AccountUser } from '../../../types/user';
+import type { AccountUser, ProductionRole } from '../../../types/user';
+import api from '../../../services/api';
 
 interface UserModalProps {
   isOpen: boolean;
@@ -30,13 +31,16 @@ export const UserModal: React.FC<UserModalProps> = ({
     is_active: true,
     show_in_time_calendar: true,
     auto_clock_in: '',
-    auto_clock_out: ''
+    auto_clock_out: '',
+    production_roles: []
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [groupType, setGroupType] = useState<'Group A' | 'Group B' | 'custom'>('Group A');
   const [customGroup, setCustomGroup] = useState('');
+  const [availableProductionRoles, setAvailableProductionRoles] = useState<ProductionRole[]>([]);
+  const [loadingRoles, setLoadingRoles] = useState(false);
 
   // Check if this user is the last active owner
   const isLastActiveOwner = (): boolean => {
@@ -45,18 +49,47 @@ export const UserModal: React.FC<UserModalProps> = ({
     return activeOwners.length === 1 && activeOwners[0].user_id === user.user_id;
   };
 
+  // Fetch production roles when modal opens
+  useEffect(() => {
+    if (isOpen && availableProductionRoles.length === 0) {
+      const fetchRoles = async () => {
+        setLoadingRoles(true);
+        try {
+          const response = await api.get('/settings/roles');
+          setAvailableProductionRoles(response.data || []);
+        } catch (error) {
+          console.error('Error fetching production roles:', error);
+        } finally {
+          setLoadingRoles(false);
+        }
+      };
+      fetchRoles();
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     if (user) {
       const userGroup = user.user_group || '';
+      // Parse production_roles from JSON string if needed
+      let productionRoles = user.production_roles || [];
+      if (typeof productionRoles === 'string') {
+        try {
+          productionRoles = JSON.parse(productionRoles);
+        } catch {
+          productionRoles = [];
+        }
+      }
+
       setFormData({
         ...user,
         user_group: userGroup,
         hourly_wage: user.hourly_wage || undefined,
         show_in_time_calendar: user.show_in_time_calendar,
         auto_clock_in: user.auto_clock_in || '',
-        auto_clock_out: user.auto_clock_out || ''
+        auto_clock_out: user.auto_clock_out || '',
+        production_roles: productionRoles
       });
-      
+
       // Set group type and custom group based on user_group value
       if (userGroup === 'Group A') {
         setGroupType('Group A');
@@ -80,7 +113,8 @@ export const UserModal: React.FC<UserModalProps> = ({
         is_active: true,
         show_in_time_calendar: true,
         auto_clock_in: '',
-        auto_clock_out: ''
+        auto_clock_out: '',
+        production_roles: []
       });
       setGroupType('Group A');
       setCustomGroup('');
@@ -160,15 +194,28 @@ export const UserModal: React.FC<UserModalProps> = ({
     }
   };
 
+  const handleProductionRoleToggle = (roleKey: string) => {
+    setFormData(prev => {
+      const currentRoles = prev.production_roles || [];
+      const newRoles = currentRoles.includes(roleKey)
+        ? currentRoles.filter(r => r !== roleKey)
+        : [...currentRoles, roleKey];
+      return { ...prev, production_roles: newRoles };
+    });
+  };
+
   return (
     <BaseModal
       isOpen={isOpen}
       onClose={onClose}
       title={user ? 'Edit User' : 'Create New User'}
-      maxWidth="lg"
+      maxWidth="3xl"
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Username */}
+      <form onSubmit={handleSubmit}>
+        <div className="flex gap-4 items-stretch">
+          {/* Left Column - User Details */}
+          <div className="w-3/5 space-y-4">
+            {/* Username */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Username *
@@ -382,9 +429,54 @@ export const UserModal: React.FC<UserModalProps> = ({
             )}
           </div>
         </div>
+          </div>
+
+          {/* Right Column - Production Roles */}
+          <div className="w-2/5 border-l pl-4 flex flex-col">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Production Roles
+            </label>
+            <p className="text-xs text-gray-500 mb-3">
+              Assign roles for task assignments on the Jobs page
+            </p>
+            {loadingRoles ? (
+              <div className="text-sm text-gray-500">Loading roles...</div>
+            ) : availableProductionRoles.length === 0 ? (
+              <div className="text-sm text-gray-500">No production roles available</div>
+            ) : (
+              <div className="max-h-80 overflow-y-auto border border-gray-200 rounded-md p-2 space-y-1 bg-gray-50">
+                {availableProductionRoles
+                  .filter(role => role.is_active)
+                  .map(role => (
+                  <label
+                    key={role.role_key}
+                    className="flex items-center space-x-2 p-1.5 rounded hover:bg-white cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={(formData.production_roles || []).includes(role.role_key)}
+                      onChange={() => handleProductionRoleToggle(role.role_key)}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span
+                      className={`text-sm px-2 py-0.5 rounded ${role.color_bg_class || 'bg-gray-100'} ${role.color_text_class || 'text-gray-800'}`}
+                    >
+                      {role.display_name}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+            {(formData.production_roles?.length || 0) > 0 && (
+              <div className="mt-2 text-xs text-blue-600 font-medium">
+                {formData.production_roles?.length} role{formData.production_roles?.length !== 1 ? 's' : ''} selected
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Submit Buttons */}
-        <div className="flex justify-end space-x-3 pt-4 border-t">
+        <div className="flex justify-end space-x-3 pt-4 mt-6 border-t">
           <button
             type="button"
             onClick={onClose}

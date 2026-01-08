@@ -244,13 +244,16 @@ export class OrderPartRepository {
 
   /**
    * Update task completion status
+   * Accepts optional connection for use within transactions
    */
   async updateTaskCompletion(
     taskId: number,
     completed: boolean,
-    userId?: number
+    userId?: number,
+    connection?: PoolConnection
   ): Promise<void> {
-    await query(
+    const conn = connection || pool;
+    await conn.execute(
       `UPDATE order_tasks
        SET completed = ?,
            completed_at = ${completed ? 'NOW()' : 'NULL'},

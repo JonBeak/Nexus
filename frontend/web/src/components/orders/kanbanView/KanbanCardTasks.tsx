@@ -41,18 +41,6 @@ export const KanbanCardTasks: React.FC<KanbanCardTasksProps> = ({
     );
   }
 
-  // Sort tasks: not started first, then started, then completed
-  const sortTasks = (tasks: OrderTask[]) => {
-    return [...tasks].sort((a, b) => {
-      const getOrder = (t: OrderTask) => {
-        if (t.completed) return 2;
-        if (t.started_at) return 1;
-        return 0;
-      };
-      return getOrder(a) - getOrder(b);
-    });
-  };
-
   return (
     <div className={`task-controls border-t ${PAGE_STYLES.panel.border}`} onClick={(e) => e.stopPropagation()}>
       {parts.map((part, idx) => (
@@ -67,7 +55,7 @@ export const KanbanCardTasks: React.FC<KanbanCardTasksProps> = ({
 
           {/* Tasks for this part */}
           <div className="px-3 py-1.5 space-y-1">
-            {sortTasks(part.tasks || []).map(task => (
+            {(part.tasks || []).map(task => (
               <div key={task.task_id} className="flex items-center gap-2 group">
                 {/* Status icon - clickable */}
                 <div className="flex-shrink-0">

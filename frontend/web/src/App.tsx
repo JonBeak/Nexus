@@ -31,9 +31,11 @@ const RolesManager = lazy(() => import('./components/settings/RolesManager').the
 const AuditLogViewer = lazy(() => import('./components/settings/AuditLogViewer').then(m => ({ default: m.AuditLogViewer })));
 const EmailTemplatesManager = lazy(() => import('./components/settings/EmailTemplatesManager').then(m => ({ default: m.EmailTemplatesManager })));
 const PaintingMatrixManager = lazy(() => import('./components/settings/PaintingMatrixManager').then(m => ({ default: m.PaintingMatrixManager })));
+const LEDTypesManager = lazy(() => import('./components/settings/LEDTypesManager').then(m => ({ default: m.LEDTypesManager })));
 const PaymentsPage = lazy(() => import('./pages/PaymentsPage'));
 const InvoicesPage = lazy(() => import('./components/invoices/InvoicesPage'));
 const ServerManagement = lazy(() => import('./components/serverManagement/ServerManagement'));
+const StaffJobsPage = lazy(() => import('./components/staff/StaffJobsPage'));
 
 // Loading component for lazy routes
 const RouteLoader = () => (
@@ -132,6 +134,11 @@ function AppContent() {
           user ? <VinylInventory user={user} /> : <Navigate to="/login" />
         } />
 
+        {/* Staff Jobs Page - accessible to all authenticated users */}
+        <Route path="/jobs" element={
+          user ? <StaffJobsPage user={user} /> : <Navigate to="/login" />
+        } />
+
         <Route path="/wages" element={
           user && user.role === 'owner' ? <WageManagement /> : <Navigate to="/dashboard" />
         } />
@@ -190,6 +197,7 @@ function AppContent() {
           <Route path="roles" element={<RolesManager />} />
           <Route path="painting-matrix" element={<PaintingMatrixManager />} />
           <Route path="email-templates" element={<EmailTemplatesManager />} />
+          <Route path="led-types" element={<LEDTypesManager />} />
           <Route path="audit-log" element={<AuditLogViewer />} />
         </Route>
 

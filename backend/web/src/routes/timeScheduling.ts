@@ -40,10 +40,10 @@ router.put('/schedules/:userId',
 /**
  * Get all active company holidays
  * GET /time-management/holidays
+ * Read-only - available to all authenticated users
  */
 router.get('/holidays',
   authenticateToken,
-  requirePermission('time_management.update'),
   (req, res) => timeSchedulingController.getHolidays(req, res)
 );
 

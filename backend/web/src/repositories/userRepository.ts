@@ -68,6 +68,7 @@ export class UserRepository {
       is_active,
       auto_clock_in,
       auto_clock_out,
+      production_roles,
       created_at,
       last_login
     `;
@@ -229,7 +230,13 @@ export class UserRepository {
     auto_clock_in?: string | null;
     auto_clock_out?: string | null;
     is_active: number;
+    production_roles?: string[] | null;
   }): Promise<void> {
+    // Convert production_roles array to JSON string for storage
+    const productionRolesJson = userData.production_roles
+      ? JSON.stringify(userData.production_roles)
+      : null;
+
     await query(`
       UPDATE users SET
         username = ?,
@@ -242,6 +249,7 @@ export class UserRepository {
         auto_clock_in = ?,
         auto_clock_out = ?,
         is_active = ?,
+        production_roles = ?,
         updated_at = NOW()
       WHERE user_id = ?
     `, [
@@ -255,6 +263,7 @@ export class UserRepository {
       userData.auto_clock_in ?? null,
       userData.auto_clock_out ?? null,
       userData.is_active,
+      productionRolesJson,
       userId
     ]);
   }

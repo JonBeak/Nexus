@@ -64,6 +64,11 @@ router.post('/email-templates/:templateKey/reset', requireRole('manager', 'owner
 router.get('/categories', requireRole('manager', 'owner'), (req, res) => settingsController.getSettingsCategories(req, res));
 
 // =============================================================================
+// Company Settings (any authenticated user can read)
+// =============================================================================
+router.get('/company', (req, res) => settingsController.getCompanySettings(req, res));
+
+// =============================================================================
 // Audit Log (Manager+)
 // =============================================================================
 router.get('/audit-log', requireRole('manager', 'owner'), (req, res) => settingsController.getAuditLog(req, res));
