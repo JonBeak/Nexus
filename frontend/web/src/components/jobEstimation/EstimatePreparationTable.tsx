@@ -543,7 +543,7 @@ export const EstimatePreparationTable: React.FC<EstimatePreparationTableProps> =
         )}
 
         {/* Totals - Right Side */}
-        <div className="text-sm text-right">
+        <div className="text-sm text-right ml-auto">
           <div className={PAGE_STYLES.panel.text}>Subtotal: {formatCurrency(subtotal)}</div>
           <div className={PAGE_STYLES.panel.text}>Tax ({(taxRate * 100).toFixed(0)}%): {formatCurrency(tax)}</div>
           <div className={`font-semibold ${PAGE_STYLES.panel.text}`}>Total: {formatCurrency(total)}</div>

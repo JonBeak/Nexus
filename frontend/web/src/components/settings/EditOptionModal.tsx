@@ -75,7 +75,7 @@ export const EditOptionModal: React.FC<EditOptionModalProps> = ({
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
               Edit Option
-              {option.is_system && (
+              {!!option.is_system && (
                 <Lock className="h-4 w-4 text-gray-400" title="System option" />
               )}
             </h3>
@@ -115,7 +115,7 @@ export const EditOptionModal: React.FC<EditOptionModalProps> = ({
               )}
             </div>
 
-            {option.is_system && (
+            {!!option.is_system && (
               <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <p className="text-sm text-amber-800">
                   This is a system option. You can edit the value, but it cannot be deleted.

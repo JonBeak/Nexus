@@ -71,12 +71,13 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
   const [dueDateManuallyChanged, setDueDateManuallyChanged] = useState(false);
   const [businessDaysFromToday, setBusinessDaysFromToday] = useState<number | null>(null);
 
-  // Hard Due Date/Time (always visible, optional)
-  const [hardDueTime, setHardDueTime] = useState('');
+  // Hard Due Date/Time (always visible, optional) - stores 24-hour value (7-16) or empty
+  const [hardDueHour, setHardDueHour] = useState('');
 
   // Special Instructions (modal-specific, appended to customer special_instructions)
   const [modalSpecialInstructions, setModalSpecialInstructions] = useState('');
   const specialInstructionsRef = React.useRef<HTMLTextAreaElement>(null);
+  const dueDateInputRef = React.useRef<HTMLInputElement>(null);
 
   // Point Persons (NEW: Array-based)
   const [pointPersons, setPointPersons] = useState<PointPersonEntry[]>([]);
@@ -102,7 +103,7 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
       setAutoCalculatedDate('');
       setDueDateManuallyChanged(false);
       setBusinessDaysFromToday(null);
-      setHardDueTime('');
+      setHardDueHour('');
       setModalSpecialInstructions('');
       // Don't reset pointPersons here - it will be set by the fetch contacts useEffect
       setContactEmails([]);
@@ -398,10 +399,10 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
     }
 
     // Prepare hard due time (just the time, since database column is TIME type)
-    // MySQL TIME format is "HH:mm:ss"
+    // MySQL TIME format is "HH:mm:ss" - hardDueHour already stores 24-hour value
     let hardDueTimeFormatted = undefined;
-    if (hardDueTime.trim()) {
-      hardDueTimeFormatted = `${hardDueTime.trim()}:00`; // Convert "16:00" to "16:00:00"
+    if (hardDueHour) {
+      hardDueTimeFormatted = `${hardDueHour.padStart(2, '0')}:00:00`;
     }
 
     // Filter out empty point persons and prepare data
@@ -466,7 +467,7 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
       setAutoCalculatedDate('');
       setDueDateManuallyChanged(false);
       setBusinessDaysFromToday(null);
-      setHardDueTime('');
+      setHardDueHour('');
       setModalSpecialInstructions('');
       setPointPersons([]);
       setContactEmails([]);
@@ -491,7 +492,7 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-2">
@@ -510,8 +511,8 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
 
         {/* Body - Three Column Layout */}
         <div className="p-4 flex gap-6">
-          {/* LEFT COLUMN: Estimate Summary (narrow) */}
-          <div className="w-80 flex-shrink-0 pr-6 border-r border-gray-200">
+          {/* LEFT COLUMN: Estimate Summary */}
+          <div className="flex-1 pr-6 border-r border-gray-200">
             <div className="bg-gray-50 rounded-lg p-3 space-y-2">
               <h4 className="font-medium text-gray-900">Estimate Summary</h4>
               <div className="space-y-1.5">
@@ -554,7 +555,7 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
           </div>
 
           {/* MIDDLE COLUMN: All Input Fields */}
-          <div className="flex-1 space-y-3 pr-6 border-r border-gray-200">
+          <div className="flex-[1.75] space-y-3 pr-6 border-r border-gray-200">
             {/* Order Name */}
             <div>
               <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-1">
@@ -566,7 +567,7 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
                 value={orderName}
                 onChange={(e) => setOrderName(e.target.value)}
                 disabled={loading}
-                className={`w-full px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                className={`w-full px-3 py-1.5 border rounded-lg disabled:bg-gray-100 disabled:cursor-not-allowed ${
                   validationError ? 'border-red-500' : 'border-gray-300'
                 }`}
                 placeholder="Enter unique order name"
@@ -587,7 +588,7 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
                   value={customerJobNumber}
                   onChange={(e) => setCustomerJobNumber(e.target.value)}
                   disabled={loading}
-                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -600,13 +601,13 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
                   value={customerPo}
                   onChange={(e) => setCustomerPo(e.target.value)}
                   disabled={loading}
-                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
 
             {/* Due Date & Hard Time - Horizontal */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-[3fr_2fr] gap-4">
               <div>
                 <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-1">
                   <span>Due Date <span className="text-red-500">*</span></span>
@@ -619,26 +620,70 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
                     </span>
                   )}
                 </label>
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  disabled={loading}
-                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                />
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 relative">
+                    <div
+                      tabIndex={0}
+                      className="w-full px-3 py-1.5 border border-gray-300 rounded-lg bg-white cursor-pointer hover:border-gray-400 focus:outline focus:outline-2 focus:outline-black"
+                      onClick={() => dueDateInputRef.current?.showPicker()}
+                      onKeyDown={(e) => e.key === 'Enter' && dueDateInputRef.current?.showPicker()}
+                    >
+                      {dueDate ? new Date(dueDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : <span className="text-gray-400">Select date...</span>}
+                    </div>
+                    <input
+                      ref={dueDateInputRef}
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      className="absolute bottom-0 left-0 opacity-0 pointer-events-none"
+                      disabled={loading}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => autoCalculatedDate && setDueDate(autoCalculatedDate)}
+                    disabled={loading || !autoCalculatedDate || dueDate === autoCalculatedDate}
+                    className="px-2 py-1.5 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg border border-purple-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Reset to auto-calculated date"
+                  >
+                    Reset
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Hard Due Time
                 </label>
-                <input
-                  type="time"
-                  value={hardDueTime}
-                  onChange={(e) => setHardDueTime(e.target.value)}
-                  disabled={loading}
-                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                />
+                <div className="flex items-center gap-2">
+                  <select
+                    value={hardDueHour}
+                    onChange={(e) => setHardDueHour(e.target.value)}
+                    disabled={loading}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:cursor-not-allowed focus:outline focus:outline-2 focus:outline-black"
+                  >
+                    <option value="">--</option>
+                    <option value="7">7 AM</option>
+                    <option value="8">8 AM</option>
+                    <option value="9">9 AM</option>
+                    <option value="10">10 AM</option>
+                    <option value="11">11 AM</option>
+                    <option value="12">12 PM</option>
+                    <option value="13">1 PM</option>
+                    <option value="14">2 PM</option>
+                    <option value="15">3 PM</option>
+                    <option value="16">4 PM</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setHardDueHour('')}
+                    disabled={loading || !hardDueHour}
+                    className={`p-1.5 text-gray-400 hover:text-red-600 rounded disabled:opacity-50 ${!hardDueHour ? 'invisible' : ''}`}
+                    title="Clear time"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -654,13 +699,13 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
                 onChange={(e) => setModalSpecialInstructions(e.target.value)}
                 disabled={loading}
                 rows={1}
-                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed resize-none overflow-hidden"
+                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:cursor-not-allowed resize-none overflow-hidden"
               />
             </div>
           </div>
 
           {/* RIGHT COLUMN: Point Persons */}
-          <div className="flex-1 space-y-2">
+          <div className="flex-[1.5] space-y-2">
             <label className="block text-sm font-medium text-gray-700">
               Point Persons
             </label>
@@ -712,17 +757,19 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
                       value={person.contact_id || ''}
                       onChange={(e) => handleExistingContactChange(person.id, parseInt(e.target.value))}
                       disabled={loading}
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:cursor-not-allowed"
                     >
                       <option value="">Select a contact...</option>
-                      {allContacts.map(contact => (
-                        <option key={contact.contact_id} value={contact.contact_id}>
-                          {contact.contact_name}
-                          {contact.contact_role && ` (${contact.contact_role})`}
-                          {' - '}
-                          {contact.contact_email}
-                        </option>
-                      ))}
+                      {allContacts.map(contact => {
+                        const hasDistinctName = contact.contact_name && contact.contact_name !== contact.contact_email;
+                        return (
+                          <option key={contact.contact_id} value={contact.contact_id}>
+                            {hasDistinctName ? `${contact.contact_name} - ` : ''}
+                            {contact.contact_email}
+                            {contact.contact_role && ` (${contact.contact_role})`}
+                          </option>
+                        );
+                      })}
                     </select>
                   )}
 
@@ -735,7 +782,7 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
                           value={person.contact_email}
                           onChange={(e) => handleCustomFieldChange(person.id, 'contact_email', e.target.value)}
                           disabled={loading}
-                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:cursor-not-allowed"
                           placeholder="Email *"
                         />
                         <input
@@ -743,7 +790,7 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
                           value={person.contact_name || ''}
                           onChange={(e) => handleCustomFieldChange(person.id, 'contact_name', e.target.value)}
                           disabled={loading}
-                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:cursor-not-allowed"
                           placeholder="Name"
                         />
                       </div>

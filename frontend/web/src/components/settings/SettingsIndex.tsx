@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { List, CheckSquare, Grid3X3, Users, Mail, History, Lightbulb, Layers, LucideIcon } from 'lucide-react';
+import { List, CheckSquare, Grid3X3, Users, Mail, History, Lightbulb, Layers, Zap, LucideIcon } from 'lucide-react';
 import { settingsApi, SettingsCategory } from '../../services/api/settings';
 
 // Map icon names from database to Lucide components
@@ -17,7 +17,8 @@ const iconMap: Record<string, LucideIcon> = {
   Mail,
   History,
   Lightbulb,
-  Layers
+  Layers,
+  Zap
 };
 
 // Fallback cards for when API is loading or fails

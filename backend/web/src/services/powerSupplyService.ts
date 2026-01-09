@@ -140,4 +140,137 @@ export class PowerSupplyService {
     const ps = await this.findPowerSupplyByType(transformerType);
     return ps?.ul_listed || false;
   }
+
+  /**
+   * Get all power supplies for management UI
+   */
+  async getAllPowerSupplies(includeInactive = false): Promise<ServiceResult<PowerSupply[]>> {
+    try {
+      const powerSupplies = await this.repository.findAll(includeInactive);
+      return { success: true, data: powerSupplies };
+    } catch (error) {
+      console.error('Service error fetching all power supplies:', error);
+      return { success: false, error: 'Failed to fetch power supplies', code: 'DATABASE_ERROR' };
+    }
+  }
+
+  /**
+   * Create a new power supply
+   */
+  async createPowerSupply(powerSupply: {
+    transformer_type: string;
+    price?: number;
+    watts?: number;
+    rated_watts?: number;
+    volts?: number;
+    warranty_labour_years?: number;
+    warranty_product_years?: number;
+    notes?: string;
+    ul_listed?: boolean;
+    is_default_non_ul?: boolean;
+    is_default_ul?: boolean;
+  }): Promise<ServiceResult<{ power_supply_id: number }>> {
+    try {
+      // Validate required field
+      const transformerType = getTrimmedString(powerSupply.transformer_type);
+      if (!transformerType) {
+        return { success: false, error: 'Transformer type is required', code: 'VALIDATION_ERROR' };
+      }
+
+      // Check for duplicate transformer type
+      const exists = await this.repository.transformerTypeExists(transformerType);
+      if (exists) {
+        return { success: false, error: 'Transformer type already exists', code: 'DUPLICATE_ERROR' };
+      }
+
+      // If setting as UL default, clear existing UL defaults first
+      if (powerSupply.is_default_ul) {
+        await this.repository.clearDefaultsForUL();
+      }
+
+      // If setting as non-UL default, clear existing non-UL defaults first
+      if (powerSupply.is_default_non_ul) {
+        await this.repository.clearDefaultsForNonUL();
+      }
+
+      const powerSupplyId = await this.repository.create({ ...powerSupply, transformer_type: transformerType });
+      return { success: true, data: { power_supply_id: powerSupplyId } };
+    } catch (error) {
+      console.error('Service error creating power supply:', error);
+      return { success: false, error: 'Failed to create power supply', code: 'DATABASE_ERROR' };
+    }
+  }
+
+  /**
+   * Update an existing power supply
+   */
+  async updatePowerSupply(powerSupplyId: number, updates: {
+    transformer_type?: string;
+    price?: number;
+    watts?: number;
+    rated_watts?: number;
+    volts?: number;
+    warranty_labour_years?: number;
+    warranty_product_years?: number;
+    notes?: string;
+    ul_listed?: boolean;
+    is_default_non_ul?: boolean;
+    is_default_ul?: boolean;
+    is_active?: boolean;
+  }): Promise<ServiceResult<void>> {
+    try {
+      // Check power supply exists
+      const existing = await this.repository.findById(powerSupplyId);
+      if (!existing) {
+        return { success: false, error: 'Power supply not found', code: 'NOT_FOUND' };
+      }
+
+      // If updating transformer type, validate it's not a duplicate
+      if (updates.transformer_type !== undefined) {
+        const transformerType = getTrimmedString(updates.transformer_type);
+        if (!transformerType) {
+          return { success: false, error: 'Transformer type cannot be empty', code: 'VALIDATION_ERROR' };
+        }
+        const exists = await this.repository.transformerTypeExists(transformerType, powerSupplyId);
+        if (exists) {
+          return { success: false, error: 'Transformer type already exists', code: 'DUPLICATE_ERROR' };
+        }
+        updates.transformer_type = transformerType;
+      }
+
+      // If setting as UL default, clear existing UL defaults first
+      if (updates.is_default_ul === true) {
+        await this.repository.clearDefaultsForUL();
+      }
+
+      // If setting as non-UL default, clear existing non-UL defaults first
+      if (updates.is_default_non_ul === true) {
+        await this.repository.clearDefaultsForNonUL();
+      }
+
+      await this.repository.update(powerSupplyId, updates);
+      return { success: true, data: undefined };
+    } catch (error) {
+      console.error('Service error updating power supply:', error);
+      return { success: false, error: 'Failed to update power supply', code: 'DATABASE_ERROR' };
+    }
+  }
+
+  /**
+   * Deactivate a power supply (soft delete)
+   */
+  async deactivatePowerSupply(powerSupplyId: number): Promise<ServiceResult<void>> {
+    try {
+      const existing = await this.repository.findById(powerSupplyId);
+      if (!existing) {
+        return { success: false, error: 'Power supply not found', code: 'NOT_FOUND' };
+      }
+
+      await this.repository.update(powerSupplyId, { is_active: false });
+      return { success: true, data: undefined };
+    } catch (error) {
+      console.error('Service error deactivating power supply:', error);
+      return { success: false, error: 'Failed to deactivate power supply', code: 'DATABASE_ERROR' };
+    }
+  }
 }

@@ -310,16 +310,25 @@ export async function renderNotesAndImage(
     // Calculate space used by notes
     const notesHeight = Math.max(orderNotesHeight, internalNoteHeight);
 
-    // Center the image below the notes
+    // Calculate available space for image
     const imageWidth = contentWidth * LAYOUT.IMAGE_WIDTH_PERCENT;
-    const imageY = notesY + notesHeight + SPACING.ITEM_GAP;
+    const imageSpaceStartY = notesY + notesHeight + SPACING.ITEM_GAP;
     const imageX = marginLeft + (contentWidth - imageWidth) / 2;
-    const adjustedImageHeight = actualImageHeight - notesHeight - SPACING.ITEM_GAP;
+    const availableImageSpace = actualImageHeight - notesHeight - SPACING.ITEM_GAP;
 
-    if (adjustedImageHeight <= LAYOUT.MIN_IMAGE_HEIGHT) {
-      console.log(`[IMAGE] ⚠️ Not enough space for image after notes (only ${adjustedImageHeight}pt available, need ${LAYOUT.MIN_IMAGE_HEIGHT}pt)`);
+    if (availableImageSpace <= LAYOUT.MIN_IMAGE_HEIGHT) {
+      console.log(`[IMAGE] ⚠️ Not enough space for image after notes (only ${availableImageSpace}pt available, need ${LAYOUT.MIN_IMAGE_HEIGHT}pt)`);
       return;
     }
+
+    // Apply max image height constraint (50% of page height)
+    const maxImageHeight = pageHeight * LAYOUT.MAX_IMAGE_HEIGHT_PERCENT;
+    const effectiveImageHeight = Math.min(availableImageSpace, maxImageHeight);
+
+    // Center image vertically in available space
+    const centeredImageY = imageSpaceStartY + (availableImageSpace - effectiveImageHeight) / 2;
+
+    console.log(`[IMAGE] Available space: ${Math.round(availableImageSpace)}pt, Max: ${Math.round(maxImageHeight)}pt, Using: ${Math.round(effectiveImageHeight)}pt, Centered at Y: ${Math.round(centeredImageY)}`);
 
     // Check if image has crop coordinates
     const hasCrop = orderData.crop_top || orderData.crop_right || orderData.crop_bottom || orderData.crop_left;
@@ -336,9 +345,9 @@ export async function renderNotesAndImage(
           left: orderData.crop_left || 0
         });
 
-        // Embed cropped image
-        doc.image(croppedBuffer, imageX, imageY, {
-          fit: [imageWidth, adjustedImageHeight],
+        // Embed cropped image centered in available space
+        doc.image(croppedBuffer, imageX, centeredImageY, {
+          fit: [imageWidth, effectiveImageHeight],
           align: 'center',
           valign: 'center'
         });
@@ -346,16 +355,16 @@ export async function renderNotesAndImage(
       } catch (cropError) {
         console.error('[IMAGE] ⚠️ Crop failed, using original:', cropError);
         // Fall back to original image
-        doc.image(fullImagePath, imageX, imageY, {
-          fit: [imageWidth, adjustedImageHeight],
+        doc.image(fullImagePath, imageX, centeredImageY, {
+          fit: [imageWidth, effectiveImageHeight],
           align: 'center'
         });
         console.log(`[IMAGE] ✅ Successfully loaded image (crop failed, using original)`);
       }
     } else {
       // No crop coordinates, use original image
-      doc.image(fullImagePath, imageX, imageY, {
-        fit: [imageWidth, adjustedImageHeight],
+      doc.image(fullImagePath, imageX, centeredImageY, {
+        fit: [imageWidth, effectiveImageHeight],
         align: 'center'
       });
       console.log(`[IMAGE] ✅ Successfully loaded image (no crop)`);

@@ -9,6 +9,7 @@
 import React, { useState } from 'react';
 import { getValidSpecTemplateClass } from '@/utils/highlightStyles';
 import { INPUT_STYLES } from '@/utils/inputStyles';
+import { handleSpecTabNavigation } from './specTabNavigation';
 
 interface SpecTemplateDropdownProps {
   partId: number;
@@ -52,8 +53,12 @@ export const SpecTemplateDropdown = React.memo<SpecTemplateDropdownProps>(({
       <select
         value={currentValue}
         onChange={(e) => handleChange(e.target.value)}
+        onKeyDown={(e) => handleSpecTabNavigation(e, partId, rowNum, 0)}
         className={getValidSpecTemplateClass(hasValue, baseClass)}
         disabled={isSaving}
+        data-spec-part={partId}
+        data-spec-row={rowNum}
+        data-spec-col={0}
       >
         <option value="" className="text-gray-400">Select...</option>
         {availableTemplates.map((templateName) => (

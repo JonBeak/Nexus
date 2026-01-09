@@ -2,6 +2,8 @@ import React from 'react';
 import { Users, Shield, Activity, Calendar } from 'lucide-react';
 import { HomeButton } from '../common/HomeButton';
 import { useNavigate } from 'react-router-dom';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
+import '../jobEstimation/JobEstimation.css';
 import { UserModal } from './modals/UserModal';
 import { PasswordModal } from './modals/PasswordModal';
 import { VacationModal } from './modals/VacationModal';
@@ -55,10 +57,10 @@ export const AccountManagement: React.FC<AccountManagementProps> = ({ user }) =>
   // Only managers and owners can access this component
   if (user.role !== 'manager' && user.role !== 'owner') {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className={`${PAGE_STYLES.fullPage} flex items-center justify-center`}>
         <div className="text-center">
           <h1 className="text-2xl font-bold text-red-600">Access Denied</h1>
-          <p className="text-gray-600 mt-2">Only managers and owners can access account management.</p>
+          <p className={`${PAGE_STYLES.panel.textSecondary} mt-2`}>Only managers and owners can access account management.</p>
         </div>
       </div>
     );
@@ -66,46 +68,44 @@ export const AccountManagement: React.FC<AccountManagementProps> = ({ user }) =>
 
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className={PAGE_STYLES.fullPage}>
       {/* Header */}
-      <div className="bg-white shadow-lg border-b-4 border-indigo-500">
-        <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className={`${PAGE_STYLES.panel.background} shadow-lg border-b-4 ${MODULE_COLORS.accounts.border}`}>
+        <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <HomeButton />
-              <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center">
+              <div className={`w-12 h-12 ${MODULE_COLORS.accounts.base} rounded-xl flex items-center justify-center`}>
                 <Shield className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-800">Account Management</h1>
-                <p className="text-gray-600">Manage user accounts, roles, and settings</p>
+                <h1 className={`text-3xl font-bold ${PAGE_STYLES.panel.text}`}>Account Management</h1>
+                <p className={PAGE_STYLES.panel.textSecondary}>Manage user accounts, roles, and settings</p>
               </div>
             </div>
+
+            {/* Tabs */}
+            <nav className="flex space-x-2">
+              {tabs.map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => setActiveTab(id)}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                    activeTab === id
+                      ? `${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.text}`
+                      : `${PAGE_STYLES.panel.textSecondary} hover:bg-gray-200`
+                  }`}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </nav>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Tabs */}
-        <div className="mb-8">
-          <nav className="flex space-x-8">
-            {tabs.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => setActiveTab(id)}
-                className={`flex items-center space-x-2 px-4 py-2 border-b-2 font-medium transition-colors ${
-                  activeTab === id
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-                <span>{label}</span>
-              </button>
-            ))}
-          </nav>
-        </div>
-
         {/* Tab Content */}
         {activeTab === 'users' && (
           <UsersTab

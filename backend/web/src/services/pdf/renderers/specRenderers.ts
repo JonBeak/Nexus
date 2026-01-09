@@ -819,6 +819,7 @@ function renderSpecRow(
  * Render a label/value box with configurable value font size
  * Used for Sign Type and Scope boxes which have larger/smaller fonts than spec rows
  * @param measureOnly - If true, calculate positions but skip drawing (for space measurement)
+ * @param labelFontSize - Optional font size for label (defaults to SPEC_LABEL)
  */
 function renderLabelValueBox(
   doc: any,
@@ -829,21 +830,23 @@ function renderLabelValueBox(
   width: number,
   valueFontSize: number,
   boldValue: boolean = false,
-  measureOnly: boolean = false
+  measureOnly: boolean = false,
+  labelFontSize: number = FONT_SIZES.SPEC_LABEL
 ): number {
   const labelText = label;
   const trimmedValue = value?.trim() || '';
 
   // === STEP 1: Calculate all dimensions first ===
 
-  // Label dimensions (11pt font)
-  doc.fontSize(FONT_SIZES.SPEC_LABEL).font('Helvetica-Bold');
+  // Label dimensions (configurable font size)
+  doc.fontSize(labelFontSize).font('Helvetica-Bold');
   const labelHeight = doc.currentLineHeight();
 
-  // Get standardized label width
+  // Get standardized label width (note: this changes font to SPEC_LABEL size)
   const standardLabelWidth = getStandardLabelWidth(doc);
 
-  // Calculate actual text width for horizontal centering
+  // Reset to actual label font size for text width measurement
+  doc.fontSize(labelFontSize).font('Helvetica-Bold');
   const actualTextWidth = doc.widthOfString(labelText);
   const textLeftPadding = (standardLabelWidth - actualTextWidth) / 2;
 
@@ -932,7 +935,7 @@ function renderLabelValueBox(
     const labelTextY = labelBoxStartY + (labelBoxHeight - labelHeight) / 2;
     const centeredX = labelBoxStartX + textLeftPadding;
     doc.fillColor(COLORS.BLACK)
-      .fontSize(FONT_SIZES.SPEC_LABEL)
+      .fontSize(labelFontSize)
       .font('Helvetica-Bold')
       .text(labelText, centeredX, labelTextY, {
         continued: false,
@@ -989,8 +992,8 @@ export function renderSignTypeBox(
 ): number {
   let currentY = startY;
 
-  // Render Sign Type box (14pt bold value font)
-  currentY = renderLabelValueBox(doc, 'Sign Type', displayName, x, currentY, width, FONT_SIZES.SIGN_TYPE_VALUE, true, measureOnly);
+  // Render Sign Type box (12pt bold value font, 12pt label font)
+  currentY = renderLabelValueBox(doc, 'Sign Type', displayName, x, currentY, width, FONT_SIZES.SIGN_TYPE_VALUE, true, measureOnly, FONT_SIZES.SIGN_TYPE_LABEL);
 
   // Render Scope box if scope exists (10pt value font with wrapping)
   if (scope) {

@@ -331,6 +331,7 @@ function shouldIncludePins(specs: any): boolean {
 /**
  * Determine if Spacers should be included
  * Include if Mounting template has count > 0 AND spacers type is specified
+ * Exclude if spacers value contains "Insert" (inserts don't require spacers in packing)
  */
 function shouldIncludeSpacers(specs: any): boolean {
   if (!specs) return false;
@@ -346,7 +347,10 @@ function shouldIncludeSpacers(specs: any): boolean {
       const hasCount = count && parseInt(count, 10) > 0;
       const hasSpacerType = spacersValue && String(spacersValue).trim() !== '';
 
-      return hasCount && hasSpacerType;
+      // Exclude if spacers value is exactly "Inserts" - inserts alone don't require physical spacers
+      const isInsertOnly = spacersValue && String(spacersValue).trim().toLowerCase() === 'inserts';
+
+      return hasCount && hasSpacerType && !isInsertOnly;
     }
   }
 

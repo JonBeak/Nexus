@@ -304,27 +304,18 @@ export function formatSpecValues(templateName: string, specs: Record<string, any
       return dtInclude || '';
 
     case 'Pins':
+    case 'Mounting':
       // Template stores: count, pins, spacers
-      // Format as [{count} pcs] {pins} + {spacers}
+      // Format as {pins} + {spacers} (no count shown)
       // Pins or Spacers are optional
-      const pinCount = specs.count || '';
       const pinType = specs.pins || '';
       const spacerType = specs.spacers || '';
-
-      const pinsParts: string[] = [];
-      if (pinCount) {
-        pinsParts.push(`[${pinCount} pcs]`);
-      }
 
       const components: string[] = [];
       if (pinType) components.push(pinType);
       if (spacerType) components.push(spacerType);
 
-      if (components.length > 0) {
-        pinsParts.push(components.join(' + '));
-      }
-
-      return pinsParts.join(' ');
+      return components.join(' + ');
 
     default:
       // Default: join all non-empty values with comma and space

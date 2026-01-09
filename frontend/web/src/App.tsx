@@ -33,6 +33,7 @@ const EmailTemplatesManager = lazy(() => import('./components/settings/EmailTemp
 const PaintingMatrixManager = lazy(() => import('./components/settings/PaintingMatrixManager').then(m => ({ default: m.PaintingMatrixManager })));
 const VinylApplicationMatrixManager = lazy(() => import('./components/settings/VinylApplicationMatrixManager').then(m => ({ default: m.VinylApplicationMatrixManager })));
 const LEDTypesManager = lazy(() => import('./components/settings/LEDTypesManager').then(m => ({ default: m.LEDTypesManager })));
+const PowerSuppliesManager = lazy(() => import('./components/settings/PowerSuppliesManager').then(m => ({ default: m.PowerSuppliesManager })));
 const PaymentsPage = lazy(() => import('./pages/PaymentsPage'));
 const InvoicesPage = lazy(() => import('./components/invoices/InvoicesPage'));
 const ServerManagement = lazy(() => import('./components/serverManagement/ServerManagement'));
@@ -200,6 +201,7 @@ function AppContent() {
           <Route path="vinyl-matrix" element={<VinylApplicationMatrixManager />} />
           <Route path="email-templates" element={<EmailTemplatesManager />} />
           <Route path="led-types" element={<LEDTypesManager />} />
+          <Route path="power-supplies" element={<PowerSuppliesManager />} />
           <Route path="audit-log" element={<AuditLogViewer />} />
         </Route>
 

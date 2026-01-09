@@ -160,9 +160,9 @@ export async function generatePackingList(
         // Render Sign Type box (and Scope box if scope exists)
         partY = renderSignTypeBox(doc, displayName, part.part_scope || null, partX, partY, partColumnWidth);
 
-        // Add padding above the separator line
+        // Padding around separator line (match order form: 4px above and below visually)
         const separatorPadding = 4;
-        partY += separatorPadding;
+        partY += separatorPadding;  // 4px above line
 
         // Draw horizontal separator line (thicker line under Sign Type/Scope)
         doc.strokeColor(COLORS.DIVIDER_DARK)
@@ -172,8 +172,8 @@ export async function generatePackingList(
           .stroke();
         doc.strokeColor(COLORS.BLACK);
 
-        // Equal padding below the separator line
-        partY += separatorPadding;
+        // Padding below separator line (+3 to compensate for packing item -2 offset)
+        partY += separatorPadding + 3;
 
         // Get packing items using combined specifications from parent + sub-items
         const productTypeForPacking = part.specs_display_name || part.product_type;

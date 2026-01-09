@@ -52,6 +52,7 @@ export const FONT_SIZES = {
   QTY_STANDARD: 12,     // Quantity box label and value font size (reduced from 14)
   INTERNAL_NOTE_LABEL: 10,
   SIGN_TYPE_VALUE: 12,  // Sign Type box value font size (reduced from 14)
+  SIGN_TYPE_LABEL: 12,  // Sign Type box label font size
   SCOPE_VALUE: 10,      // Scope box value font size
 };
 
@@ -103,6 +104,7 @@ export const LAYOUT = {
   QTY_BOX_WIDTH_PERCENT: 0.3,
   MAX_COLUMNS: 3,
   MIN_IMAGE_HEIGHT: 80,  // Minimum space required for image after notes (~13% of page height)
+  MAX_IMAGE_HEIGHT_PERCENT: 0.50,  // Maximum image height is 50% of page height
 };
 
 // ============================================

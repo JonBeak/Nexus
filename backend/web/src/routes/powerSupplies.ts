@@ -1,13 +1,14 @@
 // File Clean up Finished: 2025-11-15
-// Assessment: No changes required
-// - Already follows 3-layer architecture (Route → Controller → Service → Repository)
-// - Controller, Service, and Repository already cleaned and using query() helper
-// - No dead code, no unused imports, no architectural issues
-// - File size: 15 lines (well under limit)
-// - Actively used by frontend for power supply catalog
+// Updated: Added full CRUD endpoints for power supplies management
 import { Router } from 'express';
-import { getActivePowerSupplies } from '../controllers/powerSuppliesController';
-import { authenticateToken } from '../middleware/auth';
+import {
+  getActivePowerSupplies,
+  getAllPowerSupplies,
+  createPowerSupply,
+  updatePowerSupply,
+  deactivatePowerSupply
+} from '../controllers/powerSuppliesController';
+import { authenticateToken, requireRole } from '../middleware/auth';
 
 const router = Router();
 
@@ -17,5 +18,33 @@ const router = Router();
  * @access Private
  */
 router.get('/', authenticateToken, getActivePowerSupplies);
+
+/**
+ * @route GET /api/power-supplies/all
+ * @desc Get all power supplies including inactive (for management UI)
+ * @access Manager+
+ */
+router.get('/all', authenticateToken, requireRole('manager', 'owner'), getAllPowerSupplies);
+
+/**
+ * @route POST /api/power-supplies
+ * @desc Create a new power supply
+ * @access Manager+
+ */
+router.post('/', authenticateToken, requireRole('manager', 'owner'), createPowerSupply);
+
+/**
+ * @route PUT /api/power-supplies/:powerSupplyId
+ * @desc Update an existing power supply
+ * @access Manager+
+ */
+router.put('/:powerSupplyId', authenticateToken, requireRole('manager', 'owner'), updatePowerSupply);
+
+/**
+ * @route DELETE /api/power-supplies/:powerSupplyId
+ * @desc Deactivate a power supply (soft delete)
+ * @access Manager+
+ */
+router.delete('/:powerSupplyId', authenticateToken, requireRole('manager', 'owner'), deactivatePowerSupply);
 
 export default router;

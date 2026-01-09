@@ -610,8 +610,11 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
     const invoiceSent = !!orderDetails.invoice_sent_at;
 
     if (!hasInvoice) {
-      // Only show Create Invoice if deposit is required
-      if (!orderDetails.deposit_required) {
+      // Show Create Invoice for:
+      // 1. Deposit-required orders (any workflow status)
+      // 2. Non-deposit orders in shipping/pick_up/awaiting_payment (for final invoice)
+      const needsInvoice = ['shipping', 'pick_up', 'awaiting_payment'].includes(orderDetails.status);
+      if (!orderDetails.deposit_required && !needsInvoice) {
         return null;
       }
       return {
@@ -691,6 +694,8 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                 </div>
                 <p className={`text-sm ${PAGE_STYLES.header.text}`}>
                   {order.customer_name} &bull; #{order.order_number}
+                  {orderDetails?.customer_po && <> &bull; PO: {orderDetails.customer_po}</>}
+                  {orderDetails?.customer_job_number && <> &bull; Job: {orderDetails.customer_job_number}</>}
                 </p>
               </div>
               <button
@@ -1027,20 +1032,8 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                   </button>
                 )}
 
-                {/* Print Forms - all other production statuses */}
-                {orderDetails && !['job_details_setup', 'pending_confirmation', 'pending_production_files_creation', 'pending_production_files_approval'].includes(orderDetails.status) && (
-                  <button
-                    onClick={() => openPrintModal('full')}
-                    disabled={uiState.printingForm}
-                    className={`flex items-center gap-1.5 px-3 py-2 ${MODULE_COLORS.orders.base} ${MODULE_COLORS.orders.hover} text-white rounded text-sm font-medium transition-colors disabled:opacity-50`}
-                  >
-                    <Printer className="w-4 h-4" />
-                    {uiState.printingForm ? 'Printing...' : 'Print Forms'}
-                  </button>
-                )}
-
-                {/* Invoice Button - all except setup/confirmation */}
-                {orderDetails && !['job_details_setup', 'pending_confirmation'].includes(orderDetails.status) && (() => {
+                {/* Invoice Button - excludes setup/confirmation and final statuses */}
+                {orderDetails && !['job_details_setup', 'pending_confirmation', 'completed', 'cancelled', 'on_hold'].includes(orderDetails.status) && (() => {
                   const invoiceState = getInvoiceButtonState();
                   if (!invoiceState) return null;
                   return (

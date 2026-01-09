@@ -113,6 +113,7 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
               <SpecFieldInput
                 partId={part.part_id}
                 rowNum={rowNum}
+                colIndex={1}
                 field={field}
                 specKey={specKey}
                 currentValue={currentValue}
@@ -162,6 +163,7 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
               <SpecFieldInput
                 partId={part.part_id}
                 rowNum={rowNum}
+                colIndex={2}
                 field={field}
                 specKey={specKey}
                 currentValue={currentValue}
@@ -211,6 +213,7 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
               <SpecFieldInput
                 partId={part.part_id}
                 rowNum={rowNum}
+                colIndex={3}
                 field={field}
                 specKey={specKey}
                 currentValue={currentValue}

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { User, VacationPeriod } from '../../hooks/useAccountAPI';
+import { PAGE_STYLES } from '../../../../constants/moduleColors';
 
 interface VacationTabProps {
   vacationPeriods: VacationPeriod[];
@@ -23,54 +24,54 @@ export const VacationTab: React.FC<VacationTabProps> = ({
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Vacation Periods</h2>
+        <h2 className={`text-2xl font-bold ${PAGE_STYLES.panel.text}`}>Vacation Periods</h2>
         <button
           onClick={onCreateVacation}
-          className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+          className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
         >
           <Plus className="h-4 w-4" />
           <span>Add Vacation</span>
         </button>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className={PAGE_STYLES.composites.panelContainer + ' overflow-hidden'}>
+        <table className={`min-w-full ${PAGE_STYLES.panel.divider}`}>
+          <thead className={PAGE_STYLES.header.background}>
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider`}>
                 User
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider`}>
                 Start Date
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider`}>
                 End Date
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider`}>
                 Description
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className={`px-6 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider`}>
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className={`${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.divider}`}>
             {vacationPeriods.map((vacation) => (
-              <tr key={vacation.vacation_id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+              <tr key={vacation.vacation_id} className={PAGE_STYLES.interactive.hover}>
+                <td className={`px-6 py-4 whitespace-nowrap text-sm ${PAGE_STYLES.panel.text}`}>
                   {getUserName(vacation.user_id)}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <td className={`px-6 py-4 whitespace-nowrap text-sm ${PAGE_STYLES.panel.text}`}>
                   {new Date(vacation.start_date).toLocaleDateString()}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <td className={`px-6 py-4 whitespace-nowrap text-sm ${PAGE_STYLES.panel.text}`}>
                   {new Date(vacation.end_date).toLocaleDateString()}
                 </td>
-                <td className="px-6 py-4 text-sm text-gray-900">
+                <td className={`px-6 py-4 text-sm ${PAGE_STYLES.panel.text}`}>
                   {vacation.description}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <button 
+                  <button
                     className="text-red-600 hover:text-red-900"
                     onClick={() => onDeleteVacation(vacation.vacation_id)}
                   >

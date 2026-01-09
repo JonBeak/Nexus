@@ -1,5 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface BaseModalProps {
   isOpen: boolean;
@@ -31,24 +32,24 @@ export const BaseModal: React.FC<BaseModalProps> = ({
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen px-4">
         {/* Backdrop */}
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
           onClick={onClose}
         />
-        
+
         {/* Modal */}
-        <div className={`relative bg-white rounded-lg shadow-xl w-full ${widthClasses[maxWidth]} transform transition-all`}>
+        <div className={`relative ${PAGE_STYLES.panel.background} rounded-lg shadow-xl w-full ${widthClasses[maxWidth]} transform transition-all`}>
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+          <div className={`flex items-center justify-between p-6 border-b ${PAGE_STYLES.panel.border}`}>
+            <h3 className={`text-lg font-semibold ${PAGE_STYLES.panel.text}`}>{title}</h3>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className={`${PAGE_STYLES.panel.textMuted} hover:text-gray-700 transition-colors`}
             >
               <X className="h-5 w-5" />
             </button>
           </div>
-          
+
           {/* Content */}
           <div className="p-6">
             {children}

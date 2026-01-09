@@ -852,7 +852,7 @@ async function createEmailMessage(
     if (pdfBase64) {
       bodyParts.push(
         `--${mixedBoundary}`,
-        `Content-Type: application/pdf; name="${attachment.name}"`,
+        `Content-Type: application/pdf`,
         `Content-Disposition: attachment; filename="${attachment.name}"`,
         `Content-Transfer-Encoding: base64`,
         ``,
@@ -1220,11 +1220,21 @@ async function createEstimateEmailMessage(data: EstimateEmailData): Promise<stri
 
   console.log(`   📎 PDF path received: ${data.pdfPath || '(none provided)'}`);
 
+  // Generate plain text version from HTML body
+  const plainText = data.body
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, '\n')
+    .replace(/\n\s*\n/g, '\n\n')
+    .trim();
+
   // Build mail options for MailComposer
+  // Including both text and html ensures proper multipart/mixed structure
   const mailOptions: any = {
     from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
     to: data.recipients.join(', '),
     subject: data.subject,
+    text: plainText,
     html: data.body,
     attachments: []
   };
@@ -1272,7 +1282,8 @@ async function createEstimateEmailMessage(data: EstimateEmailData): Promise<stri
       mailOptions.attachments.push({
         filename: pdfFilename,
         content: pdfContent,
-        contentType: 'application/pdf'
+        contentType: 'application/pdf',
+        contentDisposition: 'attachment'
       });
 
       console.log(`   📎 PDF attachment added: ${pdfFilename}`);
@@ -1309,8 +1320,8 @@ async function createEstimateEmailMessage(data: EstimateEmailData): Promise<stri
         }
       }
 
-      // Debug: Log first 2000 chars of message
-      const debugContent = messageStr.substring(0, 2000).replace(/[A-Za-z0-9+/=]{100,}/g, '[BASE64...]');
+      // Debug: Log MIME structure (headers and boundaries, replace base64 data)
+      const debugContent = messageStr.substring(0, 6000).replace(/[A-Za-z0-9+/=]{100,}/g, '[BASE64...]');
       console.log('   📋 MailComposer output preview:\n' + debugContent);
 
       // Encode for Gmail API (URL-safe base64)

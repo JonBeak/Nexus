@@ -1,6 +1,7 @@
 import React from 'react';
 import { BaseModal } from '../modals/BaseModal';
 import { AlertTriangle, Trash2 } from 'lucide-react';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -79,7 +80,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         </h3>
 
         {/* Message */}
-        <div className="text-sm text-gray-600 mb-6">
+        <div className={`text-sm ${PAGE_STYLES.panel.textSecondary} mb-6`}>
           {typeof message === 'string' ? (
             <p>{message}</p>
           ) : (
@@ -93,7 +94,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`px-4 py-2 ${PAGE_STYLES.panel.text} ${PAGE_STYLES.header.background} rounded-md hover:bg-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             {cancelText}
           </button>

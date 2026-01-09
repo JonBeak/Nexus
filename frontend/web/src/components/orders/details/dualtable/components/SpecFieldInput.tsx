@@ -9,11 +9,13 @@
 import React, { useState, useEffect } from 'react';
 import { getValidSpecFieldClass } from '@/utils/highlightStyles';
 import { INPUT_STYLES } from '@/utils/inputStyles';
+import { handleSpecTabNavigation } from './specTabNavigation';
 import type { SpecificationField } from '@/config/orderProductTemplates';
 
 interface SpecFieldInputProps {
   partId: number;
   rowNum: number;
+  colIndex: number; // 1=spec1, 2=spec2, 3=spec3
   field: SpecificationField;
   specKey: string;
   currentValue: any;
@@ -26,6 +28,7 @@ interface SpecFieldInputProps {
 export const SpecFieldInput = React.memo<SpecFieldInputProps>(({
   partId,
   rowNum,
+  colIndex,
   field,
   specKey,
   currentValue,
@@ -77,9 +80,13 @@ export const SpecFieldInput = React.memo<SpecFieldInputProps>(({
             value={localValue}
             onChange={(e) => setLocalValue(e.target.value)}
             onBlur={handleTextBlur}
+            onKeyDown={(e) => handleSpecTabNavigation(e, partId, rowNum, colIndex)}
             className={getValidSpecFieldClass(hasValue, baseClass)}
             placeholder={field.placeholder}
             disabled={isSaving}
+            data-spec-part={partId}
+            data-spec-row={rowNum}
+            data-spec-col={colIndex}
           />
           <datalist id={`${partId}-${specKey}-datalist`}>
             {field.options.map(opt => (
@@ -91,8 +98,12 @@ export const SpecFieldInput = React.memo<SpecFieldInputProps>(({
         <select
           value={currentValue}
           onChange={(e) => handleDropdownChange(e.target.value)}
+          onKeyDown={(e) => handleSpecTabNavigation(e, partId, rowNum, colIndex)}
           className={getValidSpecFieldClass(hasValue, baseClass)}
           disabled={isSaving}
+          data-spec-part={partId}
+          data-spec-row={rowNum}
+          data-spec-col={colIndex}
         >
           <option value="" className="text-gray-400">{field.placeholder || 'Select...'}</option>
           <option value="true" className="text-gray-900">Yes</option>
@@ -104,9 +115,13 @@ export const SpecFieldInput = React.memo<SpecFieldInputProps>(({
           value={localValue}
           onChange={(e) => setLocalValue(e.target.value)}
           onBlur={handleTextBlur}
+          onKeyDown={(e) => handleSpecTabNavigation(e, partId, rowNum, colIndex)}
           className={getValidSpecFieldClass(hasValue, baseClass)}
           placeholder={field.placeholder}
           disabled={isSaving}
+          data-spec-part={partId}
+          data-spec-row={rowNum}
+          data-spec-col={colIndex}
         />
       )}
     </div>
@@ -117,6 +132,7 @@ export const SpecFieldInput = React.memo<SpecFieldInputProps>(({
          prevProps.partId === nextProps.partId &&
          prevProps.specKey === nextProps.specKey &&
          prevProps.rowNum === nextProps.rowNum &&
+         prevProps.colIndex === nextProps.colIndex &&
          prevProps.field.key === nextProps.field.key &&
          prevProps.field.type === nextProps.field.type &&
          prevProps.isEmpty === nextProps.isEmpty;
