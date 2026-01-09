@@ -7,7 +7,7 @@
  */
 
 import path from 'path';
-import { FormType, SMB_PATHS, STANDARD_LABEL_REFERENCE, SPACING } from './pdfConstants';
+import { FormType, SMB_PATHS, STANDARD_LABEL_REFERENCE, SPACING, FONT_SIZES } from './pdfConstants';
 
 // ============================================
 // HELPER FUNCTIONS
@@ -31,10 +31,10 @@ export function debugLog(message: string): void {
  * @returns Standardized label width in points
  */
 export function getStandardLabelWidth(doc: any): number {
-  doc.fontSize(11).font('Helvetica-Bold');
+  doc.fontSize(FONT_SIZES.SPEC_LABEL).font('Helvetica-Bold');
   const maxLabelWidth = doc.widthOfString(STANDARD_LABEL_REFERENCE);
   const spaceWidth = doc.widthOfString(' ');
-  return maxLabelWidth + (SPACING.LABEL_PADDING * 2) + 4 + (spaceWidth * 2);
+  return maxLabelWidth + (SPACING.LABEL_PADDING * 2) + 8 + (spaceWidth * 2);  // Increased from 4 to 8 for wider labels
 }
 
 /**

@@ -48,6 +48,20 @@ export interface GeneratedTask {
 }
 
 /**
+ * Unknown vinyl/digital print application found during task generation
+ */
+export interface UnknownApplication {
+  partId: number;
+  partDisplayNumber: string;
+  productType: string;
+  productTypeKey: string;
+  application: string;
+  applicationKey: string;
+  colour: string | null;
+  specName: 'Vinyl' | 'Digital Print';
+}
+
+/**
  * Result of task generation
  */
 export interface TaskGenerationResult {
@@ -57,6 +71,7 @@ export interface TaskGenerationResult {
   manualInputReasons: string[];
   warnings: string[];
   paintingWarnings?: PaintingWarning[];
+  unknownApplications?: UnknownApplication[];
 }
 
 /**

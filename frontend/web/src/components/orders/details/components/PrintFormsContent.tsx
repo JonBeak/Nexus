@@ -1,5 +1,5 @@
 import React from 'react';
-import { Printer, Plus, Minus } from 'lucide-react';
+import { Printer, Plus, Minus, CheckCircle } from 'lucide-react';
 
 interface PrintConfig {
   master: number;
@@ -22,29 +22,41 @@ interface PrintFormsContentProps {
   mode?: PrintMode;
   onPrintAndMoveToProduction?: () => void;
   onMoveToProductionWithoutPrinting?: () => void;
+  defaultConfig?: PrintConfig;
 }
 
 const PrintFormsContent: React.FC<PrintFormsContentProps> = ({
   printConfig,
   onPrintConfigChange,
-  onPrint,
   onPrintMasterEstimate,
   onPrintShopPacking,
-  onClose,
   printing,
-  showCloseButton = true,
   mode = 'full',
+  defaultConfig,
   onPrintAndMoveToProduction,
   onMoveToProductionWithoutPrinting
 }) => {
-  const handleClearAll = () => {
-    onPrintConfigChange({ master: 0, estimate: 0, shop: 0, packing: 0 });
+  // Default values if no defaultConfig provided
+  const defaults = defaultConfig || { master: 1, estimate: 1, shop: 2, packing: 2 };
+
+  const handleClearMasterEstimate = () => {
+    onPrintConfigChange({ ...printConfig, master: 0, estimate: 0 });
+  };
+
+  const handleResetMasterEstimate = () => {
+    onPrintConfigChange({ ...printConfig, master: defaults.master, estimate: defaults.estimate });
+  };
+
+  const handleClearShopPacking = () => {
+    onPrintConfigChange({ ...printConfig, shop: 0, packing: 0 });
+  };
+
+  const handleResetShopPacking = () => {
+    onPrintConfigChange({ ...printConfig, shop: defaults.shop, packing: defaults.packing });
   };
 
   const showMasterEstimate = mode === 'full' || mode === 'master_estimate';
   const showShopPacking = mode === 'full' || mode === 'shop_packing_production';
-  const showPrintAllButton = mode === 'full';
-  const showMoveToProduction = mode === 'shop_packing_production';
 
   return (
     <div className="bg-white rounded-lg shadow-xl p-6 h-full flex flex-col">
@@ -98,13 +110,29 @@ const PrintFormsContent: React.FC<PrintFormsContentProps> = ({
             </div>
           </div>
 
+          {/* Clear / Reset buttons */}
+          <div className="flex items-center gap-2 mb-3">
+            <button
+              onClick={handleClearMasterEstimate}
+              className="flex-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Clear All
+            </button>
+            <button
+              onClick={handleResetMasterEstimate}
+              className="flex-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Reset
+            </button>
+          </div>
+
           {/* Print Master & Estimate Button */}
           <button
             onClick={onPrintMasterEstimate}
             disabled={printing || (printConfig.master === 0 && printConfig.estimate === 0)}
-            className="w-1/2 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5"
+            className="w-full px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5"
           >
-            <Printer className="w-3 h-3" />
+            <Printer className="w-4 h-4" />
             <span>{printing ? 'Printing...' : 'Print Master & Estimate'}</span>
           </button>
         </div>
@@ -159,77 +187,57 @@ const PrintFormsContent: React.FC<PrintFormsContentProps> = ({
             </div>
           </div>
 
+          {/* Clear / Reset buttons */}
+          <div className="flex items-center gap-2 mb-3">
+            <button
+              onClick={handleClearShopPacking}
+              className="flex-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Clear All
+            </button>
+            <button
+              onClick={handleResetShopPacking}
+              className="flex-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Reset
+            </button>
+          </div>
+
           {/* Print Shop & Packing Button */}
           <button
             onClick={onPrintShopPacking}
             disabled={printing || (printConfig.shop === 0 && printConfig.packing === 0)}
-            className="w-1/2 px-3 py-1.5 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5"
+            className="w-full px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5"
           >
-            <Printer className="w-3 h-3" />
+            <Printer className="w-4 h-4" />
             <span>{printing ? 'Printing...' : 'Print Shop & Packing'}</span>
           </button>
+
+          {/* Production action buttons - only in shop_packing_production mode */}
+          {mode === 'shop_packing_production' && (
+            <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
+              <button
+                onClick={onPrintAndMoveToProduction}
+                disabled={printing || (printConfig.shop === 0 && printConfig.packing === 0)}
+                className="w-full px-3 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5"
+              >
+                <Printer className="w-4 h-4" />
+                <span>{printing ? 'Printing...' : 'Print & Move to Production'}</span>
+              </button>
+              <button
+                onClick={onMoveToProductionWithoutPrinting}
+                disabled={printing}
+                className="w-full px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5"
+              >
+                <CheckCircle className="w-4 h-4" />
+                <span>Approve without Printing</span>
+              </button>
+            </div>
+          )}
         </div>
         )}
       </div>
 
-      {/* Bottom Action Buttons */}
-      <div className="flex items-center justify-between space-x-3 pt-6 border-t border-gray-200">
-        {/* Left side - Clear All */}
-        {!showMoveToProduction && (
-          <button
-            onClick={handleClearAll}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-          >
-            Clear All
-          </button>
-        )}
-        {showMoveToProduction && <div></div>}
-
-        {/* Right side - Action buttons */}
-        <div className="flex items-center space-x-3">
-          {showCloseButton && (
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-          )}
-
-          {/* Full mode - Print All */}
-          {showPrintAllButton && (
-            <button
-              onClick={onPrint}
-              disabled={printing}
-              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
-            >
-              <Printer className="w-4 h-4" />
-              <span>{printing ? 'Printing...' : 'Print All'}</span>
-            </button>
-          )}
-
-          {/* Move to Production mode - Two buttons */}
-          {showMoveToProduction && onMoveToProductionWithoutPrinting && (
-            <button
-              onClick={onMoveToProductionWithoutPrinting}
-              disabled={printing}
-              className="px-4 py-2 text-sm font-medium text-white bg-gray-600 rounded-lg hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
-            >
-              <span>{printing ? 'Moving...' : 'Move to Production without Printing'}</span>
-            </button>
-          )}
-          {showMoveToProduction && onPrintAndMoveToProduction && (
-            <button
-              onClick={onPrintAndMoveToProduction}
-              disabled={printing || (printConfig.shop === 0 && printConfig.packing === 0)}
-              className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
-            >
-              <Printer className="w-4 h-4" />
-              <span>{printing ? 'Printing & Moving...' : 'Print and Move to Production'}</span>
-            </button>
-          )}
-        </div>
-      </div>
     </div>
   );
 };

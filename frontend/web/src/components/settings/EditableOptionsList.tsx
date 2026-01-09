@@ -77,7 +77,7 @@ const SortableOptionRow: React.FC<SortableOptionRowProps> = ({
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="text-gray-900">{option.option_value}</span>
-          {option.is_system && (
+          {!!option.is_system && (
             <span
               className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded"
               title="System option - cannot be deleted"

@@ -37,7 +37,7 @@ export const PACKING_ITEM_TYPES = [
   'LED Box',
   'L-angle',
   'Standoffs',
-  'Hinged Brackets',
+  'Hinge Mounts',
   'End Caps'
 ] as const;
 
@@ -68,7 +68,7 @@ const PRODUCT_PACKING_MAP: Record<string, string[]> = {
   'Front Lit Acrylic Face': ['Pattern', 'Screws', 'Wiring Diagram', 'Transformer', 'UL Stickers', 'Drainholes'],
   'Backer': ['L-angle'],
   'Aluminum Raceway': ['L-angle'],
-  'Extrusion Raceway': ['Hinged Brackets', 'End Caps'],
+  'Extrusion Raceway': ['Hinge Mounts', 'End Caps'],
   'Dual Lit Acrylic Face': ['Pattern', 'Screws', 'Pins', 'Spacers', 'Wiring Diagram', 'Transformer', 'UL Stickers', 'Drainholes'],
   'Material Cut': ['Pattern'],
   'Dual Lit - Single Layer': ['Pattern', 'Screws', 'Pins', 'Spacers', 'Wiring Diagram', 'Transformer', 'UL Stickers', 'Drainholes'],
@@ -195,7 +195,7 @@ function hasTemplateInSpecs(templateName: string, specs: any): boolean {
     'LED Box': ['LED Box'],
     'L-angle': ['L-angle'],
     'Standoffs': ['Standoffs'],
-    'Hinged Brackets': ['Hinged Brackets'],
+    'Hinge Mounts': ['Hinge Mounts'],
     'End Caps': ['End Caps']
   };
 

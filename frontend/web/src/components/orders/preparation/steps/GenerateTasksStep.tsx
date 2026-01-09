@@ -7,6 +7,7 @@
  * - Unlike QB/PDFs, stays completed even if stale (tasks may have work-in-progress)
  * - Shows warning when stale but doesn't reset to pending
  * - Regenerating replaces all existing tasks
+ * - Unknown applications modal for vinyl/digital print specs not in matrix
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -16,6 +17,7 @@ import { PrepareStep, PreparationState } from '@/types/orderPreparation';
 import { Order } from '@/types/orders';
 import { updateStepStatus, canRunStep } from '@/utils/stepOrchestration';
 import { ordersApi } from '@/services/api';
+import { UnknownApplicationModal, UnknownApplication, ApplicationResolution } from '../../modals/UnknownApplicationModal';
 
 interface GenerateTasksStepProps {
   step: PrepareStep;
@@ -51,6 +53,16 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
   const [taskCount, setTaskCount] = useState(0);
   const [paintingWarnings, setPaintingWarnings] = useState<PaintingWarning[]>([]);
 
+  // Unknown applications modal state
+  const [unknownApplications, setUnknownApplications] = useState<UnknownApplication[]>([]);
+  const [showUnknownModal, setShowUnknownModal] = useState(false);
+  const [resolvingSaving, setResolvingSaving] = useState(false);
+
+  // Track cancelled state to prevent staleness check from overwriting cancel message
+  // When user cancels the unknown apps modal, we don't want checkTaskStaleness to run
+  // and overwrite the "cancelled" message with "tasks exist" message
+  const cancelledRef = useRef(false);
+
   // Check staleness AFTER validation completes (when canRun becomes true)
   // This ensures empty spec rows are cleaned up before staleness is calculated
   const canRun = canRunStep(step, steps);
@@ -58,7 +70,8 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
 
   useEffect(() => {
     // Only check when canRun transitions from false to true (validation just completed)
-    if (canRun && !prevCanRunRef.current && isOpen) {
+    // Skip if we're returning from a cancelled modal - don't overwrite the cancel message
+    if (canRun && !prevCanRunRef.current && isOpen && !cancelledRef.current) {
       checkTaskStaleness();
     }
     prevCanRunRef.current = canRun;
@@ -75,17 +88,12 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
 
       // Unlike QB/PDFs: Tasks stay completed even if stale
       // This is because tasks may have work-in-progress that shouldn't be lost
+      // NOTE: We no longer auto-complete based on existing tasks - user must explicitly generate
+      // This prevents issues where cancelling the unknown apps modal still shows complete
       if (staleness.exists && !staleness.isStale) {
-        // Fresh tasks - complete step if pending
-        if (step.status === 'pending') {
-          onStateChange(prev => ({
-            ...prev,
-            steps: updateStepStatus(prev.steps, step.id, 'completed')
-          }));
-        }
-        setMessage(`✓ ${staleness.taskCount} production tasks are up-to-date`);
+        setMessage(`✓ ${staleness.taskCount} production tasks exist`);
       } else if (staleness.exists && staleness.isStale) {
-        // Stale tasks - show warning but KEEP step completed
+        // Stale tasks - show warning but KEEP step completed if already completed
         setMessage(`⚠ ${staleness.taskCount} tasks may be outdated (order data changed)`);
       }
     } catch (error) {
@@ -97,6 +105,9 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
 
   const handleGenerateTasks = async () => {
     try {
+      // Clear cancelled flag so future staleness checks work normally
+      cancelledRef.current = false;
+
       // Use functional update to preserve other state (e.g., PDF URLs)
       onStateChange(prev => ({
         ...prev,
@@ -104,6 +115,7 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
       }));
       setMessage('Generating production tasks...');
       setPaintingWarnings([]); // Clear previous warnings
+      setUnknownApplications([]); // Clear previous unknowns
 
       const result = await ordersApi.generateProductionTasks(orderNumber);
 
@@ -112,7 +124,16 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
         setPaintingWarnings(result.paintingWarnings);
       }
 
-      // Use functional update to preserve other state (e.g., PDF URLs)
+      // Check for unknown applications - show modal if any
+      if (result.unknownApplications && result.unknownApplications.length > 0) {
+        setUnknownApplications(result.unknownApplications);
+        setShowUnknownModal(true);
+        // Keep step in running state while modal is open
+        setMessage(`⚠ Found ${result.unknownApplications.length} unknown application(s) - please configure tasks`);
+        return;
+      }
+
+      // No unknowns - complete normally
       onStateChange(prev => ({
         ...prev,
         steps: updateStepStatus(prev.steps, step.id, 'completed')
@@ -120,7 +141,6 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
       setMessage('✓ Production tasks generated successfully');
     } catch (error) {
       console.error('Error generating tasks:', error);
-      // Use functional update to preserve other state (e.g., PDF URLs)
       onStateChange(prev => ({
         ...prev,
         steps: updateStepStatus(
@@ -133,6 +153,43 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
       setMessage('');
       setPaintingWarnings([]); // Clear warnings on error
     }
+  };
+
+  const handleResolveUnknowns = async (resolutions: ApplicationResolution[]) => {
+    try {
+      setResolvingSaving(true);
+
+      // Call API to create tasks and optionally save to matrix
+      await ordersApi.resolveUnknownApplications(orderNumber, resolutions);
+
+      // Close modal and complete step
+      setShowUnknownModal(false);
+      setUnknownApplications([]);
+
+      onStateChange(prev => ({
+        ...prev,
+        steps: updateStepStatus(prev.steps, step.id, 'completed')
+      }));
+      setMessage('✓ Production tasks generated successfully');
+    } catch (error) {
+      console.error('Error resolving unknown applications:', error);
+      setMessage('Failed to create tasks for unknown applications');
+    } finally {
+      setResolvingSaving(false);
+    }
+  };
+
+  const handleCloseUnknownModal = () => {
+    // If user closes without resolving, revert to pending state
+    // Set cancelled flag to prevent staleness check from overwriting our message
+    cancelledRef.current = true;
+    setShowUnknownModal(false);
+    setUnknownApplications([]);
+    onStateChange(prev => ({
+      ...prev,
+      steps: updateStepStatus(prev.steps, step.id, 'pending')
+    }));
+    setMessage('Task generation cancelled - unknown applications not resolved');
   };
 
   const buttonLabel = taskCount > 0
@@ -188,6 +245,16 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Unknown Applications Modal */}
+      {showUnknownModal && unknownApplications.length > 0 && (
+        <UnknownApplicationModal
+          unknownApplications={unknownApplications}
+          onResolve={handleResolveUnknowns}
+          onClose={handleCloseUnknownModal}
+          saving={resolvingSaving}
+        />
       )}
     </div>
   );

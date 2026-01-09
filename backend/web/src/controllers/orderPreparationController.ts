@@ -260,6 +260,7 @@ export const generateProductionTasks = async (req: Request, res: Response) => {
       manualInputReasons: result.manualInputReasons,
       warnings: result.warnings,
       paintingWarnings: result.paintingWarnings,
+      unknownApplications: result.unknownApplications || [],
       message: result.tasksCreated > 0
         ? `Generated ${result.tasksCreated} production tasks`
         : 'No tasks generated (check order specifications)'
@@ -267,6 +268,110 @@ export const generateProductionTasks = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error generating production tasks:', error);
     const message = error instanceof Error ? error.message : 'Failed to generate production tasks';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * POST /api/order-preparation/:orderNumber/resolve-unknown-applications
+ * Resolve unknown vinyl/digital print applications by creating tasks and optionally saving to matrix
+ */
+export const resolveUnknownApplications = async (req: AuthRequest, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const { resolutions } = req.body;
+    const userId = req.user?.user_id;
+
+    if (!Array.isArray(resolutions) || resolutions.length === 0) {
+      return sendErrorResponse(res, 'Resolutions array is required', 'VALIDATION_ERROR');
+    }
+
+    const orderId = await validateOrderAndGetId(orderNumber, res);
+    if (!orderId) return;
+
+    // Import services
+    const { vinylMatrixService } = await import('../services/vinylMatrixService');
+    const { query } = await import('../config/database');
+    const { TASK_ORDER, getRole } = await import('../services/taskGeneration/taskRules');
+
+    // Helper to get sort order
+    const getTaskSortOrder = (taskName: string): number => {
+      const index = TASK_ORDER.indexOf(taskName);
+      return index !== -1 ? index : 999;
+    };
+
+    let tasksCreated = 0;
+    let matrixEntriesCreated = 0;
+
+    let applicationsCreated = 0;
+
+    for (const resolution of resolutions) {
+      const { partId, application, applicationKey, productType, productTypeKey, colour, specName, taskNames, saveApplication, saveToMatrix } = resolution;
+
+      // Create tasks for this resolution
+      for (const taskName of taskNames) {
+        const taskNote = specName === 'Digital Print'
+          ? `Digital Print: ${colour || 'N/A'}`
+          : (colour ? `Colour: ${colour}` : null);
+
+        await query(
+          `INSERT INTO order_tasks (order_id, part_id, task_name, sort_order, assigned_role, notes)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [orderId, partId, taskName, getTaskSortOrder(taskName), getRole(taskName), taskNote]
+        );
+        tasksCreated++;
+      }
+
+      // Optionally save application to specification_options
+      if (saveApplication) {
+        const { settingsRepository } = await import('../repositories/settingsRepository');
+        try {
+          const maxOrder = await settingsRepository.getMaxOptionDisplayOrder('vinyl_applications');
+          await settingsRepository.createSpecificationOption({
+            category: 'vinyl_applications',
+            category_display_name: 'Vinyl Applications',
+            option_value: application,
+            option_key: applicationKey,
+            display_order: maxOrder + 1,
+            is_active: true,
+            is_system: false
+          });
+          applicationsCreated++;
+        } catch (err) {
+          // May already exist, that's okay
+          console.log(`Application "${application}" may already exist:`, err);
+        }
+      }
+
+      // Optionally save to matrix for future use (task mapping)
+      if (saveToMatrix && taskNames.length > 0) {
+        const createResult = await vinylMatrixService.createMatrixEntry(
+          productType,
+          productTypeKey,
+          application,
+          applicationKey,
+          taskNames,
+          userId || 0
+        );
+        if (createResult.success) {
+          matrixEntriesCreated++;
+        }
+      }
+    }
+
+    const messageParts = [`Created ${tasksCreated} tasks`];
+    if (applicationsCreated > 0) messageParts.push(`added ${applicationsCreated} application(s)`);
+    if (matrixEntriesCreated > 0) messageParts.push(`saved ${matrixEntriesCreated} matrix mapping(s)`);
+
+    sendSuccessResponse(res, {
+      tasksCreated,
+      applicationsCreated,
+      matrixEntriesCreated,
+      message: messageParts.join(', ')
+    });
+  } catch (error) {
+    console.error('Error resolving unknown applications:', error);
+    const message = error instanceof Error ? error.message : 'Failed to resolve unknown applications';
     sendErrorResponse(res, message, 'INTERNAL_ERROR');
   }
 };

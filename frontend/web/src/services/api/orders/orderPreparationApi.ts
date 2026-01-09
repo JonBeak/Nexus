@@ -100,6 +100,32 @@ export const orderPreparationApi = {
   },
 
   /**
+   * Resolve unknown vinyl/digital print applications
+   * Creates tasks for each resolution and optionally saves to matrix
+   */
+  resolveUnknownApplications: async (
+    orderNumber: number,
+    resolutions: Array<{
+      partId: number;
+      application: string;
+      applicationKey: string;
+      productType: string;
+      productTypeKey: string;
+      colour: string | null;
+      specName: 'Vinyl' | 'Digital Print';
+      taskNames: string[];
+      saveApplication: boolean;
+      saveToMatrix: boolean;
+    }>
+  ) => {
+    const response = await api.post(
+      `/order-preparation/${orderNumber}/resolve-unknown-applications`,
+      { resolutions }
+    );
+    return response.data;
+  },
+
+  /**
    * Get point persons for order
    * (For Phase 1.5.c.6.3 - Send to Customer)
    */

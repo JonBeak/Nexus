@@ -4,8 +4,9 @@
  */
 
 import { ProductionRole } from '../../types/orders';
-import { GeneratedTask, PartGroup } from './types';
+import { GeneratedTask, PartGroup, UnknownApplication } from './types';
 import { hasSpec, getSpecValue, findSpec, getCuttingMethod, extractBoxTypeMaterial, findAllSpecs, parseSpecifications } from './specParser';
+import { vinylMatrixService } from '../vinylMatrixService';
 
 /**
  * Default sort order for tasks not found in TASK_ORDER
@@ -97,7 +98,7 @@ export const TASK_ROLE_MAP: Record<string, ProductionRole> = {
 /**
  * Get role for a task name
  */
-function getRole(taskName: string): ProductionRole {
+export function getRole(taskName: string): ProductionRole {
   return TASK_ROLE_MAP[taskName] || 'manager';
 }
 
@@ -327,21 +328,24 @@ export function generateComponentTasks(
  * Generate CONDITIONAL tasks based on spec values
  * Returns tasks and manual input flags
  */
-export function generateConditionalTasks(
+export async function generateConditionalTasks(
   orderId: number,
   partId: number,
   group: PartGroup
-): { tasks: GeneratedTask[]; requiresManualInput: boolean; manualInputReasons: string[]; paintingWarnings: any[] } {
+): Promise<{ tasks: GeneratedTask[]; requiresManualInput: boolean; manualInputReasons: string[]; paintingWarnings: any[]; unknownApplications: UnknownApplication[] }> {
   const tasks: GeneratedTask[] = [];
   let requiresManualInput = false;
   const manualInputReasons: string[] = [];
   const paintingWarnings: any[] = [];
+  const unknownApplications: UnknownApplication[] = [];
 
-  // LEDs task
-  if (hasSpec(group, 'LEDs')) {
-    const ledType = getSpecValue(group, 'LEDs', 'led_type');
-    const count = getSpecValue(group, 'LEDs', 'count');
-    const ledNote = [ledType, count ? `Count: ${count}` : null].filter(Boolean).join(', ') || null;
+  // LEDs tasks - one per LED spec
+  const ledSpecs = findAllSpecs(group, 'LEDs');
+  for (const ledSpec of ledSpecs) {
+    const ledType = ledSpec.values.led_type || '';
+    const count = ledSpec.values.count || '';
+    const note = ledSpec.values.note || '';
+    const ledNote = [ledType, count ? `Count: ${count}` : null, note].filter(Boolean).join(', ') || null;
 
     tasks.push({
       taskName: 'LEDs',
@@ -354,20 +358,22 @@ export function generateConditionalTasks(
   }
 
   // Vinyl tasks (based on application value)
-  const vinylResult = generateVinylTasks(orderId, partId, group, 'Vinyl');
+  const vinylResult = await generateVinylTasks(orderId, partId, group, 'Vinyl');
   tasks.push(...vinylResult.tasks);
   if (vinylResult.requiresManualInput) {
     requiresManualInput = true;
     manualInputReasons.push(...vinylResult.reasons);
   }
+  unknownApplications.push(...vinylResult.unknownApplications);
 
   // Digital Print tasks (same logic as Vinyl)
-  const digitalPrintResult = generateVinylTasks(orderId, partId, group, 'Digital Print');
+  const digitalPrintResult = await generateVinylTasks(orderId, partId, group, 'Digital Print');
   tasks.push(...digitalPrintResult.tasks);
   if (digitalPrintResult.requiresManualInput) {
     requiresManualInput = true;
     manualInputReasons.push(...digitalPrintResult.reasons);
   }
+  unknownApplications.push(...digitalPrintResult.unknownApplications);
 
   // Mounting Hardware (from Mounting spec)
   if (hasSpec(group, 'Mounting') || hasSpec(group, 'Pins')) {
@@ -461,102 +467,101 @@ export function generateConditionalTasks(
     }
   }
 
-  return { tasks, requiresManualInput, manualInputReasons, paintingWarnings };
+  return { tasks, requiresManualInput, manualInputReasons, paintingWarnings, unknownApplications };
+}
+
+/**
+ * Helper: Generate normalized key from value
+ */
+function generateKey(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
 }
 
 /**
  * Generate Vinyl/Digital Print tasks based on application value
+ * Processes ALL specs of the given type (not just the first one)
+ * Uses vinyl application matrix to determine which tasks to generate
  */
-function generateVinylTasks(
+async function generateVinylTasks(
   orderId: number,
   partId: number,
   group: PartGroup,
   specName: 'Vinyl' | 'Digital Print'
-): { tasks: GeneratedTask[]; requiresManualInput: boolean; reasons: string[] } {
+): Promise<{ tasks: GeneratedTask[]; requiresManualInput: boolean; reasons: string[]; unknownApplications: UnknownApplication[] }> {
   const tasks: GeneratedTask[] = [];
   const reasons: string[] = [];
+  const unknownApplications: UnknownApplication[] = [];
   let requiresManualInput = false;
 
-  const spec = findSpec(group, specName);
-  if (!spec) {
-    return { tasks, requiresManualInput, reasons };
+  // Get ALL specs of this type (not just the first one)
+  const specs = findAllSpecs(group, specName);
+  if (specs.length === 0) {
+    return { tasks, requiresManualInput, reasons, unknownApplications };
   }
 
-  const application = spec.values.application || spec.values.colours || '';
-  const colour = spec.values.colour || spec.values.colours || '';
-  const colourNote = colour ? `Colour: ${colour}` : null;
+  // Get product type key for matrix lookup
+  const productType = group.specsDisplayName || 'Unknown';
+  const productTypeKey = generateKey(productType);
 
-  // Normalize application value for comparison
-  const normalizedApp = application.toLowerCase().replace(/[,\s]+/g, ' ').trim();
+  // Process each spec individually
+  for (const spec of specs) {
+    const application = spec.values.application || spec.values.colours || '';
+    const colour = spec.values.colour || spec.values.colours || '';
+    const printType = spec.values.type || ''; // For Digital Print: Translucent, Opaque, etc.
 
-  if (normalizedApp.includes('face') && normalizedApp.includes('full')) {
-    // Face, Full → Vinyl Face Before Cutting
-    tasks.push({
-      taskName: 'Vinyl Face Before Cutting',
-      assignedRole: getRole('Vinyl Face Before Cutting'),
-      notes: colourNote,
-      partId,
-      orderId,
-      sortOrder: getTaskSortOrder('Vinyl Face Before Cutting')
-    });
-  } else if (
-    normalizedApp.includes('face') &&
-    (normalizedApp.includes('white keyline') || normalizedApp.includes('custom cut'))
-  ) {
-    // Face, White Keyline OR Face, Custom Cut → Vinyl Plotting + Vinyl Face After Cutting
-    tasks.push({
-      taskName: 'Vinyl Plotting',
-      assignedRole: getRole('Vinyl Plotting'),
-      notes: colourNote,
-      partId,
-      orderId,
-      sortOrder: getTaskSortOrder('Vinyl Plotting')
-    });
-    tasks.push({
-      taskName: 'Vinyl Face After Cutting',
-      assignedRole: getRole('Vinyl Face After Cutting'),
-      notes: colourNote,
-      partId,
-      orderId,
-      sortOrder: getTaskSortOrder('Vinyl Face After Cutting')
-    });
-  } else if (
-    normalizedApp.includes('return wrap') ||
-    normalizedApp.includes('trim wrap') ||
-    (normalizedApp.includes('return') && normalizedApp.includes('trim') && normalizedApp.includes('wrap'))
-  ) {
-    // Return Wrap, Trim Wrap, or Return & Trim Wrap → Vinyl Plotting + Vinyl Wrap Return/Trim
-    tasks.push({
-      taskName: 'Vinyl Plotting',
-      assignedRole: getRole('Vinyl Plotting'),
-      notes: colourNote,
-      partId,
-      orderId,
-      sortOrder: getTaskSortOrder('Vinyl Plotting')
-    });
-    tasks.push({
-      taskName: 'Vinyl Wrap Return/Trim',
-      assignedRole: getRole('Vinyl Wrap Return/Trim'),
-      notes: colourNote,
-      partId,
-      orderId,
-      sortOrder: getTaskSortOrder('Vinyl Wrap Return/Trim')
-    });
-  } else if (normalizedApp.includes('face') && normalizedApp.includes('return') && normalizedApp.includes('wrap')) {
-    // Face & Return Wrap → MANUAL INPUT REQUIRED
-    requiresManualInput = true;
-    reasons.push(`${specName} application "Face & Return Wrap" requires manual task selection`);
-  } else if (application) {
-    // Unknown application value - add generic vinyl task with note
-    tasks.push({
-      taskName: 'Vinyl Plotting',
-      assignedRole: getRole('Vinyl Plotting'),
-      notes: `${application}${colour ? `, ${colour}` : ''}`,
-      partId,
-      orderId,
-      sortOrder: getTaskSortOrder('Vinyl Plotting')
-    });
+    // Build notes based on spec type
+    let taskNote: string | null = null;
+    if (specName === 'Digital Print') {
+      // Format: "Digital Print - Translucent: White"
+      const typePart = printType || 'Unknown';
+      taskNote = colour ? `Digital Print - ${typePart}: ${colour}` : `Digital Print - ${typePart}`;
+    } else {
+      // Vinyl: include application and colour
+      taskNote = colour ? `Colour: ${colour}` : null;
+    }
+
+    // Skip if no application specified
+    if (!application) {
+      continue;
+    }
+
+    // Generate application key for matrix lookup
+    const applicationKey = generateKey(application);
+
+    // Lookup tasks from vinyl application matrix
+    const matrixResult = await vinylMatrixService.getTasksForApplication(productTypeKey, applicationKey);
+
+    if (matrixResult.success && matrixResult.data && matrixResult.data.length > 0) {
+      // Found in matrix - generate tasks from matrix
+      for (const taskName of matrixResult.data) {
+        tasks.push({
+          taskName,
+          assignedRole: getRole(taskName),
+          notes: taskNote,
+          partId,
+          orderId,
+          sortOrder: getTaskSortOrder(taskName)
+        });
+      }
+    } else {
+      // No matrix entry found - flag as unknown for modal
+      unknownApplications.push({
+        partId,
+        partDisplayNumber: group.displayNumber,
+        productType,
+        productTypeKey,
+        application,
+        applicationKey,
+        colour,
+        specName
+      });
+    }
   }
 
-  return { tasks, requiresManualInput, reasons };
+  return { tasks, requiresManualInput, reasons, unknownApplications };
 }

@@ -60,9 +60,18 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, showDaysLate = fals
         {order.order_name}
       </div>
 
-      {/* Customer Name */}
-      <div className={`text-xs ${PAGE_STYLES.header.text} break-words`}>
-        {order.customer_name || '-'}
+      {/* Customer Name + Shipping/Pickup Label */}
+      <div className="flex items-center gap-1">
+        <span className={`text-xs ${PAGE_STYLES.header.text} truncate flex-1`}>
+          {order.customer_name || '-'}
+        </span>
+        <span className={`text-[10px] font-medium px-1 py-0.5 rounded ${
+          order.shipping_required
+            ? 'bg-blue-100 text-blue-700'
+            : 'bg-yellow-100 text-yellow-700'
+        }`}>
+          {order.shipping_required ? 'Ship' : 'Pickup'}
+        </span>
       </div>
 
       {/* Order Number */}

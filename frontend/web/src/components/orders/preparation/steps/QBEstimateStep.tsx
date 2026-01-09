@@ -244,18 +244,12 @@ export const QBEstimateStep: React.FC<QBEstimateStepProps> = ({
   const buttonLabel = qbEstimate?.exists ? 'Recreate Estimate' : 'Create Estimate';
 
   // Determine what to show based on QB connection status
+  // Message type is auto-derived from message content by CompactStepRow
   const getStatusMessage = () => {
     if (qbConnected === null) return 'Checking QuickBooks connection...';
     if (isChecking) return 'Checking QB estimate status...';
     if (!qbConnected) return 'QuickBooks not connected';
     return message;
-  };
-
-  // Determine message type based on state
-  const getMessageType = (): 'success' | 'info' | 'warning' => {
-    if (qbConnected === false) return 'info'; // Not connected = gray
-    if (qbEstimate?.isStale) return 'warning'; // Stale = red
-    return 'success'; // Everything else = green
   };
 
   const renderButton = () => {
@@ -317,7 +311,6 @@ export const QBEstimateStep: React.FC<QBEstimateStepProps> = ({
         }
         status={qbConnected === false ? 'pending' : step.status}
         message={getStatusMessage()}
-        messageType={getMessageType()}
         error={step.error}
         disabled={rowDisabled}
         button={renderButton()}

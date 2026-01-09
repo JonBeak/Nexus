@@ -8,6 +8,9 @@
 //   - Removed getOrderParts() - moved to orderPrepRepo.getOrderPartsForQBEstimate()
 //   - Added proper TypeScript types (OrderDataForQBEstimate, OrderPartForQBEstimate)
 //   - Removed direct database queries from service layer (architecture violation fixed)
+// Updated: 2026-01-08
+//   - Switched to calculateQBEstimateHash() for staleness (invoice-related fields only)
+//   - Production notes, specs, etc. no longer trigger estimate staleness
 
 /**
  * QuickBooks Estimate Service for Orders
@@ -25,7 +28,7 @@ import * as orderPrepRepo from '../repositories/orderPreparationRepository';
 import { quickbooksRepository } from '../repositories/quickbooksRepository';
 import { quickbooksOAuthRepository } from '../repositories/quickbooksOAuthRepository';
 import { StalenessCheckResult, OrderDataForQBEstimate, OrderPartForQBEstimate } from '../types/orderPreparation';
-import { calculateOrderDataHash } from '../utils/orderDataHashService';
+import { calculateQBEstimateHash } from '../utils/orderDataHashService';
 import { SMB_ROOT, ORDERS_FOLDER, FINISHED_FOLDER } from '../config/paths';
 import { resolveCustomerId, resolveTaxCodeWithFallback } from '../utils/quickbooks/entityResolver';
 
@@ -48,8 +51,8 @@ export async function checkEstimateStaleness(orderId: number): Promise<Staleness
       };
     }
 
-    // Calculate current hash from order parts
-    const currentHash = await calculateOrderDataHash(orderId);
+    // Calculate current hash from invoice-related order data only
+    const currentHash = await calculateQBEstimateHash(orderId);
 
     // Compare with stored hash
     const isStale = currentHash !== currentEstimate.estimate_data_hash;
@@ -95,8 +98,8 @@ export async function createEstimateFromOrder(
       throw new Error('No invoice parts found for order');
     }
 
-    // 3. Calculate data hash for staleness tracking
-    const dataHash = await calculateOrderDataHash(orderId);
+    // 3. Calculate data hash for staleness tracking (invoice fields only)
+    const dataHash = await calculateQBEstimateHash(orderId);
 
     // 4. Get QuickBooks realm ID
     const realmId = await quickbooksRepository.getDefaultRealmId();

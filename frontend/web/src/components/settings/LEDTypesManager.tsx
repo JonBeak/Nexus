@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, Trash2, RefreshCw, AlertCircle, X, Star } from 'lucide-react';
 import { ledsApi, LEDType } from '../../services/api/ledsApi';
 import { Notification } from '../inventory/Notification';
+import { PricingDataResource } from '../../services/pricingDataResource';
 
 // =============================================================================
 // Edit LED Modal
@@ -36,6 +37,7 @@ const EditLEDModal: React.FC<EditLEDModalProps> = ({
     model: '',
     supplier: '',
     lumens: '',
+    price: '',
     is_default: false
   });
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +53,7 @@ const EditLEDModal: React.FC<EditLEDModalProps> = ({
         model: led.model || '',
         supplier: led.supplier || '',
         lumens: led.lumens || '',
+        price: led.price?.toString() || '',
         is_default: led.is_default || false
       });
       setError(null);
@@ -75,6 +78,7 @@ const EditLEDModal: React.FC<EditLEDModalProps> = ({
       model: formData.model.trim() || null,
       supplier: formData.supplier.trim() || null,
       lumens: formData.lumens.trim() || null,
+      price: formData.price ? parseFloat(formData.price) : null,
       is_default: formData.is_default
     };
 
@@ -171,6 +175,18 @@ const EditLEDModal: React.FC<EditLEDModalProps> = ({
                   disabled={saving}
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.price}
+                  onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  disabled={saving}
+                  placeholder="0.00"
+                />
+              </div>
             </div>
 
             {/* Supplier (full width) */}
@@ -234,7 +250,8 @@ export const LEDTypesManager: React.FC = () => {
     colour: '',
     watts: '',
     volts: '',
-    brand: ''
+    brand: '',
+    price: ''
   });
 
   const showNotification = useCallback((message: string, type: 'success' | 'error') => {
@@ -268,9 +285,11 @@ export const LEDTypesManager: React.FC = () => {
         colour: newLed.colour.trim() || undefined,
         watts: newLed.watts ? parseFloat(newLed.watts) : undefined,
         volts: newLed.volts ? parseInt(newLed.volts) : undefined,
-        brand: newLed.brand.trim() || undefined
+        brand: newLed.brand.trim() || undefined,
+        price: newLed.price ? parseFloat(newLed.price) : undefined
       });
-      setNewLed({ product_code: '', colour: '', watts: '', volts: '', brand: '' });
+      setNewLed({ product_code: '', colour: '', watts: '', volts: '', brand: '', price: '' });
+      PricingDataResource.clearCache(); // Clear pricing cache so estimates get fresh data
       showNotification('LED type added successfully', 'success');
       loadData();
     } catch (err: unknown) {
@@ -285,7 +304,17 @@ export const LEDTypesManager: React.FC = () => {
     setSaving(true);
     try {
       await ledsApi.updateLED(ledId, updates);
-      setLeds(prev => prev.map(l => l.led_id === ledId ? { ...l, ...updates } : l));
+      // If setting as default, clear other defaults in UI (backend already handles this)
+      if (updates.is_default) {
+        setLeds(prev => prev.map(l => ({
+          ...l,
+          is_default: l.led_id === ledId ? true : false,
+          ...(l.led_id === ledId ? updates : {})
+        })));
+      } else {
+        setLeds(prev => prev.map(l => l.led_id === ledId ? { ...l, ...updates } : l));
+      }
+      PricingDataResource.clearCache(); // Clear pricing cache so estimates get fresh data
       showNotification('LED type updated successfully', 'success');
       return true;
     } catch (err: unknown) {
@@ -310,6 +339,7 @@ export const LEDTypesManager: React.FC = () => {
       } else {
         setLeds(prev => prev.filter(l => l.led_id !== led.led_id));
       }
+      PricingDataResource.clearCache();
       showNotification('LED type deactivated', 'success');
     } catch {
       showNotification('Failed to deactivate LED type', 'error');
@@ -323,6 +353,7 @@ export const LEDTypesManager: React.FC = () => {
     try {
       await ledsApi.updateLED(led.led_id, { is_active: true });
       setLeds(prev => prev.map(l => l.led_id === led.led_id ? { ...l, is_active: true } : l));
+      PricingDataResource.clearCache();
       showNotification('LED type reactivated', 'success');
     } catch {
       showNotification('Failed to reactivate LED type', 'error');
@@ -388,6 +419,7 @@ export const LEDTypesManager: React.FC = () => {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Watts</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Volts</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Brand</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase w-24">Price</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-20">Default</th>
                     <th className="px-4 py-3 w-24"></th>
                   </tr>
@@ -405,8 +437,11 @@ export const LEDTypesManager: React.FC = () => {
                       <td className="px-4 py-3 text-gray-600">{led.watts || '-'}</td>
                       <td className="px-4 py-3 text-gray-600">{led.volts || '-'}</td>
                       <td className="px-4 py-3 text-gray-600">{led.brand || '-'}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">
+                        {led.price != null ? `$${Number(led.price).toFixed(2)}` : '-'}
+                      </td>
                       <td className="px-4 py-3 text-center">
-                        {led.is_default && <Star className="w-4 h-4 text-amber-500 mx-auto fill-current" />}
+                        {led.is_default ? <Star className="w-4 h-4 text-amber-500 mx-auto fill-current" /> : null}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
@@ -487,6 +522,15 @@ export const LEDTypesManager: React.FC = () => {
                 onChange={(e) => setNewLed(prev => ({ ...prev, brand: e.target.value }))}
                 placeholder="Brand"
                 className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                disabled={saving}
+              />
+              <input
+                type="number"
+                step="0.01"
+                value={newLed.price}
+                onChange={(e) => setNewLed(prev => ({ ...prev, price: e.target.value }))}
+                placeholder="Price"
+                className="w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 disabled={saving}
               />
               <button

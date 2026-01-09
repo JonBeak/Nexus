@@ -40,6 +40,7 @@ interface PreparationItem {
   is_description_only: boolean;
   qb_item_id: string | null;
   qb_item_name: string | null;
+  source_product_type_id: number | null;
 }
 
 export interface PreparationTotals {

@@ -6,11 +6,12 @@
 //   - Repository layer was calling service layer (circular dependency risk)
 //   - Now both services and repositories can safely import this utility
 //   - Updated 4 import locations: qbEstimateService, pdfGenerationService, orderRepository (2x)
+//   - Added calculateQBEstimateHash() for QB-specific staleness (2026-01-08)
 // Findings:
 //   - Single responsibility: hash calculation only
 //   - Well-documented, deterministic hashing
 //   - Properly separated from database access
-//   - Dependencies on orderPreparationRepository (getOrderDataForHash, getOrderPartsForHash)
+//   - Dependencies on orderPreparationRepository (getOrderDataForHash, getOrderPartsForHash, getOrderDataForQBHash, getOrderPartsForQBHash)
 // Decision: File is architecturally sound and follows best practices
 
 /**
@@ -100,6 +101,64 @@ export async function calculateOrderDataHash(orderId: number): Promise<string> {
       specs_qty: part.specs_qty ?? 0,
       // Handle JSON specifications field - parse and normalize
       specifications: part.specifications ? JSON.parse(JSON.stringify(part.specifications)) : null,
+      unit_price: part.unit_price ?? null
+    }))
+  };
+
+  // Calculate SHA256 hash
+  const hash = crypto
+    .createHash('sha256')
+    .update(JSON.stringify(hashData))
+    .digest('hex');
+
+  return hash;
+}
+
+/**
+ * Calculate SHA256 hash of QB estimate-related data ONLY
+ *
+ * Creates a deterministic hash based on invoice-related fields only.
+ * Used for QB estimate staleness detection (not PDFs or tasks).
+ *
+ * Includes only fields that affect QB estimate content:
+ * - Order-level: customer_job_number, customer_po, deposit_required, order_name, tax_name, terms
+ * - Part-level: display_number, extended_price, invoice_description, is_header_row,
+ *               part_number, qb_description, qb_item_name, quantity, unit_price
+ *
+ * EXCLUDES production fields like: specs, production_notes, manufacturing_note, etc.
+ *
+ * @param orderId - The order ID to hash
+ * @returns SHA256 hex string
+ */
+export async function calculateQBEstimateHash(orderId: number): Promise<string> {
+  // Get QB-specific order data (invoice fields only)
+  const orderData = await orderPrepRepo.getOrderDataForQBHash(orderId);
+
+  // Get QB-specific parts data (invoice fields only)
+  const orderParts = await orderPrepRepo.getOrderPartsForQBHash(orderId);
+
+  // Create normalized data structure for hashing
+  const hashData = {
+    // Order-level invoice fields (sorted alphabetically for determinism)
+    order: {
+      customer_job_number: orderData?.customer_job_number ?? null,
+      customer_po: orderData?.customer_po ?? null,
+      deposit_required: orderData?.deposit_required ?? false,
+      order_name: orderData?.order_name ?? null,
+      tax_name: orderData?.tax_name ?? null,
+      terms: orderData?.terms ?? null
+    },
+
+    // Part-level invoice fields
+    parts: orderParts.map(part => ({
+      display_number: part.display_number ?? null,
+      extended_price: part.extended_price ?? null,
+      invoice_description: part.invoice_description ?? null,
+      is_header_row: part.is_header_row ?? false,
+      part_number: part.part_number,
+      qb_description: part.qb_description ?? null,
+      qb_item_name: part.qb_item_name ?? null,
+      quantity: part.quantity ?? null,
       unit_price: part.unit_price ?? null
     }))
   };

@@ -59,6 +59,26 @@ export function mapQBItemNameToSpecsDisplayName(qbItemName: string | null | unde
     return 'Front Lit Acrylic Face';
   }
 
+  // Pattern 6: Aluminum Backer → Backer
+  if (/^aluminum\s*backer$/i.test(normalizedName)) {
+    return 'Backer';
+  }
+
+  // Pattern 7: ACM Backer → Backer
+  if (/^acm\s*backer$/i.test(normalizedName)) {
+    return 'Backer';
+  }
+
+  // Pattern 8: Hinged Raceway → Extrusion Raceway
+  if (/^hinged\s*raceway$/i.test(normalizedName)) {
+    return 'Extrusion Raceway';
+  }
+
+  // Pattern 9: Assembly → Assembly (explicit mapping for clarity)
+  if (/^assembly$/i.test(normalizedName)) {
+    return 'Assembly';
+  }
+
   // No mapping found - return original QB item name
   return qbItemName;
 }

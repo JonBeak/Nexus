@@ -1,7 +1,8 @@
 // File Clean up Finished: 2025-11-21
 // Status: ACTIVE - Types used by orderPreparationRepository.ts and qbEstimateService.ts
 // Used types: QBEstimateRecord, StalenessCheckResult, OrderPointPerson, OrderPartForHash,
-//             OrderDataForHash, OrderDataForQBEstimate, OrderPartForQBEstimate, BasicOrderInfo
+//             OrderDataForHash, OrderDataForQBEstimate, OrderPartForQBEstimate, BasicOrderInfo,
+//             OrderDataForQBHash, OrderPartForQBHash
 // Future types (Phase 1.5.c.6): StepResult, FinalizationOptions, FinalizationResult
 
 /**
@@ -147,6 +148,28 @@ export interface OrderDataForHash {
   invoice_notes: string | null;
   shipping_required: boolean;
   sign_image_path: string | null;
+}
+
+// QB Estimate-specific hash types (invoice-related fields only)
+export interface OrderDataForQBHash {
+  customer_job_number: string | null;
+  customer_po: string | null;
+  deposit_required: boolean;
+  order_name: string | null;
+  tax_name: string | null;
+  terms: string | null;
+}
+
+export interface OrderPartForQBHash {
+  display_number: number | null;
+  extended_price: number | null;
+  invoice_description: string | null;
+  is_header_row: boolean;
+  part_number: number;
+  qb_description: string | null;
+  qb_item_name: string | null;
+  quantity: number | null;
+  unit_price: number | null;
 }
 
 export interface BasicOrderInfo {

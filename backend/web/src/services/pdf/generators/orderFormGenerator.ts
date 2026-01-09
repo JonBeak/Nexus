@@ -49,7 +49,8 @@ import {
   buildSortedTemplateRows,
   renderSpecifications,
   calculateOptimalSplitIndex,
-  TemplateRow
+  TemplateRow,
+  renderSignTypeBox
 } from '../renderers/specRenderers';
 import { buildPartColumns, PartColumn } from '../utils/partColumnBuilder';
 import { standardizeOrderParts, PartColumnStandardized } from '../../orderSpecificationStandardizationService';
@@ -137,6 +138,8 @@ function renderCompactHeader(
 /**
  * Render a single part with specs split into 2 horizontal columns (for 9+ specs)
  * Used when there's only 1 part and it has many specs
+ * @param measureOnly - If true, calculate positions but skip drawing (for space measurement)
+ * @param specFontSize - Font size for spec values (default 12pt, can be reduced to 10pt)
  */
 function renderSpecsInTwoColumns(
   doc: any,
@@ -146,7 +149,9 @@ function renderSpecsInTwoColumns(
   contentStartY: number,
   pageWidth: number,
   marginRight: number,
-  formType: FormType
+  formType: FormType,
+  measureOnly: boolean = false,
+  specFontSize: number = FONT_SIZES.SPEC_BODY
 ): number {
   const parent = column.parent;
   const allParts = column.allParts;
@@ -156,46 +161,32 @@ function renderSpecsInTwoColumns(
 
   let currentY = contentStartY;
 
-  // Display name (left aligned, no duplicate for right column)
+  // Display name
   const displayName = parent.specs_display_name || parent.product_type;
-  doc.fontSize(FONT_SIZES.TITLE).font('Helvetica-Bold');
-  const titleLineHeight = doc.currentLineHeight();
 
-  // Render product name + colon in bold
-  const titleText = parent.part_scope ? `${displayName}: ` : displayName;
-  doc.text(titleText, marginLeft, currentY, {
-    width: contentWidth * LAYOUT.PART_NAME_WIDTH_PERCENT,
-    lineBreak: false,
-    continued: false
-  });
+  // Calculate column width for Sign Type box (same as spec columns)
+  const signTypeX = marginLeft + LAYOUT.PART_COLUMN_INNER_PADDING;
+  const signTypeWidth = contentWidth / 2 - (LAYOUT.PART_COLUMN_INNER_PADDING * 2);
 
-  // Append scope inline with smaller, non-bold font, bottom-aligned
-  if (parent.part_scope) {
-    // Calculate X position after product type + colon
-    const titleTextWidth = doc.widthOfString(titleText, { kerning: true });
-    const scopeX = marginLeft + titleTextWidth;
+  // Render Sign Type box (and Scope box if scope exists)
+  currentY = renderSignTypeBox(doc, displayName, parent.part_scope || null, signTypeX, currentY, signTypeWidth, measureOnly);
 
-    // Calculate Y offset to bottom-align (move scope text DOWN)
-    doc.fontSize(12).font('Helvetica'); // 12pt, not bold
-    const scopeLineHeight = doc.currentLineHeight();
-    const scopeY = currentY + (titleLineHeight - scopeLineHeight);
+  // Add padding above the separator line
+  const separatorPadding = 4;
+  currentY += separatorPadding;
 
-    doc.text(parent.part_scope, scopeX, scopeY, {
-      lineBreak: false
-    });
+  // Draw FULL-WIDTH horizontal separator line (thicker line under Sign Type/Scope)
+  if (!measureOnly) {
+    doc.strokeColor(COLORS.DIVIDER_DARK)
+      .lineWidth(LINE_WIDTHS.DIVIDER_MAIN)
+      .moveTo(marginLeft, currentY)
+      .lineTo(pageWidth - marginRight, currentY)
+      .stroke();
+    doc.strokeColor(COLORS.BLACK);
   }
 
-  currentY += titleLineHeight + 2; // Title height + small gap
-
-  // Draw FULL-WIDTH horizontal separator line (not split)
-  doc.strokeColor(COLORS.DIVIDER_LIGHT)
-    .lineWidth(LINE_WIDTHS.DIVIDER_LIGHT)
-    .moveTo(marginLeft, currentY)
-    .lineTo(pageWidth - marginRight, currentY)
-    .stroke();
-  doc.strokeColor(COLORS.BLACK);
-
-  currentY += SPACING.AFTER_SEPARATOR;
+  // Equal padding below the separator line
+  currentY += separatorPadding;
 
   // Use pre-computed sorted specs from standardization service
   const sortedTemplateRows = column.allSpecs;
@@ -212,23 +203,30 @@ function renderSpecsInTwoColumns(
   const columnWidth = contentWidth / 2 - (LAYOUT.PART_COLUMN_INNER_PADDING * 2);
 
   // Render left column specs (pass pre-computed specs to avoid rebuilding)
-  let leftY = renderSpecifications(doc, allParts, leftColumnX, currentY, columnWidth, formType, leftSpecs);
+  let leftY = renderSpecifications(doc, allParts, leftColumnX, currentY, columnWidth, formType, leftSpecs, measureOnly, specFontSize);
 
   // Render right column specs (pass pre-computed specs to avoid rebuilding)
-  let rightY = renderSpecifications(doc, allParts, rightColumnX, currentY, columnWidth, formType, rightSpecs);
+  let rightY = renderSpecifications(doc, allParts, rightColumnX, currentY, columnWidth, formType, rightSpecs, measureOnly, specFontSize);
 
   // Determine where to place quantity box (under the taller column)
   const maxSpecsY = Math.max(leftY, rightY);
   let finalY = maxSpecsY + 5; // Add gap before quantity box
 
   // Render quantity box under the left column (position it under lowest spec row)
-  finalY = renderQuantityBox(doc, specsQty, leftColumnX, finalY, columnWidth);
+  if (!measureOnly) {
+    finalY = renderQuantityBox(doc, specsQty, leftColumnX, finalY, columnWidth);
+  } else {
+    // Still need to account for quantity box height in measurement mode
+    finalY += 25; // Approximate quantity box height
+  }
 
   return finalY;
 }
 
 /**
  * Render all part columns
+ * @param measureOnly - If true, calculate positions but skip drawing (for space measurement)
+ * @param specFontSize - Font size for spec values (default 12pt, can be reduced to 10pt)
  */
 function renderPartColumns(
   doc: any,
@@ -238,7 +236,9 @@ function renderPartColumns(
   contentStartY: number,
   pageWidth: number,
   marginRight: number,
-  formType: FormType
+  formType: FormType,
+  measureOnly: boolean = false,
+  specFontSize: number = FONT_SIZES.SPEC_BODY
 ): number {
   // Check if this is a single-part order with 9+ specs (use 2-column layout)
   if (partColumns.length === 1) {
@@ -247,9 +247,11 @@ function renderPartColumns(
     const sortedSpecs = singleColumn.allSpecs;
 
     if (sortedSpecs.length >= 9) {
-      console.log(`[SINGLE PART 2-COLUMN] Order has ${sortedSpecs.length} specs - using 2-column layout`);
+      if (!measureOnly) {
+        console.log(`[SINGLE PART 2-COLUMN] Order has ${sortedSpecs.length} specs - using 2-column layout`);
+      }
       debugLog(`[SINGLE PART 2-COLUMN] Using 2-column layout for ${sortedSpecs.length} specs`);
-      return renderSpecsInTwoColumns(doc, singleColumn, marginLeft, contentWidth, contentStartY, pageWidth, marginRight, formType);
+      return renderSpecsInTwoColumns(doc, singleColumn, marginLeft, contentWidth, contentStartY, pageWidth, marginRight, formType, measureOnly, specFontSize);
     }
   }
 
@@ -274,58 +276,44 @@ function renderPartColumns(
 
     // Display name
     const displayName = parent.specs_display_name || parent.product_type;
-    doc.fontSize(FONT_SIZES.TITLE).font('Helvetica-Bold');
-    const titleLineHeight = doc.currentLineHeight();
 
-    // Product name + colon in bold
-    const titleText = parent.part_scope ? `${displayName}: ` : displayName;
-    doc.text(titleText, partX, partY, {
-      width: partColumnWidth * LAYOUT.PART_NAME_WIDTH_PERCENT,
-      lineBreak: false,
-      continued: false
-    });
+    // Render Sign Type box (and Scope box if scope exists)
+    partY = renderSignTypeBox(doc, displayName, parent.part_scope || null, partX, partY, partColumnWidth, measureOnly);
 
-    // Append scope inline with smaller, non-bold font, bottom-aligned
-    if (parent.part_scope) {
-      // Calculate X position after product type + colon
-      const titleTextWidth = doc.widthOfString(titleText, { kerning: true });
-      const scopeX = partX + titleTextWidth;
+    // Add padding above the separator line
+    const separatorPadding = 4;
+    partY += separatorPadding;
 
-      // Calculate Y offset to bottom-align (move scope text DOWN)
-      doc.fontSize(12).font('Helvetica'); // 12pt, not bold
-      const scopeLineHeight = doc.currentLineHeight();
-      const scopeY = partY + (titleLineHeight - scopeLineHeight);
-
-      doc.text(parent.part_scope, scopeX, scopeY, {
-        lineBreak: false
-      });
+    // Draw horizontal separator line (thicker line under Sign Type/Scope)
+    if (!measureOnly) {
+      doc.strokeColor(COLORS.DIVIDER_DARK)
+        .lineWidth(LINE_WIDTHS.DIVIDER_MAIN)
+        .moveTo(partX, partY)
+        .lineTo(partX + partColumnWidth, partY)
+        .stroke();
+      doc.strokeColor(COLORS.BLACK);
     }
 
-    // Update partY manually (don't use doc.y in multi-column layout)
-    partY += titleLineHeight + 2; // Title height + small gap
-
-    // Draw horizontal separator line (split for multi-part, full-width for single with <9)
-    doc.strokeColor(COLORS.DIVIDER_LIGHT)
-      .lineWidth(LINE_WIDTHS.DIVIDER_LIGHT)
-      .moveTo(partX, partY)
-      .lineTo(partX + partColumnWidth, partY)
-      .stroke();
-    doc.strokeColor(COLORS.BLACK);
-
-    partY += SPACING.AFTER_SEPARATOR;
+    // Equal padding below the separator line
+    partY += separatorPadding;
 
     // Use pre-computed parts and specs from standardization service
     const allParts = column.allParts;
     debugLog(`[CALL RENDER] Calling renderSpecifications for column with ${allParts.length} parts`);
 
     // Render all specifications using pre-computed sorted specs
-    partY = renderSpecifications(doc, allParts, partX, partY, partColumnWidth, formType, column.allSpecs);
+    partY = renderSpecifications(doc, allParts, partX, partY, partColumnWidth, formType, column.allSpecs, measureOnly, specFontSize);
 
     // Add gap before quantity box
     partY += 5;
 
     // Render quantity box (shared utility function)
-    partY = renderQuantityBox(doc, specsQty, partX, partY, partColumnWidth);
+    if (!measureOnly) {
+      partY = renderQuantityBox(doc, specsQty, partX, partY, partColumnWidth);
+    } else {
+      // Still need to account for quantity box height in measurement mode
+      partY += 25; // Approximate quantity box height
+    }
 
     // Track the maximum Y position
     if (partY > maxPartY) {
@@ -336,7 +324,7 @@ function renderPartColumns(
   debugLog(`[LAYOUT] Actual parts ended at Y: ${maxPartY}`);
 
   // Draw vertical dividers between columns (only if multiple parts)
-  if (numColumns > 1) {
+  if (!measureOnly && numColumns > 1) {
     for (let i = 0; i < numColumns - 1; i++) {
       // Calculate divider X position (between columns)
       const dividerX = marginLeft + ((i + 1) * columnWidth);
@@ -428,8 +416,61 @@ export async function generateOrderForm(
       const standardizedSpecs = standardizeOrderParts(orderData.parts, formType);
       console.log(`[STANDARDIZATION] Generated ${standardizedSpecs.partColumns.length} columns with ${standardizedSpecs.flattenedSpecs.length} total specs`);
 
-      // Render part columns using pre-computed standardized specs
-      const maxPartY = renderPartColumns(doc, standardizedSpecs.partColumns, marginLeft, contentWidth, contentStartY, pageWidth, marginRight, formType);
+      // ============================================
+      // DYNAMIC FONT SIZING - Measure before rendering
+      // ============================================
+
+      // Estimate notes height (rough estimate - notes are relatively consistent)
+      const notesHeight = formType === 'master' ? 60 : 40;
+
+      // Measure at 12pt first (measureOnly=true)
+      const maxPartY12pt = renderPartColumns(
+        doc, standardizedSpecs.partColumns, marginLeft, contentWidth, contentStartY,
+        pageWidth, marginRight, formType, true, 12
+      );
+
+      // Calculate available space for image at 12pt
+      const availableSpace12pt = pageHeight - maxPartY12pt - SPACING.IMAGE_AFTER_PARTS
+        - notesHeight - SPACING.ITEM_GAP - SPACING.IMAGE_BOTTOM_MARGIN;
+
+      console.log(`[FONT SIZE CHECK] ${formType.toUpperCase()}: maxPartY@12pt=${Math.round(maxPartY12pt)}, availableImageSpace=${Math.round(availableSpace12pt)}pt, required=${LAYOUT.MIN_IMAGE_HEIGHT}pt`);
+
+      let specFontSize = 12;
+
+      if (availableSpace12pt < LAYOUT.MIN_IMAGE_HEIGHT) {
+        // Not enough space at 12pt - try 10pt
+        const maxPartY10pt = renderPartColumns(
+          doc, standardizedSpecs.partColumns, marginLeft, contentWidth, contentStartY,
+          pageWidth, marginRight, formType, true, 10
+        );
+
+        const availableSpace10pt = pageHeight - maxPartY10pt - SPACING.IMAGE_AFTER_PARTS
+          - notesHeight - SPACING.ITEM_GAP - SPACING.IMAGE_BOTTOM_MARGIN;
+
+        console.log(`[FONT SIZE CHECK] ${formType.toUpperCase()}: maxPartY@10pt=${Math.round(maxPartY10pt)}, availableImageSpace=${Math.round(availableSpace10pt)}pt`);
+
+        if (availableSpace10pt >= LAYOUT.MIN_IMAGE_HEIGHT) {
+          specFontSize = 10;
+          console.log(`[FONT SIZE] ${formType.toUpperCase()} form: Using 10pt font to fit image`);
+        } else {
+          // Even 10pt won't fit - throw error
+          throw new Error(
+            `Cannot generate ${formType} form for order ${orderData.order_number}: Too many specifications.\n` +
+            `Available image space: ${Math.round(availableSpace10pt)}pt (need ${LAYOUT.MIN_IMAGE_HEIGHT}pt minimum).\n` +
+            `Consider reducing specifications or splitting into multiple line items.`
+          );
+        }
+      }
+
+      // ============================================
+      // RENDER - Now render for real with chosen font size
+      // ============================================
+
+      // Render part columns using pre-computed standardized specs (measureOnly=false)
+      const maxPartY = renderPartColumns(
+        doc, standardizedSpecs.partColumns, marginLeft, contentWidth, contentStartY,
+        pageWidth, marginRight, formType, false, specFontSize
+      );
 
       // Render notes and image section
       await renderNotesAndImage(doc, orderData, maxPartY, marginLeft, contentWidth, pageWidth, marginRight, pageHeight, {

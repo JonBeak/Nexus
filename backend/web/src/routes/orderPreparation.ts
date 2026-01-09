@@ -108,6 +108,17 @@ router.post(
 );
 
 /**
+ * POST /api/order-preparation/:orderNumber/resolve-unknown-applications
+ * Resolve unknown vinyl/digital print applications by creating tasks
+ */
+router.post(
+  '/:orderNumber/resolve-unknown-applications',
+  authenticateToken,
+  requirePermission('orders.prepare'),
+  orderPrepController.resolveUnknownApplications
+);
+
+/**
  * GET /api/order-preparation/:orderNumber/point-persons
  * Get point persons for order (for Phase 1.5.c.6.3 - Send to Customer)
  */

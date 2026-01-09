@@ -31,6 +31,7 @@ const RolesManager = lazy(() => import('./components/settings/RolesManager').the
 const AuditLogViewer = lazy(() => import('./components/settings/AuditLogViewer').then(m => ({ default: m.AuditLogViewer })));
 const EmailTemplatesManager = lazy(() => import('./components/settings/EmailTemplatesManager').then(m => ({ default: m.EmailTemplatesManager })));
 const PaintingMatrixManager = lazy(() => import('./components/settings/PaintingMatrixManager').then(m => ({ default: m.PaintingMatrixManager })));
+const VinylApplicationMatrixManager = lazy(() => import('./components/settings/VinylApplicationMatrixManager').then(m => ({ default: m.VinylApplicationMatrixManager })));
 const LEDTypesManager = lazy(() => import('./components/settings/LEDTypesManager').then(m => ({ default: m.LEDTypesManager })));
 const PaymentsPage = lazy(() => import('./pages/PaymentsPage'));
 const InvoicesPage = lazy(() => import('./components/invoices/InvoicesPage'));
@@ -196,6 +197,7 @@ function AppContent() {
           <Route path="tasks" element={<TasksManager />} />
           <Route path="roles" element={<RolesManager />} />
           <Route path="painting-matrix" element={<PaintingMatrixManager />} />
+          <Route path="vinyl-matrix" element={<VinylApplicationMatrixManager />} />
           <Route path="email-templates" element={<EmailTemplatesManager />} />
           <Route path="led-types" element={<LEDTypesManager />} />
           <Route path="audit-log" element={<AuditLogViewer />} />

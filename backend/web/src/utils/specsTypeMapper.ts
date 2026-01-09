@@ -77,6 +77,9 @@ export function mapSpecsDisplayNameToTypes(
     // Other Products
     'Substrate Cut': ['Material', 'Cutting', 'Mounting', 'D-Tape'],
     'Painting': ['Painting'],
+
+    // Standalone Assembly
+    'Assembly': ['Assembly'],
   };
 
   // Look up the spec types for this display name
@@ -153,6 +156,7 @@ export function getAllSpecsDisplayNames(): string[] {
     'Knockout Box',
     'Substrate Cut',
     'Painting',
+    'Assembly',
 
     // ===== UNMAPPED ITEMS (14) - To be mapped incrementally =====
     'Dual Lit',
@@ -203,5 +207,6 @@ export function getMappedSpecsDisplayNames(): string[] {
     'Knockout Box',
     'Substrate Cut',
     'Painting',
+    'Assembly',
   ];
 }

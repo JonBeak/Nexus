@@ -368,8 +368,8 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
       const items: EstimateLineItem[] = preparationItems.map((item: any, index: number) => ({
         rowId: `prep-${item.id}`,
         inputGridDisplayNumber: String(index + 1),
-        productTypeId: 0,
-        productTypeName: 'Preparation',
+        productTypeId: item.source_product_type_id || 0,
+        productTypeName: item.item_name || 'Preparation',
         itemName: item.item_name || '',
         description: item.qb_description || '',
         calculationDisplay: item.calculation_display || '',

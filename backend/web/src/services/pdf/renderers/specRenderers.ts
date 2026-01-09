@@ -61,6 +61,22 @@ function shouldSkipBackSpec(specsDisplayName: string | null, backSpecs: Record<s
 }
 
 // ============================================
+// SPEEDBOX CONSOLIDATION (Customer Forms Only)
+// ============================================
+
+/**
+ * Speedbox normalization mappings for customer PDF
+ * Maps specific wattage variants to their base name
+ * Note: Database uses "SpdBox" abbreviation due to name length constraints
+ */
+const SPEEDBOX_CONSOLIDATION: Record<string, string> = {
+  'Speedbox 60W': 'Speedbox',
+  'Speedbox 180W': 'Speedbox',
+  '24V SpdBox 96W': '24V Speedbox',
+  '24V SpdBox 192W': '24V Speedbox'
+};
+
+// ============================================
 // TYPE DEFINITIONS
 // ============================================
 
@@ -68,6 +84,80 @@ export interface TemplateRow {
   template: string;
   rowNum: string;
   specs: Record<string, any>;
+}
+
+/**
+ * Consolidate Speedbox power supplies for customer forms
+ * - Renames variants to base name (Speedbox 60W → Speedbox)
+ * - Merges duplicate entries (if both 60W and 180W exist, show one "Speedbox")
+ *
+ * Only applies to customer forms - master/shop forms keep original values
+ */
+function consolidateSpeedboxSpecs(
+  specs: TemplateRow[],
+  formType: FormType
+): TemplateRow[] {
+  if (formType !== 'customer') return specs;
+
+  // Find Power Supply row indices
+  const powerSupplyIndices: number[] = [];
+  specs.forEach((s, i) => {
+    if (s.template === 'Power Supply') powerSupplyIndices.push(i);
+  });
+
+  if (powerSupplyIndices.length === 0) return specs;
+
+  // Track seen normalized Speedbox types to merge duplicates
+  const seenSpeedboxTypes = new Map<string, TemplateRow>();
+  const normalizedPowerSupplyRows: TemplateRow[] = [];
+
+  for (const idx of powerSupplyIndices) {
+    const row = specs[idx];
+    const psType = row.specs.ps_type || '';
+
+    // Extract base name from ps_type (remove parenthetical like "(60W, 24V)")
+    const basePsType = psType.split(' (')[0].trim();
+
+    // Check if this is a Speedbox variant that should be normalized
+    const normalizedName = SPEEDBOX_CONSOLIDATION[basePsType];
+
+    if (normalizedName) {
+      // This is a Speedbox variant - check if we already have this base type
+      if (!seenSpeedboxTypes.has(normalizedName)) {
+        // First occurrence - normalize the type name
+        const normalizedRow: TemplateRow = {
+          template: row.template,
+          rowNum: row.rowNum,
+          specs: { ...row.specs, ps_type: normalizedName }
+        };
+        seenSpeedboxTypes.set(normalizedName, normalizedRow);
+        normalizedPowerSupplyRows.push(normalizedRow);
+      }
+      // If we've seen it before, skip (merge by dropping duplicate)
+    } else {
+      // Not a Speedbox variant - keep as-is
+      normalizedPowerSupplyRows.push(row);
+    }
+  }
+
+  // Rebuild specs array: replace Power Supply rows with consolidated ones
+  const result: TemplateRow[] = [];
+  let psInserted = false;
+
+  for (let i = 0; i < specs.length; i++) {
+    if (specs[i].template === 'Power Supply') {
+      if (!psInserted) {
+        // Insert all consolidated Power Supply rows at the first PS position
+        result.push(...normalizedPowerSupplyRows);
+        psInserted = true;
+      }
+      // Skip original PS rows (they're replaced)
+    } else {
+      result.push(specs[i]);
+    }
+  }
+
+  return result;
 }
 
 // ============================================
@@ -393,6 +483,8 @@ function shouldAdjustSplit(
 
 /**
  * Render specifications for parts (parent + sub-items combined)
+ * @param measureOnly - If true, calculate positions but skip drawing (for space measurement)
+ * @param specFontSize - Font size for spec values (default 12pt, can be reduced to 10pt)
  */
 export function renderSpecifications(
   doc: any,
@@ -401,22 +493,27 @@ export function renderSpecifications(
   startY: number,
   width: number,
   formType: FormType,
-  specsToRender?: Array<{ template: string; rowNum: string; specs: Record<string, any> }>
+  specsToRender?: Array<{ template: string; rowNum: string; specs: Record<string, any> }>,
+  measureOnly: boolean = false,
+  specFontSize: number = FONT_SIZES.SPEC_BODY
 ): number {
   debugLog('[PDF RENDER] ========== START renderSpecifications ==========');
-  debugLog(`[PDF RENDER] Processing ${parts.length} parts for ${formType} form`);
+  debugLog(`[PDF RENDER] Processing ${parts.length} parts for ${formType} form, measureOnly=${measureOnly}, fontSize=${specFontSize}`);
 
   let currentY = startY;
 
   // Use provided specs or build from parts
   const sortedTemplateRows = specsToRender || buildSortedTemplateRows(parts, formType);
 
+  // Consolidate Speedbox power supplies for customer forms
+  const finalRows = consolidateSpeedboxSpecs(sortedTemplateRows, formType);
+
   const specsDisplayName = parts.length > 0 ? parts[0].specs_display_name : null;
   const isExemptFromCritical = specsDisplayName && SPECS_EXEMPT_FROM_CRITICAL.includes(specsDisplayName as any);
 
   // Render each template row
-  doc.fontSize(FONT_SIZES.SPEC_BODY);
-  sortedTemplateRows.forEach(row => {
+  doc.fontSize(specFontSize);
+  finalRows.forEach(row => {
     const isCriticalSpec = CRITICAL_SPECS.includes(row.template as any) && !isExemptFromCritical;
 
     // Skip Back spec if it matches the default value for this product type
@@ -428,11 +525,11 @@ export function renderSpecifications(
     // Critical specs: always show them (unless exempt)
     if (isCriticalSpec) {
       const valueStr = formatSpecValues(row.template, row.specs, formType) || 'None';
-      currentY = renderSpecRow(doc, row.template, valueStr, x, currentY, width);
+      currentY = renderSpecRow(doc, row.template, valueStr, x, currentY, width, measureOnly, specFontSize);
     } else if (Object.keys(row.specs).length > 0) {
       // Other specs: only show if there are values
       const valueStr = formatSpecValues(row.template, row.specs, formType);
-      currentY = renderSpecRow(doc, row.template, valueStr, x, currentY, width);
+      currentY = renderSpecRow(doc, row.template, valueStr, x, currentY, width, measureOnly, specFontSize);
     }
   });
 
@@ -506,6 +603,8 @@ export function calculateAccurateTextHeight(
 
 /**
  * Render a single spec row with label and value
+ * @param measureOnly - If true, calculate positions but skip drawing (for space measurement)
+ * @param specFontSize - Font size for spec values (default 12pt, can be reduced to 10pt)
  */
 function renderSpecRow(
   doc: any,
@@ -513,7 +612,9 @@ function renderSpecRow(
   value: string,
   x: number,
   currentY: number,
-  width: number
+  width: number,
+  measureOnly: boolean = false,
+  specFontSize: number = FONT_SIZES.SPEC_BODY
 ): number {
   const labelText = label;
   const trimmedValue = value?.trim() || '';
@@ -521,7 +622,7 @@ function renderSpecRow(
   // === STEP 1: Calculate all dimensions first ===
 
   // Label dimensions (11pt font)
-  doc.fontSize(11).font('Helvetica-Bold');
+  doc.fontSize(FONT_SIZES.SPEC_LABEL).font('Helvetica-Bold');
   const labelHeight = doc.currentLineHeight();
 
   // Get standardized label width
@@ -547,18 +648,18 @@ function renderSpecRow(
 
   if (trimmedValue === 'None') {
     // "None" values use 12pt regular font (matches other values)
-    doc.fontSize(12).font('Helvetica');
+    doc.fontSize(specFontSize).font('Helvetica');
     valueLineHeight = doc.currentLineHeight();
     valueHeight = valueLineHeight;
   } else {
     // Normal values use 12pt font
     if (trimmedValue) {
       // Use accurate calculation for wrapped text (using max text width for wrapping)
-      valueHeight = calculateAccurateTextHeight(doc, trimmedValue, maxTextWidth, 12, 'Helvetica');
-      doc.fontSize(12).font('Helvetica');
+      valueHeight = calculateAccurateTextHeight(doc, trimmedValue, maxTextWidth, specFontSize, 'Helvetica');
+      doc.fontSize(specFontSize).font('Helvetica');
       valueLineHeight = doc.currentLineHeight();
     } else {
-      doc.fontSize(12).font('Helvetica');
+      doc.fontSize(specFontSize).font('Helvetica');
       valueLineHeight = doc.currentLineHeight();
       valueHeight = valueLineHeight;
     }
@@ -601,7 +702,7 @@ function renderSpecRow(
 
   if (trimmedValue === 'None') {
     // Special styling for "None" values - same compound path structure, then fill cutout with NO_BG
-    doc.fontSize(12).font('Helvetica');
+    doc.fontSize(specFontSize).font('Helvetica');
     const noTextWidth = doc.widthOfString(value);
 
     // Value box width based on text + padding
@@ -616,41 +717,44 @@ function renderSpecRow(
     const cutoutWidth = valueBoxWidth - borderWidth;
     const cutoutHeight = labelBoxHeight - (borderWidth * 2);
 
-    // Create compound path and fill with evenOdd rule (label + borders)
-    doc.rect(labelBoxStartX, labelBoxStartY, outerWidth, labelBoxHeight)  // Outer rect
-      .rect(cutoutX, cutoutY, cutoutWidth, cutoutHeight);                  // Inner cutout
-    doc.fillColor(labelBgColor).fill('evenodd');
+    // Only draw if not in measurement mode
+    if (!measureOnly) {
+      // Create compound path and fill with evenOdd rule (label + borders)
+      doc.rect(labelBoxStartX, labelBoxStartY, outerWidth, labelBoxHeight)  // Outer rect
+        .rect(cutoutX, cutoutY, cutoutWidth, cutoutHeight);                  // Inner cutout
+      doc.fillColor(labelBgColor).fill('evenodd');
 
-    // Fill the cutout area with NO_BG
-    doc.fillColor(COLORS.NO_BG)
-      .rect(cutoutX, cutoutY, cutoutWidth, cutoutHeight)
-      .fill();
+      // Fill the cutout area with NO_BG
+      doc.fillColor(COLORS.NO_BG)
+        .rect(cutoutX, cutoutY, cutoutWidth, cutoutHeight)
+        .fill();
 
-    // Render label text (centered vertically in box)
-    const labelTextY = labelBoxStartY + (labelBoxHeight - labelHeight) / 2;
-    const centeredX = labelBoxStartX + textLeftPadding;
-    doc.fillColor(COLORS.BLACK)
-      .fontSize(11)
-      .font('Helvetica-Bold')
-      .text(labelText, centeredX, labelTextY, {
-        continued: false,
-        width: standardLabelWidth,
-        lineBreak: false
-      });
+      // Render label text (centered vertically in box)
+      const labelTextY = labelBoxStartY + (labelBoxHeight - labelHeight) / 2;
+      const centeredX = labelBoxStartX + textLeftPadding;
+      doc.fillColor(COLORS.BLACK)
+        .fontSize(FONT_SIZES.SPEC_LABEL)
+        .font('Helvetica-Bold')
+        .text(labelText, centeredX, labelTextY, {
+          continued: false,
+          width: standardLabelWidth,
+          lineBreak: false
+        });
 
-    // Render "None" text in black, vertically centered in cutout
-    const noLineHeight = doc.currentLineHeight();
-    const noY = cutoutY + (cutoutHeight - noLineHeight) / 2;
-    doc.fillColor(COLORS.BLACK)
-      .fontSize(12)
-      .font('Helvetica')
-      .text(value, valueTextX, noY, {
-        width: noTextWidth,
-        lineBreak: false
-      });
+      // Render "None" text in black, vertically centered in cutout
+      const noLineHeight = doc.currentLineHeight();
+      const noY = cutoutY + (cutoutHeight - noLineHeight) / 2;
+      doc.fillColor(COLORS.BLACK)
+        .fontSize(specFontSize)
+        .font('Helvetica')
+        .text(value, valueTextX, noY, {
+          width: noTextWidth,
+          lineBreak: false
+        });
+    }
   } else {
     // Normal value: use compound path with inset cutout for borders
-    doc.fontSize(12).font('Helvetica');
+    doc.fontSize(specFontSize).font('Helvetica');
 
     // Calculate value text width for dynamic box sizing
     const valueTextWidth = doc.widthOfString(trimmedValue || '');
@@ -675,6 +779,150 @@ function renderSpecRow(
     const cutoutWidth = valueBoxWidth - borderWidth;
     const cutoutHeight = labelBoxHeight - (borderWidth * 2);
 
+    // Only draw if not in measurement mode
+    if (!measureOnly) {
+      // Create compound path and fill with evenOdd rule
+      doc.rect(labelBoxStartX, labelBoxStartY, outerWidth, labelBoxHeight)  // Outer rect
+        .rect(cutoutX, cutoutY, cutoutWidth, cutoutHeight);                  // Inner cutout
+      doc.fillColor(labelBgColor).fill('evenodd');
+
+      // Render label text (centered vertically in box)
+      const labelTextY = labelBoxStartY + (labelBoxHeight - labelHeight) / 2;
+      const centeredX = labelBoxStartX + textLeftPadding;
+      doc.fillColor(COLORS.BLACK)
+        .fontSize(FONT_SIZES.SPEC_LABEL)
+        .font('Helvetica-Bold')
+        .text(labelText, centeredX, labelTextY, {
+          continued: false,
+          width: standardLabelWidth,
+          lineBreak: false
+        });
+
+      // Render value text (use maxTextWidth for consistent wrapping)
+      doc.fillColor(COLORS.BLACK)
+        .fontSize(specFontSize)
+        .font('Helvetica')
+        .text(value, valueTextX, valueY, {
+          width: maxTextWidth,
+          lineBreak: true
+        });
+    }
+  }
+
+  // === STEP 6: Return bottom of row + gap ===
+
+  const rowBottom = labelBoxStartY + labelBoxHeight;
+  return rowBottom + SPACING.SPEC_ROW_GAP;
+}
+
+/**
+ * Render a label/value box with configurable value font size
+ * Used for Sign Type and Scope boxes which have larger/smaller fonts than spec rows
+ * @param measureOnly - If true, calculate positions but skip drawing (for space measurement)
+ */
+function renderLabelValueBox(
+  doc: any,
+  label: string,
+  value: string,
+  x: number,
+  currentY: number,
+  width: number,
+  valueFontSize: number,
+  boldValue: boolean = false,
+  measureOnly: boolean = false
+): number {
+  const labelText = label;
+  const trimmedValue = value?.trim() || '';
+
+  // === STEP 1: Calculate all dimensions first ===
+
+  // Label dimensions (11pt font)
+  doc.fontSize(FONT_SIZES.SPEC_LABEL).font('Helvetica-Bold');
+  const labelHeight = doc.currentLineHeight();
+
+  // Get standardized label width
+  const standardLabelWidth = getStandardLabelWidth(doc);
+
+  // Calculate actual text width for horizontal centering
+  const actualTextWidth = doc.widthOfString(labelText);
+  const textLeftPadding = (standardLabelWidth - actualTextWidth) / 2;
+
+  // Value box positioning - starts immediately after label box (connected)
+  const valueBoxStartX = x - SPACING.LABEL_PADDING + standardLabelWidth;
+  const valueBoxPaddingLeft = 6;  // Left padding inside value box
+  const valueBoxPaddingRight = 6; // Equal right padding
+
+  // Maximum available width for value box (from label end to column edge)
+  const maxValueBoxWidth = width - standardLabelWidth + SPACING.LABEL_PADDING;
+  // Maximum text width inside value box
+  const maxTextWidth = maxValueBoxWidth - valueBoxPaddingLeft - valueBoxPaddingRight;
+
+  // Calculate value height based on content and font - ACCURATELY
+  let valueHeight = 0;
+  let valueLineHeight = 0;
+  const valueFont = boldValue ? 'Helvetica-Bold' : 'Helvetica';
+
+  // Use configurable font size for value
+  if (trimmedValue) {
+    valueHeight = calculateAccurateTextHeight(doc, trimmedValue, maxTextWidth, valueFontSize, valueFont);
+    doc.fontSize(valueFontSize).font(valueFont);
+    valueLineHeight = doc.currentLineHeight();
+  } else {
+    doc.fontSize(valueFontSize).font(valueFont);
+    valueLineHeight = doc.currentLineHeight();
+    valueHeight = valueLineHeight;
+  }
+
+  const effectiveValueHeight = Math.max(valueHeight, valueLineHeight);
+
+  // Add padding above and below the value height
+  const valuePadding = 1;
+  const paddedValueHeight = effectiveValueHeight + (valuePadding * 2);
+
+  // Calculate label box height with padding for text positioning
+  const topTextPadding = 3;
+  const bottomTextPadding = 1;
+  const maxContentHeight = Math.max(labelHeight, paddedValueHeight);
+  const labelBoxHeight = maxContentHeight + topTextPadding + bottomTextPadding;
+
+  // === STEP 2: Use darker label background color (for Sign Type/Scope boxes) ===
+  const labelBgColor = COLORS.LABEL_BG_DARKER;
+
+  // === STEP 3: Calculate positions ===
+  const labelBoxStartY = currentY;
+  const labelBoxStartX = x - SPACING.LABEL_PADDING;
+  const borderWidth = 1;
+
+  // Calculate value text X position (with left padding)
+  const valueTextX = valueBoxStartX + valueBoxPaddingLeft;
+
+  // === STEP 4: Draw label + value box using compound path ===
+  doc.fontSize(valueFontSize).font(valueFont);
+
+  // Calculate value text width for dynamic box sizing
+  const valueTextWidth = doc.widthOfString(trimmedValue || '');
+  const needsWrapping = valueTextWidth > maxTextWidth;
+
+  let valueBoxWidth: number;
+  if (needsWrapping || !trimmedValue) {
+    // Multi-line or empty: use max available width
+    valueBoxWidth = maxValueBoxWidth;
+  } else {
+    // Single line: dynamic width based on text
+    valueBoxWidth = valueBoxPaddingLeft + valueTextWidth + valueBoxPaddingRight;
+  }
+
+  // Compound path: outer rect (label + value + borders) with inner cutout (value content)
+  const outerWidth = standardLabelWidth + valueBoxWidth;
+
+  // Cutout: inset by borderWidth on top/right/bottom, no inset on left (connects to label)
+  const cutoutX = valueBoxStartX;
+  const cutoutY = labelBoxStartY + borderWidth;
+  const cutoutWidth = valueBoxWidth - borderWidth;
+  const cutoutHeight = labelBoxHeight - (borderWidth * 2);
+
+  // Only draw if not in measurement mode
+  if (!measureOnly) {
     // Create compound path and fill with evenOdd rule
     doc.rect(labelBoxStartX, labelBoxStartY, outerWidth, labelBoxHeight)  // Outer rect
       .rect(cutoutX, cutoutY, cutoutWidth, cutoutHeight);                  // Inner cutout
@@ -684,7 +932,7 @@ function renderSpecRow(
     const labelTextY = labelBoxStartY + (labelBoxHeight - labelHeight) / 2;
     const centeredX = labelBoxStartX + textLeftPadding;
     doc.fillColor(COLORS.BLACK)
-      .fontSize(11)
+      .fontSize(FONT_SIZES.SPEC_LABEL)
       .font('Helvetica-Bold')
       .text(labelText, centeredX, labelTextY, {
         continued: false,
@@ -692,18 +940,62 @@ function renderSpecRow(
         lineBreak: false
       });
 
+    // Calculate value Y position (centered vertically for single line, top-aligned for multi-line)
+    let valueY: number;
+    if (needsWrapping) {
+      // Multi-line: start at top with padding
+      valueY = labelBoxStartY + topTextPadding + valuePadding;
+    } else {
+      // Single line: center vertically in box
+      valueY = labelBoxStartY + (labelBoxHeight - valueLineHeight) / 2;
+    }
+
     // Render value text (use maxTextWidth for consistent wrapping)
     doc.fillColor(COLORS.BLACK)
-      .fontSize(12)
-      .font('Helvetica')
+      .fontSize(valueFontSize)
+      .font(valueFont)
       .text(value, valueTextX, valueY, {
         width: maxTextWidth,
         lineBreak: true
       });
   }
 
-  // === STEP 6: Return bottom of row + gap ===
-
+  // === STEP 5: Return bottom of row + gap ===
   const rowBottom = labelBoxStartY + labelBoxHeight;
   return rowBottom + SPACING.SPEC_ROW_GAP;
+}
+
+/**
+ * Render Sign Type and optional Scope label/value boxes
+ * Replaces the plain text product name title with styled boxes
+ *
+ * @param doc - PDFKit document
+ * @param displayName - Product type name (e.g., "Front Lit")
+ * @param scope - Optional scope text (e.g., "Illuminated Box Sign")
+ * @param x - X position for rendering
+ * @param startY - Starting Y position
+ * @param width - Available width for the boxes
+ * @param measureOnly - If true, calculate positions but skip drawing (for space measurement)
+ * @returns New Y position after rendering boxes
+ */
+export function renderSignTypeBox(
+  doc: any,
+  displayName: string,
+  scope: string | null,
+  x: number,
+  startY: number,
+  width: number,
+  measureOnly: boolean = false
+): number {
+  let currentY = startY;
+
+  // Render Sign Type box (14pt bold value font)
+  currentY = renderLabelValueBox(doc, 'Sign Type', displayName, x, currentY, width, FONT_SIZES.SIGN_TYPE_VALUE, true, measureOnly);
+
+  // Render Scope box if scope exists (10pt value font with wrapping)
+  if (scope) {
+    currentY = renderLabelValueBox(doc, 'Scope', scope, x, currentY, width, FONT_SIZES.SCOPE_VALUE, false, measureOnly);
+  }
+
+  return currentY;
 }

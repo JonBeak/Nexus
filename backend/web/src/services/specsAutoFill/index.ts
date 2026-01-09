@@ -107,6 +107,26 @@ export async function autoFillSpecifications(input: AutoFillInput): Promise<Auto
       autoFillBacker(input, parsed, specs, warnings, filledFields);
       break;
 
+    case 'Assembly':
+      // Assembly specs get default description
+      for (let i = 1; i <= 10; i++) {
+        const templateName = specs[`_template_${i}`];
+        if (!templateName) break;
+        if (templateName === 'Assembly') {
+          const descField = `row${i}_description`;
+          specs[descField] = 'Yes, ___';
+          filledFields.push(descField);
+          console.log(`[Specs Auto-Fill] ✓ Filled ${descField} = "Yes, ___"`);
+          break;
+        }
+      }
+      break;
+
+    case 'Extrusion Raceway':
+      // Extrusion Raceway specs are left empty (colour and assembly for manual entry)
+      console.log('[Specs Auto-Fill] Extrusion Raceway - no auto-fill (for manual entry)');
+      break;
+
     default:
       console.log('[Specs Auto-Fill] No auto-fill rules defined for:', input.specsDisplayName);
   }

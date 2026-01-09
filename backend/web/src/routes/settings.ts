@@ -50,6 +50,15 @@ router.get('/painting-matrix/:productTypeKey', requireRole('manager', 'owner'), 
 router.put('/painting-matrix/:matrixId', requireRole('manager', 'owner'), (req, res) => settingsController.updateMatrixEntry(req, res));
 
 // =============================================================================
+// Vinyl Application Matrix (Manager+)
+// =============================================================================
+router.get('/vinyl-matrix/product-types', requireRole('manager', 'owner'), (req, res) => settingsController.getVinylMatrixProductTypes(req, res));
+router.get('/vinyl-matrix/:productTypeKey', requireRole('manager', 'owner'), (req, res) => settingsController.getVinylMatrixByProductType(req, res));
+router.put('/vinyl-matrix/:matrixId', requireRole('manager', 'owner'), (req, res) => settingsController.updateVinylMatrixEntry(req, res));
+router.post('/vinyl-matrix', requireRole('manager', 'owner'), (req, res) => settingsController.createVinylMatrixEntry(req, res));
+router.post('/vinyl-matrix/with-application', requireRole('manager', 'owner'), (req, res) => settingsController.createApplicationWithVinylMatrix(req, res));
+
+// =============================================================================
 // Email Templates (Manager+)
 // =============================================================================
 router.get('/email-templates', requireRole('manager', 'owner'), (req, res) => settingsController.getAllTemplates(req, res));

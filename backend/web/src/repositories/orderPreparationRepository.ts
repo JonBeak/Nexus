@@ -7,8 +7,9 @@
 //   3. Added getOrderDataForQBEstimate() - moved from qbEstimateService
 //   4. Added getOrderPartsForQBEstimate() - moved from qbEstimateService
 //   5. Updated OrderPointPerson interface to match database schema
+//   6. Added getOrderDataForQBHash() and getOrderPartsForQBHash() for QB-specific staleness (2026-01-08)
 // Findings:
-//   - All 8 functions are properly used in production
+//   - All functions are properly used in production
 //   - Already uses query() helper ✅
 //   - Proper 3-layer architecture (repository handles all DB access)
 // Decision: File is now type-safe and architecturally sound
@@ -31,6 +32,8 @@ import {
   OrderDataForHash,
   OrderDataForQBEstimate,
   OrderPartForQBEstimate,
+  OrderDataForQBHash,
+  OrderPartForQBHash,
   BasicOrderInfo
 } from '../types/orderPreparation';
 
@@ -211,6 +214,56 @@ export async function getPointPersonsForHash(orderId: number): Promise<Array<{co
     contact_name: row.contact_name,
     contact_email: row.contact_email
   }));
+}
+
+/**
+ * Get order-level data for QB estimate hash calculation
+ * Only includes invoice-related fields (not production fields)
+ */
+export async function getOrderDataForQBHash(orderId: number): Promise<OrderDataForQBHash | null> {
+  const rows = await query(
+    `SELECT
+      customer_job_number,
+      customer_po,
+      deposit_required,
+      order_name,
+      tax_name,
+      terms
+    FROM orders
+    WHERE order_id = ?`,
+    [orderId]
+  ) as RowDataPacket[];
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return rows[0] as unknown as OrderDataForQBHash;
+}
+
+/**
+ * Get order parts data for QB estimate hash calculation
+ * Only includes invoice-related fields (not production/spec fields)
+ */
+export async function getOrderPartsForQBHash(orderId: number): Promise<OrderPartForQBHash[]> {
+  const rows = await query(
+    `SELECT
+      display_number,
+      extended_price,
+      invoice_description,
+      COALESCE(is_header_row, 0) as is_header_row,
+      part_number,
+      qb_description,
+      qb_item_name,
+      quantity,
+      unit_price
+    FROM order_parts
+    WHERE order_id = ?
+    ORDER BY part_number, display_number`,
+    [orderId]
+  ) as RowDataPacket[];
+
+  return rows as unknown as OrderPartForQBHash[];
 }
 
 /**

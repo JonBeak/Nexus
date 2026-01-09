@@ -1299,15 +1299,13 @@ async function createEstimateEmailMessage(data: EstimateEmailData): Promise<stri
 
       // MailComposer strips BCC headers (standard SMTP behavior), but Gmail API
       // needs the BCC header in the raw message to deliver to BCC recipients.
-      // Manually insert BCC header after the To: line.
+      // Insert BCC header before the Subject: line (more reliable than after To: which may wrap)
       if (allBccRecipients.length > 0) {
-        // Find the To: header line and insert BCC after it
-        const toHeaderMatch = messageStr.match(/^To: .+$/m);
-        if (toHeaderMatch) {
-          const toHeader = toHeaderMatch[0];
-          const bccHeader = `Bcc: ${allBccRecipients.join(', ')}`;
-          messageStr = messageStr.replace(toHeader, `${toHeader}\r\n${bccHeader}`);
-          console.log(`   📧 BCC header injected: ${allBccRecipients.join(', ')}`);
+        const bccValue = allBccRecipients.join(', ');
+        const subjectMatch = messageStr.match(/^Subject: /m);
+        if (subjectMatch) {
+          messageStr = messageStr.replace(/^Subject: /m, `Bcc: ${bccValue}\r\nSubject: `);
+          console.log(`   📧 BCC header injected: ${bccValue}`);
         }
       }
 

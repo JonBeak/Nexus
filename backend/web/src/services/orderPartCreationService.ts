@@ -136,13 +136,18 @@ export class OrderPartCreationService {
       const productTypeId = this.generateProductTypeId(item.productTypeName);
 
       // Get product type info from database (for channel letter detection)
-      const productTypeInfo = await orderConversionRepository.getProductTypeInfo(item.productTypeId, connection);
-
-      if (!productTypeInfo) {
-        throw new Error(`Product type ${item.productTypeId} not found`);
+      // Skip lookup for invalid productTypeId (0 or negative) - treat as non-channel-letter
+      let isChannelLetter = false;
+      let baseProductTypeId: number | undefined = undefined;
+      if (item.productTypeId > 0) {
+        const productTypeInfo = await orderConversionRepository.getProductTypeInfo(item.productTypeId, connection);
+        if (productTypeInfo) {
+          isChannelLetter = productTypeInfo.is_channel_letter;
+          baseProductTypeId = !isChannelLetter ? productTypeInfo.id : undefined;
+        } else {
+          console.warn(`[Order Parts] Product type ${item.productTypeId} not found - treating as non-channel-letter`);
+        }
       }
-
-      const isChannelLetter = productTypeInfo.is_channel_letter;
 
       // Auto-map QB item name and description (case-insensitive match)
       const qbItemData = qbMap.get(item.itemName.toLowerCase());
@@ -266,7 +271,7 @@ export class OrderPartCreationService {
         specs_qty: finalQuantity || 0,  // Manufacturing quantity (dedicated column) - separate from invoice quantity
         product_type_id: productTypeId,
         channel_letter_type_id: undefined,  // Phase 1: NULL (can enhance later)
-        base_product_type_id: !isChannelLetter ? productTypeInfo.id : undefined,
+        base_product_type_id: baseProductTypeId,
         quantity: finalQuantity,  // Phase 1.6: May be from QB Estimate
         specifications: finalSpecifications,  // Use auto-filled specifications
         // Invoice data from preview (Phase 1.6: May be from QB Estimate)
@@ -307,7 +312,7 @@ export class OrderPartCreationService {
         specs_display_name: specsDisplayName,  // Mapped display name for Specs section
         product_type_id: productTypeId,
         channel_letter_type_id: undefined,
-        base_product_type_id: !isChannelLetter ? productTypeInfo.id : undefined,
+        base_product_type_id: baseProductTypeId,
         quantity: finalQuantity,  // Phase 1.6: May be from QB Estimate
         specifications: finalSpecifications,  // Use auto-filled specifications
         invoice_description: isDescriptionOnlyRow ? '' : item.calculationDisplay,

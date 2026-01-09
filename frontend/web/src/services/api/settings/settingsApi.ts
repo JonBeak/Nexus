@@ -96,6 +96,19 @@ export interface ProductType {
   product_type: string;
 }
 
+export interface VinylMatrixEntry {
+  matrix_id: number;
+  product_type: string;
+  product_type_key: string;
+  application: string;
+  application_key: string;
+  task_names: string[];
+  is_active: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AuditLogEntry {
   log_id: number;
   table_name: string;
@@ -349,6 +362,60 @@ export const settingsApi = {
    */
   async updatePaintingMatrixEntry(matrixId: number, taskNumbers: number[] | null): Promise<void> {
     await api.put(`/settings/painting-matrix/${matrixId}`, { task_numbers: taskNumbers });
+  },
+
+  // -------------------------------------------------------------------------
+  // Vinyl Application Matrix
+  // -------------------------------------------------------------------------
+
+  /**
+   * Get available product types for vinyl matrix
+   */
+  async getVinylMatrixProductTypes(): Promise<ProductType[]> {
+    const response = await api.get('/settings/vinyl-matrix/product-types');
+    return response.data;
+  },
+
+  /**
+   * Get vinyl matrix entries for a product type
+   */
+  async getVinylMatrix(productTypeKey: string): Promise<VinylMatrixEntry[]> {
+    const response = await api.get(`/settings/vinyl-matrix/${productTypeKey}`);
+    return response.data;
+  },
+
+  /**
+   * Update a vinyl matrix entry (task names)
+   */
+  async updateVinylMatrixEntry(matrixId: number, taskNames: string[]): Promise<void> {
+    await api.put(`/settings/vinyl-matrix/${matrixId}`, { task_names: taskNames });
+  },
+
+  /**
+   * Create a new vinyl matrix entry
+   */
+  async createVinylMatrixEntry(data: {
+    product_type: string;
+    product_type_key: string;
+    application: string;
+    application_key: string;
+    task_names: string[];
+  }): Promise<number> {
+    const response = await api.post('/settings/vinyl-matrix', data);
+    return response.data;
+  },
+
+  /**
+   * Create a new application AND a matrix entry for it
+   */
+  async createApplicationWithMatrixEntry(data: {
+    application_value: string;
+    product_type: string;
+    product_type_key: string;
+    task_names: string[];
+  }): Promise<{ optionId: number; matrixId: number }> {
+    const response = await api.post('/settings/vinyl-matrix/with-application', data);
+    return response.data;
   },
 
   // -------------------------------------------------------------------------

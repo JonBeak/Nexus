@@ -215,10 +215,19 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
           {order.order_name || `#${order.order_number}`}
         </p>
 
-        {/* Customer name */}
-        <p className={`text-xs ${PAGE_STYLES.panel.textMuted} truncate mt-0.5`}>
-          {order.customer_name || 'Unknown Customer'}
-        </p>
+        {/* Customer name + Shipping/Pickup label */}
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <p className={`text-xs ${PAGE_STYLES.panel.textMuted} truncate flex-1 min-w-0`}>
+            {order.customer_name || 'Unknown Customer'}
+          </p>
+          <span className={`text-[10px] font-medium px-1 py-0.5 rounded flex-shrink-0 ${
+            order.shipping_required
+              ? 'bg-blue-100 text-blue-700'
+              : 'bg-yellow-100 text-yellow-700'
+          }`}>
+            {order.shipping_required ? 'Ship' : 'Pickup'}
+          </span>
+        </div>
 
         {/* Progress & Due Date row */}
         <div className="flex items-center gap-2 pt-1.5">

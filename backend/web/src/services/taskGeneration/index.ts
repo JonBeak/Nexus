@@ -36,7 +36,8 @@ export async function generateTasksForOrder(orderId: number): Promise<TaskGenera
     requiresManualInput: false,
     manualInputReasons: [],
     warnings: [],
-    paintingWarnings: []
+    paintingWarnings: [],
+    unknownApplications: []
   };
 
   // 1. Load all parts for the order
@@ -93,7 +94,7 @@ export async function generateTasksForOrder(orderId: number): Promise<TaskGenera
     groupTasks.push(...generateComponentTasks(orderId, group.parentPartId, group));
 
     // Conditional tasks (based on spec values)
-    const conditionalResult = generateConditionalTasks(orderId, group.parentPartId, group);
+    const conditionalResult = await generateConditionalTasks(orderId, group.parentPartId, group);
     groupTasks.push(...conditionalResult.tasks);
 
     if (conditionalResult.requiresManualInput) {
@@ -104,6 +105,11 @@ export async function generateTasksForOrder(orderId: number): Promise<TaskGenera
     // Collect painting warnings from conditional tasks result
     if (conditionalResult.paintingWarnings && conditionalResult.paintingWarnings.length > 0) {
       result.paintingWarnings?.push(...conditionalResult.paintingWarnings);
+    }
+
+    // Collect unknown applications
+    if (conditionalResult.unknownApplications && conditionalResult.unknownApplications.length > 0) {
+      result.unknownApplications?.push(...conditionalResult.unknownApplications);
     }
 
     // Add to result

@@ -341,7 +341,8 @@ function renderJobCustomerDetails(
   startY: number
 ): void {
   const fontSize = 11;  // Larger font
-  const rowHeight = 15;
+  const minRowHeight = 15;  // Minimum row height
+  const rowGap = 4;  // Gap between rows
   const sectionWidth = 200;  // Total width for the details section
 
   // Position closer to the right edge
@@ -352,17 +353,23 @@ function renderJobCustomerDetails(
   doc.fontSize(fontSize).font('Helvetica');
 
   // Order Number (with "Order #" prefix, right-justified)
-  doc.text(`Order # ${orderData.order_number}`, sectionX, y, { width: sectionWidth, align: 'right' });
-  y += rowHeight;
+  const orderNumText = `Order # ${orderData.order_number}`;
+  const orderNumHeight = doc.heightOfString(orderNumText, { width: sectionWidth });
+  doc.text(orderNumText, sectionX, y, { width: sectionWidth, align: 'right' });
+  y += Math.max(minRowHeight, orderNumHeight) + rowGap;
 
   // Job Name (right-justified, bold)
   doc.font('Helvetica-Bold');
-  doc.text(orderData.order_name || '', sectionX, y, { width: sectionWidth, align: 'right' });
-  y += rowHeight;
+  const jobName = orderData.order_name || '';
+  const jobNameHeight = doc.heightOfString(jobName, { width: sectionWidth });
+  doc.text(jobName, sectionX, y, { width: sectionWidth, align: 'right' });
+  y += Math.max(minRowHeight, jobNameHeight) + rowGap;
 
   // Customer (right-justified, bold)
-  doc.text(orderData.company_name, sectionX, y, { width: sectionWidth, align: 'right' });
-  y += rowHeight;
+  const customerName = orderData.company_name || '';
+  const customerHeight = doc.heightOfString(customerName, { width: sectionWidth });
+  doc.text(customerName, sectionX, y, { width: sectionWidth, align: 'right' });
+  y += Math.max(minRowHeight, customerHeight) + rowGap;
 
   // Date (format: January 15, 2025, right-justified, normal weight)
   doc.font('Helvetica');

@@ -8,6 +8,7 @@
 
 import { Request, Response } from 'express';
 import { settingsService } from '../services/settingsService';
+import { vinylMatrixService } from '../services/vinylMatrixService';
 import { parseIntParam, handleServiceResult, sendErrorResponse } from '../utils/controllerHelpers';
 
 // Extended request type with user
@@ -265,6 +266,94 @@ export class SettingsController {
     }
 
     const result = await settingsService.updateMatrixCell(matrixId, task_numbers, userId);
+    handleServiceResult(res, result);
+  }
+
+  // ==========================================================================
+  // Vinyl Application Matrix
+  // ==========================================================================
+
+  async getVinylMatrixProductTypes(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const result = await vinylMatrixService.getProductTypes();
+    handleServiceResult(res, result);
+  }
+
+  async getVinylMatrixByProductType(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const { productTypeKey } = req.params;
+    const result = await vinylMatrixService.getMatrixForProductType(productTypeKey);
+    handleServiceResult(res, result);
+  }
+
+  async updateVinylMatrixEntry(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      return sendErrorResponse(res, 'Unauthorized', 'UNAUTHORIZED');
+    }
+
+    const matrixId = parseIntParam(req.params.matrixId, 'Matrix ID');
+    if (matrixId === null) {
+      return sendErrorResponse(res, 'Invalid matrix ID', 'VALIDATION_ERROR');
+    }
+
+    const { task_names } = req.body;
+    if (!Array.isArray(task_names)) {
+      return sendErrorResponse(res, 'task_names must be an array', 'VALIDATION_ERROR');
+    }
+
+    const result = await vinylMatrixService.updateMatrixEntry(matrixId, task_names, userId);
+    handleServiceResult(res, result);
+  }
+
+  async createVinylMatrixEntry(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      return sendErrorResponse(res, 'Unauthorized', 'UNAUTHORIZED');
+    }
+
+    const { product_type, product_type_key, application, application_key, task_names } = req.body;
+
+    if (!product_type || !product_type_key || !application || !application_key) {
+      return sendErrorResponse(res, 'Missing required fields', 'VALIDATION_ERROR');
+    }
+
+    if (!Array.isArray(task_names)) {
+      return sendErrorResponse(res, 'task_names must be an array', 'VALIDATION_ERROR');
+    }
+
+    const result = await vinylMatrixService.createMatrixEntry(
+      product_type,
+      product_type_key,
+      application,
+      application_key,
+      task_names,
+      userId
+    );
+    handleServiceResult(res, result);
+  }
+
+  async createApplicationWithVinylMatrix(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      return sendErrorResponse(res, 'Unauthorized', 'UNAUTHORIZED');
+    }
+
+    const { application_value, product_type, product_type_key, task_names } = req.body;
+
+    if (!application_value || !product_type || !product_type_key) {
+      return sendErrorResponse(res, 'Missing required fields', 'VALIDATION_ERROR');
+    }
+
+    if (!Array.isArray(task_names)) {
+      return sendErrorResponse(res, 'task_names must be an array', 'VALIDATION_ERROR');
+    }
+
+    const result = await vinylMatrixService.createApplicationWithMatrixEntry(
+      application_value,
+      product_type,
+      product_type_key,
+      task_names,
+      userId
+    );
     handleServiceResult(res, result);
   }
 

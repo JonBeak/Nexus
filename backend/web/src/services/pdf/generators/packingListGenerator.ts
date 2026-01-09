@@ -44,6 +44,7 @@ import {
 } from './pdfHeaderRenderers';
 import { renderNotesAndImage } from '../utils/imageProcessing';
 import { buildPartColumns } from '../utils/partColumnBuilder';
+import { renderSignTypeBox } from '../renderers/specRenderers';
 
 
 // =============================================
@@ -155,43 +156,24 @@ export async function generatePackingList(
 
         // Part header - use specs_display_name instead of product_type
         const displayName = part.specs_display_name || part.product_type;
-        doc.fontSize(14).font('Helvetica-Bold');
-        const titleLineHeight = doc.currentLineHeight();
 
-        // Product name + colon in bold (if scope exists)
-        const titleText = part.part_scope ? `${displayName}: ` : displayName;
-        doc.text(titleText, partX, partY, {
-          width: partColumnWidth * 0.6,
-          lineBreak: false,
-          continued: false
-        });
+        // Render Sign Type box (and Scope box if scope exists)
+        partY = renderSignTypeBox(doc, displayName, part.part_scope || null, partX, partY, partColumnWidth);
 
-        // Append scope inline with smaller, non-bold font, bottom-aligned
-        if (part.part_scope) {
-          // Calculate X position after product type + colon
-          const titleTextWidth = doc.widthOfString(titleText);
-          const scopeX = partX + titleTextWidth;
+        // Add padding above the separator line
+        const separatorPadding = 4;
+        partY += separatorPadding;
 
-          // Calculate Y offset to bottom-align (move scope text DOWN)
-          doc.fontSize(12).font('Helvetica'); // 12pt, not bold
-          const scopeLineHeight = doc.currentLineHeight();
-          const scopeY = partY + (titleLineHeight - scopeLineHeight);
-
-          doc.text(part.part_scope, scopeX, scopeY, {
-            lineBreak: false
-          });
-        }
-
-        // Update partY manually
-        partY += titleLineHeight + 2; // Title height + small gap
-
-        // Draw horizontal separator line between header and checklist (same as Master Form)
-        doc.strokeColor('#cccccc').lineWidth(0.5)
+        // Draw horizontal separator line (thicker line under Sign Type/Scope)
+        doc.strokeColor(COLORS.DIVIDER_DARK)
+          .lineWidth(LINE_WIDTHS.DIVIDER_MAIN)
           .moveTo(partX, partY)
           .lineTo(partX + partColumnWidth, partY)
           .stroke();
-        doc.strokeColor('#000000'); // Reset stroke color
-        partY += 8;
+        doc.strokeColor(COLORS.BLACK);
+
+        // Equal padding below the separator line
+        partY += separatorPadding;
 
         // Get packing items using combined specifications from parent + sub-items
         const productTypeForPacking = part.specs_display_name || part.product_type;
@@ -212,15 +194,13 @@ export async function generatePackingList(
         const packingItems = getPackingItemsForProduct(productTypeForPacking, combinedSpecs, customerPrefs);
 
         // Draw packing items with checkboxes and labels - styled like Order Form spec labels
-        const checkboxWidth = 120;  // Longer checkbox
-        const checkboxHeight = 18;  // Higher checkbox
-        const labelFontSize = 11;  // Match Order Form spec labels
+        const valueBoxWidth = 80;   // Smaller, constant width (was 120)
+        const checkboxHeight = 16;  // Box height (reduced from 18 for compact layout)
+        const labelFontSize = FONT_SIZES.SPEC_LABEL;  // 10pt - match spec labels
+        const borderWidth = 1;
 
         // Calculate standardized label width (same as spec labels and Quantity)
         const standardLabelWidth = getStandardLabelWidth(doc);
-
-        // Calculate checkbox X position (right after standard label width + small gap)
-        const checkboxX = partX - SPACING.LABEL_PADDING + standardLabelWidth + 10;
 
         packingItems.forEach((item) => {
           // Item label with light gray background and centered black text (like Order Form spec labels)
@@ -231,47 +211,55 @@ export async function generatePackingList(
           const actualTextWidth = doc.widthOfString(item.name);
           const textLeftPadding = (standardLabelWidth - actualTextWidth) / 2;
 
-          // Draw light gray background behind label (standardized width, matching checkbox height)
-          doc.fillColor(COLORS.LABEL_BG_DEFAULT)
-            .rect(
-              partX - SPACING.LABEL_PADDING,
-              partY - 2,
-              standardLabelWidth,
-              checkboxHeight  // Match checkbox height
-            )
+          // Box dimensions
+          const boxStartX = partX - SPACING.LABEL_PADDING;
+          const boxStartY = partY - 2;
+          const totalWidth = standardLabelWidth + valueBoxWidth;
+          const boxHeight = checkboxHeight;
+
+          // Value box position (after label)
+          const valueBoxStartX = boxStartX + standardLabelWidth;
+
+          // Cutout dimensions (inset by borderWidth on top/right/bottom)
+          const cutoutX = valueBoxStartX;
+          const cutoutY = boxStartY + borderWidth;
+          const cutoutWidth = valueBoxWidth - borderWidth;
+          const cutoutHeight = boxHeight - (borderWidth * 2);
+
+          // Determine colors
+          const bgColor = item.required ? checkboxBgColor : PACKING_COLORS.NOT_REQUIRED_BG;
+
+          // Draw compound path: outer rect with inner cutout (creates border effect)
+          doc.rect(boxStartX, boxStartY, totalWidth, boxHeight)
+            .rect(cutoutX, cutoutY, cutoutWidth, cutoutHeight);
+          doc.fillColor(COLORS.LABEL_BG_DEFAULT).fill('evenodd');
+
+          // Fill cutout with appropriate color
+          doc.fillColor(bgColor)
+            .rect(cutoutX, cutoutY, cutoutWidth, cutoutHeight)
             .fill();
 
-          // Render label text in black, centered (vertically centered in box)
-          const centeredX = partX - SPACING.LABEL_PADDING + textLeftPadding;
-          const textY = partY - 2 + (checkboxHeight - labelHeight) / 2;
+          // Render label text (centered in label area)
+          const centeredX = boxStartX + textLeftPadding;
+          const labelTextY = boxStartY + (boxHeight - labelHeight) / 2;
           doc.fillColor(COLORS.BLACK)
-            .text(item.name, centeredX, textY, { lineBreak: false });
+            .fontSize(labelFontSize)
+            .font('Helvetica-Bold')
+            .text(item.name, centeredX, labelTextY, { lineBreak: false });
 
-          // Draw checkbox AFTER label - aligned right of longest label
-          if (item.required) {
-            // Required item: show empty checkbox with blue/yellow background
-            doc.rect(checkboxX, partY - 2, checkboxWidth, checkboxHeight)
-              .lineWidth(0.5)
-              .fillAndStroke(checkboxBgColor, PACKING_COLORS.CHECKBOX_BORDER);
-          } else {
-            // Not required: show gray box with "No" text centered
-            doc.rect(checkboxX, partY - 2, checkboxWidth, checkboxHeight)
-              .lineWidth(0.5)
-              .fillAndStroke(PACKING_COLORS.NOT_REQUIRED_BG, PACKING_COLORS.CHECKBOX_BORDER);
-
-            // Center "No" text in the box (bold)
-            doc.fontSize(10).font('Helvetica-Bold').fillColor(PACKING_COLORS.NOT_REQUIRED_TEXT);
-            const noText = 'No';
-            const noTextWidth = doc.widthOfString(noText);
-            const textX = checkboxX + (checkboxWidth - noTextWidth) / 2;
-            const textY = partY + 2; // Vertically center in box
-            doc.text(noText, textX, textY, { lineBreak: false });
-
-            // Reset color
+          // If not required, center "None" in the value box
+          if (!item.required) {
+            doc.fontSize(FONT_SIZES.SPEC_LABEL).font('Helvetica').fillColor(PACKING_COLORS.NOT_REQUIRED_TEXT);
+            const noneText = 'None';
+            const noneTextWidth = doc.widthOfString(noneText);
+            const noneTextHeight = doc.currentLineHeight();
+            const noneTextX = cutoutX + (cutoutWidth - noneTextWidth) / 2;
+            const noneTextY = cutoutY + (cutoutHeight - noneTextHeight) / 2;
+            doc.text(noneText, noneTextX, noneTextY, { lineBreak: false });
             doc.fillColor(COLORS.BLACK);
           }
 
-          partY += 22;  // Spacing for checkboxes
+          partY += 20;  // Spacing for checkboxes (reduced from 22 for compact layout)
         });
 
         // Render quantity box (shared utility function)
@@ -282,6 +270,23 @@ export async function generatePackingList(
           maxPartY = partY;
         }
       });
+
+      // Draw vertical dividers between columns (only if multiple parts)
+      if (numColumns > 1) {
+        for (let i = 0; i < numColumns - 1; i++) {
+          // Calculate divider X position (between columns)
+          const dividerX = marginLeft + ((i + 1) * columnWidth);
+
+          // Draw vertical line from top to bottom of parts section
+          doc.strokeColor(COLORS.DIVIDER_LIGHT)
+            .lineWidth(LINE_WIDTHS.DIVIDER_LIGHT)
+            .moveTo(dividerX, contentStartY)
+            .lineTo(dividerX, maxPartY)
+            .stroke();
+        }
+        // Reset stroke color
+        doc.strokeColor(COLORS.BLACK);
+      }
 
       // ============================================
       // NOTES/IMAGE SECTION (BOTTOM)

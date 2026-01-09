@@ -12,7 +12,7 @@
 
 import sharp from 'sharp';
 import fs from 'fs';
-import { COLORS, FONT_SIZES, SPACING, LAYOUT } from '../generators/pdfConstants';
+import { COLORS, FONT_SIZES, SPACING, LAYOUT, LINE_WIDTHS } from '../generators/pdfConstants';
 import { getImageFullPath, getStandardLabelWidth } from '../generators/pdfHelpers';
 import { calculateAccurateTextHeight } from '../renderers/specRenderers';
 import type { OrderDataForPDF } from '../../../types/orders';
@@ -102,10 +102,11 @@ export async function renderNotesAndImage(
       return;
     }
 
-    // Draw separator line above notes/image section (centered in the IMAGE_AFTER_PARTS gap)
-    const separatorY = maxPartY + (SPACING.IMAGE_AFTER_PARTS / 2);
-    doc.strokeColor(COLORS.DIVIDER_LIGHT)
-      .lineWidth(0.5)
+    // Draw separator line above notes/image section (same thickness as SignType/Scope separator)
+    // Spacing: 1pt (SPEC_ROW_GAP from Quantity) + 3pt above line, 4pt below line
+    const separatorY = maxPartY + 3;
+    doc.strokeColor(COLORS.DIVIDER_DARK)
+      .lineWidth(LINE_WIDTHS.DIVIDER_MAIN)
       .moveTo(marginLeft, separatorY)
       .lineTo(pageWidth - marginRight, separatorY)
       .stroke();
@@ -131,7 +132,7 @@ export async function renderNotesAndImage(
       // === STEP 1: Calculate all dimensions ===
 
       // Label dimensions (11pt font)
-      doc.fontSize(11).font('Helvetica-Bold');
+      doc.fontSize(FONT_SIZES.SPEC_LABEL).font('Helvetica-Bold');
       const labelHeight = doc.currentLineHeight();
 
       // Get standardized label width
@@ -149,8 +150,8 @@ export async function renderNotesAndImage(
       const availableValueWidth = valueBoxWidth - valueBoxPaddingLeft - 6; // 6px right padding
 
       // Calculate value height based on wrapped text
-      const valueHeight = calculateAccurateTextHeight(doc, noteText, availableValueWidth, 12, 'Helvetica');
-      doc.fontSize(12).font('Helvetica');
+      const valueHeight = calculateAccurateTextHeight(doc, noteText, availableValueWidth, FONT_SIZES.SPEC_BODY, 'Helvetica');
+      doc.fontSize(FONT_SIZES.SPEC_BODY).font('Helvetica');
       const valueLineHeight = doc.currentLineHeight();
       const effectiveValueHeight = Math.max(valueHeight, valueLineHeight);
 
@@ -190,7 +191,7 @@ export async function renderNotesAndImage(
       const centeredX = labelBoxStartX + textLeftPadding;
 
       doc.fillColor(COLORS.BLACK)
-        .fontSize(11)
+        .fontSize(FONT_SIZES.SPEC_LABEL)
         .font('Helvetica-Bold')
         .text(labelText, centeredX, labelTextY, {
           continued: false,
@@ -203,7 +204,7 @@ export async function renderNotesAndImage(
       const valueY = labelBoxStartY + topTextPadding + valuePadding;
 
       doc.fillColor(COLORS.BLACK)
-        .fontSize(12)
+        .fontSize(FONT_SIZES.SPEC_BODY)
         .font('Helvetica')
         .text(noteText, valueTextX, valueY, {
           width: availableValueWidth,
@@ -223,7 +224,7 @@ export async function renderNotesAndImage(
       // === STEP 1: Calculate all dimensions ===
 
       // Label dimensions (11pt font)
-      doc.fontSize(11).font('Helvetica-Bold');
+      doc.fontSize(FONT_SIZES.SPEC_LABEL).font('Helvetica-Bold');
       const labelHeight = doc.currentLineHeight();
 
       // Get standardized label width
@@ -241,8 +242,8 @@ export async function renderNotesAndImage(
       const availableValueWidth = valueBoxWidth - valueBoxPaddingLeft - 6; // 6px right padding
 
       // Calculate value height based on wrapped text
-      const valueHeight = calculateAccurateTextHeight(doc, noteText, availableValueWidth, 12, 'Helvetica');
-      doc.fontSize(12).font('Helvetica');
+      const valueHeight = calculateAccurateTextHeight(doc, noteText, availableValueWidth, FONT_SIZES.SPEC_BODY, 'Helvetica');
+      doc.fontSize(FONT_SIZES.SPEC_BODY).font('Helvetica');
       const valueLineHeight = doc.currentLineHeight();
       const effectiveValueHeight = Math.max(valueHeight, valueLineHeight);
 
@@ -282,7 +283,7 @@ export async function renderNotesAndImage(
       const centeredX = labelBoxStartX + textLeftPadding;
 
       doc.fillColor(COLORS.BLACK)
-        .fontSize(11)
+        .fontSize(FONT_SIZES.SPEC_LABEL)
         .font('Helvetica-Bold')
         .text(labelText, centeredX, labelTextY, {
           continued: false,
@@ -295,7 +296,7 @@ export async function renderNotesAndImage(
       const valueY = labelBoxStartY + topTextPadding + valuePadding;
 
       doc.fillColor(COLORS.BLACK)
-        .fontSize(12)
+        .fontSize(FONT_SIZES.SPEC_BODY)
         .font('Helvetica')
         .text(noteText, valueTextX, valueY, {
           width: availableValueWidth,
@@ -315,8 +316,8 @@ export async function renderNotesAndImage(
     const imageX = marginLeft + (contentWidth - imageWidth) / 2;
     const adjustedImageHeight = actualImageHeight - notesHeight - SPACING.ITEM_GAP;
 
-    if (adjustedImageHeight <= LAYOUT.MIN_ADJUSTED_IMAGE_HEIGHT) {
-      console.log(`[IMAGE] ⚠️ Not enough space for image after notes (only ${adjustedImageHeight}px available)`);
+    if (adjustedImageHeight <= LAYOUT.MIN_IMAGE_HEIGHT) {
+      console.log(`[IMAGE] ⚠️ Not enough space for image after notes (only ${adjustedImageHeight}pt available, need ${LAYOUT.MIN_IMAGE_HEIGHT}pt)`);
       return;
     }
 
