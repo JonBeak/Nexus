@@ -10,6 +10,7 @@
 
 interface Order {
   folder_name?: string;
+  folder_location?: 'active' | 'finished' | 'none';
   order_number: number;
   order_name: string;
 }
@@ -29,7 +30,7 @@ interface PdfUrls {
  * Uses known file naming conventions to construct URLs for static file serving.
  * Files are served via /order-images/* route which maps to SMB storage.
  *
- * @param order - Order with folder_name, order_number, order_name
+ * @param order - Order with folder_name, folder_location, order_number, order_name
  * @param addCacheBuster - Whether to add timestamp query param (default: true)
  * @returns Object with URLs for all PDF types, or null if order data incomplete
  */
@@ -48,13 +49,18 @@ export function buildPdfUrls(order: Order | null, addCacheBuster: boolean = true
   // Add cache buster using current timestamp to ensure browser fetches latest PDF
   const cacheBuster = addCacheBuster ? `?v=${Date.now()}` : '';
 
+  // Determine base path based on folder location (active vs finished)
+  const basePath = order.folder_location === 'finished'
+    ? `${apiUrl}/order-images/Orders/1Finished/${folderName}`
+    : `${apiUrl}/order-images/Orders/${folderName}`;
+
   // Build URLs using actual folder structure and file naming conventions
   return {
-    master: `${apiUrl}/order-images/Orders/${folderName}/${orderNum} - ${jobName}.pdf${cacheBuster}`,
-    estimate: `${apiUrl}/order-images/Orders/${folderName}/${orderNum} - ${jobName} - Estimate.pdf${cacheBuster}`,
-    shop: `${apiUrl}/order-images/Orders/${folderName}/${orderNum} - ${jobName} - Shop.pdf${cacheBuster}`,
-    customer: `${apiUrl}/order-images/Orders/${folderName}/Specs/${orderNum} - ${jobName} - Specs.pdf${cacheBuster}`,
-    packing: `${apiUrl}/order-images/Orders/${folderName}/Specs/${orderNum} - ${jobName} - Packing List.pdf${cacheBuster}`,
-    qbEstimate: `${apiUrl}/order-images/Orders/${folderName}/Specs/${orderNum} - ${jobName} - QB Estimate.pdf${cacheBuster}`
+    master: `${basePath}/${orderNum} - ${jobName}.pdf${cacheBuster}`,
+    estimate: `${basePath}/${orderNum} - ${jobName} - Estimate.pdf${cacheBuster}`,
+    shop: `${basePath}/${orderNum} - ${jobName} - Shop.pdf${cacheBuster}`,
+    customer: `${basePath}/Specs/${orderNum} - ${jobName} - Specs.pdf${cacheBuster}`,
+    packing: `${basePath}/Specs/${orderNum} - ${jobName} - Packing List.pdf${cacheBuster}`,
+    qbEstimate: `${basePath}/Specs/${orderNum} - ${jobName} - QB Estimate.pdf${cacheBuster}`
   };
 }

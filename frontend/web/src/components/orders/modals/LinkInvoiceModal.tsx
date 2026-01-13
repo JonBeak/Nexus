@@ -5,18 +5,27 @@
  * Modal for linking an existing QuickBooks invoice to an order:
  * - Shows list of customer's QB invoices (open first, then closed)
  * - Supports pagination (10 per page)
- * - Allows search by Invoice # or QB ID as alternative
+ * - Allows search by Invoice # or Transaction ID (unique QB identifier)
+ * - Supports reassigning invoices (unlinks old, links new)
+ * - Handles deleted invoices gracefully
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, Loader2, Link, Search, FileText, AlertCircle, Check, ChevronLeft, ChevronRight } from 'lucide-react';
-import { qbInvoiceApi, CustomerInvoiceListItem, CustomerInvoiceListResult } from '../../../services/api/orders/qbInvoiceApi';
+import { X, Loader2, Link, Search, FileText, AlertCircle, Check, ChevronLeft, ChevronRight, Unlink, AlertTriangle } from 'lucide-react';
+import { qbInvoiceApi, CustomerInvoiceListItem, CustomerInvoiceListResult } from '../../../services/api';
 
 interface LinkInvoiceModalProps {
   isOpen: boolean;
   onClose: () => void;
   orderNumber: number;
   onSuccess: () => void;
+  /** Current invoice info if one is already linked */
+  currentInvoice?: {
+    invoiceId: string | null;
+    invoiceNumber: string | null;
+  };
+  /** Invoice status if known (from InvoiceButton check) */
+  invoiceStatus?: 'exists' | 'not_found' | 'error' | 'not_linked';
 }
 
 type ViewMode = 'list' | 'search';
@@ -25,7 +34,9 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
   isOpen,
   onClose,
   orderNumber,
-  onSuccess
+  onSuccess,
+  currentInvoice,
+  invoiceStatus
 }) => {
   // View mode
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -51,7 +62,16 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
   const [linkError, setLinkError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  // Unlink state
+  const [unlinking, setUnlinking] = useState(false);
+  const [unlinkError, setUnlinkError] = useState<string | null>(null);
+  const [unlinkSuccess, setUnlinkSuccess] = useState(false);
+
   const PAGE_SIZE = 10;
+
+  // Check if there's a current invoice linked (even if deleted)
+  const hasCurrentInvoice = !!(currentInvoice?.invoiceId || currentInvoice?.invoiceNumber);
+  const isCurrentInvoiceDeleted = invoiceStatus === 'not_found';
 
   // Load customer invoices
   const loadInvoices = async (page: number = 1) => {
@@ -125,6 +145,12 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
       setLinking(true);
       setLinkError(null);
 
+      // If reassigning, unlink first (backend handles this, but we do it explicitly for clarity)
+      if (hasCurrentInvoice) {
+        console.log('Reassigning invoice - unlinking previous...');
+        await qbInvoiceApi.unlinkInvoice(orderNumber);
+      }
+
       await qbInvoiceApi.linkInvoice(orderNumber, { qbInvoiceId: invoice.invoiceId });
 
       setSuccess(true);
@@ -139,6 +165,25 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
     }
   };
 
+  const handleUnlink = async () => {
+    try {
+      setUnlinking(true);
+      setUnlinkError(null);
+
+      await qbInvoiceApi.unlinkInvoice(orderNumber);
+
+      setUnlinkSuccess(true);
+      setTimeout(() => {
+        onSuccess();
+      }, 1500);
+    } catch (err) {
+      console.error('Failed to unlink invoice:', err);
+      setUnlinkError(err instanceof Error ? err.message : 'Failed to unlink invoice');
+    } finally {
+      setUnlinking(false);
+    }
+  };
+
   const resetForm = () => {
     setViewMode('list');
     setInvoiceList(null);
@@ -150,6 +195,8 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
     setListError(null);
     setLinkError(null);
     setSuccess(false);
+    setUnlinkError(null);
+    setUnlinkSuccess(false);
   };
 
   if (!isOpen) return null;
@@ -163,9 +210,16 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
         <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-start justify-between">
             <div className="flex items-center space-x-3">
-              <Link className="w-6 h-6 text-blue-600" />
+              <Link className={`w-6 h-6 ${isCurrentInvoiceDeleted ? 'text-red-600' : 'text-blue-600'}`} />
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Link Existing Invoice</h2>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {isCurrentInvoiceDeleted
+                    ? 'Reassign or Unlink Invoice'
+                    : hasCurrentInvoice
+                      ? 'Reassign Invoice'
+                      : 'Link Existing Invoice'
+                  }
+                </h2>
                 <p className="text-sm text-gray-600">Order #{orderNumber}</p>
               </div>
             </div>
@@ -183,13 +237,85 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
           {success ? (
             <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
               <Check className="w-12 h-12 text-green-600 mx-auto mb-3" />
-              <p className="font-medium text-green-800">Invoice linked successfully!</p>
+              <p className="font-medium text-green-800">
+                {hasCurrentInvoice ? 'Invoice reassigned successfully!' : 'Invoice linked successfully!'}
+              </p>
               <p className="text-sm text-green-700 mt-1">
                 This order is now connected to the QuickBooks invoice.
               </p>
             </div>
+          ) : unlinkSuccess ? (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
+              <Unlink className="w-12 h-12 text-green-600 mx-auto mb-3" />
+              <p className="font-medium text-green-800">Invoice unlinked successfully!</p>
+              <p className="text-sm text-green-700 mt-1">
+                This order is no longer connected to a QuickBooks invoice.
+              </p>
+            </div>
           ) : (
             <>
+              {/* Current Invoice Status Banner */}
+              {hasCurrentInvoice && (
+                <div className={`mb-4 p-4 rounded-lg border ${
+                  isCurrentInvoiceDeleted
+                    ? 'bg-red-50 border-red-200'
+                    : 'bg-blue-50 border-blue-200'
+                }`}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3">
+                      {isCurrentInvoiceDeleted ? (
+                        <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                      ) : (
+                        <FileText className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                      )}
+                      <div>
+                        <p className={`font-medium ${isCurrentInvoiceDeleted ? 'text-red-800' : 'text-blue-800'}`}>
+                          {isCurrentInvoiceDeleted
+                            ? 'Linked Invoice Deleted in QuickBooks'
+                            : 'Currently Linked Invoice'
+                          }
+                        </p>
+                        <div className="text-sm mt-1 space-y-0.5">
+                          {currentInvoice?.invoiceNumber && (
+                            <p className={isCurrentInvoiceDeleted ? 'text-red-700' : 'text-blue-700'}>
+                              Invoice #: <span className="font-mono">{currentInvoice.invoiceNumber}</span>
+                            </p>
+                          )}
+                          {currentInvoice?.invoiceId && (
+                            <p className={isCurrentInvoiceDeleted ? 'text-red-600' : 'text-blue-600'}>
+                              Transaction ID: <span className="font-mono text-xs">{currentInvoice.invoiceId}</span>
+                            </p>
+                          )}
+                        </div>
+                        {isCurrentInvoiceDeleted && (
+                          <p className="text-sm text-red-600 mt-2">
+                            You must unlink or reassign this invoice to continue.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleUnlink}
+                      disabled={unlinking}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-lg flex items-center gap-1.5 ${
+                        isCurrentInvoiceDeleted
+                          ? 'bg-red-600 hover:bg-red-700 text-white'
+                          : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                      } disabled:opacity-50`}
+                    >
+                      {unlinking ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Unlink className="w-4 h-4" />
+                      )}
+                      Unlink
+                    </button>
+                  </div>
+                  {unlinkError && (
+                    <div className="mt-2 text-sm text-red-600">{unlinkError}</div>
+                  )}
+                </div>
+              )}
               {/* View Mode Toggle */}
               <div className="flex gap-2 mb-4">
                 <button
@@ -344,10 +470,16 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
                           ? 'bg-gray-200 text-gray-800'
                           : 'bg-gray-100 text-gray-600 hover:bg-gray-150'
                       }`}
+                      title="Unique QuickBooks Transaction ID - use this if Invoice # is duplicated"
                     >
-                      QB Invoice ID
+                      Transaction ID
                     </button>
                   </div>
+                  {searchType === 'id' && (
+                    <p className="text-xs text-gray-500">
+                      Use Transaction ID when Invoice # may be duplicated in QuickBooks
+                    </p>
+                  )}
 
                   {/* Search Input */}
                   <div className="flex gap-2">
@@ -438,28 +570,30 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
             onClick={onClose}
             className="px-4 py-2 text-gray-600 hover:text-gray-800"
           >
-            {success ? 'Close' : 'Cancel'}
+            {success || unlinkSuccess ? 'Close' : 'Cancel'}
           </button>
 
-          {!success && activeInvoice && (
+          {!success && !unlinkSuccess && activeInvoice && (
             <button
               onClick={handleLink}
               disabled={linking}
               className={`px-6 py-2 rounded-lg font-medium flex items-center gap-2 ${
                 linking
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                  : hasCurrentInvoice
+                    ? 'bg-orange-600 text-white hover:bg-orange-700'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
               }`}
             >
               {linking ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Linking...
+                  {hasCurrentInvoice ? 'Reassigning...' : 'Linking...'}
                 </>
               ) : (
                 <>
                   <Link className="w-4 h-4" />
-                  Link #{activeInvoice.docNumber}
+                  {hasCurrentInvoice ? 'Reassign to' : 'Link'} #{activeInvoice.docNumber}
                 </>
               )}
             </button>

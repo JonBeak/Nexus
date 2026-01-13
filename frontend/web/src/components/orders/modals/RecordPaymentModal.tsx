@@ -10,7 +10,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Loader2, DollarSign, CreditCard, Check, AlertCircle } from 'lucide-react';
-import { qbInvoiceApi, InvoiceDetails, PaymentResult } from '../../../services/api/orders/qbInvoiceApi';
+import { qbInvoiceApi, InvoiceDetails, PaymentResult } from '../../../services/api';
 
 interface RecordPaymentModalProps {
   isOpen: boolean;

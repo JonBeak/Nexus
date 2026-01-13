@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FileText, Send, Eye, RefreshCw, ChevronDown, Link, AlertTriangle, AlertOctagon } from 'lucide-react';
 import { Order, DEPOSIT_TRACKING_STATUSES } from '../../../../types/orders';
-import { qbInvoiceApi, InvoiceSyncStatus, InvoiceDifference } from '../../../../services/api/orders/qbInvoiceApi';
+import { qbInvoiceApi, InvoiceSyncStatus, InvoiceDifference } from '../../../../services/api';
 
-export type InvoiceAction = 'create' | 'update' | 'send' | 'view' | 'qb_modified' | 'conflict';
+export type InvoiceAction = 'create' | 'update' | 'send' | 'view' | 'qb_modified' | 'conflict' | 'reassign';
 
 interface InvoiceButtonProps {
   order: Order;
   onAction: (action: InvoiceAction, differences?: InvoiceDifference[]) => void;
   onLinkInvoice?: () => void;
+  /** Called when invoice needs reassignment (deleted in QB). Passes current invoice info */
+  onReassignInvoice?: (currentInvoice: { invoiceId: string | null; invoiceNumber: string | null }) => void;
   disabled?: boolean;
   /** If true, performs deep QB comparison (slower but detects QB-side changes) */
   deepCheck?: boolean;
@@ -42,6 +44,7 @@ const InvoiceButton: React.FC<InvoiceButtonProps> = ({
   order,
   onAction,
   onLinkInvoice,
+  onReassignInvoice,
   disabled = false,
   deepCheck = false
 }) => {
@@ -147,8 +150,8 @@ const InvoiceButton: React.FC<InvoiceButtonProps> = ({
 
       case 'not_found':
         return {
-          action: 'create',
-          label: 'Invoice Deleted',
+          action: 'reassign',
+          label: 'Invoice Missing',
           icon: <AlertTriangle className="w-4 h-4" />,
           colorClass: 'bg-red-500 hover:bg-red-600 text-white',
           needsShine: true
@@ -197,7 +200,15 @@ const InvoiceButton: React.FC<InvoiceButtonProps> = ({
 
   const handleMainClick = () => {
     if (!disabled && !checking) {
-      onAction(buttonState.action, differences.length > 0 ? differences : undefined);
+      if (buttonState.action === 'reassign' && onReassignInvoice) {
+        // For deleted invoices, trigger reassignment flow with current invoice info
+        onReassignInvoice({
+          invoiceId: order.qb_invoice_id || null,
+          invoiceNumber: order.qb_invoice_doc_number || null
+        });
+      } else {
+        onAction(buttonState.action, differences.length > 0 ? differences : undefined);
+      }
     }
   };
 
@@ -211,8 +222,20 @@ const InvoiceButton: React.FC<InvoiceButtonProps> = ({
     onLinkInvoice?.();
   };
 
-  // Show dropdown option only for 'create' action and when onLinkInvoice is provided
-  const showDropdown = buttonState.action === 'create' && onLinkInvoice;
+  const handleReassignClick = () => {
+    setDropdownOpen(false);
+    if (onReassignInvoice) {
+      onReassignInvoice({
+        invoiceId: order.qb_invoice_id || null,
+        invoiceNumber: order.qb_invoice_doc_number || null
+      });
+    }
+  };
+
+  // Show dropdown for 'create' (link option) or when invoice exists (reassign option)
+  const hasInvoice = !!order.qb_invoice_id;
+  const showDropdown = (buttonState.action === 'create' && onLinkInvoice) ||
+                       (hasInvoice && onReassignInvoice);
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -243,14 +266,14 @@ const InvoiceButton: React.FC<InvoiceButtonProps> = ({
           )}
         </button>
 
-        {/* Dropdown toggle button (only for 'create' action) */}
+        {/* Dropdown toggle button */}
         {showDropdown && (
           <button
             onClick={handleDropdownToggle}
             disabled={disabled || checking}
             className={`
               px-2 py-2 text-sm font-medium rounded-r-lg
-              transition-colors border-l border-green-700
+              transition-colors border-l border-white/30
               ${buttonState.colorClass}
               ${disabled || checking ? 'opacity-50 cursor-not-allowed' : ''}
             `}
@@ -262,14 +285,27 @@ const InvoiceButton: React.FC<InvoiceButtonProps> = ({
 
       {/* Dropdown menu */}
       {showDropdown && dropdownOpen && (
-        <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-          <button
-            onClick={handleLinkInvoice}
-            className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
-          >
-            <Link className="w-4 h-4" />
-            <span>Link Existing Invoice</span>
-          </button>
+        <div className="absolute right-0 mt-1 w-52 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+          {/* Link option - only for create action */}
+          {buttonState.action === 'create' && onLinkInvoice && (
+            <button
+              onClick={handleLinkInvoice}
+              className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            >
+              <Link className="w-4 h-4" />
+              <span>Link Existing Invoice</span>
+            </button>
+          )}
+          {/* Reassign option - when invoice exists */}
+          {hasInvoice && onReassignInvoice && (
+            <button
+              onClick={handleReassignClick}
+              className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            >
+              <Link className="w-4 h-4" />
+              <span>Reassign to Different Invoice</span>
+            </button>
+          )}
         </div>
       )}
 

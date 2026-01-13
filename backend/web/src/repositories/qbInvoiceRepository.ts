@@ -304,6 +304,30 @@ export async function getOrderByQbInvoiceId(
 }
 
 /**
+ * Unlink invoice from order - clears all invoice-related fields
+ * Used when reassigning invoices or handling deleted invoices
+ */
+export async function unlinkInvoiceFromOrder(orderId: number): Promise<void> {
+  await query(
+    `UPDATE orders SET
+      qb_invoice_id = NULL,
+      qb_invoice_doc_number = NULL,
+      qb_invoice_url = NULL,
+      qb_invoice_synced_at = NULL,
+      qb_invoice_last_updated_time = NULL,
+      qb_invoice_sync_token = NULL,
+      qb_invoice_content_hash = NULL,
+      qb_invoice_data_hash = NULL,
+      invoice_sent_at = NULL,
+      cached_balance = NULL,
+      cached_balance_at = NULL,
+      cached_invoice_total = NULL
+    WHERE order_id = ?`,
+    [orderId]
+  );
+}
+
+/**
  * Get all QB invoice IDs that are linked to orders (excluding a specific order)
  * Used to filter out already-linked invoices when showing available invoices
  */

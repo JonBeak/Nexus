@@ -9,7 +9,7 @@
 import React, { useState } from 'react';
 import { X, Loader2, AlertOctagon, ArrowRight, ArrowLeft, Check, AlertTriangle } from 'lucide-react';
 import { Order } from '../../../types/orders';
-import { qbInvoiceApi, InvoiceDifference, ConflictResolution, InvoiceSyncStatus } from '../../../services/api/orders/qbInvoiceApi';
+import { qbInvoiceApi, InvoiceDifference, ConflictResolution, InvoiceSyncStatus } from '../../../services/api';
 
 interface InvoiceConflictModalProps {
   isOpen: boolean;

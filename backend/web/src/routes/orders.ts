@@ -617,6 +617,28 @@ router.post(
 );
 
 /**
+ * Unlink QB invoice from order (Manager+ only)
+ * DELETE /api/orders/:orderNumber/qb-invoice/link
+ */
+router.delete(
+  '/:orderNumber/qb-invoice/link',
+  authenticateToken,
+  requirePermission('orders.update'),
+  qbInvoiceController.unlinkInvoice
+);
+
+/**
+ * Verify if linked QB invoice still exists in QuickBooks
+ * GET /api/orders/:orderNumber/qb-invoice/verify
+ */
+router.get(
+  '/:orderNumber/qb-invoice/verify',
+  authenticateToken,
+  requirePermission('orders.view'),
+  qbInvoiceController.verifyInvoice
+);
+
+/**
  * List customer's QB invoices available for linking
  * GET /api/orders/:orderNumber/customer-invoices?page=1&pageSize=10
  */

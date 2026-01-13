@@ -165,6 +165,63 @@ export const linkInvoice = async (req: Request, res: Response) => {
 };
 
 /**
+ * Unlink QB invoice from order
+ * DELETE /api/orders/:orderNumber/qb-invoice/link
+ */
+export const unlinkInvoice = async (req: Request, res: Response) => {
+  try {
+    const user = (req as AuthRequest).user;
+    const { orderNumber } = req.params;
+
+    if (!user) {
+      return sendErrorResponse(res, 'User not authenticated', 'UNAUTHORIZED');
+    }
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    const result = await qbInvoiceService.unlinkInvoice(orderId, user.user_id);
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error unlinking invoice:', error);
+    const message = error instanceof Error ? error.message : 'Failed to unlink invoice';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Verify if linked QB invoice still exists
+ * GET /api/orders/:orderNumber/qb-invoice/verify
+ */
+export const verifyInvoice = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    const result = await qbInvoiceService.verifyLinkedInvoice(orderId);
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error verifying invoice:', error);
+    const message = error instanceof Error ? error.message : 'Failed to verify invoice';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
  * Search for a QB invoice (for preview before linking)
  * GET /api/qb-invoices/search?query=xxx&type=docNumber|id
  */

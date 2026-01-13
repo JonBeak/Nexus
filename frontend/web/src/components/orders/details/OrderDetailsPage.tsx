@@ -12,8 +12,7 @@ import { useOrderPrinting } from './hooks/useOrderPrinting';
 import { useOrderCalculations } from './hooks/useOrderCalculations';
 
 // Import API
-import { ordersApi } from '../../../services/api';
-import { orderStatusApi } from '../../../services/api/orders/orderStatusApi';
+import { ordersApi, orderStatusApi, qbInvoiceApi, InvoiceSyncStatus, InvoiceDifference } from '../../../services/api';
 
 // Import field configuration
 import { FIELD_CONFIGS, getFieldConfig } from './constants/orderFieldConfigs';
@@ -34,7 +33,6 @@ import InvoiceActionModal from '../modals/InvoiceActionModal';
 import RecordPaymentModal from '../modals/RecordPaymentModal';
 import LinkInvoiceModal from '../modals/LinkInvoiceModal';
 import InvoiceConflictModal from '../modals/InvoiceConflictModal';
-import { qbInvoiceApi, InvoiceSyncStatus, InvoiceDifference } from '../../../services/api/orders/qbInvoiceApi';
 
 export const OrderDetailsPage: React.FC = () => {
   const { orderNumber } = useParams<{ orderNumber: string }>();
@@ -57,6 +55,12 @@ export const OrderDetailsPage: React.FC = () => {
   const [showLinkInvoiceModal, setShowLinkInvoiceModal] = useState(false);
   const [invoicePromptType, setInvoicePromptType] = useState<'deposit' | 'full' | 'send' | null>(null);
   const [pendingStatusChange, setPendingStatusChange] = useState<string | null>(null);
+
+  // State for reassign invoice modal (when invoice is deleted in QB)
+  const [reassignInvoiceInfo, setReassignInvoiceInfo] = useState<{
+    invoiceId: string | null;
+    invoiceNumber: string | null;
+  } | null>(null);
 
   // Phase 2: Bi-directional sync - Conflict Modal States
   const [showConflictModal, setShowConflictModal] = useState(false);
@@ -305,7 +309,14 @@ export const OrderDetailsPage: React.FC = () => {
 
   const handleLinkInvoiceSuccess = () => {
     setShowLinkInvoiceModal(false);
+    setReassignInvoiceInfo(null);
     refetch();
+  };
+
+  // Handler for invoice reassignment (when invoice is deleted in QB)
+  const handleReassignInvoice = (currentInvoice: { invoiceId: string | null; invoiceNumber: string | null }) => {
+    setReassignInvoiceInfo(currentInvoice);
+    setShowLinkInvoiceModal(true);
   };
 
   // Phase 2: Conflict resolution handler
@@ -562,6 +573,7 @@ export const OrderDetailsPage: React.FC = () => {
         onApproveFilesAndPrint={handleApproveFilesAndPrint}
         onInvoiceAction={handleInvoiceAction}
         onLinkInvoice={() => setShowLinkInvoiceModal(true)}
+        onReassignInvoice={handleReassignInvoice}
         generatingForms={uiState.generatingForms}
         printingForm={uiState.printingForm}
       />
@@ -978,6 +990,13 @@ export const OrderDetailsPage: React.FC = () => {
         mode={invoiceModalMode}
         onSuccess={pendingStatusChange ? handleInvoiceSuccessWithStatusChange : handleInvoiceSuccess}
         onSkip={pendingStatusChange ? handleSkipInvoiceAndProceed : undefined}
+        onReassign={() => {
+          setShowInvoiceModal(false);
+          handleReassignInvoice({
+            invoiceId: orderData.order.qb_invoice_id || null,
+            invoiceNumber: orderData.order.qb_invoice_doc_number || null
+          });
+        }}
       />
 
       <RecordPaymentModal
@@ -989,9 +1008,14 @@ export const OrderDetailsPage: React.FC = () => {
 
       <LinkInvoiceModal
         isOpen={showLinkInvoiceModal}
-        onClose={() => setShowLinkInvoiceModal(false)}
+        onClose={() => {
+          setShowLinkInvoiceModal(false);
+          setReassignInvoiceInfo(null);
+        }}
         orderNumber={orderData.order.order_number}
         onSuccess={handleLinkInvoiceSuccess}
+        currentInvoice={reassignInvoiceInfo || undefined}
+        invoiceStatus={reassignInvoiceInfo ? 'not_found' : 'not_linked'}
       />
 
       {/* Phase 2: Invoice Conflict Modal for bi-directional sync */}

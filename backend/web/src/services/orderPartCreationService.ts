@@ -94,19 +94,31 @@ export class OrderPartCreationService {
     const productTypes = previewData.items.map(item => item.itemName);
     const qbMap = await quickbooksRepository.getBatchQBItemMappings(productTypes, connection);
 
-    // NEW: Fetch estimate QB descriptions if provided (Phase 4.c)
+    // NEW: Fetch estimate QB descriptions if estimate is prepared (Phase 4.c)
+    // Only load custom QB descriptions if estimate went through "Prepare to Send" stage
     let estimateDescriptions: Map<number, string> = new Map();
     if (estimateId) {
-      const descriptions = await estimateLineDescriptionRepository.getDescriptionsByEstimateId(
+      const isPrepared = await orderConversionRepository.getEstimatePreparedStatus(
         estimateId,
         connection
       );
-      descriptions.forEach(d => {
-        if (d.qb_description) {
-          estimateDescriptions.set(d.line_index, d.qb_description);
-        }
-      });
-      console.log(`[Order Part Creation] Loaded ${estimateDescriptions.size} custom QB descriptions from estimate`);
+
+      if (isPrepared) {
+        const descriptions = await estimateLineDescriptionRepository.getDescriptionsByEstimateId(
+          estimateId,
+          connection
+        );
+        // Map with offset adjustment: estimate descriptions have header at index 0
+        // We skip the header, so estimate index 1 -> our index 0
+        descriptions.forEach(d => {
+          if (d.qb_description && d.line_index > 0) {
+            estimateDescriptions.set(d.line_index - 1, d.qb_description);
+          }
+        });
+        console.log(`[Order Part Creation] Loaded ${estimateDescriptions.size} custom QB descriptions from prepared estimate`);
+      } else {
+        console.log(`[Order Part Creation] Estimate not prepared - using qb_item_mappings fallback`);
+      }
     }
 
     // Track previously processed items for cross-item logic (e.g., Extra Wire + LED consolidation)
@@ -125,9 +137,23 @@ export class OrderPartCreationService {
     let qbFilteredIndex = 0;
     const filteredQBLines = qbLineItems?.filter(line => line.detailType === 'SalesItemLineDetail') || [];
 
-    // Process each estimate line item
-    for (let i = 0; i < previewData.items.length; i++) {
-      const item = previewData.items[i];
+    // Filter out estimate Job Header row - backend creates its own header row
+    // Also track original indices for QB description lookup
+    const originalIndexMap = new Map<any, number>();
+    previewData.items.forEach((item, idx) => originalIndexMap.set(item, idx));
+
+    const itemsToProcess = previewData.items.filter(item => {
+      // Skip Job Header row (productTypeId=27 with itemName='Job Header')
+      if (item.productTypeId === 27 && item.itemName === 'Job Header') {
+        console.log('[Order Parts] Skipping estimate Job Header row (backend creates its own)');
+        return false;
+      }
+      return true;
+    });
+
+    // Process each estimate line item (using filtered list)
+    for (let i = 0; i < itemsToProcess.length; i++) {
+      const item = itemsToProcess[i];
 
       // Phase 1.6: Determine if this is a product line (for QB matching)
       const isProductLine = !item.isDescriptionOnly && !NON_PRODUCT_TYPE_IDS.includes(item.productTypeId);
@@ -174,11 +200,13 @@ export class OrderPartCreationService {
       }
 
       // NEW: Phase 4.c - Apply custom QB descriptions with priority logic
-      // Priority 1: Estimate custom description (user-edited)
+      // Priority 1: Estimate custom description (user-edited, from prepared estimate)
       // Priority 2: QB mappings or QB Estimate (default mappings)
-      if (estimateDescriptions.has(i)) {
-        qbDescription = estimateDescriptions.get(i)!;
-        console.log(`  Using custom description for item ${i}: "${qbDescription}"`);
+      // Use original item index for QB description lookup (accounts for skipped Job Header)
+      const originalItemIndex = originalIndexMap.get(item) ?? i;
+      if (estimateDescriptions.has(originalItemIndex)) {
+        qbDescription = estimateDescriptions.get(originalItemIndex)!;
+        console.log(`  Using custom description for item ${originalItemIndex}: "${qbDescription}"`);
       }
       // For description-only rows, use calculationDisplay if no QB description
       else if (item.isDescriptionOnly && !qbDescription) {
@@ -189,7 +217,9 @@ export class OrderPartCreationService {
       const specsDisplayName = mapQBItemNameToSpecsDisplayName(qbItemName);
 
       // Determine if this is a parent or regular row (not a sub-item)
-      // Sub-items have letters in display_number like "1a", "1b"
+      // Parent rows: displayNumber is numeric only ("1", "2", "3") - first row is always parent
+      // Sub-items: displayNumber has letters ("1a", "1b", "2a") - grouped under preceding parent
+      // The frontend may also explicitly set isParent=true to force parent status
       const displayNumber = item.estimatePreviewDisplayNumber || `${i + 1}`;
       const isSubItem = /[a-zA-Z]/.test(displayNumber);
       const isParentOrRegular = item.isParent || !isSubItem;

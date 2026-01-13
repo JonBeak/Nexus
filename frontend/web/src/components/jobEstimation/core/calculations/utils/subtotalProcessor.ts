@@ -129,7 +129,8 @@ export const processSubtotals = (
         calculationDisplay: calculationDisplay,
         unitPrice: 0, // Not displayed
         quantity: 0, // Not displayed
-        extendedPrice: 0 // Not displayed, not included in final total
+        extendedPrice: 0, // Not displayed, not included in final total
+        isDescriptionOnly: true // Use calculationDisplay for QB Description
       };
 
       lineItemsToInsert.push({

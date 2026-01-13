@@ -374,6 +374,7 @@ export async function getEmailPreview(
     orderName: order.order_name || `Order #${order.order_number}`,
     customerName: order.customer_name,
     invoiceTotal,
+    invoiceNumber: invoiceRecord?.qb_invoice_doc_number || undefined, // QB invoice number (e.g., "6152")
     depositAmount,
     dueDateLine,
     balanceLine,
@@ -386,6 +387,24 @@ export async function getEmailPreview(
   // Replace variables in subject and body
   let subject = replaceVariables(template.subject, variables);
   const body = replaceVariables(template.body, variables);
+
+  // Fix Invoice # vs Order # in subject:
+  // - If we have a QB invoice number, use "Invoice #[invoiceNumber]"
+  // - If no invoice number, use "Order #[orderNumber]"
+  // This handles templates that might incorrectly use {orderNumber} for Invoice #
+  if (invoiceRecord?.qb_invoice_doc_number) {
+    // Replace any "Invoice #[orderNumber]" with correct "Invoice #[invoiceNumber]"
+    subject = subject.replace(
+      new RegExp(`Invoice\\s*#\\s*${order.order_number}`, 'gi'),
+      `Invoice #${invoiceRecord.qb_invoice_doc_number}`
+    );
+  } else {
+    // No QB invoice yet - change "Invoice #" to "Order #"
+    subject = subject.replace(
+      new RegExp(`Invoice\\s*#\\s*${order.order_number}`, 'gi'),
+      `Order #${order.order_number}`
+    );
+  }
 
   // Add [Deposit Required] prefix for deposit emails (only if deposit not yet paid)
   if (effectiveTemplateKey === 'deposit_request' && !subject.startsWith('[Deposit Required]')) {

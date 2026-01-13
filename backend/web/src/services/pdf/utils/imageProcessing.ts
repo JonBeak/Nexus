@@ -21,7 +21,7 @@ import type { OrderDataForPDF } from '../../../types/orders';
  * Options for rendering notes and images
  */
 export interface ImageRenderOptions {
-  /** Whether to include internal notes (master form only) */
+  /** Whether to include internal notes (master and shop forms only) */
   includeInternalNote?: boolean;
 }
 

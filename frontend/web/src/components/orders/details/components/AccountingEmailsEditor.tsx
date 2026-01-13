@@ -5,7 +5,7 @@
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, X } from 'lucide-react';
-import { customerAccountingEmailsApi, CustomerAccountingEmail } from '../../../../services/api/customerAccountingEmailsApi';
+import { customerAccountingEmailsApi, CustomerAccountingEmail } from '../../../../services/api';
 
 interface AccountingEmailEntry {
   id: string;

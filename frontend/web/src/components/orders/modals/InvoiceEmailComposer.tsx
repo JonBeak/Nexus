@@ -5,6 +5,7 @@
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronDown, ChevronUp, RefreshCw, Package, Truck, CheckCircle } from 'lucide-react';
+import { formatDateLong } from '../../../utils/dateUtils';
 
 // Summary config for invoice email
 export interface InvoiceSummaryConfig {
@@ -100,20 +101,6 @@ const formatCurrency = (value?: number): string => {
   return `$${value.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-// Format date helper
-const formatDate = (dateStr?: string): string => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  } catch {
-    return dateStr;
-  }
-};
 
 const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
   config,
@@ -470,7 +457,7 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
                 <label className="flex items-center gap-1.5 text-xs text-gray-700">
                   <input
                     type="checkbox"
-                    checked={summaryConfig.includeJobNumber}
+                    checked={summaryConfig.includeJobNumber && !!invoiceData?.jobNumber}
                     onChange={(e) => handleConfigChange('includeJobNumber', e.target.checked)}
                     disabled={disabled || !invoiceData?.jobNumber}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -482,7 +469,7 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
                 <label className="flex items-center gap-1.5 text-xs text-gray-700">
                   <input
                     type="checkbox"
-                    checked={summaryConfig.includePO}
+                    checked={summaryConfig.includePO && !!invoiceData?.customerPO}
                     onChange={(e) => handleConfigChange('includePO', e.target.checked)}
                     disabled={disabled || !invoiceData?.customerPO}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -586,22 +573,22 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
                         <span className="font-medium text-gray-800">{invoiceData.customerPO}</span>
                       </div>
                     )}
-                    {summaryConfig.includeInvoiceNumber && invoiceData.invoiceNumber && (
+                    {summaryConfig.includeInvoiceNumber && (
                       <div className="flex justify-between">
                         <span className="text-gray-500">Invoice #:</span>
-                        <span className="font-medium text-gray-800">{invoiceData.invoiceNumber}</span>
+                        <span className="font-medium text-gray-800">{invoiceData.invoiceNumber || '-'}</span>
                       </div>
                     )}
                     {summaryConfig.includeInvoiceDate && (
                       <div className="flex justify-between">
                         <span className="text-gray-500">Invoice Date:</span>
-                        <span className="font-medium text-gray-800">{formatDate(invoiceData.invoiceDate)}</span>
+                        <span className="font-medium text-gray-800">{formatDateLong(invoiceData.invoiceDate)}</span>
                       </div>
                     )}
                     {summaryConfig.includeDueDate && (
                       <div className="flex justify-between">
                         <span className="text-gray-500">Due Date:</span>
-                        <span className="font-medium text-gray-800">{formatDate(invoiceData.dueDate)}</span>
+                        <span className="font-medium text-gray-800">{formatDateLong(invoiceData.dueDate)}</span>
                       </div>
                     )}
                     {summaryConfig.includeSubtotal && (

@@ -12,9 +12,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, Loader2, Calendar, Send, FileText, RefreshCw, Clock, Mail, Eye, AlertTriangle, UserCircle, CheckCircle } from 'lucide-react';
 import { Order, OrderPart } from '../../../types/orders';
 import { Address } from '../../../types';
-import { qbInvoiceApi, EmailPreview, InvoiceDetails, InvoiceSyncStatus, InvoiceDifference, InvoiceSyncResult } from '../../../services/api/orders/qbInvoiceApi';
-import { customerApi } from '../../../services/api/customerApi';
-import { settingsApi } from '../../../services/api/settings/settingsApi';
+import { qbInvoiceApi, EmailPreview, InvoiceDetails, InvoiceSyncStatus, InvoiceDifference, InvoiceSyncResult, customerApi, settingsApi } from '../../../services/api';
 import { InvoiceConflictModal } from './InvoiceConflictModal';
 import { InvoiceSentSuccessModal } from './InvoiceSentSuccessModal';
 import InvoiceEmailComposer, { InvoiceEmailConfig, InvoiceSummaryConfig, InvoiceEmailData, DEFAULT_INVOICE_SUMMARY_CONFIG, DEFAULT_INVOICE_BEGINNING, DEFAULT_INVOICE_END } from './InvoiceEmailComposer';
@@ -26,6 +24,7 @@ interface InvoiceActionModalProps {
   mode: 'create' | 'update' | 'send' | 'view';
   onSuccess: () => void;
   onSkip?: () => void;  // For status change prompts - allows skipping
+  onReassign?: () => void;  // For reassigning to a different invoice
 }
 
 interface EmailHistoryItem {
@@ -62,7 +61,8 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   order,
   mode,
   onSuccess,
-  onSkip
+  onSkip,
+  onReassign
 }) => {
   // Form State
   const [recipientEntries, setRecipientEntries] = useState<RecipientEntry[]>([]);
@@ -185,7 +185,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     jobNumber: order.customer_job_number || undefined,  // Customer Job #
     customerPO: order.customer_po || undefined,         // PO #
     customerJobNumber: order.customer_job_number,       // Legacy alias
-    invoiceNumber: order.qb_invoice_number || undefined,
+    invoiceNumber: order.qb_invoice_doc_number || undefined,
     invoiceDate: new Date().toISOString(),
     dueDate: qbInvoiceData?.dueDate || undefined,
     subtotal: totals.subtotal,
@@ -318,8 +318,10 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     }
   }, [isOpen, mode, templateKey, order.order_number]);
 
-  // Default subject format: {orderName} | Invoice #{orderNumber}
-  const defaultSubject = `${order.order_name} | Invoice #${order.order_number}`;
+  // Default subject format: Use Invoice # if linked to QB, otherwise Order #
+  const defaultSubject = order.qb_invoice_doc_number
+    ? `${order.order_name} | Invoice #${order.qb_invoice_doc_number}`
+    : `${order.order_name} | Order #${order.order_number}`;
 
   const loadEmailPreview = async () => {
     try {
@@ -378,16 +380,35 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     }
   };
 
+  // Auto-enable Balance Due in summary config when balance differs from total
+  useEffect(() => {
+    if (qbInvoiceData?.balance !== undefined && qbInvoiceData?.total !== undefined) {
+      const balanceDiffersFromTotal = qbInvoiceData.balance !== qbInvoiceData.total;
+      if (balanceDiffersFromTotal && !emailConfig.summaryConfig.includeBalanceDue) {
+        setEmailConfig(prev => ({
+          ...prev,
+          summaryConfig: {
+            ...prev.summaryConfig,
+            includeBalanceDue: true
+          }
+        }));
+      }
+    }
+  }, [qbInvoiceData?.balance, qbInvoiceData?.total]);
+
   // Load email history when modal opens in view mode
   useEffect(() => {
     if (isOpen && mode === 'view') {
       loadEmailHistory();
-      // Also load QB invoice data for view mode
-      if (order.qb_invoice_id && !qbInvoiceData) {
-        loadQbInvoiceData();
-      }
     }
   }, [isOpen, mode]);
+
+  // Load QB invoice data when modal opens (for update/send/view modes with existing invoice)
+  useEffect(() => {
+    if (isOpen && order.qb_invoice_id && (mode === 'update' || mode === 'send' || mode === 'view') && !qbInvoiceData) {
+      loadQbInvoiceData();
+    }
+  }, [isOpen, mode, order.qb_invoice_id]);
 
   // Check sync status when modal opens with existing invoice (view or update mode)
   useEffect(() => {
@@ -998,7 +1019,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
           onClose={handleSuccessModalClose}
           orderNumber={order.order_number}
           orderName={order.order_name}
-          invoiceNumber={order.qb_invoice_number || undefined}
+          invoiceNumber={order.qb_invoice_doc_number || undefined}
           recipients={successModalData?.recipients || { to: [], cc: [], bcc: [] }}
           scheduledFor={successModalData?.scheduledFor}
           wasResent={successModalData?.wasResent}
@@ -1040,16 +1061,26 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                 <X className="w-5 h-5 text-gray-600" />
               </button>
             </div>
-            {/* Open in QuickBooks button - shown whenever invoice is linked */}
-            {!!order.qb_invoice_id && (
-              <button
-                onClick={() => window.open(`https://qbo.intuit.com/app/invoice?txnId=${order.qb_invoice_id}`, '_blank')}
-                className="flex items-center space-x-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors mt-3"
-              >
-                <FileText className="w-4 h-4" />
-                <span>Open in QuickBooks</span>
-              </button>
-            )}
+            {/* Open in QuickBooks and Reassign buttons */}
+            <div className="flex items-center gap-2 mt-3">
+              {!!order.qb_invoice_id && (
+                <button
+                  onClick={() => window.open(`https://qbo.intuit.com/app/invoice?txnId=${order.qb_invoice_id}`, '_blank')}
+                  className="flex items-center space-x-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Open in QuickBooks</span>
+                </button>
+              )}
+              {onReassign && (
+                <button
+                  onClick={onReassign}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-sm font-medium transition-colors border border-gray-300"
+                >
+                  <span>Reassign</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Form Content */}
@@ -1644,7 +1675,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
         onClose={handleSuccessModalClose}
         orderNumber={order.order_number}
         orderName={order.order_name}
-        invoiceNumber={order.qb_invoice_number || undefined}
+        invoiceNumber={order.qb_invoice_doc_number || undefined}
         recipients={successModalData?.recipients || { to: [], cc: [], bcc: [] }}
         scheduledFor={successModalData?.scheduledFor}
         wasResent={successModalData?.wasResent}

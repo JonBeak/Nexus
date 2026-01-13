@@ -28,8 +28,7 @@ import {
 } from 'lucide-react';
 import { CalendarOrder } from './types';
 import { Order, OrderPart, OrderStatus, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../../types/orders';
-import { ordersApi, orderStatusApi, orderTasksApi } from '../../../services/api';
-import { qbInvoiceApi, InvoiceSyncStatus, InvoiceDifference } from '../../../services/api/orders/qbInvoiceApi';
+import { ordersApi, orderStatusApi, orderTasksApi, qbInvoiceApi, InvoiceSyncStatus, InvoiceDifference } from '../../../services/api';
 import { TaskTemplateDropdown } from '../progress/TaskTemplateDropdown';
 import { TaskMetadataResource } from '../../../services/taskMetadataResource';
 import { TaskRow } from '../common/TaskRow';
@@ -40,6 +39,7 @@ import InvoiceActionModal from '../modals/InvoiceActionModal';
 import InvoiceConflictModal from '../modals/InvoiceConflictModal';
 import LinkInvoiceModal from '../modals/LinkInvoiceModal';
 import PrintFormsModal from '../details/components/PrintFormsModal';
+import PDFViewerModal from '../modals/PDFViewerModal';
 import { useOrderPrinting, PrintMode } from '../details/hooks/useOrderPrinting';
 import { calculateShopCount } from '../details/services/orderCalculations';
 
@@ -156,6 +156,9 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   const [uiState, setUiState] = useState({ generatingForms: false, printingForm: false });
   const [defaultPrintConfig, setDefaultPrintConfig] = useState<{ master: number; estimate: number; shop: number; packing: number } | undefined>(undefined);
 
+  // PDF Viewer modal state
+  const [showPdfViewerModal, setShowPdfViewerModal] = useState(false);
+
   // Printing hook - requires orderData with order, parts, taxRules, customerDiscount
   const orderDataForPrinting = {
     order: orderDetails,
@@ -207,7 +210,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
       // Check invoice sync status if invoice exists
       if (result.order.qb_invoice_id) {
         try {
-          const syncResult = await qbInvoiceApi.checkSyncStatus(result.order.order_number);
+          const syncResult = await qbInvoiceApi.compareWithQB(result.order.order_number);
           setInvoiceSyncStatus(syncResult.status);
         } catch (syncErr) {
           console.error('Error checking invoice sync status:', syncErr);
@@ -863,27 +866,29 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                     onClick={() => setShowDatePicker(true)}
                     className={`w-full px-2 py-1.5 rounded border ${PAGE_STYLES.panel.border} ${PAGE_STYLES.interactive.hover} text-left`}
                   >
-                    <div className={`font-medium text-sm ${PAGE_STYLES.panel.text}`}>
-                      {orderDetails?.due_date ? (
-                        new Date(orderDetails.due_date.split('T')[0] + 'T12:00:00').toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric'
-                        })
-                      ) : (
-                        <span className={PAGE_STYLES.panel.textMuted}>Not set</span>
+                    <div className="flex items-center justify-between">
+                      <span className={`font-medium text-sm ${PAGE_STYLES.panel.text}`}>
+                        {orderDetails?.due_date ? (
+                          new Date(orderDetails.due_date.split('T')[0] + 'T12:00:00').toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })
+                        ) : (
+                          <span className={PAGE_STYLES.panel.textMuted}>Not set</span>
+                        )}
+                      </span>
+                      {orderDetails?.hard_due_date_time && (
+                        <span className="text-sm text-red-600 font-medium">
+                          {(() => {
+                            const [hours] = orderDetails.hard_due_date_time.split(':').map(Number);
+                            const period = hours >= 12 ? 'PM' : 'AM';
+                            const displayHour = hours % 12 || 12;
+                            return `${displayHour} ${period}`;
+                          })()}
+                        </span>
                       )}
                     </div>
-                    {orderDetails?.hard_due_date_time && (
-                      <div className="text-sm text-red-600 font-medium">
-                        {(() => {
-                          const [hours] = orderDetails.hard_due_date_time.split(':').map(Number);
-                          const period = hours >= 12 ? 'PM' : 'AM';
-                          const displayHour = hours % 12 || 12;
-                          return `${displayHour} ${period}`;
-                        })()}
-                      </div>
-                    )}
                   </button>
                 )}
               </div>
@@ -956,6 +961,19 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
               >
                 <FolderOpen className="w-4 h-4" />
                 Open Folder
+              </button>
+              <button
+                onClick={() => setShowPdfViewerModal(true)}
+                disabled={!orderDetails?.folder_name}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-sm font-medium transition-colors
+                  ${orderDetails?.folder_name
+                    ? `${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} ${PAGE_STYLES.header.text} ${PAGE_STYLES.interactive.hover}`
+                    : `${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.textMuted} cursor-not-allowed`
+                  }
+                `}
+              >
+                <Eye className="w-4 h-4" />
+                View PDFs
               </button>
               {!orderDetails?.internal_note && (
                 <button
@@ -1176,6 +1194,10 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
             setShowInvoiceModal(false);
             setShowLinkInvoiceModal(true);
           }}
+          onReassign={() => {
+            setShowInvoiceModal(false);
+            setShowLinkInvoiceModal(true);
+          }}
         />
       )}
 
@@ -1218,6 +1240,15 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
           onMoveToProductionWithoutPrinting={handleMoveToProductionWithoutPrintingWithClose}
           order={orderDetails}
           defaultConfig={defaultPrintConfig}
+        />
+      )}
+
+      {/* PDF Viewer Modal */}
+      {showPdfViewerModal && orderDetails && (
+        <PDFViewerModal
+          isOpen={showPdfViewerModal}
+          onClose={() => setShowPdfViewerModal(false)}
+          order={orderDetails}
         />
       )}
     </div>

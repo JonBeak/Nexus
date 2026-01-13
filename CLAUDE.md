@@ -139,7 +139,7 @@
         </Directory>
         <Directory path="frontend/web/">
           <Subdirectory path="src/components/">UI components by feature</Subdirectory>
-          <Subdirectory path="src/services/">api.ts - Main API client | jobVersioningApi.ts - Dedicated versioning service</Subdirectory>
+          <Subdirectory path="src/services/">api/ - Modular API modules with barrel export | apiClient.ts - Shared axios instance | jobVersioningApi.ts - Dedicated versioning service</Subdirectory>
           <Subdirectory path="src/contexts/">AuthContext, etc.</Subdirectory>
           <Subdirectory path="src/types/">Frontend TypeScript types</Subdirectory>
           <File path="package.json">Frontend dependencies</File>
@@ -564,7 +564,7 @@ const [rows] = await pool.execute(...);  // ❌ NEVER DO THIS
 
     <CriticalPaths>
       <Path name="DatabaseConfig">/backend/web/src/config/database.ts</Path>
-      <Path name="APIClient">/frontend/web/src/services/api.ts</Path>
+      <Path name="APIClient">/frontend/web/src/services/api/index.ts</Path>
       <Path name="AuthContext">/frontend/web/src/contexts/AuthContext.tsx</Path>
       <Path name="Environment">/backend/web/.env</Path>
       <Path name="MainApp">/frontend/web/src/App.tsx - routing and auth</Path>

@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Building, DollarSign, Calendar, CreditCard, FileText, CheckCircle, AlertCircle, Loader2, X, Home } from 'lucide-react';
-import { customerApi } from '../services/api';
-import { paymentsApi, OpenInvoice, MultiPaymentInput } from '../services/api/paymentsApi';
+import { customerApi, paymentsApi, OpenInvoice, MultiPaymentInput } from '../services/api';
 
 interface Customer {
   customer_id: number;

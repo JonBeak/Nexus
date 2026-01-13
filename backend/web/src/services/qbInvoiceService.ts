@@ -406,6 +406,113 @@ export async function linkExistingInvoice(
   }
 }
 
+/**
+ * Unlink invoice from order - clears all invoice fields
+ * Returns previous invoice info for audit/display purposes
+ */
+export async function unlinkInvoice(
+  orderId: number,
+  userId: number
+): Promise<{ previousInvoiceId: string | null; previousInvoiceNumber: string | null }> {
+  try {
+    // Get current invoice info before unlinking (for return value)
+    const currentRecord = await qbInvoiceRepo.getOrderInvoiceRecord(orderId);
+    const previousInvoiceId = currentRecord?.qb_invoice_id || null;
+    const previousInvoiceNumber = currentRecord?.qb_invoice_doc_number || null;
+
+    // Clear all invoice fields
+    await qbInvoiceRepo.unlinkInvoiceFromOrder(orderId);
+
+    console.log(`✅ Unlinked invoice ${previousInvoiceNumber || previousInvoiceId || '(none)'} from order ${orderId}`);
+
+    return {
+      previousInvoiceId,
+      previousInvoiceNumber
+    };
+  } catch (error) {
+    console.error('Error unlinking invoice:', error);
+    throw error;
+  }
+}
+
+/**
+ * Verify if the linked invoice still exists in QuickBooks
+ * Returns status and invoice details if found
+ */
+export async function verifyLinkedInvoice(
+  orderId: number
+): Promise<{
+  exists: boolean;
+  status: 'exists' | 'not_found' | 'error' | 'not_linked';
+  invoiceId: string | null;
+  invoiceNumber: string | null;
+  errorMessage?: string;
+}> {
+  try {
+    // Get current invoice record
+    const invoiceRecord = await qbInvoiceRepo.getOrderInvoiceRecord(orderId);
+
+    if (!invoiceRecord?.qb_invoice_id) {
+      return {
+        exists: false,
+        status: 'not_linked',
+        invoiceId: null,
+        invoiceNumber: null
+      };
+    }
+
+    // Get realm ID
+    const realmId = await quickbooksRepository.getDefaultRealmId();
+    if (!realmId) {
+      return {
+        exists: false,
+        status: 'error',
+        invoiceId: invoiceRecord.qb_invoice_id,
+        invoiceNumber: invoiceRecord.qb_invoice_doc_number,
+        errorMessage: 'QuickBooks realm ID not configured'
+      };
+    }
+
+    // Try to fetch from QB
+    try {
+      await getQBInvoice(invoiceRecord.qb_invoice_id, realmId);
+      return {
+        exists: true,
+        status: 'exists',
+        invoiceId: invoiceRecord.qb_invoice_id,
+        invoiceNumber: invoiceRecord.qb_invoice_doc_number
+      };
+    } catch (error: any) {
+      if (error.statusCode === 404 || error.message?.includes('not found')) {
+        return {
+          exists: false,
+          status: 'not_found',
+          invoiceId: invoiceRecord.qb_invoice_id,
+          invoiceNumber: invoiceRecord.qb_invoice_doc_number,
+          errorMessage: 'Invoice was deleted in QuickBooks'
+        };
+      }
+      // Other QB API error (connection, auth, etc.)
+      return {
+        exists: false,
+        status: 'error',
+        invoiceId: invoiceRecord.qb_invoice_id,
+        invoiceNumber: invoiceRecord.qb_invoice_doc_number,
+        errorMessage: error.message || 'Failed to verify invoice'
+      };
+    }
+  } catch (error: any) {
+    console.error('Error verifying linked invoice:', error);
+    return {
+      exists: false,
+      status: 'error',
+      invoiceId: null,
+      invoiceNumber: null,
+      errorMessage: error.message || 'Failed to verify invoice'
+    };
+  }
+}
+
 // =============================================
 // PAYMENT RECORDING
 // =============================================

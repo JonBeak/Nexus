@@ -9,7 +9,7 @@ import {
   customerAccountingEmailsApi,
   CustomerAccountingEmail,
   AccountingEmailType
-} from '../../services/api/customerAccountingEmailsApi';
+} from '../../services/api';
 import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 
 interface EditingEmail {

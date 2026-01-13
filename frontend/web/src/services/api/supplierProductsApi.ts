@@ -1,3 +1,4 @@
+// File Clean up Finished: 2026-01-12
 // Phase 4.c: Supplier Products API
 // Purpose: API client for supplier products and pricing management
 // Created: 2025-12-19
@@ -51,10 +52,11 @@ export const supplierProductsApi = {
 
   /**
    * Create new supplier product
+   * Returns the new supplier_product_id
    */
   createSupplierProduct: async (
     data: CreateSupplierProductRequest
-  ): Promise<{ success: boolean; data: number }> => {
+  ): Promise<number> => {
     const response = await api.post('/supplier-products', data);
     return response.data;
   },
@@ -100,11 +102,12 @@ export const supplierProductsApi = {
 
   /**
    * Add new price to supplier product (creates pricing history entry)
+   * Returns pricing_id, alert flag, and optional price_change_percent
    */
   addPrice: async (
     supplierProductId: number,
     priceData: AddPriceRequest
-  ): Promise<{ success: boolean; data: { pricing_id: number; alert: boolean; price_change_percent?: number } }> => {
+  ): Promise<{ pricing_id: number; alert: boolean; price_change_percent?: number }> => {
     const response = await api.post(
       `/supplier-products/${supplierProductId}/prices`,
       priceData
@@ -124,10 +127,11 @@ export const supplierProductsApi = {
 
   /**
    * Create multiple supplier products (bulk operation)
+   * Returns array of new supplier_product_ids
    */
   bulkCreateSupplierProducts: async (
     products: CreateSupplierProductRequest[]
-  ): Promise<{ success: boolean; data: number[] }> => {
+  ): Promise<number[]> => {
     const response = await api.post('/supplier-products/bulk/create', {
       products
     });

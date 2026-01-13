@@ -166,6 +166,33 @@ export const qbInvoiceApi = {
   },
 
   /**
+   * Unlink QB invoice from order
+   * Returns info about the previously linked invoice
+   */
+  async unlinkInvoice(orderNumber: number): Promise<{
+    previousInvoiceId: string | null;
+    previousInvoiceNumber: string | null;
+  }> {
+    const response = await api.delete(`/orders/${orderNumber}/qb-invoice/link`);
+    return response.data;
+  },
+
+  /**
+   * Verify if the linked QB invoice still exists in QuickBooks
+   * Used to detect deleted invoices
+   */
+  async verifyInvoice(orderNumber: number): Promise<{
+    exists: boolean;
+    status: 'exists' | 'not_found' | 'error' | 'not_linked';
+    invoiceId: string | null;
+    invoiceNumber: string | null;
+    errorMessage?: string;
+  }> {
+    const response = await api.get(`/orders/${orderNumber}/qb-invoice/verify`);
+    return response.data;
+  },
+
+  /**
    * Check if the invoice is stale (order data changed since last sync)
    * This is a fast local-only check.
    */
@@ -208,7 +235,10 @@ export const qbInvoiceApi = {
    */
   async getInvoicePdf(orderNumber: number): Promise<{ pdf: string; filename: string }> {
     const response = await api.get(`/orders/${orderNumber}/qb-invoice/pdf`);
-    return response.data;
+    if (!response.data?.data?.pdf) {
+      throw new Error(response.data?.error || 'Failed to fetch invoice PDF');
+    }
+    return response.data.data;
   },
 
   // ========================================

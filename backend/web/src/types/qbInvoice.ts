@@ -259,6 +259,7 @@ export interface TemplateVariables {
   orderName: string;
   customerName: string;
   invoiceTotal: string;
+  invoiceNumber?: string; // QB invoice doc number (e.g., "6152") - use for "Invoice #" in subject
   depositAmount?: string;
   dueDateLine?: string; // Full HTML line with due date, or empty if no due date from QB
   qbInvoiceUrl: string;

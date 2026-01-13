@@ -1,3 +1,4 @@
+// File Clean up Finished: 2026-01-12
 import { api } from '../apiClient';
 
 /**
@@ -13,6 +14,7 @@ export const jobsApi = {
     status?: string;
     customer_id?: number;
     limit?: number;
+    active_only?: boolean;
   } = {}) => {
     const response = await api.get('/jobs', { params });
     return response.data;

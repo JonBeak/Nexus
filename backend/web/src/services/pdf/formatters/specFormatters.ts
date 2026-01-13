@@ -27,6 +27,8 @@ import { formatBooleanValue } from '../generators/pdfHelpers';
  */
 export const SPEC_ORDER = [
   'Return',
+  '3DP Return',
+  '3DP Illumination',
   'Trim',
   'Face',
   'Back',
@@ -141,6 +143,50 @@ function formatCountTypeSpec(
   return '';
 }
 
+/**
+ * Compute illumination description from boolean values
+ * Used for 3DP Illumination template
+ *
+ * Combinations:
+ * - All three: "Face, Halo, Side Lit."
+ * - Face + Side: "Face, Side Lit. No Halo"
+ * - Face + Halo: "Face, Halo Lit. No Side"
+ * - Side + Halo: "Side, Halo Lit. No Face"
+ * - Face only: "Face Lit. No Side or Halo"
+ * - Side only: "Side Lit. No Face or Halo"
+ * - Halo only: "Halo Lit. No Face or Side"
+ * - None: "No illumination"
+ */
+function computeIlluminationDescription(face: boolean, side: boolean, halo: boolean): string {
+  const litParts: string[] = [];
+  const notLitParts: string[] = [];
+
+  if (face) litParts.push('Face');
+  else notLitParts.push('Face');
+
+  if (side) litParts.push('Side');
+  else notLitParts.push('Side');
+
+  if (halo) litParts.push('Halo');
+  else notLitParts.push('Halo');
+
+  if (litParts.length === 0) {
+    return 'No illumination';
+  }
+
+  if (litParts.length === 3) {
+    return 'Face, Halo, Side Lit.';
+  }
+
+  const litStr = litParts.join(', ') + ' Lit.';
+
+  if (notLitParts.length === 1) {
+    return `${litStr} No ${notLitParts[0]}`;
+  }
+
+  return `${litStr} No ${notLitParts[0]} or ${notLitParts[1]}`;
+}
+
 // ============================================
 // MAIN FORMATTING FUNCTION
 // ============================================
@@ -157,6 +203,23 @@ export function formatSpecValues(templateName: string, specs: Record<string, any
       const depth = getSpecField(specs, 'depth', 'return_depth');
       const colour = getColourValue(specs);
       return [depth, colour].filter(v => v).join(' ');
+
+    case '3DP Return':
+      // Format: depth - face_material (e.g., "1.5" - 4.5mm Acrylic")
+      const tdpDepth = specs.depth || '';
+      const tdpFaceMaterial = specs.face_material || '';
+      if (tdpDepth && tdpFaceMaterial) {
+        return `${tdpDepth} - ${tdpFaceMaterial}`;
+      }
+      return [tdpDepth, tdpFaceMaterial].filter(v => v).join(' ');
+
+    case '3DP Illumination':
+      // Compute illumination description from boolean values
+      return computeIlluminationDescription(
+        formatBooleanValue(specs.face_lit) === 'Yes',
+        formatBooleanValue(specs.side_lit) === 'Yes',
+        formatBooleanValue(specs.halo_lit) === 'Yes'
+      );
 
     case 'Face':
       // Format as {material} [{colour}] (swap order)

@@ -1,3 +1,4 @@
+// File Clean up Finished: 2026-01-12
 /**
  * Specification Options Cache
  * Session caching for specification dropdown options
@@ -8,7 +9,7 @@
  * Follows same pattern as PricingDataResource
  */
 
-import { specificationOptionsApi } from './api/specificationOptionsApi';
+import { settingsApi } from './api';
 
 // =====================================================
 // SPECIFICATION OPTIONS CACHE CLASS
@@ -39,10 +40,32 @@ export class SpecificationOptionsCache {
     this.inFlightRequest = (async () => {
       try {
         console.log('[SpecOptionsCache] Fetching all specification options from API...');
-        const options = await specificationOptionsApi.getAllOptions();
-        this.cachedOptions = options;
+
+        // Fetch all categories
+        const categories = await settingsApi.getSpecificationCategories();
+
+        // Fetch all category options in parallel
+        const optionsPromises = categories.map(async (cat) => {
+          const options = await settingsApi.getOptionsByCategory(cat.category);
+          return {
+            category: cat.category,
+            values: options
+              .sort((a, b) => a.display_order - b.display_order)
+              .map(opt => opt.option_value)
+          };
+        });
+
+        const results = await Promise.all(optionsPromises);
+
+        // Convert to Record<category, values[]>
+        const optionsMap: Record<string, string[]> = {};
+        for (const result of results) {
+          optionsMap[result.category] = result.values;
+        }
+
+        this.cachedOptions = optionsMap;
         this.cacheTimestamp = Date.now();
-        console.log(`[SpecOptionsCache] Cached ${Object.keys(options).length} categories`);
+        console.log(`[SpecOptionsCache] Cached ${Object.keys(optionsMap).length} categories`);
         return this.cachedOptions!;
       } catch (error) {
         console.error('[SpecOptionsCache] Error fetching specification options:', error);
@@ -123,5 +146,3 @@ export class SpecificationOptionsCache {
     };
   }
 }
-
-export default SpecificationOptionsCache;

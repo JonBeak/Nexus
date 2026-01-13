@@ -230,6 +230,24 @@ export class OrderConversionRepository {
       [orderId]
     );
   }
+
+  /**
+   * Check if estimate was prepared (has QB descriptions from "Prepare to Send" stage)
+   * @returns is_prepared flag
+   */
+  async getEstimatePreparedStatus(
+    estimateId: number,
+    connection?: PoolConnection
+  ): Promise<boolean> {
+    const conn = connection || pool;
+
+    const [rows] = await conn.execute<RowDataPacket[]>(
+      `SELECT is_prepared FROM job_estimates WHERE id = ?`,
+      [estimateId]
+    );
+
+    return rows.length > 0 && Boolean(rows[0].is_prepared);
+  }
 }
 
 export const orderConversionRepository = new OrderConversionRepository();

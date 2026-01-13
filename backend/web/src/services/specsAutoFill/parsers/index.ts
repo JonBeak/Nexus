@@ -14,6 +14,7 @@ export { extractDepth } from './depthParser';
 export { extractCount } from './countParser';
 export { extractLedType } from './ledTypeParser';
 export { detectPinsAndSpacers } from './hardwareDetector';
+export { extractSubstrateMaterial } from './substrateParser';
 
 /**
  * Parse all available data from input sources

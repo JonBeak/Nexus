@@ -12,3 +12,4 @@ export { autoFillPushThru } from './pushThruHandler';
 export { autoFillUL } from './ulHandler';
 export { autoFillExtraWire } from './extraWireHandler';
 export { autoFillVinylAndDigitalPrint } from './vinylDigitalHandler';
+export { autoFillSubstrateCut } from './substrateCutHandler';

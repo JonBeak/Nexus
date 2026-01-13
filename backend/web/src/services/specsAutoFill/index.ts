@@ -27,7 +27,8 @@ import {
   autoFillPushThru,
   autoFillUL,
   autoFillExtraWire,
-  autoFillVinylAndDigitalPrint
+  autoFillVinylAndDigitalPrint,
+  autoFillSubstrateCut
 } from './productHandlers';
 
 /**
@@ -105,6 +106,10 @@ export async function autoFillSpecifications(input: AutoFillInput): Promise<Auto
 
     case 'Backer':
       autoFillBacker(input, parsed, specs, warnings, filledFields);
+      break;
+
+    case 'Substrate Cut':
+      autoFillSubstrateCut(input, parsed, specs, warnings, filledFields);
       break;
 
     case 'Assembly':

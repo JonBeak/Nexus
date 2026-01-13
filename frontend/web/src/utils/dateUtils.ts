@@ -23,16 +23,43 @@ export const formatTime = (dateString: string | null): string => {
   });
 };
 
-// Format date from MySQL date string to display format
+// Format date from MySQL date string to display format (short: "Sun, Feb 8")
 export const formatDate = (dateString: string): string => {
   // Handle YYYY-MM-DD format to avoid timezone issues
   const [year, month, day] = dateString.split('-').map(Number);
   const date = new Date(year, month - 1, day);
-  return date.toLocaleDateString('en-US', { 
-    weekday: 'short', 
-    month: 'short', 
-    day: 'numeric' 
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric'
   });
+};
+
+// Format date to long format (e.g., "February 8, 2026")
+export const formatDateLong = (dateString?: string | null): string => {
+  if (!dateString) return '-';
+  // Handle YYYY-MM-DD format to avoid timezone issues
+  const match = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, year, month, day] = match;
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  }
+  // Fallback for other formats
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  } catch {
+    return dateString;
+  }
 };
 
 // Convert MySQL datetime string to datetime-local input format
@@ -241,6 +268,7 @@ export default {
   getTodayString,
   formatTime,
   formatDate,
+  formatDateLong,
   toDateTimeLocal,
   getSaturdayOfWeek,
   getFridayOfWeek,

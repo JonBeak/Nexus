@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { customerApi } from '../../../services/api';
+import { customerApi, ledsApi, powerSuppliesApi } from '../../../services/api';
 import { Customer, LedType, PowerSupplyType } from '../../../types';
 
 export interface PaginationInfo {
@@ -37,12 +37,12 @@ export const useCustomerAPI = (): UseCustomerAPIReturn => {
     const fetchTypes = async () => {
       try {
         const [ledTypesData, powerSupplyTypesData] = await Promise.all([
-          customerApi.getLedTypes(),
-          customerApi.getPowerSupplyTypes()
+          ledsApi.getActiveLEDs(),
+          powerSuppliesApi.getActivePowerSupplies()
         ]);
-        
-        setLedTypes(ledTypesData);
-        setPowerSupplyTypes(powerSupplyTypesData);
+
+        setLedTypes(ledTypesData as LedType[]);
+        setPowerSupplyTypes(powerSupplyTypesData as PowerSupplyType[]);
       } catch (error) {
         console.error('Error fetching types:', error);
       }

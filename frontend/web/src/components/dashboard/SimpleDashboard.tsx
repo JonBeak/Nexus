@@ -466,28 +466,30 @@ Check backend logs for detailed comparison!`);
         )}
       </main>
 
-      {/* Test Button - Dev/Testing Only */}
-      <div className="fixed bottom-4 right-4 z-50">
-        <button
-          onClick={runTest}
-          disabled={testLoading}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {testLoading ? '🔄 Testing QB Patterns...' : '🧪 Test QB Special Patterns'}
-        </button>
+      {/* Test Button - Owner Only */}
+      {user.role === 'owner' && (
+        <div className="fixed bottom-4 right-4 z-50">
+          <button
+            onClick={runTest}
+            disabled={testLoading}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {testLoading ? '🔄 Testing QB Patterns...' : '🧪 Test QB Special Patterns'}
+          </button>
 
-        {testResult && (
-          <div className={`absolute bottom-16 right-0 ${PAGE_STYLES.panel.background} rounded-lg shadow-2xl p-6 border-2 ${PAGE_STYLES.panel.border} min-w-96 max-w-2xl`}>
-            <button
-              onClick={() => setTestResult(null)}
-              className={`absolute top-2 right-2 ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.text}`}
-            >
-              ✕
-            </button>
-            <pre className={`text-sm whitespace-pre-wrap ${PAGE_STYLES.panel.text}`}>{testResult}</pre>
-          </div>
-        )}
-      </div>
+          {testResult && (
+            <div className={`absolute bottom-16 right-0 ${PAGE_STYLES.panel.background} rounded-lg shadow-2xl p-6 border-2 ${PAGE_STYLES.panel.border} min-w-96 max-w-2xl`}>
+              <button
+                onClick={() => setTestResult(null)}
+                className={`absolute top-2 right-2 ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.text}`}
+              >
+                ✕
+              </button>
+              <pre className={`text-sm whitespace-pre-wrap ${PAGE_STYLES.panel.text}`}>{testResult}</pre>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

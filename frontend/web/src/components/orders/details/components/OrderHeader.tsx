@@ -20,6 +20,7 @@ interface OrderHeaderProps {
   onApproveFilesAndPrint: () => void;  // NEW: Approve files and print
   onInvoiceAction: (action: InvoiceAction) => void;  // Phase 2.e: Invoice actions
   onLinkInvoice?: () => void;  // Phase 2.e: Link existing invoice
+  onReassignInvoice?: (currentInvoice: { invoiceId: string | null; invoiceNumber: string | null }) => void;  // Reassign deleted invoice
   generatingForms: boolean;
   printingForm: boolean;
 }
@@ -38,6 +39,7 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
   onApproveFilesAndPrint,
   onInvoiceAction,
   onLinkInvoice,
+  onReassignInvoice,
   generatingForms,
   printingForm
 }) => {
@@ -207,6 +209,7 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
                 order={order}
                 onAction={onInvoiceAction}
                 onLinkInvoice={onLinkInvoice}
+                onReassignInvoice={onReassignInvoice}
                 disabled={generatingForms || printingForm}
               />
             )}

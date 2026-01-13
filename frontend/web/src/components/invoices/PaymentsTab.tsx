@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Building, DollarSign, Calendar, CreditCard, FileText, CheckCircle, AlertCircle, Loader2, X } from 'lucide-react';
-import { customerApi } from '../../services/api';
-import { paymentsApi, OpenInvoice, MultiPaymentInput } from '../../services/api/paymentsApi';
+import { customerApi, paymentsApi, OpenInvoice, MultiPaymentInput } from '../../services/api';
 import { PAGE_STYLES } from '../../constants/moduleColors';
 
 interface Customer {

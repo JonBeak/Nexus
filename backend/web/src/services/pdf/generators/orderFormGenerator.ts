@@ -5,9 +5,9 @@
  * Generates Master, Customer, and Shop order forms from a single template
  *
  * Form Types:
- * - master: Complete internal form with all details
+ * - master: Complete internal form with all details (includes internal note)
  * - customer: Customer-facing form (also referred to as "Specs" - removes internal notes, simplifies LED/Power Supply)
- * - shop: Production floor form (removes customer details, 2-row header; "Specs" refers to customer form)
+ * - shop: Production floor form (removes customer details, 2-row header; includes internal note)
  *
  * Layout: Landscape Letter (11" x 8.5")
  * Design: Minimal padding, compact info, large image area
@@ -474,7 +474,7 @@ export async function generateOrderForm(
 
       // Render notes and image section
       await renderNotesAndImage(doc, orderData, maxPartY, marginLeft, contentWidth, pageWidth, marginRight, pageHeight, {
-        includeInternalNote: formType === 'master'
+        includeInternalNote: formType === 'master' || formType === 'shop'
       });
 
       doc.end();

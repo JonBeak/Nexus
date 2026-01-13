@@ -1,3 +1,4 @@
+// File Clean up Finished: 2026-01-12
 /**
  * Central barrel export for all API modules
  * This file provides a single import point for all API services
@@ -5,6 +6,9 @@
 
 // Re-export the shared API client
 export { api, api as apiClient, API_BASE_URL } from '../apiClient';
+
+// Default export for backward compatibility with `import api from '../../services/api'`
+export { api as default } from '../apiClient';
 
 // Re-export jobVersioningApi (already extracted)
 export { jobVersioningApi } from '../jobVersioningApi';
@@ -19,6 +23,11 @@ export { jobsApi } from './jobsApi';
 export { printApi } from './printApi';
 export { quickbooksApi } from './quickbooksApi';
 export { customerApi } from './customerApi';
+export type {
+  CustomerCreateData,
+  ManufacturingPreferences,
+  CustomerPaginationInfo
+} from './customerApi';
 export { customerContactsApi } from './customerContactsApi';
 export { vinylApi } from './vinylApi';
 export { vinylProductsApi } from './vinylProductsApi';
@@ -40,8 +49,27 @@ export {
   orderPartsApi,
   orderFormsApi,
   orderBusinessLogicApi,
-  orderPreparationApi
+  orderPreparationApi,
+  qbInvoiceApi
 } from './orders';
+
+export type {
+  InvoiceDetails,
+  InvoiceStalenessResult,
+  InvoiceSyncStatus,
+  ConflictResolution,
+  InvoiceDifference,
+  InvoiceSyncResult,
+  PaymentInput,
+  PaymentResult,
+  EmailInput,
+  ScheduledEmailInput,
+  ScheduledEmail,
+  EmailPreview,
+  InvoiceSearchResult,
+  CustomerInvoiceListItem,
+  CustomerInvoiceListResult
+} from './orders/qbInvoiceApi';
 
 export {
   timeEntriesApi,
@@ -82,6 +110,7 @@ export { serverManagementApi } from './serverManagementApi';
 export type {
   PM2ProcessStatus,
   BuildTimestamp,
+  EnvironmentInfo,
   SystemStatus,
   BackupFile,
   ScriptResult
@@ -100,3 +129,22 @@ export type {
   StaffTaskFilters,
   SessionUpdate
 } from './staff';
+
+// Payments (Multi-Invoice Payment Operations)
+export { paymentsApi } from './paymentsApi';
+export type {
+  OpenInvoice,
+  InvoicePaymentAllocation,
+  MultiPaymentInput,
+  MultiPaymentResult,
+  OpenInvoicesResponse
+} from './paymentsApi';
+
+// Customer Accounting Emails
+export { customerAccountingEmailsApi } from './customerAccountingEmailsApi';
+export type {
+  AccountingEmailType,
+  CustomerAccountingEmail,
+  CreateAccountingEmailData,
+  UpdateAccountingEmailData
+} from './customerAccountingEmailsApi';
