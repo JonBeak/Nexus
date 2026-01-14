@@ -36,11 +36,12 @@ export function parseSourceData(input: AutoFillInput): ParsedData {
       parsed.type = extractLedType(input.calculationDisplay) || undefined;
     }
 
-    // Detect pins, spacers, and rivnut
+    // Detect pins, spacers, rivnut, and stand offs
     const detection = detectPinsAndSpacers(input.calculationDisplay);
     parsed.hasPins = detection.hasPins;
     parsed.hasSpacers = detection.hasSpacers;
     parsed.hasRivnut = detection.hasRivnut;
+    parsed.hasStandOffs = detection.hasStandOffs;
   }
 
   console.log('[Specs Auto-Fill] Parsed data:', JSON.stringify(parsed, null, 2));

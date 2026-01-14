@@ -9,17 +9,19 @@
  * Pattern: "105 @ $1.75" → 105
  * Pattern: "Pins + Spacer: 15 @ $2/each" → 15
  * Pattern: "104 Pins + Rivnut + Spacer @ $3/ea: $312" → 104 (Substrate Cut format)
+ * Pattern: "50 Stand Offs @ $3/ea: $150" → 50
  */
 export function extractCount(calculationDisplay: string, componentType?: string): number | null {
   try {
-    // Check if calculationDisplay contains pins/spacers keywords
+    // Check if calculationDisplay contains mounting hardware keywords
     const lowerCalc = calculationDisplay.toLowerCase();
-    const hasPinsKeyword = /\bpins?\b/.test(lowerCalc) || /\bspacers?\b/.test(lowerCalc);
+    const hasHardwareKeyword = /\bpins?\b/.test(lowerCalc) || /\bspacers?\b/.test(lowerCalc) || /\bstand\s*offs?\b/.test(lowerCalc);
 
-    // For pins/spacers, try multiple patterns
-    if (hasPinsKeyword || (componentType && (componentType.toLowerCase().includes('pin') || componentType.toLowerCase().includes('spacer')))) {
-      // Pattern 1: Substrate Cut format - "104 Pins + ..." at start of string or line
-      const substrateMatch = calculationDisplay.match(/^(\d+)\s+Pins?\b/i);
+    // For mounting hardware, try multiple patterns
+    if (hasHardwareKeyword || (componentType && (componentType.toLowerCase().includes('pin') || componentType.toLowerCase().includes('spacer') || componentType.toLowerCase().includes('stand')))) {
+      // Pattern 1: Substrate Cut format - "104 Pins + ..." or "50 Stand Offs..." at start of line
+      // Matches: Pins, Pin, Stand Offs, Stand Off, StandOffs
+      const substrateMatch = calculationDisplay.match(/^(\d+)\s+(?:Pins?|Stand\s*Offs?)\b/im);
       if (substrateMatch) {
         console.log(`[Specs Auto-Fill] Extracted count from Substrate Cut format: ${substrateMatch[1]}`);
         return parseInt(substrateMatch[1], 10);

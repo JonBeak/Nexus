@@ -66,7 +66,8 @@ const PORT = Number(process.env.PORT) || 3001;
 // Middleware - Allow multiple origins for development and production
 const allowedOrigins = [
   'https://nexuswebapp.duckdns.org',  // Production
-  'http://192.168.2.14:5173',          // LAN development
+  'http://192.168.2.14:5173',          // LAN development (ethernet)
+  'http://192.168.5.28:5173',          // LAN development (guest WiFi)
   'http://localhost:5173',             // Local development
   'https://nexuswebapphome.duckdns.org:3001',  // Home HTTPS
 ];

@@ -315,10 +315,22 @@ export async function getInvoiceDetails(orderId: number): Promise<InvoiceDetails
     // This keeps the order object as single source of truth for balance
     await invoiceListingRepo.updateCachedBalance(orderId, qbInvoice.Balance, qbInvoice.TotalAmt);
 
+    // Sync DocNumber if it differs (QB may have auto-generated it)
+    const qbDocNumber = qbInvoice.DocNumber;
+    let invoiceNumber = invoiceRecord.qb_invoice_doc_number;
+
+    if (qbDocNumber && qbDocNumber !== invoiceRecord.qb_invoice_doc_number) {
+      console.log(`📋 Syncing invoice DocNumber: ${invoiceRecord.qb_invoice_doc_number} → ${qbDocNumber}`);
+      await qbInvoiceRepo.updateOrderInvoiceRecord(orderId, {
+        qb_invoice_doc_number: qbDocNumber
+      });
+      invoiceNumber = qbDocNumber;
+    }
+
     return {
       exists: true,
       invoiceId: invoiceRecord.qb_invoice_id,
-      invoiceNumber: invoiceRecord.qb_invoice_doc_number,
+      invoiceNumber,
       invoiceUrl,
       total: qbInvoice.TotalAmt,
       balance: qbInvoice.Balance,
@@ -644,7 +656,6 @@ async function buildInvoicePayload(
 
   // Build payload
   const payload: QBInvoicePayload = {
-    DocNumber: 'AUTO_GENERATE', // Required when Custom Transaction Numbers is enabled in QB
     CustomerRef: { value: qbCustomerId },
     TxnDate: new Date().toISOString().split('T')[0],
     Line: lineItems,

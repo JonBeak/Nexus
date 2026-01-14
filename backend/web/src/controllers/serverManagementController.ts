@@ -301,3 +301,146 @@ export const cleanupBackups = async (req: Request, res: Response) => {
     });
   }
 };
+
+// ========== Linux Dev Features ==========
+
+/**
+ * GET /api/server-management/ports
+ * Get all active listening ports
+ */
+export const getActivePorts = async (req: Request, res: Response) => {
+  try {
+    const ports = await serverManagementService.getActivePorts();
+    res.json({ success: true, data: ports });
+  } catch (error) {
+    console.error('Error getting active ports:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to get ports'
+    });
+  }
+};
+
+/**
+ * GET /api/server-management/rogue-processes
+ * Get node/npm processes not managed by PM2
+ */
+export const getRogueProcesses = async (req: Request, res: Response) => {
+  try {
+    const processes = await serverManagementService.getRogueProcesses();
+    res.json({ success: true, data: processes });
+  } catch (error) {
+    console.error('Error getting rogue processes:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to get rogue processes'
+    });
+  }
+};
+
+/**
+ * POST /api/server-management/kill-process
+ * Kill a process by PID
+ */
+export const killProcess = async (req: Request, res: Response) => {
+  try {
+    const { pid } = req.body;
+
+    if (!pid || typeof pid !== 'number') {
+      return res.status(400).json({
+        success: false,
+        message: 'PID is required and must be a number'
+      });
+    }
+
+    console.log(`Server Management: Killing process ${pid}...`);
+    const result = await serverManagementService.killProcess(pid);
+    res.json({ success: result.success, data: { output: result.output }, error: result.error });
+  } catch (error) {
+    console.error('Error killing process:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to kill process'
+    });
+  }
+};
+
+/**
+ * GET /api/server-management/network
+ * Get network interfaces status
+ */
+export const getNetworkInterfaces = async (req: Request, res: Response) => {
+  try {
+    const interfaces = await serverManagementService.getNetworkInterfaces();
+    res.json({ success: true, data: interfaces });
+  } catch (error) {
+    console.error('Error getting network interfaces:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to get network interfaces'
+    });
+  }
+};
+
+/**
+ * GET /api/server-management/logs/:processName
+ * Get PM2 process logs
+ */
+export const getProcessLogs = async (req: Request, res: Response) => {
+  try {
+    const { processName } = req.params;
+    const lines = parseInt(req.query.lines as string) || 100;
+
+    if (!processName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Process name is required'
+      });
+    }
+
+    const result = await serverManagementService.getProcessLogs(processName, lines);
+    res.json({ success: result.success, data: { output: result.output }, error: result.error });
+  } catch (error) {
+    console.error('Error getting process logs:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to get logs'
+    });
+  }
+};
+
+/**
+ * POST /api/server-management/frontend/restart-dev
+ * Restart frontend dev PM2 process (Vite)
+ */
+export const restartFrontendDev = async (req: Request, res: Response) => {
+  try {
+    console.log('Server Management: Restarting frontend dev...');
+    const result = await serverManagementService.restartFrontendDev();
+    res.json({ success: result.success, data: { output: result.output }, error: result.error });
+  } catch (error) {
+    console.error('Error restarting frontend dev:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'PM2 command failed'
+    });
+  }
+};
+
+/**
+ * GET /api/server-management/environment
+ * Get access environment based on request origin
+ */
+export const getAccessEnvironment = async (req: Request, res: Response) => {
+  try {
+    const origin = req.get('origin') || req.get('referer');
+    const environment = serverManagementService.detectAccessEnvironment(origin);
+    res.json({ success: true, data: { environment, origin } });
+  } catch (error) {
+    console.error('Error detecting environment:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to detect environment'
+    });
+  }
+};

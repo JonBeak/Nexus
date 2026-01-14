@@ -992,8 +992,8 @@ export function renderSignTypeBox(
 ): number {
   let currentY = startY;
 
-  // Render Sign Type box (12pt bold value font, 12pt label font)
-  currentY = renderLabelValueBox(doc, 'Sign Type', displayName, x, currentY, width, FONT_SIZES.SIGN_TYPE_VALUE, true, measureOnly, FONT_SIZES.SIGN_TYPE_LABEL);
+  // Render Product Type box (12pt bold value font, 12pt label font)
+  currentY = renderLabelValueBox(doc, 'Product Type', displayName, x, currentY, width, FONT_SIZES.SIGN_TYPE_VALUE, true, measureOnly, FONT_SIZES.SIGN_TYPE_LABEL);
 
   // Render Scope box if scope exists (10pt value font with wrapping)
   if (scope) {

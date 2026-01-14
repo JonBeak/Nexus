@@ -53,7 +53,7 @@ export function mapSpecsDisplayNameToTypes(
     'UL': ['UL'],
 
     // Specialized Products
-    '3D print': ['3DP Return', '3DP Illumination', 'Mounting'],
+    '3D print': ['3DP Return', 'Face', 'Back', 'Illumination', 'Mounting'],
     'Blade Sign': ['Return', 'Trim', 'Face', 'Back'],
     'Marquee Bulb': ['Return', 'Face', 'Back'],
     'Neon LED': ['Neon Base', 'Neon LED', 'Mounting'],

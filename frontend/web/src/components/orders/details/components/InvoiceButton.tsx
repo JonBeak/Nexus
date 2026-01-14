@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FileText, Send, Eye, RefreshCw, ChevronDown, Link, AlertTriangle, AlertOctagon } from 'lucide-react';
+import { FileText, Send, Eye, RefreshCw, ChevronDown, Link, AlertTriangle, AlertOctagon, CheckCircle } from 'lucide-react';
 import { Order, DEPOSIT_TRACKING_STATUSES } from '../../../../types/orders';
 import { qbInvoiceApi, InvoiceSyncStatus, InvoiceDifference } from '../../../../services/api';
 
@@ -11,6 +11,8 @@ interface InvoiceButtonProps {
   onLinkInvoice?: () => void;
   /** Called when invoice needs reassignment (deleted in QB). Passes current invoice info */
   onReassignInvoice?: (currentInvoice: { invoiceId: string | null; invoiceNumber: string | null }) => void;
+  /** Called when user manually marks invoice as sent */
+  onMarkAsSent?: () => void;
   disabled?: boolean;
   /** If true, performs deep QB comparison (slower but detects QB-side changes) */
   deepCheck?: boolean;
@@ -45,6 +47,7 @@ const InvoiceButton: React.FC<InvoiceButtonProps> = ({
   onAction,
   onLinkInvoice,
   onReassignInvoice,
+  onMarkAsSent,
   disabled = false,
   deepCheck = false
 }) => {
@@ -232,10 +235,14 @@ const InvoiceButton: React.FC<InvoiceButtonProps> = ({
     }
   };
 
-  // Show dropdown for 'create' (link option) or when invoice exists (reassign option)
+  // Show dropdown for 'create' (link option), when invoice exists (reassign option),
+  // or when invoice not yet sent (mark as sent option)
   const hasInvoice = !!order.qb_invoice_id;
+  const invoiceSent = !!order.invoice_sent_at;
+  const showMarkAsSent = !invoiceSent && onMarkAsSent;
   const showDropdown = (buttonState.action === 'create' && onLinkInvoice) ||
-                       (hasInvoice && onReassignInvoice);
+                       (hasInvoice && onReassignInvoice) ||
+                       showMarkAsSent;
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -304,6 +311,19 @@ const InvoiceButton: React.FC<InvoiceButtonProps> = ({
             >
               <Link className="w-4 h-4" />
               <span>Reassign to Different Invoice</span>
+            </button>
+          )}
+          {/* Mark as Sent option - when invoice not sent yet */}
+          {showMarkAsSent && (
+            <button
+              onClick={() => {
+                setDropdownOpen(false);
+                onMarkAsSent?.();
+              }}
+              className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            >
+              <CheckCircle className="w-4 h-4" />
+              <span>Mark as Sent</span>
             </button>
           )}
         </div>

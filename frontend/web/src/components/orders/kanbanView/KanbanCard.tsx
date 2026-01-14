@@ -12,7 +12,7 @@ import { ordersApi, orderTasksApi } from '../../../services/api';
 import { OrderTask, OrderPart } from '../../../types/orders';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 interface ExtendedKanbanCardProps extends KanbanCardProps {
   isDragOverlay?: boolean;
@@ -188,7 +188,8 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
         }
       }}
       className={`
-        ${PAGE_STYLES.input.background} rounded-lg border ${PAGE_STYLES.panel.border}
+        ${order.invoice_sent_at ? 'bg-emerald-300' : PAGE_STYLES.input.background}
+        rounded-lg border ${order.invoice_sent_at ? 'border-emerald-500' : PAGE_STYLES.panel.border}
         shadow-sm hover:shadow-md transition-shadow select-none
         cursor-grab active:cursor-grabbing overflow-hidden
         ${isDragging ? 'ring-2 ring-orange-400' : ''}

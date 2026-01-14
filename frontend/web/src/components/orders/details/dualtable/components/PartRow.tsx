@@ -43,6 +43,7 @@ interface PartRowProps {
   onSpecFieldSave: (partId: number, specKey: string, value: string) => Promise<void>;
   onInsertAfter: (partId: number, afterRowNum: number) => void;
   onDelete: (partId: number, rowNum: number) => void;
+  onClear: (partId: number, rowNum: number) => void;
   onToggleParent: (partId: number) => void;
   onRemovePartRow: (partId: number) => void;
   onDuplicatePart: (partId: number, mode: DuplicateMode) => void;
@@ -60,6 +61,7 @@ export const PartRow: React.FC<PartRowProps> = ({
   onSpecFieldSave,
   onInsertAfter,
   onDelete,
+  onClear,
   onToggleParent,
   onRemovePartRow,
   onDuplicatePart,
@@ -417,6 +419,7 @@ export const PartRow: React.FC<PartRowProps> = ({
         onSpecFieldSave={onSpecFieldSave}
         onInsertAfter={onInsertAfter}
         onDelete={onDelete}
+        onClear={onClear}
       />
 
       {/* QB Item Name - spans full height (with divider) */}

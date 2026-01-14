@@ -6,8 +6,6 @@
 
 import { AutoFillInput, ParsedData } from '../types';
 import {
-  getDefaultPinLength,
-  getDefaultSpacerLength,
   getDefaultFaceMaterial,
   getDefaultFaceColor,
   getDefaultDrainHoles,
@@ -87,9 +85,8 @@ export function autoFillChannelLetters(
     }
   }
 
-  // Auto-fill Mounting count and defaults
+  // Auto-fill Mounting count only (Pin Type and Spacer Type left for manual selection)
   if (mountingRow && parsed.hasPins) {
-    // Fill count if detected
     if (parsed.count) {
       const countField = `row${mountingRow}_count`;
       specs[countField] = parsed.count.toString();
@@ -98,36 +95,6 @@ export function autoFillChannelLetters(
     } else {
       warnings.push('Mounting hardware detected in calculation but could not extract count');
       console.warn('[Specs Auto-Fill] ⚠ Mounting detected but count extraction failed');
-    }
-
-    // Fill default pin length (e.g., "6\" Pins")
-    const defaultPinLength = getDefaultPinLength(input.specsDisplayName);
-    const pinOption = `${defaultPinLength} Pins`;
-    const pinsField = `row${mountingRow}_pins`;
-    specs[pinsField] = pinOption;
-    filledFields.push(pinsField);
-    console.log(`[Specs Auto-Fill] ✓ Filled ${pinsField} = "${pinOption}"`);
-
-    // Fill default spacer option if spacers detected
-    if (parsed.hasSpacers) {
-      const defaultSpacerLength = getDefaultSpacerLength(input.specsDisplayName);
-
-      // Build spacer option based on whether Rivnut is detected
-      let spacerOption: string;
-      if (parsed.hasRivnut) {
-        // Use the spacer + Rivnut option
-        spacerOption = `${defaultSpacerLength} Spacer + Rivnut`;
-        console.log(`[Specs Auto-Fill] Rivnut detected, using "${spacerOption}"`);
-      } else {
-        // Use plain spacer option
-        spacerOption = `${defaultSpacerLength} Spacer`;
-        console.log(`[Specs Auto-Fill] No Rivnut detected, using "${spacerOption}"`);
-      }
-
-      const spacersField = `row${mountingRow}_spacers`;
-      specs[spacersField] = spacerOption;
-      filledFields.push(spacersField);
-      console.log(`[Specs Auto-Fill] ✓ Filled ${spacersField} = "${spacerOption}"`);
     }
   }
 

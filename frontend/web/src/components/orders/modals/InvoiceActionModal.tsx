@@ -8,8 +8,8 @@
  * - Schedule option for delayed send
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { X, Loader2, Calendar, Send, FileText, RefreshCw, Clock, Mail, Eye, AlertTriangle, UserCircle, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { X, Loader2, Calendar, Send, FileText, RefreshCw, Clock, Mail, Eye, AlertTriangle, UserCircle, CheckCircle, Link } from 'lucide-react';
 import { Order, OrderPart } from '../../../types/orders';
 import { Address } from '../../../types';
 import { qbInvoiceApi, EmailPreview, InvoiceDetails, InvoiceSyncStatus, InvoiceDifference, InvoiceSyncResult, customerApi, settingsApi } from '../../../services/api';
@@ -25,6 +25,7 @@ interface InvoiceActionModalProps {
   onSuccess: () => void;
   onSkip?: () => void;  // For status change prompts - allows skipping
   onReassign?: () => void;  // For reassigning to a different invoice
+  onLinkExisting?: () => void;  // For linking to existing QB invoice instead of creating
 }
 
 interface EmailHistoryItem {
@@ -62,7 +63,8 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   mode,
   onSuccess,
   onSkip,
-  onReassign
+  onReassign,
+  onLinkExisting
 }) => {
   // Form State
   const [recipientEntries, setRecipientEntries] = useState<RecipientEntry[]>([]);
@@ -126,6 +128,12 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   const [invoicePdf, setInvoicePdf] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+
+  // Refs for backdrop click handling
+  const modalContentRef = useRef<HTMLDivElement>(null);
+  const mouseDownOutsideRef = useRef(false);
+  const scheduleModalRef = useRef<HTMLDivElement>(null);
+  const scheduleMouseDownOutsideRef = useRef(false);
 
   // Create mode: company and customer address data
   const [companySettings, setCompanySettings] = useState<{
@@ -193,6 +201,51 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     total: totals.total,
     balanceDue: qbInvoiceData?.balance ?? totals.total
   }), [order, totals, qbInvoiceData]);
+
+  // Handle ESC key - stop propagation to prevent parent modals from closing
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // Don't close if a child modal is open
+        if (showScheduleModal || showConflictModal || showSuccessModal) return;
+        e.stopImmediatePropagation();
+        onClose();
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose, showScheduleModal, showConflictModal, showSuccessModal]);
+
+  // Handle backdrop click - only close if both mousedown and mouseup are outside modal content
+  const handleBackdropMouseDown = (e: React.MouseEvent) => {
+    mouseDownOutsideRef.current = modalContentRef.current ? !modalContentRef.current.contains(e.target as Node) : false;
+  };
+
+  const handleBackdropMouseUp = (e: React.MouseEvent) => {
+    // Don't close if a child modal is open
+    if (showScheduleModal || showConflictModal || showSuccessModal) {
+      mouseDownOutsideRef.current = false;
+      return;
+    }
+    if (mouseDownOutsideRef.current && modalContentRef.current && !modalContentRef.current.contains(e.target as Node)) {
+      onClose();
+    }
+    mouseDownOutsideRef.current = false;
+  };
+
+  // Schedule modal backdrop handlers
+  const handleScheduleBackdropMouseDown = (e: React.MouseEvent) => {
+    scheduleMouseDownOutsideRef.current = scheduleModalRef.current ? !scheduleModalRef.current.contains(e.target as Node) : false;
+  };
+
+  const handleScheduleBackdropMouseUp = (e: React.MouseEvent) => {
+    if (scheduleMouseDownOutsideRef.current && scheduleModalRef.current && !scheduleModalRef.current.contains(e.target as Node)) {
+      setShowScheduleModal(false);
+    }
+    scheduleMouseDownOutsideRef.current = false;
+  };
 
   // Fetch styled email preview from backend
   useEffect(() => {
@@ -700,7 +753,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
       // Show success modal instead of immediately closing
       setSuccessModalData({
         recipients: { to: toEmails, cc: ccEmails, bcc: bccEmails },
-        wasResent: mode === 'view' || mode === 'send'
+        wasResent: mode === 'view'  // Only 'view' mode is a resend (invoice was already sent)
       });
       setShowSuccessModal(true);
     } catch (err) {
@@ -778,7 +831,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
       setSuccessModalData({
         recipients: { to: toEmails, cc: ccEmails, bcc: bccEmails },
         scheduledFor,
-        wasResent: mode === 'view' || mode === 'send'
+        wasResent: mode === 'view'  // Only 'view' mode is a resend (invoice was already sent)
       });
       setShowSuccessModal(true);
     } catch (err) {
@@ -846,8 +899,12 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   // CREATE mode: Simple single-panel modal
   if (mode === 'create') {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+        onMouseDown={handleBackdropMouseDown}
+        onMouseUp={handleBackdropMouseUp}
+      >
+        <div ref={modalContentRef} className="bg-white rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
           {/* Header */}
           <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
             <div className="flex items-center justify-between">
@@ -995,20 +1052,32 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
               >
                 {onSkip ? 'Skip' : 'Cancel'}
               </button>
-              <button
-                onClick={handleInvoiceOnly}
-                disabled={loading}
-                className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium flex items-center gap-2 text-sm disabled:opacity-50"
-              >
-                {loading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    <FileText className="w-4 h-4" />
-                    Create QB Invoice
-                  </>
+              <div className="flex items-center gap-3">
+                {onLinkExisting && (
+                  <button
+                    onClick={onLinkExisting}
+                    disabled={loading}
+                    className="px-4 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-medium flex items-center gap-2 text-sm disabled:opacity-50"
+                  >
+                    <Link className="w-4 h-4" />
+                    Link Existing
+                  </button>
                 )}
-              </button>
+                <button
+                  onClick={handleInvoiceOnly}
+                  disabled={loading}
+                  className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium flex items-center gap-2 text-sm disabled:opacity-50"
+                >
+                  {loading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <FileText className="w-4 h-4" />
+                      Create QB Invoice
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1036,8 +1105,12 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   }[mode];
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl w-[96%] max-w-[1475px] h-[95vh] flex overflow-hidden">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
+    >
+      <div ref={modalContentRef} className="bg-white rounded-lg shadow-2xl w-[96%] max-w-[1475px] h-[95vh] flex overflow-hidden">
         {/* Left Panel - Header + Form + Footer (37%) */}
         <div className="w-[37%] border-r border-gray-200 flex flex-col">
           {/* Header - Left side only */}
@@ -1574,8 +1647,12 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
 
       {/* Schedule Modal */}
       {showScheduleModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm p-6">
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]"
+          onMouseDown={handleScheduleBackdropMouseDown}
+          onMouseUp={handleScheduleBackdropMouseUp}
+        >
+          <div ref={scheduleModalRef} className="bg-white rounded-lg shadow-2xl w-full max-w-sm p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                 <Clock className="w-5 h-5 text-blue-600" />

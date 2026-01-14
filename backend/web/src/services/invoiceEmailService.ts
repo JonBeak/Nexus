@@ -18,6 +18,8 @@ import {
   EmailPreview,
   TemplateVariables
 } from '../types/qbInvoice';
+import MailComposer from 'nodemailer/lib/mail-composer';
+import * as fs from 'fs/promises';
 
 // Gmail API Configuration
 const GMAIL_ENABLED = process.env.GMAIL_ENABLED === 'true';
@@ -25,12 +27,106 @@ const SENDER_EMAIL = process.env.GMAIL_SENDER_EMAIL || 'info@signhouse.ca';
 const SENDER_NAME = process.env.GMAIL_SENDER_NAME || 'Sign House';
 const BCC_EMAIL = process.env.GMAIL_BCC_EMAIL || '';
 
+// PDF cache directory
+const PDF_CACHE_DIR = '/tmp/invoice-pdf-cache';
+
+// =============================================
+// PDF DOWNLOAD HELPERS
+// =============================================
+
+/**
+ * Ensure PDF cache directory exists
+ */
+async function ensurePdfCacheDir(): Promise<void> {
+  try {
+    await fs.access(PDF_CACHE_DIR);
+  } catch {
+    await fs.mkdir(PDF_CACHE_DIR, { recursive: true });
+  }
+}
+
+/**
+ * Download invoice PDF from QuickBooks with retry logic
+ * Caches PDF locally to avoid repeated downloads
+ *
+ * @param qbInvoiceId - QuickBooks invoice ID
+ * @param qbDocNumber - QB invoice doc number for filename
+ * @returns Local file path to the downloaded PDF
+ * @throws Error if download fails after all retries
+ */
+async function downloadInvoicePdfWithRetry(
+  qbInvoiceId: string,
+  qbDocNumber: string | null
+): Promise<string> {
+  await ensurePdfCacheDir();
+
+  const cachePath = `${PDF_CACHE_DIR}/invoice-${qbInvoiceId}.pdf`;
+
+  // Check cache first
+  try {
+    await fs.access(cachePath);
+    console.log(`📎 Using cached invoice PDF: ${cachePath}`);
+    return cachePath;
+  } catch {
+    // Cache miss - need to download
+  }
+
+  // Get realm ID for QB API
+  const { quickbooksRepository } = await import('../repositories/quickbooksRepository');
+  const realmId = await quickbooksRepository.getDefaultRealmId();
+  if (!realmId) {
+    throw new Error('QuickBooks not configured - cannot download invoice PDF');
+  }
+
+  // Import the QB invoice PDF function
+  const { getQBInvoicePdf } = await import('../utils/quickbooks/invoiceClient');
+
+  // Retry logic with exponential backoff (matching estimate pattern)
+  const MAX_RETRIES = 3;
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      console.log(`📎 Downloading invoice PDF (attempt ${attempt}/${MAX_RETRIES})...`);
+      const pdfBuffer = await getQBInvoicePdf(qbInvoiceId, realmId);
+
+      // Save to cache
+      await fs.writeFile(cachePath, pdfBuffer);
+      console.log(`✅ Invoice PDF downloaded and cached: ${cachePath} (${Math.round(pdfBuffer.length / 1024)}KB)`);
+
+      return cachePath;
+    } catch (pdfError) {
+      lastError = pdfError instanceof Error ? pdfError : new Error(String(pdfError));
+      console.error(`⚠️ PDF download attempt ${attempt} failed:`, lastError.message);
+
+      if (attempt < MAX_RETRIES) {
+        const delayMs = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
+        console.log(`   Retrying in ${delayMs / 1000}s...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+
+  throw new Error(`Failed to download invoice PDF after ${MAX_RETRIES} attempts: ${lastError?.message || 'Unknown error'}. Email not sent.`);
+}
+
 // =============================================
 // EMAIL SENDING
 // =============================================
 
 /**
  * Send invoice email immediately
+ *
+ * @param orderId - Order ID
+ * @param recipientEmails - To recipients
+ * @param ccEmails - CC recipients
+ * @param subject - Email subject
+ * @param body - Email HTML body
+ * @param userId - User sending the email
+ * @param bccEmails - BCC recipients
+ * @param attachInvoicePdf - Whether to attach the invoice PDF (default: false)
+ * @param qbInvoiceId - QuickBooks invoice ID (required if attachInvoicePdf is true)
+ * @param qbDocNumber - QuickBooks invoice doc number (for filename)
  */
 export async function sendInvoiceEmail(
   orderId: number,
@@ -39,12 +135,32 @@ export async function sendInvoiceEmail(
   subject: string,
   body: string,
   userId: number,
-  bccEmails?: string[]
+  bccEmails?: string[],
+  attachInvoicePdf?: boolean,
+  qbInvoiceId?: string,
+  qbDocNumber?: string | null
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
     // Validate recipients
     if (!recipientEmails || recipientEmails.length === 0) {
       return { success: false, error: 'No recipients specified' };
+    }
+
+    // If PDF attachment requested, validate we have the QB invoice ID
+    let pdfPath: string | null = null;
+    if (attachInvoicePdf) {
+      if (!qbInvoiceId) {
+        return { success: false, error: 'Cannot attach PDF: No QuickBooks invoice linked. Please link or create an invoice first.' };
+      }
+
+      // Download PDF with retry logic (fails if PDF cannot be attached)
+      try {
+        pdfPath = await downloadInvoicePdfWithRetry(qbInvoiceId, qbDocNumber || null);
+      } catch (pdfError) {
+        const errorMsg = pdfError instanceof Error ? pdfError.message : 'Failed to download PDF';
+        console.error('❌ PDF attachment failed:', errorMsg);
+        return { success: false, error: errorMsg };
+      }
     }
 
     // Check if Gmail is enabled
@@ -58,6 +174,7 @@ export async function sendInvoiceEmail(
       if (bccEmails?.length) console.log(`  BCC: ${bccEmails.join(', ')}`);
       if (BCC_EMAIL) console.log(`  Auto-BCC: ${BCC_EMAIL}`);
       console.log(`  Subject: ${subject}`);
+      if (pdfPath) console.log(`  📎 PDF Attachment: ${pdfPath}`);
       console.log('\n  Body Preview (first 500 chars):');
       console.log('  ' + body.replace(/<[^>]*>/g, '').substring(0, 500) + '...');
       console.log('='.repeat(80) + '\n');
@@ -94,14 +211,29 @@ export async function sendInvoiceEmail(
       return { success: false, error: 'Failed to create Gmail client' };
     }
 
-    // Build email message
-    const encodedMessage = buildEmailMessage(
-      recipientEmails,
-      ccEmails,
-      subject,
-      body,
-      bccEmails
-    );
+    // Build email message (with or without attachment)
+    let encodedMessage: string;
+    if (pdfPath) {
+      // Use MailComposer for email with PDF attachment
+      encodedMessage = await buildEmailMessageWithAttachment(
+        recipientEmails,
+        ccEmails,
+        subject,
+        body,
+        bccEmails,
+        pdfPath,
+        qbDocNumber || undefined
+      );
+    } else {
+      // Use simple builder for email without attachment
+      encodedMessage = buildEmailMessage(
+        recipientEmails,
+        ccEmails,
+        subject,
+        body,
+        bccEmails
+      );
+    }
 
     // Send email
     console.log(`📧 Sending invoice email for order ${orderId}...`);
@@ -109,6 +241,7 @@ export async function sendInvoiceEmail(
     if (ccEmails?.length) console.log(`   CC: ${ccEmails.join(', ')}`);
     if (bccEmails?.length) console.log(`   BCC (user): ${bccEmails.join(', ')}`);
     console.log(`   Auto-BCC: ${BCC_EMAIL || '(not configured)'}`);
+    if (pdfPath) console.log(`   📎 PDF attached: ${pdfPath}`);
     const response = await sendWithRetry(gmail, encodedMessage);
     const messageId = response.data?.id;
 
@@ -523,6 +656,113 @@ function buildEmailMessage(
 }
 
 /**
+ * Build email message with PDF attachment using MailComposer
+ * Used when attachInvoicePdf is true
+ */
+async function buildEmailMessageWithAttachment(
+  recipients: string[],
+  ccEmails: string[] | undefined,
+  subject: string,
+  htmlBody: string,
+  bccEmails: string[] | undefined,
+  pdfPath: string,
+  invoiceDocNumber?: string
+): Promise<string> {
+  const pdfFilename = `Invoice-${invoiceDocNumber || 'document'}.pdf`;
+
+  console.log(`   📎 Building email with PDF attachment: ${pdfFilename}`);
+
+  // Generate plain text version from HTML body
+  const plainText = htmlBody
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, '\n')
+    .replace(/\n\s*\n/g, '\n\n')
+    .trim();
+
+  // Build mail options for MailComposer
+  const mailOptions: any = {
+    from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
+    to: recipients.join(', '),
+    subject,
+    text: plainText,
+    html: htmlBody,
+    attachments: []
+  };
+
+  // Add CC recipients if provided
+  if (ccEmails && ccEmails.length > 0) {
+    mailOptions.cc = ccEmails.join(', ');
+  }
+
+  // Build BCC list: combine user-selected BCC with company BCC
+  const allBccRecipients: string[] = [];
+  if (bccEmails && bccEmails.length > 0) {
+    allBccRecipients.push(...bccEmails);
+  }
+  if (BCC_EMAIL && BCC_EMAIL.trim() !== '' && !allBccRecipients.includes(BCC_EMAIL)) {
+    allBccRecipients.push(BCC_EMAIL);
+  }
+  if (allBccRecipients.length > 0) {
+    mailOptions.bcc = allBccRecipients.join(', ');
+  }
+
+  // Load PDF attachment
+  try {
+    console.log(`   📎 Reading PDF from: ${pdfPath}`);
+    const pdfContent = await fs.readFile(pdfPath);
+    console.log(`   📎 PDF loaded: ${Math.round(pdfContent.length / 1024)}KB`);
+
+    mailOptions.attachments.push({
+      filename: pdfFilename,
+      content: pdfContent,
+      contentType: 'application/pdf',
+      contentDisposition: 'attachment'
+    });
+
+    console.log(`   📎 PDF attachment added: ${pdfFilename}`);
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+    console.error('   ❌ Could not load PDF attachment:', errorMsg);
+    throw new Error(`Failed to load PDF attachment: ${errorMsg}`);
+  }
+
+  // Use MailComposer to build proper MIME message
+  const mail = new MailComposer(mailOptions);
+
+  return new Promise((resolve, reject) => {
+    mail.compile().build((err, message) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      let messageStr = message.toString();
+
+      // MailComposer strips BCC headers (standard SMTP behavior), but Gmail API
+      // needs the BCC header in the raw message to deliver to BCC recipients.
+      // Insert BCC header before the Subject: line
+      if (allBccRecipients.length > 0) {
+        const bccValue = allBccRecipients.join(', ');
+        const subjectMatch = messageStr.match(/^Subject: /m);
+        if (subjectMatch) {
+          messageStr = messageStr.replace(/^Subject: /m, `Bcc: ${bccValue}\r\nSubject: `);
+          console.log(`   📧 BCC header injected: ${bccValue}`);
+        }
+      }
+
+      // Encode for Gmail API (URL-safe base64)
+      const encodedMessage = Buffer.from(messageStr).toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+
+      resolve(encodedMessage);
+    });
+  });
+}
+
+/**
  * Send email with retry logic
  */
 async function sendWithRetry(
@@ -562,18 +802,29 @@ async function sendWithRetry(
 
 /**
  * Process and send a scheduled email (called by cron job)
+ * Always attempts to attach invoice PDF (matches immediate send behavior)
  */
 export async function processScheduledEmail(
   scheduledEmail: ScheduledEmail
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Look up invoice record to get PDF attachment info
+    // Always attach PDF for scheduled invoice emails
+    const invoiceRecord = await qbInvoiceRepo.getOrderInvoiceRecord(scheduledEmail.order_id);
+    const qbInvoiceId = invoiceRecord?.qb_invoice_id || undefined;
+    const qbDocNumber = invoiceRecord?.qb_invoice_doc_number || null;
+
     const result = await sendInvoiceEmail(
       scheduledEmail.order_id,
       scheduledEmail.recipient_emails,
       scheduledEmail.cc_emails || [],
       scheduledEmail.subject,
       scheduledEmail.body,
-      scheduledEmail.created_by
+      scheduledEmail.created_by,
+      undefined, // bccEmails - not stored in scheduled email currently
+      true, // attachInvoicePdf - always true for invoice emails
+      qbInvoiceId,
+      qbDocNumber
     );
 
     if (result.success) {

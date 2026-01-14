@@ -14,7 +14,12 @@ export default defineConfig(({ mode }) => {
       host: env.VITE_HOST,
       proxy: env.VITE_API_URL ? undefined : {
         '/api': {
-          target: 'http://localhost:3001',
+          target: 'http://localhost:3002',
+          changeOrigin: true,
+          secure: false
+        },
+        '/order-images': {
+          target: 'http://localhost:3002',
           changeOrigin: true,
           secure: false
         }
@@ -23,6 +28,14 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         "@": resolve(import.meta.dirname || "", "./src"),
+      },
+    },
+    esbuild: {
+      target: 'es2020', // Better mobile browser compatibility
+    },
+    optimizeDeps: {
+      esbuildOptions: {
+        target: 'es2020',
       },
     },
     build: {

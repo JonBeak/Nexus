@@ -160,6 +160,8 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ isOpen, onClose, order 
   const [invoicePdf, setInvoicePdf] = useState<string | null>(null);
   const [loadingInvoice, setLoadingInvoice] = useState(false);
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
+  const modalContentRef = useRef<HTMLDivElement>(null);
+  const mouseDownOutsideRef = useRef(false);
 
   // Fetch invoice PDF if order has an invoice
   useEffect(() => {
@@ -189,10 +191,11 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ isOpen, onClose, order 
     }
   }, [isOpen, order?.order_number, order?.qb_invoice_id]);
 
-  // Handle ESC key
+  // Handle ESC key - stop propagation to prevent parent modals from closing
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        e.stopImmediatePropagation();
         onClose();
       }
     };
@@ -201,6 +204,18 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ isOpen, onClose, order 
     }
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
+
+  // Handle backdrop click - only close if both mousedown and mouseup are outside modal content
+  const handleBackdropMouseDown = (e: React.MouseEvent) => {
+    mouseDownOutsideRef.current = modalContentRef.current ? !modalContentRef.current.contains(e.target as Node) : false;
+  };
+
+  const handleBackdropMouseUp = (e: React.MouseEvent) => {
+    if (mouseDownOutsideRef.current && modalContentRef.current && !modalContentRef.current.contains(e.target as Node)) {
+      onClose();
+    }
+    mouseDownOutsideRef.current = false;
+  };
 
   if (!isOpen || !order) return null;
 
@@ -215,27 +230,33 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ isOpen, onClose, order 
   ];
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-2">
-      <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow-2xl w-full max-w-6xl h-[96vh] flex flex-col relative`}>
-        {/* Sticky Close Button */}
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-2"
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
+    >
+      {/* Wrapper for modal + external close button */}
+      <div className="relative w-full max-w-6xl h-[96vh]">
+        {/* Close Button - Outside modal on top right */}
         <button
           onClick={onClose}
-          className={`absolute top-2 right-2 z-10 p-2 ${PAGE_STYLES.panel.background} ${PAGE_STYLES.interactive.hover} rounded-lg transition-colors shadow-md border ${PAGE_STYLES.panel.border}`}
+          className="absolute top-0 -right-3 translate-x-full z-10 p-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border border-gray-300"
         >
-          <X className={`w-5 h-5 ${PAGE_STYLES.panel.textMuted}`} />
+          <X className="w-5 h-5 text-gray-600" />
         </button>
 
-        {/* Scrollable Content - Header scrolls with content */}
-        <div className={`flex-1 overflow-y-auto ${PAGE_STYLES.page.background} rounded-lg`}>
-          {/* Header inside scroll area */}
-          <div className={`px-6 py-4 ${PAGE_STYLES.panel.background}`}>
-            <h2 className={`text-xl font-semibold ${PAGE_STYLES.panel.text}`}>Order PDFs</h2>
-            <p className={`text-sm ${PAGE_STYLES.panel.textMuted} mt-1`}>
-              #{order.order_number} - {order.order_name}
-            </p>
-          </div>
+        <div ref={modalContentRef} className={`${PAGE_STYLES.panel.background} rounded-lg shadow-2xl w-full h-full flex flex-col`}>
+          {/* Scrollable Content - Header scrolls with content */}
+          <div className={`flex-1 overflow-y-auto ${PAGE_STYLES.page.background} rounded-lg`}>
+            {/* Header inside scroll area */}
+            <div className={`px-6 py-4 mb-4 ${PAGE_STYLES.panel.background}`}>
+              <h2 className={`text-xl font-semibold ${PAGE_STYLES.panel.text}`}>Order PDFs</h2>
+              <p className={`text-sm ${PAGE_STYLES.panel.textMuted} mt-1`}>
+                #{order.order_number} - {order.order_name}
+              </p>
+            </div>
 
-          <div className="px-6 pb-6">
+            <div className="px-6 pb-6">
           <div className="space-y-6">
             {pdfSections.map((section) => (
               <PDFSection
@@ -271,6 +292,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ isOpen, onClose, order 
           </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

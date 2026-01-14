@@ -27,6 +27,7 @@ export function autoFillSubstrateCut(
   // Find template row positions
   let materialRow: number | null = null;
   let mountingRow: number | null = null;
+  let dTapeRow: number | null = null;
 
   for (let i = 1; i <= 10; i++) {
     const templateName = specs[`_template_${i}`];
@@ -34,6 +35,7 @@ export function autoFillSubstrateCut(
 
     if (templateName === 'Material') materialRow = i;
     if (templateName === 'Mounting') mountingRow = i;
+    if (templateName === 'D-Tape') dTapeRow = i;
   }
 
   // Auto-fill Material substrate from calculation display
@@ -54,10 +56,12 @@ export function autoFillSubstrateCut(
     }
   }
 
-  // Auto-fill Mounting count (pins) from parsed data
+  // Auto-fill Mounting count from parsed data
   // The parsed data already contains count extracted from patterns like:
   // "104 Pins + Rivnut + Spacer @ $3/ea: $312" -> count=104
-  if (mountingRow && parsed.hasPins) {
+  // "50 Stand Offs @ $3/ea: $150" -> count=50
+  const hasMountingHardware = parsed.hasPins || parsed.hasStandOffs;
+  if (mountingRow && hasMountingHardware) {
     if (parsed.count) {
       const countField = `row${mountingRow}_count`;
       specs[countField] = parsed.count.toString();
@@ -67,5 +71,19 @@ export function autoFillSubstrateCut(
       warnings.push('Mounting hardware detected but could not extract pin count');
       console.warn('[Specs Auto-Fill] ⚠ Mounting detected but count extraction failed');
     }
+  }
+
+  // Auto-fill D-Tape include only if D-Tape is detected in calculation
+  if (dTapeRow) {
+    const calculationText = input.calculationDisplay || '';
+    const hasDTape = /d[- ]?tape/i.test(calculationText);
+
+    if (hasDTape) {
+      const includeField = `row${dTapeRow}_include`;
+      specs[includeField] = 'true';
+      filledFields.push(includeField);
+      console.log(`[Specs Auto-Fill] ✓ Filled ${includeField} = "true" (D-Tape detected)`);
+    }
+    // If D-Tape not found, leave empty for manual entry
   }
 }

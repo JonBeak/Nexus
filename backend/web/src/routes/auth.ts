@@ -8,7 +8,7 @@
  */
 import { Router } from 'express';
 import { login, getCurrentUser, refreshToken, updateThemePreference } from '../controllers/authController';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, requireProductionAccess } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
 import { userController } from '../controllers/userController';
 
@@ -16,8 +16,8 @@ const router = Router();
 
 router.post('/login', login);
 router.post('/refresh', refreshToken);
-router.get('/me', authenticateToken, getCurrentUser);
-router.patch('/me/theme', authenticateToken, updateThemePreference);
+router.get('/me', authenticateToken, requireProductionAccess, getCurrentUser);
+router.patch('/me/theme', authenticateToken, requireProductionAccess, updateThemePreference);
 
 /**
  * Get all users (requires users.read permission)
@@ -28,7 +28,7 @@ router.patch('/me/theme', authenticateToken, updateThemePreference);
  * Returns: Active users with basic fields (7 fields)
  * Migration: This proxies to the new UserController with proper 3-layer architecture
  */
-router.get('/users', authenticateToken, requirePermission('users.read'), async (req, res) => {
+router.get('/users', authenticateToken, requireProductionAccess, requirePermission('users.read'), async (req, res) => {
   // Proxy to new controller with backward-compatible defaults
   req.query.includeInactive = 'false';  // Only active users (original behavior)
   req.query.fields = 'basic';           // Basic fields only (original behavior)

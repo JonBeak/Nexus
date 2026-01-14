@@ -27,6 +27,7 @@ router.post('/backend/restart-prod', ...ownerOnly, controller.restartBackendProd
 // Frontend operations
 router.post('/frontend/rebuild-dev', ...ownerOnly, controller.rebuildFrontendDev);
 router.post('/frontend/rebuild-prod', ...ownerOnly, controller.rebuildFrontendProd);
+router.post('/frontend/restart-dev', ...ownerOnly, controller.restartFrontendDev);
 
 // Combined operations
 router.post('/rebuild-all-dev', ...ownerOnly, controller.rebuildAllDev);
@@ -39,5 +40,13 @@ router.post('/backups/database', ...ownerOnly, controller.backupDatabase);
 router.post('/backups/restore', ...ownerOnly, controller.restoreBackup);
 router.post('/backups/note', ...ownerOnly, controller.saveBackupNote);
 router.post('/backups/cleanup', ...ownerOnly, controller.cleanupBackups);
+
+// Linux dev features (ports, processes, network, logs)
+router.get('/environment', ...ownerOnly, controller.getAccessEnvironment);
+router.get('/ports', ...ownerOnly, controller.getActivePorts);
+router.get('/rogue-processes', ...ownerOnly, controller.getRogueProcesses);
+router.post('/kill-process', ...ownerOnly, controller.killProcess);
+router.get('/network', ...ownerOnly, controller.getNetworkInterfaces);
+router.get('/logs/:processName', ...ownerOnly, controller.getProcessLogs);
 
 export default router;

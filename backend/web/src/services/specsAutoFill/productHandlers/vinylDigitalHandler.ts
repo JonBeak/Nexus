@@ -143,56 +143,41 @@ export function autoFillVinylAndDigitalPrint(
     return;
   }
 
-  // Remove any existing Vinyl/Digital Print template rows
-  const templatesToKeep: any = {};
-  let newRowNum = 1;
+  // Collect existing non-Vinyl/Digital Print templates to preserve them
+  const otherTemplates: Array<{ name: string; fields: Record<string, any> }> = [];
   for (let i = 1; i <= 10; i++) {
     const templateName = specs[`_template_${i}`];
     if (!templateName) break;
 
-    // Skip Vinyl/Digital Print templates - we'll add our own
+    // Skip Vinyl/Digital Print templates - we'll add our own at the beginning
     if (templateName === 'Vinyl' || templateName === 'Digital Print') {
       console.log(`[Specs Auto-Fill] Removing pre-existing ${templateName} template at row ${i}`);
       continue;
     }
 
-    // Keep other templates and renumber them
-    if (i !== newRowNum) {
-      // Move template to new position
-      templatesToKeep[`_template_${newRowNum}`] = templateName;
-      // Copy all spec fields for this row
-      for (const key in specs) {
-        if (key.startsWith(`row${i}_`)) {
-          const fieldName = key.replace(`row${i}_`, `row${newRowNum}_`);
-          templatesToKeep[fieldName] = specs[key];
-        }
-      }
-    } else {
-      // Keep in same position
-      templatesToKeep[`_template_${newRowNum}`] = templateName;
-      for (const key in specs) {
-        if (key.startsWith(`row${i}_`)) {
-          templatesToKeep[key] = specs[key];
-        }
+    // Collect other templates and their field values
+    const fields: Record<string, any> = {};
+    for (const key in specs) {
+      if (key.startsWith(`row${i}_`)) {
+        // Store field name without row prefix (we'll add new prefix later)
+        const fieldSuffix = key.replace(`row${i}_`, '');
+        fields[fieldSuffix] = specs[key];
       }
     }
-    newRowNum++;
+    otherTemplates.push({ name: templateName, fields });
   }
 
-  // Clear specs and restore only the kept templates
+  // Clear all existing template and row specs
   for (const key in specs) {
     if (key.startsWith('_template_') || key.startsWith('row')) {
       delete specs[key];
     }
   }
-  Object.assign(specs, templatesToKeep);
 
-  const existingRows = newRowNum - 1;
-
-  // Add a new template row for each component
+  // FIRST: Add Vinyl/Digital Print components at the BEGINNING (rows 1, 2, etc.)
   for (let i = 0; i < components.length; i++) {
     const component = components[i];
-    const rowNum = existingRows + i + 1;
+    const rowNum = i + 1; // Start at row 1
     const templateName = component.isDigitalPrint ? 'Digital Print' : 'Vinyl';
 
     // Add template
@@ -210,6 +195,18 @@ export function autoFillVinylAndDigitalPrint(
       console.warn(`[Specs Auto-Fill] ⚠ No size found for component: "${component.rawText}"`);
     }
   }
+
+  // THEN: Add other templates (Cut, Peel, Mask, Notes) AFTER the Vinyl components
+  const startRow = components.length + 1;
+  otherTemplates.forEach((template, idx) => {
+    const rowNum = startRow + idx;
+    specs[`_template_${rowNum}`] = template.name;
+    // Restore field values with new row number
+    for (const [fieldSuffix, value] of Object.entries(template.fields)) {
+      specs[`row${rowNum}_${fieldSuffix}`] = value;
+    }
+    console.log(`[Specs Auto-Fill] Moved ${template.name} template to row ${rowNum}`);
+  });
 
   console.log(`[Specs Auto-Fill] Successfully added ${components.length} ${input.specsDisplayName} row(s)`);
 }

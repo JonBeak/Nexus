@@ -56,6 +56,7 @@ export interface ParsedData {
   hasPins?: boolean;        // Detected pins in calculation
   hasSpacers?: boolean;     // Detected spacers in calculation
   hasRivnut?: boolean;      // Detected rivnut in calculation
+  hasStandOffs?: boolean;   // Detected stand offs in calculation
 }
 
 /**

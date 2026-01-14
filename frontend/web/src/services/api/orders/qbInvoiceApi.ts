@@ -178,6 +178,14 @@ export const qbInvoiceApi = {
   },
 
   /**
+   * Mark order as invoice sent (manual marking)
+   * Used for cash jobs or when invoice was sent manually through QuickBooks
+   */
+  async markAsSent(orderNumber: number): Promise<void> {
+    await api.post(`/orders/${orderNumber}/qb-invoice/mark-sent`);
+  },
+
+  /**
    * Verify if the linked QB invoice still exists in QuickBooks
    * Used to detect deleted invoices
    */

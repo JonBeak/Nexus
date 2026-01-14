@@ -10,7 +10,7 @@
  * - Handles deleted invoices gracefully
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Loader2, Link, Search, FileText, AlertCircle, Check, ChevronLeft, ChevronRight, Unlink, AlertTriangle } from 'lucide-react';
 import { qbInvoiceApi, CustomerInvoiceListItem, CustomerInvoiceListResult } from '../../../services/api';
 
@@ -67,6 +67,10 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
   const [unlinkError, setUnlinkError] = useState<string | null>(null);
   const [unlinkSuccess, setUnlinkSuccess] = useState(false);
 
+  // Refs for backdrop click handling
+  const modalContentRef = useRef<HTMLDivElement>(null);
+  const mouseDownOutsideRef = useRef(false);
+
   const PAGE_SIZE = 10;
 
   // Check if there's a current invoice linked (even if deleted)
@@ -96,6 +100,32 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
       loadInvoices(1);
     }
   }, [isOpen, orderNumber]);
+
+  // Handle ESC key - stop propagation to prevent parent modals from closing
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation();
+        onClose();
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Handle backdrop click - only close if both mousedown and mouseup are outside modal content
+  const handleBackdropMouseDown = (e: React.MouseEvent) => {
+    mouseDownOutsideRef.current = modalContentRef.current ? !modalContentRef.current.contains(e.target as Node) : false;
+  };
+
+  const handleBackdropMouseUp = (e: React.MouseEvent) => {
+    if (mouseDownOutsideRef.current && modalContentRef.current && !modalContentRef.current.contains(e.target as Node)) {
+      onClose();
+    }
+    mouseDownOutsideRef.current = false;
+  };
 
   const handleSearch = async () => {
     if (!searchValue.trim()) {
@@ -204,8 +234,12 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
   const activeInvoice = viewMode === 'list' ? selectedInvoice : searchResult;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
+    >
+      <div ref={modalContentRef} className="bg-white rounded-lg shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-start justify-between">

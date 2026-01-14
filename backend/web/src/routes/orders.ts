@@ -628,6 +628,18 @@ router.delete(
 );
 
 /**
+ * Mark order as invoice sent (manual marking)
+ * POST /api/orders/:orderNumber/qb-invoice/mark-sent
+ * Used for cash jobs or when invoice was sent manually through QuickBooks
+ */
+router.post(
+  '/:orderNumber/qb-invoice/mark-sent',
+  authenticateToken,
+  requirePermission('orders.update'),
+  qbInvoiceController.markInvoiceSent
+);
+
+/**
  * Verify if linked QB invoice still exists in QuickBooks
  * GET /api/orders/:orderNumber/qb-invoice/verify
  */

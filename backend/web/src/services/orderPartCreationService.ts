@@ -41,6 +41,9 @@ import { RowDataPacket } from 'mysql2/promise';
 // Product type IDs to exclude from QB line matching (non-product rows)
 const NON_PRODUCT_TYPE_IDS = [21, 25, 27]; // Subtotal, Divider, Empty Row
 
+// Product specs display names that can receive Assembly spec from following Assembly item
+const ASSEMBLY_RECEIVER_PRODUCTS = ['Backer', 'Frame', 'Aluminum Raceway', 'Extrusion Raceway', 'Push Thru'];
+
 export class OrderPartCreationService {
   /**
    * Phase 1.5: Create order parts from EstimatePreviewData
@@ -143,9 +146,10 @@ export class OrderPartCreationService {
     previewData.items.forEach((item, idx) => originalIndexMap.set(item, idx));
 
     const itemsToProcess = previewData.items.filter(item => {
-      // Skip Job Header row (productTypeId=27 with itemName='Job Header')
-      if (item.productTypeId === 27 && item.itemName === 'Job Header') {
-        console.log('[Order Parts] Skipping estimate Job Header row (backend creates its own)');
+      // Skip description-only and non-product rows (Subtotal, Divider, Empty Row)
+      // These are visual/informational only in estimates - orders have their own header system
+      if (item.isDescriptionOnly || NON_PRODUCT_TYPE_IDS.includes(item.productTypeId)) {
+        console.log(`[Order Parts] Skipping non-product row: ${item.itemName} (productTypeId=${item.productTypeId})`);
         return false;
       }
       return true;
@@ -220,12 +224,17 @@ export class OrderPartCreationService {
       // Parent rows: displayNumber is numeric only ("1", "2", "3") - first row is always parent
       // Sub-items: displayNumber has letters ("1a", "1b", "2a") - grouped under preceding parent
       // The frontend may also explicitly set isParent=true to force parent status
+      // IMPORTANT: Items without a valid spec mapping are treated as sub-parts
       const displayNumber = item.estimatePreviewDisplayNumber || `${i + 1}`;
       const isSubItem = /[a-zA-Z]/.test(displayNumber);
-      const isParentOrRegular = item.isParent || !isSubItem;
+      const preliminaryIsParent = specsDisplayName ? (item.isParent || !isSubItem) : false;
 
       // Generate spec types from specs display name
-      const specTypes = mapSpecsDisplayNameToTypes(specsDisplayName, isParentOrRegular);
+      const specTypes = mapSpecsDisplayNameToTypes(specsDisplayName, preliminaryIsParent);
+
+      // CRITICAL: If no valid spec mapping found (empty specTypes), treat as sub-part
+      // This handles "Select Item Name..." and other unmapped QB items correctly
+      const isParentOrRegular = specTypes.length > 0 ? preliminaryIsParent : false;
 
       // Build specifications object with spec templates (no longer storing _qb_description in JSON)
       const specificationsData: any = {};
@@ -276,6 +285,58 @@ export class OrderPartCreationService {
         }
       }
 
+      // Cross-item mutation: Assembly spec transfer to preceding backer/raceway/push-thru
+      // When Assembly item follows a backer product, transfer the Assembly spec description
+      // to the backer and clear it from the Assembly item
+      if (specsDisplayName === 'Assembly') {
+        const prevItem = processedItems[processedItems.length - 1];
+        if (prevItem && ASSEMBLY_RECEIVER_PRODUCTS.includes(prevItem.specsDisplayName)) {
+          // Get Assembly description from current item
+          let assemblyDescription = '';
+          for (let i = 1; i <= 10; i++) {
+            if (finalSpecifications[`_template_${i}`] === 'Assembly') {
+              assemblyDescription = finalSpecifications[`row${i}_description`] || '';
+              // Clear the Assembly spec from current item
+              finalSpecifications[`row${i}_description`] = '';
+              break;
+            }
+          }
+
+          if (assemblyDescription && prevItem.partId) {
+            // Find or add Assembly spec in previous item
+            let assemblyRowIndex = -1;
+            for (let i = 1; i <= 10; i++) {
+              if (prevItem.specifications[`_template_${i}`] === 'Assembly') {
+                assemblyRowIndex = i;
+                break;
+              }
+              // Find first empty slot for Push Thru (no Assembly template by default)
+              if (!prevItem.specifications[`_template_${i}`] && assemblyRowIndex === -1) {
+                assemblyRowIndex = i;
+              }
+            }
+
+            if (assemblyRowIndex > 0) {
+              // Add template name if not present (Push Thru case)
+              if (!prevItem.specifications[`_template_${assemblyRowIndex}`]) {
+                prevItem.specifications[`_template_${assemblyRowIndex}`] = 'Assembly';
+                // Update row count if needed
+                const currentRowCount = prevItem.specifications['_row_count'] || 1;
+                if (assemblyRowIndex > currentRowCount) {
+                  prevItem.specifications['_row_count'] = assemblyRowIndex;
+                }
+              }
+              // Set the description
+              prevItem.specifications[`row${assemblyRowIndex}_description`] = assemblyDescription;
+
+              // Queue for database update
+              partsToUpdate.set(prevItem.partId, prevItem.specifications);
+              console.log(`[Order Conversion] Assembly spec transferred: "${assemblyDescription}" → ${prevItem.specsDisplayName}`);
+            }
+          }
+        }
+      }
+
       // Determine if this is a description-only row (for QB DescriptionOnly handling)
       // - Explicitly marked as description-only by frontend
       // - Non-product types (Subtotal, Divider, Empty Row)
@@ -291,7 +352,7 @@ export class OrderPartCreationService {
         order_id: orderId,
         part_number: i + 1,
         display_number: item.estimatePreviewDisplayNumber || `${i + 1}`,  // "1", "1a", "1b", "1c"
-        is_parent: item.isParent || false,
+        is_parent: isParentOrRegular,
         product_type: item.itemName,  // Specific component name: "3\" Front Lit", "LEDs", "Power Supplies", "UL"
         qb_item_name: qbItemName,  // Auto-filled from qb_item_mappings (or QB Estimate)
         // For description-only rows, put calculationDisplay in qb_description (for QB DescriptionOnly row)
@@ -335,7 +396,7 @@ export class OrderPartCreationService {
         order_id: orderId,
         part_number: i + 1,
         display_number: item.estimatePreviewDisplayNumber || `${i + 1}`,
-        is_parent: item.isParent || false,
+        is_parent: isParentOrRegular,
         product_type: item.itemName,  // Specific component name: "3\" Front Lit", "LEDs", "Power Supplies", "UL"
         qb_item_name: qbItemName,  // Auto-filled from qb_item_mappings (or QB Estimate)
         qb_description: isDescriptionOnlyRow ? (item.calculationDisplay || '') : qbDescription,

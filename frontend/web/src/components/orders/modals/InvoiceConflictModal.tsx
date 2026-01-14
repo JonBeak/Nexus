@@ -6,7 +6,7 @@
  * allowing user to choose a resolution strategy.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Loader2, AlertOctagon, ArrowRight, ArrowLeft, Check, AlertTriangle } from 'lucide-react';
 import { Order } from '../../../types/orders';
 import { qbInvoiceApi, InvoiceDifference, ConflictResolution, InvoiceSyncStatus } from '../../../services/api';
@@ -47,6 +47,34 @@ export const InvoiceConflictModal: React.FC<InvoiceConflictModalProps> = ({
   const [selectedResolution, setSelectedResolution] = useState<ConflictResolution>('use_local');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const modalContentRef = useRef<HTMLDivElement>(null);
+  const mouseDownOutsideRef = useRef(false);
+
+  // Handle ESC key - stop propagation to prevent parent modals from closing
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation();
+        onClose();
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Handle backdrop click - only close if both mousedown and mouseup are outside modal content
+  const handleBackdropMouseDown = (e: React.MouseEvent) => {
+    mouseDownOutsideRef.current = modalContentRef.current ? !modalContentRef.current.contains(e.target as Node) : false;
+  };
+
+  const handleBackdropMouseUp = (e: React.MouseEvent) => {
+    if (mouseDownOutsideRef.current && modalContentRef.current && !modalContentRef.current.contains(e.target as Node)) {
+      onClose();
+    }
+    mouseDownOutsideRef.current = false;
+  };
 
   if (!isOpen) return null;
 
@@ -79,8 +107,12 @@ export const InvoiceConflictModal: React.FC<InvoiceConflictModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
+    >
+      <div ref={modalContentRef} className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className={`px-6 py-4 border-b flex items-center justify-between ${
           isConflict ? 'bg-red-50' : 'bg-purple-50'

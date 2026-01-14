@@ -85,6 +85,32 @@ export const PrepareOrderModal: React.FC<Props> = ({
     }));
   }, [preparationState.steps]);
 
+  // Handle ESC key - stop propagation to prevent parent modals from closing
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation();
+        onClose();
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Handle backdrop click - only close if both mousedown and mouseup are outside modal content
+  const handleBackdropMouseDown = (e: React.MouseEvent) => {
+    mouseDownOutsideRef.current = modalContentRef.current ? !modalContentRef.current.contains(e.target as Node) : false;
+  };
+
+  const handleBackdropMouseUp = (e: React.MouseEvent) => {
+    if (mouseDownOutsideRef.current && modalContentRef.current && !modalContentRef.current.contains(e.target as Node)) {
+      onClose();
+    }
+    mouseDownOutsideRef.current = false;
+  };
+
   const initializePreparation = async () => {
     // Build PDF URLs from order metadata (same pattern as Print Forms modal)
     const pdfUrls = buildPdfUrls(order);
@@ -134,6 +160,8 @@ export const PrepareOrderModal: React.FC<Props> = ({
   };
 
   const sendPanelRef = useRef<SendToCustomerPanelRef>(null);
+  const modalContentRef = useRef<HTMLDivElement>(null);
+  const mouseDownOutsideRef = useRef(false);
 
   // Build orderNameWithRef: "Order Name - Job # XXX - PO # YYY"
   const buildOrderNameWithRef = () => {
@@ -229,8 +257,10 @@ export const PrepareOrderModal: React.FC<Props> = ({
       className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 ${
         !isOpen ? 'hidden' : ''
       }`}
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
     >
-      <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow-2xl w-[95%] h-[95vh] flex`}>
+      <div ref={modalContentRef} className={`${PAGE_STYLES.panel.background} rounded-lg shadow-2xl w-[95%] h-[95vh] flex`}>
         {/* LEFT PANEL (40%) - Header, Steps, and Footer */}
         <div className={`w-[40%] border-r ${PAGE_STYLES.border} flex flex-col`}>
           {/* Header Section - Order Info */}

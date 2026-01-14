@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { FileText, Loader, X } from 'lucide-react';
 import PrintFormsContent, { PrintMode } from './PrintFormsContent';
@@ -175,6 +175,35 @@ const PrintFormsModal: React.FC<PrintFormsModalProps> = ({
   order,
   defaultConfig
 }) => {
+  const modalContentRef = useRef<HTMLDivElement>(null);
+  const mouseDownOutsideRef = useRef(false);
+
+  // Handle ESC key - stop propagation to prevent parent modals from closing
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation();
+        onClose();
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Handle backdrop click - only close if both mousedown and mouseup are outside modal content
+  const handleBackdropMouseDown = (e: React.MouseEvent) => {
+    mouseDownOutsideRef.current = modalContentRef.current ? !modalContentRef.current.contains(e.target as Node) : false;
+  };
+
+  const handleBackdropMouseUp = (e: React.MouseEvent) => {
+    if (mouseDownOutsideRef.current && modalContentRef.current && !modalContentRef.current.contains(e.target as Node)) {
+      onClose();
+    }
+    mouseDownOutsideRef.current = false;
+  };
+
   if (!isOpen) return null;
 
   // Build PDF URLs from order
@@ -203,8 +232,12 @@ const PrintFormsModal: React.FC<PrintFormsModalProps> = ({
   const hasPreview = pdfUrls && pdfsToShow.length > 0;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
-      <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow-2xl ${hasPreview ? 'w-[1400px]' : 'w-[500px]'} h-[90vh] flex`}>
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4"
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
+    >
+      <div ref={modalContentRef} className={`${PAGE_STYLES.panel.background} rounded-lg shadow-2xl ${hasPreview ? 'w-[1400px]' : 'w-[500px]'} h-[90vh] flex`}>
         {/* Left Panel - Print Controls */}
         <div className={`${hasPreview ? 'w-[350px]' : 'w-full'} flex-shrink-0 flex flex-col`}>
           {/* Header */}

@@ -516,6 +516,15 @@ export const sendInvoiceEmail = async (req: Request, res: Response) => {
       return sendErrorResponse(res, 'Email body is required', 'VALIDATION_ERROR');
     }
 
+    // Get invoice record for PDF attachment (if attachInvoicePdf is true)
+    let qbInvoiceId: string | undefined;
+    let qbDocNumber: string | null = null;
+    if (emailData.attachInvoicePdf) {
+      const invoiceRecord = await qbInvoiceRepo.getOrderInvoiceRecord(orderId);
+      qbInvoiceId = invoiceRecord?.qb_invoice_id || undefined;
+      qbDocNumber = invoiceRecord?.qb_invoice_doc_number || null;
+    }
+
     const result = await invoiceEmailService.sendInvoiceEmail(
       orderId,
       emailData.recipientEmails,
@@ -523,7 +532,10 @@ export const sendInvoiceEmail = async (req: Request, res: Response) => {
       emailData.subject,
       emailData.body,
       user.user_id,
-      emailData.bccEmails
+      emailData.bccEmails,
+      emailData.attachInvoicePdf,
+      qbInvoiceId,
+      qbDocNumber
     );
 
     res.json({
@@ -775,6 +787,45 @@ export const getStyledEmailPreview = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error getting styled email preview:', error);
     const message = error instanceof Error ? error.message : 'Failed to get preview';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Mark order as invoice sent (manual marking)
+ * POST /api/orders/:orderNumber/qb-invoice/mark-sent
+ *
+ * Used for:
+ * - Cash jobs where no formal invoice is sent
+ * - Orders where invoice was sent manually through QuickBooks
+ */
+export const markInvoiceSent = async (req: Request, res: Response) => {
+  try {
+    const user = (req as AuthRequest).user;
+    const { orderNumber } = req.params;
+
+    if (!user) {
+      return sendErrorResponse(res, 'User not authenticated', 'UNAUTHORIZED');
+    }
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    // Update invoice_sent_at timestamp
+    await query(
+      'UPDATE orders SET invoice_sent_at = NOW() WHERE order_id = ?',
+      [orderId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Order marked as invoice sent'
+    });
+  } catch (error) {
+    console.error('Error marking invoice as sent:', error);
+    const message = error instanceof Error ? error.message : 'Failed to mark invoice as sent';
     return sendErrorResponse(res, message, 'INTERNAL_ERROR');
   }
 };

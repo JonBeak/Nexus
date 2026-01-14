@@ -52,7 +52,7 @@ export const FONT_SIZES = {
   QTY_STANDARD: 12,     // Quantity box label and value font size (reduced from 14)
   INTERNAL_NOTE_LABEL: 10,
   SIGN_TYPE_VALUE: 12,  // Sign Type box value font size (reduced from 14)
-  SIGN_TYPE_LABEL: 12,  // Sign Type box label font size
+  SIGN_TYPE_LABEL: 10,  // Product Type box label font size
   SCOPE_VALUE: 10,      // Scope box value font size
 };
 
@@ -94,7 +94,7 @@ export const LAYOUT = {
   TITLE_INFO_GAP: 15,
   DIVIDER_HEIGHT: 40,
   COL2_PERCENT: 0.24,
-  COL3_PERCENT: 0.54,
+  COL3_PERCENT: 0.564,
   PARTS_HEIGHT_PERCENT: 0.35,
   IMAGE_WIDTH_PERCENT: 0.90,
   NOTES_LEFT_WIDTH_PERCENT: 0.48,

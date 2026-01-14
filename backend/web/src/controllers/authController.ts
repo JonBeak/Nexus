@@ -20,6 +20,7 @@ import { query } from '../config/database';
 import { User } from '../types';
 import { RowDataPacket } from 'mysql2';
 import { loginLogService } from '../services/loginLogService';
+import { isProductionEnvironment, isRestrictedRole } from '../middleware/auth';
 
 const DEFAULT_REFRESH_TOKEN_TTL = 48 * 60 * 60 * 1000; // 48 hours fallback
 
@@ -107,6 +108,21 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    // Block restricted roles from production environment
+    if (isProductionEnvironment() && isRestrictedRole(user.role)) {
+      await loginLogService.logFailedLogin(
+        username,
+        clientIp,
+        userAgent,
+        'Production access restricted - must use Wifi',
+        user.user_id
+      );
+      return res.status(403).json({
+        error: 'Connect through Wifi',
+        code: 'PROD_ACCESS_RESTRICTED'
+      });
+    }
+
     // Generate access token (short-lived)
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
@@ -181,6 +197,14 @@ export const refreshToken = async (req: Request, res: Response) => {
     }
 
     const user = users[0];
+
+    // Block restricted roles from production environment
+    if (isProductionEnvironment() && isRestrictedRole(user.role)) {
+      return res.status(403).json({
+        error: 'Connect through Wifi',
+        code: 'PROD_ACCESS_RESTRICTED'
+      });
+    }
 
     // Generate new access token
     const jwtSecret = process.env.JWT_SECRET;

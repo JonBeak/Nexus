@@ -357,6 +357,7 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
   };
 
   // Convert preparation items to EstimatePreviewData for use in ApproveEstimateModal
+  // Groups items by source_row_id to assign proper parent/child relationships
   const buildPreparationPreviewData = useCallback(() => {
     if (!preparationItems || preparationItems.length === 0 || !preparationTotals) {
       setPreparationPreviewData(null);
@@ -364,21 +365,55 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
     }
 
     try {
-      // Convert PreparationItem[] to EstimateLineItem[]
-      const items: EstimateLineItem[] = preparationItems.map((item: any, index: number) => ({
-        rowId: `prep-${item.id}`,
-        inputGridDisplayNumber: String(index + 1),
-        productTypeId: item.source_product_type_id || 0,
-        productTypeName: item.item_name || 'Preparation',
-        itemName: item.item_name || '',
-        description: item.qb_description || '',
-        calculationDisplay: item.calculation_display || '',
-        unitPrice: Number(item.unit_price) || 0,
-        quantity: Number(item.quantity) || 1,
-        extendedPrice: Number(item.extended_price) || 0,
-        isDescriptionOnly: item.is_description_only || false,
-        qbDescription: item.qb_description || undefined
-      }));
+      // Group items by source_row_id for parent/child relationships
+      // Items from the same grid row should be grouped together
+      const itemsBySourceRow = new Map<string, any[]>();
+      const orderedGroups: string[] = []; // Track order of first occurrence
+
+      preparationItems.forEach((item: any) => {
+        // Use source_row_id if available, otherwise treat as standalone item
+        const key = item.source_row_id || `standalone-${item.id}`;
+        if (!itemsBySourceRow.has(key)) {
+          itemsBySourceRow.set(key, []);
+          orderedGroups.push(key);
+        }
+        itemsBySourceRow.get(key)!.push(item);
+      });
+
+      // Assign display numbers and parent flags
+      const items: EstimateLineItem[] = [];
+      let groupIndex = 0;
+
+      for (const key of orderedGroups) {
+        const groupItems = itemsBySourceRow.get(key)!;
+        groupIndex++;
+
+        groupItems.forEach((item: any, itemIndex: number) => {
+          const isFirst = itemIndex === 0;
+          // First item in group: "1", "2", "3" etc.
+          // Subsequent items: "1a", "1b", "2a", "2b" etc.
+          const displayNumber = isFirst
+            ? String(groupIndex)
+            : `${groupIndex}${String.fromCharCode(96 + itemIndex)}`; // 97='a', 98='b', 99='c'
+
+          items.push({
+            rowId: `prep-${item.id}`,
+            inputGridDisplayNumber: String(item.display_order || itemIndex + 1),
+            estimatePreviewDisplayNumber: displayNumber,
+            isParent: isFirst,
+            productTypeId: item.source_product_type_id || 0,
+            productTypeName: item.item_name || 'Preparation',
+            itemName: item.item_name || '',
+            description: item.qb_description || '',
+            calculationDisplay: item.calculation_display || '',
+            unitPrice: Number(item.unit_price) || 0,
+            quantity: Number(item.quantity) || 1,
+            extendedPrice: Number(item.extended_price) || 0,
+            isDescriptionOnly: item.is_description_only || false,
+            qbDescription: item.qb_description || undefined
+          });
+        });
+      }
 
       // Build EstimatePreviewData
       const previewData: EstimatePreviewData = {

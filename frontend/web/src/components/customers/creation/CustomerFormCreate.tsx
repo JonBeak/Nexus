@@ -387,13 +387,13 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
         <h4 className={`text-lg font-bold ${PAGE_STYLES.panel.text} mb-4 border-b ${PAGE_STYLES.panel.border} pb-2`}>Notes & Instructions</h4>
         <div className="space-y-4">
           <div>
-            <label className={labelClass}>Comments</label>
+            <label className={labelClass}>Internal Notes</label>
             <textarea
               rows={3}
               value={formData.comments || ''}
               onChange={(e) => onInputChange('comments', e.target.value)}
               className={getFieldClass('comments', formData.comments)}
-              placeholder="General comments about this customer..."
+              placeholder="Internal notes about this customer (auto-fills order notes)..."
             />
           </div>
           <div>

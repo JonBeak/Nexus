@@ -651,7 +651,7 @@ export const BACK_TEMPLATE: SpecificationTemplate = {
 /**
  * Template: 3DP Return
  * Spec 1: Depth (combobox: 1", 1.25", 1.5", 2", Custom)
- * Spec 2: Face Material (combobox: default 4.5mm Acrylic)
+ * Spec 2: Colour (combobox: 3D print colours - Translucent White, Opaque White, etc.)
  * Spec 3: -
  *
  * Used for 3D Print products with shallower depths than standard channel letters.
@@ -666,16 +666,16 @@ export const THREE_DP_RETURN_TEMPLATE: SpecificationTemplate = {
     placeholder: 'Depth'
   },
   spec2: {
-    key: 'face_material',
-    label: 'Face Material',
+    key: 'colour',
+    label: 'Colour',
     type: 'combobox',
-    options: [], // Populated from DB: face_materials (default 4.5mm Acrylic)
-    placeholder: 'Face Material'
+    options: [], // TODO: Populate from DB with 3D print colours (Translucent White, Opaque White, etc.)
+    placeholder: 'Colour'
   }
 };
 
 /**
- * Template: 3DP Illumination
+ * Template: Illumination
  * Spec 1: Face (boolean) - Face lit
  * Spec 2: Side (boolean) - Side lit
  * Spec 3: Halo (boolean) - Halo lit
@@ -683,25 +683,25 @@ export const THREE_DP_RETURN_TEMPLATE: SpecificationTemplate = {
  * Used for 3D Print products. Illumination description is computed
  * in PDF formatter based on these boolean values.
  */
-export const THREE_DP_ILLUMINATION_TEMPLATE: SpecificationTemplate = {
-  templateName: '3DP Illumination',
+export const ILLUMINATION_TEMPLATE: SpecificationTemplate = {
+  templateName: 'Illumination',
   spec1: {
     key: 'face_lit',
     label: 'Face',
     type: 'boolean',
-    placeholder: 'Yes/No'
+    placeholder: 'Face Lit?'
   },
   spec2: {
     key: 'side_lit',
     label: 'Side',
     type: 'boolean',
-    placeholder: 'Yes/No'
+    placeholder: 'Side Lit?'
   },
   spec3: {
     key: 'halo_lit',
     label: 'Halo',
     type: 'boolean',
-    placeholder: 'Yes/No'
+    placeholder: 'Halo Lit?'
   }
 };
 
@@ -738,7 +738,7 @@ const TEMPLATE_REGISTRY: Record<string, SpecificationTemplate> = {
   'Extr. Colour': EXTR_COLOUR_TEMPLATE,
   'Back': BACK_TEMPLATE,
   '3DP Return': THREE_DP_RETURN_TEMPLATE,
-  '3DP Illumination': THREE_DP_ILLUMINATION_TEMPLATE
+  'Illumination': ILLUMINATION_TEMPLATE
 };
 
 /**
@@ -1043,7 +1043,7 @@ export function populateSpecificationOptions(optionsMap: Record<string, string[]
     THREE_DP_RETURN_TEMPLATE.spec1.options = getOptions('3dp_depths');
   }
   if (THREE_DP_RETURN_TEMPLATE.spec2) {
-    THREE_DP_RETURN_TEMPLATE.spec2.options = getOptions('face_materials');
+    THREE_DP_RETURN_TEMPLATE.spec2.options = getOptions('3dp_colours');
   }
 
   // THREE_DP_ILLUMINATION_TEMPLATE - no options to populate (boolean fields)

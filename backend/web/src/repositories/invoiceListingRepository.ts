@@ -6,7 +6,7 @@
  * Fetches orders with invoice data, analytics, and manages cached balances.
  */
 
-import { query } from '../config/database';
+import { query, queryDynamic } from '../config/database';
 import { RowDataPacket } from 'mysql2';
 import {
   InvoiceListingOrder,
@@ -111,7 +111,7 @@ export async function getOrdersForInvoiceListing(
     JOIN customers c ON o.customer_id = c.customer_id
     ${whereClause}
   `;
-  const countResult = await query(countSql, params) as RowDataPacket[];
+  const countResult = await queryDynamic(countSql, params) as RowDataPacket[];
   const total = countResult[0].total;
 
   // Get orders with calculated total
@@ -147,7 +147,7 @@ export async function getOrdersForInvoiceListing(
   `;
 
   const dataParams = [...params, limit, offset];
-  const rows = await query(dataSql, dataParams) as RowDataPacket[];
+  const rows = await queryDynamic(dataSql, dataParams) as RowDataPacket[];
 
   const orders: InvoiceListingOrder[] = rows.map(row => ({
     order_id: row.order_id,

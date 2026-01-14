@@ -263,7 +263,7 @@ function CustomerForm({ formData, isEditing, ledTypes, powerSupplyTypes, onInput
             <label className={`text-sm font-semibold ${PAGE_STYLES.panel.textSecondary}`}>Drain Holes</label>
             {isEditing ? (
               <select
-                value={formData.drain_holes_yes_or_no !== false ? 'yes' : 'no'}
+                value={formData.drain_holes_yes_or_no ? 'yes' : 'no'}
                 onChange={(e) => onInputChange('drain_holes_yes_or_no', e.target.value === 'yes')}
                 className={inputClass}
               >
@@ -271,7 +271,7 @@ function CustomerForm({ formData, isEditing, ledTypes, powerSupplyTypes, onInput
                 <option value="yes">Yes</option>
               </select>
             ) : (
-              <p className={displayClass}>{formData.drain_holes_yes_or_no !== false ? 'Yes' : 'No'}</p>
+              <p className={displayClass}>{formData.drain_holes_yes_or_no ? 'Yes' : 'No'}</p>
             )}
           </div>
           <div>
@@ -279,14 +279,14 @@ function CustomerForm({ formData, isEditing, ledTypes, powerSupplyTypes, onInput
             {isEditing ? (
               <div className="space-y-2">
                 <select
-                  value={formData.pattern_yes_or_no !== false ? 'yes' : 'no'}
+                  value={formData.pattern_yes_or_no ? 'yes' : 'no'}
                   onChange={(e) => onInputChange('pattern_yes_or_no', e.target.value === 'yes')}
                   className={inputClass}
                 >
                   <option value="no">No</option>
                   <option value="yes">Yes</option>
                 </select>
-                {formData.pattern_yes_or_no !== false && (
+                {!!formData.pattern_yes_or_no && (
                   <input
                     type="text"
                     value={formData.pattern_type || 'Paper'}
@@ -298,7 +298,7 @@ function CustomerForm({ formData, isEditing, ledTypes, powerSupplyTypes, onInput
               </div>
             ) : (
               <p className={displayClass}>
-                {formData.pattern_yes_or_no !== false ? `Yes - ${formData.pattern_type || 'Paper'}` : 'No'}
+                {formData.pattern_yes_or_no ? `Yes - ${formData.pattern_type || 'Paper'}` : 'No'}
               </p>
             )}
           </div>
@@ -307,14 +307,14 @@ function CustomerForm({ formData, isEditing, ledTypes, powerSupplyTypes, onInput
             {isEditing ? (
               <div className="space-y-2">
                 <select
-                  value={formData.wiring_diagram_yes_or_no !== false ? 'yes' : 'no'}
+                  value={formData.wiring_diagram_yes_or_no ? 'yes' : 'no'}
                   onChange={(e) => onInputChange('wiring_diagram_yes_or_no', e.target.value === 'yes')}
                   className={inputClass}
                 >
                   <option value="no">No</option>
                   <option value="yes">Yes</option>
                 </select>
-                {formData.wiring_diagram_yes_or_no !== false && (
+                {!!formData.wiring_diagram_yes_or_no && (
                   <input
                     type="text"
                     value={formData.wiring_diagram_type || 'Paper'}
@@ -326,7 +326,7 @@ function CustomerForm({ formData, isEditing, ledTypes, powerSupplyTypes, onInput
               </div>
             ) : (
               <p className={displayClass}>
-                {formData.wiring_diagram_yes_or_no !== false ? `Yes - ${formData.wiring_diagram_type || 'Paper'}` : 'No'}
+                {formData.wiring_diagram_yes_or_no ? `Yes - ${formData.wiring_diagram_type || 'Paper'}` : 'No'}
               </p>
             )}
           </div>
@@ -414,7 +414,7 @@ function CustomerForm({ formData, isEditing, ledTypes, powerSupplyTypes, onInput
         <h4 className={`text-lg font-bold ${PAGE_STYLES.panel.text} mb-4 border-b ${PAGE_STYLES.panel.border} pb-2`}>Notes & Instructions</h4>
         <div className="space-y-4">
           <div>
-            <label className={`text-sm font-semibold ${PAGE_STYLES.panel.textSecondary}`}>Comments</label>
+            <label className={`text-sm font-semibold ${PAGE_STYLES.panel.textSecondary}`}>Internal Notes</label>
             {isEditing ? (
               <textarea
                 rows={3}

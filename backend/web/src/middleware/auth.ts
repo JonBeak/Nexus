@@ -81,3 +81,32 @@ export const requireRole = (...roles: UserRole[]) => {
 
 export const requireManager = requireRole('manager');
 export const requireDesignerOrManager = requireRole('designer', 'manager');
+
+/**
+ * Middleware to block restricted roles from production environment.
+ * Staff and designers must use the development environment (connect through Wifi).
+ */
+const PRODUCTION_RESTRICTED_ROLES: UserRole[] = ['designer', 'production_staff'];
+
+export const isProductionEnvironment = (): boolean => {
+  return process.env.PORT === '3001';
+};
+
+export const isRestrictedRole = (role: UserRole): boolean => {
+  return PRODUCTION_RESTRICTED_ROLES.includes(role);
+};
+
+export const requireProductionAccess = (req: AuthRequest, res: Response, next: NextFunction) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  if (isProductionEnvironment() && isRestrictedRole(req.user.role)) {
+    return res.status(403).json({
+      error: 'Connect through Wifi',
+      code: 'PROD_ACCESS_RESTRICTED'
+    });
+  }
+
+  next();
+};

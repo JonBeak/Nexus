@@ -6,13 +6,9 @@
 
 /**
  * Get default pin length based on specs display name
+ * Note: Removed auto-fill - user should select pin type manually
  */
-export function getDefaultPinLength(specsDisplayName: string): string {
-  // 3D Print gets shorter pins
-  if (specsDisplayName === '3D print') {
-    return '2"';
-  }
-
-  // Most channel letters get 6" pins
-  return '6"';
+export function getDefaultPinLength(specsDisplayName: string): string | null {
+  // No auto-fill for pins - let user select
+  return null;
 }

@@ -21,6 +21,7 @@ interface OrderHeaderProps {
   onInvoiceAction: (action: InvoiceAction) => void;  // Phase 2.e: Invoice actions
   onLinkInvoice?: () => void;  // Phase 2.e: Link existing invoice
   onReassignInvoice?: (currentInvoice: { invoiceId: string | null; invoiceNumber: string | null }) => void;  // Reassign deleted invoice
+  onMarkAsSent?: () => void;  // Mark invoice as sent manually
   generatingForms: boolean;
   printingForm: boolean;
 }
@@ -40,6 +41,7 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
   onInvoiceAction,
   onLinkInvoice,
   onReassignInvoice,
+  onMarkAsSent,
   generatingForms,
   printingForm
 }) => {
@@ -210,6 +212,7 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
                 onAction={onInvoiceAction}
                 onLinkInvoice={onLinkInvoice}
                 onReassignInvoice={onReassignInvoice}
+                onMarkAsSent={onMarkAsSent}
                 disabled={generatingForms || printingForm}
               />
             )}

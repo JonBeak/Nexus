@@ -386,6 +386,53 @@ export const usePartUpdates = ({
     }
   }, [orderNumber, parts, specRowCounts, setParts, setSpecRowCounts]);
 
+  // Clear a specific specification row (reset to "Select...")
+  const clearSpecRow = useCallback(async (partId: number, rowNum: number) => {
+    const part = parts.find(p => p.part_id === partId);
+    if (!part) return;
+
+    try {
+      setSaving(true);
+      const updatedSpecs = { ...part.specifications };
+
+      // Clear template selection for this row
+      updatedSpecs[`_template_${rowNum}`] = '';
+
+      // Clear all spec fields for this row
+      Object.keys(updatedSpecs).forEach(key => {
+        if (key.startsWith(`row${rowNum}_`)) {
+          delete updatedSpecs[key];
+        }
+      });
+
+      const updatedPart = {
+        ...part,
+        specifications: updatedSpecs
+      };
+
+      await ordersApi.updateOrderParts(orderNumber, [{
+        part_id: updatedPart.part_id,
+        qb_item_name: updatedPart.qb_item_name,
+        part_scope: updatedPart.part_scope,
+        specifications: updatedPart.specifications,
+        invoice_description: updatedPart.invoice_description,
+        quantity: updatedPart.quantity,
+        unit_price: updatedPart.unit_price,
+        extended_price: updatedPart.extended_price,
+        production_notes: updatedPart.production_notes
+      }]);
+
+      setParts(prevParts =>
+        prevParts.map(p => p.part_id === partId ? updatedPart : p)
+      );
+    } catch (error) {
+      console.error('Error clearing spec row:', error);
+      alert('Failed to clear row. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }, [orderNumber, parts, setParts]);
+
   // Delete specific specification row with renumbering
   const deleteSpecRow = useCallback(async (partId: number, rowNum: number) => {
     const part = parts.find(p => p.part_id === partId);
@@ -401,17 +448,6 @@ export const usePartUpdates = ({
     if (currentCount <= 1) {
       alert('Cannot delete the last specification row.');
       return;
-    }
-
-    // Check if row has data
-    const hasData = checkSpecRowHasData(part.specifications, rowNum);
-
-    // Confirm deletion if has data
-    if (hasData) {
-      const confirmed = confirm(
-        `Delete specification row ${rowNum}? This will remove all data in this row and cannot be undone.`
-      );
-      if (!confirmed) return;
     }
 
     const newCount = currentCount - 1;
@@ -602,6 +638,7 @@ export const usePartUpdates = ({
     removeSpecRow,
     insertSpecRowAfter,
     deleteSpecRow,
+    clearSpecRow,
     toggleIsParent,
     addPartRow,
     removePartRow,

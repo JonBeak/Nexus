@@ -21,12 +21,21 @@ import {
 import { HomeButton } from '../common/HomeButton';
 import { StatusCard } from './components/StatusCard';
 import { BackupTable } from './components/BackupTable';
+import { ActivePortsPanel } from './components/ActivePortsPanel';
+import { RogueProcessesPanel } from './components/RogueProcessesPanel';
+import { NetworkInterfacesPanel } from './components/NetworkInterfacesPanel';
+import { LogViewerPanel } from './components/LogViewerPanel';
 import {
   serverManagementApi,
   SystemStatus,
   BackupFile,
+  DatabaseBackup,
   ScriptResult,
-  EnvironmentInfo
+  EnvironmentInfo,
+  PortStatus,
+  RogueProcess,
+  NetworkInterface,
+  AccessEnvironment
 } from '../../services/api/serverManagementApi';
 import { Monitor } from 'lucide-react';
 
@@ -35,14 +44,22 @@ type ButtonState = 'idle' | 'running' | 'success' | 'error';
 export const ServerManagement: React.FC = () => {
   const navigate = useNavigate();
   const [status, setStatus] = useState<SystemStatus | null>(null);
-  const [backups, setBackups] = useState<{ backend: BackupFile[]; frontend: BackupFile[] }>({
+  const [backups, setBackups] = useState<{ backend: BackupFile[]; frontend: BackupFile[]; database: DatabaseBackup[] }>({
     backend: [],
-    frontend: []
+    frontend: [],
+    database: []
   });
   const [loading, setLoading] = useState(true);
   const [buttonStates, setButtonStates] = useState<Record<string, ButtonState>>({});
   const [lastOutput, setLastOutput] = useState<{ command: string; output: string } | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
+
+  // Linux dev features state
+  const [accessEnv, setAccessEnv] = useState<AccessEnvironment>('prod');
+  const [portStatus, setPortStatus] = useState<PortStatus>({ dedicatedPorts: [], unexpectedPorts: [] });
+  const [rogueProcesses, setRogueProcesses] = useState<RogueProcess[]>([]);
+  const [networkInterfaces, setNetworkInterfaces] = useState<NetworkInterface[]>([]);
+  const [linuxDataLoading, setLinuxDataLoading] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -62,15 +79,65 @@ export const ServerManagement: React.FC = () => {
     }
   }, []);
 
+  // Linux dev features fetch functions
+  const fetchAccessEnvironment = useCallback(async () => {
+    try {
+      const data = await serverManagementApi.getAccessEnvironment();
+      setAccessEnv(data.environment);
+      return data.environment;
+    } catch (error) {
+      console.error('Failed to detect environment:', error);
+      return 'prod' as AccessEnvironment;
+    }
+  }, []);
+
+  const fetchLinuxData = useCallback(async () => {
+    setLinuxDataLoading(true);
+    try {
+      const [ports, processes, network] = await Promise.all([
+        serverManagementApi.getActivePorts(),
+        serverManagementApi.getRogueProcesses(),
+        serverManagementApi.getNetworkInterfaces()
+      ]);
+      setPortStatus(ports);
+      setRogueProcesses(processes);
+      setNetworkInterfaces(network);
+    } catch (error) {
+      console.error('Failed to fetch Linux data:', error);
+    } finally {
+      setLinuxDataLoading(false);
+    }
+  }, []);
+
+  const handleKillProcess = async (pid: number) => {
+    try {
+      const result = await serverManagementApi.killProcess(pid);
+      setLastOutput({ command: `kill ${pid}`, output: result.output });
+      await fetchLinuxData(); // Refresh rogue processes
+    } catch (error: any) {
+      setLastOutput({ command: `kill ${pid}`, output: `Error: ${error.message}` });
+    }
+  };
+
+  const handleFetchLogs = async (processName: string, lines?: number): Promise<string> => {
+    const result = await serverManagementApi.getProcessLogs(processName, lines);
+    return result.output;
+  };
+
   // Initial load
   useEffect(() => {
     const loadAll = async () => {
       setLoading(true);
+      const env = await fetchAccessEnvironment();
       await Promise.all([fetchStatus(), fetchBackups()]);
+      // Fetch Linux data if in linux-dev environment
+      if (env === 'linux-dev') {
+        await fetchLinuxData();
+      }
       setLoading(false);
     };
     loadAll();
-  }, [fetchStatus, fetchBackups]);
+  }, [fetchStatus, fetchBackups, fetchAccessEnvironment, fetchLinuxData]);
 
   // Auto-refresh every 10 seconds
   useEffect(() => {
@@ -481,24 +548,103 @@ export const ServerManagement: React.FC = () => {
 
           {/* Only show backup tables on Linux */}
           {status?.environment?.os !== 'windows' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <BackupTable
-                title="Backend Backups"
-                backups={backups.backend}
-                onRestore={handleRestore}
-                onSaveNote={handleSaveNote}
-                isRestoring={buttonStates['restore'] === 'running'}
-              />
-              <BackupTable
-                title="Frontend Backups"
-                backups={backups.frontend}
-                onRestore={handleRestore}
-                onSaveNote={handleSaveNote}
-                isRestoring={buttonStates['restore'] === 'running'}
-              />
-            </div>
+            <>
+              {/* Database Backups */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <Database className="w-5 h-5" />
+                  Database Backups
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                    {backups.database.length}
+                  </span>
+                </h3>
+                <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="text-left py-2 px-4 font-medium text-gray-600">Filename</th>
+                        <th className="text-left py-2 px-4 font-medium text-gray-600">Date</th>
+                        <th className="text-left py-2 px-4 font-medium text-gray-600">Size</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {backups.database.slice(0, 7).map((backup) => (
+                        <tr key={backup.filename} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-2 px-4 font-mono text-gray-700 text-xs">{backup.filename}</td>
+                          <td className="py-2 px-4 text-gray-600">
+                            {new Date(backup.date).toLocaleDateString('en-US', {
+                              month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                            })}
+                          </td>
+                          <td className="py-2 px-4 text-gray-600">{backup.size}</td>
+                        </tr>
+                      ))}
+                      {backups.database.length === 0 && (
+                        <tr>
+                          <td colSpan={3} className="py-4 text-center text-gray-500">No database backups found</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Build Backups */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <BackupTable
+                  title="Backend Backups"
+                  backups={backups.backend}
+                  onRestore={handleRestore}
+                  onSaveNote={handleSaveNote}
+                  isRestoring={buttonStates['restore'] === 'running'}
+                />
+                <BackupTable
+                  title="Frontend Backups"
+                  backups={backups.frontend}
+                  onRestore={handleRestore}
+                  onSaveNote={handleSaveNote}
+                  isRestoring={buttonStates['restore'] === 'running'}
+                />
+              </div>
+            </>
           )}
         </section>
+
+        {/* Linux Dev Features - Only shown in linux-dev environment */}
+        {accessEnv === 'linux-dev' && (
+          <section className="mb-8">
+            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <Monitor className="w-5 h-5" />
+              Linux Dev Tools
+              <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full ml-2">
+                Dev Environment
+              </span>
+            </h2>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <ActivePortsPanel
+                portStatus={portStatus}
+                isLoading={linuxDataLoading}
+                onRefresh={fetchLinuxData}
+              />
+              <RogueProcessesPanel
+                processes={rogueProcesses}
+                isLoading={linuxDataLoading}
+                onRefresh={fetchLinuxData}
+                onKill={handleKillProcess}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <NetworkInterfacesPanel
+                interfaces={networkInterfaces}
+                isLoading={linuxDataLoading}
+                onRefresh={fetchLinuxData}
+              />
+              <LogViewerPanel onFetchLogs={handleFetchLogs} />
+            </div>
+          </section>
+        )}
 
         {/* Output Panel */}
         {lastOutput && (

@@ -74,7 +74,7 @@ const STATUS_GROUPS = [
   }
 ];
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Get image URL for order
@@ -127,6 +127,8 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   const [savingNote, setSavingNote] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const statusButtonRef = useRef<HTMLButtonElement>(null);
+  const modalContentRef = useRef<HTMLDivElement>(null);
+  const mouseDownOutsideRef = useRef(false);
 
   // Add task dropdown state
   const [showAddTaskForPart, setShowAddTaskForPart] = useState<number | null>(null);
@@ -232,18 +234,28 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
     }
   }, [isOpen, fetchOrderDetails]);
 
-  // Handle ESC key to close modal
+  // Handle ESC key to close modal - only if no child modals are open
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        // Check if any child modal is open - if so, let them handle ESC
+        const hasChildModalOpen = showPrepareModal || showCustomerApprovedModal ||
+          showFilesCreatedModal || showInvoiceModal || showConflictModal ||
+          showLinkInvoiceModal || showPrintModal || showPdfViewerModal ||
+          showAddTaskForPart !== null;
+
+        if (!hasChildModalOpen) {
+          onClose();
+        }
       }
     };
     if (isOpen) {
       document.addEventListener('keydown', handleKeyDown);
     }
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, showPrepareModal, showCustomerApprovedModal, showFilesCreatedModal,
+      showInvoiceModal, showConflictModal, showLinkInvoiceModal, showPrintModal, showPdfViewerModal,
+      showAddTaskForPart]);
 
   // Handle status change
   const handleStatusChange = async (newStatus: OrderStatus) => {
@@ -436,6 +448,32 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
     navigate(`/orders/${order.order_number}`);
   };
 
+  // Handle backdrop click - only close if both mousedown and mouseup are outside modal content
+  const handleBackdropMouseDown = (e: React.MouseEvent) => {
+    // Check if mousedown is outside the modal content
+    if (modalContentRef.current && !modalContentRef.current.contains(e.target as Node)) {
+      mouseDownOutsideRef.current = true;
+    } else {
+      mouseDownOutsideRef.current = false;
+    }
+  };
+
+  const handleBackdropMouseUp = (e: React.MouseEvent) => {
+    // Only close if both mousedown AND mouseup are outside the modal content
+    if (mouseDownOutsideRef.current && modalContentRef.current && !modalContentRef.current.contains(e.target as Node)) {
+      // Don't close if any child modal is open
+      const hasChildModalOpen = showPrepareModal || showCustomerApprovedModal ||
+        showFilesCreatedModal || showInvoiceModal || showConflictModal ||
+        showLinkInvoiceModal || showPrintModal || showPdfViewerModal ||
+        showAddTaskForPart !== null;
+
+      if (!hasChildModalOpen) {
+        onClose();
+      }
+    }
+    mouseDownOutsideRef.current = false;
+  };
+
   // ===== SMART ACTION HANDLERS =====
 
   // Prepare Order
@@ -615,8 +653,8 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
     if (!hasInvoice) {
       // Show Create Invoice for:
       // 1. Deposit-required orders (any workflow status)
-      // 2. Non-deposit orders in shipping/pick_up/awaiting_payment (for final invoice)
-      const needsInvoice = ['shipping', 'pick_up', 'awaiting_payment'].includes(orderDetails.status);
+      // 2. Non-deposit orders in qc_packing/shipping/pick_up/awaiting_payment (for final invoice)
+      const needsInvoice = ['qc_packing', 'shipping', 'pick_up', 'awaiting_payment'].includes(orderDetails.status);
       if (!orderDetails.deposit_required && !needsInvoice) {
         return null;
       }
@@ -677,8 +715,10 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   return (
     <div
       className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
     >
-      <div className="flex gap-4 items-start max-h-[85vh]">
+      <div ref={modalContentRef} className="flex gap-4 items-start max-h-[85vh]">
         {/* Image Panel - sized to fit image */}
         <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow-xl overflow-hidden flex-shrink-0`}>
           {/* Header */}

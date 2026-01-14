@@ -59,22 +59,28 @@ export function mapQBItemNameToSpecsDisplayName(qbItemName: string | null | unde
     return 'Front Lit Acrylic Face';
   }
 
-  // Pattern 6: Aluminum Backer → Backer
+  // Pattern 6: x" 3D Print Sign or 3D Print Sign → 3D print
+  // Matches: 3" 3D Print Sign, 5" 3D Print Sign, 3D Print Sign (case insensitive)
+  if (/^(\d+["']?\s*)?3d\s*print(\s*sign)?$/i.test(normalizedName)) {
+    return '3D print';
+  }
+
+  // Pattern 7: Aluminum Backer → Backer
   if (/^aluminum\s*backer$/i.test(normalizedName)) {
     return 'Backer';
   }
 
-  // Pattern 7: ACM Backer → Backer
+  // Pattern 8: ACM Backer → Backer
   if (/^acm\s*backer$/i.test(normalizedName)) {
     return 'Backer';
   }
 
-  // Pattern 8: Hinged Raceway → Extrusion Raceway
+  // Pattern 9: Hinged Raceway → Extrusion Raceway
   if (/^hinged\s*raceway$/i.test(normalizedName)) {
     return 'Extrusion Raceway';
   }
 
-  // Pattern 9: Assembly → Assembly (explicit mapping for clarity)
+  // Pattern 10: Assembly → Assembly (explicit mapping for clarity)
   if (/^assembly$/i.test(normalizedName)) {
     return 'Assembly';
   }

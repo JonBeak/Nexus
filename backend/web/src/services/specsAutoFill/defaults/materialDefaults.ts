@@ -28,20 +28,9 @@ export function getDefaultFaceMaterial(specsDisplayName: string): string | null 
 
 /**
  * Get default face color based on specs display name
+ * Note: Removed auto-fill for all products - user should select manually
  */
 export function getDefaultFaceColor(specsDisplayName: string): string | null {
-  switch (specsDisplayName) {
-    case 'Front Lit':
-    case 'Dual Lit - Single Layer':
-    case 'Dual Lit - Double Layer':
-    case 'Trim Cap':
-    case '3D print':
-      return 'White';
-
-    case 'Halo Lit':
-      return null; // No color for Halo Lit
-
-    default:
-      return null;
-  }
+  // No auto-fill for face colour - let user select
+  return null;
 }

@@ -319,6 +319,17 @@ export const OrderDetailsPage: React.FC = () => {
     setShowLinkInvoiceModal(true);
   };
 
+  // Handler for manually marking invoice as sent
+  const handleMarkAsSent = async () => {
+    if (!orderData.order) return;
+    try {
+      await qbInvoiceApi.markAsSent(orderData.order.order_number);
+      refetch();
+    } catch (error) {
+      console.error('Failed to mark invoice as sent:', error);
+    }
+  };
+
   // Phase 2: Conflict resolution handler
   const handleConflictResolved = () => {
     setShowConflictModal(false);
@@ -574,6 +585,7 @@ export const OrderDetailsPage: React.FC = () => {
         onInvoiceAction={handleInvoiceAction}
         onLinkInvoice={() => setShowLinkInvoiceModal(true)}
         onReassignInvoice={handleReassignInvoice}
+        onMarkAsSent={handleMarkAsSent}
         generatingForms={uiState.generatingForms}
         printingForm={uiState.printingForm}
       />
@@ -603,7 +615,7 @@ export const OrderDetailsPage: React.FC = () => {
                 </div>
 
                 {/* Panel 2: General Order Details */}
-                <div className={`flex-shrink-0 ${PAGE_STYLES.composites.panelContainer} p-4`} style={{ width: '320px', height: '280px' }}>
+                <div className={`flex-shrink-0 ${PAGE_STYLES.composites.panelContainer} p-4`} style={{ width: '300px', height: '280px' }}>
                   <div className={`${PAGE_STYLES.composites.tableBody}`}>
                     {/* Order Date */}
                     <div className={`flex justify-between items-center py-1 px-1 ${PAGE_STYLES.header.background}`}>
@@ -719,7 +731,7 @@ export const OrderDetailsPage: React.FC = () => {
                 </div>
 
                 {/* Panel 3: Notes */}
-                <div className={`flex-shrink-0 ${PAGE_STYLES.composites.panelContainer} p-4`} style={{ width: '380px', height: '280px' }}>
+                <div className={`flex-shrink-0 ${PAGE_STYLES.composites.panelContainer} p-4`} style={{ width: '360px', height: '280px' }}>
                   <div className="h-full flex flex-col gap-1">
                     {/* Special Instructions */}
                     <div className="flex-1">
@@ -788,7 +800,7 @@ export const OrderDetailsPage: React.FC = () => {
                 <div className={`flex-shrink-0 ${PAGE_STYLES.composites.panelContainer} p-4`} style={{ width: '700px', height: '280px' }}>
                   <div className="h-full flex gap-4">
                     {/* Left Column: Accounting Emails & Point Persons */}
-                    <div className="overflow-y-auto" style={{ width: '430px' }}>
+                    <div className="overflow-y-auto" style={{ width: '470px' }}>
                       {/* Accounting Emails */}
                       <h3 className={`text-xs font-semibold ${PAGE_STYLES.header.text} mb-2`}>Accounting Emails</h3>
                       <AccountingEmailsEditor
@@ -908,6 +920,7 @@ export const OrderDetailsPage: React.FC = () => {
                   orderNumber={orderData.order.order_number}
                   initialParts={orderData.parts}
                   taxName={orderData.order.tax_name}
+                  cash={orderData.order.cash}
                   onPartsChange={handlePartsChange}
                 />
               </div>
@@ -996,6 +1009,10 @@ export const OrderDetailsPage: React.FC = () => {
             invoiceId: orderData.order.qb_invoice_id || null,
             invoiceNumber: orderData.order.qb_invoice_doc_number || null
           });
+        }}
+        onLinkExisting={() => {
+          setShowInvoiceModal(false);
+          setShowLinkInvoiceModal(true);
         }}
       />
 

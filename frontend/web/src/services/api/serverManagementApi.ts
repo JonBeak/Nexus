@@ -55,9 +55,66 @@ export interface BackupFile {
   note: string | null;
 }
 
+export interface DatabaseBackup {
+  filename: string;
+  date: string;
+  size: string;
+  sizeBytes: number;
+}
+
 export interface ScriptResult {
   output: string;
 }
+
+// Linux dev feature types
+export interface ActivePort {
+  port: number;
+  protocol: string;
+  process: string;
+  pid: number;
+  isManagedByPM2: boolean;
+}
+
+export interface DedicatedPort {
+  port: number;
+  name: string;
+  description: string;
+  expectedProcess: string;
+  status: 'running' | 'missing' | 'wrong-process';
+  actualProcess?: string;
+  actualPid?: number;
+}
+
+export interface SystemPort {
+  port: number;
+  name: string;
+  description: string;
+  status: 'running' | 'stopped';
+}
+
+export interface PortStatus {
+  dedicatedPorts: DedicatedPort[];
+  systemPorts: SystemPort[];
+  unexpectedPorts: ActivePort[];
+}
+
+export interface RogueProcess {
+  pid: number;
+  port: number | null;
+  command: string;
+  user: string;
+}
+
+export interface NetworkInterface {
+  name: string;
+  ip: string | null;
+  status: 'up' | 'down';
+  type: 'ethernet' | 'wifi' | 'other';
+  network: 'main' | 'guest' | 'unknown';
+  description?: string;
+}
+
+export type AccessEnvironment = 'linux-dev' | 'prod' | 'home';
 
 export const serverManagementApi = {
   // Status
@@ -110,7 +167,7 @@ export const serverManagementApi = {
   },
 
   // Backup operations
-  async listBackups(): Promise<{ backend: BackupFile[]; frontend: BackupFile[] }> {
+  async listBackups(): Promise<{ backend: BackupFile[]; frontend: BackupFile[]; database: DatabaseBackup[] }> {
     const response = await api.get('/server-management/backups');
     return response.data;
   },
@@ -137,6 +194,43 @@ export const serverManagementApi = {
 
   async cleanupBackups(): Promise<ScriptResult> {
     const response = await api.post('/server-management/backups/cleanup');
+    return response.data;
+  },
+
+  // Frontend restart
+  async restartFrontendDev(): Promise<ScriptResult> {
+    const response = await api.post('/server-management/frontend/restart-dev');
+    return response.data;
+  },
+
+  // Linux dev features
+  async getAccessEnvironment(): Promise<{ environment: AccessEnvironment; origin: string }> {
+    const response = await api.get('/server-management/environment');
+    return response.data;
+  },
+
+  async getActivePorts(): Promise<PortStatus> {
+    const response = await api.get('/server-management/ports');
+    return response.data;
+  },
+
+  async getRogueProcesses(): Promise<RogueProcess[]> {
+    const response = await api.get('/server-management/rogue-processes');
+    return response.data;
+  },
+
+  async killProcess(pid: number): Promise<ScriptResult> {
+    const response = await api.post('/server-management/kill-process', { pid });
+    return response.data;
+  },
+
+  async getNetworkInterfaces(): Promise<NetworkInterface[]> {
+    const response = await api.get('/server-management/network');
+    return response.data;
+  },
+
+  async getProcessLogs(processName: string, lines: number = 100): Promise<ScriptResult> {
+    const response = await api.get(`/server-management/logs/${processName}`, { params: { lines } });
     return response.data;
   }
 };

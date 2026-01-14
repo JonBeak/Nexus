@@ -228,6 +228,26 @@ const PointPersonsEditor: React.FC<PointPersonsEditorProps> = ({
     }
   };
 
+  const handleRevert = () => {
+    // Re-initialize from initialPointPersons
+    if (initialPointPersons && initialPointPersons.length > 0) {
+      setPointPersons(
+        initialPointPersons.map(pp => ({
+          id: `existing-${pp.id}`,
+          mode: pp.contact_id ? 'existing' as const : 'custom' as const,
+          contact_id: pp.contact_id,
+          contact_email: pp.contact_email,
+          contact_name: pp.contact_name,
+          contact_phone: pp.contact_phone,
+          contact_role: pp.contact_role
+        }))
+      );
+    } else {
+      setPointPersons([]);
+    }
+    setHasChanges(false);
+  };
+
   return (
     <div className="space-y-1.5">
       {/* Point Person List */}
@@ -266,7 +286,7 @@ const PointPersonsEditor: React.FC<PointPersonsEditorProps> = ({
             </div>
 
             {/* Middle: Content */}
-            <div className="min-w-0" style={{ width: '340px', marginLeft: '22px' }}>
+            <div className="min-w-0" style={{ width: '340px', marginLeft: '12px' }}>
               {/* Existing Contact Mode */}
               {person.mode === 'existing' && (
                 <select
@@ -322,6 +342,11 @@ const PointPersonsEditor: React.FC<PointPersonsEditorProps> = ({
         );
       })}
 
+      {/* Empty state */}
+      {pointPersons.length === 0 && (
+        <div className="text-xs text-gray-400 italic py-1">No point persons configured</div>
+      )}
+
       {/* Add Button */}
       <button
         type="button"
@@ -333,16 +358,26 @@ const PointPersonsEditor: React.FC<PointPersonsEditorProps> = ({
         Add Point Person
       </button>
 
-      {/* Save Button (only show if changes) */}
+      {/* Save/Revert Buttons (only show if changes) */}
       {hasChanges && (
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={disabled || saving}
-          className="w-full mt-1 px-2 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 disabled:opacity-50"
-        >
-          {saving ? 'Saving...' : 'Save'}
-        </button>
+        <div className="flex gap-2 mt-1">
+          <button
+            type="button"
+            onClick={handleRevert}
+            disabled={disabled || saving}
+            className="flex-1 px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300 disabled:opacity-50"
+          >
+            Revert
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={disabled || saving}
+            className="flex-1 px-2 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
       )}
     </div>
   );

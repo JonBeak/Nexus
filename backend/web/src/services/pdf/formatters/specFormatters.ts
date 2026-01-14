@@ -28,7 +28,7 @@ import { formatBooleanValue } from '../generators/pdfHelpers';
 export const SPEC_ORDER = [
   'Return',
   '3DP Return',
-  '3DP Illumination',
+  'Illumination',
   'Trim',
   'Face',
   'Back',
@@ -213,7 +213,7 @@ export function formatSpecValues(templateName: string, specs: Record<string, any
       }
       return [tdpDepth, tdpFaceMaterial].filter(v => v).join(' ');
 
-    case '3DP Illumination':
+    case 'Illumination':
       // Compute illumination description from boolean values
       return computeIlluminationDescription(
         formatBooleanValue(specs.face_lit) === 'Yes',
@@ -232,13 +232,16 @@ export function formatSpecValues(templateName: string, specs: Record<string, any
 
     case 'Drain Holes':
       // Template stores: include (boolean), size (combobox)
-      // Format as Yes/No, or Yes [size] if size is specified
+      // Format as Yes [size] if included, or "None" for special formatting
       const drainInclude = formatBooleanValue(specs.include);
       const drainSize = specs.size || '';
       if (drainInclude === 'Yes' && drainSize) {
         return `${drainInclude} [${drainSize}]`;
+      } else if (drainInclude === 'Yes') {
+        return 'Yes';
       }
-      return drainInclude || '';
+      // "No" gets special "None" formatting in PDF renderer
+      return 'None';
 
     case 'LEDs':
       // Template stores: count, led_type (full string), note

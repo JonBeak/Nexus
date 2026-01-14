@@ -16,7 +16,7 @@ interface OrderImageProps {
   onImageUpdated?: () => void;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const OrderImage: React.FC<OrderImageProps> = ({
   orderNumber,
@@ -152,7 +152,9 @@ export const OrderImage: React.FC<OrderImageProps> = ({
     setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
 
     // Only crop if we're loading the original image, not the already-cropped blob
-    if (img.src === imageUrl && hasCrop) {
+    // Use endsWith to handle both relative URLs and full URLs
+    const isOriginalImage = imageUrl && (img.src === imageUrl || img.src.endsWith(imageUrl));
+    if (isOriginalImage && hasCrop) {
       cropImageWithCanvas(img);
     }
   };

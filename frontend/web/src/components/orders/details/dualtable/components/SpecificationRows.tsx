@@ -26,6 +26,7 @@ interface SpecificationRowsProps {
   onSpecFieldSave: (partId: number, specKey: string, value: string) => Promise<void>;
   onInsertAfter: (partId: number, afterRowNum: number) => void;
   onDelete: (partId: number, rowNum: number) => void;
+  onClear: (partId: number, rowNum: number) => void;
 }
 
 export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
@@ -36,7 +37,8 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
   onTemplateSave,
   onSpecFieldSave,
   onInsertAfter,
-  onDelete
+  onDelete,
+  onClear
 }) => {
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
   const subRows = Array.from({ length: rowCount }, (_, i) => i + 1);
@@ -228,25 +230,35 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
 
       {/* Actions column - per-row insert/delete buttons */}
       <div className="flex flex-col py-1">
-        {subRows.map((rowNum) => (
-          <div
-            key={`${part.part_id}-actions-${rowNum}`}
-            className={`flex items-center justify-center ${getRowClassName(rowNum)}`}
-            style={{ minHeight: '26px' }}
-            onMouseEnter={() => setHoveredRow(rowNum)}
-            onMouseLeave={() => setHoveredRow(null)}
-          >
-            <div style={{ opacity: hoveredRow === rowNum ? 1 : 0 }} className="transition-opacity ml-[8px]">
-              <SpecRowActions
-                partId={part.part_id}
-                rowNum={rowNum}
-                totalRows={rowCount}
-                onInsertAfter={onInsertAfter}
-                onDelete={onDelete}
-              />
+        {subRows.map((rowNum) => {
+          // Check if row has ANY data (template selection OR spec values)
+          // A row is "empty" only if no template is selected AND no spec values
+          const hasTemplate = !!part.specifications?.[`_template_${rowNum}`];
+          const hasSpecValues = !emptySpecRows.has(rowNum);
+          const isRowTrulyEmpty = !hasTemplate && !hasSpecValues;
+
+          return (
+            <div
+              key={`${part.part_id}-actions-${rowNum}`}
+              className={`flex items-center justify-center ${getRowClassName(rowNum)}`}
+              style={{ minHeight: '26px' }}
+              onMouseEnter={() => setHoveredRow(rowNum)}
+              onMouseLeave={() => setHoveredRow(null)}
+            >
+              <div style={{ opacity: hoveredRow === rowNum ? 1 : 0 }} className="transition-opacity ml-[8px]">
+                <SpecRowActions
+                  partId={part.part_id}
+                  rowNum={rowNum}
+                  totalRows={rowCount}
+                  isRowEmpty={isRowTrulyEmpty}
+                  onInsertAfter={onInsertAfter}
+                  onDelete={onDelete}
+                  onClear={onClear}
+                />
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );

@@ -27,6 +27,7 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
   orderNumber,
   initialParts,
   taxName,
+  cash,
   onPartsChange
 }) => {
   // Use custom hooks for data and updates
@@ -48,6 +49,7 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
     removeSpecRow,
     insertSpecRowAfter,
     deleteSpecRow,
+    clearSpecRow,
     toggleIsParent,
     addPartRow,
     removePartRow,
@@ -150,6 +152,7 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
                     onSpecFieldSave={handleSpecFieldSave}
                     onInsertAfter={insertSpecRowAfter}
                     onDelete={deleteSpecRow}
+                    onClear={clearSpecRow}
                     onToggleParent={toggleIsParent}
                     onRemovePartRow={removePartRow}
                     onDuplicatePart={duplicatePart}
@@ -168,7 +171,7 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
         {/* Footer - Invoice Summary */}
         <InvoiceSummary
           parts={parts}
-          taxName={taxName}
+          taxName={cash ? 'Out of Scope' : taxName}
           taxRules={taxRules}
           onAddPartRow={addPartRow}
         />

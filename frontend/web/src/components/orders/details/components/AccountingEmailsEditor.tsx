@@ -4,7 +4,7 @@
  * Compact linear layout based on PointPersonsEditor pattern
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { customerAccountingEmailsApi, CustomerAccountingEmail } from '../../../../services/api';
 
 interface AccountingEmailEntry {
@@ -65,20 +65,40 @@ const AccountingEmailsEditor: React.FC<AccountingEmailsEditorProps> = ({
     loadCustomerEmails();
   }, [loadCustomerEmails]);
 
-  // Initialize accounting emails from props
+  // Initialize accounting emails from props - match against customer emails to preserve "existing" mode
   useEffect(() => {
-    if (initialAccountingEmails && initialAccountingEmails.length > 0) {
+    if (initialAccountingEmails && initialAccountingEmails.length > 0 && !loading) {
       setAccountingEmails(
-        initialAccountingEmails.map((ae, idx) => ({
-          id: `existing-${idx}`,
-          mode: 'custom' as const,  // Order emails are stored as snapshots, treat as custom
-          email: ae.email,
-          email_type: ae.email_type,
-          label: ae.label
-        }))
+        initialAccountingEmails.map((ae, idx) => {
+          // Try to find matching customer email by email address
+          const matchedCustomerEmail = allCustomerEmails.find(
+            ce => ce.email.toLowerCase() === ae.email.toLowerCase()
+          );
+
+          if (matchedCustomerEmail) {
+            // Match found - set as existing
+            return {
+              id: `existing-${idx}`,
+              mode: 'existing' as const,
+              email_id: matchedCustomerEmail.id,
+              email: matchedCustomerEmail.email,
+              email_type: matchedCustomerEmail.email_type,
+              label: matchedCustomerEmail.label
+            };
+          } else {
+            // No match - treat as custom
+            return {
+              id: `existing-${idx}`,
+              mode: 'custom' as const,
+              email: ae.email,
+              email_type: ae.email_type,
+              label: ae.label
+            };
+          }
+        })
       );
     }
-  }, [initialAccountingEmails]);
+  }, [initialAccountingEmails, allCustomerEmails, loading]);
 
   // Get emails already selected (to filter dropdown)
   const selectedEmails = accountingEmails.map(e => e.email.toLowerCase());
@@ -107,11 +127,6 @@ const AccountingEmailsEditor: React.FC<AccountingEmailsEditorProps> = ({
       saveToDatabase: defaultMode === 'custom' ? true : undefined
     };
     setAccountingEmails([...accountingEmails, newEntry]);
-    setHasChanges(true);
-  };
-
-  const handleRemoveAccountingEmail = (id: string) => {
-    setAccountingEmails(accountingEmails.filter(e => e.id !== id));
     setHasChanges(true);
   };
 
@@ -202,6 +217,41 @@ const AccountingEmailsEditor: React.FC<AccountingEmailsEditorProps> = ({
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleRevert = () => {
+    // Re-initialize from initialAccountingEmails, matching against customer emails
+    if (initialAccountingEmails && initialAccountingEmails.length > 0) {
+      setAccountingEmails(
+        initialAccountingEmails.map((ae, idx) => {
+          const matchedCustomerEmail = allCustomerEmails.find(
+            ce => ce.email.toLowerCase() === ae.email.toLowerCase()
+          );
+
+          if (matchedCustomerEmail) {
+            return {
+              id: `existing-${idx}`,
+              mode: 'existing' as const,
+              email_id: matchedCustomerEmail.id,
+              email: matchedCustomerEmail.email,
+              email_type: matchedCustomerEmail.email_type,
+              label: matchedCustomerEmail.label
+            };
+          } else {
+            return {
+              id: `existing-${idx}`,
+              mode: 'custom' as const,
+              email: ae.email,
+              email_type: ae.email_type,
+              label: ae.label
+            };
+          }
+        })
+      );
+    } else {
+      setAccountingEmails([]);
+    }
+    setHasChanges(false);
   };
 
   const emailTypeLabel = (type: 'to' | 'cc' | 'bcc') => {
@@ -308,17 +358,6 @@ const AccountingEmailsEditor: React.FC<AccountingEmailsEditorProps> = ({
                 </div>
               )}
             </div>
-
-            {/* Right: Remove Button */}
-            <button
-              type="button"
-              onClick={() => handleRemoveAccountingEmail(entry.id)}
-              disabled={disabled || saving}
-              className="p-1 text-gray-400 hover:text-red-500 disabled:opacity-50"
-              title="Remove"
-            >
-              <X className="w-4 h-4" />
-            </button>
           </div>
         );
       })}
@@ -339,16 +378,26 @@ const AccountingEmailsEditor: React.FC<AccountingEmailsEditorProps> = ({
         Add Accounting Email
       </button>
 
-      {/* Save Button (only show if changes) */}
+      {/* Save/Revert Buttons (only show if changes) */}
       {hasChanges && (
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={disabled || saving}
-          className="w-full mt-1 px-2 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 disabled:opacity-50"
-        >
-          {saving ? 'Saving...' : 'Save'}
-        </button>
+        <div className="flex gap-2 mt-1">
+          <button
+            type="button"
+            onClick={handleRevert}
+            disabled={disabled || saving}
+            className="flex-1 px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300 disabled:opacity-50"
+          >
+            Revert
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={disabled || saving}
+            className="flex-1 px-2 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
       )}
     </div>
   );
