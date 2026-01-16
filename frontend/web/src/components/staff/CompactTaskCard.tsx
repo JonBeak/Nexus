@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { Play, Square, CheckCircle, RotateCcw, Users } from 'lucide-react';
+import { Play, Square, CheckCircle, RotateCcw, Users, MessageSquare } from 'lucide-react';
 import { PAGE_STYLES } from '../../constants/moduleColors';
 import type { StaffTask } from '../../services/api/staff/types';
 import { calculateWorkDaysLeft } from '../orders/calendarView/utils';
@@ -64,17 +64,18 @@ export const CompactTaskCard: React.FC<Props> = ({
 }) => {
   const dueBadge = getWorkDaysBadge(task.due_date, task.hard_due_date_time || null, holidays);
   const hasActiveWorkers = task.active_sessions_count > 0;
+  const hasSessions = Number(task.total_sessions_count) > 0;
 
-  // Border styling based on state
-  const getBorderClass = () => {
-    if (isMyActiveTask) return 'border-l-4 border-l-blue-500 border-y border-r border-gray-200';
-    if (task.completed) return 'border-l-4 border-l-green-400 border-y border-r border-gray-200';
-    if (hasActiveWorkers) return 'border-l-4 border-l-yellow-400 border-y border-r border-gray-200';
-    return 'border border-gray-200';
+  // Card styling based on state (border + background)
+  const getCardStyles = () => {
+    if (isMyActiveTask) return 'border-2 border-blue-500 bg-blue-50';
+    if (task.completed) return 'border-2 border-green-400 bg-green-50';
+    if (hasActiveWorkers) return 'border-2 border-yellow-400 bg-yellow-50';
+    return 'border border-gray-200 bg-white';
   };
 
   return (
-    <div className={`${getBorderClass()} rounded bg-white py-2 px-3 transition-all hover:shadow-sm`}>
+    <div className={`${getCardStyles()} rounded py-2 px-3 transition-all hover:shadow-sm`}>
       {/* Row 1: Job name (left) + Due date (right) */}
       <div className="flex items-center justify-between gap-2 mb-1">
         <span className={`text-sm font-medium truncate ${task.completed ? 'line-through text-gray-400' : PAGE_STYLES.panel.text}`}>
@@ -97,13 +98,12 @@ export const CompactTaskCard: React.FC<Props> = ({
             onClick={() => onViewSessions(task.task_id)}
             title="View sessions"
             className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors ${
-              hasActiveWorkers
-                ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+              hasSessions
+                ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
             <Users className="w-3 h-3" />
-            {hasActiveWorkers ? task.active_sessions_count : ''}
           </button>
 
           {/* Start/Stop button */}
@@ -111,20 +111,19 @@ export const CompactTaskCard: React.FC<Props> = ({
             <button
               onClick={() => onStop(task.task_id)}
               disabled={loading}
-              className="flex items-center gap-1 px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
+              title="Stop working"
+              className="p-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
             >
-              <Square className="w-3 h-3" />
-              Stop
+              <Square className="w-3.5 h-3.5" />
             </button>
           ) : !task.completed ? (
             <button
               onClick={() => onStart(task.task_id)}
               disabled={loading}
               title="Start this task"
-              className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+              className="p-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
             >
-              <Play className="w-3 h-3" />
-              Start
+              <Play className="w-3.5 h-3.5" />
             </button>
           ) : null}
 
@@ -151,6 +150,24 @@ export const CompactTaskCard: React.FC<Props> = ({
           )}
         </div>
       </div>
+
+      {/* Row 3: Notes preview (only if notes exist) */}
+      {(task.notes_count > 0 || task.latest_note) && (
+        <div className="mt-1.5 pt-1.5 border-t border-gray-300">
+          <button
+            onClick={() => onViewSessions(task.task_id)}
+            className="w-full text-left flex items-start gap-1.5 group"
+            title="View all notes in sessions"
+          >
+            <MessageSquare className="w-3 h-3 text-gray-400 flex-shrink-0 mt-0.5" />
+            <span className="text-xs text-gray-500 line-clamp-2 group-hover:text-gray-700">
+              {task.latest_note
+                ? `${task.latest_note}${task.notes_count > 1 ? ` (+${task.notes_count - 1} more)` : ''}`
+                : `${task.notes_count} note${task.notes_count !== 1 ? 's' : ''}`}
+            </span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };

@@ -243,10 +243,10 @@ export const qbInvoiceApi = {
    */
   async getInvoicePdf(orderNumber: number): Promise<{ pdf: string; filename: string }> {
     const response = await api.get(`/orders/${orderNumber}/qb-invoice/pdf`);
-    if (!response.data?.data?.pdf) {
+    if (!response.data?.pdf) {
       throw new Error(response.data?.error || 'Failed to fetch invoice PDF');
     }
-    return response.data.data;
+    return response.data;
   },
 
   // ========================================

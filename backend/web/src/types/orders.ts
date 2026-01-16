@@ -223,7 +223,7 @@ export interface OrderTask {
 
 export interface CreateOrderTaskData {
   order_id: number;
-  part_id?: number;
+  part_id?: number | null;  // null for job-level tasks (e.g., QC & Packing)
   task_name: string;
   assigned_role?: ProductionRole | null;
   notes?: string | null;

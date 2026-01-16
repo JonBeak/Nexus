@@ -29,9 +29,16 @@ export interface StatusColumn {
 export type ProgressColor = 'red' | 'yellow' | 'green';
 
 /**
- * Get progress color based on work days remaining
+ * Get progress color based on work days remaining and completion status
+ * Blue (green) = completed OR no urgency
+ * Orange (yellow) = late (incomplete, < 3 days left)
+ * Red = overdue (incomplete, past due)
  */
-export const getProgressColor = (workDaysLeft: number | null): ProgressColor => {
+export const getProgressColor = (workDaysLeft: number | null, progressPercent?: number): ProgressColor => {
+  // If job is complete, always show blue (green)
+  if (progressPercent === 100) return 'green';
+
+  // Only show urgency colors for incomplete jobs
   if (workDaysLeft === null) return 'green';
   if (workDaysLeft <= 0) return 'red';
   if (workDaysLeft <= 3) return 'yellow';
@@ -104,12 +111,19 @@ export const KANBAN_COLUMN_COLORS: Record<OrderStatus, { header: string; border:
   on_hold: { header: 'bg-red-100', border: 'border-red-300' },
   overdue: { header: 'bg-red-200', border: 'border-red-400' },
   qc_packing: { header: 'bg-purple-100', border: 'border-purple-300' },
-  shipping: { header: 'bg-cyan-100', border: 'border-cyan-300' },
-  pick_up: { header: 'bg-teal-100', border: 'border-teal-300' },
-  awaiting_payment: { header: 'bg-amber-100', border: 'border-amber-300' },
+  shipping: { header: 'bg-blue-100', border: 'border-blue-300' },
+  pick_up: { header: 'bg-blue-100', border: 'border-blue-300' },
+  awaiting_payment: { header: 'bg-green-100', border: 'border-green-300' },
   completed: { header: 'bg-green-200', border: 'border-green-400', background: 'bg-[var(--theme-header-bg)]' },
   cancelled: { header: 'bg-gray-300', border: 'border-gray-500', background: 'bg-[var(--theme-header-bg)]' }
 };
+
+/**
+ * Statuses that should be collapsed by default (cards hidden)
+ */
+export const KANBAN_COLLAPSED_BY_DEFAULT: OrderStatus[] = [
+  'cancelled'
+];
 
 /**
  * Props for KanbanColumn component
@@ -125,6 +139,10 @@ export interface KanbanColumnProps {
   showingAll?: boolean;
   totalCount?: number;
   onToggleShowAll?: () => void;
+  // Collapse functionality (hides all cards)
+  isCollapsible?: boolean;
+  isCollapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }
 
 /**

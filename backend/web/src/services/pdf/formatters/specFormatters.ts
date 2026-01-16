@@ -104,6 +104,7 @@ function getSpecField(specs: Record<string, any>, ...fieldNames: string[]): stri
  * @param typeFields - Array of possible field names for type (in priority order)
  * @param typeSplitPattern - Pattern to split type string (e.g., ' - ' or ' (')
  * @param formType - Form type (master, customer, shop)
+ * @param noteField - Optional field name for note value
  * @returns Formatted string
  */
 function formatCountTypeSpec(
@@ -111,36 +112,47 @@ function formatCountTypeSpec(
   countField: string,
   typeFields: string[],
   typeSplitPattern: string,
-  formType: FormType
+  formType: FormType,
+  noteField?: string
 ): string {
   const count = specs[countField] || '';
   let type = getSpecField(specs, ...typeFields);
+  const note = noteField ? (specs[noteField] || '').trim() : '';
 
   // Shorten type: keep only part before split pattern
   if (type && type.includes(typeSplitPattern)) {
     type = type.split(typeSplitPattern)[0].trim();
   }
 
+  let result = '';
+
   // Customer form: Replace count with "Yes/No" but preserve type
   if (formType === 'customer') {
     const countNum = Number(count);
     if (!isNaN(countNum) && countNum > 0) {
-      return type ? `Yes [${type}]` : 'Yes';
+      result = type ? `Yes [${type}]` : 'Yes';
     } else if (type) {
-      return type;
+      result = type;
+    } else {
+      result = 'No';
     }
-    return 'No';
+  } else {
+    // Master/Shop: Format as {count} [{type}]
+    if (count && type) {
+      result = `${count} [${type}]`;
+    } else if (count) {
+      result = count;
+    } else if (type) {
+      result = type;
+    }
   }
 
-  // Master/Shop: Format as {count} [{type}]
-  if (count && type) {
-    return `${count} [${type}]`;
-  } else if (count) {
-    return count;
-  } else if (type) {
-    return type;
+  // Append note in brackets if present
+  if (note && result) {
+    result += ` (${note})`;
   }
-  return '';
+
+  return result;
 }
 
 /**
@@ -245,7 +257,7 @@ export function formatSpecValues(templateName: string, specs: Record<string, any
 
     case 'LEDs':
       // Template stores: count, led_type (full string), note
-      return formatCountTypeSpec(specs, 'count', ['type', 'led_type'], ' - ', formType);
+      return formatCountTypeSpec(specs, 'count', ['type', 'led_type'], ' - ', formType, 'note');
 
     case 'Wire Length':
       // Add " ft" unit if not already present
@@ -262,15 +274,15 @@ export function formatSpecValues(templateName: string, specs: Record<string, any
 
     case 'Power Supply':
       // Template stores: count, ps_type (full string), note
-      return formatCountTypeSpec(specs, 'count', ['ps_type', 'model', 'power_supply'], ' (', formType);
+      return formatCountTypeSpec(specs, 'count', ['ps_type', 'model', 'power_supply'], ' (', formType, 'note');
 
     case 'UL':
       // Template stores: include (boolean), note (textbox)
-      // Format as Yes/No, or Yes - note if note is specified
+      // Format as Yes/No, or Yes (note) if note is specified
       const ulInclude = formatBooleanValue(specs.include);
       const ulNote = specs.note || '';
       if (ulInclude === 'Yes' && ulNote) {
-        return `${ulInclude} - ${ulNote}`;
+        return `${ulInclude} (${ulNote})`;
       }
       return ulInclude || '';
 

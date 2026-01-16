@@ -23,6 +23,16 @@ import { OrderTask, ProductionRole } from '../types/orders';
 import { query } from '../config/database';
 import { RowDataPacket } from 'mysql2';
 import { orderService } from './orderService';
+import {
+  broadcastTaskUpdate,
+  broadcastTaskNotes,
+  broadcastTaskDeleted,
+  broadcastTaskCreated
+} from '../websocket';
+
+// QC task constants (must match orderService.ts)
+const QC_TASK_NAME = 'QC & Packing';
+const QC_TASK_ROLE = 'qc_packer';
 
 /**
  * Interface for batch task update operations
@@ -31,6 +41,23 @@ export interface TaskUpdate {
   task_id: number;
   started?: boolean;
   completed?: boolean;
+  expected_version?: number;  // For optimistic locking
+}
+
+/**
+ * Result of a batch task update operation
+ */
+export interface BatchUpdateResult {
+  statusChanges: Map<number, string>;
+  conflicts: Array<{
+    task_id: number;
+    expected_version: number;
+    current_version: number;
+  }>;
+  updatedTasks: Array<{
+    task_id: number;
+    new_version: number;
+  }>;
 }
 
 export class OrderTaskService {
@@ -38,6 +65,58 @@ export class OrderTaskService {
   // =====================================================
   // TASK CRUD OPERATIONS
   // =====================================================
+
+  /**
+   * Check if a task is the QC task (job-level task for QC & Packing)
+   * Returns task info if it is a QC task, null otherwise
+   */
+  private async getQcTaskInfo(taskId: number): Promise<{
+    order_id: number;
+    isQcTask: boolean;
+  } | null> {
+    const rows = await query(
+      `SELECT order_id, part_id, task_name, assigned_role
+       FROM order_tasks WHERE task_id = ?`,
+      [taskId]
+    ) as RowDataPacket[];
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    const task = rows[0];
+    const isQcTask = task.part_id === null &&
+                     task.task_name === QC_TASK_NAME &&
+                     task.assigned_role === QC_TASK_ROLE;
+
+    return {
+      order_id: task.order_id,
+      isQcTask
+    };
+  }
+
+  /**
+   * Handle QC task completion - auto-transition to shipping or pick_up
+   */
+  private async handleQcTaskCompletion(orderId: number, userId: number): Promise<string | null> {
+    const order = await orderRepository.getOrderById(orderId);
+
+    if (!order || order.status !== 'qc_packing') {
+      return null;
+    }
+
+    // Determine next status based on shipping_required
+    const nextStatus = order.shipping_required ? 'shipping' : 'pick_up';
+
+    await orderService.updateOrderStatus(
+      orderId,
+      nextStatus,
+      userId,
+      `Automatically moved to ${nextStatus === 'shipping' ? 'Shipping' : 'Pick Up'} (QC task completed)`
+    );
+
+    return nextStatus;
+  }
 
   /**
    * Check if all tasks for an order are completed
@@ -64,6 +143,7 @@ export class OrderTaskService {
   /**
    * Update task completion status
    * Priority Logic:
+   * 0. If QC task completed AND order in qc_packing → move to shipping/pick_up
    * 1. If all tasks completed AND order in (production_queue, in_production, overdue) → move to qc_packing
    * 2. Else if order in production_queue → move to in_production
    */
@@ -89,6 +169,15 @@ export class OrderTaskService {
 
     // If task was just completed (not uncompleted), check order status transitions
     if (completed) {
+      // PRIORITY 0: Check if this is a QC task completion
+      const qcInfo = await this.getQcTaskInfo(taskId);
+      if (qcInfo && qcInfo.isQcTask) {
+        const newStatus = await this.handleQcTaskCompletion(orderId, userId);
+        if (newStatus) {
+          return; // Status transition handled, no further checks needed
+        }
+      }
+
       const order = await orderRepository.getOrderById(orderId);
 
       if (!order) {
@@ -182,7 +271,8 @@ export class OrderTaskService {
    */
   async getTasksByRole(
     includeCompleted: boolean = false,
-    hoursBack: number = 24
+    hoursBack: number = 24,
+    currentUserId?: number
   ): Promise<Record<ProductionRole, OrderTask[]>> {
     const roles: ProductionRole[] = [
       'designer',
@@ -204,7 +294,7 @@ export class OrderTaskService {
     const result: Record<ProductionRole, OrderTask[]> = {} as Record<ProductionRole, OrderTask[]>;
 
     for (const role of roles) {
-      const tasks = await orderPartRepository.getTasksByRole(role, includeCompleted, hoursBack);
+      const tasks = await orderPartRepository.getTasksByRole(role, includeCompleted, hoursBack, currentUserId);
       result[role] = tasks;
     }
 
@@ -212,23 +302,47 @@ export class OrderTaskService {
   }
 
   /**
-   * Batch update tasks (start/complete)
+   * Batch update tasks (start/complete) with optimistic locking support
    * Priority Logic:
    * 1. If all tasks completed AND order in (production_queue, in_production, overdue) → move to qc_packing
    * 2. Else if order in production_queue → move to in_production
    *
-   * Returns: Map of order_id -> new status for orders that changed
+   * Returns: BatchUpdateResult with status changes, conflicts, and updated task versions
    */
-  async batchUpdateTasks(updates: TaskUpdate[], userId: number): Promise<Map<number, string>> {
+  async batchUpdateTasks(updates: TaskUpdate[], userId: number): Promise<BatchUpdateResult> {
     const statusChanges = new Map<number, string>();
+    const conflicts: BatchUpdateResult['conflicts'] = [];
+    const updatedTasks: BatchUpdateResult['updatedTasks'] = [];
     // Track which orders had tasks completed
     const ordersWithCompletedTasks = new Set<number>();
+    // Track QC task completions for status transition
+    const qcTaskCompletions = new Set<number>(); // order_ids with QC tasks completed
+    // Track successful updates for broadcasting
+    const successfulUpdates: TaskUpdate[] = [];
 
     for (const update of updates) {
-      const { task_id, started, completed } = update;
+      const { task_id, started, completed, expected_version } = update;
 
       if (started !== undefined) {
-        await orderPartRepository.updateTaskStarted(task_id, started, userId);
+        const result = await orderPartRepository.updateTaskStarted(
+          task_id,
+          started,
+          userId,
+          expected_version
+        );
+
+        if (!result.success) {
+          // Version conflict
+          conflicts.push({
+            task_id,
+            expected_version: expected_version!,
+            current_version: result.currentVersion!
+          });
+          continue;  // Skip this update
+        }
+
+        updatedTasks.push({ task_id, new_version: result.newVersion! });
+        successfulUpdates.push(update);
       }
 
       if (completed !== undefined) {
@@ -238,11 +352,46 @@ export class OrderTaskService {
           [task_id]
         ) as RowDataPacket[];
 
-        if (taskRows.length > 0 && completed) {
-          ordersWithCompletedTasks.add(taskRows[0].order_id);
+        const result = await orderPartRepository.updateTaskCompletion(
+          task_id,
+          completed,
+          userId,
+          expected_version
+        );
+
+        if (!result.success) {
+          // Version conflict
+          conflicts.push({
+            task_id,
+            expected_version: expected_version!,
+            current_version: result.currentVersion!
+          });
+          continue;  // Skip this update
         }
 
-        await orderPartRepository.updateTaskCompletion(task_id, completed, userId);
+        updatedTasks.push({ task_id, new_version: result.newVersion! });
+        successfulUpdates.push(update);
+
+        if (taskRows.length > 0 && completed) {
+          const orderId = taskRows[0].order_id;
+          ordersWithCompletedTasks.add(orderId);
+
+          // Check if this is a QC task completion
+          const qcInfo = await this.getQcTaskInfo(task_id);
+          if (qcInfo && qcInfo.isQcTask) {
+            qcTaskCompletions.add(orderId);
+          }
+        }
+      }
+    }
+
+    // PRIORITY 0: Handle QC task completions first (qc_packing -> shipping/pick_up)
+    for (const orderId of qcTaskCompletions) {
+      const newStatus = await this.handleQcTaskCompletion(orderId, userId);
+      if (newStatus) {
+        statusChanges.set(orderId, newStatus);
+        // Remove from ordersWithCompletedTasks since we've handled this order
+        ordersWithCompletedTasks.delete(orderId);
       }
     }
 
@@ -281,7 +430,12 @@ export class OrderTaskService {
       }
     }
 
-    return statusChanges;
+    // Broadcast successful updates to WebSocket clients
+    if (successfulUpdates.length > 0) {
+      broadcastTaskUpdate(successfulUpdates, statusChanges, userId);
+    }
+
+    return { statusChanges, conflicts, updatedTasks };
   }
 
   /**
@@ -291,28 +445,70 @@ export class OrderTaskService {
     orderId: number,
     partId: number,
     taskName: string,
-    assignedRole?: ProductionRole | null
+    assignedRole: ProductionRole | null = null,
+    userId?: number
   ): Promise<number> {
-    return await orderPartRepository.createOrderTask({
+    const taskId = await orderPartRepository.createOrderTask({
       order_id: orderId,
       part_id: partId,
       task_name: taskName,
-      assigned_role: assignedRole || null
+      assigned_role: assignedRole
     });
+
+    // Broadcast task creation if userId provided
+    if (userId !== undefined) {
+      broadcastTaskCreated(taskId, orderId, partId, taskName, assignedRole, userId);
+    }
+
+    return taskId;
   }
 
   /**
    * Update task notes
    */
-  async updateTaskNotes(taskId: number, notes: string | null): Promise<void> {
+  async updateTaskNotes(taskId: number, notes: string | null, userId?: number): Promise<void> {
+    // Get orderId before update for broadcast
+    let orderId: number | undefined;
+    if (userId !== undefined) {
+      const taskRows = await query(
+        'SELECT order_id FROM order_tasks WHERE task_id = ?',
+        [taskId]
+      ) as RowDataPacket[];
+      if (taskRows.length > 0) {
+        orderId = taskRows[0].order_id;
+      }
+    }
+
     await orderPartRepository.updateTaskNotes(taskId, notes);
+
+    // Broadcast notes update
+    if (userId !== undefined && orderId !== undefined) {
+      broadcastTaskNotes(taskId, orderId, notes, userId);
+    }
   }
 
   /**
    * Remove a task by ID
    */
-  async removeTask(taskId: number): Promise<void> {
+  async removeTask(taskId: number, userId?: number): Promise<void> {
+    // Get orderId before deletion for broadcast
+    let orderId: number | undefined;
+    if (userId !== undefined) {
+      const taskRows = await query(
+        'SELECT order_id FROM order_tasks WHERE task_id = ?',
+        [taskId]
+      ) as RowDataPacket[];
+      if (taskRows.length > 0) {
+        orderId = taskRows[0].order_id;
+      }
+    }
+
     await orderPartRepository.deleteTask(taskId);
+
+    // Broadcast task deletion
+    if (userId !== undefined && orderId !== undefined) {
+      broadcastTaskDeleted(taskId, orderId, userId);
+    }
   }
 
   /**

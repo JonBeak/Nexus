@@ -39,13 +39,9 @@ export const calculateShopCount = (orderParts: OrderPart[]): number => {
     count += 1;
   }
 
-  // Check for Pins/D-Tape/Mounting - adds 1 sheet
-  if (hasAnyTemplate(orderParts, ['Pins', 'D-Tape', 'Mounting'])) {
-    count += 1;
-  }
-
-  // Check for LED installation - adds 1 sheet
-  if (hasAnyTemplate(orderParts, ['LEDs'])) {
+  // Check for 3DP / LEDs / Pins / D-Tape / Mounting - adds 1 sheet (combined)
+  // For 3D Print orders, these tasks are done together so only 1 sheet needed
+  if (hasAnyTemplate(orderParts, ['3DP Return', 'LEDs', 'Pins', 'D-Tape', 'Mounting'])) {
     count += 1;
   }
 

@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronDown, ChevronUp, RefreshCw, Package, Truck, CheckCircle } from 'lucide-react';
 import { formatDateLong } from '../../../utils/dateUtils';
+import { useIsMobile } from '../../../hooks/useMediaQuery';
 
 // Summary config for invoice email
 export interface InvoiceSummaryConfig {
@@ -129,6 +130,7 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
   );
   const [includePayButton, setIncludePayButton] = useState(config?.includePayButton ?? initialIncludePayButton);
   const [summaryExpanded, setSummaryExpanded] = useState(true);
+  const isMobile = useIsMobile();
 
   // Refs for auto-resizing textareas
   const beginningRef = useRef<HTMLTextAreaElement>(null);
@@ -356,38 +358,38 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
         />
         {/* Subject Prefix Checkboxes - Ready for Pickup/Shipping */}
         {(onPickupChange || onShippingChange) && (
-          <div className="flex gap-4 mt-2">
-            <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+          <div className={`mt-2 ${isMobile ? 'flex flex-col gap-2' : 'flex gap-4'}`}>
+            <label className="flex items-center gap-1.5 text-xs cursor-pointer min-h-[36px]">
               <input
                 type="checkbox"
                 checked={pickupChecked}
                 onChange={(e) => handlePickupCheckbox(e.target.checked)}
                 disabled={disabled}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
               />
-              <Package className="w-3.5 h-3.5 text-green-600" />
+              <Package className="w-4 h-4 text-green-600" />
               <span className="text-gray-700">Ready for Pickup</span>
             </label>
-            <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+            <label className="flex items-center gap-1.5 text-xs cursor-pointer min-h-[36px]">
               <input
                 type="checkbox"
                 checked={shippingChecked}
                 onChange={(e) => handleShippingCheckbox(e.target.checked)}
                 disabled={disabled}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
               />
-              <Truck className="w-3.5 h-3.5 text-blue-600" />
+              <Truck className="w-4 h-4 text-blue-600" />
               <span className="text-gray-700">Ready for Shipping</span>
             </label>
-            <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+            <label className="flex items-center gap-1.5 text-xs cursor-pointer min-h-[36px]">
               <input
                 type="checkbox"
                 checked={completedChecked}
                 onChange={(e) => handleCompletedCheckbox(e.target.checked)}
                 disabled={disabled}
-                className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 w-4 h-4"
               />
-              <CheckCircle className="w-3.5 h-3.5 text-purple-600" />
+              <CheckCircle className="w-4 h-4 text-purple-600" />
               <span className="text-gray-700">Order Completed</span>
             </label>
           </div>
@@ -441,9 +443,9 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
         {/* Summary Content */}
         {summaryExpanded && (
           <div className="p-3 border-t border-gray-200 bg-white">
-            <div className="flex gap-4">
-              {/* Checkboxes - Left Side */}
-              <div className="flex flex-col gap-1.5">
+            <div className={`${isMobile ? 'flex flex-col gap-4' : 'flex gap-4'}`}>
+              {/* Checkboxes - Left Side (Top on mobile) */}
+              <div className={`flex flex-col ${isMobile ? 'gap-2' : 'gap-1.5'}`}>
                 <label className="flex items-center gap-1.5 text-xs text-gray-700">
                   <input
                     type="checkbox"
@@ -550,9 +552,9 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
                 </label>
               </div>
 
-              {/* Live Preview - Right Side */}
+              {/* Live Preview - Right Side (Bottom on mobile) */}
               {anySummaryEnabled && invoiceData && (
-                <div className="w-56 ml-auto p-2 bg-gray-50 rounded border border-gray-200 text-xs">
+                <div className={`${isMobile ? 'w-full' : 'w-56 ml-auto'} p-2 bg-gray-50 rounded border border-gray-200 text-xs`}>
                   <div className="text-gray-500 mb-1.5 font-medium">Preview</div>
                   <div className="space-y-0.5">
                     {summaryConfig.includeJobName && invoiceData.jobName && (

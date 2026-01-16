@@ -6,6 +6,9 @@ A comprehensive production-grade ERP system for sign manufacturing businesses wi
 
 **✅ FULLY IMPLEMENTED SYSTEMS:**
 - **Complete Job Estimation System** - 15 product categories with real-time pricing and comprehensive validation
+- **Orders Management** - Full order lifecycle with Tasks Table, panel dashboard, and PDF generation
+- **QuickBooks Integration** - Bi-directional sync for estimates, invoices, and payments
+- **Invoice Automation** - QB invoice create/update/link with conflict detection, PDF viewing, email sending
 - **Customer Management** - 637+ customers with preferences and multi-address support
 - **Time Tracking & Payroll** - Employee time management with automated calculations
 - **Inventory Management** - Vinyl products with bulk operations and low-stock alerts
@@ -15,12 +18,12 @@ A comprehensive production-grade ERP system for sign manufacturing businesses wi
 - **Validation System** - Field-level validation with visual feedback and error prevention
 - **Performance Optimization** - Infinite render loop elimination and memoization
 - **Audit System** - Complete tracking of all data changes
-- **Order Folder & Image Management (Phase 1.5g)** - SMB folder tracking, image uploads, crop coordinates, and print services
+- **Order Folder & Image Management** - SMB folder tracking, image uploads, crop coordinates, and print services
+- **Gmail Integration** - Service account email sending with BCC support, retry logic, attachments
 
 **🚧 IN DEVELOPMENT:**
-- **Job Workflow Integration** - Estimate → Job → Materials → Invoice automation
-- **Multi-Invoice Job Management** - Versioned estimates and partial billing
-- **Automated Supply Chain Integration** - Material requirements from job specifications
+- **Supply Chain Integration** - Material requirements from job specifications
+- **Settings & Email Templates UI** - Phase 3 email template management
 
 ## 🏗️ Technology Stack
 
@@ -327,61 +330,42 @@ Note: Calculations performed client-side in frontend calculation engine
 - **Data Validation**: Comprehensive input validation and sanitization
 - **Error Handling**: Graceful error management with logging
 
-## 🎯 Recent Major Achievements - November 2025
+## 🎯 Recent Major Achievements
 
-### ✅ Code Cleanup: Session-Based Pricing System Removal (November 14, 2025)
-- **Dead Code Removal**: Removed 500+ lines of abandoned session-based pricing architecture
-- **Architecture Clarification**: Single clear pricing system (frontend calculations + rate lookup)
-- **Files Deleted**: estimationSessionService.ts, pricingCalculationEngine.ts (~20KB)
-- **Files Cleaned**: pricingCalculationController.ts (53% reduction), types/pricing.ts (90% reduction)
-- **Impact**: Zero breaking changes, improved maintainability, clearer codebase
-- **Details**: See CLEANUP_REPORT_2025-11-14.md for full analysis
+### ✅ Orders System Complete
+- **Tasks Table**: Production task tracking grid with sticky headers, role-based columns, hide completed/empty filters
+- **Panel Dashboard**: Configurable workflow panels with compact order rows, filtering by assigned/status
+- **PDF Generation**: Master form, customer form, shop form, and packing list generation
+- **Specs & Task Generation**: Automatic task generation from order specifications
 
-### ✅ Phase 1.5g: Order Folder & Image Management Complete
-- **SMB Folder Tracking**: Automatic folder creation with 1,978 legacy orders successfully migrated
+### ✅ QuickBooks Integration Complete
+- **Bi-directional Sync**: Estimates and invoices sync between Nexus and QuickBooks
+- **Invoice Automation**: Create/update/link QB invoices with conflict detection and resolution
+- **PDF Viewing**: View invoice PDFs directly in Nexus
+- **Email Sending**: Send invoices via Gmail with scheduling, templates, and email history tracking
+
+### ✅ Order Folder & Image Management Complete
+- **SMB Folder Tracking**: Automatic folder creation with legacy orders migrated
 - **Image Management API**: Upload, retrieve, delete, and organize order images with crop coordinates
-- **Image Picker Modal**: React component with image grid, selection, and cropping UI
-- **Print Service**: PDF generation with integrated image support and form layouts
-- **Folder Organization**: Automatic movement to "1Finished" folder on order completion
-- **Database Migrations**: Four migrations for folder tracking, part scope, hard due times, and crop coordinates
-
-### ✅ Validation System Integration Complete (September 2025)
-- **useGridValidation Hook**: Comprehensive field-level validation with visual feedback
-- **Database Schema Flexibility**: Numeric fields converted to VARCHAR(255) for maximum compatibility
-- **Informational Validation**: Shows UI feedback without blocking functionality - purely guidance-based
-- **Validation-Aware Calculations**: Pricing engine intelligently skips invalid fields preventing garbage math
-- **Error Prevention**: Red borders and tooltips guide users toward correct inputs
-
-### ✅ Performance Optimization Complete (September 2025)
-- **Four-Phase Render Loop Elimination**: Comprehensive memoization strategy eliminating all circular dependencies
-- **EstimateTable Optimization**: React.memo and stable dependency arrays preventing unnecessary renders
-- **Validation State Isolation**: Prevented validation updates from triggering infinite re-render cycles
-- **Callback Optimization**: useCallback implementation with stable references
-- **Production Performance**: Significant improvement in component responsiveness under high user interaction
+- **Print Service**: PDF generation with integrated image support
 
 ## 🔮 Development Roadmap
 
-### Phase 3: Complete Workflow Integration (In Progress)
-- ✅ Database foundation (22 pricing tables)
-- ✅ Real-time pricing calculations  
-- ✅ User-isolated session management
-- ✅ **MAJOR MILESTONE**: Comprehensive validation system with performance optimization
-- 🚧 Job workflow automation (Estimate → Job → Materials → Invoice)
-- 🚧 Multi-invoice job management
-- 🚧 Automated supply chain integration
+### ✅ Completed Phases
+- ✅ Phase 1: Job Estimation System with 15 product categories
+- ✅ Phase 1.5: Orders System - Tasks Table, Panel Dashboard, PDF Generation
+- ✅ Phase 2: QuickBooks Integration - Estimates, Invoices, Payments
+- ✅ Phase 2e: Invoice Automation - Email sending, scheduling, history
 
-### Phase 4: Advanced Features (Planned)
-- 📋 Advanced reporting dashboard
-- 📋 Mobile application for job tracking
-- 📋 API for third-party integrations
-- 📋 Document management system
-- 📋 Customer portal access
+### 🚧 Current Development
+- **Phase 3**: Settings & Email Templates UI
+- **Phase 4**: Supply Chain Integration - Material requirements from job specifications
 
-### Phase 5: Business Intelligence (Future)
-- 📋 Machine learning for demand forecasting  
-- 📋 Advanced workflow automation
-- 📋 IoT integration for equipment monitoring
-- 📋 Real-time production tracking
+### 📋 Future Phases
+- Advanced reporting dashboard
+- Mobile application for job tracking
+- Customer portal access
+- Real-time production tracking
 
 ## 📁 Project Structure
 
@@ -391,7 +375,7 @@ Note: Calculations performed client-side in frontend calculation engine
 │   ├── src/
 │   │   ├── controllers/         # API request handlers
 │   │   ├── services/           # Business logic layer
-│   │   ├── repositories/       # Data access layer  
+│   │   ├── repositories/       # Data access layer
 │   │   ├── middleware/         # Auth, RBAC, validation
 │   │   ├── types/             # TypeScript definitions
 │   │   └── config/            # Database configuration
@@ -402,10 +386,15 @@ Note: Calculations performed client-side in frontend calculation engine
 │   │   ├── services/         # API clients
 │   │   ├── contexts/         # React contexts
 │   │   └── types/           # Frontend type definitions
-│   └── package.json  
+│   └── package.json
 ├── database/migrations/        # Database schema files
 ├── infrastructure/            # Server management scripts
-├── archive/documentation/     # Archived implementation docs
+├── docs/                      # Active documentation guides
+├── archive/                   # Archived implementation docs
+│   ├── completed-phases/      # Completed phase planning docs
+│   ├── implementation-prompts/ # Used implementation prompts
+│   ├── progress-tracking/     # Old progress tracking files
+│   └── migrations/            # Completed migration docs
 └── *.md                      # Active project documentation
 ```
 
@@ -434,18 +423,27 @@ Note: Calculations performed client-side in frontend calculation engine
 ### Active Documentation
 - `README.md` - This comprehensive system overview
 - `CLAUDE.md` - Development instructions and system architecture
-- `JOB_ESTIMATION_ROADMAP.md` - Job workflow integration roadmap  
-- `STRUCTURE.md` - Detailed system structure and components
-- `SERVER_RECOVERY.md` - Disaster recovery procedures
+- `BUILD_MANAGEMENT.md` - Build and deployment guide
+- `testingChecklist.md` - Testing procedures
+- `docs/ROADMAP.md` - Development roadmap
+- `docs/PROJECT_STRUCTURE.md` - Detailed project structure
+- `docs/CSS_PATTERNS_GUIDE.md` - CSS layout patterns
+- `docs/INDUSTRIAL_STYLING_GUIDE.md` - Theme and styling guide
+
+### Reference Documentation
+- `Nexus_Orders*.md` - Orders system documentation
+- `REFACTORING_GUIDE.md` - Refactoring patterns
+- `DATABASE_QUERY_STANDARDIZATION_PLAN.md` - Database patterns
 
 ### Archived Documentation
-- `/archive/documentation/` - Completed implementation documentation
-- `/archive/documentation/pricing-calculations/` - Pricing system analysis
+- `/archive/completed-phases/` - Completed phase planning documents
+- `/archive/implementation-prompts/` - Used implementation prompts
+- `/archive/progress-tracking/` - Historical progress tracking
 
 ### System Monitoring
 - **Infrastructure Scripts**: `/infrastructure/scripts/` for server management
-- **Database Monitoring**: Performance and optimization tools
-- **Backup Verification**: Automated integrity checking
+- **Logs**: `pm2 logs signhouse-backend` for backend logs
+- **Backup Management**: `backup-builds.sh`, `list-backups.sh`, `restore-backup.sh`
 
 ---
 
@@ -455,4 +453,4 @@ This system is designed specifically for sign manufacturing businesses as a comp
 
 **Contact**: System documentation and support available through project maintainer.
 
-**Last Updated**: November 14, 2025 - Production-ready system with 15-category pricing engine, comprehensive validation system, performance optimization, and frontend-based real-time calculations.
+**Last Updated**: January 2026 - Production-ready system with Orders Management, QuickBooks Integration, Invoice Automation, and comprehensive workflow support.

@@ -41,6 +41,18 @@ export const TableRow: React.FC<Props> = ({ order, onStatusClick, holidays }) =>
   const progressPercent = order.progress_percent || 0;
   const workDaysLeft = calculateWorkDaysLeft(order.due_date, order.hard_due_date_time, holidays);
 
+  // Progress bar color: blue when complete, orange when late, red when overdue
+  const getProgressBarColor = (): string => {
+    // If job is complete, always show blue
+    if (progressPercent === 100) return 'bg-blue-500';
+
+    // Only show urgency colors for incomplete jobs
+    if (workDaysLeft === null) return 'bg-blue-500';
+    if (workDaysLeft <= 0) return 'bg-red-500';     // Overdue
+    if (workDaysLeft <= 3) return 'bg-orange-500';  // Late
+    return 'bg-blue-500';                            // Normal
+  };
+
   // Color coding for work days left
   const getWorkDaysColor = (days: number | null): string => {
     if (days === null) return 'text-gray-400';
@@ -55,7 +67,7 @@ export const TableRow: React.FC<Props> = ({ order, onStatusClick, holidays }) =>
       <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
         {order.order_number}
       </td>
-      <td className="px-4 py-3 text-sm text-gray-900 max-w-[320px]">
+      <td className="px-4 py-3 text-sm text-gray-900 max-w-[256px]">
         <a
           href={`/orders/${order.order_number}`}
           onClick={handleOrderClick}
@@ -90,9 +102,9 @@ export const TableRow: React.FC<Props> = ({ order, onStatusClick, holidays }) =>
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
         <div className="flex items-center space-x-2">
-          <div className="flex-1 bg-gray-200 rounded-full h-2 w-44">
+          <div className="flex-1 bg-gray-200 rounded-full h-2 w-16">
             <div
-              className="bg-indigo-600 h-2 rounded-full"
+              className={`${getProgressBarColor()} h-2 rounded-full`}
               style={{ width: `${progressPercent}%` }}
             />
           </div>

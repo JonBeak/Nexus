@@ -31,6 +31,7 @@ import { orderPartRepository } from '../repositories/orderPartRepository';
 import { validateOrderAndGetId } from './helpers/orderHelpers';
 import * as orderFinalizationService from '../services/orderFinalizationService';
 import { getEmailPreviewHtml, getOrderEmailPreviewHtml, OrderEmailContent } from '../services/gmailService';
+import { broadcastTasksRegenerated } from '../websocket';
 
 /**
  * GET /api/order-preparation/:orderNumber/qb-estimate/staleness
@@ -236,9 +237,10 @@ export const checkTaskStaleness = async (req: Request, res: Response) => {
  * POST /api/order-preparation/:orderNumber/tasks
  * Generate production tasks from order specifications
  */
-export const generateProductionTasks = async (req: Request, res: Response) => {
+export const generateProductionTasks = async (req: AuthRequest, res: Response) => {
   try {
     const { orderNumber } = req.params;
+    const userId = req.user?.user_id || 0;
 
     const orderId = await validateOrderAndGetId(orderNumber, res);
     if (!orderId) return;
@@ -248,6 +250,11 @@ export const generateProductionTasks = async (req: Request, res: Response) => {
 
     // Generate tasks based on specs
     const result = await generateTasksForOrder(orderId);
+
+    // Broadcast to connected clients
+    if (result.tasksCreated > 0) {
+      broadcastTasksRegenerated(orderId, parseInt(orderNumber), result.tasksCreated, userId);
+    }
 
     sendSuccessResponse(res, {
       tasksCreated: result.tasksCreated,
@@ -310,9 +317,23 @@ export const resolveUnknownApplications = async (req: AuthRequest, res: Response
 
       // Create tasks for this resolution
       for (const taskName of taskNames) {
-        const taskNote = specName === 'Digital Print'
-          ? `Digital Print: ${colour || 'N/A'}`
-          : (colour ? `Colour: ${colour}` : null);
+        // Build task note - include application for both vinyl and digital print
+        let taskNote: string | null = null;
+        if (specName === 'Digital Print') {
+          const colourPart = colour || 'N/A';
+          taskNote = application
+            ? `Digital Print: ${colourPart} - ${application}`
+            : `Digital Print: ${colourPart}`;
+        } else {
+          // Vinyl: include colour and application
+          if (colour && application) {
+            taskNote = `Colour: ${colour} - ${application}`;
+          } else if (colour) {
+            taskNote = `Colour: ${colour}`;
+          } else if (application) {
+            taskNote = application;
+          }
+        }
 
         await query(
           `INSERT INTO order_tasks (order_id, part_id, task_name, sort_order, assigned_role, notes)
@@ -362,6 +383,11 @@ export const resolveUnknownApplications = async (req: AuthRequest, res: Response
     const messageParts = [`Created ${tasksCreated} tasks`];
     if (applicationsCreated > 0) messageParts.push(`added ${applicationsCreated} application(s)`);
     if (matrixEntriesCreated > 0) messageParts.push(`saved ${matrixEntriesCreated} matrix mapping(s)`);
+
+    // Broadcast to connected clients if tasks were created
+    if (tasksCreated > 0) {
+      broadcastTasksRegenerated(orderId, parseInt(orderNumber), tasksCreated, userId || 0);
+    }
 
     sendSuccessResponse(res, {
       tasksCreated,

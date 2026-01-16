@@ -13,8 +13,11 @@ import {
   StopSessionResponse,
   CompleteTaskResponse,
   TaskSessionHistory,
+  TodaySessionsResponse,
   StaffTaskFilters,
-  SessionUpdate
+  SessionUpdate,
+  SessionNote,
+  CreateNoteResponse
 } from './types';
 
 /**
@@ -94,6 +97,14 @@ export const staffTasksApi = {
   },
 
   /**
+   * Get user's completed sessions for today
+   */
+  getTodaySessions: async (): Promise<TodaySessionsResponse> => {
+    const response = await api.get('/staff/sessions/today');
+    return response.data as TodaySessionsResponse;
+  },
+
+  /**
    * Get session history for a task
    * Staff sees own sessions, managers see all
    */
@@ -114,5 +125,47 @@ export const staffTasksApi = {
    */
   deleteSession: async (sessionId: number): Promise<void> => {
     await api.delete(`/staff/sessions/${sessionId}`);
+  },
+
+  // =============================================
+  // SESSION NOTES
+  // =============================================
+
+  /**
+   * Get notes for a session
+   */
+  getSessionNotes: async (sessionId: number): Promise<SessionNote[]> => {
+    const response = await api.get(`/staff/sessions/${sessionId}/notes`);
+    return response.data as SessionNote[];
+  },
+
+  /**
+   * Get all notes for a task (across all sessions)
+   */
+  getTaskNotes: async (taskId: number): Promise<SessionNote[]> => {
+    const response = await api.get(`/staff/tasks/${taskId}/notes`);
+    return response.data as SessionNote[];
+  },
+
+  /**
+   * Create a note on a session
+   */
+  createSessionNote: async (sessionId: number, noteText: string): Promise<CreateNoteResponse> => {
+    const response = await api.post(`/staff/sessions/${sessionId}/notes`, { note_text: noteText });
+    return response.data as CreateNoteResponse;
+  },
+
+  /**
+   * Update a note (users can edit their own, managers can edit any)
+   */
+  updateSessionNote: async (noteId: number, noteText: string): Promise<void> => {
+    await api.put(`/staff/notes/${noteId}`, { note_text: noteText });
+  },
+
+  /**
+   * Delete a note (users can delete their own, managers can delete any)
+   */
+  deleteSessionNote: async (noteId: number): Promise<void> => {
+    await api.delete(`/staff/notes/${noteId}`);
   }
 };

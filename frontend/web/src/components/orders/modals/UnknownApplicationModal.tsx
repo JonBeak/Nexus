@@ -10,11 +10,11 @@
 import React, { useState } from 'react';
 import { X, Check, AlertTriangle, ChevronRight, ChevronLeft } from 'lucide-react';
 
-// Available vinyl-related tasks
+// Available vinyl-related tasks (must match TASK_ORDER in taskRules.ts)
 const VINYL_TASKS = [
   'Vinyl Plotting',
-  'Vinyl Face Before Cutting',
-  'Vinyl Face After Cutting',
+  'Vinyl Before Cutting',
+  'Vinyl After Cutting',
   'Vinyl Wrap Return/Trim',
   'Vinyl after Fabrication'
 ];

@@ -30,7 +30,7 @@ import { orderPartRepository } from '../repositories/orderPartRepository';
 import { orderConversionRepository } from '../repositories/orderConversionRepository';
 import { customerRepository } from '../repositories/customerRepository';
 import { quickbooksRepository } from '../repositories/quickbooksRepository';
-import { estimateLineDescriptionRepository } from '../repositories/estimateLineDescriptionRepository';
+import { estimatePreparationRepository } from '../repositories/estimatePreparationRepository';
 import { OrderPart, CreateOrderPartData, EstimatePreviewData, QBEstimateLineItem } from '../types/orders';
 import { mapQBItemNameToSpecsDisplayName } from '../utils/qbItemNameMapper';
 import { mapSpecsDisplayNameToTypes } from '../utils/specsTypeMapper';
@@ -98,7 +98,7 @@ export class OrderPartCreationService {
     const qbMap = await quickbooksRepository.getBatchQBItemMappings(productTypes, connection);
 
     // NEW: Fetch estimate QB descriptions if estimate is prepared (Phase 4.c)
-    // Only load custom QB descriptions if estimate went through "Prepare to Send" stage
+    // Read from estimate_preparation_items (the editable table with user changes)
     let estimateDescriptions: Map<number, string> = new Map();
     if (estimateId) {
       const isPrepared = await orderConversionRepository.getEstimatePreparedStatus(
@@ -107,18 +107,18 @@ export class OrderPartCreationService {
       );
 
       if (isPrepared) {
-        const descriptions = await estimateLineDescriptionRepository.getDescriptionsByEstimateId(
+        const prepItems = await estimatePreparationRepository.getItemsByEstimateId(
           estimateId,
           connection
         );
-        // Map with offset adjustment: estimate descriptions have header at index 0
-        // We skip the header, so estimate index 1 -> our index 0
-        descriptions.forEach(d => {
-          if (d.qb_description && d.line_index > 0) {
-            estimateDescriptions.set(d.line_index - 1, d.qb_description);
+        // Store descriptions by display_order - 1 (to match previewData.items array index)
+        // Skip header at display_order 1 (index 0) - backend creates its own header row
+        prepItems.forEach(item => {
+          if (item.qb_description && item.display_order > 1) {
+            estimateDescriptions.set(item.display_order - 1, item.qb_description);
           }
         });
-        console.log(`[Order Part Creation] Loaded ${estimateDescriptions.size} custom QB descriptions from prepared estimate`);
+        console.log(`[Order Part Creation] Loaded ${estimateDescriptions.size} custom QB descriptions from preparation table`);
       } else {
         console.log(`[Order Part Creation] Estimate not prepared - using qb_item_mappings fallback`);
       }

@@ -51,13 +51,23 @@ export const orderTasksApi = {
   },
 
   /**
-   * Batch update tasks (start/complete)
-   * Returns statusUpdates: Record<orderId, newStatus> for orders that changed status
+   * Batch update tasks (start/complete) with optional optimistic locking
+   * Returns statusUpdates and updatedTasks with new versions
+   *
+   * If expected_version is provided and doesn't match, throws 409 conflict error
    */
-  async batchUpdateTasks(updates: Array<{ task_id: number; started?: boolean; completed?: boolean }>): Promise<{ statusUpdates?: Record<number, string> }> {
+  async batchUpdateTasks(updates: Array<{
+    task_id: number;
+    started?: boolean;
+    completed?: boolean;
+    expected_version?: number;  // Optional - for optimistic locking
+  }>): Promise<{
+    statusUpdates?: Record<number, string>;
+    updatedTasks?: Array<{ task_id: number; new_version: number }>;
+  }> {
     const response = await api.put('/orders/tasks/batch-update', { updates });
     // Interceptor unwraps { success: true, data: T } to just T
-    // So response.data is { statusUpdates: {...} }
+    // So response.data is { statusUpdates: {...}, updatedTasks: [...] }
     console.log('[batchUpdateTasks] Response:', response.data);
     return response.data || {};
   },
@@ -114,5 +124,55 @@ export const orderTasksApi = {
    */
   async updateTaskNotes(taskId: number, notes: string): Promise<void> {
     await api.put(`/orders/tasks/${taskId}/notes`, { notes });
+  },
+
+  // =====================================================
+  // SESSION MANAGEMENT (Manager Features)
+  // =====================================================
+
+  /**
+   * Start a task session for any user (manager feature)
+   * @param taskId - The task to start a session on
+   * @param userId - The user who will be working on the task
+   */
+  async startTaskSession(taskId: number, userId: number): Promise<{
+    session_id: number;
+    task_id: number;
+    message: string;
+  }> {
+    const response = await api.post(`/orders/tasks/${taskId}/sessions`, { user_id: userId });
+    return response.data;
+  },
+
+  /**
+   * Stop a session by session ID (manager feature)
+   */
+  async stopSessionById(sessionId: number): Promise<{
+    session_id: number;
+    task_id: number;
+    duration_minutes: number;
+    message: string;
+  }> {
+    const response = await api.post(`/orders/sessions/${sessionId}/stop`);
+    return response.data;
+  },
+
+  /**
+   * Get active sessions for a task
+   */
+  async getActiveTaskSessions(taskId: number): Promise<Array<{
+    session_id: number;
+    task_id: number;
+    user_id: number;
+    started_at: string;
+    ended_at: string | null;
+    duration_minutes: number | null;
+    notes: string | null;
+    user_name: string;
+    user_first_name: string;
+    user_last_name: string;
+  }>> {
+    const response = await api.get(`/orders/tasks/${taskId}/sessions/active`);
+    return response.data;
   },
 };

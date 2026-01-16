@@ -49,6 +49,7 @@ export type PanelActionType =
 export interface PanelFilters {
   statuses?: OrderStatus[];
   excludeStatuses?: OrderStatus[];
+  excludeStatusesWhenSent?: OrderStatus[]; // Exclude these statuses only when invoice_sent_at IS NOT NULL
   invoiceStatus?: InvoiceStatusFilter;
   shippingType?: ShippingTypeFilter;
   dueDateRange?: DueDateRangeFilter;

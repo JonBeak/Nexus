@@ -295,6 +295,7 @@ export async function getQBInvoicePdf(
         Accept: 'application/pdf',
       },
       responseType: 'arraybuffer',
+      timeout: 30000, // 30 second timeout for PDF download
     });
 
     const data = response.data as ArrayBuffer;
@@ -302,6 +303,11 @@ export async function getQBInvoicePdf(
     return Buffer.from(data);
   } catch (error: any) {
     const status = error.response?.status;
+    const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout');
+    if (isTimeout) {
+      console.error(`❌ PDF download timed out for invoice ${invoiceId}`);
+      throw new APIError('PDF download timed out - QuickBooks may be slow, please try again', 504);
+    }
     console.error(`❌ PDF download failed (${status}):`, error.message);
     throw new APIError(`Failed to download invoice PDF: ${error.message}`, status);
   }

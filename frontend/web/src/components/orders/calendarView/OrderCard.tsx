@@ -21,19 +21,19 @@ const colorClasses: Record<ProgressColor, { border: string; bg: string; progress
     progress: 'bg-red-500'
   },
   yellow: {
-    border: 'border-l-yellow-500',
-    bg: 'bg-yellow-50',
-    progress: 'bg-yellow-500'
+    border: 'border-l-orange-500',
+    bg: 'bg-orange-50',
+    progress: 'bg-orange-500'
   },
   green: {
-    border: 'border-l-green-500',
+    border: 'border-l-blue-500',
     bg: 'bg-white',
-    progress: 'bg-green-500'
+    progress: 'bg-blue-500'
   }
 };
 
 export const OrderCard: React.FC<OrderCardProps> = ({ order, showDaysLate = false, onCardClick }) => {
-  const progressColor = getProgressColor(order.work_days_left);
+  const progressColor = getProgressColor(order.work_days_left, order.progress_percent);
   const colors = colorClasses[progressColor];
 
   const handleClick = () => {
@@ -48,9 +48,10 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, showDaysLate = fals
   return (
     <div
       className={`
-        p-1.5 mb-1 rounded shadow-sm cursor-pointer
-        hover:shadow-md transition-shadow
+        p-2 md:p-1.5 mb-1.5 md:mb-1 rounded shadow-sm cursor-pointer
+        hover:shadow-md active:bg-gray-100 transition-shadow
         border-l-4 ${colors.border} ${colors.bg}
+        min-h-[48px] md:min-h-0
       `}
       onClick={handleClick}
       title={`Order #${order.order_number} - ${order.customer_name || 'Unknown'}`}

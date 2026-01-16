@@ -22,6 +22,12 @@ export default defineConfig(({ mode }) => {
           target: 'http://localhost:3002',
           changeOrigin: true,
           secure: false
+        },
+        '/socket.io': {
+          target: 'http://localhost:3002',
+          changeOrigin: true,
+          secure: false,
+          ws: true  // Enable WebSocket proxying
         }
       }
     },

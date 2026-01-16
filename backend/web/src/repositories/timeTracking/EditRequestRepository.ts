@@ -131,4 +131,16 @@ export class EditRequestRepository {
     return result.affectedRows;
   }
 
+  /**
+   * Get pending request count (for dashboard badge)
+   * @returns Count of pending requests
+   */
+  static async getPendingCount(): Promise<number> {
+    const rows = await query(
+      'SELECT COUNT(*) as count FROM time_edit_requests WHERE status = "pending"',
+      []
+    ) as Array<{ count: number }>;
+    return rows[0]?.count || 0;
+  }
+
 }

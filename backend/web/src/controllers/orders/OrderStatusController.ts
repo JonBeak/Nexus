@@ -9,6 +9,7 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../../types';
 import { orderService } from '../../services/orderService';
+import { checkAwaitingPaymentOrders as checkPayments } from '../../services/invoiceListingService';
 import { sendErrorResponse } from '../../utils/controllerHelpers';
 import { getOrderIdFromNumber } from './OrderCrudController';
 
@@ -127,6 +128,30 @@ export const getOrderProgress = async (req: Request, res: Response) => {
       return sendErrorResponse(res, errorMessage, 'NOT_FOUND');
     }
 
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Check awaiting payment orders for completion
+ * POST /api/orders/check-awaiting-payments
+ * Permission: orders.view (called on page load for Orders/Invoices pages)
+ *
+ * Triggers balance sync for all orders in awaiting_payment status.
+ * Auto-completes orders when linked invoice is fully paid (balance = 0).
+ */
+export const checkAwaitingPaymentOrders = async (req: Request, res: Response) => {
+  try {
+    const result = await checkPayments();
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error checking awaiting payment orders:', error);
+
+    const errorMessage = error instanceof Error ? error.message : 'Failed to check awaiting payment orders';
     return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
   }
 };

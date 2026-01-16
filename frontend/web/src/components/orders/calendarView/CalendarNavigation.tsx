@@ -28,7 +28,7 @@ export const CalendarNavigation: React.FC<CalendarNavigationProps> = ({
       {/* Prev Week Button */}
       <button
         onClick={() => onNavigate('prev')}
-        className={`flex items-center px-3 py-1.5 text-sm ${PAGE_STYLES.header.text} ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} rounded-lg ${PAGE_STYLES.interactive.hover} transition-colors`}
+        className={`flex items-center px-4 py-2 min-h-[44px] text-sm ${PAGE_STYLES.header.text} ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} rounded-lg ${PAGE_STYLES.interactive.hover} active:bg-gray-200 transition-colors`}
         title="Previous week"
       >
         <ChevronLeft className="w-4 h-4 mr-1" />
@@ -38,7 +38,7 @@ export const CalendarNavigation: React.FC<CalendarNavigationProps> = ({
       {/* Today Button */}
       <button
         onClick={() => onNavigate('today')}
-        className={`px-3 py-1.5 text-sm font-medium ${MODULE_COLORS.orders.text} ${MODULE_COLORS.orders.light} border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors`}
+        className={`px-4 py-2 min-h-[44px] text-sm font-medium ${MODULE_COLORS.orders.text} ${MODULE_COLORS.orders.light} border border-orange-200 rounded-lg hover:bg-orange-100 active:bg-orange-200 transition-colors`}
       >
         Today
       </button>
@@ -46,7 +46,7 @@ export const CalendarNavigation: React.FC<CalendarNavigationProps> = ({
       {/* Next Week Button */}
       <button
         onClick={() => onNavigate('next')}
-        className={`flex items-center px-3 py-1.5 text-sm ${PAGE_STYLES.header.text} ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} rounded-lg ${PAGE_STYLES.interactive.hover} transition-colors`}
+        className={`flex items-center px-4 py-2 min-h-[44px] text-sm ${PAGE_STYLES.header.text} ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} rounded-lg ${PAGE_STYLES.interactive.hover} active:bg-gray-200 transition-colors`}
         title="Next week"
       >
         Next

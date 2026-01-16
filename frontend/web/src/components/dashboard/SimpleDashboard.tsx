@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Sun, Moon } from 'lucide-react';
 import TimeTracking from '../time/TimeTracking';
 import TimeApprovals from '../time/TimeApprovals';
+import SessionEditRequestsPanel from '../staff/SessionEditRequestsPanel';
 import type { AccountUser } from '../../types/user';
 import { apiClient } from '../../services/api';
 import { MODULE_COLORS, PAGE_STYLES, getModulePillClasses, getModuleCardClasses } from '../../constants/moduleColors';
@@ -295,13 +296,24 @@ Check backend logs for detailed comparison!`);
                   >
                     {MODULE_COLORS.servers.name}
                   </button>
+                  <button
+                    onClick={() => navigate('/jobs')}
+                    className={getModulePillClasses('tasks')}
+                  >
+                    {MODULE_COLORS.tasks.name}
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* Right Column - Time Approvals and System Status */}
+            {/* Right Column - Time Approvals, Session Requests, and System Status */}
             <div className="lg:col-span-2">
               <TimeApprovals />
+
+              {/* Session Edit Requests */}
+              <div className="mt-8">
+                <SessionEditRequestsPanel />
+              </div>
 
               {/* Database Backup Status */}
               <div className={`${PAGE_STYLES.composites.panelContainer} p-6 mt-8`}>
@@ -454,13 +466,24 @@ Check backend logs for detailed comparison!`);
                   >
                     {MODULE_COLORS.settings.name}
                   </button>
+                  <button
+                    onClick={() => navigate('/jobs')}
+                    className={getModulePillClasses('tasks')}
+                  >
+                    {MODULE_COLORS.tasks.name}
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* Right Column - Time Approvals */}
+            {/* Right Column - Time Approvals and Session Requests */}
             <div className="lg:col-span-2">
               <TimeApprovals />
+
+              {/* Session Edit Requests */}
+              <div className="mt-8">
+                <SessionEditRequestsPanel />
+              </div>
             </div>
           </div>
         )}

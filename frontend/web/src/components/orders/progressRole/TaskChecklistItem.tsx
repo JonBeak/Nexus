@@ -1,8 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { Play, Check } from 'lucide-react';
-import { ordersApi } from '../../../services/api';
+/**
+ * TaskChecklistItem Component
+ * Individual task display in the role-based view
+ *
+ * Updated: 2025-01-15
+ * - Managers: Start button opens SessionsModal
+ * - Staff/Designers: Start button directly starts/stops their session
+ * - Complete button still uses batch update approach
+ */
+
+import React, { useState } from 'react';
+import { Play, Square, Check, Loader2 } from 'lucide-react';
 import type { UserRole } from '../../../types/user';
-import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
+import { PAGE_STYLES } from '../../../constants/moduleColors';
+import { staffTasksApi } from '../../../services/api/staff/staffTasksApi';
 
 interface TaskUpdate {
   task_id: number;
@@ -17,10 +27,16 @@ interface Props {
   onNotesUpdate: () => void;
   showCompleted: boolean;
   userRole: UserRole;
+  isManager?: boolean;
+  currentUserId?: number;
+  onOpenSessionsModal?: (taskId: number, taskRole: string | null) => void;
 }
 
 // Roles that can see customer name (Designer and up)
 const ROLES_WITH_CUSTOMER_VIEW: UserRole[] = ['designer', 'manager', 'owner'];
+
+// Roles that are considered managers (can assign sessions to others)
+const MANAGER_ROLES: UserRole[] = ['manager', 'owner'];
 
 export const TaskChecklistItem: React.FC<Props> = ({
   task,
@@ -28,24 +44,27 @@ export const TaskChecklistItem: React.FC<Props> = ({
   onUpdate,
   onNotesUpdate,
   showCompleted,
-  userRole
+  userRole,
+  isManager: isManagerProp,
+  currentUserId,
+  onOpenSessionsModal
 }) => {
-  const [notes, setNotes] = useState(task.task_notes || '');
-  const [savingNotes, setSavingNotes] = useState(false);
+  const [startingSession, setStartingSession] = useState(false);
+  const [stoppingSession, setStoppingSession] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
 
-  // Sync local notes state when task data updates from parent
-  useEffect(() => {
-    setNotes(task.task_notes || '');
-  }, [task.task_notes]);
+  // Determine if user is a manager
+  const isManager = isManagerProp ?? MANAGER_ROLES.includes(userRole);
 
   // Original database values
-  const originalStarted = !!task.started_at;
+  // Task is considered "started" if any session has ever existed OR started_at is set
+  const hasAnySessions = (task.total_sessions_count > 0) || (task.active_sessions_count > 0);
+  const originalStarted = !!task.started_at || hasAnySessions;
   const originalCompleted = !!task.completed;
 
-  // Determine current state (staged changes override database values)
-  const isStarted = stagedUpdate?.started !== undefined
-    ? stagedUpdate.started
-    : originalStarted;
+  // Determine current state (staged changes override database values for completed)
+  // For "started", we use session-based state (total_sessions_count) or started_at
+  const isStarted = hasAnySessions || !!task.started_at;
 
   const isCompleted = stagedUpdate?.completed !== undefined
     ? stagedUpdate.completed
@@ -54,119 +73,163 @@ export const TaskChecklistItem: React.FC<Props> = ({
   const hasChanges = stagedUpdate !== undefined;
   const canViewCustomer = ROLES_WITH_CUSTOMER_VIEW.includes(userRole);
 
-  const handleStartToggle = () => {
-    // Toggle started state (independent of completed)
-    onUpdate(task.task_id, 'started', !isStarted, originalStarted, originalCompleted);
-  };
+  // Check if current user has an active session on this task
+  const userHasActiveSession = task.my_active_session != null;
 
-  const handleCompleteToggle = () => {
-    // Complete button toggles completion state
-    onUpdate(task.task_id, 'completed', !isCompleted, originalStarted, originalCompleted);
-  };
+  const handleStartClick = async () => {
+    if (isManager && onOpenSessionsModal) {
+      // Managers open the modal
+      onOpenSessionsModal(task.task_id, task.assigned_role);
+    } else {
+      // Staff directly start/stop their own session
+      setSessionError(null);
 
-  const handleNotesBlur = async () => {
-    // Only save if notes have changed
-    if (notes === (task.task_notes || '')) return;
-
-    try {
-      setSavingNotes(true);
-      await ordersApi.updateTaskNotes(task.task_id, notes);
-      onNotesUpdate();
-    } catch (error) {
-      console.error('Error saving notes:', error);
-      // Revert to original notes on error
-      setNotes(task.task_notes || '');
-    } finally {
-      setSavingNotes(false);
+      if (userHasActiveSession) {
+        // Stop session
+        try {
+          setStoppingSession(true);
+          await staffTasksApi.stopTask(task.task_id);
+          onNotesUpdate(); // Refresh tasks
+        } catch (err: any) {
+          console.error('Error stopping session:', err);
+          setSessionError(err?.response?.data?.message || 'Failed to stop session');
+        } finally {
+          setStoppingSession(false);
+        }
+      } else {
+        // Start session
+        try {
+          setStartingSession(true);
+          await staffTasksApi.startTask(task.task_id);
+          onNotesUpdate(); // Refresh tasks
+        } catch (err: any) {
+          console.error('Error starting session:', err);
+          setSessionError(err?.response?.data?.message || 'Failed to start session');
+        } finally {
+          setStartingSession(false);
+        }
+      }
     }
   };
 
-  // Build order display: "Order Name - Customer Name" (customer visible to Designer+)
-  const orderDisplay = canViewCustomer && task.customer_name
-    ? `${task.order_name} - ${task.customer_name}`
-    : task.order_name;
+  const handleCompleteToggle = () => {
+    onUpdate(task.task_id, 'completed', !isCompleted, originalStarted, originalCompleted);
+  };
 
-  // Build product display: "Specs Display Name {Scope}"
-  const productName = task.specs_display_name || 'Unknown';
-  const productDisplay = task.part_scope
+  // Build product display: "Specs Display Name [Scope]" or "Job Level" for QC tasks
+  const isJobLevelTask = task.part_id === null;
+  const productName = isJobLevelTask ? 'Job Level' : (task.specs_display_name || 'Unknown');
+  const productDisplay = !isJobLevelTask && task.part_scope
     ? `${productName} [${task.part_scope}]`
     : productName;
 
+  // Determine start button state and appearance
+  const isSessionLoading = startingSession || stoppingSession;
+  const showActiveIndicator = isStarted && !isManager;
+
   return (
     <div
-      className={`border rounded p-2 transition-all relative ${
+      className={`border rounded px-2 py-1.5 transition-all ${
         hasChanges
           ? 'border-orange-400 bg-orange-50'
-          : `${PAGE_STYLES.panel.border} ${PAGE_STYLES.panel.background} ${PAGE_STYLES.interactive.hover}`
+          : `${PAGE_STYLES.panel.border} ${PAGE_STYLES.panel.background}`
       }`}
     >
-      {/* Small icon-only buttons (top-right corner of card) */}
-      <div className="absolute top-1.5 right-1 flex items-center space-x-1">
-        {/* Start button */}
-        <button
-          onClick={handleStartToggle}
-          title={isStarted ? 'Mark as not started' : 'Mark as started'}
-          className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-            isStarted
-              ? 'bg-blue-600 text-white'
-              : 'bg-white border-2 border-blue-400 text-blue-400 hover:bg-blue-50'
-          }`}
-        >
-          <Play className="w-3 h-3" style={{ marginLeft: '1px' }} />
-        </button>
-
-        {/* Complete button */}
-        <button
-          onClick={handleCompleteToggle}
-          disabled={false}
-          title={isCompleted ? 'Mark as incomplete' : 'Mark as complete'}
-          className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-            isCompleted
-              ? 'bg-green-600 text-white'
-              : 'bg-white border-2 border-green-400 text-green-400 hover:bg-green-50'
-          }`}
-        >
-          <Check className="w-3 h-3" />
-        </button>
-      </div>
-
-      {/* Order info row */}
-      <div className={`text-sm ${PAGE_STYLES.panel.text} truncate pr-14 mb-1`} title={orderDisplay}>
-        {orderDisplay}
-      </div>
-
-      {/* Product Type [Scope] + Task name */}
-      <div className={`text-xs ${PAGE_STYLES.panel.text} ${PAGE_STYLES.header.background} px-1.5 py-0.5 rounded mb-1 flex items-center justify-between gap-1`}>
-        <span className="truncate" title={productDisplay}>{productDisplay}</span>
-        <span className={`${PAGE_STYLES.header.text} flex-shrink-0`}>{task.task_name}</span>
-      </div>
-
-      {/* Editable task notes */}
-      <div className="relative">
-        <input
-          type="text"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          onBlur={handleNotesBlur}
-          placeholder="Add note..."
-          disabled={savingNotes}
-          className={`w-full text-xs px-2 py-1 border ${PAGE_STYLES.panel.border} rounded
-            focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400
-            ${PAGE_STYLES.input.placeholder} ${savingNotes ? PAGE_STYLES.header.background : PAGE_STYLES.panel.background}`}
-        />
-        {savingNotes && (
-          <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs ${PAGE_STYLES.panel.textMuted}`}>
-            Saving...
-          </span>
-        )}
-      </div>
-
-      {/* Show timestamps if completed */}
-      {showCompleted && task.completed_at && (
-        <div className={`mt-2 text-xs ${PAGE_STYLES.panel.textMuted}`}>
-          Completed: {new Date(task.completed_at).toLocaleString()}
+      {/* Session error message */}
+      {sessionError && (
+        <div className="text-xs text-red-600 mb-1 px-1">
+          {sessionError}
         </div>
       )}
+
+      <div className="flex items-center gap-2">
+        {/* Main content - 2 lines */}
+        <div className="flex-1 min-w-0">
+          {/* Line 1: Order Name, Customer Name */}
+          <div className={`text-sm ${PAGE_STYLES.panel.text} truncate leading-tight`}>
+            <span className="font-medium">{task.order_name}</span>
+            {canViewCustomer && task.customer_name && (
+              <span className={PAGE_STYLES.panel.textMuted}> - {task.customer_name}</span>
+            )}
+          </div>
+
+          {/* Line 2: Product [Scope] */}
+          <div className="flex items-center gap-2 mt-0.5">
+            <span
+              className={`text-xs ${PAGE_STYLES.panel.textMuted} truncate`}
+              title={productDisplay}
+            >
+              {productDisplay}
+            </span>
+          </div>
+
+          {/* Show timestamps if completed */}
+          {showCompleted && task.completed_at && (
+            <div className={`text-xs ${PAGE_STYLES.panel.textMuted} mt-0.5`}>
+              Completed: {new Date(task.completed_at).toLocaleString()}
+            </div>
+          )}
+        </div>
+
+        {/* Task name + Notes + Buttons on right side */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="text-right">
+            <div className={`text-xs font-medium ${PAGE_STYLES.panel.text}`}>
+              {task.task_name}
+            </div>
+            {task.task_notes && (
+              <div className={`text-xs ${PAGE_STYLES.panel.textMuted} italic`}>
+                {task.task_notes}
+              </div>
+            )}
+            {/* Show active sessions count for managers */}
+            {isManager && task.active_sessions_count > 0 && (
+              <div className="text-xs text-blue-600">
+                {task.active_sessions_count} active
+              </div>
+            )}
+          </div>
+
+          {/* Start/Sessions button */}
+          <button
+            onClick={handleStartClick}
+            disabled={isSessionLoading || isCompleted}
+            title={
+              isManager
+                ? 'Manage sessions'
+                : userHasActiveSession
+                ? 'Stop working'
+                : 'Start working'
+            }
+            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all disabled:opacity-50 ${
+              isStarted
+                ? 'bg-blue-600 text-white'
+                : 'bg-white border-2 border-blue-400 text-blue-400 hover:bg-blue-50'
+            }`}
+          >
+            {isSessionLoading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : isStarted && !isManager ? (
+              <Square className="w-3.5 h-3.5" />
+            ) : (
+              <Play className="w-3.5 h-3.5" style={{ marginLeft: '1px' }} />
+            )}
+          </button>
+
+          {/* Complete button */}
+          <button
+            onClick={handleCompleteToggle}
+            title={isCompleted ? 'Mark as incomplete' : 'Mark as complete'}
+            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+              isCompleted
+                ? 'bg-green-600 text-white'
+                : 'bg-white border-2 border-green-400 text-green-400 hover:bg-green-50'
+            }`}
+          >
+            <Check className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

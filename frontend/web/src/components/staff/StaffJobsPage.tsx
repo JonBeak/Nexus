@@ -15,10 +15,14 @@ import type { AccountUser } from '../../types/user';
 import { PAGE_STYLES } from '../../constants/moduleColors';
 import { staffTasksApi } from '../../services/api/staff/staffTasksApi';
 import { timeSchedulesApi } from '../../services/api/time/timeSchedulesApi';
-import type { StaffTask, ActiveTasksResponse } from '../../services/api/staff/types';
+import type { StaffTask, ActiveTasksResponse, CompletedSessionDisplay } from '../../services/api/staff/types';
 import { StickyActiveTaskHeader } from './StickyActiveTaskHeader';
 import { TaskColumn } from './TaskColumn';
+import { SessionsColumn } from './SessionsColumn';
 import { SessionsModal } from './SessionsModal';
+import { useTasksSocket } from '../../hooks/useTasksSocket';
+import { useEditRequestsSocket } from '../../hooks/useEditRequestsSocket';
+import type { SessionStartedPayload, SessionStoppedPayload } from '../../services/socketClient';
 
 interface Props {
   user: AccountUser;
@@ -29,32 +33,38 @@ export const StaffJobsPage: React.FC<Props> = ({ user }) => {
   const [tasks, setTasks] = useState<StaffTask[]>([]);
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const [activeTasks, setActiveTasks] = useState<ActiveTasksResponse | null>(null);
+  const [todaySessions, setTodaySessions] = useState<CompletedSessionDisplay[]>([]);
+  const [todaySessionsTotal, setTodaySessionsTotal] = useState(0);
   const [holidays, setHolidays] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Modal state
   const [sessionsModalTaskId, setSessionsModalTaskId] = useState<number | null>(null);
 
   // Load tasks - always include completed to show today's completions
-  const loadTasks = useCallback(async () => {
+  const loadTasks = useCallback(async (showLoading = true) => {
     try {
-      setLoading(true);
-      setError(null);
+      if (showLoading) {
+        setLoading(true);
+        setError(null);
+      }
 
-      const [tasksResult, activeResult, holidaysResult] = await Promise.all([
+      const [tasksResult, activeResult, sessionsResult, holidaysResult] = await Promise.all([
         staffTasksApi.getTasks({
           include_completed: true,
           hours_back: undefined
         }),
         staffTasksApi.getActiveTasks(),
+        staffTasksApi.getTodaySessions(),
         timeSchedulesApi.getHolidays()
       ]);
 
       setTasks(tasksResult?.tasks || []);
       setUserRoles(tasksResult?.user_roles || []);
       setActiveTasks(activeResult || null);
+      setTodaySessions(sessionsResult?.sessions || []);
+      setTodaySessionsTotal(sessionsResult?.total_time_minutes || 0);
 
       // Convert holidays to Set of date strings
       const holidayDates = new Set<string>(
@@ -63,16 +73,68 @@ export const StaffJobsPage: React.FC<Props> = ({ user }) => {
       setHolidays(holidayDates);
     } catch (err) {
       console.error('Error loading tasks:', err);
-      setError('Failed to load tasks. Please try again.');
+      if (showLoading) {
+        setError('Failed to load tasks. Please try again.');
+      }
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
+  }, []);
+
+  // Silent reload for WebSocket updates (no spinner)
+  const silentReload = useCallback(() => {
+    loadTasks(false);
+  }, [loadTasks]);
+
+  // Handle session started - update active_sessions_count for affected task
+  const handleSessionStarted = useCallback((payload: SessionStartedPayload) => {
+    setTasks(prevTasks =>
+      prevTasks.map(task =>
+        task.task_id === payload.taskId
+          ? { ...task, active_sessions_count: payload.activeSessionsCount }
+          : task
+      )
+    );
+  }, []);
+
+  // Handle session stopped - update active_sessions_count for affected task
+  const handleSessionStopped = useCallback((payload: SessionStoppedPayload) => {
+    setTasks(prevTasks =>
+      prevTasks.map(task =>
+        task.task_id === payload.taskId
+          ? { ...task, active_sessions_count: payload.activeSessionsCount }
+          : task
+      )
+    );
   }, []);
 
   // Initial load
   useEffect(() => {
     loadTasks();
   }, [loadTasks]);
+
+  // WebSocket for real-time updates
+  useTasksSocket({
+    userId: user?.user_id,
+    onSessionStarted: handleSessionStarted,
+    onSessionStopped: handleSessionStopped,
+    onTasksUpdated: loadTasks,
+    onSessionNoteCreated: silentReload,
+    onSessionNoteUpdated: silentReload,
+    onSessionNoteDeleted: silentReload,
+    onReconnect: loadTasks,
+    enabled: userRoles.length > 0
+  });
+
+  // WebSocket for edit request updates (staff receives processed notifications)
+  useEditRequestsSocket({
+    userId: user?.user_id,
+    isManager: false,
+    onSessionRequestProcessed: loadTasks, // Refetch when our request is processed (e.g., delete approved)
+    enabled: !!user?.user_id
+  });
 
   // Elapsed time counter - increment all active task times every minute
   useEffect(() => {
@@ -166,56 +228,44 @@ export const StaffJobsPage: React.FC<Props> = ({ user }) => {
   // Handle start task
   const handleStartTask = async (taskId: number) => {
     try {
-      setActionLoading(true);
       await staffTasksApi.startTask(taskId);
-      await loadTasks();
+      await loadTasks(false);
     } catch (err: any) {
       console.error('Error starting task:', err);
-      await loadTasks();
-    } finally {
-      setActionLoading(false);
+      await loadTasks(false);
     }
   };
 
   // Handle stop task - now requires taskId
   const handleStopTask = async (taskId: number) => {
     try {
-      setActionLoading(true);
       await staffTasksApi.stopTask(taskId);
-      await loadTasks();
+      await loadTasks(false);
     } catch (err: any) {
       console.error('Error stopping task:', err);
-      await loadTasks();
-    } finally {
-      setActionLoading(false);
+      await loadTasks(false);
     }
   };
 
   // Handle complete task
   const handleCompleteTask = async (taskId: number) => {
     try {
-      setActionLoading(true);
       await staffTasksApi.completeTask(taskId);
-      await loadTasks();
+      await loadTasks(false);
     } catch (err: any) {
       console.error('Error completing task:', err);
-      await loadTasks();
-    } finally {
-      setActionLoading(false);
+      await loadTasks(false);
     }
   };
 
   // Handle uncomplete task (reopen)
   const handleUncompleteTask = async (taskId: number) => {
     try {
-      setActionLoading(true);
       await staffTasksApi.uncompleteTask(taskId);
-      await loadTasks();
+      await loadTasks(false);
     } catch (err: any) {
       console.error('Error reopening task:', err);
-      await loadTasks();
-    } finally {
-      setActionLoading(false);
+      await loadTasks(false);
     }
   };
 
@@ -231,9 +281,9 @@ export const StaffJobsPage: React.FC<Props> = ({ user }) => {
   }, [activeTasks]);
 
   return (
-    <div className={`min-h-screen ${PAGE_STYLES.background}`}>
+    <div className={`h-screen flex flex-col ${PAGE_STYLES.background}`}>
       {/* Header */}
-      <header className={`${PAGE_STYLES.header.background} border-b ${PAGE_STYLES.header.border} shadow-sm`}>
+      <header className={`flex-shrink-0 ${PAGE_STYLES.header.background} border-b ${PAGE_STYLES.header.border} shadow-sm`}>
         <div className="max-w-full mx-auto px-4 md:px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -255,14 +305,14 @@ export const StaffJobsPage: React.FC<Props> = ({ user }) => {
               disabled={loading}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} hover:bg-gray-50`}
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className="w-4 h-4" />
               Refresh
             </button>
           </div>
         </div>
       </header>
 
-      <main className="px-4 md:px-6 py-6">
+      <main className="flex-1 flex flex-col min-h-0 px-4 md:px-6 py-4">
         {/* Error state */}
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
@@ -288,12 +338,19 @@ export const StaffJobsPage: React.FC<Props> = ({ user }) => {
               onStop={handleStopTask}
               onStart={handleStartTask}
               onComplete={handleCompleteTask}
-              loading={actionLoading}
+              loading={false}
             />
 
             {/* Horizontal scrolling columns */}
-            <div className="overflow-x-auto pb-4">
-              <div className="flex gap-4 min-w-min">
+            <div className="flex-1 overflow-x-auto overflow-y-hidden min-h-0">
+              <div className="flex gap-4 min-w-min h-full">
+                {/* Sessions Column */}
+                <SessionsColumn
+                  sessions={todaySessions}
+                  totalMinutes={todaySessionsTotal}
+                  onRequestSubmitted={loadTasks}
+                />
+
                 {/* Completed Today Column */}
                 <TaskColumn
                   title="Completed Today"
@@ -306,7 +363,7 @@ export const StaffJobsPage: React.FC<Props> = ({ user }) => {
                   onUncomplete={handleUncompleteTask}
                   onViewSessions={setSessionsModalTaskId}
                   holidays={holidays}
-                  loading={actionLoading}
+                  loading={false}
                 />
 
                 {/* Task Type Columns */}
@@ -322,7 +379,7 @@ export const StaffJobsPage: React.FC<Props> = ({ user }) => {
                     onUncomplete={handleUncompleteTask}
                     onViewSessions={setSessionsModalTaskId}
                     holidays={holidays}
-                    loading={actionLoading}
+                    loading={false}
                   />
                 ))}
               </div>

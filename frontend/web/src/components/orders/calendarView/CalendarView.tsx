@@ -6,6 +6,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ordersApi, timeSchedulesApi } from '../../../services/api';
 import { Order } from '../../../types/orders';
+import { useTasksSocket } from '../../../hooks/useTasksSocket';
+import { useIsMobile } from '../../../hooks/useMediaQuery';
 import { CalendarOrder, DateColumn, CALENDAR_DEFAULT_STATUSES } from './types';
 import {
   generateDateColumns,
@@ -18,6 +20,7 @@ import {
 } from './utils';
 import CalendarColumn from './CalendarColumn';
 import CalendarNavigation from './CalendarNavigation';
+import MobileCalendarView from './MobileCalendarView';
 import OrderQuickModal from './OrderQuickModal';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
 
@@ -28,6 +31,9 @@ const VISIBLE_BUSINESS_DAYS_WITH_OVERDUE = 8;
 const VISIBLE_BUSINESS_DAYS_WITHOUT_OVERDUE = 9;
 
 export const CalendarView: React.FC = () => {
+  // Mobile detection
+  const isMobile = useIsMobile();
+
   // Data state
   const [orders, setOrders] = useState<Order[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +96,17 @@ export const CalendarView: React.FC = () => {
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  // WebSocket subscription for real-time updates
+  useTasksSocket({
+    onTasksUpdated: fetchOrders,
+    onOrderStatus: fetchOrders,
+    onOrderCreated: fetchOrders,
+    onOrderUpdated: fetchOrders,
+    onOrderDeleted: fetchOrders,
+    onInvoiceUpdated: fetchOrders,
+    onReconnect: fetchOrders
+  });
 
   // Filter orders by status
   const filteredOrders = useMemo(() => {
@@ -181,11 +198,12 @@ export const CalendarView: React.FC = () => {
     );
   }, [viewStartDate, holidays, ordersByDate, visibleBusinessDays, effectiveToday]);
 
-  // Handle navigation
+  // Handle navigation - mobile scrolls by 3 days, desktop by 5
   const handleNavigate = useCallback((direction: 'prev' | 'next' | 'today') => {
-    const newDate = navigateWeek(viewStartDate, direction, holidays);
+    const businessDaysToMove = isMobile ? 3 : 5;
+    const newDate = navigateWeek(viewStartDate, direction, holidays, businessDaysToMove);
     setViewStartDate(newDate);
-  }, [viewStartDate, holidays]);
+  }, [viewStartDate, holidays, isMobile]);
 
   // Handle search with debounce
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -207,6 +225,78 @@ export const CalendarView: React.FC = () => {
     fetchOrders();
   }, [fetchOrders]);
 
+  // Mobile view
+  if (isMobile) {
+    return (
+      <div className={`min-h-full h-full flex flex-col ${PAGE_STYLES.page.background}`}>
+        {/* Mobile Filters Bar */}
+        <div className={`${PAGE_STYLES.panel.background} border-b ${PAGE_STYLES.panel.border} px-3 py-3`}>
+          <div className="flex flex-col gap-2">
+            {/* Search - full width */}
+            <input
+              type="text"
+              placeholder="Search orders..."
+              value={searchTerm}
+              onChange={handleSearchChange}
+              className={`w-full px-3 py-2.5 border ${PAGE_STYLES.panel.border} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent min-h-[44px]`}
+            />
+
+            {/* Toggle + Count row */}
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer min-h-[44px]">
+                <input
+                  type="checkbox"
+                  checked={showAllOrders}
+                  onChange={(e) => setShowAllOrders(e.target.checked)}
+                  className={`h-5 w-5 text-orange-500 focus:ring-orange-500 ${PAGE_STYLES.panel.border} rounded`}
+                />
+                <span className={`text-sm ${PAGE_STYLES.header.text}`}>Show all</span>
+              </label>
+              <span className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>
+                {overdueOrders.length} late, {futureOrders.length} upcoming
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Calendar Grid */}
+        <div className={`flex-1 overflow-hidden ${PAGE_STYLES.page.background}`}>
+          {error ? (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 m-3">
+              <p className="text-red-800">{error}</p>
+              <button
+                onClick={fetchOrders}
+                className="mt-2 text-sm text-red-600 hover:text-red-800 underline min-h-[44px]"
+              >
+                Try again
+              </button>
+            </div>
+          ) : (
+            <MobileCalendarView
+              dateColumns={dateColumns}
+              overdueOrders={overdueOrders}
+              showOverdueColumn={showOverdueColumn}
+              viewStartDate={viewStartDate}
+              onNavigate={handleNavigate}
+              onCardClick={handleOrderClick}
+            />
+          )}
+        </div>
+
+        {/* Order Quick Action Modal */}
+        {selectedOrder && (
+          <OrderQuickModal
+            isOpen={!!selectedOrder}
+            order={selectedOrder}
+            onClose={handleModalClose}
+            onOrderUpdated={handleOrderUpdated}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Desktop view
   return (
     <div className={`min-h-full h-full flex flex-col ${PAGE_STYLES.page.background}`}>
       {/* Filters Bar */}

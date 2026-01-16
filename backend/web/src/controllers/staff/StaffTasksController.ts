@@ -205,6 +205,31 @@ export const uncompleteTask = async (req: AuthRequest, res: Response) => {
 };
 
 // =====================================================
+// TODAY'S SESSIONS
+// =====================================================
+
+/**
+ * Get user's completed sessions for today
+ * GET /api/staff/sessions/today
+ * Permission: jobs.read
+ */
+export const getTodaySessions = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.user_id;
+    const result = await taskSessionService.getTodayCompletedSessions(userId);
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error fetching today\'s sessions:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch sessions';
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
+  }
+};
+
+// =====================================================
 // SESSION HISTORY & MANAGEMENT
 // =====================================================
 
@@ -312,6 +337,178 @@ export const deleteSession = async (req: AuthRequest, res: Response) => {
       return sendErrorResponse(res, errorMessage, 'NOT_FOUND');
     }
     if (errorMessage.includes('Only managers')) {
+      return sendErrorResponse(res, errorMessage, 'FORBIDDEN');
+    }
+
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
+  }
+};
+
+// =====================================================
+// SESSION NOTES
+// =====================================================
+
+/**
+ * Get notes for a session
+ * GET /api/staff/sessions/:sessionId/notes
+ * Permission: jobs.read
+ */
+export const getSessionNotes = async (req: AuthRequest, res: Response) => {
+  try {
+    const sessionId = parseInt(req.params.sessionId);
+
+    if (isNaN(sessionId)) {
+      return sendErrorResponse(res, 'Invalid session ID', 'VALIDATION_ERROR');
+    }
+
+    const notes = await taskSessionService.getSessionNotes(sessionId);
+
+    res.json({
+      success: true,
+      data: notes
+    });
+  } catch (error) {
+    console.error('Error fetching session notes:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch notes';
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Get all notes for a task (across all sessions)
+ * GET /api/staff/tasks/:taskId/notes
+ * Permission: jobs.read
+ */
+export const getTaskNotes = async (req: AuthRequest, res: Response) => {
+  try {
+    const taskId = parseInt(req.params.taskId);
+
+    if (isNaN(taskId)) {
+      return sendErrorResponse(res, 'Invalid task ID', 'VALIDATION_ERROR');
+    }
+
+    const notes = await taskSessionService.getTaskNotes(taskId);
+
+    res.json({
+      success: true,
+      data: notes
+    });
+  } catch (error) {
+    console.error('Error fetching task notes:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch notes';
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Create a note on a session
+ * POST /api/staff/sessions/:sessionId/notes
+ * Permission: jobs.read
+ */
+export const createSessionNote = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.user_id;
+    const sessionId = parseInt(req.params.sessionId);
+    const { note_text } = req.body;
+
+    if (isNaN(sessionId)) {
+      return sendErrorResponse(res, 'Invalid session ID', 'VALIDATION_ERROR');
+    }
+
+    if (!note_text || typeof note_text !== 'string' || note_text.trim().length === 0) {
+      return sendErrorResponse(res, 'Note text is required', 'VALIDATION_ERROR');
+    }
+
+    const result = await taskSessionService.createSessionNote(sessionId, userId, note_text.trim());
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error creating session note:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create note';
+
+    if (errorMessage.includes('not found')) {
+      return sendErrorResponse(res, errorMessage, 'NOT_FOUND');
+    }
+
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Update a note
+ * PUT /api/staff/notes/:noteId
+ * Permission: jobs.read (users can edit own notes), managers can edit any
+ */
+export const updateSessionNote = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.user_id;
+    const userRole = req.user!.role;
+    const noteId = parseInt(req.params.noteId);
+    const { note_text } = req.body;
+
+    if (isNaN(noteId)) {
+      return sendErrorResponse(res, 'Invalid note ID', 'VALIDATION_ERROR');
+    }
+
+    if (!note_text || typeof note_text !== 'string' || note_text.trim().length === 0) {
+      return sendErrorResponse(res, 'Note text is required', 'VALIDATION_ERROR');
+    }
+
+    const isManager = userRole === 'manager' || userRole === 'owner';
+    await taskSessionService.updateSessionNote(noteId, note_text.trim(), userId, isManager);
+
+    res.json({
+      success: true,
+      message: 'Note updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating session note:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to update note';
+
+    if (errorMessage.includes('not found')) {
+      return sendErrorResponse(res, errorMessage, 'NOT_FOUND');
+    }
+    if (errorMessage.includes('only edit your own')) {
+      return sendErrorResponse(res, errorMessage, 'FORBIDDEN');
+    }
+
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Delete a note
+ * DELETE /api/staff/notes/:noteId
+ * Permission: jobs.read (users can delete own notes), managers can delete any
+ */
+export const deleteSessionNote = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.user_id;
+    const userRole = req.user!.role;
+    const noteId = parseInt(req.params.noteId);
+
+    if (isNaN(noteId)) {
+      return sendErrorResponse(res, 'Invalid note ID', 'VALIDATION_ERROR');
+    }
+
+    const isManager = userRole === 'manager' || userRole === 'owner';
+    await taskSessionService.deleteSessionNote(noteId, userId, isManager);
+
+    res.json({
+      success: true,
+      message: 'Note deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting session note:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to delete note';
+
+    if (errorMessage.includes('not found')) {
+      return sendErrorResponse(res, errorMessage, 'NOT_FOUND');
+    }
+    if (errorMessage.includes('only delete your own')) {
       return sendErrorResponse(res, errorMessage, 'FORBIDDEN');
     }
 

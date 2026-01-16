@@ -68,6 +68,14 @@ export const OrderDetailsPage: React.FC = () => {
   const [conflictDifferences, setConflictDifferences] = useState<InvoiceDifference[]>([]);
   const [deepCheckLoading, setDeepCheckLoading] = useState(false);
 
+  // Order Name Editing State
+  const [orderNameEditState, setOrderNameEditState] = useState({
+    isEditing: false,
+    editValue: '',
+    error: null as string | null,
+    isSaving: false
+  });
+
   // Use the custom hooks
   const {
     orderData,
@@ -440,6 +448,62 @@ export const OrderDetailsPage: React.FC = () => {
     window.location.href = nexusUrl;
   };
 
+  // Order Name Edit Handlers
+  const handleEditOrderName = () => {
+    setOrderNameEditState({
+      isEditing: true,
+      editValue: orderData.order?.order_name || '',
+      error: null,
+      isSaving: false
+    });
+  };
+
+  const handleCancelOrderNameEdit = () => {
+    setOrderNameEditState({
+      isEditing: false,
+      editValue: '',
+      error: null,
+      isSaving: false
+    });
+  };
+
+  const handleSaveOrderName = async () => {
+    if (!orderData.order) return;
+
+    const newName = orderNameEditState.editValue.trim();
+
+    // Skip if unchanged
+    if (newName === orderData.order.order_name) {
+      handleCancelOrderNameEdit();
+      return;
+    }
+
+    // Clear error and start saving
+    setOrderNameEditState(prev => ({ ...prev, isSaving: true, error: null }));
+
+    try {
+      await ordersApi.updateOrder(orderData.order.order_number, {
+        order_name: newName
+      });
+
+      // Success - refetch to get updated data (folder_name may have changed too)
+      await refetch();
+      handleCancelOrderNameEdit();
+    } catch (err: any) {
+      // Extract error message from API response
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to update order name';
+      setOrderNameEditState(prev => ({
+        ...prev,
+        isSaving: false,
+        error: errorMessage
+      }));
+    }
+  };
+
+  const handleOrderNameChange = (value: string) => {
+    setOrderNameEditState(prev => ({ ...prev, editValue: value, error: null }));
+  };
+
   // Handle Cash Job checkbox change with tax override logic
   const handleCashJobChange = async (newCashValue: boolean) => {
     if (!orderData.order) return;
@@ -588,6 +652,15 @@ export const OrderDetailsPage: React.FC = () => {
         onMarkAsSent={handleMarkAsSent}
         generatingForms={uiState.generatingForms}
         printingForm={uiState.printingForm}
+        // Order name editing props
+        isEditingOrderName={orderNameEditState.isEditing}
+        orderNameEditValue={orderNameEditState.editValue}
+        orderNameError={orderNameEditState.error}
+        isSavingOrderName={orderNameEditState.isSaving}
+        onEditOrderName={handleEditOrderName}
+        onCancelOrderNameEdit={handleCancelOrderNameEdit}
+        onSaveOrderName={handleSaveOrderName}
+        onOrderNameChange={handleOrderNameChange}
       />
 
       {/* Main Content: Tabbed Layout */}

@@ -50,6 +50,7 @@ import { orderPartCreationService } from './orderPartCreationService';
 import { qbEstimateComparisonService } from './qbEstimateComparisonService';
 import { QBEstimateLineItem } from '../types/orders';
 import { CustomerAccountingEmailRepository } from '../repositories/customerAccountingEmailRepository';
+import { broadcastOrderCreated } from '../websocket';
 
 const customerContactService = new CustomerContactService();
 
@@ -317,6 +318,9 @@ export class OrderConversionService {
       await connection.commit();
       console.timeEnd('[Order Conversion] Commit transaction');
       console.timeEnd('[Order Conversion] Total time');
+
+      // Broadcast order created event for real-time updates
+      broadcastOrderCreated(orderId, orderNumber, estimate.customer_id, userId);
 
       return {
         success: true,

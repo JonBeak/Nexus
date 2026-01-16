@@ -328,6 +328,13 @@ export async function getOrdersForPanel(
     params.push(...safeFilters.excludeStatuses);
   }
 
+  // Status filter (exclude when invoice sent)
+  // Excludes orders with these statuses only if invoice_sent_at IS NOT NULL
+  if (safeFilters.excludeStatusesWhenSent && safeFilters.excludeStatusesWhenSent.length > 0) {
+    conditions.push(`NOT (o.status IN (${safeFilters.excludeStatusesWhenSent.map(() => '?').join(', ')}) AND o.invoice_sent_at IS NOT NULL)`);
+    params.push(...safeFilters.excludeStatusesWhenSent);
+  }
+
   // Invoice status filter
   if (safeFilters.invoiceStatus) {
     switch (safeFilters.invoiceStatus) {

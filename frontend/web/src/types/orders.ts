@@ -141,9 +141,9 @@ export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
   on_hold: 'bg-red-100 text-red-800',
   overdue: 'bg-red-600 text-white',
   qc_packing: 'bg-purple-100 text-purple-800',
-  shipping: 'bg-cyan-100 text-cyan-800',
-  pick_up: 'bg-teal-100 text-teal-800',
-  awaiting_payment: 'bg-amber-100 text-amber-800',
+  shipping: 'bg-blue-100 text-blue-800',
+  pick_up: 'bg-blue-100 text-blue-800',
+  awaiting_payment: 'bg-green-100 text-green-800',
   completed: 'bg-green-100 text-green-800',
   cancelled: 'bg-gray-300 text-gray-600'
 };

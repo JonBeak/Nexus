@@ -16,8 +16,14 @@ import { orderTasksApi, orderStatusApi, api } from '../../../services/api';
 import { OrderStatus, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../../types/orders';
 import { ChevronDown } from 'lucide-react';
 import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
+import { useTasksSocket } from '../../../hooks/useTasksSocket';
+import { ConflictToast } from '../../common/ConflictToast';
+import { useIsMobile } from '../../../hooks/useMediaQuery';
 
 export const TasksTable: React.FC = () => {
+  // Mobile detection
+  const isMobile = useIsMobile();
+
   // Data state
   const [parts, setParts] = useState<PartWithTasks[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,6 +36,9 @@ export const TasksTable: React.FC = () => {
     orderName: string;
     currentStatus: OrderStatus;
   } | null>(null);
+
+  // Conflict toast state (for WebSocket conflict detection)
+  const [showConflictToast, setShowConflictToast] = useState(false);
 
   // Default statuses to show (matches backend defaults)
   const DEFAULT_STATUSES: OrderStatus[] = [
@@ -96,6 +105,42 @@ export const TasksTable: React.FC = () => {
     fetchMetadata();
   }, []);
 
+  // Stable refetch callback for WebSocket (avoids stale closure)
+  const refetchForWebSocket = useCallback(() => {
+    console.log('[TasksTable] WebSocket update received - refetching...');
+    // Simple refetch - gets latest data from server
+    const fetchData = async () => {
+      try {
+        const params: Record<string, string> = {};
+        if (filters.hideCompleted) params.hideCompleted = 'true';
+        if (filters.search) params.search = filters.search;
+
+        const response = await api.get('/orders/parts/with-tasks', { params });
+        const data = response.data?.data || response.data || [];
+        setParts(data);
+      } catch (err) {
+        console.error('[TasksTable] WebSocket refetch failed:', err);
+      }
+    };
+    fetchData();
+  }, [filters.hideCompleted, filters.search]);
+
+  // WebSocket subscription for real-time task updates
+  // All event types trigger a full refetch for simplicity and reliability
+  useTasksSocket({
+    onTasksUpdated: refetchForWebSocket,
+    onTaskNotes: refetchForWebSocket,
+    onTaskDeleted: refetchForWebSocket,
+    onTaskCreated: refetchForWebSocket,
+    onSessionStarted: refetchForWebSocket,
+    onSessionStopped: refetchForWebSocket,
+    onOrderCreated: refetchForWebSocket,
+    onOrderUpdated: refetchForWebSocket,
+    onOrderDeleted: refetchForWebSocket,
+    onInvoiceUpdated: refetchForWebSocket,
+    onReconnect: refetchForWebSocket
+  });
+
   // Fetch parts with tasks
   const fetchPartsWithTasks = useCallback(async () => {
     try {
@@ -151,7 +196,12 @@ export const TasksTable: React.FC = () => {
         (part.customerName?.toLowerCase().includes(searchLower)) ||
         part.productType.toLowerCase().includes(searchLower) ||
         (part.specsDisplayName?.toLowerCase().includes(searchLower)) ||
-        (part.scope?.toLowerCase().includes(searchLower))
+        (part.scope?.toLowerCase().includes(searchLower)) ||
+        // Search task names and notes
+        part.tasks.some(task =>
+          task.taskName.toLowerCase().includes(searchLower) ||
+          (task.notes?.toLowerCase().includes(searchLower))
+        )
       );
     }
 
@@ -209,89 +259,97 @@ export const TasksTable: React.FC = () => {
     return sortedParts.slice(startIndex, startIndex + itemsPerPage);
   }, [sortedParts, currentPage, itemsPerPage]);
 
-  // Helper to extract base task name from composite key (taskName|notes -> taskName)
-  const getBaseName = (taskKey: string) => (taskKey || '').split('|')[0];
+  // Helper to extract base task name from column key (TaskName#2 -> TaskName, or TaskName -> TaskName)
+  const getBaseName = (columnKey: string) => {
+    const hashIndex = columnKey.lastIndexOf('#');
+    // Only strip if there's a # followed by a number
+    if (hashIndex > 0 && /^\d+$/.test(columnKey.slice(hashIndex + 1))) {
+      return columnKey.slice(0, hashIndex);
+    }
+    return columnKey;
+  };
+
+  // Calculate max count of each task type across all parts (for column generation)
+  const maxTaskCounts = useMemo(() => {
+    const maxCounts = new Map<string, number>();
+    for (const part of paginatedParts) {
+      const taskTypeCounts = new Map<string, number>();
+      for (const task of part.tasks) {
+        if (task.taskName) {
+          taskTypeCounts.set(task.taskName, (taskTypeCounts.get(task.taskName) || 0) + 1);
+        }
+      }
+      // Update max for each task type
+      for (const [taskType, count] of taskTypeCounts) {
+        maxCounts.set(taskType, Math.max(maxCounts.get(taskType) || 0, count));
+      }
+    }
+    return maxCounts;
+  }, [paginatedParts]);
 
   // Calculate visible task columns based on current page data
-  // Always show columns from TASK_ORDER, only hide AUTO_HIDE_COLUMNS when no tasks exist
+  // Uses indexed columns (TaskName#1, TaskName#2) when max count > 1
   const taskColumns = useMemo(() => {
-    // Step 1: Find task types that have duplicates within a single part
-    const taskTypesNeedingSplit = new Set<string>();
-    for (const part of paginatedParts) {
-      const taskTypeCounts = new Map<string, number>();
-      for (const task of part.tasks) {
-        taskTypeCounts.set(task.taskName, (taskTypeCounts.get(task.taskName) || 0) + 1);
-      }
-      for (const [taskType, count] of taskTypeCounts) {
-        if (count > 1) taskTypesNeedingSplit.add(taskType);
-      }
-    }
-
-    // Step 2: Build set of columns that exist in current data
-    const existingColumnKeys = new Set<string>();
-    for (const part of paginatedParts) {
-      for (const task of part.tasks) {
-        const baseName = task.taskName;
-        if (taskTypesNeedingSplit.has(baseName)) {
-          const key = task.taskKey || task.taskName;
-          if (key) existingColumnKeys.add(key);
-        } else {
-          if (baseName) existingColumnKeys.add(baseName);
-        }
-      }
-    }
-
-    // Step 3: Start with ALL columns from taskOrder (fetched from API), plus any composite keys from data
     const taskOrder = taskMetadata?.taskOrder ?? [];
     const autoHideColumns = taskMetadata?.autoHideColumns ?? new Set<string>();
-    const allColumns = new Set<string>(taskOrder);
-    for (const key of existingColumnKeys) {
-      allColumns.add(key); // Add composite keys like "taskName|notes"
-    }
 
-    // Step 4: Filter and sort - only show columns that should be visible
-    return Array.from(allColumns)
-      .filter(taskKey => {
-        const baseName = getBaseName(taskKey);
-
-        // If this task type needs splitting, only show if it exists in data
-        // This hides the "no scope" base column when all tasks have scopes
-        if (taskTypesNeedingSplit.has(baseName)) {
-          return existingColumnKeys.has(taskKey);
-        }
-
-        // For non-split types, apply AUTO_HIDE logic as before
-        if (!autoHideColumns.has(baseName)) {
-          return true;
-        }
-        return existingColumnKeys.has(taskKey);
-      })
-      .sort((a, b) => {
-        const nameA = getBaseName(a);
-        const nameB = getBaseName(b);
-        const orderA = taskOrder.indexOf(nameA);
-        const orderB = taskOrder.indexOf(nameB);
-        const posA = orderA >= 0 ? orderA : 999;
-        const posB = orderB >= 0 ? orderB : 999;
-        if (posA !== posB) return posA - posB;
-        return a.localeCompare(b);
-      });
-  }, [paginatedParts, taskMetadata]);
-
-  // Memoize which task types need splitting (for PartRow to use correct keys)
-  const taskTypesNeedingSplit = useMemo(() => {
-    const needsSplit = new Set<string>();
+    // Build set of task names that exist in current data
+    const existingTaskNames = new Set<string>();
     for (const part of paginatedParts) {
-      const taskTypeCounts = new Map<string, number>();
       for (const task of part.tasks) {
-        taskTypeCounts.set(task.taskName, (taskTypeCounts.get(task.taskName) || 0) + 1);
-      }
-      for (const [taskType, count] of taskTypeCounts) {
-        if (count > 1) needsSplit.add(taskType);
+        if (task.taskName) existingTaskNames.add(task.taskName);
       }
     }
-    return needsSplit;
-  }, [paginatedParts]);
+
+    // Start with all task names from taskOrder
+    const allTaskNames = new Set<string>(taskOrder);
+    for (const taskName of existingTaskNames) {
+      allTaskNames.add(taskName);
+    }
+
+    // Build column list with indexed columns for task types with max > 1
+    const columns: string[] = [];
+    const processedTaskNames = new Set<string>();
+
+    // Process in task order
+    const sortedTaskNames = Array.from(allTaskNames).sort((a, b) => {
+      const orderA = taskOrder.indexOf(a);
+      const orderB = taskOrder.indexOf(b);
+      const posA = orderA >= 0 ? orderA : 999;
+      const posB = orderB >= 0 ? orderB : 999;
+      if (posA !== posB) return posA - posB;
+      return a.localeCompare(b);
+    });
+
+    for (const taskName of sortedTaskNames) {
+      if (processedTaskNames.has(taskName)) continue;
+      processedTaskNames.add(taskName);
+
+      // Apply AUTO_HIDE logic - skip if auto-hide and no data
+      if (autoHideColumns.has(taskName) && !existingTaskNames.has(taskName)) {
+        continue;
+      }
+
+      const maxCount = maxTaskCounts.get(taskName) || 0;
+
+      // Skip columns with no data unless they're in taskOrder and not auto-hide
+      if (maxCount === 0 && !taskOrder.includes(taskName)) {
+        continue;
+      }
+
+      if (maxCount > 1) {
+        // Create indexed columns: TaskName#1, TaskName#2, etc.
+        for (let i = 1; i <= maxCount; i++) {
+          columns.push(`${taskName}#${i}`);
+        }
+      } else {
+        // Single column (or placeholder for taskOrder items)
+        columns.push(taskName);
+      }
+    }
+
+    return columns;
+  }, [paginatedParts, taskMetadata, maxTaskCounts]);
 
   const totalPages = Math.ceil(sortedParts.length / itemsPerPage);
 
@@ -315,16 +373,22 @@ export const TasksTable: React.FC = () => {
 
       // Refetch to get updated statuses
       const params: Record<string, string> = {};
-      if (filters.status !== 'all') params.status = filters.status;
       if (filters.hideCompleted) params.hideCompleted = 'true';
       if (filters.search) params.search = filters.search;
 
       const response = await api.get('/orders/parts/with-tasks', { params });
       const data = response.data?.data || response.data || [];
       setParts(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error updating task:', err);
-      // Revert on error
+
+      // Check for version conflict (409)
+      if (err?.response?.status === 409 || err?.response?.data?.code === 'VERSION_CONFLICT') {
+        console.log('[TasksTable] Version conflict detected - showing toast');
+        setShowConflictToast(true);
+      }
+
+      // Revert on any error by refetching
       fetchPartsWithTasks();
     }
   };
@@ -420,13 +484,13 @@ export const TasksTable: React.FC = () => {
 
   // Drag-to-scroll handlers for task columns (only on N/A cells with "-")
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // Only start drag on N/A task cells (gray cells with "-")
+    // Only start drag on N/A task cells (cells with cursor-grab class)
     const target = e.target as HTMLElement;
     const cell = target.closest('td[data-task-cell]');
     if (!cell) return;
 
-    // Check if it's an N/A cell (has bg-gray-200 class)
-    if (!cell.classList.contains('bg-gray-200')) return;
+    // Check if it's an N/A cell (has cursor-grab class)
+    if (!cell.classList.contains('cursor-grab')) return;
 
     e.preventDefault();
     setIsDragging(true);
@@ -567,8 +631,8 @@ export const TasksTable: React.FC = () => {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="flex-1 overflow-auto px-6 py-4">
+      {/* Table - on mobile: fill container height for internal scroll */}
+      <div className={`flex-1 ${isMobile ? 'overflow-hidden flex flex-col px-2 py-2' : 'overflow-hidden flex flex-col px-6 py-4'}`}>
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className={PAGE_STYLES.page.text}>Loading parts...</div>
@@ -589,33 +653,44 @@ export const TasksTable: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className={`${PAGE_STYLES.composites.panelContainer} overflow-hidden`}>
+            <div className={`${PAGE_STYLES.composites.panelContainer} flex-1 flex flex-col overflow-hidden`}>
               <div
                 ref={scrollContainerRef}
-                className={`overflow-auto max-h-[calc(100vh-120px)] ${isDragging ? 'cursor-grabbing select-none' : ''}`}
+                className={`overflow-auto flex-1 ${isDragging ? 'cursor-grabbing select-none' : ''}`}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseLeave}
               >
-                <table style={{ width: '100%', minWidth: `${544 + taskColumns.length * 72}px`, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>
-                  {/* Column widths: Left 4 columns FIXED (544px total) | Task columns expand equally (min 72px each) */}
+                {/* Mobile: Order/Part 140px, Status/Due/Time scroll. Desktop: 544px fixed left columns */}
+                <table style={{
+                  width: '100%',
+                  minWidth: isMobile
+                    ? `${140 + 120 + 80 + 64 + taskColumns.length * 96}px`
+                    : `${544 + taskColumns.length * 96}px`,
+                  tableLayout: 'fixed',
+                  borderCollapse: 'separate',
+                  borderSpacing: 0
+                }}>
+                  {/* Column widths: Mobile has narrower Order/Part (140px). Desktop: 544px total fixed left */}
                   <colgroup>
-                    <col style={{ width: '280px', minWidth: '280px', maxWidth: '280px' }} />
+                    <col style={isMobile
+                      ? { width: '140px', minWidth: '140px', maxWidth: '140px' }
+                      : { width: '280px', minWidth: '280px', maxWidth: '280px' }} />
                     <col style={{ width: '120px', minWidth: '120px', maxWidth: '120px' }} />
                     <col style={{ width: '80px', minWidth: '80px', maxWidth: '80px' }} />
                     <col style={{ width: '64px', minWidth: '64px', maxWidth: '64px' }} />
                     {taskColumns.map((taskKey) => (
-                      <col key={taskKey} style={{ minWidth: '72px' }} />
+                      <col key={taskKey} style={{ minWidth: '96px' }} />
                     ))}
                   </colgroup>
                   {/* Header */}
                   <thead className={`${PAGE_STYLES.header.background} sticky top-0 z-30`}>
                     <tr>
-                      {/* Order / Part column - sticky, fixed width */}
+                      {/* Order / Part column - always sticky */}
                       <th
                         className={`px-2 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider border-b border-r ${PAGE_STYLES.panel.border} cursor-pointer ${PAGE_STYLES.interactive.hoverOnHeader} sticky z-20`}
-                        style={{ left: 0, width: '280px', backgroundColor: 'var(--theme-header-bg)' }}
+                        style={{ left: 0, width: isMobile ? '140px' : '280px', backgroundColor: 'var(--theme-header-bg)' }}
                         onClick={() => handleSort('orderNumber')}
                       >
                         Order / Part
@@ -624,18 +699,18 @@ export const TasksTable: React.FC = () => {
                         )}
                       </th>
 
-                      {/* Status column - sticky, fixed width */}
+                      {/* Status column - sticky on desktop only */}
                       <th
-                        className={`px-1 py-3 text-center text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider border-b border-r ${PAGE_STYLES.panel.border} sticky z-20`}
-                        style={{ left: '280px', width: '120px', backgroundColor: 'var(--theme-header-bg)' }}
+                        className={`px-1 py-3 text-center text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider border-b border-r ${PAGE_STYLES.panel.border} ${isMobile ? '' : 'sticky z-20'}`}
+                        style={isMobile ? { width: '120px', backgroundColor: 'var(--theme-header-bg)' } : { left: '280px', width: '120px', backgroundColor: 'var(--theme-header-bg)' }}
                       >
                         Status
                       </th>
 
-                      {/* Due Date column - sticky, fixed width */}
+                      {/* Due Date column - sticky on desktop only */}
                       <th
-                        className={`px-1 py-3 text-center text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider border-b border-r ${PAGE_STYLES.panel.border} cursor-pointer ${PAGE_STYLES.interactive.hoverOnHeader} sticky z-20`}
-                        style={{ left: '400px', width: '80px', backgroundColor: 'var(--theme-header-bg)' }}
+                        className={`px-1 py-3 text-center text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider border-b border-r ${PAGE_STYLES.panel.border} cursor-pointer ${PAGE_STYLES.interactive.hoverOnHeader} ${isMobile ? '' : 'sticky z-20'}`}
+                        style={isMobile ? { width: '80px', backgroundColor: 'var(--theme-header-bg)' } : { left: '400px', width: '80px', backgroundColor: 'var(--theme-header-bg)' }}
                         onClick={() => handleSort('dueDate')}
                       >
                         Due
@@ -644,10 +719,10 @@ export const TasksTable: React.FC = () => {
                         )}
                       </th>
 
-                      {/* Hard Due Time column - sticky, fixed width */}
+                      {/* Hard Due Time column - sticky on desktop only */}
                       <th
-                        className={`px-1 py-3 text-center text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider border-b border-r ${PAGE_STYLES.panel.border} sticky z-20`}
-                        style={{ left: '480px', width: '64px', backgroundColor: 'var(--theme-header-bg)' }}
+                        className={`px-1 py-3 text-center text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider border-b border-r ${PAGE_STYLES.panel.border} ${isMobile ? '' : 'sticky z-20'}`}
+                        style={isMobile ? { width: '64px', backgroundColor: 'var(--theme-header-bg)' } : { left: '480px', width: '64px', backgroundColor: 'var(--theme-header-bg)' }}
                       >
                         Time
                       </th>
@@ -670,9 +745,9 @@ export const TasksTable: React.FC = () => {
                         key={part.partId}
                         part={part}
                         taskColumns={taskColumns}
-                        taskTypesNeedingSplit={taskTypesNeedingSplit}
                         onTaskToggle={handleTaskToggle}
                         onStatusClick={handleStatusClick}
+                        isMobile={isMobile}
                       />
                     ))}
                   </tbody>
@@ -694,6 +769,12 @@ export const TasksTable: React.FC = () => {
           onClose={() => setStatusModal(null)}
         />
       )}
+
+      {/* Conflict Toast for version conflicts */}
+      <ConflictToast
+        show={showConflictToast}
+        onClose={() => setShowConflictToast(false)}
+      />
     </div>
   );
 };

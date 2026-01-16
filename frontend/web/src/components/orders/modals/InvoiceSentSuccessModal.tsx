@@ -4,7 +4,8 @@
  */
 
 import React from 'react';
-import { CheckCircle, X, Mail, Clock, FileText, Users } from 'lucide-react';
+import { CheckCircle, X, Clock, FileText, Users } from 'lucide-react';
+import { useIsMobile } from '../../../hooks/useMediaQuery';
 
 interface InvoiceSentSuccessModalProps {
   isOpen: boolean;
@@ -31,6 +32,8 @@ export const InvoiceSentSuccessModal: React.FC<InvoiceSentSuccessModalProps> = (
   scheduledFor,
   wasResent
 }) => {
+  const isMobile = useIsMobile();
+
   if (!isOpen) return null;
 
   const isScheduled = !!scheduledFor;
@@ -38,7 +41,7 @@ export const InvoiceSentSuccessModal: React.FC<InvoiceSentSuccessModalProps> = (
 
   return (
     <div className="fixed inset-0 z-[70] overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen px-4">
+      <div className={`flex items-center justify-center min-h-screen ${isMobile ? 'px-3' : 'px-4'}`}>
         {/* Backdrop */}
         <div
           className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
@@ -46,7 +49,7 @@ export const InvoiceSentSuccessModal: React.FC<InvoiceSentSuccessModalProps> = (
         />
 
         {/* Modal */}
-        <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md transform transition-all">
+        <div className={`relative bg-white rounded-lg shadow-xl w-full ${isMobile ? 'mx-2' : 'max-w-md'} transform transition-all`}>
           {/* Header */}
           <div className="flex items-center justify-between p-5 border-b border-gray-200">
             <div className="flex items-center gap-3">
@@ -68,7 +71,7 @@ export const InvoiceSentSuccessModal: React.FC<InvoiceSentSuccessModalProps> = (
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
             >
               <X className="h-5 w-5" />
             </button>
@@ -148,7 +151,7 @@ export const InvoiceSentSuccessModal: React.FC<InvoiceSentSuccessModalProps> = (
           <div className="flex items-center justify-end px-5 py-4 bg-gray-50 rounded-b-lg border-t border-gray-200">
             <button
               onClick={onClose}
-              className={`px-5 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
+              className={`px-5 py-2 text-sm font-medium text-white rounded-lg transition-colors min-h-[44px] active:opacity-80 ${
                 isScheduled
                   ? 'bg-blue-600 hover:bg-blue-700'
                   : 'bg-green-600 hover:bg-green-700'

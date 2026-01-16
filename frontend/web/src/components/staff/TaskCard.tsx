@@ -7,9 +7,10 @@
  */
 
 import React from 'react';
-import { Play, Square, CheckCircle, Clock, Users } from 'lucide-react';
+import { Play, Square, CheckCircle, Clock, Users, MessageSquare } from 'lucide-react';
 import { PAGE_STYLES } from '../../constants/moduleColors';
 import type { StaffTask } from '../../services/api/staff/types';
+import { formatDuration } from '../../utils/dateUtils';
 
 interface Props {
   task: StaffTask;
@@ -23,19 +24,7 @@ interface Props {
 }
 
 /**
- * Format minutes as human-readable duration
- */
-const formatDuration = (minutes: number): string => {
-  if (minutes < 60) {
-    return `${minutes}m`;
-  }
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-};
-
-/**
- * Format due date
+ * Format due date relative to today
  */
 const formatDueDate = (dateStr: string | null): string => {
   if (!dateStr) return 'No due date';
@@ -133,10 +122,10 @@ export const TaskCard: React.FC<Props> = ({
           <button
             onClick={onStop}
             disabled={loading}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+            title="Stop working"
+            className="flex items-center justify-center p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
           >
-            <Square className="w-4 h-4" />
-            Stop Working
+            <Square className="w-5 h-5" />
           </button>
         ) : (
           // User is not working on this task - show START button
@@ -180,12 +169,35 @@ export const TaskCard: React.FC<Props> = ({
       </div>
 
       {/* View sessions link */}
-      <button
-        onClick={() => onViewSessions(task.task_id)}
-        className={`w-full mt-2 text-xs ${PAGE_STYLES.panel.textMuted} hover:text-blue-600 transition-colors`}
-      >
-        View session history ({task.total_time_minutes > 0 ? formatDuration(task.total_time_minutes) : 'no sessions'})
-      </button>
+      {(() => {
+        const sessionCount = Number(task.total_sessions_count) || 0;
+        const notesCount = Number(task.notes_count) || 0;
+        const hasSessions = sessionCount > 0;
+        return (
+          <button
+            onClick={() => onViewSessions(task.task_id)}
+            className={`w-full mt-2 text-xs flex items-center justify-center gap-1.5 py-1 rounded transition-colors ${
+              hasSessions
+                ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                : `${PAGE_STYLES.panel.textMuted} hover:text-blue-600`
+            }`}
+          >
+            <Clock className="w-3 h-3" />
+            <span>
+              {hasSessions
+                ? `${sessionCount} session${sessionCount > 1 ? 's' : ''} (${formatDuration(task.total_time_minutes)})`
+                : 'No sessions'}
+            </span>
+            {notesCount > 0 && (
+              <>
+                <span className="text-gray-300">•</span>
+                <MessageSquare className="w-3 h-3" />
+                <span>{notesCount}</span>
+              </>
+            )}
+          </button>
+        );
+      })()}
 
       {/* My active session indicator */}
       {isMyActiveTask && task.my_active_session && (

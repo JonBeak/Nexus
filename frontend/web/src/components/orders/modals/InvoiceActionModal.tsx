@@ -16,6 +16,8 @@ import { qbInvoiceApi, EmailPreview, InvoiceDetails, InvoiceSyncStatus, InvoiceD
 import { InvoiceConflictModal } from './InvoiceConflictModal';
 import { InvoiceSentSuccessModal } from './InvoiceSentSuccessModal';
 import InvoiceEmailComposer, { InvoiceEmailConfig, InvoiceSummaryConfig, InvoiceEmailData, DEFAULT_INVOICE_SUMMARY_CONFIG, DEFAULT_INVOICE_BEGINNING, DEFAULT_INVOICE_END } from './InvoiceEmailComposer';
+import { useIsMobile } from '../../../hooks/useMediaQuery';
+import { useBodyScrollLock } from '../../../hooks/useBodyScrollLock';
 
 interface InvoiceActionModalProps {
   isOpen: boolean;
@@ -128,6 +130,12 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   const [invoicePdf, setInvoicePdf] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+
+  // Mobile responsiveness
+  const isMobile = useIsMobile();
+  useBodyScrollLock(isOpen && isMobile);
+  // Mobile tab navigation for update/send/view modes
+  const [mobileTab, setMobileTab] = useState<'form' | 'preview'>('form');
 
   // Refs for backdrop click handling
   const modalContentRef = useRef<HTMLDivElement>(null);
@@ -900,24 +908,28 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   if (mode === 'create') {
     return (
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+        className={`fixed inset-0 bg-black bg-opacity-50 z-50 ${
+          isMobile ? 'overflow-y-auto' : 'flex items-center justify-center p-4'
+        }`}
         onMouseDown={handleBackdropMouseDown}
         onMouseUp={handleBackdropMouseUp}
       >
-        <div ref={modalContentRef} className="bg-white rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+        <div ref={modalContentRef} className={`bg-white shadow-2xl w-full flex flex-col ${
+          isMobile ? 'min-h-full' : 'rounded-lg max-w-3xl max-h-[90vh]'
+        }`}>
           {/* Header */}
-          <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
+          <div className={`${isMobile ? 'px-4 py-3' : 'px-6 py-4'} border-b border-gray-200 flex-shrink-0`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <FileText className="w-6 h-6 text-green-600" />
+                <FileText className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-green-600`} />
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-900">Create QB Invoice</h2>
+                  <h2 className={`${isMobile ? 'text-lg' : 'text-xl'} font-semibold text-gray-900`}>Create QB Invoice</h2>
                   <p className="text-sm text-gray-600">#{order.order_number} - {order.order_name}</p>
                 </div>
               </div>
               <button
                 onClick={onClose}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
               >
                 <X className="w-5 h-5 text-gray-600" />
               </button>
@@ -925,16 +937,16 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
           </div>
 
           {/* Body - Invoice Preview */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-4' : 'p-6'}`}>
             {loadingCreateData ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                 <span className="ml-2 text-gray-500">Loading...</span>
               </div>
             ) : (
-              <div className="bg-gray-50 rounded-lg border border-gray-200 p-6">
+              <div className={`bg-gray-50 rounded-lg border border-gray-200 ${isMobile ? 'p-4' : 'p-6'}`}>
                 {/* From/To/Date Header */}
-                <div className="grid grid-cols-2 gap-6 mb-6">
+                <div className={`${isMobile ? 'flex flex-col gap-4' : 'grid grid-cols-2 gap-6'} mb-6`}>
                   {/* From - Company */}
                   <div>
                     <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">From</h4>
@@ -1044,20 +1056,24 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-gray-200 bg-white flex-shrink-0">
-            <div className="flex items-center justify-between">
+          <div className={`${isMobile ? 'px-4 py-3' : 'px-6 py-4'} border-t border-gray-200 bg-white flex-shrink-0`}>
+            <div className={`flex items-center ${isMobile ? 'flex-col-reverse gap-3' : 'justify-between'}`}>
               <button
                 onClick={onSkip || onClose}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
+                className={`text-gray-600 hover:text-gray-800 active:text-gray-900 text-sm ${
+                  isMobile ? 'w-full py-3 min-h-[44px]' : 'px-4 py-2'
+                }`}
               >
                 {onSkip ? 'Skip' : 'Cancel'}
               </button>
-              <div className="flex items-center gap-3">
+              <div className={`flex items-center gap-3 ${isMobile ? 'w-full flex-col' : ''}`}>
                 {onLinkExisting && (
                   <button
                     onClick={onLinkExisting}
                     disabled={loading}
-                    className="px-4 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-medium flex items-center gap-2 text-sm disabled:opacity-50"
+                    className={`rounded-lg border border-gray-300 bg-white hover:bg-gray-50 active:bg-gray-100 text-gray-700 font-medium flex items-center justify-center gap-2 text-sm disabled:opacity-50 ${
+                      isMobile ? 'w-full py-3 min-h-[44px]' : 'px-4 py-2'
+                    }`}
                   >
                     <Link className="w-4 h-4" />
                     Link Existing
@@ -1066,7 +1082,9 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                 <button
                   onClick={handleInvoiceOnly}
                   disabled={loading}
-                  className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium flex items-center gap-2 text-sm disabled:opacity-50"
+                  className={`rounded-lg bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-medium flex items-center justify-center gap-2 text-sm disabled:opacity-50 ${
+                    isMobile ? 'w-full py-3 min-h-[44px]' : 'px-4 py-2'
+                  }`}
                 >
                   {loading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -1106,14 +1124,71 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      className={`fixed inset-0 bg-black bg-opacity-50 z-50 ${
+        isMobile ? 'overflow-y-auto' : 'flex items-center justify-center p-4'
+      }`}
       onMouseDown={handleBackdropMouseDown}
       onMouseUp={handleBackdropMouseUp}
     >
-      <div ref={modalContentRef} className="bg-white rounded-lg shadow-2xl w-[96%] max-w-[1475px] h-[95vh] flex overflow-hidden">
-        {/* Left Panel - Header + Form + Footer (37%) */}
-        <div className="w-[37%] border-r border-gray-200 flex flex-col">
-          {/* Header - Left side only */}
+      <div ref={modalContentRef} className={`bg-white shadow-2xl w-full flex ${
+        isMobile ? 'flex-col min-h-full' : 'rounded-lg w-[96%] max-w-[1475px] h-[95vh] overflow-hidden'
+      }`}>
+        {/* Mobile Tab Bar */}
+        {isMobile && (
+          <div className="flex-shrink-0 border-b border-gray-200 bg-white sticky top-0 z-10">
+            {/* Header */}
+            <div className="px-4 py-3 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  {mode === 'update' && <RefreshCw className="w-5 h-5 text-orange-500" />}
+                  {mode === 'send' && <Send className="w-5 h-5 text-blue-600" />}
+                  {mode === 'view' && <Eye className="w-5 h-5 text-gray-600" />}
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">{modalTitle}</h2>
+                    <p className="text-sm text-gray-600">#{order.order_number}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="p-2 hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                >
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+            </div>
+            {/* Tab Buttons */}
+            <div className="flex">
+              <button
+                onClick={() => setMobileTab('form')}
+                className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  mobileTab === 'form'
+                    ? 'border-blue-600 text-blue-700 bg-blue-50'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Mail className="w-4 h-4 inline-block mr-1.5" />
+                Email Setup
+              </button>
+              <button
+                onClick={() => setMobileTab('preview')}
+                className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  mobileTab === 'preview'
+                    ? 'border-blue-600 text-blue-700 bg-blue-50'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Eye className="w-4 h-4 inline-block mr-1.5" />
+                Preview
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Left Panel - Header + Form + Footer (37% on desktop, full width on mobile when form tab) */}
+        {(!isMobile || mobileTab === 'form') && (
+        <div className={`${isMobile ? 'flex-1' : 'w-[37%] border-r border-gray-200'} flex flex-col`}>
+          {/* Header - Left side only (desktop) */}
+          {!isMobile && (
           <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
             <div className="flex items-start justify-between">
               <div className="flex items-center space-x-3">
@@ -1155,9 +1230,32 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
               )}
             </div>
           </div>
+          )}
 
           {/* Form Content */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-4' : 'p-6'} space-y-6`}>
+            {/* Mobile Quick Actions */}
+            {isMobile && (
+              <div className="flex flex-wrap items-center gap-2">
+                {!!order.qb_invoice_id && (
+                  <button
+                    onClick={() => window.open(`https://qbo.intuit.com/app/invoice?txnId=${order.qb_invoice_id}`, '_blank')}
+                    className="flex items-center space-x-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white rounded-lg text-xs font-medium transition-colors min-h-[40px]"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Open in QB</span>
+                  </button>
+                )}
+                {onReassign && (
+                  <button
+                    onClick={onReassign}
+                    className="flex items-center space-x-1.5 px-3 py-2 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-600 rounded-lg text-xs font-medium transition-colors border border-gray-300 min-h-[40px]"
+                  >
+                    <span>Reassign</span>
+                  </button>
+                )}
+              </div>
+            )}
             {/* Sync Check Loading */}
             {checkingSync && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -1418,27 +1516,21 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
             </div>
 
             {/* Footer Actions - Inside Left Panel */}
-            <div className="px-6 py-4 border-t border-gray-200 bg-white flex-shrink-0">
-              <div className="flex items-center justify-between gap-3">
-                {/* Cancel - Left */}
-                <button
-                  onClick={handleSkip}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
-                >
-                  {onSkip ? 'Skip' : 'Cancel'}
-                </button>
-
-                {/* Action Buttons - Right */}
-                <div className="flex items-center gap-2">
+            <div className={`${isMobile ? 'px-4 py-3' : 'px-6 py-4'} border-t border-gray-200 bg-white flex-shrink-0`}>
+              <div className={`flex items-center ${isMobile ? 'flex-col gap-3' : 'justify-between gap-3'}`}>
+                {/* Action Buttons - Top on mobile, Right on desktop */}
+                <div className={`flex items-center gap-2 ${isMobile ? 'w-full order-1' : ''}`}>
                   {/* Update Button (update mode only) */}
                   {mode === 'update' && (
                     <button
                       onClick={handleInvoiceOnly}
                       disabled={loading}
-                      className="px-3 py-2 rounded-lg disabled:opacity-50 text-sm bg-orange-500 hover:bg-orange-600 text-white font-medium"
+                      className={`rounded-lg disabled:opacity-50 text-sm bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-medium ${
+                        isMobile ? 'flex-1 py-3 min-h-[44px]' : 'px-3 py-2'
+                      }`}
                     >
                       {loading ? (
-                        <span className="flex items-center gap-2">
+                        <span className="flex items-center justify-center gap-2">
                           <Loader2 className="w-4 h-4 animate-spin" />
                         </span>
                       ) : (
@@ -1451,25 +1543,25 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                   <button
                     onClick={() => setShowScheduleModal(true)}
                     disabled={loading || !hasValidToRecipients || (mode === 'update' && !updateCompleted) || (mode === 'view' && isStale)}
-                    className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 text-sm ${
+                    className={`rounded-lg font-medium flex items-center justify-center gap-2 text-sm ${
                       loading || !hasValidToRecipients || (mode === 'update' && !updateCompleted) || (mode === 'view' && isStale)
                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
-                    }`}
+                        : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+                    } ${isMobile ? 'flex-1 py-3 min-h-[44px]' : 'px-4 py-2'}`}
                   >
                     <Clock className="w-4 h-4" />
-                    Schedule
+                    {!isMobile && 'Schedule'}
                   </button>
 
                   {/* Send Button */}
                   <button
                     onClick={handleSendInvoice}
                     disabled={loading || !hasValidToRecipients || (mode === 'update' && !updateCompleted) || (mode === 'view' && isStale)}
-                    className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 text-sm ${
+                    className={`rounded-lg font-medium flex items-center justify-center gap-2 text-sm ${
                       loading || !hasValidToRecipients || (mode === 'update' && !updateCompleted) || (mode === 'view' && isStale)
                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-green-600 text-white hover:bg-green-700'
-                    }`}
+                        : 'bg-green-600 text-white hover:bg-green-700 active:bg-green-800'
+                    } ${isMobile ? 'flex-1 py-3 min-h-[44px]' : 'px-4 py-2'}`}
                   >
                     {loading ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -1481,13 +1573,26 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                     )}
                   </button>
                 </div>
+
+                {/* Cancel - Bottom on mobile, Left on desktop */}
+                <button
+                  onClick={handleSkip}
+                  className={`text-gray-600 hover:text-gray-800 active:text-gray-900 text-sm ${
+                    isMobile ? 'w-full py-3 min-h-[44px] order-2' : 'px-4 py-2'
+                  }`}
+                >
+                  {onSkip ? 'Skip' : 'Cancel'}
+                </button>
               </div>
             </div>
           </div>
+        )}
 
-        {/* Right Panel - Preview (63%) - Full height from top */}
-        <div className="w-[63%] bg-gray-50 flex flex-col">
-            {/* Preview Tabs */}
+        {/* Right Panel - Preview (63% on desktop, full width on mobile when preview tab) */}
+        {(!isMobile || mobileTab === 'preview') && (
+        <div className={`${isMobile ? 'flex-1' : 'w-[63%]'} bg-gray-50 flex flex-col`}>
+            {/* Preview Tabs (desktop only - mobile uses main tab bar) */}
+            {!isMobile && (
             <div className="flex border-b border-gray-300 px-6 pt-3 pb-0 bg-gray-200">
               <button
                 onClick={() => setPreviewTab('email')}
@@ -1512,6 +1617,33 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                 Invoice Details
               </button>
             </div>
+            )}
+
+            {/* Mobile Preview Sub-tabs */}
+            {isMobile && (
+              <div className="flex border-b border-gray-300 bg-gray-100">
+                <button
+                  onClick={() => setPreviewTab('email')}
+                  className={`flex-1 py-2.5 text-xs font-medium border-b-2 -mb-px transition-colors ${
+                    previewTab === 'email'
+                      ? 'border-blue-600 text-blue-700 bg-white'
+                      : 'border-transparent text-gray-600'
+                  }`}
+                >
+                  Email
+                </button>
+                <button
+                  onClick={() => setPreviewTab('invoice')}
+                  className={`flex-1 py-2.5 text-xs font-medium border-b-2 -mb-px transition-colors ${
+                    previewTab === 'invoice'
+                      ? 'border-blue-600 text-blue-700 bg-white'
+                      : 'border-transparent text-gray-600'
+                  }`}
+                >
+                  Invoice
+                </button>
+              </div>
+            )}
 
             {/* Preview Content */}
             <div className={`flex-1 ${
@@ -1643,16 +1775,21 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
               )}
             </div>
           </div>
+        )}
       </div>
 
       {/* Schedule Modal */}
       {showScheduleModal && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]"
+          className={`fixed inset-0 bg-black bg-opacity-50 z-[60] ${
+            isMobile ? 'flex items-end' : 'flex items-center justify-center'
+          }`}
           onMouseDown={handleScheduleBackdropMouseDown}
           onMouseUp={handleScheduleBackdropMouseUp}
         >
-          <div ref={scheduleModalRef} className="bg-white rounded-lg shadow-2xl w-full max-w-sm p-6">
+          <div ref={scheduleModalRef} className={`bg-white shadow-2xl w-full ${
+            isMobile ? 'rounded-t-2xl p-4 pb-6' : 'rounded-lg max-w-sm p-6'
+          }`}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                 <Clock className="w-5 h-5 text-blue-600" />
@@ -1660,7 +1797,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
               </h3>
               <button
                 onClick={() => setShowScheduleModal(false)}
-                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
               >
                 <X className="w-5 h-5 text-gray-600" />
               </button>
@@ -1674,7 +1811,9 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                   value={scheduledDate}
                   onChange={(e) => setScheduledDate(e.target.value)}
                   min={new Date().toISOString().split('T')[0]}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={`w-full border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    isMobile ? 'px-4 py-3 min-h-[48px]' : 'px-3 py-2'
+                  }`}
                 />
               </div>
               <div>
@@ -1683,26 +1822,22 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                   type="time"
                   value={scheduledTime}
                   onChange={(e) => setScheduledTime(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={`w-full border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    isMobile ? 'px-4 py-3 min-h-[48px]' : 'px-3 py-2'
+                  }`}
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setShowScheduleModal(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
-              >
-                Cancel
-              </button>
+            <div className={`mt-6 ${isMobile ? 'flex flex-col gap-3' : 'flex justify-end gap-3'}`}>
               <button
                 onClick={handleScheduleConfirm}
                 disabled={loading || !scheduledDate}
-                className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 text-sm ${
+                className={`rounded-lg font-medium flex items-center justify-center gap-2 text-sm ${
                   loading || !scheduledDate
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
+                    : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+                } ${isMobile ? 'w-full py-3 min-h-[48px] order-1' : 'px-4 py-2'}`}
               >
                 {loading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -1712,6 +1847,14 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                     Confirm Schedule
                   </>
                 )}
+              </button>
+              <button
+                onClick={() => setShowScheduleModal(false)}
+                className={`text-gray-600 hover:text-gray-800 active:text-gray-900 text-sm ${
+                  isMobile ? 'w-full py-3 min-h-[44px] order-2' : 'px-4 py-2'
+                }`}
+              >
+                Cancel
               </button>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { ArrowLeft, FileText, Printer, FolderOpen, Settings, CheckCircle, FileCh
 import { Order, DEPOSIT_TRACKING_STATUSES } from '../../../../types/orders';
 import StatusBadge from '../../common/StatusBadge';
 import InvoiceButton, { InvoiceAction } from './InvoiceButton';
+import EditableOrderName from './EditableOrderName';
 import { PAGE_STYLES, MODULE_COLORS } from '../../../../constants/moduleColors';
 
 interface OrderHeaderProps {
@@ -24,6 +25,15 @@ interface OrderHeaderProps {
   onMarkAsSent?: () => void;  // Mark invoice as sent manually
   generatingForms: boolean;
   printingForm: boolean;
+  // Order name editing props
+  isEditingOrderName?: boolean;
+  orderNameEditValue?: string;
+  orderNameError?: string | null;
+  isSavingOrderName?: boolean;
+  onEditOrderName?: () => void;
+  onCancelOrderNameEdit?: () => void;
+  onSaveOrderName?: () => void;
+  onOrderNameChange?: (value: string) => void;
 }
 
 const OrderHeader: React.FC<OrderHeaderProps> = ({
@@ -43,7 +53,16 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
   onReassignInvoice,
   onMarkAsSent,
   generatingForms,
-  printingForm
+  printingForm,
+  // Order name editing props
+  isEditingOrderName = false,
+  orderNameEditValue = '',
+  orderNameError = null,
+  isSavingOrderName = false,
+  onEditOrderName,
+  onCancelOrderNameEdit,
+  onSaveOrderName,
+  onOrderNameChange
 }) => {
   const navigate = useNavigate();
 
@@ -66,9 +85,23 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
             </button>
             <div>
               <div className="flex items-center space-x-3">
-                <h1 className={`text-2xl font-bold ${PAGE_STYLES.panel.text}`}>
-                  {order.order_name}
-                </h1>
+                {onEditOrderName && onCancelOrderNameEdit && onSaveOrderName && onOrderNameChange ? (
+                  <EditableOrderName
+                    orderName={order.order_name}
+                    isEditing={isEditingOrderName}
+                    isSaving={isSavingOrderName}
+                    editValue={orderNameEditValue}
+                    error={orderNameError}
+                    onEdit={onEditOrderName}
+                    onCancel={onCancelOrderNameEdit}
+                    onSave={onSaveOrderName}
+                    onEditValueChange={onOrderNameChange}
+                  />
+                ) : (
+                  <h1 className={`text-2xl font-bold ${PAGE_STYLES.panel.text}`}>
+                    {order.order_name}
+                  </h1>
+                )}
                 <StatusBadge status={order.status} />
                 {/* Deposit status indicator - shows deposit required (red) or paid (green) */}
                 {(() => {

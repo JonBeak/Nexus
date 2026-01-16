@@ -35,6 +35,7 @@ import {
 import { OrderDataForQBEstimate, OrderPartForQBEstimate } from '../types/orderPreparation';
 import * as invoiceListingRepo from '../repositories/invoiceListingRepository';
 import { updateQBInvoiceSnapshot } from './qbInvoiceComparisonService';
+import { broadcastInvoiceUpdated } from '../websocket';
 
 // =============================================
 // STALENESS DETECTION
@@ -165,6 +166,9 @@ export async function createInvoiceFromOrder(
     await invoiceListingRepo.updateCachedBalance(orderId, invoice.Balance, invoice.TotalAmt);
 
     console.log(`✅ QB invoice created: ${docNumber} (ID: ${invoiceId})`);
+
+    // Broadcast invoice created event for real-time updates
+    broadcastInvoiceUpdated(orderId, orderData.order_number, 'created', userId);
 
     return {
       invoiceId,
@@ -407,6 +411,12 @@ export async function linkExistingInvoice(
 
     console.log(`✅ Linked QB invoice ${qbInvoice.DocNumber} to order ${orderId}`);
 
+    // Broadcast invoice linked event for real-time updates
+    const orderData = await orderPrepRepo.getOrderDataForQBEstimate(orderId);
+    if (orderData) {
+      broadcastInvoiceUpdated(orderId, orderData.order_number, 'linked', userId);
+    }
+
     return {
       invoiceId: qbInvoice.Id,
       invoiceNumber: qbInvoice.DocNumber,
@@ -436,6 +446,12 @@ export async function unlinkInvoice(
     await qbInvoiceRepo.unlinkInvoiceFromOrder(orderId);
 
     console.log(`✅ Unlinked invoice ${previousInvoiceNumber || previousInvoiceId || '(none)'} from order ${orderId}`);
+
+    // Broadcast invoice unlinked event for real-time updates
+    const orderData = await orderPrepRepo.getOrderDataForQBEstimate(orderId);
+    if (orderData) {
+      broadcastInvoiceUpdated(orderId, orderData.order_number, 'unlinked', userId);
+    }
 
     return {
       previousInvoiceId,
@@ -574,6 +590,12 @@ export async function recordPayment(
     const updatedInvoice = await getQBInvoice(invoiceRecord.qb_invoice_id, realmId);
 
     console.log(`✅ Payment recorded: ID=${paymentId}, New Balance=$${updatedInvoice.Balance}`);
+
+    // Broadcast invoice payment event for real-time updates
+    const orderData = await orderPrepRepo.getOrderDataForQBEstimate(orderId);
+    if (orderData) {
+      broadcastInvoiceUpdated(orderId, orderData.order_number, 'payment', userId);
+    }
 
     return {
       paymentId,

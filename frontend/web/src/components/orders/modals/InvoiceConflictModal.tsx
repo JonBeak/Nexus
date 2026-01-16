@@ -10,6 +10,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Loader2, AlertOctagon, ArrowRight, ArrowLeft, Check, AlertTriangle } from 'lucide-react';
 import { Order } from '../../../types/orders';
 import { qbInvoiceApi, InvoiceDifference, ConflictResolution, InvoiceSyncStatus } from '../../../services/api';
+import { useIsMobile } from '../../../hooks/useMediaQuery';
+import { useBodyScrollLock } from '../../../hooks/useBodyScrollLock';
 
 interface InvoiceConflictModalProps {
   isOpen: boolean;
@@ -49,6 +51,10 @@ export const InvoiceConflictModal: React.FC<InvoiceConflictModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const modalContentRef = useRef<HTMLDivElement>(null);
   const mouseDownOutsideRef = useRef(false);
+
+  // Mobile detection
+  const isMobile = useIsMobile();
+  useBodyScrollLock(isOpen && isMobile);
 
   // Handle ESC key - stop propagation to prevent parent modals from closing
   useEffect(() => {
@@ -108,11 +114,19 @@ export const InvoiceConflictModal: React.FC<InvoiceConflictModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      className={`fixed inset-0 bg-black bg-opacity-50 z-50 ${
+        isMobile
+          ? 'overflow-y-auto'
+          : 'flex items-center justify-center'
+      }`}
       onMouseDown={handleBackdropMouseDown}
       onMouseUp={handleBackdropMouseUp}
     >
-      <div ref={modalContentRef} className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+      <div ref={modalContentRef} className={`bg-white rounded-lg shadow-xl w-full flex flex-col ${
+        isMobile
+          ? 'min-h-full'
+          : 'max-w-3xl mx-4 max-h-[90vh] overflow-hidden'
+      }`}>
         {/* Header */}
         <div className={`px-6 py-4 border-b flex items-center justify-between ${
           isConflict ? 'bg-red-50' : 'bg-purple-50'
@@ -136,7 +150,7 @@ export const InvoiceConflictModal: React.FC<InvoiceConflictModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
           >
             <X className="w-5 h-5" />
           </button>
@@ -161,50 +175,97 @@ export const InvoiceConflictModal: React.FC<InvoiceConflictModalProps> = ({
             )}
           </div>
 
-          {/* Differences Table */}
+          {/* Differences Table/Cards */}
           {differences.length > 0 && (
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-3">Detected Differences</h3>
-              <div className="border rounded-lg overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Line</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Field</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Local Value</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">QB Value</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {differences.map((diff, index) => (
-                      <tr key={index} className={
-                        diff.type === 'added' ? 'bg-green-50' :
-                        diff.type === 'removed' ? 'bg-red-50' :
-                        'bg-yellow-50'
-                      }>
-                        <td className="px-4 py-2 text-sm text-gray-900">#{diff.lineNumber}</td>
-                        <td className="px-4 py-2 text-sm text-gray-900">{FIELD_LABELS[diff.field] || diff.field}</td>
-                        <td className="px-4 py-2">
-                          <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${
-                            diff.type === 'added' ? 'bg-green-100 text-green-800' :
-                            diff.type === 'removed' ? 'bg-red-100 text-red-800' :
-                            'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {diff.type}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2 text-sm text-gray-600 font-mono">
-                          {formatValue(diff.localValue, diff.field)}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-gray-600 font-mono">
-                          {formatValue(diff.qbValue, diff.field)}
-                        </td>
+
+              {/* Desktop: Table view */}
+              {!isMobile && (
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Line</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Field</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Local Value</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">QB Value</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {differences.map((diff, index) => (
+                        <tr key={index} className={
+                          diff.type === 'added' ? 'bg-green-50' :
+                          diff.type === 'removed' ? 'bg-red-50' :
+                          'bg-yellow-50'
+                        }>
+                          <td className="px-4 py-2 text-sm text-gray-900">#{diff.lineNumber}</td>
+                          <td className="px-4 py-2 text-sm text-gray-900">{FIELD_LABELS[diff.field] || diff.field}</td>
+                          <td className="px-4 py-2">
+                            <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${
+                              diff.type === 'added' ? 'bg-green-100 text-green-800' :
+                              diff.type === 'removed' ? 'bg-red-100 text-red-800' :
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {diff.type}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-600 font-mono">
+                            {formatValue(diff.localValue, diff.field)}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-600 font-mono">
+                            {formatValue(diff.qbValue, diff.field)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Mobile: Card view */}
+              {isMobile && (
+                <div className="space-y-3">
+                  {differences.map((diff, index) => (
+                    <div
+                      key={index}
+                      className={`rounded-lg p-3 border ${
+                        diff.type === 'added' ? 'bg-green-50 border-green-200' :
+                        diff.type === 'removed' ? 'bg-red-50 border-red-200' :
+                        'bg-yellow-50 border-yellow-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-gray-900">
+                          Line #{diff.lineNumber} - {FIELD_LABELS[diff.field] || diff.field}
+                        </span>
+                        <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+                          diff.type === 'added' ? 'bg-green-100 text-green-800' :
+                          diff.type === 'removed' ? 'bg-red-100 text-red-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {diff.type}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-500 block text-xs">Local</span>
+                          <span className="font-mono text-gray-700">
+                            {formatValue(diff.localValue, diff.field)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 block text-xs">QuickBooks</span>
+                          <span className="font-mono text-gray-700">
+                            {formatValue(diff.qbValue, diff.field)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -221,6 +282,8 @@ export const InvoiceConflictModal: React.FC<InvoiceConflictModalProps> = ({
             <div className="space-y-3">
               {/* Use Local */}
               <label className={`flex items-start p-4 border rounded-lg cursor-pointer transition-colors ${
+                isMobile ? 'min-h-[60px] active:bg-gray-100' : ''
+              } ${
                 selectedResolution === 'use_local'
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-gray-200 hover:bg-gray-50'
@@ -248,6 +311,8 @@ export const InvoiceConflictModal: React.FC<InvoiceConflictModalProps> = ({
 
               {/* Use QB */}
               <label className={`flex items-start p-4 border rounded-lg cursor-pointer transition-colors ${
+                isMobile ? 'min-h-[60px] active:bg-gray-100' : ''
+              } ${
                 selectedResolution === 'use_qb'
                   ? 'border-purple-500 bg-purple-50'
                   : 'border-gray-200 hover:bg-gray-50'
@@ -275,6 +340,8 @@ export const InvoiceConflictModal: React.FC<InvoiceConflictModalProps> = ({
 
               {/* Keep Both */}
               <label className={`flex items-start p-4 border rounded-lg cursor-pointer transition-colors ${
+                isMobile ? 'min-h-[60px] active:bg-gray-100' : ''
+              } ${
                 selectedResolution === 'keep_both'
                   ? 'border-gray-500 bg-gray-50'
                   : 'border-gray-200 hover:bg-gray-50'
@@ -310,21 +377,27 @@ export const InvoiceConflictModal: React.FC<InvoiceConflictModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t bg-gray-50 flex justify-end space-x-3">
+        <div className={`px-6 py-4 border-t bg-gray-50 flex ${
+          isMobile ? 'flex-col-reverse gap-2' : 'justify-end space-x-3'
+        }`}>
           <button
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            className={`px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50 ${
+              isMobile ? 'min-h-[44px]' : ''
+            }`}
           >
             Cancel
           </button>
           <button
             onClick={handleResolve}
             disabled={loading}
-            className={`flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 ${
-              selectedResolution === 'use_local' ? 'bg-blue-600 hover:bg-blue-700' :
-              selectedResolution === 'use_qb' ? 'bg-purple-600 hover:bg-purple-700' :
-              'bg-gray-600 hover:bg-gray-700'
+            className={`flex items-center justify-center space-x-2 px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 ${
+              isMobile ? 'min-h-[44px]' : ''
+            } ${
+              selectedResolution === 'use_local' ? 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800' :
+              selectedResolution === 'use_qb' ? 'bg-purple-600 hover:bg-purple-700 active:bg-purple-800' :
+              'bg-gray-600 hover:bg-gray-700 active:bg-gray-800'
             }`}
           >
             {loading ? (

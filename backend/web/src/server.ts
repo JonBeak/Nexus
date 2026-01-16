@@ -9,7 +9,9 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
+import http from 'http';
 import https from 'https';
+import { initializeSocketServer } from './websocket';
 import { testConnection, startPoolHealthMonitoring } from './config/database';
 import authRoutes from './routes/auth';
 import customersRoutes from './routes/customers';
@@ -54,6 +56,7 @@ import staffTasksRoutes from './routes/staffTasks';  // Staff task sessions (Jan
 import { quickbooksOAuthRepository } from './repositories/quickbooksOAuthRepository';
 import { startQuickBooksCleanupJob } from './jobs/quickbooksCleanup';
 import { startScheduledEmailJob } from './jobs/scheduledEmailJob';
+import { checkAwaitingPaymentOrders } from './services/invoiceListingService';
 
 // SMB path configuration
 import { SMB_ROOT } from './config/paths';
@@ -242,6 +245,15 @@ const startServer = async () => {
     // Start scheduled email job (runs every 5 minutes)
     startScheduledEmailJob();
 
+    // Start awaiting payment check job (runs every hour)
+    // Auto-completes orders when linked invoice is fully paid
+    setInterval(() => {
+      checkAwaitingPaymentOrders().catch(error => {
+        console.error('❌ Awaiting payment check failed:', error);
+      });
+    }, 60 * 60 * 1000); // 1 hour
+    console.log('⏰ Awaiting payment check job started (every hour)');
+
     // Check for SSL certificates (home environment HTTPS support)
     const sslKeyPath = path.join(__dirname, '..', 'nexuswebapphome.duckdns.org-key.pem');
     const sslCertPath = path.join(__dirname, '..', 'nexuswebapphome.duckdns.org-chain.pem');
@@ -254,12 +266,18 @@ const startServer = async () => {
         cert: fs.readFileSync(sslCertPath)
       };
 
-      https.createServer(httpsOptions, app).listen(PORT, '0.0.0.0', () => {
+      const httpsServer = https.createServer(httpsOptions, app);
+
+      // Initialize Socket.io on HTTPS server
+      initializeSocketServer(httpsServer, allowedOrigins);
+
+      httpsServer.listen(PORT, '0.0.0.0', () => {
         console.log('\n' + '='.repeat(60));
         console.log(`✅ SIGNHOUSE BACKEND v${serverVersion.version} STARTED (HTTPS)`);
         console.log(`⏰ Timestamp: ${serverVersion.timestamp}`);
         console.log('='.repeat(60));
         console.log(`🔒 Server running on HTTPS port ${PORT}`);
+        console.log(`🔌 WebSocket: Socket.io enabled`);
         console.log(`📍 Environment: ${process.env.NODE_ENV}`);
         console.log(`🌐 CORS Origin: ${process.env.CORS_ORIGIN}`);
         console.log(`🌍 Network access: https://nexuswebapphome.duckdns.org:${PORT}`);
@@ -267,12 +285,18 @@ const startServer = async () => {
       });
     } else {
       // HTTP mode (production behind nginx, or local dev)
-      app.listen(PORT, '0.0.0.0', () => {
+      const httpServer = http.createServer(app);
+
+      // Initialize Socket.io on HTTP server
+      initializeSocketServer(httpServer, allowedOrigins);
+
+      httpServer.listen(PORT, '0.0.0.0', () => {
         console.log('\n' + '='.repeat(60));
         console.log(`✅ SIGNHOUSE BACKEND v${serverVersion.version} STARTED`);
         console.log(`⏰ Timestamp: ${serverVersion.timestamp}`);
         console.log('='.repeat(60));
         console.log(`🚀 Server running on port ${PORT}`);
+        console.log(`🔌 WebSocket: Socket.io enabled`);
         console.log(`📍 Environment: ${process.env.NODE_ENV}`);
         console.log(`🌐 CORS Origin: ${process.env.CORS_ORIGIN}`);
         console.log(`🌍 Network access: http://192.168.2.14:${PORT}`);

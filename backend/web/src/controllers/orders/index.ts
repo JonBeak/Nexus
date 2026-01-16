@@ -32,7 +32,8 @@ export {
 export {
   updateOrderStatus,
   getStatusHistory,
-  getOrderProgress
+  getOrderProgress,
+  checkAwaitingPaymentOrders
 } from './OrderStatusController';
 
 // Task Operations
@@ -46,7 +47,11 @@ export {
   removeTask,
   removeTasksForPart,
   getTaskTemplates,
-  updateTaskNotes
+  updateTaskNotes,
+  // Session management (Manager features)
+  startTaskSession,
+  stopTaskSessionById,
+  getActiveTaskSessions
 } from './OrderTasksController';
 
 // Part Operations

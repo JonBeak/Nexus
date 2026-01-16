@@ -8,11 +8,11 @@ import { RefreshCw, AlertCircle, Plus, X, Check, Minus, Layers } from 'lucide-re
 import { settingsApi, VinylMatrixEntry, ProductType, TaskDefinition } from '../../services/api/settings';
 import { Notification } from '../inventory/Notification';
 
-// Available vinyl-related tasks (these are the task_name values)
+// Available vinyl-related tasks (must match TASK_ORDER in taskRules.ts)
 const VINYL_TASKS = [
   'Vinyl Plotting',
-  'Vinyl Face Before Cutting',
-  'Vinyl Face After Cutting',
+  'Vinyl Before Cutting',
+  'Vinyl After Cutting',
   'Vinyl Wrap Return/Trim',
   'Vinyl after Fabrication'
 ];

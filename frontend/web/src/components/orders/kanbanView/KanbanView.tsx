@@ -3,7 +3,7 @@
  * Displays orders as cards in status columns with drag-and-drop
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -16,15 +16,19 @@ import {
 } from '@dnd-kit/core';
 import { ordersApi, orderStatusApi, timeSchedulesApi } from '../../../services/api';
 import { Order, OrderStatus } from '../../../types/orders';
+import { useTasksSocket } from '../../../hooks/useTasksSocket';
+import { useIsMobile } from '../../../hooks/useMediaQuery';
 import { OrderQuickModal } from '../calendarView/OrderQuickModal';
 import { CalendarOrder } from '../calendarView/types';
 import { KanbanColumn } from './KanbanColumn';
 import { KanbanCard } from './KanbanCard';
+import { MobileScrollbar } from './MobileScrollbar';
 import {
   KanbanOrder,
   KANBAN_STATUS_ORDER,
   KANBAN_HIDDEN_STATUSES,
-  KANBAN_STACKED_GROUPS
+  KANBAN_STACKED_GROUPS,
+  KANBAN_COLLAPSED_BY_DEFAULT
 } from './types';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
 
@@ -120,13 +124,51 @@ export const KanbanView: React.FC = () => {
   const [holidays, setHolidays] = useState<Set<string>>(new Set());
   // Track which columns are showing all (for completed/cancelled)
   const [showAllColumns, setShowAllColumns] = useState<Set<OrderStatus>>(new Set());
+  // Track which columns are collapsed (cards hidden)
+  const [collapsedColumns, setCollapsedColumns] = useState<Set<OrderStatus>>(
+    () => new Set(KANBAN_COLLAPSED_BY_DEFAULT)
+  );
 
-  // DnD sensors
+  // Mobile detection and scroll container ref
+  const isMobile = useIsMobile();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Prevent touch scrolling on mobile - only allow scroll via custom scrollbar
+  // Also prevent page scroll while dragging a card
+  useEffect(() => {
+    if (!isMobile) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const preventTouchScroll = (e: TouchEvent) => {
+      // Allow vertical scroll within column card lists (not during drag)
+      const target = e.target as HTMLElement;
+      const isInScrollArea = target.closest('[data-kanban-scroll]');
+      if (isInScrollArea && !activeId) return; // Allow vertical scroll in card lists
+
+      // Prevent scroll on background/headers and during drag
+      e.preventDefault();
+    };
+
+    container.addEventListener('touchmove', preventTouchScroll, { passive: false });
+    return () => {
+      container.removeEventListener('touchmove', preventTouchScroll);
+    };
+  }, [isMobile, activeId]);
+
+  // DnD sensors - different constraints for mobile vs desktop
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8  // Require 8px drag before activating
-      }
+      activationConstraint: isMobile
+        ? {
+            // Mobile: require 80ms hold before drag activates
+            delay: 80,
+            tolerance: 5
+          }
+        : {
+            // Desktop: 8px movement threshold
+            distance: 8
+          }
     })
   );
 
@@ -166,6 +208,17 @@ export const KanbanView: React.FC = () => {
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  // WebSocket subscription for real-time updates
+  useTasksSocket({
+    onTasksUpdated: fetchOrders,
+    onOrderStatus: fetchOrders,
+    onOrderCreated: fetchOrders,
+    onOrderUpdated: fetchOrders,
+    onOrderDeleted: fetchOrders,
+    onInvoiceUpdated: fetchOrders,
+    onReconnect: fetchOrders
+  });
 
   // Filter orders for completed/cancelled columns (due in last 2 weeks by default)
   const filterHiddenStatusOrders = (statusOrders: KanbanOrder[], status: OrderStatus): KanbanOrder[] => {
@@ -207,6 +260,19 @@ export const KanbanView: React.FC = () => {
   // Toggle show all for a column
   const handleToggleShowAll = (status: OrderStatus) => {
     setShowAllColumns(prev => {
+      const next = new Set(prev);
+      if (next.has(status)) {
+        next.delete(status);
+      } else {
+        next.add(status);
+      }
+      return next;
+    });
+  };
+
+  // Toggle collapsed state for a column
+  const handleToggleCollapsed = (status: OrderStatus) => {
+    setCollapsedColumns(prev => {
       const next = new Set(prev);
       if (next.has(status)) {
         next.delete(status);
@@ -286,7 +352,18 @@ export const KanbanView: React.FC = () => {
   return (
     <div className="h-full flex flex-col">
       {/* Kanban Board - No toolbar */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden p-4">
+      <div
+        ref={scrollContainerRef}
+        className={`flex-1 overflow-y-hidden p-4 ${
+          isMobile
+            ? 'overflow-x-scroll scrollbar-none'  // Hide native scrollbar, JS handler controls touch
+            : 'overflow-x-auto'
+        }`}
+        style={isMobile ? {
+          scrollbarWidth: 'none',  // Firefox
+          msOverflowStyle: 'none'  // IE/Edge
+        } as React.CSSProperties : undefined}
+      >
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -298,6 +375,7 @@ export const KanbanView: React.FC = () => {
               // Single column
               if (group.length === 1) {
                 const status = group[0];
+                const isCollapsible = KANBAN_COLLAPSED_BY_DEFAULT.includes(status);
                 return (
                   <KanbanColumn
                     key={status}
@@ -311,6 +389,9 @@ export const KanbanView: React.FC = () => {
                     showingAll={showAllColumns.has(status)}
                     totalCount={getTotalCount(status)}
                     onToggleShowAll={() => handleToggleShowAll(status)}
+                    isCollapsible={isCollapsible}
+                    isCollapsed={collapsedColumns.has(status)}
+                    onToggleCollapsed={() => handleToggleCollapsed(status)}
                   />
                 );
               }
@@ -318,23 +399,29 @@ export const KanbanView: React.FC = () => {
               // Stacked columns
               return (
                 <div key={`group-${groupIdx}`} className="flex flex-col gap-4 h-full">
-                  {group.map(status => (
-                    <div key={status} className="flex-1 min-h-0">
-                      <KanbanColumn
-                        key={status}
-                        status={status}
-                        orders={ordersByStatus[status] || []}
-                        onCardClick={handleCardClick}
-                        onOrderUpdated={fetchOrders}
-                        expanded={expandedCards}
-                        onToggleExpanded={handleToggleExpanded}
-                        isHiddenStatus={KANBAN_HIDDEN_STATUSES.includes(status)}
-                        showingAll={showAllColumns.has(status)}
-                        totalCount={getTotalCount(status)}
-                        onToggleShowAll={() => handleToggleShowAll(status)}
-                      />
-                    </div>
-                  ))}
+                  {group.map(status => {
+                    const isCollapsible = KANBAN_COLLAPSED_BY_DEFAULT.includes(status);
+                    return (
+                      <div key={status} className="flex-1 min-h-0">
+                        <KanbanColumn
+                          key={status}
+                          status={status}
+                          orders={ordersByStatus[status] || []}
+                          onCardClick={handleCardClick}
+                          onOrderUpdated={fetchOrders}
+                          expanded={expandedCards}
+                          onToggleExpanded={handleToggleExpanded}
+                          isHiddenStatus={KANBAN_HIDDEN_STATUSES.includes(status)}
+                          showingAll={showAllColumns.has(status)}
+                          totalCount={getTotalCount(status)}
+                          onToggleShowAll={() => handleToggleShowAll(status)}
+                          isCollapsible={isCollapsible}
+                          isCollapsed={collapsedColumns.has(status)}
+                          onToggleCollapsed={() => handleToggleCollapsed(status)}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}
@@ -354,6 +441,9 @@ export const KanbanView: React.FC = () => {
           </DragOverlay>
         </DndContext>
       </div>
+
+      {/* Mobile Custom Scrollbar */}
+      {isMobile && <MobileScrollbar scrollContainerRef={scrollContainerRef} />}
 
       {/* Order Quick Modal */}
       {selectedOrder && (

@@ -46,9 +46,9 @@ const STATUS_COLORS: Record<OrderStatus, { active: string; inactive: string }> =
   on_hold: { active: 'bg-red-500 text-white', inactive: 'bg-gray-200 text-gray-500' },
   overdue: { active: 'bg-red-700 text-white', inactive: 'bg-gray-200 text-gray-500' },
   qc_packing: { active: 'bg-purple-500 text-white', inactive: 'bg-gray-200 text-gray-500' },
-  shipping: { active: 'bg-cyan-500 text-white', inactive: 'bg-gray-200 text-gray-500' },
-  pick_up: { active: 'bg-teal-500 text-white', inactive: 'bg-gray-200 text-gray-500' },
-  awaiting_payment: { active: 'bg-amber-600 text-white', inactive: 'bg-gray-200 text-gray-500' },
+  shipping: { active: 'bg-blue-500 text-white', inactive: 'bg-gray-200 text-gray-500' },
+  pick_up: { active: 'bg-blue-500 text-white', inactive: 'bg-gray-200 text-gray-500' },
+  awaiting_payment: { active: 'bg-green-500 text-white', inactive: 'bg-gray-200 text-gray-500' },
   completed: { active: 'bg-green-600 text-white', inactive: 'bg-gray-200 text-gray-500' },
   cancelled: { active: 'bg-gray-600 text-white', inactive: 'bg-gray-200 text-gray-500' }
 };

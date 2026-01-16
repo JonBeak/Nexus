@@ -107,6 +107,18 @@ router.get(
   orderController.getTaskMetadata
 );
 
+/**
+ * Check awaiting payment orders for auto-completion
+ * POST /api/orders/check-awaiting-payments
+ * Called on page load (Orders/Invoices pages) to sync balance and auto-complete paid orders
+ */
+router.post(
+  '/check-awaiting-payments',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderController.checkAwaitingPaymentOrders
+);
+
 // =============================================
 // ORDER CRUD
 // =============================================
@@ -329,6 +341,44 @@ router.put(
   authenticateToken,
   requirePermission('orders.update'),
   orderController.updateTaskNotes
+);
+
+// =============================================
+// TASK SESSION MANAGEMENT (Manager Features)
+// =============================================
+
+/**
+ * Start a task session for any user (manager feature)
+ * POST /api/orders/tasks/:taskId/sessions
+ * Body: { user_id: number }
+ */
+router.post(
+  '/tasks/:taskId/sessions',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.startTaskSession
+);
+
+/**
+ * Get active sessions for a task
+ * GET /api/orders/tasks/:taskId/sessions/active
+ */
+router.get(
+  '/tasks/:taskId/sessions/active',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderController.getActiveTaskSessions
+);
+
+/**
+ * Stop a session by session ID (manager feature)
+ * POST /api/orders/sessions/:sessionId/stop
+ */
+router.post(
+  '/sessions/:sessionId/stop',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.stopTaskSessionById
 );
 
 // =============================================

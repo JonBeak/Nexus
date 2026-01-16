@@ -1,3 +1,10 @@
+/**
+ * RoleCard Component
+ * Card displaying tasks for a specific production role
+ *
+ * Updated: 2025-01-15 - Added session modal callback
+ */
+
 import React from 'react';
 import { Package } from 'lucide-react';
 import TaskChecklistItem from './TaskChecklistItem';
@@ -21,6 +28,8 @@ interface Props {
   showCompleted: boolean;
   hoursBack: number;
   userRole: UserRole;
+  currentUserId?: number;
+  onOpenSessionsModal?: (taskId: number, taskRole: string | null) => void;
 }
 
 // Format hours into human-readable time window
@@ -42,7 +51,9 @@ export const RoleCard: React.FC<Props> = ({
   onTaskNotesUpdate,
   showCompleted,
   hoursBack,
-  userRole
+  userRole,
+  currentUserId,
+  onOpenSessionsModal
 }) => {
   const incompleteTasks = tasks.filter(t => !t.completed);
   const completedTasks = tasks.filter(t => t.completed);
@@ -81,6 +92,8 @@ export const RoleCard: React.FC<Props> = ({
                 onNotesUpdate={onTaskNotesUpdate}
                 showCompleted={showCompleted}
                 userRole={userRole}
+                currentUserId={currentUserId}
+                onOpenSessionsModal={onOpenSessionsModal}
               />
             ))}
           </div>

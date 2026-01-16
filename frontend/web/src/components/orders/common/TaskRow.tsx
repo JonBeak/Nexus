@@ -1,3 +1,10 @@
+/**
+ * TaskRow Component
+ * Individual task row with start/complete/notes functionality
+ *
+ * Updated: 2025-01-15 - Added manager session modal support
+ */
+
 import React, { useState, useRef, useEffect } from 'react';
 import { X, PlayCircle, CheckCircle2 } from 'lucide-react';
 import { OrderTask } from '../../../types/orders';
@@ -14,6 +21,10 @@ interface TaskRowProps {
   onUnstart: () => void;
   onNotesChange: (notes: string) => void;
   onRemove?: () => void;  // Optional - if not provided, no remove button
+
+  // Manager session modal support
+  isManager?: boolean;
+  onOpenSessionsModal?: (taskId: number, taskRole: string | null) => void;
 }
 
 export const TaskRow: React.FC<TaskRowProps> = ({
@@ -23,7 +34,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   onUncomplete,
   onUnstart,
   onNotesChange,
-  onRemove
+  onRemove,
+  isManager = false,
+  onOpenSessionsModal
 }) => {
   // Local optimistic state - mirrors task prop but updates immediately on user action
   const [localTask, setLocalTask] = useState(task);
@@ -37,6 +50,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     setLocalTask(task);
   }, [task]);
 
+  // Determine if task is started (check both legacy started_at and session counts)
+  const hasAnySessions = (task.total_sessions_count > 0) || (task.active_sessions_count > 0);
+  const isStarted = !!localTask.started_at || hasAnySessions;
+
   // Update local notes value when task.notes changes externally
   useEffect(() => {
     if (!editingNotes) {
@@ -46,8 +63,13 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
   // Optimistic handlers - update local state immediately, then call parent handler
   const handleStart = () => {
-    setLocalTask(prev => ({ ...prev, started_at: new Date().toISOString() }));
-    onStart();
+    if (isManager && onOpenSessionsModal) {
+      // Managers open the modal instead of directly starting
+      onOpenSessionsModal(task.task_id, task.assigned_role || null);
+    } else {
+      setLocalTask(prev => ({ ...prev, started_at: new Date().toISOString() }));
+      onStart();
+    }
   };
 
   const handleComplete = () => {
@@ -61,8 +83,13 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   };
 
   const handleUnstart = () => {
-    setLocalTask(prev => ({ ...prev, started_at: undefined }));
-    onUnstart();
+    if (isManager && onOpenSessionsModal) {
+      // Managers open the modal instead of directly unstopping
+      onOpenSessionsModal(task.task_id, task.assigned_role || null);
+    } else {
+      setLocalTask(prev => ({ ...prev, started_at: undefined }));
+      onUnstart();
+    }
   };
 
   // Auto-focus and select notes input when entering edit mode
@@ -124,11 +151,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             >
               <CheckCircle2 className="w-5 h-5 text-emerald-500" />
             </button>
-          ) : localTask.started_at ? (
+          ) : isStarted ? (
             <button
               onClick={handleUnstart}
               className="hover:opacity-70 transition-opacity"
-              title="Mark as not started"
+              title={isManager ? 'Manage sessions' : 'Mark as not started'}
             >
               <PlayCircle className="w-5 h-5 text-blue-500" />
             </button>
@@ -146,7 +173,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         {/* Task name */}
         <span className={`
           flex-shrink-0
-          ${localTask.completed ? `${PAGE_STYLES.panel.textMuted} line-through` : localTask.started_at ? 'text-blue-700 font-medium' : PAGE_STYLES.header.text}
+          ${localTask.completed ? `${PAGE_STYLES.panel.textMuted} line-through` : isStarted ? 'text-blue-700 font-medium' : PAGE_STYLES.header.text}
         `}>
           {localTask.task_name}
         </span>
@@ -180,14 +207,25 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
         {/* Action buttons - absolute positioned to not affect row layout */}
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-          {/* Start button - always visible when task is incomplete */}
-          {!localTask.completed && !localTask.started_at && (
+          {/* Start button - always visible when task is incomplete and not started */}
+          {!localTask.completed && !isStarted && (
             <button
               onClick={handleStart}
               className="p-0.5 text-blue-600 hover:bg-blue-100 rounded"
-              title="Start task"
+              title={isManager ? 'Manage sessions' : 'Start task'}
             >
               <PlayCircle className="w-5 h-5" />
+            </button>
+          )}
+
+          {/* Complete button - visible when task is started but not completed */}
+          {!localTask.completed && isStarted && (
+            <button
+              onClick={handleComplete}
+              className="p-0.5 text-emerald-600 hover:bg-emerald-100 rounded"
+              title="Mark complete"
+            >
+              <CheckCircle2 className="w-5 h-5" />
             </button>
           )}
 

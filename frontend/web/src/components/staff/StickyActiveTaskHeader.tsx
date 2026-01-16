@@ -9,6 +9,7 @@
 import React from 'react';
 import { Clock, Square, Play, AlertCircle, CheckCircle } from 'lucide-react';
 import type { ActiveTasksResponse, StaffTask } from '../../services/api/staff/types';
+import { formatDuration } from '../../utils/dateUtils';
 
 interface Props {
   activeTasks: ActiveTasksResponse | null;
@@ -18,16 +19,6 @@ interface Props {
   onComplete: (taskId: number) => void;
   loading: boolean;
 }
-
-/**
- * Format minutes as human-readable duration
- */
-const formatDuration = (minutes: number): string => {
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-};
 
 export const StickyActiveTaskHeader: React.FC<Props> = ({
   activeTasks,

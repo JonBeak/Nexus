@@ -8,18 +8,19 @@ export const getTodayString = (): string => {
   return new Date().toISOString().split('T')[0];
 };
 
-// Format time from MySQL datetime string to display format
+// Format time from datetime string to display format
+// Handles both ISO strings (with Z for UTC) and MySQL datetime strings
 export const formatTime = (dateString: string | null): string => {
   if (!dateString) return '-';
-  
-  // MySQL returns datetime as 'YYYY-MM-DD HH:MM:SS' which JavaScript interprets as local time
-  // But if it includes 'T' it might be interpreted as UTC, causing timezone issues
-  const date = new Date(dateString.replace('T', ' ').replace('Z', ''));
-  
-  return date.toLocaleTimeString('en-US', { 
-    hour: '2-digit', 
+
+  // If string has 'Z' suffix, it's UTC - let JavaScript convert to local time
+  // If no 'Z', treat as local time (MySQL format without timezone)
+  const date = new Date(dateString);
+
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
     minute: '2-digit',
-    hour12: true 
+    hour12: true
   });
 };
 
@@ -62,20 +63,21 @@ export const formatDateLong = (dateString?: string | null): string => {
   }
 };
 
-// Convert MySQL datetime string to datetime-local input format
+// Convert datetime string to datetime-local input format (YYYY-MM-DDTHH:MM)
+// Handles both ISO strings (with Z for UTC) and MySQL datetime strings
 export const toDateTimeLocal = (dateString: string | null): string => {
   if (!dateString) return '';
-  
-  // Same logic as formatTime - treat MySQL datetime as local time
-  const date = new Date(dateString.replace('T', ' ').replace('Z', ''));
-  
-  // Convert to YYYY-MM-DDTHH:MM format for datetime-local input
+
+  // Let JavaScript handle the timezone conversion automatically
+  const date = new Date(dateString);
+
+  // Convert to YYYY-MM-DDTHH:MM format for datetime-local input (in local time)
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
-  
+
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
@@ -237,6 +239,29 @@ export const getPeriodDisplayName = (viewMode: ViewMode): string => {
   }
 };
 
+// Format duration in minutes to readable string (e.g., "45m", "1h 30m", "2h")
+export const formatDuration = (minutes: number | null): string => {
+  if (minutes === null || minutes === 0) return '0m';
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+};
+
+// Format datetime for display (e.g., "Jan 15, 2:30 PM")
+// Handles both ISO strings (with Z for UTC) and MySQL datetime strings
+export const formatDateTime = (dateString: string | null): string => {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+};
+
 // Check if a date string is valid
 export const isValidDateString = (dateString: string): boolean => {
   const regex = /^\d{4}-\d{2}-\d{2}$/;
@@ -269,6 +294,8 @@ export default {
   formatTime,
   formatDate,
   formatDateLong,
+  formatDateTime,
+  formatDuration,
   toDateTimeLocal,
   getSaturdayOfWeek,
   getFridayOfWeek,

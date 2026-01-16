@@ -5,9 +5,10 @@
  * Created: 2025-12-17
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Settings, RefreshCw, AlertCircle, X, Mail, CheckCircle, FileCheck, Loader2 } from 'lucide-react';
 import { dashboardPanelsApi, orderStatusApi } from '../../../services/api';
+import { useTasksSocket } from '../../../hooks/useTasksSocket';
 import { PanelWithData, DashboardPanelDefinition, PanelActionType, PanelOrderRow } from '../../../types/dashboardPanel';
 import DashboardPanel from './DashboardPanel';
 import PanelSelectionModal from './PanelSelectionModal';
@@ -57,7 +58,7 @@ export const PanelDashboard: React.FC = () => {
     }
   };
 
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     try {
       setRefreshing(true);
       const data = await dashboardPanelsApi.getDashboardData();
@@ -68,7 +69,18 @@ export const PanelDashboard: React.FC = () => {
     } finally {
       setRefreshing(false);
     }
-  };
+  }, []);
+
+  // WebSocket subscription for real-time updates
+  useTasksSocket({
+    onTasksUpdated: handleRefresh,
+    onOrderStatus: handleRefresh,
+    onOrderCreated: handleRefresh,
+    onOrderUpdated: handleRefresh,
+    onOrderDeleted: handleRefresh,
+    onInvoiceUpdated: handleRefresh,
+    onReconnect: handleRefresh
+  });
 
   const handleToggleCollapse = async (panelId: number, collapsed: boolean) => {
     try {

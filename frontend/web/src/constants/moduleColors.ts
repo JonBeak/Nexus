@@ -120,6 +120,15 @@ export const MODULE_COLORS = {
     lightText: 'text-gray-100',
     border: 'border-gray-700',
     name: 'Servers'
+  },
+  tasks: {
+    base: 'bg-blue-600',
+    hover: 'hover:bg-blue-700',
+    text: 'text-blue-600',
+    light: 'bg-blue-100',
+    lightText: 'text-blue-100',
+    border: 'border-blue-600',
+    name: 'My Tasks'
   }
 } as const;
 

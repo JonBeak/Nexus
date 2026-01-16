@@ -16,11 +16,13 @@ import { resolveCustomerId } from '../utils/quickbooks/entityResolver';
 import { quickbooksRepository } from '../repositories/quickbooksRepository';
 import { customerRepository } from '../repositories/customerRepository';
 import * as invoiceListingRepo from '../repositories/invoiceListingRepository';
+import * as orderPrepRepo from '../repositories/orderPreparationRepository';
 import {
   OpenInvoice,
   MultiPaymentInput,
   MultiPaymentResult
 } from '../types/qbInvoice';
+import { broadcastInvoiceUpdated } from '../websocket';
 
 // =============================================
 // INVOICE QUERIES
@@ -111,7 +113,8 @@ export async function getQBCustomerId(customerId: number): Promise<string> {
  * Create a payment in QuickBooks that applies to multiple invoices
  */
 export async function createMultiInvoicePayment(
-  input: MultiPaymentInput
+  input: MultiPaymentInput,
+  userId?: number
 ): Promise<MultiPaymentResult> {
   try {
     // 1. Validate input
@@ -152,7 +155,7 @@ export async function createMultiInvoicePayment(
 
     console.log(`Created multi-invoice payment: ${paymentId}, total: $${totalAmount}`);
 
-    // 6. Update cached balances for linked orders
+    // 6. Update cached balances for linked orders and broadcast events
     for (const alloc of input.allocations) {
       try {
         const orderId = await invoiceListingRepo.getOrderIdByQBInvoiceId(alloc.invoiceId);
@@ -161,6 +164,14 @@ export async function createMultiInvoicePayment(
           const updatedInvoice = await getQBInvoice(alloc.invoiceId, realmId);
           await invoiceListingRepo.updateCachedBalance(orderId, updatedInvoice.Balance, updatedInvoice.TotalAmt);
           console.log(`Updated cached balance for order ${orderId}: $${updatedInvoice.Balance}`);
+
+          // Broadcast invoice payment event for real-time updates
+          if (userId) {
+            const orderData = await orderPrepRepo.getOrderDataForQBEstimate(orderId);
+            if (orderData) {
+              broadcastInvoiceUpdated(orderId, orderData.order_number, 'payment', userId);
+            }
+          }
         }
       } catch (error) {
         // Log but don't fail the payment - cache will update on next sync

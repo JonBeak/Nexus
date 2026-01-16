@@ -6,3 +6,8 @@
 html, body, #root {
   height: 100%;
 }
+
+/* Hide scrollbar utility - used for custom scrollbar implementations */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}

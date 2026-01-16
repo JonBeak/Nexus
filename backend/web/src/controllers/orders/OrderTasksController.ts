@@ -11,6 +11,7 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../../types';
 import { orderTaskService } from '../../services/orderTaskService';
+import { taskSessionService } from '../../services/taskSessionService';
 import { parseIntParam, sendErrorResponse } from '../../utils/controllerHelpers';
 import { getOrderIdFromNumber } from './OrderCrudController';
 
@@ -122,10 +123,12 @@ export const updateTaskCompletion = async (req: Request, res: Response) => {
  */
 export const getTasksByRole = async (req: Request, res: Response) => {
   try {
+    const authReq = req as AuthRequest;
+    const currentUserId = authReq.user?.user_id;
     const includeCompleted = req.query.includeCompleted === 'true';
     const hoursBack = req.query.hoursBack ? parseIntParam(req.query.hoursBack as string, 'hoursBack') ?? 24 : 24;
 
-    const tasksByRole = await orderTaskService.getTasksByRole(includeCompleted, hoursBack);
+    const tasksByRole = await orderTaskService.getTasksByRole(includeCompleted, hoursBack, currentUserId);
 
     res.json({
       success: true,
@@ -138,8 +141,22 @@ export const getTasksByRole = async (req: Request, res: Response) => {
 };
 
 /**
- * Batch update tasks (start/complete)
+ * Batch update tasks (start/complete) with optimistic locking support
  * PUT /api/orders/tasks/batch-update
+ *
+ * Request body:
+ * {
+ *   updates: Array<{
+ *     task_id: number,
+ *     started?: boolean,
+ *     completed?: boolean,
+ *     expected_version?: number  // Optional - for optimistic locking
+ *   }>
+ * }
+ *
+ * Response:
+ * - 200: All updates succeeded (or no version checking used)
+ * - 409: One or more version conflicts detected
  */
 export const batchUpdateTasks = async (req: Request, res: Response) => {
   try {
@@ -154,20 +171,37 @@ export const batchUpdateTasks = async (req: Request, res: Response) => {
       return sendErrorResponse(res, 'Updates array is required', 'VALIDATION_ERROR');
     }
 
-    const statusChanges = await orderTaskService.batchUpdateTasks(updates, user.user_id);
+    const result = await orderTaskService.batchUpdateTasks(updates, user.user_id);
 
     // Convert Map to object for JSON response
     const statusUpdates: Record<number, string> = {};
-    statusChanges.forEach((status, orderId) => {
+    result.statusChanges.forEach((status, orderId) => {
       statusUpdates[orderId] = status;
     });
 
     console.log('[batchUpdateTasks] Status changes:', statusUpdates);
 
+    // If there are conflicts, return 409 with conflict details
+    if (result.conflicts.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'One or more tasks were modified by another user',
+        code: 'VERSION_CONFLICT',
+        data: {
+          conflicts: result.conflicts,
+          updatedTasks: result.updatedTasks,
+          statusUpdates
+        }
+      });
+    }
+
     res.json({
       success: true,
       message: `Successfully updated ${updates.length} tasks`,
-      data: { statusUpdates }  // Wrap in data for interceptor compatibility
+      data: {
+        statusUpdates,
+        updatedTasks: result.updatedTasks  // Include new versions for client sync
+      }
     });
   } catch (error) {
     console.error('Error batch updating tasks:', error);
@@ -182,6 +216,7 @@ export const batchUpdateTasks = async (req: Request, res: Response) => {
  */
 export const addTaskToOrderPart = async (req: Request, res: Response) => {
   try {
+    const user = (req as AuthRequest).user;
     const { orderNumber, partId } = req.params;
     const orderId = await getOrderIdFromNumber(orderNumber);
 
@@ -204,7 +239,8 @@ export const addTaskToOrderPart = async (req: Request, res: Response) => {
       orderId,
       partIdNum,
       task_name,
-      assigned_role
+      assigned_role,
+      user?.user_id
     );
 
     res.json({
@@ -225,6 +261,7 @@ export const addTaskToOrderPart = async (req: Request, res: Response) => {
  */
 export const removeTask = async (req: Request, res: Response) => {
   try {
+    const user = (req as AuthRequest).user;
     const { taskId } = req.params;
     const taskIdNum = parseIntParam(taskId, 'task ID');
 
@@ -232,7 +269,7 @@ export const removeTask = async (req: Request, res: Response) => {
       return sendErrorResponse(res, 'Invalid task ID', 'VALIDATION_ERROR');
     }
 
-    await orderTaskService.removeTask(taskIdNum);
+    await orderTaskService.removeTask(taskIdNum, user?.user_id);
 
     res.json({
       success: true,
@@ -298,6 +335,7 @@ export const removeTasksForPart = async (req: Request, res: Response) => {
  */
 export const updateTaskNotes = async (req: Request, res: Response) => {
   try {
+    const user = (req as AuthRequest).user;
     const { taskId } = req.params;
     const { notes } = req.body;
     const taskIdNum = parseIntParam(taskId, 'task ID');
@@ -309,7 +347,7 @@ export const updateTaskNotes = async (req: Request, res: Response) => {
     // Allow null/empty to clear notes
     const notesValue = notes === '' || notes === undefined ? null : notes;
 
-    await orderTaskService.updateTaskNotes(taskIdNum, notesValue);
+    await orderTaskService.updateTaskNotes(taskIdNum, notesValue, user?.user_id);
 
     res.json({
       success: true,
@@ -318,5 +356,114 @@ export const updateTaskNotes = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error updating task notes:', error);
     return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to update task notes', 'INTERNAL_ERROR');
+  }
+};
+
+// =====================================================
+// SESSION MANAGEMENT (Manager Features)
+// =====================================================
+
+/**
+ * Start a task session for any user (manager feature)
+ * POST /api/orders/tasks/:taskId/sessions
+ * Permission: orders.update (Manager+ only)
+ * Body: { user_id: number }
+ */
+export const startTaskSession = async (req: Request, res: Response) => {
+  try {
+    const { taskId } = req.params;
+    const { user_id } = req.body;
+    const taskIdNum = parseIntParam(taskId, 'task ID');
+
+    if (taskIdNum === null) {
+      return sendErrorResponse(res, 'Invalid task ID', 'VALIDATION_ERROR');
+    }
+
+    if (!user_id || typeof user_id !== 'number') {
+      return sendErrorResponse(res, 'user_id is required and must be a number', 'VALIDATION_ERROR');
+    }
+
+    // Start session with role validation bypassed (manager assignment)
+    const result = await taskSessionService.startTaskSession(taskIdNum, user_id, true);
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error starting task session:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to start session';
+
+    if (errorMessage.includes('already have an active session')) {
+      return sendErrorResponse(res, errorMessage, 'VALIDATION_ERROR');
+    }
+    if (errorMessage.includes('not found') || errorMessage.includes('already completed')) {
+      return sendErrorResponse(res, errorMessage, 'NOT_FOUND');
+    }
+
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Stop a task session by session ID (manager feature)
+ * POST /api/orders/sessions/:sessionId/stop
+ * Permission: orders.update (Manager+ only)
+ */
+export const stopTaskSessionById = async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.params;
+    const sessionIdNum = parseIntParam(sessionId, 'session ID');
+
+    if (sessionIdNum === null) {
+      return sendErrorResponse(res, 'Invalid session ID', 'VALIDATION_ERROR');
+    }
+
+    const result = await taskSessionService.stopSessionById(sessionIdNum);
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error stopping session:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to stop session';
+
+    if (errorMessage.includes('not found')) {
+      return sendErrorResponse(res, errorMessage, 'NOT_FOUND');
+    }
+    if (errorMessage.includes('already ended')) {
+      return sendErrorResponse(res, errorMessage, 'VALIDATION_ERROR');
+    }
+
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Get active sessions for a task
+ * GET /api/orders/tasks/:taskId/sessions/active
+ * Permission: orders.view (All roles)
+ */
+export const getActiveTaskSessions = async (req: Request, res: Response) => {
+  try {
+    const { taskId } = req.params;
+    const taskIdNum = parseIntParam(taskId, 'task ID');
+
+    if (taskIdNum === null) {
+      return sendErrorResponse(res, 'Invalid task ID', 'VALIDATION_ERROR');
+    }
+
+    // Import repository directly for this simple query
+    const { taskSessionRepository } = await import('../../repositories/taskSessionRepository');
+    const activeSessions = await taskSessionRepository.getActiveSessionsForTask(taskIdNum);
+
+    res.json({
+      success: true,
+      data: activeSessions
+    });
+  } catch (error) {
+    console.error('Error getting active sessions:', error);
+    return sendErrorResponse(res, error instanceof Error ? error.message : 'Failed to get sessions', 'INTERNAL_ERROR');
   }
 };

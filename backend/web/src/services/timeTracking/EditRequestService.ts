@@ -24,6 +24,11 @@ import {
   PendingEditRequest,
   ApiResponse
 } from '../../types/TimeTypes';
+import {
+  broadcastTimeEditRequestSubmitted,
+  broadcastTimeEditRequestProcessed,
+  broadcastTimeEditRequestCount
+} from '../../websocket';
 
 /**
  * Edit Request Service
@@ -57,7 +62,7 @@ export class EditRequestService {
     const utcClockOut = convertLocalToUTC(data.requested_clock_out);
 
     // Create new request
-    await EditRequestRepository.createEditRequest({
+    const requestId = await EditRequestRepository.createEditRequest({
       entry_id: data.entry_id,
       user_id: user.user_id,
       requested_clock_in: utcClockIn,
@@ -66,9 +71,24 @@ export class EditRequestService {
       reason: data.reason
     });
 
-    return { 
+    // Broadcast to managers
+    const staffName = `${user.first_name} ${user.last_name}`;
+    const entryDate = entry.clock_in ? new Date(entry.clock_in).toISOString().split('T')[0] : 'Unknown';
+    broadcastTimeEditRequestSubmitted(
+      requestId,
+      data.entry_id,
+      'edit',
+      user.user_id,
+      staffName,
+      entryDate
+    );
+    // Broadcast updated count
+    const count = await EditRequestRepository.getPendingCount();
+    broadcastTimeEditRequestCount(count);
+
+    return {
       success: true,
-      message: 'Edit request submitted successfully' 
+      message: 'Edit request submitted successfully'
     };
   }
 
@@ -90,15 +110,30 @@ export class EditRequestService {
     await EditRequestRepository.cancelPendingRequests(data.entry_id);
 
     // Create new delete request
-    await EditRequestRepository.createDeleteRequest({
+    const requestId = await EditRequestRepository.createDeleteRequest({
       entry_id: data.entry_id,
       user_id: user.user_id,
       reason: data.reason
     });
 
-    return { 
+    // Broadcast to managers
+    const staffName = `${user.first_name} ${user.last_name}`;
+    const entryDate = entry.clock_in ? new Date(entry.clock_in).toISOString().split('T')[0] : 'Unknown';
+    broadcastTimeEditRequestSubmitted(
+      requestId,
+      data.entry_id,
+      'delete',
+      user.user_id,
+      staffName,
+      entryDate
+    );
+    // Broadcast updated count
+    const count = await EditRequestRepository.getPendingCount();
+    broadcastTimeEditRequestCount(count);
+
+    return {
       success: true,
-      message: 'Delete request submitted successfully' 
+      message: 'Delete request submitted successfully'
     };
   }
 
@@ -190,6 +225,26 @@ export class EditRequestService {
       reviewer_notes: data.reviewer_notes,
       reviewer_name: `${user.first_name} ${user.last_name}`
     });
+
+    // Broadcast to staff member who submitted the request
+    const reviewerName = `${user.first_name} ${user.last_name}`;
+    // Convert action to past tense for broadcast
+    const actionPastTense = data.action === 'approve' ? 'approved'
+      : data.action === 'reject' ? 'rejected'
+      : 'modified';
+    broadcastTimeEditRequestProcessed(
+      data.request_id,
+      request.entry_id,
+      actionPastTense,
+      request.request_type as 'edit' | 'delete',
+      request.user_id,
+      user.user_id,
+      reviewerName
+    );
+
+    // Broadcast updated pending count
+    const count = await EditRequestRepository.getPendingCount();
+    broadcastTimeEditRequestCount(count);
 
     return {
       success: true,

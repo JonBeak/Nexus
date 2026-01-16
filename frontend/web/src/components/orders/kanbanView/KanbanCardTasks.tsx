@@ -1,6 +1,8 @@
 /**
  * KanbanCardTasks - Expandable task list for Kanban cards
  * Shows tasks grouped by parts with headers
+ *
+ * Updated: 2025-01-15 - Added manager session modal support
  */
 
 import React from 'react';
@@ -15,6 +17,9 @@ interface KanbanCardTasksProps {
   onTaskComplete: (taskId: number) => void;
   onTaskUncomplete: (taskId: number) => void;
   onTaskUnstart: (taskId: number) => void;
+  // Manager session modal support
+  isManager?: boolean;
+  onOpenSessionsModal?: (taskId: number, taskRole: string | null) => void;
 }
 
 export const KanbanCardTasks: React.FC<KanbanCardTasksProps> = ({
@@ -23,7 +28,9 @@ export const KanbanCardTasks: React.FC<KanbanCardTasksProps> = ({
   onTaskStart,
   onTaskComplete,
   onTaskUncomplete,
-  onTaskUnstart
+  onTaskUnstart,
+  isManager = false,
+  onOpenSessionsModal
 }) => {
   if (loading) {
     return (
@@ -69,9 +76,15 @@ export const KanbanCardTasks: React.FC<KanbanCardTasksProps> = ({
                     </button>
                   ) : task.started_at ? (
                     <button
-                      onClick={() => onTaskUnstart(task.task_id)}
+                      onClick={() => {
+                        if (isManager && onOpenSessionsModal) {
+                          onOpenSessionsModal(task.task_id, task.assigned_role || null);
+                        } else {
+                          onTaskUnstart(task.task_id);
+                        }
+                      }}
                       className="hover:opacity-70 transition-opacity"
-                      title="Mark as not started"
+                      title={isManager ? 'Manage sessions' : 'Mark as not started'}
                     >
                       <PlayCircle className="w-4 h-4 text-blue-500" />
                     </button>
@@ -109,9 +122,15 @@ export const KanbanCardTasks: React.FC<KanbanCardTasksProps> = ({
                 {/* Start button for not-started tasks */}
                 {!task.completed && !task.started_at && (
                   <button
-                    onClick={() => onTaskStart(task.task_id)}
+                    onClick={() => {
+                      if (isManager && onOpenSessionsModal) {
+                        onOpenSessionsModal(task.task_id, task.assigned_role || null);
+                      } else {
+                        onTaskStart(task.task_id);
+                      }
+                    }}
                     className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-blue-600 hover:bg-blue-100 rounded"
-                    title="Start task"
+                    title={isManager ? 'Manage sessions' : 'Start task'}
                   >
                     <PlayCircle className="w-3.5 h-3.5" />
                   </button>

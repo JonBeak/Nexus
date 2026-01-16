@@ -12,18 +12,35 @@ import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface Props {
   part: PartWithTasks;
-  taskColumns: string[];  // List of all visible task keys (taskName or taskName|notes) in order
-  taskTypesNeedingSplit: Set<string>;  // Task types that need composite keys
+  taskColumns: string[];  // List of column keys: "TaskName" or "TaskName#1", "TaskName#2", etc.
   onTaskToggle: (taskId: number, completed: boolean) => void;
   onStatusClick: (orderNumber: number, orderName: string, currentStatus: OrderStatus) => void;
+  isMobile: boolean;
 }
+
+// Parse column key to get base task name and optional index
+// "TaskName" -> { baseName: "TaskName", index: 0 }
+// "TaskName#2" -> { baseName: "TaskName", index: 1 } (0-indexed)
+const parseColumnKey = (columnKey: string): { baseName: string; index: number } => {
+  const hashIndex = columnKey.lastIndexOf('#');
+  if (hashIndex > 0) {
+    const suffix = columnKey.slice(hashIndex + 1);
+    if (/^\d+$/.test(suffix)) {
+      return {
+        baseName: columnKey.slice(0, hashIndex),
+        index: parseInt(suffix, 10) - 1  // Convert 1-indexed to 0-indexed
+      };
+    }
+  }
+  return { baseName: columnKey, index: 0 };
+};
 
 export const PartRow: React.FC<Props> = ({
   part,
   taskColumns,
-  taskTypesNeedingSplit,
   onTaskToggle,
-  onStatusClick
+  onStatusClick,
+  isMobile
 }) => {
   const navigate = useNavigate();
 
@@ -76,29 +93,25 @@ export const PartRow: React.FC<Props> = ({
   // Line 3: Customer
   const line3 = part.customerName || '';
 
-  // Create a map for task lookup
-  // For task types that need splitting: use composite key (taskKey)
-  // For task types that don't need splitting: use just taskName
-  const taskMap = new Map<string, PartTask>();
+  // Group tasks by taskName for positional lookup
+  // Each task type maps to an array of tasks (in order they appear)
+  const tasksByName = new Map<string, PartTask[]>();
   for (const task of part.tasks) {
-    if (taskTypesNeedingSplit.has(task.taskName)) {
-      // This task type needs splitting - use composite key
-      const key = task.taskKey || task.taskName;
-      if (key) taskMap.set(key, task);
-    } else {
-      // This task type doesn't need splitting - use just task name
-      if (task.taskName) taskMap.set(task.taskName, task);
+    if (task.taskName) {
+      const existing = tasksByName.get(task.taskName) || [];
+      existing.push(task);
+      tasksByName.set(task.taskName, existing);
     }
   }
 
   return (
     <tr className={`border-b ${PAGE_STYLES.panel.border} group`}>
-      {/* Order / Part - Three line display: Order#: Name / Part Type: Scope / Customer - sticky, fixed width */}
+      {/* Order / Part - Three line display: Order#: Name / Part Type: Scope / Customer - always sticky */}
       <td
         className={`px-2 py-1 border-r ${PAGE_STYLES.panel.border} overflow-hidden sticky z-10 group-hover:!bg-gray-50`}
-        style={{ left: 0, width: '280px', backgroundColor: 'var(--theme-panel-bg)' }}
+        style={{ left: 0, width: isMobile ? '140px' : '280px', backgroundColor: 'var(--theme-panel-bg)' }}
       >
-        <div className="truncate">
+        <div className={isMobile ? 'break-words whitespace-normal' : 'truncate'}>
           <a
             href={`/orders/${part.orderNumber}`}
             onClick={handleOrderClick}
@@ -107,20 +120,20 @@ export const PartRow: React.FC<Props> = ({
             {line1}
           </a>
         </div>
-        <div className={`text-xs ${PAGE_STYLES.panel.textMuted} truncate`}>
+        <div className={`text-xs ${PAGE_STYLES.panel.textMuted} ${isMobile ? 'break-words whitespace-normal' : 'truncate'}`}>
           {line2}
         </div>
         {line3 && (
-          <div className={`text-xs ${PAGE_STYLES.panel.textMuted} truncate opacity-70`}>
+          <div className={`text-xs ${PAGE_STYLES.panel.textMuted} ${isMobile ? 'break-words whitespace-normal' : 'truncate'} opacity-70`}>
             {line3}
           </div>
         )}
       </td>
 
-      {/* Status column - clickable to change - sticky, fixed width */}
+      {/* Status column - clickable to change - sticky on desktop only */}
       <td
-        className={`px-1 py-1 whitespace-nowrap text-center border-r ${PAGE_STYLES.panel.border} sticky z-10 group-hover:!bg-gray-50`}
-        style={{ left: '280px', width: '120px', backgroundColor: 'var(--theme-panel-bg)' }}
+        className={`px-1 py-1 whitespace-nowrap text-center border-r ${PAGE_STYLES.panel.border} ${isMobile ? '' : 'sticky z-10'} group-hover:!bg-gray-50`}
+        style={isMobile ? { width: '120px', backgroundColor: 'var(--theme-panel-bg)' } : { left: '280px', width: '120px', backgroundColor: 'var(--theme-panel-bg)' }}
       >
         <button
           onClick={() => onStatusClick(part.orderNumber, part.orderName, part.orderStatus)}
@@ -131,32 +144,38 @@ export const PartRow: React.FC<Props> = ({
         </button>
       </td>
 
-      {/* Due Date (Day, Mon d format) - red background if hard due - sticky, fixed width */}
+      {/* Due Date (Day, Mon d format) - red background if hard due - sticky on desktop only */}
       <td
-        className={`px-1 py-1 whitespace-nowrap text-xs border-r ${PAGE_STYLES.panel.border} text-center sticky z-10 ${
+        className={`px-1 py-1 whitespace-nowrap text-xs border-r ${PAGE_STYLES.panel.border} text-center ${isMobile ? '' : 'sticky z-10'} ${
           isHardDue ? 'text-red-800 font-semibold' : `group-hover:!bg-gray-50 ${PAGE_STYLES.panel.textMuted}`
         }`}
-        style={{ left: '400px', width: '80px', backgroundColor: isHardDue ? '#fee2e2' : 'var(--theme-panel-bg)' }}
+        style={isMobile
+          ? { width: '80px', backgroundColor: isHardDue ? '#fee2e2' : 'var(--theme-panel-bg)' }
+          : { left: '400px', width: '80px', backgroundColor: isHardDue ? '#fee2e2' : 'var(--theme-panel-bg)' }}
       >
         {formatDate(part.dueDate)}
       </td>
 
-      {/* Hard Due Time - red background if set - sticky, fixed width */}
+      {/* Hard Due Time - red background if set - sticky on desktop only */}
       <td
-        className={`px-1 py-1 whitespace-nowrap text-xs text-center border-r ${PAGE_STYLES.panel.border} sticky z-10 ${
+        className={`px-1 py-1 whitespace-nowrap text-xs text-center border-r ${PAGE_STYLES.panel.border} ${isMobile ? '' : 'sticky z-10'} ${
           isHardDue ? 'text-red-800 font-semibold' : `group-hover:!bg-gray-50 ${PAGE_STYLES.panel.textMuted}`
         }`}
-        style={{ left: '480px', width: '64px', backgroundColor: isHardDue ? '#fee2e2' : 'var(--theme-panel-bg)' }}
+        style={isMobile
+          ? { width: '64px', backgroundColor: isHardDue ? '#fee2e2' : 'var(--theme-panel-bg)' }
+          : { left: '480px', width: '64px', backgroundColor: isHardDue ? '#fee2e2' : 'var(--theme-panel-bg)' }}
       >
         {isHardDue ? formatTime(part.hardDueTime) : '-'}
       </td>
 
-      {/* Task cells - one per visible task column (using taskKey for lookup) */}
-      {taskColumns.map((taskKey) => {
-        const task = taskMap.get(taskKey);
+      {/* Task cells - one per visible task column (positional lookup) */}
+      {taskColumns.map((columnKey) => {
+        const { baseName, index } = parseColumnKey(columnKey);
+        const tasksForType = tasksByName.get(baseName) || [];
+        const task = tasksForType[index];  // undefined if index out of bounds (N/A)
         return (
           <TaskCell
-            key={taskKey}
+            key={columnKey}
             task={task}
             onToggle={onTaskToggle}
           />

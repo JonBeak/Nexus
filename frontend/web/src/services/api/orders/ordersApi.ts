@@ -50,6 +50,7 @@ export const ordersApi = {
    * Update order details
    */
   async updateOrder(orderNumber: number, updates: {
+    order_name?: string;
     customer_po?: string;
     customer_job_number?: string;
     due_date?: string;
@@ -143,5 +144,18 @@ export const ordersApi = {
   async getCustomerTax(orderNumber: number): Promise<string> {
     const response = await api.get(`/orders/${orderNumber}/customer-tax`);
     return response.data.tax_name;
+  },
+
+  /**
+   * Check awaiting payment orders for auto-completion
+   * Called on page load to sync balance and auto-complete paid orders
+   */
+  async checkAwaitingPayments(): Promise<{
+    checked: number;
+    autoCompleted: number;
+    errors: number;
+  }> {
+    const response = await api.post('/orders/check-awaiting-payments');
+    return response.data;
   },
 };

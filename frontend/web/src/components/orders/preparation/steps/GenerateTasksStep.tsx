@@ -26,6 +26,7 @@ interface GenerateTasksStepProps {
   onStateChange: (state: PreparationState) => void;
   order: Order;
   isOpen: boolean;
+  onDataChanged?: () => void;
 }
 
 interface PaintingWarning {
@@ -44,7 +45,8 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
   state,
   onStateChange,
   order,
-  isOpen
+  isOpen,
+  onDataChanged
 }) => {
   const orderNumber = order.order_number;
   const [message, setMessage] = useState<string>('');
@@ -139,6 +141,7 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
         steps: updateStepStatus(prev.steps, step.id, 'completed')
       }));
       setMessage('✓ Production tasks generated successfully');
+      onDataChanged?.();
     } catch (error) {
       console.error('Error generating tasks:', error);
       onStateChange(prev => ({
@@ -171,6 +174,7 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
         steps: updateStepStatus(prev.steps, step.id, 'completed')
       }));
       setMessage('✓ Production tasks generated successfully');
+      onDataChanged?.();
     } catch (error) {
       console.error('Error resolving unknown applications:', error);
       setMessage('Failed to create tasks for unknown applications');

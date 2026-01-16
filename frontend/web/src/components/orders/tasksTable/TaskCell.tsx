@@ -1,22 +1,16 @@
 /**
  * TaskCell Component
- * Renders a task completion cell with appropriate state icon and colors
- * States: ✓ (complete - green), ◯ (pending - role color), - (N/A - dark gray)
+ * Renders a task completion cell with checkbox and note below
+ * States: checkmark (complete - green), empty box (pending - role color), dash (N/A - dark gray)
  */
 
 import React from 'react';
 import { Check, Minus } from 'lucide-react';
-import { PartTask } from './types';
+import { TaskCellProps } from './types';
 import { getRoleColors } from './roleColors';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
 
-interface Props {
-  task: PartTask | undefined;  // undefined = N/A (task doesn't apply to this part)
-  onToggle?: (taskId: number, completed: boolean) => void;
-  disabled?: boolean;
-}
-
-export const TaskCell: React.FC<Props> = ({ task, onToggle, disabled = false }) => {
+export const TaskCell: React.FC<TaskCellProps> = ({ task, onToggle, disabled = false }) => {
   // N/A state - task doesn't exist for this part (darker gray, grabbable for scrolling)
   if (!task) {
     return (
@@ -30,6 +24,7 @@ export const TaskCell: React.FC<Props> = ({ task, onToggle, disabled = false }) 
 
   const colors = getRoleColors(task.role);
   const isClickable = !disabled && onToggle;
+  const hasNote = !!task.notes;
 
   const handleClick = () => {
     if (isClickable) {
@@ -41,15 +36,24 @@ export const TaskCell: React.FC<Props> = ({ task, onToggle, disabled = false }) 
   if (task.completed) {
     return (
       <td
-        className={`px-1 py-1 text-center border-r ${PAGE_STYLES.panel.border} bg-emerald-100 ring-2 ring-inset ring-emerald-400 ${isClickable ? 'cursor-pointer hover:bg-emerald-200' : ''}`}
+        className={`px-1 text-center border-r ${PAGE_STYLES.panel.border} bg-emerald-100 ring-2 ring-inset ring-emerald-400 ${isClickable ? 'cursor-pointer hover:bg-emerald-200' : ''}`}
         onClick={handleClick}
         title={task.notes || task.taskName}
         data-task-cell
+        style={{ paddingTop: hasNote ? '4px' : '4px', paddingBottom: hasNote ? '2px' : '4px' }}
       >
-        <div className="flex items-center justify-center">
-          <div className="w-5 h-5 rounded border-2 border-emerald-500 bg-emerald-500 flex items-center justify-center">
+        <div className="flex flex-col items-center">
+          <div className="w-5 h-5 rounded border-2 border-emerald-500 bg-emerald-500 flex items-center justify-center flex-shrink-0">
             <Check className="w-3 h-3 text-white" strokeWidth={3} />
           </div>
+          {hasNote && (
+            <span
+              className="text-emerald-800 mt-0.5 leading-tight text-center max-w-[70px] break-words"
+              style={{ fontSize: '9px', lineHeight: '1.1' }}
+            >
+              {task.notes}
+            </span>
+          )}
         </div>
       </td>
     );
@@ -58,13 +62,22 @@ export const TaskCell: React.FC<Props> = ({ task, onToggle, disabled = false }) 
   // Pending state - role color with empty checkbox and inset ring outline
   return (
     <td
-      className={`px-1 py-1 text-center border-r ${PAGE_STYLES.panel.border} ${colors.cellBg} ring-2 ring-inset ${colors.ring} ${isClickable ? 'cursor-pointer hover:opacity-80' : ''}`}
+      className={`px-1 text-center border-r ${PAGE_STYLES.panel.border} ${colors.cellBg} ring-2 ring-inset ${colors.ring} ${isClickable ? 'cursor-pointer hover:opacity-80' : ''}`}
       onClick={handleClick}
       title={task.notes || task.taskName}
       data-task-cell
+      style={{ paddingTop: hasNote ? '4px' : '4px', paddingBottom: hasNote ? '2px' : '4px' }}
     >
-      <div className="flex items-center justify-center">
-        <div className={`w-5 h-5 rounded border-2 ${PAGE_STYLES.panel.border} ${PAGE_STYLES.panel.background}`} />
+      <div className="flex flex-col items-center">
+        <div className={`w-5 h-5 rounded border-2 ${PAGE_STYLES.panel.border} ${PAGE_STYLES.panel.background} flex-shrink-0`} />
+        {hasNote && (
+          <span
+            className="text-gray-700 mt-0.5 leading-tight text-center max-w-[70px] break-words"
+            style={{ fontSize: '9px', lineHeight: '1.1' }}
+          >
+            {task.notes}
+          </span>
+        )}
       </div>
     </td>
   );

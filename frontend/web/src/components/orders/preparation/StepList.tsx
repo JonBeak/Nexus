@@ -51,7 +51,7 @@ export const StepList: React.FC<StepListProps> = ({
         return <GeneratePDFsStep key={step.id} {...commonProps} />;
 
       case 'generate_tasks':
-        return <GenerateTasksStep key={step.id} {...commonProps} />;
+        return <GenerateTasksStep key={step.id} {...commonProps} onDataChanged={onDataChanged} />;
 
       default:
         console.warn(`Unknown step ID: ${step.id}`);

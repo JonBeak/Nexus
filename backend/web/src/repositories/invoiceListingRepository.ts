@@ -350,9 +350,10 @@ export async function getOrderForBalanceSync(orderId: number): Promise<{
   order_number: number;
   qb_invoice_id: string | null;
   cached_balance: number | null;
+  status: string;
 } | null> {
   const rows = await query(
-    `SELECT order_id, order_number, qb_invoice_id, cached_balance
+    `SELECT order_id, order_number, qb_invoice_id, cached_balance, status
      FROM orders
      WHERE order_id = ?`,
     [orderId]
@@ -364,8 +365,33 @@ export async function getOrderForBalanceSync(orderId: number): Promise<{
     order_id: rows[0].order_id,
     order_number: rows[0].order_number,
     qb_invoice_id: rows[0].qb_invoice_id,
-    cached_balance: rows[0].cached_balance !== null ? parseFloat(rows[0].cached_balance) : null
+    cached_balance: rows[0].cached_balance !== null ? parseFloat(rows[0].cached_balance) : null,
+    status: rows[0].status
   };
+}
+
+/**
+ * Get all orders in awaiting_payment status with linked invoices
+ * Used for automatic payment checking
+ */
+export async function getAwaitingPaymentOrders(): Promise<Array<{
+  order_id: number;
+  order_number: number;
+  qb_invoice_id: string;
+}>> {
+  const rows = await query(
+    `SELECT order_id, order_number, qb_invoice_id
+     FROM orders
+     WHERE status = 'awaiting_payment'
+       AND qb_invoice_id IS NOT NULL`,
+    []
+  ) as RowDataPacket[];
+
+  return rows.map(row => ({
+    order_id: row.order_id,
+    order_number: row.order_number,
+    qb_invoice_id: row.qb_invoice_id
+  }));
 }
 
 /**

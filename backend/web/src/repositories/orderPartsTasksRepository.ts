@@ -66,7 +66,7 @@ export class OrderPartsTasksRepository {
     ];
     const queryParams: any[] = [];
 
-    // Search filter
+    // Search filter - includes task names and notes
     if (params.search) {
       conditions.push(`(
         o.order_number LIKE ? OR
@@ -74,10 +74,12 @@ export class OrderPartsTasksRepository {
         c.company_name LIKE ? OR
         op.product_type LIKE ? OR
         op.specs_display_name LIKE ? OR
-        op.part_scope LIKE ?
+        op.part_scope LIKE ? OR
+        ot.task_name LIKE ? OR
+        ot.notes LIKE ?
       )`);
       const searchPattern = `%${params.search}%`;
-      queryParams.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+      queryParams.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
     }
 
     const whereClause = conditions.length > 0

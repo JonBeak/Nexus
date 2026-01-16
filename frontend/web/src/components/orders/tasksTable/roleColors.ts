@@ -210,7 +210,7 @@ export function getRoleColors(role: string | null | undefined): RoleColorConfig 
  * Get role for a task key using pre-fetched role map
  * For synchronous usage when metadata is already loaded from TaskMetadataResource
  *
- * @param taskKey - Task key (handles composite keys like "taskName|notes")
+ * @param taskKey - Column key (handles indexed keys like "TaskName#2")
  * @param taskRoleMap - Pre-fetched role map from TaskMetadataResource
  * @returns ProductionRole for the task, defaults to 'manager' if not found
  */
@@ -218,7 +218,10 @@ export function getTaskRoleSync(
   taskKey: string,
   taskRoleMap: Record<string, ProductionRole>
 ): ProductionRole {
-  // Extract base task name from composite key (before |)
-  const taskName = taskKey.split('|')[0];
+  // Extract base task name from column key (strip #N suffix if present)
+  const hashIndex = taskKey.lastIndexOf('#');
+  const taskName = (hashIndex > 0 && /^\d+$/.test(taskKey.slice(hashIndex + 1)))
+    ? taskKey.slice(0, hashIndex)
+    : taskKey;
   return taskRoleMap[taskName] || 'manager';
 }

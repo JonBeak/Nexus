@@ -61,11 +61,11 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-2 md:p-4"
       onMouseDown={handleBackdropMouseDown}
       onMouseUp={handleBackdropMouseUp}
     >
-      <div ref={modalContentRef} className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+      <div ref={modalContentRef} className="bg-white rounded-lg shadow-xl p-4 md:p-6 max-w-md w-full mx-2 md:mx-4">
         <div className="flex items-start space-x-3 mb-4">
           <CheckCircle className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
@@ -83,16 +83,16 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
           </div>
         )}
 
-        <div className="flex items-center justify-end space-x-3">
+        <div className="flex flex-col-reverse md:flex-row items-stretch md:items-center justify-end gap-2 md:gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            className="px-4 py-3 md:py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 active:bg-gray-100 min-h-[44px]"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className={`px-4 py-2 text-sm font-medium text-white rounded-lg ${colorClasses[confirmColor]}`}
+            className={`px-4 py-3 md:py-2 text-sm font-medium text-white rounded-lg ${colorClasses[confirmColor]} active:opacity-80 min-h-[44px]`}
           >
             {confirmText}
           </button>

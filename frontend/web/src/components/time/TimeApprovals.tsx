@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { timeApi } from '../../services/api';
 import type { TimeEditRequest, EditRequestDraft } from '../../types/time';
 import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
+import { useEditRequestsSocket } from '../../hooks/useEditRequestsSocket';
 import '../jobEstimation/JobEstimation.css';
 
 function TimeApprovals() {
@@ -27,6 +28,15 @@ function TimeApprovals() {
   useEffect(() => {
     fetchPendingRequests();
   }, [fetchPendingRequests]);
+
+  // WebSocket for real-time updates
+  // Use stable callback references to prevent reconnection loops
+  useEditRequestsSocket({
+    isManager: true,
+    onTimeRequestSubmitted: fetchPendingRequests,
+    onTimeRequestCount: fetchPendingRequests,
+    onReconnect: fetchPendingRequests
+  });
 
   const handleProcessRequest = async (action: 'approve' | 'reject') => {
     if (!selectedRequest) {

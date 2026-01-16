@@ -75,3 +75,13 @@ export interface TaskColumnInfo {
   taskName: string;
   role: ProductionRole | string;
 }
+
+/**
+ * Props for TaskCell component
+ * Accepts a single task (or undefined for N/A)
+ */
+export interface TaskCellProps {
+  task: PartTask | undefined;  // undefined = N/A (task doesn't apply to this part)
+  onToggle?: (taskId: number, completed: boolean) => void;
+  disabled?: boolean;
+}

@@ -1,5 +1,13 @@
+/**
+ * TaskItem Component
+ * Wrapper around TaskRow for order progress tasks
+ *
+ * Updated: 2025-01-15 - Added manager session modal support
+ */
+
 import React from 'react';
 import { ordersApi, orderTasksApi } from '../../../services/api';
+import { staffTasksApi } from '../../../services/api/staff/staffTasksApi';
 import { TaskRow } from '../common/TaskRow';
 
 interface Props {
@@ -7,12 +15,22 @@ interface Props {
   orderNumber: number;
   canRemove?: boolean;
   onUpdated: () => void;
+  // Manager session modal support
+  isManager?: boolean;
+  onOpenSessionsModal?: (taskId: number, taskRole: string | null) => void;
 }
 
-export const TaskItem: React.FC<Props> = ({ task, canRemove = false, onUpdated }) => {
+export const TaskItem: React.FC<Props> = ({
+  task,
+  canRemove = false,
+  onUpdated,
+  isManager = false,
+  onOpenSessionsModal
+}) => {
   const handleStart = async () => {
+    // Use session-based start for non-managers
     try {
-      await orderTasksApi.batchUpdateTasks([{ task_id: task.task_id, started: true }]);
+      await staffTasksApi.startTask(task.task_id);
       onUpdated();
     } catch (error) {
       console.error('Error starting task:', error);
@@ -38,8 +56,9 @@ export const TaskItem: React.FC<Props> = ({ task, canRemove = false, onUpdated }
   };
 
   const handleUnstart = async () => {
+    // Use session-based stop for non-managers
     try {
-      await orderTasksApi.batchUpdateTasks([{ task_id: task.task_id, started: false }]);
+      await staffTasksApi.stopTask(task.task_id);
       onUpdated();
     } catch (error) {
       console.error('Error un-starting task:', error);
@@ -75,6 +94,8 @@ export const TaskItem: React.FC<Props> = ({ task, canRemove = false, onUpdated }
       onUnstart={handleUnstart}
       onNotesChange={handleNotesChange}
       onRemove={canRemove && !task.completed ? handleRemove : undefined}
+      isManager={isManager}
+      onOpenSessionsModal={onOpenSessionsModal}
     />
   );
 };

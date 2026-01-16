@@ -13,6 +13,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Loader2, Link, Search, FileText, AlertCircle, Check, ChevronLeft, ChevronRight, Unlink, AlertTriangle } from 'lucide-react';
 import { qbInvoiceApi, CustomerInvoiceListItem, CustomerInvoiceListResult } from '../../../services/api';
+import { useIsMobile } from '../../../hooks/useMediaQuery';
+import { useBodyScrollLock } from '../../../hooks/useBodyScrollLock';
 
 interface LinkInvoiceModalProps {
   isOpen: boolean;
@@ -70,6 +72,10 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
   // Refs for backdrop click handling
   const modalContentRef = useRef<HTMLDivElement>(null);
   const mouseDownOutsideRef = useRef(false);
+
+  // Mobile detection
+  const isMobile = useIsMobile();
+  useBodyScrollLock(isOpen && isMobile);
 
   const PAGE_SIZE = 10;
 
@@ -235,11 +241,19 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      className={`fixed inset-0 bg-black bg-opacity-50 z-50 ${
+        isMobile
+          ? 'overflow-y-auto'
+          : 'flex items-center justify-center p-4'
+      }`}
       onMouseDown={handleBackdropMouseDown}
       onMouseUp={handleBackdropMouseUp}
     >
-      <div ref={modalContentRef} className="bg-white rounded-lg shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+      <div ref={modalContentRef} className={`bg-white rounded-lg shadow-2xl w-full flex flex-col ${
+        isMobile
+          ? 'min-h-full'
+          : 'max-w-lg max-h-[90vh]'
+      }`}>
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-start justify-between">
@@ -259,7 +273,7 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
             >
               <X className="w-5 h-5 text-gray-600" />
             </button>
@@ -396,17 +410,19 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
                   ) : invoiceList ? (
                     <>
                       {/* Invoice List */}
-                      <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                      <div className={`space-y-2 ${isMobile ? '' : 'max-h-[300px]'} overflow-y-auto`}>
                         {invoiceList.invoices.map((invoice) => (
                           <button
                             key={invoice.invoiceId}
                             onClick={() => setSelectedInvoice(
                               selectedInvoice?.invoiceId === invoice.invoiceId ? null : invoice
                             )}
-                            className={`w-full p-3 rounded-lg border text-left transition-colors ${
+                            className={`w-full rounded-lg border text-left transition-colors ${
+                              isMobile ? 'p-4 min-h-[72px]' : 'p-3'
+                            } ${
                               selectedInvoice?.invoiceId === invoice.invoiceId
                                 ? 'border-blue-500 bg-blue-50'
-                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 active:bg-gray-100'
                             }`}
                           >
                             <div className="flex justify-between items-start">
@@ -449,13 +465,15 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
                             onClick={() => loadInvoices(currentPage - 1)}
                             disabled={currentPage === 1 || loadingList}
                             className={`flex items-center gap-1 px-3 py-1.5 rounded text-sm ${
+                              isMobile ? 'min-h-[44px]' : ''
+                            } ${
                               currentPage === 1 || loadingList
                                 ? 'text-gray-400 cursor-not-allowed'
-                                : 'text-gray-600 hover:bg-gray-100'
+                                : 'text-gray-600 hover:bg-gray-100 active:bg-gray-200'
                             }`}
                           >
                             <ChevronLeft className="w-4 h-4" />
-                            Previous
+                            {!isMobile && 'Previous'}
                           </button>
                           <span className="text-sm text-gray-600">
                             Page {currentPage} of {invoiceList.totalPages}
@@ -464,12 +482,14 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
                             onClick={() => loadInvoices(currentPage + 1)}
                             disabled={currentPage === invoiceList.totalPages || loadingList}
                             className={`flex items-center gap-1 px-3 py-1.5 rounded text-sm ${
+                              isMobile ? 'min-h-[44px]' : ''
+                            } ${
                               currentPage === invoiceList.totalPages || loadingList
                                 ? 'text-gray-400 cursor-not-allowed'
-                                : 'text-gray-600 hover:bg-gray-100'
+                                : 'text-gray-600 hover:bg-gray-100 active:bg-gray-200'
                             }`}
                           >
-                            Next
+                            {!isMobile && 'Next'}
                             <ChevronRight className="w-4 h-4" />
                           </button>
                         </div>
@@ -599,10 +619,14 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between flex-shrink-0">
+        <div className={`px-6 py-4 border-t border-gray-200 bg-gray-50 flex ${
+          isMobile ? 'flex-col-reverse gap-2' : 'justify-between'
+        } flex-shrink-0`}>
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800"
+            className={`px-4 py-2 text-gray-600 hover:text-gray-800 active:text-gray-900 rounded-lg ${
+              isMobile ? 'min-h-[44px]' : ''
+            }`}
           >
             {success || unlinkSuccess ? 'Close' : 'Cancel'}
           </button>
@@ -611,12 +635,14 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
             <button
               onClick={handleLink}
               disabled={linking}
-              className={`px-6 py-2 rounded-lg font-medium flex items-center gap-2 ${
+              className={`px-6 py-2 rounded-lg font-medium flex items-center justify-center gap-2 ${
+                isMobile ? 'min-h-[44px]' : ''
+              } ${
                 linking
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : hasCurrentInvoice
-                    ? 'bg-orange-600 text-white hover:bg-orange-700'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                    ? 'bg-orange-600 text-white hover:bg-orange-700 active:bg-orange-800'
+                    : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
               }`}
             >
               {linking ? (

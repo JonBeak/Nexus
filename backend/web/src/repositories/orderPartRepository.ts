@@ -231,11 +231,17 @@ export class OrderPartRepository {
   }
 
   /**
-   * Get tasks for an order
+   * Get tasks for an order with session counts
    */
   async getOrderTasks(orderId: number): Promise<OrderTask[]> {
     const rows = await query(
-      `SELECT * FROM order_tasks WHERE order_id = ? ORDER BY sort_order, task_id`,
+      `SELECT
+        ot.*,
+        (SELECT COUNT(*) FROM task_sessions ts WHERE ts.task_id = ot.task_id AND ts.ended_at IS NULL) as active_sessions_count,
+        (SELECT COUNT(*) FROM task_sessions ts WHERE ts.task_id = ot.task_id) as total_sessions_count
+       FROM order_tasks ot
+       WHERE ot.order_id = ?
+       ORDER BY ot.sort_order, ot.task_id`,
       [orderId]
     ) as RowDataPacket[];
 
@@ -243,24 +249,68 @@ export class OrderPartRepository {
   }
 
   /**
-   * Update task completion status
-   * Accepts optional connection for use within transactions
+   * Update task completion status with optimistic locking
+   * Returns the new version on success, or null if version conflict
+   * If expectedVersion is not provided, skips version checking (backwards compatible)
    */
   async updateTaskCompletion(
     taskId: number,
     completed: boolean,
     userId?: number,
+    expectedVersion?: number,
     connection?: PoolConnection
-  ): Promise<void> {
+  ): Promise<{ success: boolean; newVersion: number | null; currentVersion?: number }> {
     const conn = connection || pool;
+
+    // If expectedVersion provided, use optimistic locking
+    if (expectedVersion !== undefined) {
+      const [result] = await conn.execute<ResultSetHeader>(
+        `UPDATE order_tasks
+         SET completed = ?,
+             completed_at = ${completed ? 'NOW()' : 'NULL'},
+             completed_by = ?,
+             version = version + 1
+         WHERE task_id = ? AND version = ?`,
+        [completed, completed ? userId : null, taskId, expectedVersion]
+      );
+
+      if (result.affectedRows === 0) {
+        // Version mismatch - get current version for error response
+        const [rows] = await conn.execute<RowDataPacket[]>(
+          'SELECT version FROM order_tasks WHERE task_id = ?',
+          [taskId]
+        );
+        const currentVersion = rows.length > 0 ? rows[0].version : null;
+        return { success: false, newVersion: null, currentVersion };
+      }
+
+      // Get the new version
+      const [rows] = await conn.execute<RowDataPacket[]>(
+        'SELECT version FROM order_tasks WHERE task_id = ?',
+        [taskId]
+      );
+
+      return { success: true, newVersion: rows[0]?.version || expectedVersion + 1 };
+    }
+
+    // No version checking (backwards compatible)
     await conn.execute(
       `UPDATE order_tasks
        SET completed = ?,
            completed_at = ${completed ? 'NOW()' : 'NULL'},
-           completed_by = ?
+           completed_by = ?,
+           version = version + 1
        WHERE task_id = ?`,
       [completed, completed ? userId : null, taskId]
     );
+
+    // Get the new version
+    const [rows] = await conn.execute<RowDataPacket[]>(
+      'SELECT version FROM order_tasks WHERE task_id = ?',
+      [taskId]
+    );
+
+    return { success: true, newVersion: rows[0]?.version || 1 };
   }
 
   /**
@@ -285,12 +335,13 @@ export class OrderPartRepository {
   }
 
   /**
-   * Get tasks by role with order/customer info
+   * Get tasks by role with order/customer info and session data
    */
   async getTasksByRole(
     role: string,
     includeCompleted: boolean,
-    hoursBack: number
+    hoursBack: number,
+    currentUserId?: number
   ): Promise<any[]> {
     // Handle completed filter: hoursBack=0 means "all time" (no time restriction)
     const completedFilter = includeCompleted
@@ -299,12 +350,18 @@ export class OrderPartRepository {
         : 'AND ot.completed = 1'
       : 'AND ot.completed = 0';
 
-    const params = includeCompleted && hoursBack > 0 ? [role, hoursBack] : [role];
+    // Build params array based on query needs
+    const params: (string | number)[] = [];
+    if (currentUserId) params.push(currentUserId);
+    params.push(role);
+    if (includeCompleted && hoursBack > 0) params.push(hoursBack);
 
     const rows = await query(
       `SELECT
         ot.task_id,
         ot.task_name,
+        ot.part_id,
+        ot.assigned_role,
         ot.completed,
         ot.completed_at,
         ot.started_at,
@@ -315,13 +372,17 @@ export class OrderPartRepository {
         c.company_name as customer_name,
         op.specs_display_name,
         op.part_scope,
-        op.part_number
+        op.part_number,
+        -- Session aggregates
+        (SELECT COUNT(*) FROM task_sessions ts WHERE ts.task_id = ot.task_id AND ts.ended_at IS NULL) as active_sessions_count,
+        (SELECT COUNT(*) FROM task_sessions ts WHERE ts.task_id = ot.task_id) as total_sessions_count,
+        ${currentUserId ? `(SELECT session_id FROM task_sessions ts WHERE ts.task_id = ot.task_id AND ts.user_id = ? AND ts.ended_at IS NULL LIMIT 1) as my_active_session` : 'NULL as my_active_session'}
        FROM order_tasks ot
        JOIN orders o ON ot.order_id = o.order_id
        LEFT JOIN customers c ON o.customer_id = c.customer_id
        LEFT JOIN order_parts op ON ot.part_id = op.part_id
        WHERE ot.assigned_role = ? ${completedFilter}
-       ORDER BY o.order_number, op.part_number, ot.task_id`,
+       ORDER BY o.order_number, COALESCE(op.part_number, 999), ot.task_id`,
       params
     ) as RowDataPacket[];
 
@@ -329,20 +390,63 @@ export class OrderPartRepository {
   }
 
   /**
-   * Update task started status
+   * Update task started status with optimistic locking
+   * Returns the new version on success, or null if version conflict
+   * If expectedVersion is not provided, skips version checking (backwards compatible)
    */
   async updateTaskStarted(
     taskId: number,
     started: boolean,
-    userId: number
-  ): Promise<void> {
+    userId: number,
+    expectedVersion?: number
+  ): Promise<{ success: boolean; newVersion: number | null; currentVersion?: number }> {
+    // If expectedVersion provided, use optimistic locking
+    if (expectedVersion !== undefined) {
+      const rows = await query(
+        `UPDATE order_tasks
+         SET started_at = ${started ? 'NOW()' : 'NULL'},
+             started_by = ?,
+             version = version + 1
+         WHERE task_id = ? AND version = ?`,
+        [started ? userId : null, taskId, expectedVersion]
+      ) as ResultSetHeader;
+
+      if (rows.affectedRows === 0) {
+        // Version mismatch - get current version for error response
+        const versionRows = await query(
+          'SELECT version FROM order_tasks WHERE task_id = ?',
+          [taskId]
+        ) as RowDataPacket[];
+        const currentVersion = versionRows.length > 0 ? versionRows[0].version : null;
+        return { success: false, newVersion: null, currentVersion };
+      }
+
+      // Get the new version
+      const versionRows = await query(
+        'SELECT version FROM order_tasks WHERE task_id = ?',
+        [taskId]
+      ) as RowDataPacket[];
+
+      return { success: true, newVersion: versionRows[0]?.version || expectedVersion + 1 };
+    }
+
+    // No version checking (backwards compatible)
     await query(
       `UPDATE order_tasks
        SET started_at = ${started ? 'NOW()' : 'NULL'},
-           started_by = ?
+           started_by = ?,
+           version = version + 1
        WHERE task_id = ?`,
       [started ? userId : null, taskId]
     );
+
+    // Get the new version
+    const versionRows = await query(
+      'SELECT version FROM order_tasks WHERE task_id = ?',
+      [taskId]
+    ) as RowDataPacket[];
+
+    return { success: true, newVersion: versionRows[0]?.version || 1 };
   }
 
   /**

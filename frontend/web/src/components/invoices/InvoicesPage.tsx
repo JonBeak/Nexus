@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FileText, DollarSign } from 'lucide-react';
 import { HomeButton } from '../common/HomeButton';
 import InvoicesOverview from './InvoicesOverview';
 import PaymentsTab from './PaymentsTab';
 import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
+import { ordersApi } from '../../services/api';
 import '../jobEstimation/JobEstimation.css';
 
 type TabId = 'overview' | 'payments';
@@ -33,6 +34,17 @@ export const InvoicesPage: React.FC = () => {
 
   // Determine active tab from URL
   const activeTab = pathToTab[location.pathname] || 'overview';
+
+  // Check awaiting payment orders on initial page load (auto-complete when fully paid)
+  const paymentCheckDone = useRef(false);
+  useEffect(() => {
+    if (paymentCheckDone.current) return;
+    paymentCheckDone.current = true;
+
+    ordersApi.checkAwaitingPayments().catch(error => {
+      console.error('Failed to check awaiting payments:', error);
+    });
+  }, []);
 
   const handleTabClick = (tab: Tab) => {
     navigate(tab.path);

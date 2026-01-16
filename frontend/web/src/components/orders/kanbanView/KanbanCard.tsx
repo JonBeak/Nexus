@@ -1,16 +1,21 @@
 /**
  * KanbanCard - Draggable order card for the Kanban board
  * Shows order image, info, progress bar, and expandable tasks
+ *
+ * Updated: 2025-01-15 - Added manager session modal support
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { Calendar } from 'lucide-react';
 import { KanbanCardProps, getProgressColor, PROGRESS_BAR_COLORS } from './types';
 import { KanbanCardTasks } from './KanbanCardTasks';
-import { ordersApi, orderTasksApi } from '../../../services/api';
+import { ordersApi, orderTasksApi, authApi } from '../../../services/api';
+import { staffTasksApi } from '../../../services/api/staff/staffTasksApi';
 import { OrderTask, OrderPart } from '../../../types/orders';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
+import SessionsModal from '../../staff/SessionsModal';
+import type { UserRole } from '../../../types/user';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -49,6 +54,9 @@ const getOrderImageUrl = (order: {
   }
 };
 
+// Roles that are considered managers
+const MANAGER_ROLES: UserRole[] = ['manager', 'owner'];
+
 export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
   order,
   onClick,
@@ -61,6 +69,18 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [tasksFetched, setTasksFetched] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [imageMaxHeight, setImageMaxHeight] = useState<number | undefined>(undefined);
+  const imageContainerRef = useRef<HTMLDivElement>(null);
+
+  // User role and session modal state
+  const [userRole, setUserRole] = useState<UserRole>('production_staff');
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [sessionsModalTask, setSessionsModalTask] = useState<{
+    taskId: number;
+    taskRole: string | null;
+  } | null>(null);
+
+  const isManager = MANAGER_ROLES.includes(userRole);
 
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `order-${order.order_id}`,
@@ -76,6 +96,24 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
         opacity: isDragging ? 0.5 : 1
       }
     : undefined;
+
+  // Fetch user data on mount
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const userData = await authApi.getCurrentUser();
+        if (userData.user?.role) {
+          setUserRole(userData.user.role as UserRole);
+        }
+        if (userData.user?.user_id) {
+          setCurrentUserId(userData.user.user_id);
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+      }
+    };
+    fetchUserData();
+  }, []);
 
   // Fetch parts with tasks when expanded for the first time
   useEffect(() => {
@@ -100,8 +138,28 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
     }
   }, [expanded, tasksFetched, loadingTasks, order.order_number]);
 
-  // Calculate urgency color
-  const progressColor = getProgressColor(order.work_days_left);
+  // Calculate max image height based on container width (golden ratio: height = width / 1.618)
+  useEffect(() => {
+    const container = imageContainerRef.current;
+    if (!container) return;
+
+    const updateMaxHeight = () => {
+      const width = container.offsetWidth;
+      if (width > 0) {
+        setImageMaxHeight(width / 1.618);
+      }
+    };
+
+    updateMaxHeight();
+
+    const resizeObserver = new ResizeObserver(updateMaxHeight);
+    resizeObserver.observe(container);
+
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  // Calculate urgency color (blue if complete, orange/red only for incomplete jobs)
+  const progressColor = getProgressColor(order.work_days_left, order.progress_percent);
 
   // Format due date
   const formatDueDate = () => {
@@ -128,11 +186,27 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
     })));
   };
 
+  // Session modal handlers
+  const handleOpenSessionsModal = (taskId: number, taskRole: string | null) => {
+    setSessionsModalTask({ taskId, taskRole });
+  };
+
+  const handleCloseSessionsModal = () => {
+    setSessionsModalTask(null);
+  };
+
+  const handleSessionChange = () => {
+    // Refresh tasks when sessions change
+    setTasksFetched(false);
+    onOrderUpdated();
+  };
+
   // Task action handlers
   const handleTaskStart = async (taskId: number) => {
+    // For non-managers, use session-based start (via staffTasksApi)
     updateTaskInParts(taskId, { started_at: new Date().toISOString() });
     try {
-      await orderTasksApi.batchUpdateTasks([{ task_id: taskId, started: true }]);
+      await staffTasksApi.startTask(taskId);
       onOrderUpdated();
     } catch (err) {
       console.error('Error starting task:', err);
@@ -163,9 +237,10 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
   };
 
   const handleTaskUnstart = async (taskId: number) => {
+    // For non-managers, use session-based stop (via staffTasksApi)
     updateTaskInParts(taskId, { started_at: undefined });
     try {
-      await orderTasksApi.batchUpdateTasks([{ task_id: taskId, started: false }]);
+      await staffTasksApi.stopTask(taskId);
       onOrderUpdated();
     } catch (err) {
       console.error('Error un-starting task:', err);
@@ -182,6 +257,7 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
       style={style}
       {...listeners}
       {...attributes}
+      data-kanban-card
       onClick={(e) => {
         if (!isDragging && !(e.target as HTMLElement).closest('.task-controls')) {
           onClick();
@@ -191,23 +267,25 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
         ${order.invoice_sent_at ? 'bg-emerald-300' : PAGE_STYLES.input.background}
         rounded-lg border ${order.invoice_sent_at ? 'border-emerald-500' : PAGE_STYLES.panel.border}
         shadow-sm hover:shadow-md transition-shadow select-none
-        cursor-grab active:cursor-grabbing overflow-hidden
+        cursor-grab active:cursor-grabbing overflow-hidden touch-manipulation
         ${isDragging ? 'ring-2 ring-orange-400' : ''}
         ${isDragOverlay ? 'shadow-lg rotate-2' : ''}
       `}
     >
       {/* Image at top - only if image exists */}
-      {hasImage && (
-        <div className="w-full bg-gray-100">
+      {/* Max height is golden ratio of width (width / 1.618) calculated via ResizeObserver */}
+      <div ref={imageContainerRef} className={`w-full bg-gray-100 flex items-center justify-center ${hasImage ? '' : 'hidden'}`}>
+        {hasImage && (
           <img
             src={imageUrl}
             alt={order.order_name}
-            className="w-full h-auto object-contain"
+            className="max-w-full h-auto object-contain"
+            style={imageMaxHeight ? { maxHeight: `${imageMaxHeight}px` } : undefined}
             onError={() => setImageError(true)}
             draggable={false}
           />
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Card Body */}
       <div className="px-3 py-2">
@@ -278,6 +356,23 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
           onTaskComplete={handleTaskComplete}
           onTaskUncomplete={handleTaskUncomplete}
           onTaskUnstart={handleTaskUnstart}
+          isManager={isManager}
+          onOpenSessionsModal={isManager ? handleOpenSessionsModal : undefined}
+        />
+      )}
+
+      {/* Sessions Modal for managers */}
+      {sessionsModalTask && currentUserId && (
+        <SessionsModal
+          taskId={sessionsModalTask.taskId}
+          taskRole={sessionsModalTask.taskRole}
+          isOpen={true}
+          onClose={handleCloseSessionsModal}
+          currentUserId={currentUserId}
+          isManager={isManager}
+          onSessionChange={handleSessionChange}
+          taskCompleted={parts.flatMap(p => p.tasks || []).find(t => t.task_id === sessionsModalTask.taskId)?.completed}
+          onComplete={(taskId) => handleTaskComplete(taskId)}
         />
       )}
     </div>

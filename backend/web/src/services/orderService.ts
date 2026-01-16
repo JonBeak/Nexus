@@ -25,6 +25,8 @@ import { orderRepository } from '../repositories/orderRepository';
 import { orderPartRepository } from '../repositories/orderPartRepository';
 import { orderConversionRepository } from '../repositories/orderConversionRepository';
 import { orderFolderService } from './orderFolderService';
+import { broadcastOrderStatus, broadcastOrderUpdated, broadcastOrderDeleted, broadcastTaskCreated } from '../websocket';
+import { validateJobOrOrderName } from '../utils/folderNameValidation';
 import {
   Order,
   OrderWithDetails,
@@ -32,6 +34,10 @@ import {
   UpdateOrderData,
   OrderStatusHistory
 } from '../types/orders';
+
+// QC task constants
+const QC_TASK_NAME = 'QC & Packing';
+const QC_TASK_ROLE = 'qc_packer';
 
 export class OrderService {
 
@@ -124,13 +130,109 @@ export class OrderService {
 
   /**
    * Update order details
+   * Handles order_name changes with validation and folder renaming
    */
-  async updateOrder(orderId: number, data: UpdateOrderData): Promise<void> {
+  async updateOrder(orderId: number, data: UpdateOrderData, userId?: number): Promise<void> {
     // Validate order exists
     const order = await orderRepository.getOrderById(orderId);
 
     if (!order) {
       throw new Error('Order not found');
+    }
+
+    // Handle order_name change with validation and folder rename
+    if (data.order_name !== undefined && data.order_name !== order.order_name) {
+      const newOrderName = data.order_name.trim();
+
+      // 1. Validate the new name (character restrictions, length, etc.)
+      const validation = validateJobOrOrderName(newOrderName);
+      if (!validation.isValid) {
+        throw new Error(validation.error || 'Invalid order name');
+      }
+
+      // Use sanitized name
+      data.order_name = validation.sanitized;
+
+      // 2. Check uniqueness for this customer (excluding current order)
+      const isUnique = await orderRepository.isOrderNameUniqueForCustomer(
+        data.order_name,
+        order.customer_id,
+        orderId
+      );
+      if (!isUnique) {
+        throw new Error('An order with this name already exists for this customer');
+      }
+
+      // 3. Rename folder if it exists
+      if (order.folder_exists && order.folder_name && order.folder_location && order.folder_location !== 'none') {
+        // Build new folder name using customer name from order
+        const customerName = order.customer_name || '';
+        if (!customerName) {
+          throw new Error('Cannot rename folder: customer name not available');
+        }
+
+        const newFolderName = orderFolderService.buildFolderName(data.order_name, customerName);
+
+        // Check for filesystem conflict (another folder with same name)
+        const conflict = await orderFolderService.checkFolderConflict(newFolderName);
+        if (conflict.exists) {
+          throw new Error('A folder with this name already exists on the file system');
+        }
+
+        // Perform the folder rename
+        const renameResult = orderFolderService.renameOrderFolder(
+          order.folder_name,
+          newFolderName,
+          order.folder_location,
+          order.is_migrated ?? false
+        );
+
+        if (!renameResult.success) {
+          throw new Error(`Failed to rename folder: ${renameResult.error}`);
+        }
+
+        // Rename PDFs inside the folder to match new order name
+        // Get the new folder path (folder was just renamed)
+        const newFolderPath = order.is_migrated
+          ? (order.folder_location === 'active'
+            ? `/mnt/channelletter/${newFolderName}`
+            : `/mnt/channelletter/1Finished/${newFolderName}`)
+          : (order.folder_location === 'active'
+            ? `/mnt/channelletter/Orders/${newFolderName}`
+            : `/mnt/channelletter/Orders/1Finished/${newFolderName}`);
+
+        const pdfRenameResult = orderFolderService.renamePdfsInFolder(
+          newFolderPath,
+          order.order_number,
+          order.order_name,
+          data.order_name
+        );
+
+        if (pdfRenameResult.errors.length > 0) {
+          // PDF rename failed - rollback folder rename
+          console.error(`❌ PDF rename failed, rolling back folder rename...`);
+          const rollbackResult = orderFolderService.renameOrderFolder(
+            newFolderName,
+            order.folder_name,
+            order.folder_location,
+            order.is_migrated ?? false
+          );
+          if (!rollbackResult.success) {
+            console.error(`❌ Rollback also failed: ${rollbackResult.error}`);
+          }
+          throw new Error(`Failed to rename PDF files: ${pdfRenameResult.errors[0]}`);
+        }
+
+        // Update folder tracking in database
+        await orderFolderService.updateFolderTracking(
+          orderId,
+          newFolderName,
+          true,
+          order.folder_location
+        );
+
+        console.log(`✅ Order folder renamed: "${order.folder_name}" → "${newFolderName}"`);
+      }
     }
 
     await orderRepository.updateOrder(orderId, data);
@@ -150,12 +252,17 @@ export class OrderService {
         data.customer_job_number ?? order.customer_job_number
       );
     }
+
+    // Broadcast order updated event for real-time updates
+    if (userId) {
+      broadcastOrderUpdated(orderId, order.order_number, Object.keys(data), userId);
+    }
   }
 
   /**
    * Delete order (pre-confirmation only)
    */
-  async deleteOrder(orderId: number): Promise<void> {
+  async deleteOrder(orderId: number, userId?: number): Promise<void> {
     // Validate order exists
     const order = await orderRepository.getOrderById(orderId);
 
@@ -170,7 +277,13 @@ export class OrderService {
       throw new Error(`Cannot delete order with status '${order.status}'. Only orders with status 'job_details_setup' or 'pending_confirmation' can be deleted.`);
     }
 
+    const orderNumber = order.order_number;
     await orderRepository.deleteOrder(orderId);
+
+    // Broadcast order deleted event for real-time updates
+    if (userId) {
+      broadcastOrderDeleted(orderId, orderNumber, userId);
+    }
   }
 
   /**
@@ -219,6 +332,34 @@ export class OrderService {
     // Update order status
     await orderRepository.updateOrderStatus(orderId, status);
 
+    // Auto-create QC task when moving to qc_packing status
+    if (status === 'qc_packing') {
+      try {
+        // Check if QC task already exists for this order
+        const existingTasks = await orderPartRepository.getOrderTasks(orderId);
+        const qcTaskExists = existingTasks.some(
+          t => t.part_id === null && t.assigned_role === QC_TASK_ROLE && t.task_name === QC_TASK_NAME
+        );
+
+        if (!qcTaskExists) {
+          // Create job-level QC task (part_id = null)
+          const taskId = await orderPartRepository.createOrderTask({
+            order_id: orderId,
+            part_id: null,
+            task_name: QC_TASK_NAME,
+            assigned_role: QC_TASK_ROLE
+          });
+          console.log(`✅ Created QC task for order ${order.order_number} (task_id: ${taskId})`);
+
+          // Broadcast task creation
+          broadcastTaskCreated(taskId, orderId, null, QC_TASK_NAME, QC_TASK_ROLE, userId);
+        }
+      } catch (qcTaskError) {
+        // Non-blocking: if QC task creation fails, continue with status update
+        console.error('⚠️  QC task creation failed (continuing with status update):', qcTaskError);
+      }
+    }
+
     // Phase 1.5.g: Automatically move folder to 1Finished when order is completed
     if (status === 'completed' && order.folder_exists && order.folder_location === 'active' && order.folder_name) {
       try {
@@ -252,6 +393,9 @@ export class OrderService {
       changed_by: userId,
       notes
     });
+
+    // Broadcast status change to WebSocket clients
+    broadcastOrderStatus(orderId, order.order_number, status, order.status, userId);
   }
 
   /**

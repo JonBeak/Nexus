@@ -323,6 +323,135 @@ export class OrderFolderService {
   }
 
   /**
+   * Rename order folder on SMB share
+   * Handles both active and finished folder locations
+   *
+   * @param oldFolderName - Current folder name
+   * @param newFolderName - New folder name to rename to
+   * @param location - 'active' or 'finished'
+   * @param isMigrated - Whether this is a legacy migrated order (default: false)
+   * @returns { success: boolean, error?: string }
+   */
+  renameOrderFolder(
+    oldFolderName: string,
+    newFolderName: string,
+    location: 'active' | 'finished',
+    isMigrated: boolean = false
+  ): { success: boolean; error?: string } {
+    try {
+      const sourcePath = this.getFolderPath(oldFolderName, location, isMigrated);
+      const destPath = this.getFolderPath(newFolderName, location, isMigrated);
+
+      // Check if source folder exists
+      if (!fs.existsSync(sourcePath)) {
+        console.warn(`[OrderFolderService] Source folder does not exist: ${sourcePath}`);
+        return {
+          success: false,
+          error: 'Source folder does not exist'
+        };
+      }
+
+      // Check if destination already exists (case-insensitive conflict)
+      if (fs.existsSync(destPath)) {
+        console.warn(`[OrderFolderService] Destination folder already exists: ${destPath}`);
+        return {
+          success: false,
+          error: 'A folder with this name already exists'
+        };
+      }
+
+      // Perform the rename
+      fs.renameSync(sourcePath, destPath);
+      console.log(`[OrderFolderService] ✅ Renamed folder: "${oldFolderName}" → "${newFolderName}"`);
+
+      return { success: true };
+    } catch (error) {
+      console.error('[OrderFolderService] Error renaming folder:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error during folder rename'
+      };
+    }
+  }
+
+  /**
+   * Rename PDF files in a folder when order name changes
+   * PDFs follow pattern: "{orderNum} - {orderName}*.pdf"
+   * Also checks Specs subfolder for customer-facing PDFs
+   *
+   * @param folderPath - Full path to the order folder
+   * @param orderNumber - The order number (e.g., 200123)
+   * @param oldOrderName - The old order name
+   * @param newOrderName - The new order name
+   * @returns { renamed: number, errors: string[] }
+   */
+  renamePdfsInFolder(
+    folderPath: string,
+    orderNumber: number,
+    oldOrderName: string,
+    newOrderName: string
+  ): { renamed: number; errors: string[] } {
+    const results = { renamed: 0, errors: [] as string[] };
+
+    // Directories to check: root folder and Specs subfolder
+    const dirsToCheck = [
+      folderPath,
+      path.join(folderPath, 'Specs')
+    ];
+
+    const oldPrefix = `${orderNumber} - ${oldOrderName}`;
+    const newPrefix = `${orderNumber} - ${newOrderName}`;
+
+    for (const dir of dirsToCheck) {
+      if (!fs.existsSync(dir)) {
+        continue;
+      }
+
+      try {
+        const files = fs.readdirSync(dir);
+
+        for (const file of files) {
+          // Only process PDF files that match the old naming pattern
+          if (!file.toLowerCase().endsWith('.pdf')) {
+            continue;
+          }
+
+          if (!file.startsWith(oldPrefix)) {
+            continue;
+          }
+
+          // Build new filename by replacing the prefix
+          const suffix = file.substring(oldPrefix.length); // e.g., ".pdf" or " - Shop.pdf"
+          const newFilename = `${newPrefix}${suffix}`;
+
+          const oldFilePath = path.join(dir, file);
+          const newFilePath = path.join(dir, newFilename);
+
+          try {
+            fs.renameSync(oldFilePath, newFilePath);
+            results.renamed++;
+            console.log(`[OrderFolderService] ✅ Renamed PDF: "${file}" → "${newFilename}"`);
+          } catch (renameErr) {
+            const errMsg = `Failed to rename ${file}: ${renameErr instanceof Error ? renameErr.message : 'Unknown error'}`;
+            results.errors.push(errMsg);
+            console.error(`[OrderFolderService] ❌ ${errMsg}`);
+          }
+        }
+      } catch (readErr) {
+        const errMsg = `Failed to read directory ${dir}: ${readErr instanceof Error ? readErr.message : 'Unknown error'}`;
+        results.errors.push(errMsg);
+        console.error(`[OrderFolderService] ❌ ${errMsg}`);
+      }
+    }
+
+    if (results.renamed > 0) {
+      console.log(`[OrderFolderService] ✅ Renamed ${results.renamed} PDF file(s) in folder`);
+    }
+
+    return results;
+  }
+
+  /**
    * List all image files (JPG, JPEG, PNG) in folder
    * Returns: Array of { filename, size, modifiedDate }
    */

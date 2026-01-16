@@ -5,11 +5,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { X, FileText, Loader, AlertCircle } from 'lucide-react';
+import { X, FileText, Loader, AlertCircle, Expand } from 'lucide-react';
 import { Order } from '../../../types/orders';
 import { buildPdfUrls } from '../../../utils/pdfUrls';
 import { qbInvoiceApi } from '../../../services/api';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
+import { useIsMobile } from '../../../hooks/useMediaQuery';
+import { useBodyScrollLock } from '../../../hooks/useBodyScrollLock';
+import ExpandedPDFModal from './ExpandedPDFModal';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
@@ -32,9 +35,11 @@ interface PDFSectionProps {
   url: string | null;
   label: string;
   isBase64?: boolean;
+  isMobile?: boolean;
+  onExpand?: () => void;
 }
 
-const PDFSection: React.FC<PDFSectionProps> = ({ url, label, isBase64 = false }) => {
+const PDFSection: React.FC<PDFSectionProps> = ({ url, label, isBase64 = false, isMobile = false, onExpand }) => {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,13 +60,14 @@ const PDFSection: React.FC<PDFSectionProps> = ({ url, label, isBase64 = false })
     const updateWidth = () => {
       if (containerRef.current) {
         const width = containerRef.current.offsetWidth - 32;
-        setContainerWidth(Math.max(400, width));
+        // Lower minimum on mobile (280px) to fit narrow phones
+        setContainerWidth(Math.max(isMobile ? 280 : 400, width));
       }
     };
     updateWidth();
     window.addEventListener('resize', updateWidth);
     return () => window.removeEventListener('resize', updateWidth);
-  }, []);
+  }, [isMobile]);
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -106,13 +112,22 @@ const PDFSection: React.FC<PDFSectionProps> = ({ url, label, isBase64 = false })
 
   return (
     <div ref={containerRef} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
-      <div className={`${PAGE_STYLES.header.background} px-4 py-2 border-b border-gray-200`}>
+      <div className={`${PAGE_STYLES.header.background} px-4 py-2 border-b border-gray-200 flex items-center justify-between`}>
         <h3 className={`text-sm font-semibold ${PAGE_STYLES.header.text} flex items-center`}>
           <FileText className="w-4 h-4 mr-2" />
           {label}
         </h3>
+        {onExpand && (
+          <button
+            onClick={onExpand}
+            className="p-2 hover:bg-gray-200 active:bg-gray-300 rounded-lg transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
+            title="Expand PDF"
+          >
+            <Expand className="w-4 h-4 text-gray-600" />
+          </button>
+        )}
       </div>
-      <div className="p-2 bg-gray-100">
+      <div className="p-2 bg-gray-100 cursor-pointer" onClick={onExpand}>
         {loading && (
           <div className="flex items-center justify-center py-12">
             <Loader className="w-6 h-6 animate-spin text-indigo-600" />
@@ -156,12 +171,23 @@ const PDFSection: React.FC<PDFSectionProps> = ({ url, label, isBase64 = false })
   );
 };
 
+interface ExpandedPdf {
+  url: string;
+  label: string;
+  isBase64?: boolean;
+}
+
 const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ isOpen, onClose, order }) => {
   const [invoicePdf, setInvoicePdf] = useState<string | null>(null);
   const [loadingInvoice, setLoadingInvoice] = useState(false);
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
+  const [expandedPdf, setExpandedPdf] = useState<ExpandedPdf | null>(null);
   const modalContentRef = useRef<HTMLDivElement>(null);
   const mouseDownOutsideRef = useRef(false);
+  const isMobile = useIsMobile();
+
+  // Lock body scroll on mobile when modal is open
+  useBodyScrollLock(isOpen && isMobile);
 
   // Fetch invoice PDF if order has an invoice
   useEffect(() => {
@@ -231,38 +257,57 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ isOpen, onClose, order 
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-2"
+      className={`fixed inset-0 bg-black bg-opacity-50 z-[70] ${
+        isMobile
+          ? 'overflow-y-auto'
+          : 'flex items-center justify-center p-2'
+      }`}
       onMouseDown={handleBackdropMouseDown}
       onMouseUp={handleBackdropMouseUp}
     >
       {/* Wrapper for modal + external close button */}
-      <div className="relative w-full max-w-6xl h-[96vh]">
-        {/* Close Button - Outside modal on top right */}
+      <div className={`relative w-full max-w-6xl ${
+        isMobile
+          ? 'min-h-full'
+          : 'h-[96vh]'
+      }`}>
+        {/* Close Button - Outside modal on desktop, inside header on mobile */}
         <button
           onClick={onClose}
-          className="absolute top-0 -right-3 translate-x-full z-10 p-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border border-gray-300"
+          className="hidden md:flex absolute top-0 -right-3 translate-x-full z-10 p-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border border-gray-300 items-center justify-center"
         >
           <X className="w-5 h-5 text-gray-600" />
         </button>
 
-        <div ref={modalContentRef} className={`${PAGE_STYLES.panel.background} rounded-lg shadow-2xl w-full h-full flex flex-col`}>
+        <div ref={modalContentRef} className={`${PAGE_STYLES.panel.background} rounded-lg shadow-2xl w-full ${isMobile ? '' : 'h-full'} flex flex-col`}>
           {/* Scrollable Content - Header scrolls with content */}
-          <div className={`flex-1 overflow-y-auto ${PAGE_STYLES.page.background} rounded-lg`}>
+          <div className={`${isMobile ? '' : 'flex-1 overflow-y-auto'} ${PAGE_STYLES.page.background} rounded-lg`}>
             {/* Header inside scroll area */}
-            <div className={`px-6 py-4 mb-4 ${PAGE_STYLES.panel.background}`}>
-              <h2 className={`text-xl font-semibold ${PAGE_STYLES.panel.text}`}>Order PDFs</h2>
-              <p className={`text-sm ${PAGE_STYLES.panel.textMuted} mt-1`}>
-                #{order.order_number} - {order.order_name}
-              </p>
+            <div className={`px-4 md:px-6 py-3 md:py-4 mb-4 ${PAGE_STYLES.panel.background} sticky top-0 z-10 flex items-start justify-between`}>
+              <div>
+                <h2 className={`text-lg md:text-xl font-semibold ${PAGE_STYLES.panel.text}`}>Order PDFs</h2>
+                <p className={`text-xs md:text-sm ${PAGE_STYLES.panel.textMuted} mt-1`}>
+                  #{order.order_number} - {order.order_name}
+                </p>
+              </div>
+              {/* Mobile close button */}
+              <button
+                onClick={onClose}
+                className="md:hidden p-2 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
             </div>
 
-            <div className="px-6 pb-6">
-          <div className="space-y-6">
+            <div className="px-2 md:px-6 pb-6">
+          <div className="space-y-4 md:space-y-6">
             {pdfSections.map((section) => (
               <PDFSection
                 key={section.label}
                 url={section.url}
                 label={section.label}
+                isMobile={isMobile}
+                onExpand={section.url ? () => setExpandedPdf({ url: section.url!, label: section.label }) : undefined}
               />
             ))}
 
@@ -286,6 +331,8 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ isOpen, onClose, order 
                   url={invoicePdf}
                   label="Invoice"
                   isBase64={true}
+                  isMobile={isMobile}
+                  onExpand={invoicePdf ? () => setExpandedPdf({ url: invoicePdf, label: 'Invoice', isBase64: true }) : undefined}
                 />
               )
             )}
@@ -294,6 +341,17 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ isOpen, onClose, order 
         </div>
       </div>
       </div>
+
+      {/* Expanded PDF Modal */}
+      {expandedPdf && (
+        <ExpandedPDFModal
+          isOpen={!!expandedPdf}
+          onClose={() => setExpandedPdf(null)}
+          pdfSource={expandedPdf.url}
+          isBase64={expandedPdf.isBase64}
+          title={expandedPdf.label}
+        />
+      )}
     </div>
   );
 };

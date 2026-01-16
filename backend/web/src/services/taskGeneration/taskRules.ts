@@ -26,7 +26,7 @@ export const TASK_ORDER: string[] = [
   'Sanding (320) before cutting',
   'Scuffing before cutting',
   'Paint before cutting',
-  'Vinyl Face Before Cutting',
+  'Vinyl Before Cutting',
   'Vinyl Wrap Return/Trim',
   'CNC Router Cut',
   'Laser Cut',
@@ -37,7 +37,7 @@ export const TASK_ORDER: string[] = [
   'Paint After Cutting',
   'Backer / Raceway Bending',
   'Paint After Bending',
-  'Vinyl Face After Cutting',
+  'Vinyl After Cutting',
   'Trim Fabrication',
   'Return Fabrication',
   'Return Gluing',
@@ -67,8 +67,8 @@ export function getTaskSortOrder(taskName: string): number {
  */
 export const TASK_ROLE_MAP: Record<string, ProductionRole> = {
   'Vinyl Plotting': 'designer',
-  'Vinyl Face Before Cutting': 'vinyl_applicator',
-  'Vinyl Face After Cutting': 'vinyl_applicator',
+  'Vinyl Before Cutting': 'vinyl_applicator',
+  'Vinyl After Cutting': 'vinyl_applicator',
   'Vinyl Wrap Return/Trim': 'vinyl_applicator',
   'Vinyl after Fabrication': 'vinyl_applicator',
   'CNC Router Cut': 'cnc_router_operator',
@@ -517,12 +517,21 @@ async function generateVinylTasks(
     // Build notes based on spec type
     let taskNote: string | null = null;
     if (specName === 'Digital Print') {
-      // Format: "Digital Print - Translucent: White"
+      // Format: "Digital Print - Translucent: White - Face, Full"
       const typePart = printType || 'Unknown';
-      taskNote = colour ? `Digital Print - ${typePart}: ${colour}` : `Digital Print - ${typePart}`;
+      const basePart = colour ? `Digital Print - ${typePart}: ${colour}` : `Digital Print - ${typePart}`;
+      taskNote = application ? `${basePart} - ${application}` : basePart;
     } else {
-      // Vinyl: include application and colour
-      taskNote = colour ? `Colour: ${colour}` : null;
+      // Vinyl: include colour and application
+      if (colour && application) {
+        taskNote = `Colour: ${colour} - ${application}`;
+      } else if (colour) {
+        taskNote = `Colour: ${colour}`;
+      } else if (application) {
+        taskNote = application;
+      } else {
+        taskNote = null;
+      }
     }
 
     // Skip if no application specified

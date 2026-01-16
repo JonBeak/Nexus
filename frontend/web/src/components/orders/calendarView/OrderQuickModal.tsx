@@ -3,7 +3,7 @@
  * Quick action modal for order management from Calendar View
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   X,
@@ -28,11 +28,15 @@ import {
 } from 'lucide-react';
 import { CalendarOrder } from './types';
 import { Order, OrderPart, OrderStatus, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../../types/orders';
-import { ordersApi, orderStatusApi, orderTasksApi, qbInvoiceApi, InvoiceSyncStatus, InvoiceDifference } from '../../../services/api';
+import { ordersApi, orderStatusApi, orderTasksApi, qbInvoiceApi, authApi, InvoiceSyncStatus, InvoiceDifference } from '../../../services/api';
+import { staffTasksApi } from '../../../services/api/staff/staffTasksApi';
+import type { UserRole } from '../../../types/user';
 import { TaskTemplateDropdown } from '../progress/TaskTemplateDropdown';
 import { TaskMetadataResource } from '../../../services/taskMetadataResource';
 import { TaskRow } from '../common/TaskRow';
 import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
+import { useIsMobile } from '../../../hooks/useMediaQuery';
+import { useBodyScrollLock } from '../../../hooks/useBodyScrollLock';
 import PrepareOrderModal from '../preparation/PrepareOrderModal';
 import ConfirmationModal from '../details/components/ConfirmationModal';
 import InvoiceActionModal from '../modals/InvoiceActionModal';
@@ -40,8 +44,12 @@ import InvoiceConflictModal from '../modals/InvoiceConflictModal';
 import LinkInvoiceModal from '../modals/LinkInvoiceModal';
 import PrintFormsModal from '../details/components/PrintFormsModal';
 import PDFViewerModal from '../modals/PDFViewerModal';
+import SessionsModal from '../../staff/SessionsModal';
 import { useOrderPrinting, PrintMode } from '../details/hooks/useOrderPrinting';
 import { calculateShopCount } from '../details/services/orderCalculations';
+
+// Roles that are considered managers
+const MANAGER_ROLES: UserRole[] = ['manager', 'owner'];
 
 interface OrderQuickModalProps {
   isOpen: boolean;
@@ -111,6 +119,11 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   onOrderUpdated
 }) => {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
+
+  // Lock body scroll on mobile when modal is open (and no child modal is open)
+  // Child modals will handle their own scroll lock
+  useBodyScrollLock(isOpen && isMobile);
 
   // State
   const [loading, setLoading] = useState(true);
@@ -128,6 +141,8 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const statusButtonRef = useRef<HTMLButtonElement>(null);
   const modalContentRef = useRef<HTMLDivElement>(null);
+  const imagePanelRef = useRef<HTMLDivElement>(null);
+  const tasksPanelRef = useRef<HTMLDivElement>(null);
   const mouseDownOutsideRef = useRef(false);
 
   // Add task dropdown state
@@ -160,6 +175,25 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
 
   // PDF Viewer modal state
   const [showPdfViewerModal, setShowPdfViewerModal] = useState(false);
+
+  // User role and session modal state
+  const [userRole, setUserRole] = useState<UserRole>('production_staff');
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [sessionsModalTask, setSessionsModalTask] = useState<{
+    taskId: number;
+    taskRole: string | null;
+  } | null>(null);
+
+  const isManager = MANAGER_ROLES.includes(userRole);
+
+  // Check if any child modal is open (for hiding parent content on mobile)
+  const hasChildModalOpen = useMemo(() => {
+    return showPrepareModal || showCustomerApprovedModal || showFilesCreatedModal ||
+           showInvoiceModal || showConflictModal || showLinkInvoiceModal ||
+           showPrintModal || showPdfViewerModal || sessionsModalTask !== null;
+  }, [showPrepareModal, showCustomerApprovedModal, showFilesCreatedModal,
+      showInvoiceModal, showConflictModal, showLinkInvoiceModal,
+      showPrintModal, showPdfViewerModal, sessionsModalTask]);
 
   // Printing hook - requires orderData with order, parts, taxRules, customerDiscount
   const orderDataForPrinting = {
@@ -234,6 +268,24 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
     }
   }, [isOpen, fetchOrderDetails]);
 
+  // Fetch user data on mount
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const userData = await authApi.getCurrentUser();
+        if (userData.user?.role) {
+          setUserRole(userData.user.role as UserRole);
+        }
+        if (userData.user?.user_id) {
+          setCurrentUserId(userData.user.user_id);
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+      }
+    };
+    fetchUserData();
+  }, []);
+
   // Handle ESC key to close modal - only if no child modals are open
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -295,11 +347,26 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
     });
   };
 
-  // Handle task start
+  // Session modal handlers
+  const handleOpenSessionsModal = (taskId: number, taskRole: string | null) => {
+    setSessionsModalTask({ taskId, taskRole });
+  };
+
+  const handleCloseSessionsModal = () => {
+    setSessionsModalTask(null);
+  };
+
+  const handleSessionChange = () => {
+    // Refresh tasks when sessions change
+    fetchOrderDetails();
+    onOrderUpdated();
+  };
+
+  // Handle task start (non-manager session-based)
   const handleTaskStart = async (taskId: number) => {
     try {
-      const result = await orderTasksApi.batchUpdateTasks([{ task_id: taskId, started: true }]);
-      handleStatusUpdates(result.statusUpdates);
+      await staffTasksApi.startTask(taskId);
+      await fetchOrderDetails();
       onOrderUpdated();
     } catch (err) {
       console.error('Error starting task:', err);
@@ -331,11 +398,11 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
     }
   };
 
-  // Handle task unstart (revert to not started state)
+  // Handle task unstart (non-manager session-based)
   const handleTaskUnstart = async (taskId: number) => {
     try {
-      const result = await orderTasksApi.batchUpdateTasks([{ task_id: taskId, started: false }]);
-      handleStatusUpdates(result.statusUpdates);
+      await staffTasksApi.stopTask(taskId);
+      await fetchOrderDetails();
       onOrderUpdated();
     } catch (err) {
       console.error('Error un-starting task:', err);
@@ -448,10 +515,17 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
     navigate(`/orders/${order.order_number}`);
   };
 
-  // Handle backdrop click - only close if both mousedown and mouseup are outside modal content
+  // Helper to check if a point is inside either panel
+  const isInsideAnyPanel = (target: Node): boolean => {
+    const inImagePanel = imagePanelRef.current?.contains(target) ?? false;
+    const inTasksPanel = tasksPanelRef.current?.contains(target) ?? false;
+    return inImagePanel || inTasksPanel;
+  };
+
+  // Handle backdrop click - only close if both mousedown and mouseup are outside both panels
   const handleBackdropMouseDown = (e: React.MouseEvent) => {
-    // Check if mousedown is outside the modal content
-    if (modalContentRef.current && !modalContentRef.current.contains(e.target as Node)) {
+    // Check if mousedown is outside both panels
+    if (!isInsideAnyPanel(e.target as Node)) {
       mouseDownOutsideRef.current = true;
     } else {
       mouseDownOutsideRef.current = false;
@@ -459,13 +533,13 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   };
 
   const handleBackdropMouseUp = (e: React.MouseEvent) => {
-    // Only close if both mousedown AND mouseup are outside the modal content
-    if (mouseDownOutsideRef.current && modalContentRef.current && !modalContentRef.current.contains(e.target as Node)) {
+    // Only close if both mousedown AND mouseup are outside both panels
+    if (mouseDownOutsideRef.current && !isInsideAnyPanel(e.target as Node)) {
       // Don't close if any child modal is open
       const hasChildModalOpen = showPrepareModal || showCustomerApprovedModal ||
         showFilesCreatedModal || showInvoiceModal || showConflictModal ||
         showLinkInvoiceModal || showPrintModal || showPdfViewerModal ||
-        showAddTaskForPart !== null;
+        showAddTaskForPart !== null || sessionsModalTask !== null;
 
       if (!hasChildModalOpen) {
         onClose();
@@ -714,17 +788,29 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+      className={`fixed inset-0 bg-black bg-opacity-50 z-50 ${
+        isMobile
+          ? 'overflow-y-auto' // Mobile: entire modal scrolls
+          : 'flex items-center justify-center' // Desktop: centered, no scroll
+      } p-2 md:p-4`}
       onMouseDown={handleBackdropMouseDown}
       onMouseUp={handleBackdropMouseUp}
     >
-      <div ref={modalContentRef} className="flex gap-4 items-start max-h-[85vh]">
+      {/* Main content - hidden on mobile when child modal is open */}
+      <div
+        ref={modalContentRef}
+        className={`${
+          isMobile
+            ? 'flex flex-col gap-2 w-full' // Mobile: full width, no max-height, expands
+            : 'flex flex-row gap-4 items-start max-h-[85vh] w-auto' // Desktop: side by side
+        } ${isMobile && hasChildModalOpen ? 'hidden' : ''}`}
+      >
         {/* Image Panel - sized to fit image */}
-        <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow-xl overflow-hidden flex-shrink-0`}>
+        <div ref={imagePanelRef} className={`${PAGE_STYLES.panel.background} rounded-lg shadow-xl overflow-hidden flex-shrink-0 w-full md:w-auto`}>
           {/* Header */}
-          <div className={`px-4 py-3 border-b ${PAGE_STYLES.panel.border}`}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
+          <div className={`px-3 md:px-4 py-2 md:py-3 border-b ${PAGE_STYLES.panel.border} ${PAGE_STYLES.panel.background}`}>
+            <div className="flex items-start justify-between gap-2 md:gap-4">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <h2 className={`text-lg font-bold ${PAGE_STYLES.panel.text}`}>{order.order_name}</h2>
                   <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
@@ -743,9 +829,9 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
               </div>
               <button
                 onClick={onClose}
-                className={`p-1 ${PAGE_STYLES.panel.textMuted} hover:text-orange-600 rounded flex-shrink-0`}
+                className={`p-2 md:p-1 ${PAGE_STYLES.panel.textMuted} hover:text-orange-600 active:bg-gray-100 rounded flex-shrink-0 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center`}
               >
-                <X className="w-5 h-5" />
+                <X className="w-6 h-6 md:w-5 md:h-5" />
               </button>
             </div>
           </div>
@@ -753,12 +839,11 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
             <img
               src={imageUrl}
               alt={order.order_name}
-              className="block"
-              style={{ width: '560px', maxHeight: '369px', objectFit: 'contain' }}
+              className="block w-full md:w-[560px] md:max-h-[369px] object-contain"
               onError={() => setImageError(true)}
             />
           ) : (
-            <div className="flex items-center justify-center bg-gray-100" style={{ width: '280px', height: '200px' }}>
+            <div className="flex items-center justify-center bg-gray-100 w-full md:w-[280px] h-[120px] md:h-[200px]">
               <div className="text-center text-gray-400">
                 <ImageIcon className="w-12 h-12 mx-auto mb-2" />
                 <p className="text-sm">No image</p>
@@ -981,44 +1066,45 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
             )}
 
             {/* Actions */}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={handleGoToOrder}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 ${MODULE_COLORS.orders.base} text-white ${MODULE_COLORS.orders.hover} transition-colors text-sm font-medium rounded`}
+                className={`flex-1 min-w-[45%] md:min-w-0 flex items-center justify-center gap-1.5 px-3 py-3 md:py-2 ${MODULE_COLORS.orders.base} text-white ${MODULE_COLORS.orders.hover} active:opacity-80 transition-colors text-sm font-medium rounded min-h-[44px]`}
               >
                 <ExternalLink className="w-4 h-4" />
-                Go to Order
+                <span className="hidden md:inline">Go to Order</span>
+                <span className="md:hidden">Order</span>
               </button>
               <button
                 onClick={handleOpenFolder}
                 disabled={!orderDetails?.folder_name || orderDetails.folder_location === 'none'}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-sm font-medium transition-colors
+                className={`flex-1 min-w-[45%] md:min-w-0 flex items-center justify-center gap-1.5 px-3 py-3 md:py-2 rounded text-sm font-medium transition-colors min-h-[44px]
                   ${orderDetails?.folder_name && orderDetails.folder_location !== 'none'
-                    ? `${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} ${PAGE_STYLES.header.text} ${PAGE_STYLES.interactive.hover}`
+                    ? `${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} ${PAGE_STYLES.header.text} ${PAGE_STYLES.interactive.hover} active:bg-gray-200`
                     : `${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.textMuted} cursor-not-allowed`
                   }
                 `}
               >
                 <FolderOpen className="w-4 h-4" />
-                Open Folder
+                Folder
               </button>
               <button
                 onClick={() => setShowPdfViewerModal(true)}
                 disabled={!orderDetails?.folder_name}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded text-sm font-medium transition-colors
+                className={`flex-1 min-w-[45%] md:min-w-0 flex items-center justify-center gap-1.5 px-3 py-3 md:py-2 rounded text-sm font-medium transition-colors min-h-[44px]
                   ${orderDetails?.folder_name
-                    ? `${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} ${PAGE_STYLES.header.text} ${PAGE_STYLES.interactive.hover}`
+                    ? `${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} ${PAGE_STYLES.header.text} ${PAGE_STYLES.interactive.hover} active:bg-gray-200`
                     : `${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.textMuted} cursor-not-allowed`
                   }
                 `}
               >
                 <Eye className="w-4 h-4" />
-                View PDFs
+                PDFs
               </button>
               {!orderDetails?.internal_note && (
                 <button
                   onClick={() => setShowNoteInput(true)}
-                  className={`flex items-center justify-center gap-1.5 px-3 py-2 ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} ${PAGE_STYLES.header.text} rounded ${PAGE_STYLES.interactive.hover} transition-colors text-sm font-medium`}
+                  className={`flex-1 min-w-[45%] md:min-w-0 flex items-center justify-center gap-1.5 px-3 py-3 md:py-2 ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} ${PAGE_STYLES.header.text} rounded ${PAGE_STYLES.interactive.hover} active:bg-gray-200 transition-colors text-sm font-medium min-h-[44px]`}
                 >
                   <FileText className="w-4 h-4" />
                   Note
@@ -1028,10 +1114,10 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
 
             {/* Smart Actions */}
             <div className={`pt-3 border-t ${PAGE_STYLES.panel.border}`}>
-              <h3 className={`text-base font-semibold ${PAGE_STYLES.header.text} uppercase tracking-wide mb-2`}>
+              <h3 className={`text-sm md:text-base font-semibold ${PAGE_STYLES.header.text} uppercase tracking-wide mb-2`}>
                 Workflow
               </h3>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 [&>button]:min-h-[44px] [&>button]:py-3 md:[&>button]:py-2">
                 {/* Prepare Order - job_details_setup */}
                 {orderDetails?.status === 'job_details_setup' && (
                   <button
@@ -1111,9 +1197,11 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
         </div>
 
         {/* Tasks Panel */}
-        <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow-xl max-h-[85vh] flex flex-col`} style={{ width: '480px' }}>
+        <div ref={tasksPanelRef} className={`${PAGE_STYLES.panel.background} rounded-lg shadow-xl w-full md:w-[480px] ${
+          isMobile ? '' : 'flex-none max-h-[85vh] flex flex-col overflow-hidden'
+        }`}>
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className={`p-4 ${isMobile ? '' : 'flex-1 overflow-y-auto'}`}>
             {loading ? (
               <div className="flex items-center justify-center h-48">
                 <Loader2 className={`w-8 h-8 animate-spin ${PAGE_STYLES.panel.textMuted}`} />
@@ -1150,6 +1238,8 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                                     onUnstart={() => handleTaskUnstart(task.task_id)}
                                     onNotesChange={(notes) => handleTaskNotesChange(task.task_id, notes)}
                                     onRemove={() => handleRemoveTask(task.task_id)}
+                                    isManager={isManager}
+                                    onOpenSessionsModal={isManager ? handleOpenSessionsModal : undefined}
                                   />
                                 ))}
                               </div>
@@ -1193,6 +1283,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
           onClose={() => setShowPrepareModal(false)}
           order={orderDetails}
           onComplete={handlePreparationComplete}
+          onDataChanged={fetchOrderDetails}
         />
       )}
 
@@ -1289,6 +1380,21 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
           isOpen={showPdfViewerModal}
           onClose={() => setShowPdfViewerModal(false)}
           order={orderDetails}
+        />
+      )}
+
+      {/* Sessions Modal for managers */}
+      {sessionsModalTask && currentUserId && (
+        <SessionsModal
+          taskId={sessionsModalTask.taskId}
+          taskRole={sessionsModalTask.taskRole}
+          isOpen={true}
+          onClose={handleCloseSessionsModal}
+          currentUserId={currentUserId}
+          isManager={isManager}
+          onSessionChange={handleSessionChange}
+          taskCompleted={orderDetails?.parts?.flatMap(p => p.tasks || []).find(t => t.task_id === sessionsModalTask.taskId)?.completed}
+          onComplete={(taskId) => handleTaskComplete(taskId)}
         />
       )}
     </div>

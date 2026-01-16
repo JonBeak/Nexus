@@ -13,7 +13,10 @@ import {
   CreateSessionData,
   UpdateSessionData,
   StaffTask,
-  StaffTaskFilters
+  StaffTaskFilters,
+  SessionNote,
+  CreateSessionNoteData,
+  UpdateSessionNoteData
 } from '../types/taskSessions';
 import { ProductionRole } from '../types/orders';
 
@@ -242,6 +245,47 @@ export class TaskSessionRepository {
   }
 
   // =============================================
+  // TODAY'S SESSIONS QUERIES
+  // =============================================
+
+  /**
+   * Get all completed sessions for a user today
+   * Returns sessions with task/order info for display
+   * Includes pending edit request status
+   */
+  async getTodayCompletedSessionsForUser(userId: number): Promise<any[]> {
+    const rows = await query(
+      `SELECT
+        ts.session_id,
+        ts.task_id,
+        ts.user_id,
+        ts.started_at,
+        ts.ended_at,
+        ts.duration_minutes,
+        ts.effective_duration_minutes,
+        ts.notes,
+        ot.task_name,
+        o.order_id,
+        o.order_number,
+        o.order_name,
+        CASE WHEN ser.request_id IS NOT NULL THEN 1 ELSE 0 END as has_pending_request,
+        ser.request_type as pending_request_type
+       FROM task_sessions ts
+       JOIN order_tasks ot ON ts.task_id = ot.task_id
+       JOIN orders o ON ot.order_id = o.order_id
+       LEFT JOIN task_session_edit_requests ser
+         ON ts.session_id = ser.session_id AND ser.status = 'pending'
+       WHERE ts.user_id = ?
+         AND ts.ended_at IS NOT NULL
+         AND DATE(ts.ended_at) = CURDATE()
+       ORDER BY ts.ended_at DESC`,
+      [userId]
+    ) as RowDataPacket[];
+
+    return rows;
+  }
+
+  // =============================================
   // STAFF TASK QUERIES (with session aggregates)
   // =============================================
 
@@ -313,6 +357,7 @@ export class TaskSessionRepository {
         ot.sort_order,
         -- Session aggregates
         (SELECT COUNT(*) FROM task_sessions ts WHERE ts.task_id = ot.task_id AND ts.ended_at IS NULL) as active_sessions_count,
+        (SELECT COUNT(*) FROM task_sessions ts WHERE ts.task_id = ot.task_id) as total_sessions_count,
         COALESCE((
           SELECT SUM(
             CASE
@@ -321,7 +366,19 @@ export class TaskSessionRepository {
             END
           )
           FROM task_sessions ts2 WHERE ts2.task_id = ot.task_id
-        ), 0) as total_time_minutes
+        ), 0) as total_time_minutes,
+        -- Notes count (across all sessions for this task)
+        (SELECT COUNT(*)
+         FROM task_session_notes tsn
+         JOIN task_sessions ts ON tsn.session_id = ts.session_id
+         WHERE ts.task_id = ot.task_id) as notes_count,
+        -- Most recent note preview
+        (SELECT tsn.note_text
+         FROM task_session_notes tsn
+         JOIN task_sessions ts ON tsn.session_id = ts.session_id
+         WHERE ts.task_id = ot.task_id
+         ORDER BY tsn.created_at DESC
+         LIMIT 1) as latest_note
        FROM order_tasks ot
        JOIN orders o ON ot.order_id = o.order_id
        LEFT JOIN order_parts op ON ot.part_id = op.part_id
@@ -403,6 +460,256 @@ export class TaskSessionRepository {
 
     const roles = rows[0].production_roles;
     return typeof roles === 'string' ? JSON.parse(roles) : roles;
+  }
+
+  /**
+   * Get user's full name
+   */
+  async getUserName(userId: number): Promise<string | null> {
+    const rows = await query(
+      `SELECT CONCAT(first_name, ' ', last_name) as full_name FROM users WHERE user_id = ?`,
+      [userId]
+    ) as RowDataPacket[];
+
+    return rows.length > 0 ? rows[0].full_name : null;
+  }
+
+  /**
+   * Get user's system role (owner, manager, designer, production_staff)
+   */
+  async getUserRole(userId: number): Promise<string | null> {
+    const rows = await query(
+      `SELECT role FROM users WHERE user_id = ?`,
+      [userId]
+    ) as RowDataPacket[];
+
+    return rows.length > 0 ? rows[0].role : null;
+  }
+
+  /**
+   * Check if user is currently clocked in
+   */
+  async isUserClockedIn(userId: number): Promise<boolean> {
+    const rows = await query(
+      `SELECT entry_id FROM time_entries WHERE user_id = ? AND status = 'active' LIMIT 1`,
+      [userId]
+    ) as RowDataPacket[];
+
+    return rows.length > 0;
+  }
+
+  // =============================================
+  // SESSION NOTES (Per-user notes on sessions)
+  // =============================================
+
+  /**
+   * Get all notes for a session
+   */
+  async getNotesForSession(sessionId: number): Promise<SessionNote[]> {
+    const rows = await query(
+      `SELECT sn.*,
+              u.first_name as user_first_name,
+              u.last_name as user_last_name,
+              CONCAT(u.first_name, ' ', u.last_name) as user_name
+       FROM task_session_notes sn
+       JOIN users u ON sn.user_id = u.user_id
+       WHERE sn.session_id = ?
+       ORDER BY sn.created_at ASC`,
+      [sessionId]
+    ) as RowDataPacket[];
+
+    return rows as SessionNote[];
+  }
+
+  /**
+   * Get notes for multiple sessions (batch load)
+   */
+  async getNotesForSessions(sessionIds: number[]): Promise<Map<number, SessionNote[]>> {
+    if (sessionIds.length === 0) {
+      return new Map();
+    }
+
+    const placeholders = sessionIds.map(() => '?').join(',');
+    const rows = await query(
+      `SELECT sn.*,
+              u.first_name as user_first_name,
+              u.last_name as user_last_name,
+              CONCAT(u.first_name, ' ', u.last_name) as user_name
+       FROM task_session_notes sn
+       JOIN users u ON sn.user_id = u.user_id
+       WHERE sn.session_id IN (${placeholders})
+       ORDER BY sn.session_id, sn.created_at ASC`,
+      sessionIds
+    ) as RowDataPacket[];
+
+    const notesBySession = new Map<number, SessionNote[]>();
+    for (const row of rows) {
+      const notes = notesBySession.get(row.session_id) || [];
+      notes.push(row as SessionNote);
+      notesBySession.set(row.session_id, notes);
+    }
+
+    return notesBySession;
+  }
+
+  /**
+   * Get a note by ID
+   */
+  async getNoteById(noteId: number): Promise<SessionNote | null> {
+    const rows = await query(
+      `SELECT sn.*,
+              u.first_name as user_first_name,
+              u.last_name as user_last_name,
+              CONCAT(u.first_name, ' ', u.last_name) as user_name
+       FROM task_session_notes sn
+       JOIN users u ON sn.user_id = u.user_id
+       WHERE sn.note_id = ?`,
+      [noteId]
+    ) as RowDataPacket[];
+
+    return rows.length > 0 ? rows[0] as SessionNote : null;
+  }
+
+  /**
+   * Create a new session note
+   */
+  async createNote(data: CreateSessionNoteData): Promise<number> {
+    const [result] = await pool.execute<ResultSetHeader>(
+      `INSERT INTO task_session_notes (session_id, user_id, note_text)
+       VALUES (?, ?, ?)`,
+      [data.session_id, data.user_id, data.note_text]
+    );
+
+    return result.insertId;
+  }
+
+  /**
+   * Update a note (caller must verify ownership)
+   */
+  async updateNote(noteId: number, data: UpdateSessionNoteData): Promise<void> {
+    await pool.execute(
+      `UPDATE task_session_notes SET note_text = ? WHERE note_id = ?`,
+      [data.note_text, noteId]
+    );
+  }
+
+  /**
+   * Delete a note (caller must verify ownership)
+   */
+  async deleteNote(noteId: number): Promise<void> {
+    await pool.execute(
+      `DELETE FROM task_session_notes WHERE note_id = ?`,
+      [noteId]
+    );
+  }
+
+  /**
+   * Get all notes for a task (across all sessions)
+   */
+  async getNotesForTask(taskId: number): Promise<SessionNote[]> {
+    const rows = await query(
+      `SELECT sn.*,
+              u.first_name as user_first_name,
+              u.last_name as user_last_name,
+              CONCAT(u.first_name, ' ', u.last_name) as user_name
+       FROM task_session_notes sn
+       JOIN task_sessions ts ON sn.session_id = ts.session_id
+       JOIN users u ON sn.user_id = u.user_id
+       WHERE ts.task_id = ?
+       ORDER BY sn.created_at DESC`,
+      [taskId]
+    ) as RowDataPacket[];
+
+    return rows as SessionNote[];
+  }
+
+  // =============================================
+  // EFFECTIVE DURATION (Fractional Time Tracking)
+  // =============================================
+
+  /**
+   * Update the effective duration for a completed session
+   * This stores the proportionally calculated duration accounting for concurrent sessions
+   */
+  async updateEffectiveDuration(
+    sessionId: number,
+    effectiveMinutes: number,
+    connection?: PoolConnection
+  ): Promise<void> {
+    const conn = connection || pool;
+    await conn.execute(
+      `UPDATE task_sessions SET effective_duration_minutes = ? WHERE session_id = ?`,
+      [effectiveMinutes, sessionId]
+    );
+  }
+
+  /**
+   * Get overlapping sessions for effective duration calculation
+   * Returns sessions that overlap with the given time range for the same user
+   * Excludes the session being calculated
+   */
+  async getOverlappingSessions(
+    sessionId: number,
+    userId: number,
+    sessionStart: Date,
+    sessionEnd: Date
+  ): Promise<{ session_id: number; started_at: Date; ended_at: Date | null }[]> {
+    const rows = await query(
+      `SELECT session_id, started_at, ended_at
+       FROM task_sessions
+       WHERE user_id = ?
+         AND session_id != ?
+         AND started_at < ?
+         AND (ended_at > ? OR ended_at IS NULL)`,
+      [userId, sessionId, sessionEnd, sessionStart]
+    ) as RowDataPacket[];
+
+    return rows as { session_id: number; started_at: Date; ended_at: Date | null }[];
+  }
+
+  /**
+   * Get completed sessions in a time range for a user
+   * Used for recalculating affected sessions after edits
+   */
+  async getCompletedSessionsInRange(
+    userId: number,
+    rangeStart: Date,
+    rangeEnd: Date
+  ): Promise<TaskSession[]> {
+    const rows = await query(
+      `SELECT ts.*, u.first_name as user_first_name, u.last_name as user_last_name,
+              CONCAT(u.first_name, ' ', u.last_name) as user_name
+       FROM task_sessions ts
+       JOIN users u ON ts.user_id = u.user_id
+       WHERE ts.user_id = ?
+         AND ts.ended_at IS NOT NULL
+         AND ts.started_at < ?
+         AND ts.ended_at > ?
+       ORDER BY ts.started_at ASC`,
+      [userId, rangeEnd, rangeStart]
+    ) as RowDataPacket[];
+
+    return rows as TaskSession[];
+  }
+
+  /**
+   * Get sessions that were just ended (within last minute) for a user
+   * Used after clock-out to calculate effective durations
+   */
+  async getJustEndedSessionsForUser(userId: number): Promise<TaskSession[]> {
+    const rows = await query(
+      `SELECT ts.*, u.first_name as user_first_name, u.last_name as user_last_name,
+              CONCAT(u.first_name, ' ', u.last_name) as user_name
+       FROM task_sessions ts
+       JOIN users u ON ts.user_id = u.user_id
+       WHERE ts.user_id = ?
+         AND ts.ended_at IS NOT NULL
+         AND ts.ended_at >= DATE_SUB(NOW(), INTERVAL 1 MINUTE)
+       ORDER BY ts.started_at ASC`,
+      [userId]
+    ) as RowDataPacket[];
+
+    return rows as TaskSession[];
   }
 }
 

@@ -1,7 +1,16 @@
-import React, { useState, useEffect } from 'react';
+/**
+ * ProgressRoleView Component
+ * Card-based view of tasks organized by production role
+ *
+ * Updated: 2025-01-15 - Added SessionsModal for managers
+ */
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { CheckCircle, Clock, RotateCcw, ChevronDown } from 'lucide-react';
 import { ordersApi, authApi } from '../../../services/api';
+import { useTasksSocket } from '../../../hooks/useTasksSocket';
 import RoleCard from './RoleCard';
+import SessionsModal from '../../staff/SessionsModal';
 import type { UserRole } from '../../../types/user';
 import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
@@ -20,42 +29,62 @@ const TIME_WINDOWS = [
   { value: 0, label: 'All time' },
 ];
 
-// Production roles organized by workflow rows (5 cards per row)
+// Production roles organized by workflow rows (3 cards per row)
 const ROLE_ROWS: { role: string; label: string }[][] = [
-  // Row 1: Design, Management & Material Prep
+  // Row 1: Design & Management
   [
     { role: 'designer', label: 'Designer' },
     { role: 'manager', label: 'Manager' },
     { role: 'painter', label: 'Painter' },
+  ],
+  // Row 2: Material Prep
+  [
     { role: 'vinyl_applicator', label: 'Vinyl Applicator' },
     { role: 'cnc_router_operator', label: 'CNC Router Operator' },
   ],
-  // Row 2: Fabrication
+  // Row 3: Fabrication - Cut & Form
   [
     { role: 'cut_bender_operator', label: 'Cut & Bend Operator' },
     { role: 'return_fabricator', label: 'Return Fabricator' },
     { role: 'trim_fabricator', label: 'Trim Fabricator' },
+  ],
+  // Row 4: Fabrication - Finish
+  [
     { role: 'return_gluer', label: 'Return Gluer' },
     { role: 'led_installer', label: 'LED Installer' },
   ],
-  // Row 3: Assembly & QC
+  // Row 5: Assembly
   [
     { role: 'mounting_assembler', label: 'Mounting Assembler' },
     { role: 'face_assembler', label: 'Face Assembler' },
+  ],
+  // Row 6: Backer/Raceway & QC
+  [
     { role: 'backer_raceway_fabricator', label: 'Backer / Raceway Fabricator' },
     { role: 'backer_raceway_assembler', label: 'Backer / Raceway Assembler' },
     { role: 'qc_packer', label: 'QC/Packer' },
   ],
 ];
 
+// Roles that are considered managers
+const MANAGER_ROLES: UserRole[] = ['manager', 'owner'];
+
 export const ProgressRoleView: React.FC = () => {
   const [tasksByRole, setTasksByRole] = useState<any>({});
-  const [loading, setLoading] = useState(true);
   const [showCompleted, setShowCompleted] = useState(false);
   const [hoursBack, setHoursBack] = useState<number>(24);
   const [stagedUpdates, setStagedUpdates] = useState<Map<number, TaskUpdate>>(new Map());
   const [saving, setSaving] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>('production_staff');
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+
+  // Sessions modal state
+  const [sessionsModalTask, setSessionsModalTask] = useState<{
+    taskId: number;
+    taskRole: string | null;
+  } | null>(null);
+
+  const isManager = MANAGER_ROLES.includes(userRole);
 
   useEffect(() => {
     fetchInitialData();
@@ -71,22 +100,33 @@ export const ProgressRoleView: React.FC = () => {
       if (userData.user?.role) {
         setUserRole(userData.user.role as UserRole);
       }
+      if (userData.user?.user_id) {
+        setCurrentUserId(userData.user.user_id);
+      }
     } catch (error) {
       console.error('Error fetching user:', error);
     }
   };
 
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     try {
-      setLoading(true);
       const data = await ordersApi.getTasksByRole(showCompleted, hoursBack);
       setTasksByRole(data);
     } catch (error) {
       console.error('Error fetching tasks by role:', error);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [showCompleted, hoursBack]);
+
+  // WebSocket subscription for real-time updates
+  useTasksSocket({
+    onTasksUpdated: fetchTasks,
+    onOrderStatus: fetchTasks,
+    onOrderCreated: fetchTasks,
+    onOrderUpdated: fetchTasks,
+    onOrderDeleted: fetchTasks,
+    onInvoiceUpdated: fetchTasks,
+    onReconnect: fetchTasks
+  });
 
   const handleTaskUpdate = (
     taskId: number,
@@ -95,17 +135,17 @@ export const ProgressRoleView: React.FC = () => {
     originalStarted: boolean,
     originalCompleted: boolean
   ) => {
+    // Only handle 'completed' field in batch updates now
+    // 'started' is handled via sessions
+    if (field !== 'completed') return;
+
     setStagedUpdates(prev => {
       const newUpdates = new Map(prev);
       const existing = newUpdates.get(taskId) || { task_id: taskId };
       const updated = { ...existing, [field]: value };
 
-      // Determine what the new staged state would be
-      const newStarted = updated.started !== undefined ? updated.started : originalStarted;
-      const newCompleted = updated.completed !== undefined ? updated.completed : originalCompleted;
-
-      // If both values match original, remove from staged updates (unstage)
-      if (newStarted === originalStarted && newCompleted === originalCompleted) {
+      // If completed matches original, remove from staged updates
+      if (value === originalCompleted) {
         newUpdates.delete(taskId);
       } else {
         newUpdates.set(taskId, updated);
@@ -113,6 +153,38 @@ export const ProgressRoleView: React.FC = () => {
 
       return newUpdates;
     });
+  };
+
+  const handleOpenSessionsModal = (taskId: number, taskRole: string | null) => {
+    setSessionsModalTask({ taskId, taskRole });
+  };
+
+  const handleCloseSessionsModal = () => {
+    setSessionsModalTask(null);
+  };
+
+  const handleSessionChange = () => {
+    // Refresh tasks when sessions change
+    fetchTasks();
+  };
+
+  // Complete a task directly (from sessions modal)
+  const handleCompleteTask = async (taskId: number) => {
+    try {
+      await ordersApi.batchUpdateTasks([{ task_id: taskId, completed: true }]);
+      await fetchTasks();
+    } catch (error) {
+      console.error('Error completing task:', error);
+    }
+  };
+
+  // Find if a task is completed (for sessions modal)
+  const isTaskCompleted = (taskId: number): boolean => {
+    for (const roleData of Object.values(tasksByRole) as any[]) {
+      const task = roleData?.tasks?.find((t: any) => t.task_id === taskId);
+      if (task) return !!task.completed;
+    }
+    return false;
   };
 
   const handleRecordProgress = async () => {
@@ -143,14 +215,6 @@ export const ProgressRoleView: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className={PAGE_STYLES.panel.textMuted}>Loading production tasks...</div>
-      </div>
-    );
-  }
-
   const hasUpdates = stagedUpdates.size > 0;
 
   return (
@@ -159,7 +223,7 @@ export const ProgressRoleView: React.FC = () => {
       <div className="flex-1 overflow-auto p-3">
         {/* Role cards - organized by workflow rows */}
         <div
-          className="space-y-2"
+          className="space-y-4"
           style={{
             WebkitBackfaceVisibility: 'hidden',
             backfaceVisibility: 'hidden',
@@ -167,7 +231,7 @@ export const ProgressRoleView: React.FC = () => {
           }}
         >
           {ROLE_ROWS.map((row, rowIndex) => (
-            <div key={rowIndex} className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-2">
+            <div key={rowIndex} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {row.map(({ role, label }) => (
                 <RoleCard
                   key={role}
@@ -180,6 +244,8 @@ export const ProgressRoleView: React.FC = () => {
                   showCompleted={showCompleted}
                   hoursBack={hoursBack}
                   userRole={userRole}
+                  currentUserId={currentUserId || undefined}
+                  onOpenSessionsModal={isManager ? handleOpenSessionsModal : undefined}
                 />
               ))}
             </div>
@@ -248,6 +314,21 @@ export const ProgressRoleView: React.FC = () => {
           {saving ? 'Saving...' : `Record${hasUpdates ? ` (${stagedUpdates.size})` : ''}`}
         </button>
       </div>
+
+      {/* Sessions Modal for managers */}
+      {sessionsModalTask && currentUserId && (
+        <SessionsModal
+          taskId={sessionsModalTask.taskId}
+          taskRole={sessionsModalTask.taskRole}
+          isOpen={true}
+          onClose={handleCloseSessionsModal}
+          currentUserId={currentUserId}
+          isManager={isManager}
+          onSessionChange={handleSessionChange}
+          taskCompleted={isTaskCompleted(sessionsModalTask.taskId)}
+          onComplete={handleCompleteTask}
+        />
+      )}
     </div>
   );
 };

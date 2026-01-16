@@ -137,6 +137,7 @@ export interface BalanceSyncResult {
   newBalance: number;
   total: number;
   syncedAt: string;
+  autoCompleted?: boolean;  // True if order was auto-completed due to balance reaching 0
 }
 
 /**

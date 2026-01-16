@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Order, OrderFilters, OrderStatus } from '../../../types/orders';
 import { ordersApi, orderStatusApi, timeSchedulesApi } from '../../../services/api';
+import { useTasksSocket } from '../../../hooks/useTasksSocket';
 import { calculateWorkDaysLeft } from '../calendarView/utils';
 import TableHeader from './TableHeader';
 import TableRow from './TableRow';
@@ -67,25 +68,44 @@ export const OrdersTable: React.FC = () => {
   }, []);
 
   // Fetch orders (status filtering is done client-side)
-  useEffect(() => {
-    fetchOrders();
-  }, [filters.search]);  // Only refetch when search changes
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
-      setError(null);
+      if (!silent) {
+        setLoading(true);
+        setError(null);
+      }
       // Fetch all orders, filter by status client-side
       const data = await ordersApi.getOrders({ search: filters.search });
       setOrders(data);
-      setCurrentPage(1);
+      if (!silent) setCurrentPage(1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch orders');
+      if (!silent) setError(err instanceof Error ? err.message : 'Failed to fetch orders');
       console.error('Error fetching orders:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, [filters.search]);
+
+  // Silent refetch for WebSocket updates
+  const refetchSilent = useCallback(() => {
+    fetchOrders(true);
+  }, [fetchOrders]);
+
+  // Initial fetch and refetch when search changes
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
+  // WebSocket subscription for real-time updates
+  useTasksSocket({
+    onTasksUpdated: refetchSilent,
+    onOrderStatus: refetchSilent,
+    onOrderCreated: refetchSilent,
+    onOrderUpdated: refetchSilent,
+    onOrderDeleted: refetchSilent,
+    onInvoiceUpdated: refetchSilent,
+    onReconnect: refetchSilent
+  });
 
   // Apply client-side status filtering
   const filteredOrders = useMemo(() => {
@@ -203,8 +223,10 @@ export const OrdersTable: React.FC = () => {
   return (
     <div className={`h-full flex flex-col ${PAGE_STYLES.page.background}`}>
       {/* Filters */}
-      <div className={`${PAGE_STYLES.panel.background} border-b ${PAGE_STYLES.panel.border} px-6 py-4`}>
-        <TableFilters filters={filters} onFiltersChange={setFilters} />
+      <div className={`border-b ${PAGE_STYLES.panel.border} px-6 py-4`}>
+        <div className="w-fit mx-auto">
+          <TableFilters filters={filters} onFiltersChange={setFilters} />
+        </div>
       </div>
 
       {/* Table */}
@@ -229,9 +251,9 @@ export const OrdersTable: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className={`${PAGE_STYLES.composites.panelContainer} overflow-hidden`}>
+            <div className={`${PAGE_STYLES.composites.panelContainer} overflow-hidden w-fit mx-auto`}>
               <div className="overflow-x-auto">
-                <table className={`min-w-full ${PAGE_STYLES.composites.tableBody} table-fixed`}>
+                <table className={`${PAGE_STYLES.composites.tableBody} table-fixed`}>
                   <TableHeader
                     sortField={sortField}
                     sortDirection={sortDirection}
