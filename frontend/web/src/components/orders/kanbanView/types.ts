@@ -126,6 +126,31 @@ export const KANBAN_COLLAPSED_BY_DEFAULT: OrderStatus[] = [
 ];
 
 /**
+ * Painting column configuration
+ * Special non-status column that shows "copies" of orders with incomplete painting tasks
+ */
+export const PAINTING_COLUMN_ID = 'painting';
+
+/**
+ * Statuses that can appear in the Painting column
+ * Only orders in active production stages show in Painting column
+ */
+export const PAINTING_ELIGIBLE_STATUSES: OrderStatus[] = [
+  'production_queue',
+  'in_production',
+  'overdue',
+  'qc_packing'
+];
+
+/**
+ * Painting column colors (purple to match painter role)
+ */
+export const PAINTING_COLUMN_COLORS = {
+  header: 'bg-purple-100',
+  border: 'border-purple-300'
+};
+
+/**
  * Props for KanbanColumn component
  */
 export interface KanbanColumnProps {
@@ -143,6 +168,13 @@ export interface KanbanColumnProps {
   isCollapsible?: boolean;
   isCollapsed?: boolean;
   onToggleCollapsed?: () => void;
+  // Custom column support (for special columns like Painting)
+  columnId?: string;
+  columnLabel?: string;
+  columnColors?: { header: string; border: string; background?: string };
+  disableDrop?: boolean;
+  cardsDisableDrag?: boolean;
+  cardsShowPaintingBadge?: boolean;
 }
 
 /**
@@ -153,5 +185,8 @@ export interface KanbanCardProps {
   onClick: () => void;
   onOrderUpdated: () => void;
   onToggleExpanded: () => void;
+  // Support for special columns
+  disableDrag?: boolean;
+  showPaintingBadge?: boolean;
 }
 

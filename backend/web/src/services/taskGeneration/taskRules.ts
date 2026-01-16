@@ -22,6 +22,10 @@ const UNKNOWN_TASK_SORT_ORDER = 999;
  * via order status and are NOT generated as part-specific tasks.
  */
 export const TASK_ORDER: string[] = [
+  '3D Print',
+  'Paper Pattern',
+  'Vinyl Stencil',
+  'UL',
   'Vinyl Plotting',
   'Sanding (320) before cutting',
   'Scuffing before cutting',
@@ -66,6 +70,10 @@ export function getTaskSortOrder(taskName: string): number {
  * because they are tracked via order.status, not as per-part tasks.
  */
 export const TASK_ROLE_MAP: Record<string, ProductionRole> = {
+  '3D Print': 'designer',
+  'Paper Pattern': 'designer',
+  'Vinyl Stencil': 'designer',
+  'UL': 'designer',
   'Vinyl Plotting': 'designer',
   'Vinyl Before Cutting': 'vinyl_applicator',
   'Vinyl After Cutting': 'vinyl_applicator',
@@ -151,6 +159,7 @@ export function generateClosingTasks(orderId: number, partId: number): Generated
 
 /**
  * Generate COMPONENT tasks based on spec presence
+ * 3DP Return spec → 3D Print
  * Return spec → Cut & Bend Return, Return Fabrication, Return Gluing
  * Trim spec → Cut & Bend Trim, Trim Fabrication
  * Face spec → CNC Router Cut (with Face note)
@@ -162,6 +171,22 @@ export function generateComponentTasks(
   group: PartGroup
 ): GeneratedTask[] {
   const tasks: GeneratedTask[] = [];
+
+  // 3DP Return spec → 3D Print task (for 3D Print products)
+  if (hasSpec(group, '3DP Return')) {
+    const depth = getSpecValue(group, '3DP Return', 'depth');
+    const faceMaterial = getSpecValue(group, '3DP Return', 'face_material');
+    const printNote = [depth, faceMaterial].filter(Boolean).join(' - ') || null;
+
+    tasks.push({
+      taskName: '3D Print',
+      assignedRole: getRole('3D Print'),
+      notes: printNote,
+      partId,
+      orderId,
+      sortOrder: getTaskSortOrder('3D Print')
+    });
+  }
 
   // Return spec → 3 tasks
   if (hasSpec(group, 'Return')) {

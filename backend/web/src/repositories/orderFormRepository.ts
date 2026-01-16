@@ -160,7 +160,7 @@ export class OrderFormRepository {
 
     const order = orderRows[0];
 
-    // Fetch order parts
+    // Fetch order parts (exclude order-wide parts from PDFs)
     const parts = await query(`
       SELECT
         part_id,
@@ -182,6 +182,7 @@ export class OrderFormRepository {
         extended_price
       FROM order_parts
       WHERE order_id = ?
+        AND (is_order_wide = 0 OR is_order_wide IS NULL)
       ORDER BY part_number
     `, [orderId]) as RowDataPacket[];
 

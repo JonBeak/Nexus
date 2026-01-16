@@ -6,6 +6,7 @@
 
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
@@ -51,6 +52,7 @@ import invoicesRoutes from './routes/invoices';  // Invoices listing page (Dec 1
 import dashboardPanelsRoutes from './routes/dashboardPanels';  // Customizable Orders Dashboard panels (Dec 17, 2025)
 import serverManagementRoutes from './routes/serverManagement';  // Server Management GUI (Dec 23, 2025)
 import staffTasksRoutes from './routes/staffTasks';  // Staff task sessions (Jan 7, 2026)
+import feedbackRoutes from './routes/feedback';  // Feedback/error reporting system (Jan 16, 2026)
 
 // QuickBooks utilities for startup
 import { quickbooksOAuthRepository } from './repositories/quickbooksOAuthRepository';
@@ -92,6 +94,29 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Rate limiting - protect against brute force and DoS attacks
+// Generous limits for internal app - mainly protects against runaway scripts/bugs
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 300, // 300 requests per minute per IP (allows multiple users behind NAT)
+  message: { success: false, message: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 auth attempts per minute per IP (stricter for login)
+  message: { success: false, message: 'Too many login attempts, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiting to API routes
+app.use('/api/', apiLimiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/refresh', authLimiter);
 
 // Debug middleware - log all requests
 app.use((req, res, next) => {
@@ -139,6 +164,7 @@ app.use('/api/invoices', invoicesRoutes);  // Invoices listing page (Dec 17, 202
 app.use('/api/dashboard-panels', dashboardPanelsRoutes);  // Customizable Orders Dashboard panels (Dec 17, 2025)
 app.use('/api/server-management', serverManagementRoutes);  // Server Management GUI (Dec 23, 2025)
 app.use('/api/staff', staffTasksRoutes);  // Staff task sessions (Jan 7, 2026)
+app.use('/api/feedback', feedbackRoutes);  // Feedback/error reporting system (Jan 16, 2026)
 
 // =============================================
 // STATIC FILE SERVING (Phase 1.5.g)
@@ -253,6 +279,22 @@ const startServer = async () => {
       });
     }, 60 * 60 * 1000); // 1 hour
     console.log('⏰ Awaiting payment check job started (every hour)');
+
+    // Cleanup expired resource locks (runs every hour)
+    // Locks expire after 10 minutes of inactivity but aren't auto-deleted
+    setInterval(async () => {
+      try {
+        const { LockRepository } = await import('./repositories/lockRepository');
+        const lockRepository = new LockRepository();
+        const cleaned = await lockRepository.cleanupExpiredLocks();
+        if (cleaned > 0) {
+          console.log(`🔓 Cleaned up ${cleaned} expired resource locks`);
+        }
+      } catch (error) {
+        console.error('❌ Lock cleanup failed:', error);
+      }
+    }, 60 * 60 * 1000); // 1 hour
+    console.log('🔓 Resource lock cleanup job started (every hour)');
 
     // Check for SSL certificates (home environment HTTPS support)
     const sslKeyPath = path.join(__dirname, '..', 'nexuswebapphome.duckdns.org-key.pem');

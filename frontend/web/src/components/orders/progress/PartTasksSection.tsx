@@ -59,7 +59,7 @@ export const PartTasksSection: React.FC<Props> = ({ part, partIndex, orderNumber
       <div className="px-2 py-1.5 border-b border-gray-200">
         <div className="flex items-center justify-between mb-2">
           <h3 className="font-semibold text-base text-gray-900 truncate">
-            Part {partIndex}: {part.specs_display_name}
+            {part.is_order_wide ? 'Order-wide' : `Part ${partIndex}: ${part.specs_display_name}`}
           </h3>
 
           {/* Action Buttons */}
@@ -85,7 +85,8 @@ export const PartTasksSection: React.FC<Props> = ({ part, partIndex, orderNumber
           )}
         </div>
         <div className="flex items-center justify-between text-base text-gray-500 mb-1.5">
-          <span>Qty: {part.specs_qty}</span>
+          {!part.is_order_wide && <span>Qty: {part.specs_qty}</span>}
+          {part.is_order_wide && <span></span>}
           <span className="font-medium">{completedTasks}/{totalTasks}</span>
         </div>
         {/* Progress Bar */}

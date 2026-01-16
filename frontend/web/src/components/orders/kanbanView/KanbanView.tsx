@@ -28,7 +28,10 @@ import {
   KANBAN_STATUS_ORDER,
   KANBAN_HIDDEN_STATUSES,
   KANBAN_STACKED_GROUPS,
-  KANBAN_COLLAPSED_BY_DEFAULT
+  KANBAN_COLLAPSED_BY_DEFAULT,
+  PAINTING_COLUMN_ID,
+  PAINTING_ELIGIBLE_STATUSES,
+  PAINTING_COLUMN_COLORS
 } from './types';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
 
@@ -252,6 +255,21 @@ export const KanbanView: React.FC = () => {
     return acc;
   }, {} as Record<OrderStatus, KanbanOrder[]>);
 
+  // Filter orders for Painting column - orders with incomplete painting tasks
+  // Only includes orders in eligible statuses (active production stages)
+  const paintingOrders = orders
+    .filter(o =>
+      PAINTING_ELIGIBLE_STATUSES.includes(o.status) &&
+      (o.incomplete_painting_tasks_count || 0) > 0
+    )
+    .sort((a, b) => {
+      // Sort by due date (earliest first), orders without due date go to end
+      if (!a.due_date && !b.due_date) return 0;
+      if (!a.due_date) return 1;
+      if (!b.due_date) return -1;
+      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+    });
+
   // Get total count for completed/cancelled (for "show all" button)
   const getTotalCount = (status: OrderStatus): number => {
     return orders.filter(o => o.status === status).length;
@@ -299,6 +317,9 @@ export const KanbanView: React.FC = () => {
     setActiveId(null);
 
     if (!over) return;
+
+    // Ignore drops onto the Painting column (it's a read-only view)
+    if (over.id === PAINTING_COLUMN_ID) return;
 
     const orderId = active.id as string;
     const newStatus = over.id as OrderStatus;
@@ -376,7 +397,7 @@ export const KanbanView: React.FC = () => {
               if (group.length === 1) {
                 const status = group[0];
                 const isCollapsible = KANBAN_COLLAPSED_BY_DEFAULT.includes(status);
-                return (
+                const elements = [
                   <KanbanColumn
                     key={status}
                     status={status}
@@ -393,7 +414,30 @@ export const KanbanView: React.FC = () => {
                     isCollapsed={collapsedColumns.has(status)}
                     onToggleCollapsed={() => handleToggleCollapsed(status)}
                   />
-                );
+                ];
+
+                // Insert Painting column after 'in_production' if there are painting orders
+                if (status === 'in_production' && paintingOrders.length > 0) {
+                  elements.push(
+                    <KanbanColumn
+                      key={PAINTING_COLUMN_ID}
+                      status={'in_production' as OrderStatus}
+                      columnId={PAINTING_COLUMN_ID}
+                      columnLabel="Painting"
+                      columnColors={PAINTING_COLUMN_COLORS}
+                      orders={paintingOrders}
+                      onCardClick={handleCardClick}
+                      onOrderUpdated={fetchOrders}
+                      expanded={expandedCards}
+                      onToggleExpanded={handleToggleExpanded}
+                      disableDrop={true}
+                      cardsDisableDrag={true}
+                      cardsShowPaintingBadge={true}
+                    />
+                  );
+                }
+
+                return elements;
               }
 
               // Stacked columns

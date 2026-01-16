@@ -23,13 +23,22 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
   onToggleShowAll,
   isCollapsible = false,
   isCollapsed = false,
-  onToggleCollapsed
+  onToggleCollapsed,
+  // Custom column support
+  columnId,
+  columnLabel,
+  columnColors,
+  disableDrop = false,
+  cardsDisableDrag = false,
+  cardsShowPaintingBadge = false
 }) => {
   const { isOver, setNodeRef } = useDroppable({
-    id: status
+    id: columnId || status,
+    disabled: disableDrop
   });
 
-  const colors = KANBAN_COLUMN_COLORS[status];
+  const colors = columnColors || KANBAN_COLUMN_COLORS[status];
+  const label = columnLabel || ORDER_STATUS_LABELS[status];
 
   return (
     <div
@@ -46,7 +55,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h3 className="font-medium text-sm text-gray-800">
-              {ORDER_STATUS_LABELS[status]}
+              {label}
             </h3>
             {/* Collapse toggle for collapsible columns */}
             {isCollapsible && onToggleCollapsed && (
@@ -88,6 +97,8 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
               onOrderUpdated={onOrderUpdated}
               onToggleExpanded={onToggleExpanded}
               expanded={expanded}
+              disableDrag={cardsDisableDrag}
+              showPaintingBadge={cardsShowPaintingBadge}
             />
           ))}
         </div>

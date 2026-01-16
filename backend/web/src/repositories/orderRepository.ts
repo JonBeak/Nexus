@@ -169,7 +169,8 @@ export class OrderRepository {
         TIME_FORMAT(o.hard_due_date_time, '%H:%i') as hard_due_date_time,
         c.company_name as customer_name,
         (SELECT COUNT(*) FROM order_tasks WHERE order_tasks.order_id = o.order_id) as total_tasks,
-        (SELECT COUNT(*) FROM order_tasks WHERE order_tasks.order_id = o.order_id AND completed = 1) as completed_tasks
+        (SELECT COUNT(*) FROM order_tasks WHERE order_tasks.order_id = o.order_id AND completed = 1) as completed_tasks,
+        (SELECT COUNT(*) FROM order_tasks WHERE order_tasks.order_id = o.order_id AND assigned_role = 'painter' AND completed = 0) as incomplete_painting_tasks_count
       FROM orders o
       LEFT JOIN customers c ON o.customer_id = c.customer_id
       WHERE 1=1

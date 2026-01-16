@@ -148,3 +148,16 @@ export type {
   CreateAccountingEmailData,
   UpdateAccountingEmailData
 } from './customerAccountingEmailsApi';
+
+// Feedback/Error Reporting System (Jan 2026)
+export { feedbackApi } from './feedbackApi';
+export type {
+  FeedbackStatus,
+  FeedbackPriority,
+  FeedbackRequest,
+  FeedbackResponse,
+  CreateFeedbackData,
+  FeedbackFilters,
+  FeedbackListResponse,
+  FeedbackDetailResponse
+} from './feedbackApi';

@@ -20,6 +20,7 @@ import axios from 'axios';
 import MailComposer from 'nodemailer/lib/mail-composer';
 import { query } from '../config/database';
 import { RowDataPacket } from 'mysql2';
+import { escapeHtml } from '../utils/htmlUtils';
 
 export interface EmailData {
   recipients: string[];
@@ -178,13 +179,18 @@ function buildEmailTemplate(data: EmailData): { subject: string; html: string; t
   // SINGLE SOURCE OF TRUTH - All email content defined here
   // ============================================================================
  
+  // Escape user-controlled data to prevent XSS in email previews
+  const safeOrderName = escapeHtml(data.orderName);
+  const safeOrderNumber = escapeHtml(String(data.orderNumber));
+  const safeCustomerName = escapeHtml(data.customerName);
+
   const content = {
-    subject: `[Requires Confirmation] ${data.orderName} - #${data.orderNumber}`,
+    subject: `[Requires Confirmation] ${safeOrderName} - #${safeOrderNumber}`,
     title: 'Order Ready for Review',
-    greeting: data.customerName ? `Dear ${data.customerName},` : 'Dear Valued Customer,',
+    greeting: safeCustomerName ? `Dear ${safeCustomerName},` : 'Dear Valued Customer,',
 
     paragraphs: [
-      `The details for your order #${data.orderNumber} - ${data.orderName} have been prepared and are ready for your review and confirmation.`
+      `The details for your order #${safeOrderNumber} - ${safeOrderName} have been prepared and are ready for your review and confirmation.`
     ],
 
     attachmentsTitle: 'Attached Documents:',

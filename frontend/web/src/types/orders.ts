@@ -66,6 +66,7 @@ export interface Order {
   total_tasks?: number;
   completed_tasks?: number;
   progress_percent?: number;
+  incomplete_painting_tasks_count?: number;  // Count of incomplete painter-assigned tasks
 
   // Relations (included in detailed order response)
   point_persons?: OrderPointPerson[];  // Phase 1.5: Multiple point persons per order
@@ -157,6 +158,7 @@ export interface OrderPart {
   order_id: number;
   part_number: number;
   is_header_row?: boolean;  // True for auto-generated invoice header row (part_number=0)
+  is_order_wide?: boolean;  // True for order-wide parts (Pattern, UL tasks) - not shown in Tasks Table
   display_number?: string;
   is_parent: boolean;
   product_type: string;

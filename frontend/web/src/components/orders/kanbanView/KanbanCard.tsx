@@ -7,15 +7,15 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useDraggable } from '@dnd-kit/core';
-import { Calendar } from 'lucide-react';
+import { Calendar, Paintbrush } from 'lucide-react';
 import { KanbanCardProps, getProgressColor, PROGRESS_BAR_COLORS } from './types';
 import { KanbanCardTasks } from './KanbanCardTasks';
-import { ordersApi, orderTasksApi, authApi } from '../../../services/api';
+import { ordersApi, orderTasksApi } from '../../../services/api';
 import { staffTasksApi } from '../../../services/api/staff/staffTasksApi';
 import { OrderTask, OrderPart } from '../../../types/orders';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
 import SessionsModal from '../../staff/SessionsModal';
-import type { UserRole } from '../../../types/user';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -54,17 +54,19 @@ const getOrderImageUrl = (order: {
   }
 };
 
-// Roles that are considered managers
-const MANAGER_ROLES: UserRole[] = ['manager', 'owner'];
-
 export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
   order,
   onClick,
   onOrderUpdated,
   onToggleExpanded,
   isDragOverlay = false,
-  expanded = false
+  expanded = false,
+  disableDrag = false,
+  showPaintingBadge = false
 }) => {
+  // Get user data from context (no API call needed!)
+  const { userId: currentUserId, userRole, isManager } = useAuth();
+
   const [parts, setParts] = useState<OrderPart[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [tasksFetched, setTasksFetched] = useState(false);
@@ -72,22 +74,19 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
   const [imageMaxHeight, setImageMaxHeight] = useState<number | undefined>(undefined);
   const imageContainerRef = useRef<HTMLDivElement>(null);
 
-  // User role and session modal state
-  const [userRole, setUserRole] = useState<UserRole>('production_staff');
-  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  // Session modal state
   const [sessionsModalTask, setSessionsModalTask] = useState<{
     taskId: number;
     taskRole: string | null;
   } | null>(null);
-
-  const isManager = MANAGER_ROLES.includes(userRole);
 
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `order-${order.order_id}`,
     data: {
       orderNumber: order.order_number,
       currentStatus: order.status
-    }
+    },
+    disabled: disableDrag
   });
 
   const style = transform && !isDragOverlay
@@ -96,24 +95,6 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
         opacity: isDragging ? 0.5 : 1
       }
     : undefined;
-
-  // Fetch user data on mount
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const userData = await authApi.getCurrentUser();
-        if (userData.user?.role) {
-          setUserRole(userData.user.role as UserRole);
-        }
-        if (userData.user?.user_id) {
-          setCurrentUserId(userData.user.user_id);
-        }
-      } catch (error) {
-        console.error('Error fetching user:', error);
-      }
-    };
-    fetchUserData();
-  }, []);
 
   // Fetch parts with tasks when expanded for the first time
   useEffect(() => {
@@ -267,7 +248,7 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
         ${order.invoice_sent_at ? 'bg-emerald-300' : PAGE_STYLES.input.background}
         rounded-lg border ${order.invoice_sent_at ? 'border-emerald-500' : PAGE_STYLES.panel.border}
         shadow-sm hover:shadow-md transition-shadow select-none
-        cursor-grab active:cursor-grabbing overflow-hidden touch-manipulation
+        ${disableDrag ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} overflow-hidden touch-manipulation
         ${isDragging ? 'ring-2 ring-orange-400' : ''}
         ${isDragOverlay ? 'shadow-lg rotate-2' : ''}
       `}
@@ -294,11 +275,18 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
           {order.order_name || `#${order.order_number}`}
         </p>
 
-        {/* Customer name + Shipping/Pickup label */}
+        {/* Customer name + Painting badge + Shipping/Pickup label */}
         <div className="flex items-center gap-1.5 mt-0.5">
           <p className={`text-xs ${PAGE_STYLES.panel.textMuted} truncate flex-1 min-w-0`}>
             {order.customer_name || 'Unknown Customer'}
           </p>
+          {/* Painting badge - shown when card is in Painting column */}
+          {showPaintingBadge && (order.incomplete_painting_tasks_count || 0) > 0 && (
+            <span className="text-[10px] font-medium px-1 py-0.5 rounded flex-shrink-0 bg-purple-100 text-purple-700 flex items-center gap-0.5">
+              <Paintbrush className="w-3 h-3" />
+              {order.incomplete_painting_tasks_count}
+            </span>
+          )}
           <span className={`text-[10px] font-medium px-1 py-0.5 rounded flex-shrink-0 ${
             order.shipping_required
               ? 'bg-blue-100 text-blue-700'

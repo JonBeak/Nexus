@@ -1,16 +1,16 @@
 // File Clean up Finished: 2025-11-25
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+// Auth refactored to AuthContext: 2026-01-16
+import { lazy, Suspense } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 // Eager imports (needed immediately)
 import SimpleLogin from './components/auth/SimpleLogin';
 import SimpleDashboard from './components/dashboard/SimpleDashboard';
-import { authApi } from './services/api';
-import type { AccountUser } from './types/user';
 import { SessionProvider } from './contexts/SessionContext';
 import { SessionExpiredModal } from './components/common/SessionExpiredModal';
-import { ThemeProvider, useTheme } from './contexts/ThemeContext';
-import type { ThemePreference } from './types/user';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { FeedbackButton } from './components/feedback';
 
 // Lazy imports (loaded on demand)
 const SimpleCustomerList = lazy(() => import('./components/customers/SimpleCustomerList'));
@@ -29,6 +29,9 @@ const SpecificationOptionsManager = lazy(() => import('./components/settings/Spe
 const TasksManager = lazy(() => import('./components/settings/TasksManager').then(m => ({ default: m.TasksManager })));
 const RolesManager = lazy(() => import('./components/settings/RolesManager').then(m => ({ default: m.RolesManager })));
 const AuditLogViewer = lazy(() => import('./components/settings/AuditLogViewer').then(m => ({ default: m.AuditLogViewer })));
+const FeedbackManager = lazy(() => import('./components/settings/FeedbackManager').then(m => ({ default: m.FeedbackManager })));
+const FeedbackPage = lazy(() => import('./components/feedback/FeedbackPage'));
+const MyFeedbackPage = lazy(() => import('./components/feedback/MyFeedbackPage'));
 const EmailTemplatesManager = lazy(() => import('./components/settings/EmailTemplatesManager').then(m => ({ default: m.EmailTemplatesManager })));
 const PaintingMatrixManager = lazy(() => import('./components/settings/PaintingMatrixManager').then(m => ({ default: m.PaintingMatrixManager })));
 const VinylApplicationMatrixManager = lazy(() => import('./components/settings/VinylApplicationMatrixManager').then(m => ({ default: m.VinylApplicationMatrixManager })));
@@ -50,57 +53,7 @@ const RouteLoader = () => (
 );
 
 function AppContent() {
-  const [user, setUser] = useState<AccountUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const navigate = useNavigate();
-  const { setTheme } = useTheme();
-
-  const handleLogout = useCallback(() => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    setUser(null);
-    navigate('/login');
-  }, [navigate]);
-
-  const checkAuth = useCallback(async () => {
-    const token = localStorage.getItem('access_token');
-    const refreshToken = localStorage.getItem('refresh_token');
-
-    if (!token && !refreshToken) {
-      setIsLoading(false);
-      setUser(null);
-      return;
-    }
-
-    try {
-      // Use the authApi which will automatically handle refresh via interceptor
-      const data = await authApi.getCurrentUser();
-      const userData = data.user as AccountUser;
-      setUser(userData);
-      // Apply user's theme preference
-      if (userData.theme_preference) {
-        setTheme(userData.theme_preference);
-      }
-    } catch (error) {
-      console.error('Auth check failed:', error);
-      handleLogout();
-    } finally {
-      setIsLoading(false);
-    }
-  }, [handleLogout, setTheme]);
-
-  useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
-
-  const handleLogin = (userData: AccountUser) => {
-    setUser(userData);
-    // Apply user's theme preference on login
-    if (userData.theme_preference) {
-      setTheme(userData.theme_preference);
-    }
-    navigate('/dashboard');
-  };
+  const { user, isLoading, isManager, isOwner, login, logout } = useAuth();
 
   if (isLoading) {
     return (
@@ -117,11 +70,11 @@ function AppContent() {
     <Suspense fallback={<RouteLoader />}>
       <Routes>
         <Route path="/login" element={
-          user ? <Navigate to="/dashboard" /> : <SimpleLogin onLogin={handleLogin} />
+          user ? <Navigate to="/dashboard" /> : <SimpleLogin onLogin={login} />
         } />
 
         <Route path="/dashboard" element={
-          user ? <SimpleDashboard user={user} onLogout={handleLogout} /> : <Navigate to="/login" />
+          user ? <SimpleDashboard user={user} onLogout={logout} /> : <Navigate to="/login" />
         } />
 
         <Route path="/customers" element={
@@ -129,7 +82,7 @@ function AppContent() {
         } />
 
         <Route path="/time-management" element={
-          user && (user.role === 'manager' || user.role === 'owner') ? <TimeManagement user={user} /> : <Navigate to="/dashboard" />
+          isManager ? <TimeManagement user={user!} /> : <Navigate to="/dashboard" />
         } />
 
         <Route path="/vinyl-inventory" element={
@@ -142,56 +95,56 @@ function AppContent() {
         } />
 
         <Route path="/wages" element={
-          user && user.role === 'owner' ? <WageManagement /> : <Navigate to="/dashboard" />
+          isOwner ? <WageManagement /> : <Navigate to="/dashboard" />
         } />
 
         <Route path="/account-management" element={
-          user && (user.role === 'manager' || user.role === 'owner') ? <AccountManagement user={user} /> : <Navigate to="/dashboard" />
+          isManager ? <AccountManagement user={user!} /> : <Navigate to="/dashboard" />
         } />
 
         <Route path="/supply-chain" element={
-          user && (user.role === 'manager' || user.role === 'owner') ? <SupplyChainDashboard user={user} /> : <Navigate to="/dashboard" />
+          isManager ? <SupplyChainDashboard user={user!} /> : <Navigate to="/dashboard" />
         } />
 
         {/* Estimate Editor - singular /estimate/:estimateId */}
         <Route path="/estimate/:estimateId" element={
-          user && (user.role === 'manager' || user.role === 'owner') ? <EstimateEditorPage user={user} /> : <Navigate to="/dashboard" />
+          isManager ? <EstimateEditorPage user={user!} /> : <Navigate to="/dashboard" />
         } />
 
         {/* Navigation page - uses query params ?cid=123&jid=456 */}
         <Route path="/estimates" element={
-          user && (user.role === 'manager' || user.role === 'owner') ? <JobEstimationDashboard user={user} /> : <Navigate to="/dashboard" />
+          isManager ? <JobEstimationDashboard user={user!} /> : <Navigate to="/dashboard" />
         } />
 
         {/* Backwards compatibility redirect */}
         <Route path="/job-estimation" element={<Navigate to="/estimates" replace />} />
 
         <Route path="/orders" element={
-          user && (user.role === 'manager' || user.role === 'owner') ? <OrdersPage /> : <Navigate to="/dashboard" />
+          isManager ? <OrdersPage /> : <Navigate to="/dashboard" />
         } />
         <Route path="/orders/table" element={
-          user && (user.role === 'manager' || user.role === 'owner') ? <OrdersPage /> : <Navigate to="/dashboard" />
+          isManager ? <OrdersPage /> : <Navigate to="/dashboard" />
         } />
         <Route path="/orders/tasks" element={
-          user && (user.role === 'manager' || user.role === 'owner') ? <OrdersPage /> : <Navigate to="/dashboard" />
+          isManager ? <OrdersPage /> : <Navigate to="/dashboard" />
         } />
         <Route path="/orders/role-tasks" element={
-          user && (user.role === 'manager' || user.role === 'owner') ? <OrdersPage /> : <Navigate to="/dashboard" />
+          isManager ? <OrdersPage /> : <Navigate to="/dashboard" />
         } />
         <Route path="/orders/calendar" element={
-          user && (user.role === 'manager' || user.role === 'owner') ? <OrdersPage /> : <Navigate to="/dashboard" />
+          isManager ? <OrdersPage /> : <Navigate to="/dashboard" />
         } />
         <Route path="/orders/kanban" element={
-          user && (user.role === 'manager' || user.role === 'owner') ? <OrdersPage /> : <Navigate to="/dashboard" />
+          isManager ? <OrdersPage /> : <Navigate to="/dashboard" />
         } />
 
         <Route path="/orders/:orderNumber" element={
-          user && (user.role === 'manager' || user.role === 'owner') ? <OrderDetailsPage /> : <Navigate to="/dashboard" />
+          isManager ? <OrderDetailsPage /> : <Navigate to="/dashboard" />
         } />
 
         {/* Settings - Nested Routes */}
         <Route path="/settings" element={
-          user && (user.role === 'manager' || user.role === 'owner') ? <SettingsPage /> : <Navigate to="/dashboard" />
+          isManager ? <SettingsPage /> : <Navigate to="/dashboard" />
         }>
           <Route index element={<SettingsIndex />} />
           <Route path="specifications" element={<SpecificationOptionsManager />} />
@@ -203,23 +156,34 @@ function AppContent() {
           <Route path="led-types" element={<LEDTypesManager />} />
           <Route path="power-supplies" element={<PowerSuppliesManager />} />
           <Route path="audit-log" element={<AuditLogViewer />} />
+          <Route path="feedback" element={<FeedbackManager />} />
         </Route>
 
         <Route path="/payments" element={
-          user && (user.role === 'manager' || user.role === 'owner') ? <PaymentsPage /> : <Navigate to="/dashboard" />
+          isManager ? <PaymentsPage /> : <Navigate to="/dashboard" />
         } />
 
         {/* Invoices Page with tabs */}
         <Route path="/invoices" element={
-          user && (user.role === 'manager' || user.role === 'owner') ? <InvoicesPage /> : <Navigate to="/dashboard" />
+          isManager ? <InvoicesPage /> : <Navigate to="/dashboard" />
         } />
         <Route path="/invoices/payments" element={
-          user && (user.role === 'manager' || user.role === 'owner') ? <InvoicesPage /> : <Navigate to="/dashboard" />
+          isManager ? <InvoicesPage /> : <Navigate to="/dashboard" />
         } />
 
         {/* Server Management - Owner only */}
         <Route path="/server-management" element={
-          user && user.role === 'owner' ? <ServerManagement /> : <Navigate to="/dashboard" />
+          isOwner ? <ServerManagement /> : <Navigate to="/dashboard" />
+        } />
+
+        {/* Feedback Manager - Manager+ */}
+        <Route path="/feedback" element={
+          isManager ? <FeedbackPage /> : <Navigate to="/dashboard" />
+        } />
+
+        {/* My Feedback - All authenticated users */}
+        <Route path="/my-feedback" element={
+          user ? <MyFeedbackPage /> : <Navigate to="/login" />
         } />
 
         <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} />} />
@@ -233,8 +197,11 @@ function App() {
     <SessionProvider>
       <ThemeProvider>
         <Router>
-          <AppContent />
-          <SessionExpiredModal />
+          <AuthProvider>
+            <AppContent />
+            <SessionExpiredModal />
+            <FeedbackButton />
+          </AuthProvider>
         </Router>
       </ThemeProvider>
     </SessionProvider>

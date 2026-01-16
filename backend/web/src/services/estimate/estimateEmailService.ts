@@ -18,6 +18,7 @@
 import { query } from '../../config/database';
 import { RowDataPacket } from 'mysql2';
 import { EmailSummaryConfig } from '../../types/estimatePointPerson';
+import { escapeHtml } from '../../utils/htmlUtils';
 
 // =============================================
 // SHARED SUMMARY FIELD DEFINITIONS
@@ -497,14 +498,10 @@ export class EstimateEmailService {
 
   /**
    * Escape HTML special characters
+   * Delegates to shared utility for consistency
    */
   escapeHtml(text: string): string {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+    return escapeHtml(text);
   }
 
   /**

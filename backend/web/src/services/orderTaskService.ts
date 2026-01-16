@@ -120,13 +120,16 @@ export class OrderTaskService {
 
   /**
    * Check if all tasks for an order are completed
+   * Note: Tasks in order-wide parts (is_order_wide = 1) do NOT block QC & Packing status transition
    */
   private async areAllTasksCompleted(orderId: number): Promise<boolean> {
     const rows = await query(
       `SELECT COUNT(*) as total_tasks,
-              SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed_tasks
-       FROM order_tasks
-       WHERE order_id = ?`,
+              SUM(CASE WHEN ot.completed = 1 THEN 1 ELSE 0 END) as completed_tasks
+       FROM order_tasks ot
+       LEFT JOIN order_parts op ON ot.part_id = op.part_id
+       WHERE ot.order_id = ?
+         AND (op.is_order_wide IS NULL OR op.is_order_wide = 0 OR ot.part_id IS NULL)`,
       [orderId]
     ) as RowDataPacket[];
 
@@ -226,7 +229,8 @@ export class OrderTaskService {
 
   /**
    * Get tasks grouped by part with part details
-   * Only returns parent parts (is_parent = true) since tasks are assigned to parent parts
+   * Returns parent parts (is_parent = true) and order-wide parts (is_order_wide = true)
+   * Order-wide parts are shown in ProgressView but NOT in Tasks Table
    */
   async getTasksByPart(orderId: number): Promise<any[]> {
     // Validate order exists
@@ -237,11 +241,12 @@ export class OrderTaskService {
     }
 
     const parts = await orderPartRepository.getOrderParts(orderId);
-    const parentParts = parts.filter(part => part.is_parent);
+    // Include parent parts AND order-wide parts
+    const visibleParts = parts.filter(part => part.is_parent || part.is_order_wide);
     const tasks = await orderPartRepository.getOrderTasks(orderId);
 
-    // Group tasks by parent part only
-    return parentParts.map(part => {
+    // Group tasks by visible parts
+    return visibleParts.map(part => {
       const partTasks = tasks.filter(t => t.part_id === part.part_id);
       const completedCount = partTasks.filter(t => t.completed).length;
 
@@ -249,6 +254,7 @@ export class OrderTaskService {
         part_id: part.part_id,
         part_number: part.part_number,
         display_number: part.display_number,
+        is_order_wide: part.is_order_wide || false,
         product_type: part.product_type,
         product_type_id: part.product_type_id,
         quantity: part.quantity,

@@ -138,6 +138,7 @@ export interface OrderPart {
   order_id: number;
   part_number: number;
   is_header_row?: boolean;  // True for auto-generated invoice header row (part_number=0)
+  is_order_wide?: boolean;  // True for order-wide parts (Pattern, UL tasks) - not shown in Tasks Table
   display_number?: string;  // Phase 1.5: "1", "1a", "1b" numbering
   is_parent?: boolean;      // Phase 1.5: Mark first item in section
   product_type: string;  // Human-readable
@@ -162,6 +163,7 @@ export interface CreateOrderPartData {
   order_id: number;
   part_number: number;
   is_header_row?: boolean;  // True for auto-generated invoice header row (part_number=0)
+  is_order_wide?: boolean;  // True for order-wide parts (Pattern, UL tasks)
   display_number?: string;  // Phase 1.5
   is_parent?: boolean;      // Phase 1.5
   product_type: string;

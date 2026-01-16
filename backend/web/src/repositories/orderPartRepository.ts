@@ -29,16 +29,17 @@ export class OrderPartRepository {
 
     const [result] = await conn.execute<ResultSetHeader>(
       `INSERT INTO order_parts (
-        order_id, part_number, is_header_row, display_number, is_parent,
+        order_id, part_number, is_header_row, is_order_wide, display_number, is_parent,
         product_type, part_scope, qb_item_name, qb_description, specs_display_name, specs_qty, product_type_id,
         channel_letter_type_id, base_product_type_id,
         quantity, specifications, production_notes,
         invoice_description, unit_price, extended_price
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.order_id,
         data.part_number,
         data.is_header_row || false,
+        data.is_order_wide || false,
         data.display_number || null,
         data.is_parent || false,
         data.product_type,

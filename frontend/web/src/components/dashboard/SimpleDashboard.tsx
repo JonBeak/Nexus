@@ -302,6 +302,12 @@ Check backend logs for detailed comparison!`);
                   >
                     {MODULE_COLORS.tasks.name}
                   </button>
+                  <button
+                    onClick={() => navigate('/feedback')}
+                    className={getModulePillClasses('feedback')}
+                  >
+                    {MODULE_COLORS.feedback.name}
+                  </button>
                 </div>
               </div>
             </div>
@@ -471,6 +477,12 @@ Check backend logs for detailed comparison!`);
                     className={getModulePillClasses('tasks')}
                   >
                     {MODULE_COLORS.tasks.name}
+                  </button>
+                  <button
+                    onClick={() => navigate('/feedback')}
+                    className={getModulePillClasses('feedback')}
+                  >
+                    {MODULE_COLORS.feedback.name}
                   </button>
                 </div>
               </div>

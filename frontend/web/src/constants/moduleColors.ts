@@ -129,6 +129,15 @@ export const MODULE_COLORS = {
     lightText: 'text-blue-100',
     border: 'border-blue-600',
     name: 'My Tasks'
+  },
+  feedback: {
+    base: 'bg-indigo-500',
+    hover: 'hover:bg-indigo-600',
+    text: 'text-indigo-500',
+    light: 'bg-indigo-100',
+    lightText: 'text-indigo-100',
+    border: 'border-indigo-500',
+    name: 'Feedback'
   }
 } as const;
 

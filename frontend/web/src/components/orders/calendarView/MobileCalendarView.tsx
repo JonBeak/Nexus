@@ -1,12 +1,11 @@
 /**
  * MobileCalendarView Component
- * Compact 3-day calendar view for mobile devices with swipe navigation
+ * Compact 3-day calendar view for mobile devices with button navigation
  */
 
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { CalendarOrder, DateColumn } from './types';
-import { useTouchSwipe } from '../../../hooks/useTouchSwipe';
 import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface MobileCalendarViewProps {
@@ -190,14 +189,6 @@ export const MobileCalendarView: React.FC<MobileCalendarViewProps> = ({
     return cols;
   }, [dateColumns, overdueOrders, showOverdueColumn]);
 
-  // Swipe handlers - shift by 3 days
-  const swipeHandlers = useTouchSwipe({
-    onSwipeLeft: () => onNavigate('next'),
-    onSwipeRight: () => onNavigate('prev'),
-    minSwipeDistance: 50,
-    maxSwipeTime: 300
-  });
-
   // Format date range for header
   const dateRangeText = useMemo(() => {
     const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
@@ -206,47 +197,8 @@ export const MobileCalendarView: React.FC<MobileCalendarViewProps> = ({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Navigation Header */}
-      <div className={`${PAGE_STYLES.panel.background} border-b ${PAGE_STYLES.panel.border} px-2 py-2`}>
-        <div className="flex items-center justify-between gap-2">
-          {/* Prev button */}
-          <button
-            onClick={() => onNavigate('prev')}
-            className={`p-3 rounded-lg ${PAGE_STYLES.header.background} hover:bg-gray-300 active:bg-gray-400 min-w-[48px] min-h-[48px] flex items-center justify-center`}
-            aria-label="Previous days"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-
-          {/* Today button + date */}
-          <div className="flex-1 flex items-center justify-center gap-2">
-            <button
-              onClick={() => onNavigate('today')}
-              className={`px-4 py-2 rounded-lg ${MODULE_COLORS.orders.base} text-white text-sm font-medium min-h-[44px] active:opacity-80`}
-            >
-              Today
-            </button>
-            <span className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>
-              from {dateRangeText}
-            </span>
-          </div>
-
-          {/* Next button */}
-          <button
-            onClick={() => onNavigate('next')}
-            className={`p-3 rounded-lg ${PAGE_STYLES.header.background} hover:bg-gray-300 active:bg-gray-400 min-w-[48px] min-h-[48px] flex items-center justify-center`}
-            aria-label="Next days"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-
       {/* Calendar Grid - 3 columns */}
-      <div
-        className={`flex-1 flex ${PAGE_STYLES.panel.background} overflow-hidden`}
-        {...swipeHandlers}
-      >
+      <div className={`flex-1 flex ${PAGE_STYLES.panel.background} overflow-hidden`}>
         {visibleColumns.map((col, index) => (
           <div
             key={col.key}
@@ -272,6 +224,45 @@ export const MobileCalendarView: React.FC<MobileCalendarViewProps> = ({
             No upcoming dates with orders
           </div>
         )}
+      </div>
+
+      {/* Navigation Footer */}
+      <div className={`${PAGE_STYLES.panel.background} border-t ${PAGE_STYLES.panel.border} px-3 py-2`}>
+        <div className="flex items-center gap-2">
+          {/* Date label */}
+          <span className={`text-sm font-medium ${PAGE_STYLES.panel.text}`}>
+            From {dateRangeText}
+          </span>
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Today button */}
+          <button
+            onClick={() => onNavigate('today')}
+            className={`px-3 py-2 rounded-lg ${MODULE_COLORS.orders.base} text-white text-sm font-medium min-h-[44px] active:opacity-80`}
+          >
+            Today
+          </button>
+
+          {/* Prev button */}
+          <button
+            onClick={() => onNavigate('prev')}
+            className={`p-2 rounded-lg ${PAGE_STYLES.header.background} hover:bg-gray-300 active:bg-gray-400 min-w-[44px] min-h-[44px] flex items-center justify-center`}
+            aria-label="Previous days"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+
+          {/* Next button */}
+          <button
+            onClick={() => onNavigate('next')}
+            className={`p-2 rounded-lg ${PAGE_STYLES.header.background} hover:bg-gray-300 active:bg-gray-400 min-w-[44px] min-h-[44px] flex items-center justify-center`}
+            aria-label="Next days"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
       </div>
     </div>
   );

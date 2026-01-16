@@ -19,6 +19,7 @@ import {
   AuditLogFilters,
   AuditLogResponse
 } from '../types/settings';
+import { escapeHtml } from '../utils/htmlUtils';
 
 // =============================================================================
 // Helper: Generate key from display name
@@ -534,14 +535,15 @@ export class SettingsService {
         qbInvoiceUrl: 'https://qbo.intuit.com/app/invoice?txnId=12345'
       };
 
-      // Replace variables in subject and body
+      // Replace variables in subject and body (escape values to prevent XSS)
       let renderedSubject = subject;
       let renderedBody = body;
 
       for (const [key, value] of Object.entries(sampleData)) {
         const regex = new RegExp(`\\{${key}\\}`, 'g');
-        renderedSubject = renderedSubject.replace(regex, value);
-        renderedBody = renderedBody.replace(regex, value);
+        const escapedValue = escapeHtml(value);
+        renderedSubject = renderedSubject.replace(regex, escapedValue);
+        renderedBody = renderedBody.replace(regex, escapedValue);
       }
 
       return { success: true, data: { renderedSubject, renderedBody } };

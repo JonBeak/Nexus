@@ -20,6 +20,7 @@ import {
 } from '../types/qbInvoice';
 import MailComposer from 'nodemailer/lib/mail-composer';
 import * as fs from 'fs/promises';
+import { escapeHtml } from '../utils/htmlUtils';
 
 // Gmail API Configuration
 const GMAIL_ENABLED = process.env.GMAIL_ENABLED === 'true';
@@ -568,16 +569,16 @@ export async function getEmailTemplate(templateKey: string) {
 function replaceVariables(text: string, variables: TemplateVariables): string {
   let result = text;
 
-  // Replace {variableName} format
+  // Replace {variableName} format - escape values to prevent XSS
   result = result.replace(/\{(\w+)\}/g, (match, key) => {
     const value = variables[key as keyof TemplateVariables];
-    return value !== undefined ? String(value) : match;
+    return value !== undefined ? escapeHtml(String(value)) : match;
   });
 
   // Also replace #{variableName} format (for order numbers)
   result = result.replace(/#\{(\w+)\}/g, (match, key) => {
     const value = variables[key as keyof TemplateVariables];
-    return value !== undefined ? `#${value}` : match;
+    return value !== undefined ? `#${escapeHtml(String(value))}` : match;
   });
 
   return result;
@@ -950,17 +951,7 @@ function formatDateForEmail(dateStr: string | undefined | null): string {
   }
 }
 
-/**
- * Escape HTML special characters
- */
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
+// escapeHtml imported from '../utils/htmlUtils'
 
 /**
  * Build invoice summary box HTML (green theme)

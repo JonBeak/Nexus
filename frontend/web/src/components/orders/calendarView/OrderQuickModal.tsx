@@ -1,6 +1,8 @@
 /**
  * OrderQuickModal Component
  * Quick action modal for order management from Calendar View
+ *
+ * Updated: 2025-01-16 - Refactored to use AuthContext
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -28,15 +30,15 @@ import {
 } from 'lucide-react';
 import { CalendarOrder } from './types';
 import { Order, OrderPart, OrderStatus, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../../types/orders';
-import { ordersApi, orderStatusApi, orderTasksApi, qbInvoiceApi, authApi, InvoiceSyncStatus, InvoiceDifference } from '../../../services/api';
+import { ordersApi, orderStatusApi, orderTasksApi, qbInvoiceApi, InvoiceSyncStatus, InvoiceDifference } from '../../../services/api';
 import { staffTasksApi } from '../../../services/api/staff/staffTasksApi';
-import type { UserRole } from '../../../types/user';
 import { TaskTemplateDropdown } from '../progress/TaskTemplateDropdown';
 import { TaskMetadataResource } from '../../../services/taskMetadataResource';
 import { TaskRow } from '../common/TaskRow';
 import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 import { useIsMobile } from '../../../hooks/useMediaQuery';
 import { useBodyScrollLock } from '../../../hooks/useBodyScrollLock';
+import { useAuth } from '../../../contexts/AuthContext';
 import PrepareOrderModal from '../preparation/PrepareOrderModal';
 import ConfirmationModal from '../details/components/ConfirmationModal';
 import InvoiceActionModal from '../modals/InvoiceActionModal';
@@ -47,9 +49,6 @@ import PDFViewerModal from '../modals/PDFViewerModal';
 import SessionsModal from '../../staff/SessionsModal';
 import { useOrderPrinting, PrintMode } from '../details/hooks/useOrderPrinting';
 import { calculateShopCount } from '../details/services/orderCalculations';
-
-// Roles that are considered managers
-const MANAGER_ROLES: UserRole[] = ['manager', 'owner'];
 
 interface OrderQuickModalProps {
   isOpen: boolean;
@@ -176,15 +175,14 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   // PDF Viewer modal state
   const [showPdfViewerModal, setShowPdfViewerModal] = useState(false);
 
-  // User role and session modal state
-  const [userRole, setUserRole] = useState<UserRole>('production_staff');
-  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  // Get user data from AuthContext (no API call needed!)
+  const { userId: currentUserId, isManager } = useAuth();
+
+  // Session modal state
   const [sessionsModalTask, setSessionsModalTask] = useState<{
     taskId: number;
     taskRole: string | null;
   } | null>(null);
-
-  const isManager = MANAGER_ROLES.includes(userRole);
 
   // Check if any child modal is open (for hiding parent content on mobile)
   const hasChildModalOpen = useMemo(() => {
@@ -267,24 +265,6 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
       fetchOrderDetails();
     }
   }, [isOpen, fetchOrderDetails]);
-
-  // Fetch user data on mount
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const userData = await authApi.getCurrentUser();
-        if (userData.user?.role) {
-          setUserRole(userData.user.role as UserRole);
-        }
-        if (userData.user?.user_id) {
-          setCurrentUserId(userData.user.user_id);
-        }
-      } catch (error) {
-        console.error('Error fetching user:', error);
-      }
-    };
-    fetchUserData();
-  }, []);
 
   // Handle ESC key to close modal - only if no child modals are open
   useEffect(() => {
@@ -1211,16 +1191,15 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                   <h3 className={`text-sm font-semibold ${PAGE_STYLES.header.text} uppercase tracking-wide mb-2`}>
                     Tasks
                   </h3>
-                  {parts.filter(p => p.is_parent && p.specs_display_name?.trim()).length === 0 ? (
+                  {parts.filter(p => (p.is_parent && p.specs_display_name?.trim()) || p.is_order_wide).length === 0 ? (
                     <p className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>No parts found</p>
                   ) : (
                     <div className="space-y-4">
-                      {parts.filter(p => p.is_parent && p.specs_display_name?.trim()).map((part, idx) => (
+                      {parts.filter(p => (p.is_parent && p.specs_display_name?.trim()) || p.is_order_wide).map((part, idx) => (
                         <div key={part.part_id} className={`border ${PAGE_STYLES.panel.border} rounded-lg`}>
                           <div className={`px-3 py-2 ${PAGE_STYLES.page.background} border-b ${PAGE_STYLES.panel.border} rounded-t-lg`}>
                             <span className={`text-sm font-medium ${PAGE_STYLES.header.text}`}>
-                              Part {idx + 1}: {part.product_type}
-                              {part.part_scope && ` - ${part.part_scope}`}
+                              {part.is_order_wide ? 'Order-wide' : `Part ${idx + 1}: ${part.product_type}${part.part_scope ? ` - ${part.part_scope}` : ''}`}
                             </span>
                           </div>
                           <div className="p-2">

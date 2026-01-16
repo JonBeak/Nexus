@@ -2,16 +2,16 @@
  * ProgressRoleView Component
  * Card-based view of tasks organized by production role
  *
- * Updated: 2025-01-15 - Added SessionsModal for managers
+ * Updated: 2025-01-16 - Refactored to use AuthContext
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { CheckCircle, Clock, RotateCcw, ChevronDown } from 'lucide-react';
-import { ordersApi, authApi } from '../../../services/api';
+import { ordersApi } from '../../../services/api';
 import { useTasksSocket } from '../../../hooks/useTasksSocket';
 import RoleCard from './RoleCard';
 import SessionsModal from '../../staff/SessionsModal';
-import type { UserRole } from '../../../types/user';
+import { useAuth } from '../../../contexts/AuthContext';
 import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface TaskUpdate {
@@ -66,17 +66,15 @@ const ROLE_ROWS: { role: string; label: string }[][] = [
   ],
 ];
 
-// Roles that are considered managers
-const MANAGER_ROLES: UserRole[] = ['manager', 'owner'];
-
 export const ProgressRoleView: React.FC = () => {
+  // Get user data from AuthContext (no API call needed!)
+  const { userId: currentUserId, userRole, isManager } = useAuth();
+
   const [tasksByRole, setTasksByRole] = useState<any>({});
   const [showCompleted, setShowCompleted] = useState(false);
   const [hoursBack, setHoursBack] = useState<number>(24);
   const [stagedUpdates, setStagedUpdates] = useState<Map<number, TaskUpdate>>(new Map());
   const [saving, setSaving] = useState(false);
-  const [userRole, setUserRole] = useState<UserRole>('production_staff');
-  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
   // Sessions modal state
   const [sessionsModalTask, setSessionsModalTask] = useState<{
@@ -84,29 +82,9 @@ export const ProgressRoleView: React.FC = () => {
     taskRole: string | null;
   } | null>(null);
 
-  const isManager = MANAGER_ROLES.includes(userRole);
-
-  useEffect(() => {
-    fetchInitialData();
-  }, []);
-
   useEffect(() => {
     fetchTasks();
   }, [showCompleted, hoursBack]);
-
-  const fetchInitialData = async () => {
-    try {
-      const userData = await authApi.getCurrentUser();
-      if (userData.user?.role) {
-        setUserRole(userData.user.role as UserRole);
-      }
-      if (userData.user?.user_id) {
-        setCurrentUserId(userData.user.user_id);
-      }
-    } catch (error) {
-      console.error('Error fetching user:', error);
-    }
-  };
 
   const fetchTasks = useCallback(async () => {
     try {
