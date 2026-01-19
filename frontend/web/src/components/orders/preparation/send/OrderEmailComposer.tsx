@@ -33,11 +33,17 @@ Thank you for your business!
 Best regards,
 The Sign House Team`;
 
+// Individual attachment selection state
+export interface AttachmentSelections {
+  specsOrderForm: boolean;
+  qbEstimate: boolean;
+}
+
 export interface OrderEmailContent {
   subject: string;
   beginning: string;
   includeActionRequired: boolean;
-  includeAttachments: boolean;
+  attachments: AttachmentSelections;
   end: string;
 }
 
@@ -45,7 +51,10 @@ export const DEFAULT_ORDER_EMAIL_CONTENT: OrderEmailContent = {
   subject: DEFAULT_ORDER_SUBJECT,
   beginning: DEFAULT_ORDER_BEGINNING,
   includeActionRequired: true,
-  includeAttachments: true,
+  attachments: {
+    specsOrderForm: true,
+    qbEstimate: true
+  },
   end: DEFAULT_ORDER_END
 };
 
@@ -54,6 +63,7 @@ interface OrderEmailComposerProps {
   availableAttachments: {
     specsOrderForm: boolean;
     qbEstimate: boolean;
+    qbEstimateSkipped: boolean;  // True if QB estimate step was skipped
   };
   onChange: (content: OrderEmailContent) => void;
   disabled?: boolean;
@@ -65,10 +75,29 @@ export const OrderEmailComposer: React.FC<OrderEmailComposerProps> = ({
   onChange,
   disabled = false
 }) => {
-  const [content, setContent] = useState<OrderEmailContent>({
+  // Determine initial attachment selections based on what's available
+  const getInitialAttachments = (): AttachmentSelections => {
+    const base = initialContent?.attachments || DEFAULT_ORDER_EMAIL_CONTENT.attachments;
+
+    // If QB estimate was skipped, don't include it
+    if (availableAttachments.qbEstimateSkipped) {
+      return {
+        specsOrderForm: base.specsOrderForm && availableAttachments.specsOrderForm,
+        qbEstimate: false  // Skipped, so don't include
+      };
+    }
+
+    return {
+      specsOrderForm: base.specsOrderForm && availableAttachments.specsOrderForm,
+      qbEstimate: base.qbEstimate && availableAttachments.qbEstimate
+    };
+  };
+
+  const [content, setContent] = useState<OrderEmailContent>(() => ({
     ...DEFAULT_ORDER_EMAIL_CONTENT,
-    ...initialContent
-  });
+    ...initialContent,
+    attachments: getInitialAttachments()
+  }));
   const [showVariables, setShowVariables] = useState(false);
 
   // Refs for auto-resizing textareas
@@ -106,10 +135,22 @@ export const OrderEmailComposer: React.FC<OrderEmailComposerProps> = ({
     onChange(defaultContent);
   };
 
-  // Count available attachments
-  const attachmentCount = (availableAttachments.specsOrderForm ? 1 : 0) +
-                          (availableAttachments.qbEstimate ? 1 : 0);
-  const hasAnyAttachments = attachmentCount > 0;
+  // Count available and selected attachments
+  const hasAnyAvailableAttachments = availableAttachments.specsOrderForm ||
+                                     availableAttachments.qbEstimate;
+
+  const selectedAttachmentCount = (content.attachments.specsOrderForm && availableAttachments.specsOrderForm ? 1 : 0) +
+                                   (content.attachments.qbEstimate && availableAttachments.qbEstimate ? 1 : 0);
+
+  // Helper to toggle individual attachment
+  const handleAttachmentToggle = (key: keyof AttachmentSelections, checked: boolean) => {
+    handleChange({
+      attachments: {
+        ...content.attachments,
+        [key]: checked
+      }
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -171,38 +212,61 @@ export const OrderEmailComposer: React.FC<OrderEmailComposerProps> = ({
         )}
       </div>
 
-      {/* Attachments Section Toggle */}
+      {/* Attachments Section */}
       <div className={`border ${PAGE_STYLES.border} rounded-lg overflow-hidden`}>
-        <label className={`flex items-center gap-3 px-4 py-3 ${PAGE_STYLES.header.background} cursor-pointer ${PAGE_STYLES.interactive.hoverOnHeader} transition-colors ${!hasAnyAttachments ? 'opacity-50' : ''}`}>
-          <input
-            type="checkbox"
-            checked={content.includeAttachments && hasAnyAttachments}
-            onChange={(e) => handleChange({ includeAttachments: e.target.checked })}
-            disabled={disabled || !hasAnyAttachments}
-            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-          />
+        <div className={`flex items-center gap-3 px-4 py-3 ${PAGE_STYLES.header.background}`}>
           <Paperclip className="w-4 h-4 text-blue-600" />
           <div className="flex-1">
             <span className={`text-sm font-medium ${PAGE_STYLES.panel.text}`}>
-              Include "Attached Documents" Section
+              Attached Documents
+            </span>
+            <span className={`ml-2 text-xs ${PAGE_STYLES.panel.textMuted}`}>
+              ({selectedAttachmentCount} selected)
             </span>
           </div>
-        </label>
-        {content.includeAttachments && hasAnyAttachments && (
-          <div className="px-4 py-3 bg-blue-50 border-t border-blue-100">
-            <div className="text-sm text-blue-800">
-              <strong>Attached Documents:</strong>
-              <div className="mt-1">
-                {availableAttachments.specsOrderForm && (
-                  <div>Specifications Order Form</div>
-                )}
-                {availableAttachments.qbEstimate && (
-                  <div>QuickBooks Estimate</div>
-                )}
-              </div>
+        </div>
+
+        {/* Individual attachment checkboxes */}
+        <div className="divide-y divide-blue-100">
+          {/* Specs Order Form */}
+          {availableAttachments.specsOrderForm && (
+            <label className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer bg-blue-50 hover:bg-blue-100 transition-colors`}>
+              <input
+                type="checkbox"
+                checked={content.attachments.specsOrderForm}
+                onChange={(e) => handleAttachmentToggle('specsOrderForm', e.target.checked)}
+                disabled={disabled}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className={`text-sm text-blue-800`}>
+                Specifications Order Form
+              </span>
+            </label>
+          )}
+
+          {/* QuickBooks Estimate - only show if available (not skipped) */}
+          {availableAttachments.qbEstimate && !availableAttachments.qbEstimateSkipped && (
+            <label className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer bg-blue-50 hover:bg-blue-100 transition-colors`}>
+              <input
+                type="checkbox"
+                checked={content.attachments.qbEstimate}
+                onChange={(e) => handleAttachmentToggle('qbEstimate', e.target.checked)}
+                disabled={disabled}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className={`text-sm text-blue-800`}>
+                QuickBooks Estimate
+              </span>
+            </label>
+          )}
+
+          {/* No attachments available message */}
+          {!hasAnyAvailableAttachments && (
+            <div className="px-4 py-3 text-sm text-gray-500 italic bg-blue-50">
+              No attachments available
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* End (Closing) */}

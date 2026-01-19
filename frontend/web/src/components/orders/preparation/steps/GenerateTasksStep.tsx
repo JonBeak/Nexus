@@ -18,6 +18,7 @@ import { Order } from '@/types/orders';
 import { updateStepStatus, canRunStep } from '@/utils/stepOrchestration';
 import { ordersApi } from '@/services/api';
 import { UnknownApplicationModal, UnknownApplication, ApplicationResolution } from '../../modals/UnknownApplicationModal';
+import { PaintingConfigurationModal, PaintingConfiguration, PaintingResolution } from '../../modals/PaintingConfigurationModal';
 
 interface GenerateTasksStepProps {
   step: PrepareStep;
@@ -29,15 +30,7 @@ interface GenerateTasksStepProps {
   onDataChanged?: () => void;
 }
 
-interface PaintingWarning {
-  partId: number;
-  partName: string;
-  itemType: string;
-  component: string;
-  timing: string;
-  colour: string;
-  message: string;
-}
+// PaintingWarning interface removed - using PaintingConfiguration from modal import
 
 export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
   step,
@@ -53,12 +46,16 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
   const [isChecking, setIsChecking] = useState(false);
   const [taskIsStale, setTaskIsStale] = useState(false);
   const [taskCount, setTaskCount] = useState(0);
-  const [paintingWarnings, setPaintingWarnings] = useState<PaintingWarning[]>([]);
 
   // Unknown applications modal state
   const [unknownApplications, setUnknownApplications] = useState<UnknownApplication[]>([]);
   const [showUnknownModal, setShowUnknownModal] = useState(false);
   const [resolvingSaving, setResolvingSaving] = useState(false);
+
+  // Painting configuration modal state
+  const [paintingConfigurations, setPaintingConfigurations] = useState<PaintingConfiguration[]>([]);
+  const [showPaintingModal, setShowPaintingModal] = useState(false);
+  const [paintingSaving, setPaintingSaving] = useState(false);
 
   // Track cancelled state to prevent staleness check from overwriting cancel message
   // When user cancels the unknown apps modal, we don't want checkTaskStaleness to run
@@ -116,14 +113,18 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
         steps: updateStepStatus(prev.steps, step.id, 'running')
       }));
       setMessage('Generating production tasks...');
-      setPaintingWarnings([]); // Clear previous warnings
+      setPaintingConfigurations([]); // Clear previous painting configs
       setUnknownApplications([]); // Clear previous unknowns
 
       const result = await ordersApi.generateProductionTasks(orderNumber);
 
-      // Capture painting warnings if present
+      // Check for painting warnings - show modal if any (priority over unknowns)
       if (result.paintingWarnings && result.paintingWarnings.length > 0) {
-        setPaintingWarnings(result.paintingWarnings);
+        setPaintingConfigurations(result.paintingWarnings);
+        setShowPaintingModal(true);
+        // Keep step in running state while modal is open
+        setMessage(`⚠ Found ${result.paintingWarnings.length} painting configuration(s) - please select tasks`);
+        return;
       }
 
       // Check for unknown applications - show modal if any
@@ -135,7 +136,7 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
         return;
       }
 
-      // No unknowns - complete normally
+      // No unknowns or warnings - complete normally
       onStateChange(prev => ({
         ...prev,
         steps: updateStepStatus(prev.steps, step.id, 'completed')
@@ -154,7 +155,7 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
         )
       }));
       setMessage('');
-      setPaintingWarnings([]); // Clear warnings on error
+      setPaintingConfigurations([]); // Clear on error
     }
   };
 
@@ -196,6 +197,44 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
     setMessage('Task generation cancelled - unknown applications not resolved');
   };
 
+  const handleResolvePainting = async (resolutions: PaintingResolution[]) => {
+    try {
+      setPaintingSaving(true);
+
+      // Call API to create tasks and optionally save to matrix
+      await ordersApi.resolvePaintingConfigurations(orderNumber, resolutions);
+
+      // Close modal and complete step
+      setShowPaintingModal(false);
+      setPaintingConfigurations([]);
+
+      onStateChange(prev => ({
+        ...prev,
+        steps: updateStepStatus(prev.steps, step.id, 'completed')
+      }));
+      setMessage('✓ Production tasks generated successfully');
+      onDataChanged?.();
+    } catch (error) {
+      console.error('Error resolving painting configurations:', error);
+      setMessage('Failed to create painting tasks');
+    } finally {
+      setPaintingSaving(false);
+    }
+  };
+
+  const handleClosePaintingModal = () => {
+    // If user closes without resolving, revert to pending state
+    // Set cancelled flag to prevent staleness check from overwriting our message
+    cancelledRef.current = true;
+    setShowPaintingModal(false);
+    setPaintingConfigurations([]);
+    onStateChange(prev => ({
+      ...prev,
+      steps: updateStepStatus(prev.steps, step.id, 'pending')
+    }));
+    setMessage('Task generation cancelled - painting configurations not resolved');
+  };
+
   const buttonLabel = taskCount > 0
     ? (taskIsStale ? 'Regenerate Tasks (Stale)' : 'Regenerate Tasks')
     : 'Generate Tasks';
@@ -220,35 +259,14 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
         }
       />
 
-      {/* Painting Warnings - Orange Alert */}
-      {paintingWarnings.length > 0 && (
-        <div className="px-4 pb-3">
-          <div className="bg-orange-50 border-l-4 border-orange-400 p-3 rounded-r">
-            <div className="flex items-start">
-              <span className="text-orange-600 text-lg mr-2">⚠️</span>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-orange-800 mb-2">
-                  Painting Tasks Require Manual Input
-                </p>
-                <ul className="space-y-1.5 text-sm text-orange-700">
-                  {paintingWarnings.map((warning, idx) => (
-                    <li key={idx} className="flex flex-col">
-                      <div className="font-medium">
-                        Part {warning.partName} ({warning.itemType})
-                      </div>
-                      <div className="text-xs text-orange-600 ml-4">
-                        • Component: {warning.component}, Timing: {warning.timing}, Colour: {warning.colour}
-                      </div>
-                      <div className="text-xs text-orange-600 ml-4">
-                        • Action: Add painting tasks manually in <span className="font-semibold">Progress</span> view
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Painting Configuration Modal */}
+      {showPaintingModal && paintingConfigurations.length > 0 && (
+        <PaintingConfigurationModal
+          paintingConfigurations={paintingConfigurations}
+          onResolve={handleResolvePainting}
+          onClose={handleClosePaintingModal}
+          saving={paintingSaving}
+        />
       )}
 
       {/* Unknown Applications Modal */}

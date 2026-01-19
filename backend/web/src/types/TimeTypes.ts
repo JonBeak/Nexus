@@ -309,6 +309,7 @@ export interface SimpleUser {
   email: string;
   role: string;
   show_in_time_calendar: boolean;
+  user_group?: string;
 }
 
 // ============================================================================

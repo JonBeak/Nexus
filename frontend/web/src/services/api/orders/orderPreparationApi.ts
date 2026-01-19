@@ -126,6 +126,32 @@ export const orderPreparationApi = {
   },
 
   /**
+   * Resolve painting configurations when matrix lookup returns no tasks
+   * Creates tasks for each resolution and optionally saves to matrix
+   */
+  resolvePaintingConfigurations: async (
+    orderNumber: number,
+    resolutions: Array<{
+      partId: number;
+      itemType: string;
+      itemTypeKey: string;
+      component: string;
+      componentKey: string;
+      timing: string;
+      timingKey: string;
+      colour: string;
+      taskNames: string[];
+      saveToMatrix: boolean;
+    }>
+  ) => {
+    const response = await api.post(
+      `/order-preparation/${orderNumber}/resolve-painting-configurations`,
+      { resolutions }
+    );
+    return response.data;
+  },
+
+  /**
    * Get point persons for order
    * (For Phase 1.5.c.6.3 - Send to Customer)
    */
@@ -166,7 +192,10 @@ export const orderPreparationApi = {
       subject: string;
       beginning: string;
       includeActionRequired: boolean;
-      includeAttachments: boolean;
+      attachments: {
+        specsOrderForm: boolean;
+        qbEstimate: boolean;
+      };
       end: string;
     };
     customerName?: string;
@@ -200,7 +229,10 @@ export const orderPreparationApi = {
       subject: string;
       beginning: string;
       includeActionRequired: boolean;
-      includeAttachments: boolean;
+      attachments: {
+        specsOrderForm: boolean;
+        qbEstimate: boolean;
+      };
       end: string;
     };
     orderName?: string;

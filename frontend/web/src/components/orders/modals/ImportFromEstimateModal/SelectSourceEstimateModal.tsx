@@ -3,14 +3,15 @@
  *
  * Modal for selecting which estimate to import QB descriptions from.
  * Uses 3-panel navigation (Customer > Job > Estimate Version).
+ * Supports auto-navigation to a linked estimate via linkedEstimateId prop.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Search, Loader2, ChevronRight } from 'lucide-react';
-import { jobVersioningApi } from '../../../../services/jobVersioningApi';
-import { api } from '../../../../services/apiClient';
-import { ImportSourceEstimate } from './types';
+import { jobVersioningApi } from '@/services/jobVersioningApi';
+import { api } from '@/services/apiClient';
+import { SelectSourceEstimateModalProps, ImportSourceEstimate } from './types';
 
 interface Customer {
   customer_id: number;
@@ -41,22 +42,13 @@ interface EstimateVersion {
   has_qb_data?: boolean | number;
 }
 
-interface SelectSourceEstimateModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSelect: (estimate: ImportSourceEstimate) => void;
-  currentEstimateId: number;
-  currentJobId: number;
-}
-
 const ALL_CUSTOMERS_ID = -1;
 
 export const SelectSourceEstimateModal: React.FC<SelectSourceEstimateModalProps> = ({
   isOpen,
   onClose,
   onSelect,
-  currentEstimateId,
-  currentJobId
+  linkedEstimateId
 }) => {
   // Customer state
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -76,6 +68,9 @@ export const SelectSourceEstimateModal: React.FC<SelectSourceEstimateModalProps>
   // Version state
   const [versions, setVersions] = useState<EstimateVersion[]>([]);
   const [loadingVersions, setLoadingVersions] = useState(false);
+
+  // Auto-navigation state
+  const [autoNavigating, setAutoNavigating] = useState(false);
 
   // Load customers and all jobs on mount
   useEffect(() => {
@@ -106,20 +101,6 @@ export const SelectSourceEstimateModal: React.FC<SelectSourceEstimateModalProps>
         setAllJobs(sortedJobs);
         setJobs(sortedJobs);
         setFilteredJobs(sortedJobs);
-
-        // Default to current job if provided
-        if (currentJobId) {
-          const currentJob = sortedJobs.find((j: Job) => j.job_id === currentJobId);
-          if (currentJob) {
-            setSelectedJobId(currentJobId);
-            if (currentJob.customer_id) {
-              setSelectedCustomerId(currentJob.customer_id);
-              const customerJobs = sortedJobs.filter((j: Job) => j.customer_id === currentJob.customer_id);
-              setJobs(customerJobs);
-              setFilteredJobs(customerJobs);
-            }
-          }
-        }
       } catch (error) {
         console.error('Error loading initial data:', error);
       } finally {
@@ -129,7 +110,71 @@ export const SelectSourceEstimateModal: React.FC<SelectSourceEstimateModalProps>
     };
 
     loadInitialData();
-  }, [isOpen, currentJobId]);
+  }, [isOpen]);
+
+  // Auto-navigate to linked estimate if provided
+  useEffect(() => {
+    if (!isOpen || !linkedEstimateId || allJobs.length === 0 || autoNavigating) return;
+
+    const autoNavigate = async () => {
+      setAutoNavigating(true);
+      try {
+        // Fetch estimate details to get job_id
+        const response = await api.get(`/job-estimation/estimates/${linkedEstimateId}`);
+        const estimate = response.data;
+
+        if (estimate && estimate.job_id) {
+          const job = allJobs.find((j: Job) => j.job_id === estimate.job_id);
+          if (job) {
+            // Set customer
+            if (job.customer_id) {
+              setSelectedCustomerId(job.customer_id);
+              const customerJobs = allJobs.filter((j: Job) => j.customer_id === job.customer_id);
+              setJobs(customerJobs);
+              setFilteredJobs(customerJobs);
+            }
+            // Set job
+            setSelectedJobId(job.job_id);
+          }
+        }
+      } catch (error) {
+        console.error('Error auto-navigating to linked estimate:', error);
+      } finally {
+        setAutoNavigating(false);
+      }
+    };
+
+    autoNavigate();
+  }, [isOpen, linkedEstimateId, allJobs, autoNavigating]);
+
+  // Auto-select the linked estimate when versions load
+  useEffect(() => {
+    if (!linkedEstimateId || versions.length === 0) return;
+
+    const linkedVersion = versions.find(v => v.id === linkedEstimateId);
+    if (linkedVersion) {
+      // Auto-select by calling handleVersionSelect
+      const selectedJob = jobs.find(j => j.job_id === selectedJobId);
+      const selectedCustomer = selectedCustomerId === ALL_CUSTOMERS_ID
+        ? customers.find(c => c.customer_id === selectedJob?.customer_id)
+        : customers.find(c => c.customer_id === selectedCustomerId);
+
+      if (selectedJob) {
+        const estimate: ImportSourceEstimate = {
+          id: linkedVersion.id,
+          job_id: selectedJobId!,
+          job_name: selectedJob.job_name,
+          customer_name: selectedCustomer?.company_name || 'Unknown',
+          version_number: linkedVersion.version_number,
+          qb_doc_number: linkedVersion.qb_doc_number || null,
+          status: linkedVersion.status || 'draft'
+        };
+
+        onSelect(estimate);
+        onClose();
+      }
+    }
+  }, [linkedEstimateId, versions, jobs, customers, selectedJobId, selectedCustomerId, onSelect, onClose]);
 
   // Filter customers by search
   useEffect(() => {
@@ -184,7 +229,6 @@ export const SelectSourceEstimateModal: React.FC<SelectSourceEstimateModalProps>
         // Filter to active versions with preparation table data OR sent status
         const validVersions = versionsData.filter((v: EstimateVersion) =>
           v.is_active !== 0 &&
-          v.id !== currentEstimateId &&
           (v.uses_preparation_table === 1 || v.status === 'sent')
         );
 
@@ -197,7 +241,7 @@ export const SelectSourceEstimateModal: React.FC<SelectSourceEstimateModalProps>
     };
 
     loadVersions();
-  }, [selectedJobId, currentEstimateId]);
+  }, [selectedJobId]);
 
   // Handle customer selection
   const handleCustomerSelect = useCallback((customerId: number) => {
@@ -278,7 +322,7 @@ export const SelectSourceEstimateModal: React.FC<SelectSourceEstimateModalProps>
                   placeholder="Search customers..."
                   value={customerSearch}
                   onChange={(e) => setCustomerSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500"
+                  className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -293,7 +337,7 @@ export const SelectSourceEstimateModal: React.FC<SelectSourceEstimateModalProps>
                   <button
                     onClick={() => handleCustomerSelect(ALL_CUSTOMERS_ID)}
                     className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${
-                      selectedCustomerId === ALL_CUSTOMERS_ID ? 'bg-green-50 text-green-700 font-medium' : ''
+                      selectedCustomerId === ALL_CUSTOMERS_ID ? 'bg-blue-50 text-blue-700 font-medium' : ''
                     }`}
                   >
                     <span>All Customers</span>
@@ -307,7 +351,7 @@ export const SelectSourceEstimateModal: React.FC<SelectSourceEstimateModalProps>
                       key={customer.customer_id}
                       onClick={() => handleCustomerSelect(customer.customer_id)}
                       className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${
-                        selectedCustomerId === customer.customer_id ? 'bg-green-50 text-green-700' : ''
+                        selectedCustomerId === customer.customer_id ? 'bg-blue-50 text-blue-700' : ''
                       }`}
                     >
                       <span className="truncate">{customer.company_name}</span>
@@ -332,7 +376,7 @@ export const SelectSourceEstimateModal: React.FC<SelectSourceEstimateModalProps>
                   placeholder="Search jobs..."
                   value={jobSearch}
                   onChange={(e) => setJobSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500"
+                  className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -351,8 +395,8 @@ export const SelectSourceEstimateModal: React.FC<SelectSourceEstimateModalProps>
                     key={job.job_id}
                     onClick={() => handleJobSelect(job.job_id)}
                     className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${
-                      selectedJobId === job.job_id ? 'bg-green-50 text-green-700' : ''
-                    } ${job.job_id === currentJobId ? 'border-l-2 border-blue-400' : ''}`}
+                      selectedJobId === job.job_id ? 'bg-blue-50 text-blue-700' : ''
+                    }`}
                   >
                     <div className="min-w-0">
                       <div className="truncate font-medium">{job.job_name}</div>
@@ -393,7 +437,9 @@ export const SelectSourceEstimateModal: React.FC<SelectSourceEstimateModalProps>
                   <button
                     key={version.id}
                     onClick={() => handleVersionSelect(version)}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-green-50 border-b border-gray-100"
+                    className={`w-full px-3 py-2 text-left text-sm hover:bg-blue-50 border-b border-gray-100 ${
+                      linkedEstimateId === version.id ? 'bg-blue-50 border-l-2 border-l-blue-400' : ''
+                    }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -416,8 +462,8 @@ export const SelectSourceEstimateModal: React.FC<SelectSourceEstimateModalProps>
                           {version.status}
                         </span>
                       )}
-                      {!version.has_qb_data && (
-                        <span className="text-xs text-gray-400">(no QB Data)</span>
+                      {linkedEstimateId === version.id && (
+                        <span className="text-xs text-blue-600 font-medium">(Linked)</span>
                       )}
                     </div>
                   </button>

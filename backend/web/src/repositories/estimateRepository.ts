@@ -206,6 +206,7 @@ export class EstimateRepository {
   /**
    * Get all estimate versions for a job with full details
    * Includes parent version reference, finalization info, and customer data
+   * For preparation table estimates, totals are calculated from preparation items
    */
   async getEstimateVersionsByJobId(jobId: number): Promise<RowDataPacket[]> {
     const rows = await query(
@@ -223,9 +224,19 @@ export class EstimateRepository {
         e.status,
         e.finalized_at,
         fu.username as finalized_by_name,
-        e.subtotal,
-        e.tax_amount,
-        e.total_amount,
+        -- Use preparation items totals if uses_preparation_table, otherwise use stored totals
+        CASE
+          WHEN e.uses_preparation_table = 1 THEN COALESCE(prep.prep_subtotal, 0)
+          ELSE e.subtotal
+        END as subtotal,
+        CASE
+          WHEN e.uses_preparation_table = 1 THEN ROUND(COALESCE(prep.prep_subtotal, 0) * COALESCE(tr.tax_percent, e.tax_rate, 0), 2)
+          ELSE e.tax_amount
+        END as tax_amount,
+        CASE
+          WHEN e.uses_preparation_table = 1 THEN ROUND(COALESCE(prep.prep_subtotal, 0) * (1 + COALESCE(tr.tax_percent, e.tax_rate, 0)), 2)
+          ELSE e.total_amount
+        END as total_amount,
         e.qb_estimate_id,
         e.qb_estimate_url,
         e.qb_doc_number,
@@ -239,6 +250,12 @@ export class EstimateRepository {
         CAST(e.is_approved AS UNSIGNED) as is_approved,
         CAST(e.is_retracted AS UNSIGNED) as is_retracted,
         CAST(e.uses_preparation_table AS UNSIGNED) as uses_preparation_table,
+        CASE
+          WHEN e.uses_preparation_table = 1 THEN
+            (SELECT COUNT(*) > 0 FROM estimate_preparation_items epi WHERE epi.estimate_id = e.id)
+          ELSE
+            (SELECT COUNT(*) > 0 FROM estimate_line_descriptions eld WHERE eld.estimate_id = e.id)
+        END as has_qb_data,
         j.job_name,
         j.job_number,
         j.customer_job_number,
@@ -249,6 +266,21 @@ export class EstimateRepository {
        LEFT JOIN users cu ON e.created_by = cu.user_id
        LEFT JOIN jobs j ON e.job_id = j.job_id
        LEFT JOIN customers c ON j.customer_id = c.customer_id
+       -- Join for preparation items subtotal
+       LEFT JOIN (
+         SELECT estimate_id, SUM(extended_price) as prep_subtotal
+         FROM estimate_preparation_items
+         WHERE is_description_only = 0
+         GROUP BY estimate_id
+       ) prep ON prep.estimate_id = e.id
+       -- Join for tax rate from customer's billing address
+       LEFT JOIN customer_addresses ca ON c.customer_id = ca.customer_id
+         AND (ca.is_billing = 1 OR (ca.is_primary = 1 AND NOT EXISTS(
+           SELECT 1 FROM customer_addresses ca2
+           WHERE ca2.customer_id = c.customer_id AND ca2.is_billing = 1
+         )))
+       LEFT JOIN provinces_tax pt ON ca.province_state_short = pt.province_short AND pt.is_active = 1
+       LEFT JOIN tax_rules tr ON pt.tax_name = tr.tax_name AND tr.is_active = 1
        WHERE e.job_id = ?
        ORDER BY e.version_number ASC`,
       [jobId]

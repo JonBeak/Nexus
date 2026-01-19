@@ -377,6 +377,91 @@ export class SettingsRepository {
     );
   }
 
+  /**
+   * Upsert painting matrix entry by keys
+   * Creates a new entry or updates existing entry
+   * Used when saving configurations from the PaintingConfigurationModal
+   */
+  async upsertPaintingMatrixEntry(
+    productType: string,
+    productTypeKey: string,
+    component: string,
+    componentKey: string,
+    timing: string,
+    timingKey: string,
+    taskNumbers: number[],
+    updatedBy: number
+  ): Promise<{ success: boolean; matrixId: number }> {
+    // Check if entry exists
+    const existing = await query(
+      `SELECT matrix_id FROM painting_task_matrix
+       WHERE product_type_key = ? AND component_key = ? AND timing_key = ? AND material_variant IS NULL`,
+      [productTypeKey, componentKey, timingKey]
+    ) as RowDataPacket[];
+
+    if (existing.length > 0) {
+      // Update existing entry
+      await query(
+        'UPDATE painting_task_matrix SET task_numbers = ?, updated_by = ? WHERE matrix_id = ?',
+        [JSON.stringify(taskNumbers), updatedBy, existing[0].matrix_id]
+      );
+      return { success: true, matrixId: existing[0].matrix_id };
+    } else {
+      // Create new entry
+      const result = await query(
+        `INSERT INTO painting_task_matrix (product_type, product_type_key, component, component_key, timing, timing_key, task_numbers, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [productType, productTypeKey, component, componentKey, timing, timingKey, JSON.stringify(taskNumbers), updatedBy]
+      ) as ResultSetHeader;
+      return { success: true, matrixId: result.insertId };
+    }
+  }
+
+  /**
+   * Look up painting task numbers for task generation
+   * @param productTypeKey - The product type key (e.g., 'front-lit', 'halo-lit')
+   * @param componentKey - The component key (e.g., 'face', 'return', 'return-trim')
+   * @param timingKey - The timing key (e.g., 'pre-cutting', 'post-fabrication')
+   * @param materialVariant - Optional material variant for Substrate Cut (metal/plastic) or Backer (flat/folded)
+   * @returns Array of task numbers or null if no entry found
+   */
+  async lookupPaintingTaskNumbers(
+    productTypeKey: string,
+    componentKey: string,
+    timingKey: string,
+    materialVariant?: string | null
+  ): Promise<number[] | null> {
+    // Query with material variant - either match the specific variant or NULL (for standard products)
+    const rows = await query(
+      `SELECT task_numbers FROM painting_task_matrix
+       WHERE product_type_key = ?
+         AND component_key = ?
+         AND timing_key = ?
+         AND (material_variant = ? OR (material_variant IS NULL AND ? IS NULL))
+         AND is_active = TRUE
+       LIMIT 1`,
+      [productTypeKey, componentKey, timingKey, materialVariant || null, materialVariant || null]
+    ) as RowDataPacket[];
+
+    if (!rows[0]) {
+      return null; // Entry not found
+    }
+
+    const taskNumbers = rows[0].task_numbers;
+    // Handle JSON parsing - MySQL may return string or already parsed
+    if (taskNumbers === null) {
+      return []; // Entry exists but no tasks defined
+    }
+    if (typeof taskNumbers === 'string') {
+      try {
+        return JSON.parse(taskNumbers);
+      } catch {
+        return [];
+      }
+    }
+    return taskNumbers as number[];
+  }
+
   // ==========================================================================
   // Email Templates (uses existing schema from Phase 2.e)
   // ==========================================================================

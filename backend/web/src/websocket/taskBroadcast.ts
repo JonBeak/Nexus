@@ -621,3 +621,57 @@ export const broadcastSessionNoteDeleted = (
   io.to('tasks-table').emit('session-note:deleted', payload);
   console.log(`🔌 WebSocket: Broadcasted session note deleted for note ${noteId} by user ${userId}`);
 };
+
+// =====================================================
+// PRICING CACHE INVALIDATION BROADCASTS
+// =====================================================
+
+export interface PricingCacheInvalidatedPayload {
+  type: 'pricing:cache-invalidated';
+  category: string;  // 'power-supplies', 'leds', 'painting-matrix', 'vinyl-matrix', etc.
+  userId?: number;
+  timestamp: number;
+}
+
+/**
+ * Invalidate pricing cache and broadcast to all connected clients
+ * Called when pricing-related settings change (power supplies, LEDs, matrices, etc.)
+ *
+ * This function:
+ * 1. Clears the backend RateLookupService cache
+ * 2. Broadcasts to all frontend clients so they clear their caches
+ *
+ * @param category - The category of pricing that changed
+ * @param userId - The user who made the change (optional)
+ */
+export const invalidatePricingCache = (
+  category: string,
+  userId?: number
+): void => {
+  // Import here to avoid circular dependency
+  const { RateLookupService } = require('../services/rateLookupService');
+
+  // Step 1: Clear backend cache
+  const rateLookupService = new RateLookupService();
+  rateLookupService.clearCache();
+  console.log(`💾 Backend: Cleared pricing cache for category: ${category}`);
+
+  // Step 2: Broadcast to all connected frontend clients
+  const io = getSocketServer();
+  if (!io) {
+    console.warn('🔌 WebSocket: Cannot broadcast pricing invalidation - server not initialized');
+    return;
+  }
+
+  const payload: PricingCacheInvalidatedPayload = {
+    type: 'pricing:cache-invalidated',
+    category,
+    userId,
+    timestamp: Date.now()
+  };
+
+  // Broadcast to ALL connected clients (not just tasks-table room)
+  // Pricing affects any user who might be creating estimates
+  io.emit('pricing:cache-invalidated', payload);
+  console.log(`🔌 WebSocket: Broadcasted pricing cache invalidation for category: ${category}`);
+};

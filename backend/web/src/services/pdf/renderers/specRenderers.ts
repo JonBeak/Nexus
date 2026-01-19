@@ -13,8 +13,12 @@ import {
   SPEC_ORDER,
   CRITICAL_SPECS,
   SPECS_EXEMPT_FROM_CRITICAL,
-  formatSpecValues
+  formatSpecValues,
+  TransformContext
 } from '../formatters/specFormatters';
+
+// Import StandardizedSpec type for painting metadata
+import type { StandardizedSpec } from '../../orderSpecificationStandardizationService';
 
 // ============================================
 // DEFAULT VALUE SKIP RULES
@@ -84,6 +88,9 @@ export interface TemplateRow {
   template: string;
   rowNum: string;
   specs: Record<string, any>;
+  // Painting transformation metadata (optional, added by paintingSpecTransformer)
+  paintingApplied?: boolean;
+  paintingColour?: string;
 }
 
 /**
@@ -522,14 +529,22 @@ export function renderSpecifications(
       return; // Skip to next row
     }
 
+    // Build transform context if painting was applied to this spec
+    const transformContext: TransformContext | undefined = row.paintingApplied && row.paintingColour
+      ? { paintingColour: row.paintingColour }
+      : undefined;
+
+    // Build transform metadata for label coloring
+    const transformMeta = row.paintingApplied ? { paintingApplied: true } : undefined;
+
     // Critical specs: always show them (unless exempt)
     if (isCriticalSpec) {
-      const valueStr = formatSpecValues(row.template, row.specs, formType) || 'None';
-      currentY = renderSpecRow(doc, row.template, valueStr, x, currentY, width, measureOnly, specFontSize);
+      const valueStr = formatSpecValues(row.template, row.specs, formType, transformContext) || 'None';
+      currentY = renderSpecRow(doc, row.template, valueStr, x, currentY, width, measureOnly, specFontSize, transformMeta);
     } else if (Object.keys(row.specs).length > 0) {
       // Other specs: only show if there are values
-      const valueStr = formatSpecValues(row.template, row.specs, formType);
-      currentY = renderSpecRow(doc, row.template, valueStr, x, currentY, width, measureOnly, specFontSize);
+      const valueStr = formatSpecValues(row.template, row.specs, formType, transformContext);
+      currentY = renderSpecRow(doc, row.template, valueStr, x, currentY, width, measureOnly, specFontSize, transformMeta);
     }
   });
 
@@ -602,9 +617,17 @@ export function calculateAccurateTextHeight(
 }
 
 /**
+ * Transform metadata for rendering painted specs
+ */
+interface TransformMeta {
+  paintingApplied?: boolean;
+}
+
+/**
  * Render a single spec row with label and value
  * @param measureOnly - If true, calculate positions but skip drawing (for space measurement)
  * @param specFontSize - Font size for spec values (default 12pt, can be reduced to 10pt)
+ * @param transformMeta - Optional transform metadata (for painting applied specs)
  */
 function renderSpecRow(
   doc: any,
@@ -614,7 +637,8 @@ function renderSpecRow(
   currentY: number,
   width: number,
   measureOnly: boolean = false,
-  specFontSize: number = FONT_SIZES.SPEC_BODY
+  specFontSize: number = FONT_SIZES.SPEC_BODY,
+  transformMeta?: TransformMeta
 ): number {
   const labelText = label;
   const trimmedValue = value?.trim() || '';
@@ -678,9 +702,13 @@ function renderSpecRow(
   const labelBoxHeight = maxContentHeight + topTextPadding + bottomTextPadding;
 
   // === STEP 2: Determine label background color ===
+  // Priority: 1) Painting applied (purple), 2) Electrical (yellow), 3) Vinyl (pink), 4) Painting spec (purple), 5) Default (gray)
 
   let labelBgColor = COLORS.LABEL_BG_DEFAULT;
-  if (['LEDs', 'Neon LED', 'Power Supply', 'Wire Length', 'UL'].includes(labelText)) {
+  if (transformMeta?.paintingApplied) {
+    // Specs that have been transformed by a painting get purple background
+    labelBgColor = COLORS.LABEL_BG_PAINTING;
+  } else if (['LEDs', 'Neon LED', 'Power Supply', 'Wire Length', 'UL'].includes(labelText)) {
     labelBgColor = COLORS.LABEL_BG_ELECTRICAL;
   } else if (['Vinyl', 'Digital Print'].includes(labelText)) {
     labelBgColor = COLORS.LABEL_BG_VINYL;

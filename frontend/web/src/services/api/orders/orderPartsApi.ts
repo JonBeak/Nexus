@@ -107,4 +107,22 @@ export const orderPartsApi = {
     const response = await api.post(`/orders/${orderNumber}/parts/${partId}/copy`, { mode });
     return response.data;
   },
+
+  /**
+   * Import QB descriptions from estimate preparation items to order parts
+   * @param imports - Array of import instructions with targetPartId and optional fields
+   */
+  async importFromEstimate(
+    orderNumber: number,
+    imports: Array<{
+      targetPartId: number;
+      qb_item_name?: string | null;
+      qb_description?: string | null;
+      quantity?: number;
+      unit_price?: number;
+    }>
+  ): Promise<{ updated: number }> {
+    const response = await api.post(`/orders/${orderNumber}/parts/import`, { imports });
+    return response.data;
+  },
 };

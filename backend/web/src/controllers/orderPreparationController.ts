@@ -403,6 +403,106 @@ export const resolveUnknownApplications = async (req: AuthRequest, res: Response
 };
 
 /**
+ * POST /api/order-preparation/:orderNumber/resolve-painting-configurations
+ * Resolve painting configurations by creating tasks and optionally saving to matrix
+ */
+export const resolvePaintingConfigurations = async (req: AuthRequest, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const { resolutions } = req.body;
+    const userId = req.user?.user_id;
+
+    if (!Array.isArray(resolutions) || resolutions.length === 0) {
+      return sendErrorResponse(res, 'Resolutions array is required', 'VALIDATION_ERROR');
+    }
+
+    const orderId = await validateOrderAndGetId(orderNumber, res);
+    if (!orderId) return;
+
+    // Import services
+    const { settingsRepository } = await import('../repositories/settingsRepository');
+    const { query } = await import('../config/database');
+    const { TASK_ORDER, getRole } = await import('../services/taskGeneration/taskRules');
+    const { PAINTING_TASKS } = await import('../services/taskGeneration/paintingTaskMatrix');
+
+    // Helper to get sort order
+    const getTaskSortOrder = (taskName: string): number => {
+      const index = TASK_ORDER.indexOf(taskName);
+      return index !== -1 ? index : 999;
+    };
+
+    // Reverse lookup: task name → task number
+    const taskNameToNumber = Object.fromEntries(
+      Object.entries(PAINTING_TASKS).map(([num, name]) => [name, parseInt(num)])
+    );
+
+    let tasksCreated = 0;
+    let matrixEntriesCreated = 0;
+
+    for (const resolution of resolutions) {
+      const {
+        partId, itemType, itemTypeKey, component, componentKey,
+        timing, timingKey, colour, taskNames, saveToMatrix
+      } = resolution;
+
+      // Create tasks for this resolution
+      for (const taskName of taskNames) {
+        const taskNote = colour && colour !== 'N/A' ? `Colour: ${colour}` : null;
+
+        await query(
+          `INSERT INTO order_tasks (order_id, part_id, task_name, sort_order, assigned_role, notes)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [orderId, partId, taskName, getTaskSortOrder(taskName), getRole(taskName), taskNote]
+        );
+        tasksCreated++;
+      }
+
+      // Optionally save to matrix for future use
+      if (saveToMatrix && taskNames.length > 0) {
+        // Convert task names to task numbers
+        const taskNumbers = taskNames
+          .map((name: string) => taskNameToNumber[name])
+          .filter((num: number | undefined) => num !== undefined);
+
+        if (taskNumbers.length > 0) {
+          const result = await settingsRepository.upsertPaintingMatrixEntry(
+            itemType,
+            itemTypeKey,
+            component,
+            componentKey,
+            timing,
+            timingKey,
+            taskNumbers,
+            userId || 0
+          );
+          if (result.success) {
+            matrixEntriesCreated++;
+          }
+        }
+      }
+    }
+
+    const messageParts = [`Created ${tasksCreated} tasks`];
+    if (matrixEntriesCreated > 0) messageParts.push(`saved ${matrixEntriesCreated} matrix mapping(s)`);
+
+    // Broadcast to connected clients if tasks were created
+    if (tasksCreated > 0) {
+      broadcastTasksRegenerated(orderId, parseInt(orderNumber), tasksCreated, userId || 0);
+    }
+
+    sendSuccessResponse(res, {
+      tasksCreated,
+      matrixEntriesCreated,
+      message: messageParts.join(', ')
+    });
+  } catch (error) {
+    console.error('Error resolving painting configurations:', error);
+    const message = error instanceof Error ? error.message : 'Failed to resolve painting configurations';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
  * GET /api/order-preparation/:orderNumber/point-persons
  * Get point persons for order (for Phase 1.5.c.6.3 - Send to Customer)
  */
@@ -521,7 +621,8 @@ export const getOrderEmailPreviewWithContent = async (req: Request, res: Respons
       emailContent: emailContent as OrderEmailContent,
       pdfUrls: {
         orderForm: pdfUrls?.specsOrderForm || null,
-        qbEstimate: pdfUrls?.qbEstimate || null
+        qbEstimate: pdfUrls?.qbEstimate || null,
+        internalEstimate: pdfUrls?.internalEstimate || null
       }
     });
 

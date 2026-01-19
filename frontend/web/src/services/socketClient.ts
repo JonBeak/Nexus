@@ -221,6 +221,14 @@ export interface SessionNoteDeletedPayload {
   timestamp: number;
 }
 
+// Pricing Cache Invalidation Payload
+export interface PricingCacheInvalidatedPayload {
+  type: 'pricing:cache-invalidated';
+  category: string;  // 'power-supplies', 'leds', 'painting-matrix', 'vinyl-matrix', etc.
+  userId?: number;
+  timestamp: number;
+}
+
 // Event listener types
 type TasksUpdatedCallback = (payload: TaskBroadcastPayload) => void;
 type TaskNotesCallback = (payload: TaskNotesPayload) => void;
@@ -245,6 +253,8 @@ type TimeEditRequestCountCallback = (payload: TimeEditRequestCountPayload) => vo
 type SessionNoteCreatedCallback = (payload: SessionNoteCreatedPayload) => void;
 type SessionNoteUpdatedCallback = (payload: SessionNoteUpdatedPayload) => void;
 type SessionNoteDeletedCallback = (payload: SessionNoteDeletedPayload) => void;
+// Pricing cache invalidation callback
+type PricingCacheInvalidatedCallback = (payload: PricingCacheInvalidatedPayload) => void;
 
 // Singleton socket instance
 let socket: Socket | null = null;
@@ -274,6 +284,8 @@ const timeEditRequestCountListeners = new Set<TimeEditRequestCountCallback>();
 const sessionNoteCreatedListeners = new Set<SessionNoteCreatedCallback>();
 const sessionNoteUpdatedListeners = new Set<SessionNoteUpdatedCallback>();
 const sessionNoteDeletedListeners = new Set<SessionNoteDeletedCallback>();
+// Pricing cache invalidation listeners
+const pricingCacheInvalidatedListeners = new Set<PricingCacheInvalidatedCallback>();
 
 /**
  * Get the WebSocket base URL from the API URL
@@ -471,6 +483,12 @@ export const initializeSocket = (): Promise<Socket> => {
     socket.on('session-note:deleted', (payload: SessionNoteDeletedPayload) => {
       console.log('🔌 WebSocket: Received session-note:deleted', payload);
       sessionNoteDeletedListeners.forEach(callback => callback(payload));
+    });
+
+    // Pricing cache invalidation event handler
+    socket.on('pricing:cache-invalidated', (payload: PricingCacheInvalidatedPayload) => {
+      console.log('🔌 WebSocket: Received pricing:cache-invalidated', payload);
+      pricingCacheInvalidatedListeners.forEach(callback => callback(payload));
     });
   });
 
@@ -744,5 +762,20 @@ export const onSessionNoteDeleted = (callback: SessionNoteDeletedCallback): (() 
   sessionNoteDeletedListeners.add(callback);
   return () => {
     sessionNoteDeletedListeners.delete(callback);
+  };
+};
+
+// =====================================================
+// PRICING CACHE INVALIDATION SUBSCRIPTION
+// =====================================================
+
+/**
+ * Subscribe to pricing cache invalidation events
+ * Called when pricing-related settings change (power supplies, LEDs, matrices, etc.)
+ */
+export const onPricingCacheInvalidated = (callback: PricingCacheInvalidatedCallback): (() => void) => {
+  pricingCacheInvalidatedListeners.add(callback);
+  return () => {
+    pricingCacheInvalidatedListeners.delete(callback);
   };
 };

@@ -47,7 +47,7 @@ export const PrepareOrderModal: React.FC<Props> = ({
     orderId: order.order_id,
     orderNumber: order.order_number,
     phase: 'prepare',
-    steps: initializeSteps(),
+    steps: initializeSteps({ isCashJob: order.cash }),
     pdfs: {
       orderForm: { url: null, loading: false, error: null },
       packingList: { url: null, loading: false, error: null },
@@ -303,6 +303,7 @@ export const PrepareOrderModal: React.FC<Props> = ({
                   qbEstimate: preparationState.pdfs.qbEstimate.url
                 }}
                 qbEstimateNumber={preparationState.qbEstimate.number}
+                qbEstimateSkipped={preparationState.steps.find(s => s.id === 'create_qb_estimate')?.status === 'skipped'}
                 onRecipientsChange={setCurrentRecipients}
                 onEmailContentChange={setCurrentEmailContent}
               />

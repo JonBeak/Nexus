@@ -614,6 +614,55 @@ class EstimatePreparationRepository {
       conn.release();
     }
   }
+
+  /**
+   * Get items from legacy tables for estimates without preparation table.
+   * Used for importing QB descriptions from sent estimates that were sent
+   * before the preparation table feature was added.
+   *
+   * Joins job_estimate_items with estimate_line_descriptions to get QB descriptions.
+   * Note: line_index is 0-based, item_order is 1-based.
+   */
+  async getItemsFromLegacyTables(estimateId: number): Promise<EstimatePreparationItem[]> {
+    const rows = await query(
+      `SELECT
+        jei.id,
+        jei.estimate_id,
+        jei.item_order as display_order,
+        jei.item_name,
+        eld.qb_description,
+        NULL as calculation_display,
+        1 as quantity,
+        COALESCE(CAST(jei.unit_price AS DECIMAL(10,2)), 0) as unit_price,
+        COALESCE(CAST(jei.extended_price AS DECIMAL(10,2)), 0) as extended_price,
+        0 as is_description_only,
+        NULL as qb_item_id,
+        NULL as qb_item_name,
+        NULL as source_row_id,
+        NULL as source_product_type_id,
+        jei.created_at,
+        jei.updated_at
+      FROM job_estimate_items jei
+      LEFT JOIN estimate_line_descriptions eld
+        ON jei.estimate_id = eld.estimate_id
+        AND (jei.item_order - 1) = eld.line_index
+      WHERE jei.estimate_id = ?
+      ORDER BY jei.item_order`,
+      [estimateId]
+    ) as RowDataPacket[];
+    return rows as EstimatePreparationItem[];
+  }
+
+  /**
+   * Check if an estimate uses the preparation table
+   */
+  async checkUsesPreparationTable(estimateId: number): Promise<boolean> {
+    const rows = await query(
+      `SELECT uses_preparation_table FROM job_estimates WHERE id = ?`,
+      [estimateId]
+    ) as RowDataPacket[];
+    return rows.length > 0 && rows[0].uses_preparation_table === 1;
+  }
 }
 
 export const estimatePreparationRepository = new EstimatePreparationRepository();

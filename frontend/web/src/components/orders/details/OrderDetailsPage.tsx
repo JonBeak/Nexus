@@ -994,6 +994,7 @@ export const OrderDetailsPage: React.FC = () => {
                   initialParts={orderData.parts}
                   taxName={orderData.order.tax_name}
                   cash={orderData.order.cash}
+                  estimateId={orderData.order.estimate_id}
                   onPartsChange={handlePartsChange}
                 />
               </div>

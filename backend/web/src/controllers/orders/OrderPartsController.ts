@@ -318,3 +318,45 @@ export const duplicatePart = async (req: Request, res: Response) => {
     return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
   }
 };
+
+/**
+ * Import QB descriptions from estimate preparation items to order parts
+ * POST /api/orders/:orderNumber/parts/import
+ * Body: { imports: OrderPartImportInstruction[] }
+ * Permission: orders.update (Manager+ only)
+ */
+export const importFromEstimate = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const { imports } = req.body;
+
+    // Validate inputs
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    if (!Array.isArray(imports) || imports.length === 0) {
+      return sendErrorResponse(res, 'imports array is required', 'VALIDATION_ERROR');
+    }
+
+    // Validate each import instruction has targetPartId
+    for (const instruction of imports) {
+      if (!instruction.targetPartId || typeof instruction.targetPartId !== 'number') {
+        return sendErrorResponse(res, 'Each import instruction must have a numeric targetPartId', 'VALIDATION_ERROR');
+      }
+    }
+
+    const result = await orderPartsService.importFromEstimate(orderId, imports);
+
+    res.json({
+      success: true,
+      updated: result.updated,
+      message: `Successfully imported ${result.updated} part(s)`
+    });
+  } catch (error) {
+    console.error('Error importing from estimate:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to import from estimate';
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
+  }
+};

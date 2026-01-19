@@ -23,6 +23,85 @@ const DRIVE_SCOPES = [
 // Folder name for feedback screenshots in Drive
 const FEEDBACK_FOLDER_NAME = 'Nexus Feedback Screenshots';
 
+// =============================================================================
+// Screenshot Cache
+// =============================================================================
+
+interface CacheEntry {
+  data: string;
+  mimeType: string;
+  expiresAt: number;
+}
+
+// In-memory cache for screenshots (reduces Drive API calls)
+const screenshotCache = new Map<string, CacheEntry>();
+
+// Cache TTL: 15 minutes
+const CACHE_TTL_MS = 15 * 60 * 1000;
+
+// Max cache size (to prevent memory bloat) - approx 50 screenshots
+const MAX_CACHE_ENTRIES = 50;
+
+/**
+ * Clean expired entries from cache
+ */
+function cleanExpiredCache(): void {
+  const now = Date.now();
+  for (const [key, entry] of screenshotCache.entries()) {
+    if (entry.expiresAt < now) {
+      screenshotCache.delete(key);
+    }
+  }
+}
+
+/**
+ * Add entry to cache with size management
+ */
+function addToCache(fileId: string, data: string, mimeType: string): void {
+  // Clean expired first
+  cleanExpiredCache();
+
+  // If still at max, remove oldest entries
+  if (screenshotCache.size >= MAX_CACHE_ENTRIES) {
+    const entriesToRemove = screenshotCache.size - MAX_CACHE_ENTRIES + 1;
+    const keys = screenshotCache.keys();
+    for (let i = 0; i < entriesToRemove; i++) {
+      const key = keys.next().value;
+      if (key) screenshotCache.delete(key);
+    }
+  }
+
+  screenshotCache.set(fileId, {
+    data,
+    mimeType,
+    expiresAt: Date.now() + CACHE_TTL_MS
+  });
+}
+
+/**
+ * Get entry from cache if not expired
+ */
+function getFromCache(fileId: string): { data: string; mimeType: string } | null {
+  const entry = screenshotCache.get(fileId);
+  if (!entry) return null;
+
+  if (entry.expiresAt < Date.now()) {
+    screenshotCache.delete(fileId);
+    return null;
+  }
+
+  return { data: entry.data, mimeType: entry.mimeType };
+}
+
+/**
+ * Remove entry from cache (called when screenshot is deleted)
+ */
+function removeFromCache(fileId: string): void {
+  screenshotCache.delete(fileId);
+}
+
+// =============================================================================
+
 /**
  * Service account credentials structure
  */
@@ -207,7 +286,7 @@ export async function uploadScreenshot(
 }
 
 /**
- * Get screenshot data from Google Drive
+ * Get screenshot data from Google Drive (with caching)
  *
  * @param fileId - Google Drive file ID
  * @returns Object with base64 data and mime type
@@ -216,6 +295,13 @@ export async function getScreenshot(fileId: string): Promise<{
   data: string;
   mimeType: string;
 } | null> {
+  // Check cache first
+  const cached = getFromCache(fileId);
+  if (cached) {
+    console.log(`[Drive] Screenshot served from cache: ${fileId}`);
+    return cached;
+  }
+
   try {
     const drive = await createDriveClient();
 
@@ -237,6 +323,10 @@ export async function getScreenshot(fileId: string): Promise<{
 
     const buffer = Buffer.from(response.data as ArrayBuffer);
     const base64 = buffer.toString('base64');
+
+    // Add to cache for future requests
+    addToCache(fileId, base64, mimeType);
+    console.log(`[Drive] Screenshot fetched and cached: ${fileId} (${Math.round(buffer.length / 1024)}KB)`);
 
     return {
       data: base64,
@@ -268,10 +358,15 @@ export async function deleteScreenshot(fileId: string): Promise<void> {
       fileId: fileId
     });
 
+    // Remove from cache
+    removeFromCache(fileId);
+
     console.log(`[Drive] Screenshot deleted: ${fileId}`);
 
   } catch (error: any) {
     if (error.code === 404) {
+      // Still remove from cache if it was there
+      removeFromCache(fileId);
       console.warn(`[Drive] File already deleted or not found: ${fileId}`);
       return;
     }

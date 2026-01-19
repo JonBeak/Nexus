@@ -77,7 +77,7 @@ export interface Order {
   // Phase 1.5.g: Folder tracking fields
   folder_name?: string;
   folder_exists?: boolean;
-  folder_location?: 'active' | 'finished' | 'none';
+  folder_location?: 'active' | 'finished' | 'cancelled' | 'hold' | 'none';
   is_migrated?: boolean;        // True for orders created from existing SMB folders (legacy tracking)
 
   form_version: number;
@@ -520,7 +520,7 @@ export interface OrderDataForPDF {
 
   // Folder info (for constructing full image path)
   folder_name?: string;
-  folder_location?: 'active' | 'finished' | 'none';
+  folder_location?: 'active' | 'finished' | 'cancelled' | 'hold' | 'none';
   is_migrated?: boolean;
 
   // Customer info
@@ -598,4 +598,25 @@ export interface QBComparisonResult {
   qbLineItems?: QBEstimateLineItem[];
   /** Any warnings encountered during comparison */
   warnings?: string[];
+}
+
+// ============================================================================
+// ORDER PART IMPORT TYPES
+// Used for importing QB descriptions from estimate preparation items to order parts
+// ============================================================================
+
+/**
+ * Instruction for importing fields from estimate to order part
+ */
+export interface OrderPartImportInstruction {
+  /** Order part ID to update */
+  targetPartId: number;
+  /** QB item name (optional) */
+  qb_item_name?: string | null;
+  /** QB description (default selected) */
+  qb_description?: string | null;
+  /** Quantity (optional) */
+  quantity?: number;
+  /** Unit price (optional) */
+  unit_price?: number;
 }

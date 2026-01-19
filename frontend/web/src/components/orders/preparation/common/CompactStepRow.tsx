@@ -6,7 +6,7 @@
  */
 
 import React, { ReactNode } from 'react';
-import { CheckCircle, Clock, AlertCircle, Loader } from 'lucide-react';
+import { CheckCircle, Clock, AlertCircle, Loader, SkipForward } from 'lucide-react';
 import { StepStatus } from '@/types/orderPreparation';
 
 type MessageType = 'success' | 'info' | 'warning' | 'caution';
@@ -71,6 +71,8 @@ export const CompactStepRow: React.FC<CompactStepRowProps> = ({
         return <Loader className="w-4 h-4 text-blue-600 animate-spin" />;
       case 'failed':
         return <AlertCircle className="w-4 h-4 text-red-600" />;
+      case 'skipped':
+        return <SkipForward className="w-4 h-4 text-gray-500" />;
       default:
         return <Clock className="w-4 h-4 text-gray-400" />;
     }

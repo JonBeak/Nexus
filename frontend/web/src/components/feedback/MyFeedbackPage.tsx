@@ -30,6 +30,9 @@ const STATUS_OPTIONS: { value: FeedbackStatus; label: string; color: string }[] 
   { value: 'closed', label: 'Closed', color: 'bg-gray-100 text-gray-800' }
 ];
 
+// Default: show all statuses
+const ALL_STATUSES = new Set<FeedbackStatus>(['open', 'in_progress', 'resolved', 'closed']);
+
 const PRIORITY_OPTIONS: { value: FeedbackPriority; label: string; color: string }[] = [
   { value: 'low', label: 'Low', color: 'bg-gray-100 text-gray-800' },
   { value: 'medium', label: 'Medium', color: 'bg-blue-100 text-blue-800' },
@@ -47,19 +50,18 @@ export const MyFeedbackPage: React.FC = () => {
   const [selectedFeedbackId, setSelectedFeedbackId] = useState<number | null>(null);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
 
-  // Filter
-  const [statusFilter, setStatusFilter] = useState<FeedbackStatus | ''>('');
+  // Filter - all statuses selected by default
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<FeedbackStatus>>(new Set(ALL_STATUSES));
 
   useEffect(() => {
     loadFeedback();
-  }, [statusFilter]);
+  }, []);
 
   const loadFeedback = async () => {
     setLoading(true);
     setError(null);
     try {
       const result = await feedbackApi.getList({
-        status: statusFilter || undefined,
         limit: 100
       });
       setFeedback(result.items);
@@ -69,6 +71,22 @@ export const MyFeedbackPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Filter client-side based on selected statuses
+  const filteredFeedback = feedback.filter(item => selectedStatuses.has(item.status));
+
+  // Toggle status in selection
+  const toggleStatus = (status: FeedbackStatus) => {
+    setSelectedStatuses(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(status)) {
+        newSet.delete(status);
+      } else {
+        newSet.add(status);
+      }
+      return newSet;
+    });
   };
 
   const formatDate = (dateStr: string) => {
@@ -136,17 +154,23 @@ export const MyFeedbackPage: React.FC = () => {
         <div className={`${PAGE_STYLES.composites.panelContainer}`}>
           {/* Filter Bar */}
           <div className={`flex items-center gap-4 p-4 border-b ${PAGE_STYLES.panel.border}`}>
-            <label className={`text-sm font-medium ${PAGE_STYLES.panel.text}`}>Filter:</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as FeedbackStatus | '')}
-              className={`px-3 py-1.5 text-sm ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.text} border rounded-lg focus:ring-2 focus:ring-indigo-500`}
-            >
-              <option value="">All Status</option>
+            <label className={`text-sm font-medium ${PAGE_STYLES.panel.text}`}>Status:</label>
+            <div className="flex flex-wrap gap-3">
               {STATUS_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                <label key={opt.value} className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedStatuses.has(opt.value)}
+                    onChange={() => toggleStatus(opt.value)}
+                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className={`text-sm ${PAGE_STYLES.panel.textSecondary}`}>{opt.label}</span>
+                </label>
               ))}
-            </select>
+            </div>
+            <span className={`text-sm ${PAGE_STYLES.panel.textMuted} ml-auto`}>
+              {filteredFeedback.length} {filteredFeedback.length === 1 ? 'item' : 'items'}
+            </span>
           </div>
 
           {/* Content */}
@@ -159,23 +183,25 @@ export const MyFeedbackPage: React.FC = () => {
               <AlertCircle className="w-5 h-5" />
               <span>{error}</span>
             </div>
-          ) : feedback.length === 0 ? (
+          ) : filteredFeedback.length === 0 ? (
             <div className="text-center py-16">
               <MessageSquare className={`w-12 h-12 mx-auto mb-4 ${PAGE_STYLES.panel.textMuted}`} />
               <p className={PAGE_STYLES.panel.textSecondary}>
-                {statusFilter ? 'No feedback with this status' : "You haven't submitted any feedback yet"}
+                {feedback.length === 0 ? "You haven't submitted any feedback yet" : 'No feedback matches the selected filters'}
               </p>
-              <button
-                onClick={() => setIsSubmitModalOpen(true)}
-                className={`mt-4 px-4 py-2 ${MODULE_COLORS.feedback.base} ${MODULE_COLORS.feedback.hover} text-white rounded-lg transition-colors inline-flex items-center gap-2`}
-              >
-                <Plus className="w-4 h-4" />
-                Submit Feedback
-              </button>
+              {feedback.length === 0 && (
+                <button
+                  onClick={() => setIsSubmitModalOpen(true)}
+                  className={`mt-4 px-4 py-2 ${MODULE_COLORS.feedback.base} ${MODULE_COLORS.feedback.hover} text-white rounded-lg transition-colors inline-flex items-center gap-2`}
+                >
+                  <Plus className="w-4 h-4" />
+                  Submit Feedback
+                </button>
+              )}
             </div>
           ) : (
             <div className={`divide-y ${PAGE_STYLES.panel.divider}`}>
-              {feedback.map((item) => (
+              {filteredFeedback.map((item) => (
                 <button
                   key={item.feedback_id}
                   onClick={() => setSelectedFeedbackId(item.feedback_id)}

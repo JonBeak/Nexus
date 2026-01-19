@@ -2,11 +2,11 @@
  * Painting Task Matrix - Ultra-Compact 3D Structure
  * Format: Matrix[itemType][componentIndex][timingIndex] → task numbers[]
  * Component order: Face, Return, Trim, Return&Trim, Face&Return, Frame, All Sides (0-6)
- * Timing order: Pre-Cutting, Post-Cutting, Post-Folding, Post-Fabrication (0-3)
+ * Timing order: Before Cutting, After Cutting, After Bending, After Fabrication (0-3)
  */
 
 export type PaintingComponent = 'Face' | 'Return' | 'Trim' | 'Return & Trim' | 'Face & Return' | 'Frame' | 'All Sides';
-export type PaintingTiming = 'Pre-Cutting' | 'Post-Cutting' | 'Post-Folding' | 'Post-Fabrication';
+export type PaintingTiming = 'Before Cutting' | 'After Cutting' | 'After Bending' | 'After Fabrication';
 export type MaterialCategory = 'metal' | 'plastic';
 export type BackerType = 'flat' | 'folded';
 
@@ -22,7 +22,7 @@ export const PAINTING_TASKS = {
 } as const;
 
 const COMPONENTS: PaintingComponent[] = ['Face', 'Return', 'Trim', 'Return & Trim', 'Face & Return', 'Frame', 'All Sides'];
-const TIMINGS: PaintingTiming[] = ['Pre-Cutting', 'Post-Cutting', 'Post-Folding', 'Post-Fabrication'];
+const TIMINGS: PaintingTiming[] = ['Before Cutting', 'After Cutting', 'After Bending', 'After Fabrication'];
 
 type PM = (number[] | null)[][];
 const N = null;

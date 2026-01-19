@@ -331,7 +331,7 @@ export const CUTTING_TEMPLATE: SpecificationTemplate = {
  * Template: Painting
  * Spec 1: Colour (textbox)
  * Spec 2: Component (combobox: Return, Trim, Face, etc.)
- * Spec 3: Timing (combobox: Pre-Cutting, Post-Cutting, etc.)
+ * Spec 3: Timing (combobox: Before Cutting, After Cutting, etc.)
  */
 export const PAINTING_TEMPLATE: SpecificationTemplate = {
   templateName: 'Painting',

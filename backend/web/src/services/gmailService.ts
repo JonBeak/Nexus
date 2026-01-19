@@ -32,9 +32,17 @@ export interface EmailData {
   pdfUrls: {
     orderForm: string | null;
     qbEstimate: string | null;
+    internalEstimate?: string | null;
   };
   // New: customizable email content
   emailContent?: OrderEmailContent;
+}
+
+// Individual attachment selection state
+export interface AttachmentSelections {
+  specsOrderForm: boolean;
+  qbEstimate: boolean;
+  internalEstimate: boolean;
 }
 
 // Order confirmation email content structure
@@ -42,7 +50,7 @@ export interface OrderEmailContent {
   subject: string;
   beginning: string;
   includeActionRequired: boolean;
-  includeAttachments: boolean;
+  attachments: AttachmentSelections;
   end: string;
 }
 
@@ -560,12 +568,20 @@ function buildOrderConfirmationEmailTemplate(
     : `If you have any questions or need changes, please reply to this email or contact us directly.\n\nThank you for your business!\n\nBest regards,\nThe Sign House Team`;
 
   const includeActionRequired = emailContent?.includeActionRequired ?? true;
-  const includeAttachments = emailContent?.includeAttachments ?? true;
 
-  // Build attachments list dynamically
+  // Build attachments list dynamically based on selections
   const attachmentsList: string[] = [];
-  if (data.pdfUrls.orderForm) attachmentsList.push('Specifications Order Form');
-  if (data.pdfUrls.qbEstimate) attachmentsList.push('QuickBooks Estimate');
+  const attachmentSelections = emailContent?.attachments ?? { specsOrderForm: true, qbEstimate: true, internalEstimate: false };
+
+  if (attachmentSelections.specsOrderForm && data.pdfUrls.orderForm) {
+    attachmentsList.push('Specifications Order Form');
+  }
+  if (attachmentSelections.qbEstimate && data.pdfUrls.qbEstimate) {
+    attachmentsList.push('QuickBooks Estimate');
+  }
+  if (attachmentSelections.internalEstimate && data.pdfUrls.internalEstimate) {
+    attachmentsList.push('Internal Estimate');
+  }
 
   // Build logo HTML
   const logoHtml = settings.company_logo_base64
@@ -586,7 +602,8 @@ function buildOrderConfirmationEmailTemplate(
     : '';
 
   // Build Attachments section (full border, centered, light background)
-  const attachmentsHtml = includeAttachments && attachmentsList.length > 0
+  // Only show if at least one attachment is selected AND available
+  const attachmentsHtml = attachmentsList.length > 0
     ? `<div style="background: #f0f9ff; border: 1px solid #bae6fd; padding: 16px 18px; margin: 24px 0; border-radius: 8px; text-align: center;">
         <strong style="color: ${ORDER_COLORS.primary};">Attached Documents</strong><br>
         <span style="color: #374151;">${attachmentsList.join('<br>')}</span>
@@ -641,7 +658,7 @@ function buildOrderConfirmationEmailTemplate(
     '',
     includeActionRequired ? 'ACTION REQUIRED:\nPlease review and confirm your order promptly so we can begin production.' : '',
     '',
-    includeAttachments && attachmentsList.length > 0 ? `ATTACHED DOCUMENTS:\n${attachmentsList.map(a => `- ${a}`).join('\n')}` : '',
+    attachmentsList.length > 0 ? `ATTACHED DOCUMENTS:\n${attachmentsList.map(a => `- ${a}`).join('\n')}` : '',
     '',
     end,
     '',

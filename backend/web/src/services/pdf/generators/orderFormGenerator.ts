@@ -54,6 +54,7 @@ import {
 } from '../renderers/specRenderers';
 import { buildPartColumns, PartColumn } from '../utils/partColumnBuilder';
 import { standardizeOrderParts, PartColumnStandardized } from '../../orderSpecificationStandardizationService';
+import { applyPaintingTransformations } from '../transformers/paintingSpecTransformer';
 
 // ============================================
 // HELPER FUNCTIONS - Header Rendering
@@ -416,6 +417,20 @@ export async function generateOrderForm(
       const standardizedSpecs = standardizeOrderParts(orderData.parts, formType);
       console.log(`[STANDARDIZATION] Generated ${standardizedSpecs.partColumns.length} columns with ${standardizedSpecs.flattenedSpecs.length} total specs`);
 
+      // Apply painting transformations (modifies specs in place, marks painted specs)
+      console.log(`[PAINTING TRANSFORM] Applying painting transformations...`);
+      const transformResult = applyPaintingTransformations(standardizedSpecs.partColumns);
+
+      // Handle painting collision errors - fail PDF generation with clear error message
+      if (transformResult.errors.length > 0) {
+        const errorMessages = transformResult.errors.map(e => e.message).join('; ');
+        throw new Error(`PDF Generation failed for order ${orderData.order_number}: ${errorMessages}`);
+      }
+
+      // Use transformed columns for rendering
+      const columnsToRender = transformResult.transformedColumns;
+      console.log(`[PAINTING TRANSFORM] Transformation complete, using ${columnsToRender.length} columns for rendering`);
+
       // ============================================
       // DYNAMIC FONT SIZING - Measure before rendering
       // ============================================
@@ -425,7 +440,7 @@ export async function generateOrderForm(
 
       // Measure at 12pt first (measureOnly=true)
       const maxPartY12pt = renderPartColumns(
-        doc, standardizedSpecs.partColumns, marginLeft, contentWidth, contentStartY,
+        doc, columnsToRender, marginLeft, contentWidth, contentStartY,
         pageWidth, marginRight, formType, true, 12
       );
 
@@ -440,7 +455,7 @@ export async function generateOrderForm(
       if (availableSpace12pt < LAYOUT.MIN_IMAGE_HEIGHT) {
         // Not enough space at 12pt - try 10pt
         const maxPartY10pt = renderPartColumns(
-          doc, standardizedSpecs.partColumns, marginLeft, contentWidth, contentStartY,
+          doc, columnsToRender, marginLeft, contentWidth, contentStartY,
           pageWidth, marginRight, formType, true, 10
         );
 
@@ -466,9 +481,9 @@ export async function generateOrderForm(
       // RENDER - Now render for real with chosen font size
       // ============================================
 
-      // Render part columns using pre-computed standardized specs (measureOnly=false)
+      // Render part columns using pre-computed transformed specs (measureOnly=false)
       const maxPartY = renderPartColumns(
-        doc, standardizedSpecs.partColumns, marginLeft, contentWidth, contentStartY,
+        doc, columnsToRender, marginLeft, contentWidth, contentStartY,
         pageWidth, marginRight, formType, false, specFontSize
       );
 

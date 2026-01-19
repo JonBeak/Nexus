@@ -375,7 +375,7 @@ export class TimeEntryRepository {
    */
   static async getActiveUsers(): Promise<SimpleUser[]> {
     const rows = await query(
-      `SELECT user_id, username, first_name, last_name, email, role, show_in_time_calendar
+      `SELECT user_id, username, first_name, last_name, email, role, show_in_time_calendar, user_group
        FROM users
        WHERE is_active = 1 AND show_in_time_calendar = 1
        ORDER BY first_name, last_name`

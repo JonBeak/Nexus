@@ -20,6 +20,7 @@ import {
   AuditLogResponse
 } from '../types/settings';
 import { escapeHtml } from '../utils/htmlUtils';
+import { invalidatePricingCache } from '../websocket/taskBroadcast';
 
 // =============================================================================
 // Helper: Generate key from display name
@@ -447,6 +448,9 @@ export class SettingsService {
         `Updated ${existing.product_type} - ${existing.component}/${existing.timing}`,
         userId
       );
+
+      // Invalidate pricing cache so all clients get fresh data
+      invalidatePricingCache('painting-matrix', userId);
 
       return { success: true, data: undefined };
     } catch (error) {

@@ -67,25 +67,29 @@ export function updateStepStatus(
 
 /**
  * Calculate overall progress percentage
+ * Counts both completed and skipped steps as "done"
  */
 export function calculateProgress(steps: PrepareStep[]): number {
-  const completedSteps = steps.filter(s => s.status === 'completed').length;
-  return Math.round((completedSteps / steps.length) * 100);
+  const doneSteps = steps.filter(s => s.status === 'completed' || s.status === 'skipped').length;
+  return Math.round((doneSteps / steps.length) * 100);
 }
 
 /**
  * Check if all required steps are complete
- * Required for "Send to Customer": ALL steps must be completed (100% progress)
+ * Required for "Send to Customer": ALL steps must be completed or skipped (100% progress)
  */
 export function areRequiredStepsComplete(steps: PrepareStep[]): boolean {
-  // All steps must be completed (100% progress)
-  return steps.every(step => step.status === 'completed');
+  // All steps must be completed or skipped
+  return steps.every(step => step.status === 'completed' || step.status === 'skipped');
 }
 
 /**
  * Initialize steps with default configuration
+ * @param options.isCashJob - If true, QB Estimate step is auto-skipped (cash jobs don't need QB estimates)
  */
-export function initializeSteps(): PrepareStep[] {
+export function initializeSteps(options?: { isCashJob?: boolean }): PrepareStep[] {
+  const isCashJob = options?.isCashJob ?? false;
+
   return [
     {
       id: 'validation',
@@ -101,7 +105,8 @@ export function initializeSteps(): PrepareStep[] {
       id: 'create_qb_estimate',
       name: 'Create QuickBooks Estimate',
       description: 'Create estimate in QuickBooks',
-      status: 'pending',
+      // Cash jobs auto-skip this step
+      status: isCashJob ? 'skipped' : 'pending',
       canRun: true,
       dependencies: ['validation'],
       canRunInParallel: false,

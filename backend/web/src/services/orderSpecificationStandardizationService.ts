@@ -44,6 +44,9 @@ export interface StandardizedSpec {
   sourcePartId: number;          // Which part this spec came from
   sourcePartNumber: number;      // Part number for error messages
   sourceIsParent: boolean;       // Whether source part is a parent or sub-item
+  // Painting transformation metadata (added by paintingSpecTransformer)
+  paintingApplied?: boolean;     // Whether this spec was transformed by a painting
+  paintingColour?: string;       // The paint colour applied (e.g., "2622C")
 }
 
 /**

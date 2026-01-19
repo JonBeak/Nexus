@@ -7,6 +7,7 @@ import { ProductionRole } from '../../types/orders';
 import { GeneratedTask, PartGroup, UnknownApplication } from './types';
 import { hasSpec, getSpecValue, findSpec, getCuttingMethod, extractBoxTypeMaterial, findAllSpecs, parseSpecifications } from './specParser';
 import { vinylMatrixService } from '../vinylMatrixService';
+import { generatePaintingTasks } from './paintingTaskGenerator';
 
 /**
  * Default sort order for tasks not found in TASK_ORDER
@@ -476,10 +477,9 @@ export async function generateConditionalTasks(
     });
   }
 
-  // Painting tasks (based on 3D matrix lookup)
+  // Painting tasks (based on 3D matrix lookup from database)
   if (hasSpec(group, 'Painting')) {
-    const { generatePaintingTasks } = require('./paintingTaskGenerator');
-    const paintingResult = generatePaintingTasks(orderId, partId, group);
+    const paintingResult = await generatePaintingTasks(orderId, partId, group);
     tasks.push(...paintingResult.tasks);
 
     // Collect warnings for frontend display

@@ -21,13 +21,15 @@ import { FeedbackDetailModal } from '../feedback/FeedbackDetailModal';
 import { PAGE_STYLES } from '../../constants/moduleColors';
 import { useAuth } from '../../contexts/AuthContext';
 
-const STATUS_OPTIONS: { value: FeedbackStatus | ''; label: string; color: string }[] = [
-  { value: '', label: 'All Statuses', color: '' },
+const STATUS_OPTIONS: { value: FeedbackStatus; label: string; color: string }[] = [
   { value: 'open', label: 'Open', color: 'bg-blue-100 text-blue-800' },
   { value: 'in_progress', label: 'In Progress', color: 'bg-yellow-100 text-yellow-800' },
   { value: 'resolved', label: 'Resolved', color: 'bg-green-100 text-green-800' },
   { value: 'closed', label: 'Closed', color: 'bg-gray-100 text-gray-800' }
 ];
+
+// Default: show all except closed
+const DEFAULT_STATUSES = new Set<FeedbackStatus>(['open', 'in_progress', 'resolved']);
 
 const PRIORITY_OPTIONS: { value: FeedbackPriority | ''; label: string; color: string }[] = [
   { value: '', label: 'All Priorities', color: '' },
@@ -41,38 +43,42 @@ const ITEMS_PER_PAGE = 10;
 
 export const FeedbackManager: React.FC = () => {
   const { isManager } = useAuth();
-  const [feedbackList, setFeedbackList] = useState<FeedbackRequest[]>([]);
-  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Filters
-  const [statusFilter, setStatusFilter] = useState<FeedbackStatus | ''>('');
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<FeedbackStatus>>(new Set(DEFAULT_STATUSES));
   const [priorityFilter, setPriorityFilter] = useState<FeedbackPriority | ''>('');
   const [page, setPage] = useState(1);
 
   // Detail modal
   const [selectedFeedbackId, setSelectedFeedbackId] = useState<number | null>(null);
 
+  // Store all fetched items for client-side status filtering
+  const [allItems, setAllItems] = useState<FeedbackRequest[]>([]);
+
   const loadFeedback = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      // Fetch all items (no status filter - we filter client-side for multi-select)
       const data = await feedbackApi.getList({
-        status: statusFilter || undefined,
         priority: priorityFilter || undefined,
-        limit: ITEMS_PER_PAGE,
-        offset: (page - 1) * ITEMS_PER_PAGE
+        limit: 1000 // Get all for client-side filtering
       });
-      setFeedbackList(data.items);
-      setTotal(data.total);
+      setAllItems(data.items);
     } catch (err) {
       setError('Failed to load feedback');
       console.error('Error loading feedback:', err);
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, priorityFilter, page]);
+  }, [priorityFilter]);
+
+  // Filter and paginate client-side based on selected statuses
+  const filteredItems = allItems.filter(item => selectedStatuses.has(item.status));
+  const paginatedItems = filteredItems.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const filteredTotal = filteredItems.length;
 
   useEffect(() => {
     loadFeedback();
@@ -81,9 +87,22 @@ export const FeedbackManager: React.FC = () => {
   // Reset page when filters change
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, priorityFilter]);
+  }, [selectedStatuses, priorityFilter]);
 
-  const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(filteredTotal / ITEMS_PER_PAGE);
+
+  // Toggle status in selection
+  const toggleStatus = (status: FeedbackStatus) => {
+    setSelectedStatuses(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(status)) {
+        newSet.delete(status);
+      } else {
+        newSet.add(status);
+      }
+      return newSet;
+    });
+  };
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleString('en-US', {
@@ -135,22 +154,26 @@ export const FeedbackManager: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className={`flex gap-4 p-3 rounded-lg border ${PAGE_STYLES.panel.border} ${PAGE_STYLES.input.background}`}>
+      <div className={`flex flex-wrap gap-4 p-3 rounded-lg border ${PAGE_STYLES.panel.border} ${PAGE_STYLES.input.background}`}>
         <div>
-          <label className={`block text-xs font-medium ${PAGE_STYLES.panel.textMuted} mb-1`}>
+          <label className={`block text-xs font-medium ${PAGE_STYLES.panel.textMuted} mb-2`}>
             Status
           </label>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as FeedbackStatus | '')}
-            className={`px-3 py-1.5 text-sm ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.text} border rounded-lg focus:ring-1 focus:ring-blue-500`}
-          >
+          <div className="flex flex-wrap gap-3">
             {STATUS_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+              <label key={opt.value} className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedStatuses.has(opt.value)}
+                  onChange={() => toggleStatus(opt.value)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className={`text-sm ${PAGE_STYLES.panel.textSecondary}`}>{opt.label}</span>
+              </label>
             ))}
-          </select>
+          </div>
         </div>
-        <div>
+        <div className="border-l border-gray-300 pl-4">
           <label className={`block text-xs font-medium ${PAGE_STYLES.panel.textMuted} mb-1`}>
             Priority
           </label>
@@ -166,13 +189,13 @@ export const FeedbackManager: React.FC = () => {
         </div>
         <div className="flex items-end ml-auto">
           <span className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>
-            {total} {total === 1 ? 'item' : 'items'}
+            {filteredTotal} {filteredTotal === 1 ? 'item' : 'items'}
           </span>
         </div>
       </div>
 
       {/* Content */}
-      {loading && feedbackList.length === 0 ? (
+      {loading && allItems.length === 0 ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
         </div>
@@ -181,10 +204,10 @@ export const FeedbackManager: React.FC = () => {
           <AlertCircle className="w-5 h-5" />
           <span>{error}</span>
         </div>
-      ) : feedbackList.length === 0 ? (
+      ) : paginatedItems.length === 0 ? (
         <div className={`text-center py-12 ${PAGE_STYLES.panel.textMuted}`}>
           <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-40" />
-          <p>No feedback found</p>
+          <p>{allItems.length === 0 ? 'No feedback found' : 'No feedback matches the selected filters'}</p>
         </div>
       ) : (
         <>
@@ -204,7 +227,7 @@ export const FeedbackManager: React.FC = () => {
                 </tr>
               </thead>
               <tbody className={`divide-y ${PAGE_STYLES.panel.divider} ${PAGE_STYLES.panel.background}`}>
-                {feedbackList.map((feedback) => (
+                {paginatedItems.map((feedback) => (
                   <tr
                     key={feedback.feedback_id}
                     className={`${PAGE_STYLES.interactive.hover} cursor-pointer`}
@@ -260,7 +283,7 @@ export const FeedbackManager: React.FC = () => {
           {totalPages > 1 && (
             <div className="flex items-center justify-between">
               <span className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>
-                Showing {((page - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(page * ITEMS_PER_PAGE, total)} of {total}
+                Showing {((page - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(page * ITEMS_PER_PAGE, filteredTotal)} of {filteredTotal}
               </span>
               <div className="flex items-center gap-2">
                 <button

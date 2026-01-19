@@ -14,6 +14,7 @@
 import { LEDRepository, LED } from '../repositories/ledRepository';
 import { ServiceResult } from '../types/serviceResults';
 import { getTrimmedString } from '../utils/validation';
+import { invalidatePricingCache } from '../websocket/taskBroadcast';
 
 export class LEDService {
   private repository: LEDRepository;
@@ -112,6 +113,10 @@ export class LEDService {
       }
 
       const ledId = await this.repository.create({ ...led, product_code: productCode });
+
+      // Invalidate pricing cache so all clients get fresh data
+      invalidatePricingCache('leds');
+
       return { success: true, data: { led_id: ledId } };
     } catch (error) {
       console.error('Service error creating LED:', error);
@@ -161,6 +166,10 @@ export class LEDService {
       }
 
       await this.repository.update(ledId, updates);
+
+      // Invalidate pricing cache so all clients get fresh data
+      invalidatePricingCache('leds');
+
       return { success: true, data: undefined };
     } catch (error) {
       console.error('Service error updating LED:', error);
@@ -179,6 +188,10 @@ export class LEDService {
       }
 
       await this.repository.update(ledId, { is_active: false });
+
+      // Invalidate pricing cache so all clients get fresh data
+      invalidatePricingCache('leds');
+
       return { success: true, data: undefined };
     } catch (error) {
       console.error('Service error deactivating LED:', error);

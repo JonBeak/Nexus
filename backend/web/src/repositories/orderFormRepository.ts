@@ -29,7 +29,7 @@ export class OrderFormRepository {
     order_name: string;
     folder_name: string;
     folder_exists: boolean;
-    folder_location: 'active' | 'finished' | 'none';
+    folder_location: 'active' | 'finished' | 'cancelled' | 'hold' | 'none';
     is_migrated: boolean;
   } | null> {
     const rows = await query(
@@ -49,7 +49,7 @@ export class OrderFormRepository {
       order_name: string;
       folder_name: string;
       folder_exists: boolean;
-      folder_location: 'active' | 'finished' | 'none';
+      folder_location: 'active' | 'finished' | 'cancelled' | 'hold' | 'none';
       is_migrated: boolean;
     };
   }
@@ -69,9 +69,9 @@ export class OrderFormRepository {
 
   /**
    * Get folder location for an order
-   * Returns 'active', 'finished', or 'none' based on folder_location column
+   * Returns 'active', 'finished', 'cancelled', 'hold', or 'none' based on folder_location column
    */
-  async getOrderFolderLocation(orderId: number): Promise<'active' | 'finished' | 'none'> {
+  async getOrderFolderLocation(orderId: number): Promise<'active' | 'finished' | 'cancelled' | 'hold' | 'none'> {
     const rows = await query(
       `SELECT folder_location FROM orders WHERE order_id = ?`,
       [orderId]
@@ -81,7 +81,7 @@ export class OrderFormRepository {
       throw new Error('Order not found');
     }
 
-    return rows[0].folder_location as 'active' | 'finished' | 'none';
+    return rows[0].folder_location as 'active' | 'finished' | 'cancelled' | 'hold' | 'none';
   }
 
   /**
@@ -92,7 +92,7 @@ export class OrderFormRepository {
     orderId: number,
     folderName: string,
     folderExists: boolean,
-    folderLocation: 'active' | 'finished' | 'none',
+    folderLocation: 'active' | 'finished' | 'cancelled' | 'hold' | 'none',
     connection?: PoolConnection
   ): Promise<void> {
     const db = connection || pool;

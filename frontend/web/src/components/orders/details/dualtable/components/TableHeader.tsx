@@ -6,9 +6,14 @@
  */
 
 import React from 'react';
+import { Download } from 'lucide-react';
 import { PAGE_STYLES } from '../../../../../constants/moduleColors';
 
-export const TableHeader: React.FC = () => {
+interface TableHeaderProps {
+  onImportClick?: () => void;
+}
+
+export const TableHeader: React.FC<TableHeaderProps> = ({ onImportClick }) => {
   const headerCell = `text-xs font-semibold ${PAGE_STYLES.header.text} uppercase tracking-wider py-2`;
   const dividerBorder = `border-l-2 ${PAGE_STYLES.panel.border}`;
 
@@ -43,8 +48,17 @@ export const TableHeader: React.FC = () => {
       <div className={`${headerCell} ${dividerBorder} pl-2`}>
         QB Item
       </div>
-      <div className={headerCell}>
+      <div className={`${headerCell} flex items-center gap-1`}>
         QB Description
+        {onImportClick && (
+          <button
+            onClick={onImportClick}
+            className="ml-1 p-0.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+            title="Import QB descriptions from estimate"
+          >
+            <Download className="w-3 h-3" />
+          </button>
+        )}
       </div>
       <div className={headerCell}>
         Price Calculation

@@ -6,6 +6,7 @@
 import { vinylMatrixRepository, VinylMatrixEntry, VinylMatrixProductType } from '../repositories/vinylMatrixRepository';
 import { settingsRepository } from '../repositories/settingsRepository';
 import { ServiceResult } from '../types/serviceResults';
+import { invalidatePricingCache } from '../websocket/taskBroadcast';
 
 // =============================================================================
 // Helper: Generate key from display name
@@ -121,6 +122,9 @@ export const vinylMatrixService = {
         userId
       );
 
+      // Invalidate pricing cache so all clients get fresh data
+      invalidatePricingCache('vinyl-matrix', userId);
+
       return { success: true, data: undefined };
     } catch (error) {
       console.error('Error updating vinyl matrix entry:', error);
@@ -164,6 +168,9 @@ export const vinylMatrixService = {
         `Created ${productType} - ${application}: ${taskNames.join(', ')}`,
         userId
       );
+
+      // Invalidate pricing cache so all clients get fresh data
+      invalidatePricingCache('vinyl-matrix', userId);
 
       return { success: true, data: matrixId };
     } catch (error) {
@@ -227,6 +234,9 @@ export const vinylMatrixService = {
         `Created ${productType} - ${applicationValue}: ${taskNames.join(', ')}`,
         userId
       );
+
+      // Invalidate pricing cache so all clients get fresh data
+      invalidatePricingCache('vinyl-matrix', userId);
 
       return { success: true, data: { optionId, matrixId } };
     } catch (error) {

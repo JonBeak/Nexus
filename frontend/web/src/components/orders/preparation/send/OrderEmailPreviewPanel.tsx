@@ -59,6 +59,7 @@ export const OrderEmailPreviewPanel: React.FC<Props> = ({
   const [previewSubject, setPreviewSubject] = useState<string>('');
   const [iframeHeight, setIframeHeight] = useState(400);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const hasLoadedOnce = useRef(false);  // Track if we've loaded at least once
 
   // Resize iframe to fit content
   const handleIframeLoad = useCallback(() => {
@@ -90,7 +91,10 @@ export const OrderEmailPreviewPanel: React.FC<Props> = ({
     }
 
     try {
-      setLoading(true);
+      // Only show loading spinner on initial load, not on updates
+      if (!hasLoadedOnce.current) {
+        setLoading(true);
+      }
       setError(null);
 
       const response = await orderPreparationApi.getOrderEmailPreview(orderNumber, {
@@ -103,6 +107,7 @@ export const OrderEmailPreviewPanel: React.FC<Props> = ({
 
       setPreviewHtml(response.html);
       setPreviewSubject(response.subject);
+      hasLoadedOnce.current = true;  // Mark that we've loaded at least once
     } catch (err) {
       console.error('[OrderEmailPreviewPanel] Error fetching preview:', err);
       setError('Failed to load email preview');
@@ -195,8 +200,8 @@ export const OrderEmailPreviewPanel: React.FC<Props> = ({
     );
   }
 
-  // Loading state
-  if (loading) {
+  // Loading state - only show spinner on initial load, not updates
+  if (loading && !hasLoadedOnce.current) {
     return (
       <div className="flex flex-col items-center justify-center text-gray-400 py-24">
         <Loader2 className="w-8 h-8 animate-spin mb-3" />

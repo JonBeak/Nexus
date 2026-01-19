@@ -14,6 +14,7 @@
 import { PowerSupplyRepository, PowerSupply } from '../repositories/powerSupplyRepository';
 import { ServiceResult } from '../types/serviceResults';
 import { getTrimmedString } from '../utils/validation';
+import { invalidatePricingCache } from '../websocket/taskBroadcast';
 
 export class PowerSupplyService {
   private repository: PowerSupplyRepository;
@@ -194,6 +195,10 @@ export class PowerSupplyService {
       }
 
       const powerSupplyId = await this.repository.create({ ...powerSupply, transformer_type: transformerType });
+
+      // Invalidate pricing cache so all clients get fresh data
+      invalidatePricingCache('power-supplies');
+
       return { success: true, data: { power_supply_id: powerSupplyId } };
     } catch (error) {
       console.error('Service error creating power supply:', error);
@@ -249,6 +254,10 @@ export class PowerSupplyService {
       }
 
       await this.repository.update(powerSupplyId, updates);
+
+      // Invalidate pricing cache so all clients get fresh data
+      invalidatePricingCache('power-supplies');
+
       return { success: true, data: undefined };
     } catch (error) {
       console.error('Service error updating power supply:', error);
@@ -267,6 +276,10 @@ export class PowerSupplyService {
       }
 
       await this.repository.update(powerSupplyId, { is_active: false });
+
+      // Invalidate pricing cache so all clients get fresh data
+      invalidatePricingCache('power-supplies');
+
       return { success: true, data: undefined };
     } catch (error) {
       console.error('Service error deactivating power supply:', error);

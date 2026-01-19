@@ -29,3 +29,13 @@ export const ORDERS_FOLDER = 'Orders';
  * Folder name for completed/finished orders
  */
 export const FINISHED_FOLDER = '1Finished';
+
+/**
+ * Folder name for cancelled orders
+ */
+export const CANCELLED_FOLDER = '1Cancelled';
+
+/**
+ * Folder name for on-hold orders
+ */
+export const HOLD_FOLDER = '1Hold';

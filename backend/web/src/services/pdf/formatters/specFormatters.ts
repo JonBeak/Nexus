@@ -200,30 +200,65 @@ function computeIlluminationDescription(face: boolean, side: boolean, halo: bool
 }
 
 // ============================================
+// TRANSFORM CONTEXT TYPE
+// ============================================
+
+/**
+ * Optional context for painting transformations
+ * Passed from renderer when a spec has been marked for painting
+ */
+export interface TransformContext {
+  paintingColour?: string;  // Paint colour to append (e.g., "2622C")
+}
+
+// ============================================
 // MAIN FORMATTING FUNCTION
 // ============================================
 
 /**
  * Format spec values based on template name using named keys
+ * @param templateName - The spec template name (e.g., "Return", "Trim")
+ * @param specs - The spec field values
+ * @param formType - The form type (master, customer, shop)
+ * @param transformContext - Optional painting transformation context
  */
-export function formatSpecValues(templateName: string, specs: Record<string, any>, formType: FormType): string {
+export function formatSpecValues(
+  templateName: string,
+  specs: Record<string, any>,
+  formType: FormType,
+  transformContext?: TransformContext
+): string {
   if (!specs || Object.keys(specs).length === 0) return '';
 
   switch (templateName) {
-    case 'Return':
+    case 'Return': {
       // Format: depth + " " + colour (e.g., "3" White")
+      // With painting: depth + colour + " Painted " + paintColour (e.g., "3" White Painted 2622C")
       const depth = getSpecField(specs, 'depth', 'return_depth');
       const colour = getColourValue(specs);
-      return [depth, colour].filter(v => v).join(' ');
+      let result = [depth, colour].filter(v => v).join(' ');
+      if (transformContext?.paintingColour && result) {
+        result += ` - Painted ${transformContext.paintingColour}`;
+      }
+      return result;
+    }
 
-    case '3DP Return':
+    case '3DP Return': {
       // Format: depth - face_material (e.g., "1.5" - 4.5mm Acrylic")
+      // With painting: adds " Painted {colour}" suffix
       const tdpDepth = specs.depth || '';
       const tdpFaceMaterial = specs.face_material || '';
+      let tdpResult: string;
       if (tdpDepth && tdpFaceMaterial) {
-        return `${tdpDepth} - ${tdpFaceMaterial}`;
+        tdpResult = `${tdpDepth} - ${tdpFaceMaterial}`;
+      } else {
+        tdpResult = [tdpDepth, tdpFaceMaterial].filter(v => v).join(' ');
       }
-      return [tdpDepth, tdpFaceMaterial].filter(v => v).join(' ');
+      if (transformContext?.paintingColour && tdpResult) {
+        tdpResult += ` - Painted ${transformContext.paintingColour}`;
+      }
+      return tdpResult;
+    }
 
     case 'Illumination':
       // Compute illumination description from boolean values
@@ -233,14 +268,59 @@ export function formatSpecValues(templateName: string, specs: Record<string, any
         formatBooleanValue(specs.halo_lit) === 'Yes'
       );
 
-    case 'Face':
+    case 'Face': {
       // Format as {material} [{colour}] (swap order)
+      // With painting: adds " Painted {colour}" suffix
       const faceMaterial = specs.material || '';
       const faceColour = getColourValue(specs);
+      let faceResult: string;
       if (faceMaterial && faceColour) {
-        return `${faceMaterial} [${faceColour}]`;
+        faceResult = `${faceMaterial} [${faceColour}]`;
+      } else {
+        faceResult = [faceMaterial, faceColour].filter(v => v).join(' ');
       }
-      return [faceMaterial, faceColour].filter(v => v).join(' ');
+      if (transformContext?.paintingColour && faceResult) {
+        faceResult += ` - Painted ${transformContext.paintingColour}`;
+      }
+      return faceResult;
+    }
+
+    case 'Trim': {
+      // Trim typically stores: colour (e.g., "White")
+      // With painting: adds " Painted {colour}" suffix
+      const trimColour = getColourValue(specs);
+      let trimResult = trimColour || '';
+      if (transformContext?.paintingColour && trimResult) {
+        trimResult += ` - Painted ${transformContext.paintingColour}`;
+      } else if (transformContext?.paintingColour && !trimResult) {
+        // If no colour but painting applied, just show "Painted {colour}"
+        trimResult = `Painted ${transformContext.paintingColour}`;
+      }
+      return trimResult;
+    }
+
+    case 'Back': {
+      // Back typically stores: material (e.g., "2mm ACM")
+      // With painting: adds " Painted {colour}" suffix
+      const backMaterial = specs.material || '';
+      let backResult = backMaterial;
+      if (transformContext?.paintingColour && backResult) {
+        backResult += ` - Painted ${transformContext.paintingColour}`;
+      }
+      return backResult;
+    }
+
+    case 'Frame': {
+      // Frame typically stores: material, colour, etc.
+      // With painting: adds " Painted {colour}" suffix
+      const frameMaterial = specs.material || '';
+      const frameColour = getColourValue(specs);
+      let frameResult = [frameMaterial, frameColour].filter(v => v).join(' ');
+      if (transformContext?.paintingColour && frameResult) {
+        frameResult += ` - Painted ${transformContext.paintingColour}`;
+      }
+      return frameResult;
+    }
 
     case 'Drain Holes':
       // Template stores: include (boolean), size (combobox)

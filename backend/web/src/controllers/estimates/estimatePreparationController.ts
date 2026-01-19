@@ -47,6 +47,9 @@ function validateItemId(param: string, res: Response): { isValid: boolean; value
 /**
  * Get all preparation items for an estimate
  * @route GET /estimates/:estimateId/preparation-items
+ *
+ * For estimates with uses_preparation_table=1, returns from estimate_preparation_items.
+ * For legacy sent estimates, falls back to job_estimate_items + estimate_line_descriptions.
  */
 export const getPreparationItems = async (req: AuthRequest, res: Response) => {
   try {
@@ -54,7 +57,17 @@ export const getPreparationItems = async (req: AuthRequest, res: Response) => {
     if (!validation.isValid) return;
     const estimateId = validation.value!;
 
-    const items = await estimatePreparationRepository.getItemsByEstimateId(estimateId);
+    // Check if estimate uses preparation table
+    const usesPreparationTable = await estimatePreparationRepository.checkUsesPreparationTable(estimateId);
+
+    let items;
+    if (usesPreparationTable) {
+      // Use modern preparation items table
+      items = await estimatePreparationRepository.getItemsByEstimateId(estimateId);
+    } else {
+      // Fallback to legacy tables for sent estimates without preparation table
+      items = await estimatePreparationRepository.getItemsFromLegacyTables(estimateId);
+    }
 
     res.json({ success: true, data: items });
   } catch (error) {

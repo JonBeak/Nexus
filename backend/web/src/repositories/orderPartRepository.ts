@@ -12,7 +12,8 @@ import {
   OrderPart,
   OrderTask,
   CreateOrderPartData,
-  CreateOrderTaskData
+  CreateOrderTaskData,
+  OrderPartImportInstruction
 } from '../types/orders';
 
 export class OrderPartRepository {
@@ -639,6 +640,103 @@ export class OrderPartRepository {
       storedHash,
       taskCount
     };
+  }
+
+  // =============================================
+  // IMPORT FROM ESTIMATE OPERATIONS
+  // =============================================
+
+  /**
+   * Batch import fields from estimate preparation items to order parts
+   * Updates specified fields on each target part
+   * Auto-calculates extended_price if quantity or unit_price changes
+   */
+  async batchImportToOrderParts(
+    orderId: number,
+    imports: OrderPartImportInstruction[]
+  ): Promise<{ updated: number }> {
+    if (imports.length === 0) {
+      return { updated: 0 };
+    }
+
+    let updated = 0;
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      for (const instruction of imports) {
+        // Verify part belongs to this order
+        const [partRows] = await connection.execute<RowDataPacket[]>(
+          'SELECT part_id, quantity, unit_price FROM order_parts WHERE part_id = ? AND order_id = ?',
+          [instruction.targetPartId, orderId]
+        );
+
+        if (partRows.length === 0) {
+          console.warn(`[ImportToOrder] Part ${instruction.targetPartId} not found for order ${orderId}, skipping`);
+          continue;
+        }
+
+        const currentPart = partRows[0];
+        const updates: string[] = [];
+        const params: any[] = [];
+
+        // Build update query based on provided fields
+        if (instruction.qb_item_name !== undefined) {
+          updates.push('qb_item_name = ?');
+          params.push(instruction.qb_item_name);
+        }
+
+        if (instruction.qb_description !== undefined) {
+          updates.push('qb_description = ?');
+          params.push(instruction.qb_description);
+        }
+
+        if (instruction.quantity !== undefined) {
+          updates.push('quantity = ?');
+          params.push(instruction.quantity);
+        }
+
+        if (instruction.unit_price !== undefined) {
+          updates.push('unit_price = ?');
+          params.push(instruction.unit_price);
+        }
+
+        // Auto-calculate extended_price if qty or unit_price provided
+        const newQty = instruction.quantity ?? currentPart.quantity;
+        const newPrice = instruction.unit_price ?? currentPart.unit_price;
+        if (instruction.quantity !== undefined || instruction.unit_price !== undefined) {
+          if (newQty !== null && newPrice !== null) {
+            updates.push('extended_price = ?');
+            params.push(newQty * newPrice);
+          }
+        }
+
+        if (updates.length === 0) {
+          continue; // No fields to update
+        }
+
+        params.push(instruction.targetPartId);
+
+        await connection.execute(
+          `UPDATE order_parts SET ${updates.join(', ')} WHERE part_id = ?`,
+          params
+        );
+
+        updated++;
+      }
+
+      await connection.commit();
+      console.log(`[ImportToOrder] Successfully imported ${updated} parts for order ${orderId}`);
+
+      return { updated };
+    } catch (error) {
+      await connection.rollback();
+      console.error('[ImportToOrder] Error during batch import:', error);
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
 }
 

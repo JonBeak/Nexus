@@ -119,6 +119,17 @@ router.post(
 );
 
 /**
+ * POST /api/order-preparation/:orderNumber/resolve-painting-configurations
+ * Resolve painting configurations by creating tasks and optionally saving to matrix
+ */
+router.post(
+  '/:orderNumber/resolve-painting-configurations',
+  authenticateToken,
+  requirePermission('orders.prepare'),
+  orderPrepController.resolvePaintingConfigurations
+);
+
+/**
  * GET /api/order-preparation/:orderNumber/point-persons
  * Get point persons for order (for Phase 1.5.c.6.3 - Send to Customer)
  */

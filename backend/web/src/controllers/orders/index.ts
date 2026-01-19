@@ -63,7 +63,8 @@ export {
   reorderParts,
   addPartRow,
   removePartRow,
-  duplicatePart
+  duplicatePart,
+  importFromEstimate
 } from './OrderPartsController';
 
 // Snapshot/Versioning Operations

@@ -243,9 +243,27 @@ export const QBEstimateStep: React.FC<QBEstimateStepProps> = ({
 
   const buttonLabel = qbEstimate?.exists ? 'Recreate Estimate' : 'Create Estimate';
 
-  // Determine what to show based on QB connection status
+  // Handle skip action
+  const handleSkip = () => {
+    onStateChange(prev => ({
+      ...prev,
+      steps: updateStepStatus(prev.steps, step.id, 'skipped')
+    }));
+    setMessage('⏭ Skipped - No QuickBooks estimate will be created');
+  };
+
+  // Determine what to show based on QB connection status and step status
   // Message type is auto-derived from message content by CompactStepRow
   const getStatusMessage = () => {
+    // Handle skipped state
+    if (step.status === 'skipped') {
+      // Check if this is a cash job (auto-skipped) or manually skipped
+      if (order.cash) {
+        return '⏭ Auto-skipped (Cash Job) - No QB estimate needed';
+      }
+      return '⏭ Skipped - No QuickBooks estimate will be created';
+    }
+
     if (qbConnected === null) return 'Checking QuickBooks connection...';
     if (isChecking) return 'Checking QB estimate status...';
     if (!qbConnected) return 'QuickBooks not connected';
@@ -253,6 +271,24 @@ export const QBEstimateStep: React.FC<QBEstimateStepProps> = ({
   };
 
   const renderButton = () => {
+    // If already skipped, show Undo button to allow running the step
+    if (step.status === 'skipped') {
+      return (
+        <button
+          onClick={() => {
+            onStateChange(prev => ({
+              ...prev,
+              steps: updateStepStatus(prev.steps, step.id, 'pending')
+            }));
+            setMessage('');
+          }}
+          className="px-3 py-1.5 text-sm bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors"
+        >
+          Undo Skip
+        </button>
+      );
+    }
+
     // Still checking connection
     if (qbConnected === null) {
       return (
@@ -265,34 +301,52 @@ export const QBEstimateStep: React.FC<QBEstimateStepProps> = ({
       );
     }
 
-    // Not connected - show connect button
+    // Not connected - show connect button + skip button
     if (!qbConnected) {
       return (
-        <button
-          onClick={handleConnectToQuickBooks}
-          disabled={isConnecting}
-          className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center gap-1.5"
-        >
-          {isConnecting ? (
-            <>
-              <span className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"></span>
-              Connecting...
-            </>
-          ) : (
-            'Connect to QB'
-          )}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleConnectToQuickBooks}
+            disabled={isConnecting}
+            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center gap-1.5"
+          >
+            {isConnecting ? (
+              <>
+                <span className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"></span>
+                Connecting...
+              </>
+            ) : (
+              'Connect to QB'
+            )}
+          </button>
+          <button
+            onClick={handleSkip}
+            disabled={!canRun}
+            className="px-3 py-1.5 text-sm bg-gray-100 text-gray-600 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Skip
+          </button>
+        </div>
       );
     }
 
-    // Connected - show normal create/recreate button
+    // Connected - show create/recreate button + skip button
     return (
-      <CompactStepButton
-        status={step.status}
-        onClick={handleCreateEstimate}
-        disabled={!canRun}
-        label={buttonLabel}
-      />
+      <div className="flex gap-2">
+        <CompactStepButton
+          status={step.status}
+          onClick={handleCreateEstimate}
+          disabled={!canRun}
+          label={buttonLabel}
+        />
+        <button
+          onClick={handleSkip}
+          disabled={!canRun || step.status === 'running'}
+          className="px-3 py-1.5 text-sm bg-gray-100 text-gray-600 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          Skip
+        </button>
+      </div>
     );
   };
 

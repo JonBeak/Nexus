@@ -173,10 +173,10 @@ export class OrderService {
 
         const newFolderName = orderFolderService.buildFolderName(data.order_name, customerName);
 
-        // Check for filesystem conflict (another folder with same name)
-        const conflict = await orderFolderService.checkFolderConflict(newFolderName);
-        if (conflict.exists) {
-          throw new Error('A folder with this name already exists on the file system');
+        // Check for database conflict (another order with same folder name)
+        const hasDbConflict = await orderFolderService.checkDatabaseConflict(newFolderName);
+        if (hasDbConflict) {
+          throw new Error('An order with this folder name already exists');
         }
 
         // Perform the folder rename
@@ -361,7 +361,7 @@ export class OrderService {
     }
 
     // Phase 1.5.g: Automatically move folder to 1Finished when order is completed
-    if (status === 'completed' && order.folder_exists && order.folder_location === 'active' && order.folder_name) {
+    if (status === 'completed' && order.folder_exists && order.folder_location === 'active' && order.folder_name && !order.is_migrated) {
       try {
         const moveResult = await orderFolderService.moveToFinished(order.folder_name);
 
@@ -383,6 +383,88 @@ export class OrderService {
       } catch (folderError) {
         // Non-blocking: if folder movement fails, continue with status update
         console.error('⚠️  Folder movement failed (continuing with status update):', folderError);
+      }
+    }
+
+    // Move folder to 1Cancelled when order is cancelled (new orders only)
+    if (status === 'cancelled' && order.folder_exists && order.folder_location === 'active' && order.folder_name && !order.is_migrated) {
+      try {
+        const moveResult = await orderFolderService.moveToCancelled(order.folder_name);
+
+        if (moveResult.success) {
+          await orderFolderService.updateFolderTracking(
+            orderId,
+            order.folder_name,
+            true,
+            'cancelled'
+          );
+          console.log(`✅ Order folder moved to 1Cancelled: ${order.folder_name}`);
+        } else if (moveResult.conflict) {
+          console.warn(`⚠️  Cannot move folder - conflict exists in 1Cancelled: ${order.folder_name}`);
+        } else {
+          console.error(`❌ Failed to move folder to cancelled: ${moveResult.error}`);
+        }
+      } catch (folderError) {
+        console.error('⚠️  Folder movement to cancelled failed (continuing with status update):', folderError);
+      }
+    }
+
+    // Move folder to 1Hold when order is on hold (new orders only)
+    if (status === 'on_hold' && order.folder_exists && order.folder_location === 'active' && order.folder_name && !order.is_migrated) {
+      try {
+        const moveResult = await orderFolderService.moveToHold(order.folder_name);
+
+        if (moveResult.success) {
+          await orderFolderService.updateFolderTracking(
+            orderId,
+            order.folder_name,
+            true,
+            'hold'
+          );
+          console.log(`✅ Order folder moved to 1Hold: ${order.folder_name}`);
+        } else if (moveResult.conflict) {
+          console.warn(`⚠️  Cannot move folder - conflict exists in 1Hold: ${order.folder_name}`);
+        } else {
+          console.error(`❌ Failed to move folder to hold: ${moveResult.error}`);
+        }
+      } catch (folderError) {
+        console.error('⚠️  Folder movement to hold failed (continuing with status update):', folderError);
+      }
+    }
+
+    // Move folder FROM cancelled or on_hold when status changes to something else
+    const previousStatus = order.status;
+    if ((previousStatus === 'cancelled' || previousStatus === 'on_hold') &&
+        status !== 'cancelled' && status !== 'on_hold' &&
+        order.folder_exists && order.folder_name && !order.is_migrated) {
+      try {
+        const fromLocation = previousStatus === 'cancelled' ? 'cancelled' : 'hold';
+        const toLocation = status === 'completed' ? 'finished' : 'active';
+
+        // Check if folder is actually in the cancelled/hold location before trying to move
+        if (order.folder_location === fromLocation) {
+          const moveResult = await orderFolderService.moveFromCancelledOrHold(
+            order.folder_name,
+            fromLocation,
+            toLocation
+          );
+
+          if (moveResult.success) {
+            await orderFolderService.updateFolderTracking(
+              orderId,
+              order.folder_name,
+              true,
+              toLocation
+            );
+            console.log(`✅ Order folder moved from ${fromLocation} to ${toLocation}: ${order.folder_name}`);
+          } else if (moveResult.conflict) {
+            console.warn(`⚠️  Cannot move folder - conflict exists in ${toLocation}: ${order.folder_name}`);
+          } else {
+            console.error(`❌ Failed to move folder from ${fromLocation}: ${moveResult.error}`);
+          }
+        }
+      } catch (folderError) {
+        console.error('⚠️  Folder movement from cancelled/hold failed (continuing with status update):', folderError);
       }
     }
 

@@ -287,6 +287,18 @@ router.post(
 );
 
 /**
+ * Import QB descriptions from estimate preparation items to order parts
+ * POST /api/orders/:orderNumber/parts/import
+ * Body: { imports: OrderPartImportInstruction[] }
+ */
+router.post(
+  '/:orderNumber/parts/import',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.importFromEstimate
+);
+
+/**
  * Remove a part row from the order
  * DELETE /api/orders/:orderNumber/parts/:partId/remove
  */

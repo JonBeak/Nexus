@@ -28,6 +28,7 @@ interface Props {
     qbEstimate: string | null;
   };
   qbEstimateNumber: string | null;
+  qbEstimateSkipped: boolean;  // True if QB estimate step was skipped
   onRecipientsChange?: (recipients: RecipientSelection) => void;
   onEmailContentChange?: (content: OrderEmailContent) => void;
 }
@@ -44,6 +45,7 @@ export const SendToCustomerPanel = forwardRef<SendToCustomerPanelRef, Props>(({
   customerName,
   pdfUrls,
   qbEstimateNumber,
+  qbEstimateSkipped,
   onRecipientsChange,
   onEmailContentChange
 }, ref) => {
@@ -191,7 +193,8 @@ export const SendToCustomerPanel = forwardRef<SendToCustomerPanelRef, Props>(({
   // Check which attachments are available
   const availableAttachments = {
     specsOrderForm: !!pdfUrls.specsOrderForm,
-    qbEstimate: !!pdfUrls.qbEstimate
+    qbEstimate: !!pdfUrls.qbEstimate,
+    qbEstimateSkipped: qbEstimateSkipped
   };
 
   return (

@@ -486,6 +486,31 @@ export class OrderPartsService {
 
     return newPartId;
   }
+
+  // =====================================================
+  // IMPORT FROM ESTIMATE (QB Description Import)
+  // =====================================================
+
+  /**
+   * Import QB descriptions from estimate preparation items to order parts
+   * Batch updates specified fields on target parts
+   *
+   * @param orderId - The order ID
+   * @param imports - Array of import instructions
+   * @returns Object with count of updated parts
+   */
+  async importFromEstimate(
+    orderId: number,
+    imports: Array<{
+      targetPartId: number;
+      qb_item_name?: string | null;
+      qb_description?: string | null;
+      quantity?: number;
+      unit_price?: number;
+    }>
+  ): Promise<{ updated: number }> {
+    return orderPartRepository.batchImportToOrderParts(orderId, imports);
+  }
 }
 
 export const orderPartsService = new OrderPartsService();

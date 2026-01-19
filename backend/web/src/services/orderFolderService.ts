@@ -20,37 +20,50 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { orderFormRepository } from '../repositories/orderFormRepository';
-import { SMB_ROOT, ORDERS_FOLDER, FINISHED_FOLDER } from '../config/paths';
+import { SMB_ROOT, ORDERS_FOLDER, FINISHED_FOLDER, CANCELLED_FOLDER, HOLD_FOLDER } from '../config/paths';
 
 // Path helpers
 const LEGACY_ACTIVE_PATH = SMB_ROOT; // Legacy migrated orders in root
 const LEGACY_FINISHED_PATH = path.join(SMB_ROOT, FINISHED_FOLDER); // Legacy finished orders
 const NEW_ACTIVE_PATH = path.join(SMB_ROOT, ORDERS_FOLDER); // New app-created orders
 const NEW_FINISHED_PATH = path.join(SMB_ROOT, ORDERS_FOLDER, FINISHED_FOLDER); // New finished orders
+const NEW_CANCELLED_PATH = path.join(SMB_ROOT, ORDERS_FOLDER, CANCELLED_FOLDER); // New cancelled orders
+const NEW_HOLD_PATH = path.join(SMB_ROOT, ORDERS_FOLDER, HOLD_FOLDER); // New on-hold orders
 
 export class OrderFolderService {
 
   /**
    * Get full folder path based on location and whether it's a migrated order
    * @param folderName - The folder name
-   * @param location - 'active' or 'finished'
+   * @param location - 'active', 'finished', 'cancelled', or 'hold'
    * @param isMigrated - Whether this is a legacy migrated order (default: false)
    */
   private getFolderPath(
     folderName: string,
-    location: 'active' | 'finished',
+    location: 'active' | 'finished' | 'cancelled' | 'hold',
     isMigrated: boolean = false
   ): string {
     if (isMigrated) {
-      // Legacy orders: use old paths
-      return location === 'active'
-        ? path.join(LEGACY_ACTIVE_PATH, folderName)
-        : path.join(LEGACY_FINISHED_PATH, folderName);
+      // Legacy orders: use old paths (cancelled/hold folders not supported for legacy)
+      // Legacy orders in cancelled/hold status stay in their original location
+      if (location === 'active' || location === 'cancelled' || location === 'hold') {
+        return path.join(LEGACY_ACTIVE_PATH, folderName);
+      }
+      return path.join(LEGACY_FINISHED_PATH, folderName);
     } else {
       // New app-created orders: use Orders subfolder
-      return location === 'active'
-        ? path.join(NEW_ACTIVE_PATH, folderName)
-        : path.join(NEW_FINISHED_PATH, folderName);
+      switch (location) {
+        case 'active':
+          return path.join(NEW_ACTIVE_PATH, folderName);
+        case 'finished':
+          return path.join(NEW_FINISHED_PATH, folderName);
+        case 'cancelled':
+          return path.join(NEW_CANCELLED_PATH, folderName);
+        case 'hold':
+          return path.join(NEW_HOLD_PATH, folderName);
+        default:
+          return path.join(NEW_ACTIVE_PATH, folderName);
+      }
     }
   }
 
@@ -96,7 +109,7 @@ export class OrderFolderService {
   async getOrderFormPaths(orderNumber: number): Promise<{
     order_name: string;
     folder_name: string;
-    folder_location: 'active' | 'finished' | 'none';
+    folder_location: 'active' | 'finished' | 'cancelled' | 'hold' | 'none';
     is_migrated: boolean;
     paths: {
       master: string;
@@ -118,9 +131,10 @@ export class OrderFolderService {
     }
 
     // Build folder paths using same logic as PDF generation
+    // folder_location is guaranteed not to be 'none' after the check above
     const orderFolderRoot = this.getFolderPath(
       order.folder_name,
-      order.folder_location,
+      order.folder_location as 'active' | 'finished' | 'cancelled' | 'hold',
       order.is_migrated
     );
 
@@ -187,24 +201,26 @@ export class OrderFolderService {
 
   /**
    * Check if folder name already exists (case-insensitive)
-   * Checks ALL locations: legacy (root, 1Finished) and new (Orders, Orders/1Finished)
+   * Checks ALL locations: legacy (root, 1Finished) and new (Orders, Orders/1Finished, 1Cancelled, 1Hold)
    *
-   * Returns: { exists: boolean, location: 'active' | 'finished' | null, actualName: string | null }
+   * Returns: { exists: boolean, location: 'active' | 'finished' | 'cancelled' | 'hold' | null, actualName: string | null }
    */
   async checkFolderConflict(folderName: string): Promise<{
     exists: boolean;
-    location: 'active' | 'finished' | null;
+    location: 'active' | 'finished' | 'cancelled' | 'hold' | null;
     actualName: string | null;
   }> {
     try {
       const lowerFolderName = folderName.toLowerCase();
 
-      // Check all 4 possible locations
+      // Check all 6 possible locations
       const locationsToCheck = [
         { path: LEGACY_ACTIVE_PATH, location: 'active' as const },
         { path: LEGACY_FINISHED_PATH, location: 'finished' as const },
         { path: NEW_ACTIVE_PATH, location: 'active' as const },
-        { path: NEW_FINISHED_PATH, location: 'finished' as const }
+        { path: NEW_FINISHED_PATH, location: 'finished' as const },
+        { path: NEW_CANCELLED_PATH, location: 'cancelled' as const },
+        { path: NEW_HOLD_PATH, location: 'hold' as const }
       ];
 
       for (const { path: searchPath, location } of locationsToCheck) {
@@ -323,19 +339,187 @@ export class OrderFolderService {
   }
 
   /**
+   * Move folder from active to 1Cancelled (new orders only)
+   * Returns: { success: boolean, conflict: boolean, error?: string }
+   */
+  async moveToCancelled(folderName: string): Promise<{
+    success: boolean;
+    conflict: boolean;
+    error?: string;
+  }> {
+    try {
+      const sourcePath = path.join(NEW_ACTIVE_PATH, folderName);
+      const destPath = path.join(NEW_CANCELLED_PATH, folderName);
+
+      // Check if source exists
+      if (!fs.existsSync(sourcePath)) {
+        return {
+          success: false,
+          conflict: false,
+          error: 'Source folder does not exist'
+        };
+      }
+
+      // Check for conflict in destination
+      if (fs.existsSync(destPath)) {
+        console.warn(`[OrderFolderService] ⚠️  Conflict: Folder already exists in 1Cancelled: ${folderName}`);
+        return {
+          success: false,
+          conflict: true,
+          error: 'Folder already exists in 1Cancelled'
+        };
+      }
+
+      // Ensure 1Cancelled directory exists
+      if (!fs.existsSync(NEW_CANCELLED_PATH)) {
+        fs.mkdirSync(NEW_CANCELLED_PATH, { recursive: true });
+      }
+
+      // Move folder
+      fs.renameSync(sourcePath, destPath);
+      console.log(`[OrderFolderService] ✅ Moved folder to 1Cancelled: ${destPath}`);
+
+      return { success: true, conflict: false };
+    } catch (error) {
+      console.error('[OrderFolderService] Error moving folder to cancelled:', error);
+      return {
+        success: false,
+        conflict: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Move folder from active to 1Hold (new orders only)
+   * Returns: { success: boolean, conflict: boolean, error?: string }
+   */
+  async moveToHold(folderName: string): Promise<{
+    success: boolean;
+    conflict: boolean;
+    error?: string;
+  }> {
+    try {
+      const sourcePath = path.join(NEW_ACTIVE_PATH, folderName);
+      const destPath = path.join(NEW_HOLD_PATH, folderName);
+
+      // Check if source exists
+      if (!fs.existsSync(sourcePath)) {
+        return {
+          success: false,
+          conflict: false,
+          error: 'Source folder does not exist'
+        };
+      }
+
+      // Check for conflict in destination
+      if (fs.existsSync(destPath)) {
+        console.warn(`[OrderFolderService] ⚠️  Conflict: Folder already exists in 1Hold: ${folderName}`);
+        return {
+          success: false,
+          conflict: true,
+          error: 'Folder already exists in 1Hold'
+        };
+      }
+
+      // Ensure 1Hold directory exists
+      if (!fs.existsSync(NEW_HOLD_PATH)) {
+        fs.mkdirSync(NEW_HOLD_PATH, { recursive: true });
+      }
+
+      // Move folder
+      fs.renameSync(sourcePath, destPath);
+      console.log(`[OrderFolderService] ✅ Moved folder to 1Hold: ${destPath}`);
+
+      return { success: true, conflict: false };
+    } catch (error) {
+      console.error('[OrderFolderService] Error moving folder to hold:', error);
+      return {
+        success: false,
+        conflict: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Move folder from 1Cancelled or 1Hold back to active or finished
+   * @param folderName - The folder name
+   * @param fromLocation - 'cancelled' or 'hold'
+   * @param toLocation - 'active' or 'finished'
+   */
+  async moveFromCancelledOrHold(
+    folderName: string,
+    fromLocation: 'cancelled' | 'hold',
+    toLocation: 'active' | 'finished'
+  ): Promise<{
+    success: boolean;
+    conflict: boolean;
+    error?: string;
+  }> {
+    try {
+      const sourcePath = fromLocation === 'cancelled'
+        ? path.join(NEW_CANCELLED_PATH, folderName)
+        : path.join(NEW_HOLD_PATH, folderName);
+
+      const destPath = toLocation === 'active'
+        ? path.join(NEW_ACTIVE_PATH, folderName)
+        : path.join(NEW_FINISHED_PATH, folderName);
+
+      // Check if source exists
+      if (!fs.existsSync(sourcePath)) {
+        return {
+          success: false,
+          conflict: false,
+          error: 'Source folder does not exist'
+        };
+      }
+
+      // Check for conflict in destination
+      if (fs.existsSync(destPath)) {
+        console.warn(`[OrderFolderService] ⚠️  Conflict: Folder already exists in ${toLocation}: ${folderName}`);
+        return {
+          success: false,
+          conflict: true,
+          error: `Folder already exists in ${toLocation}`
+        };
+      }
+
+      // Ensure destination directory exists
+      const destDir = toLocation === 'active' ? NEW_ACTIVE_PATH : NEW_FINISHED_PATH;
+      if (!fs.existsSync(destDir)) {
+        fs.mkdirSync(destDir, { recursive: true });
+      }
+
+      // Move folder
+      fs.renameSync(sourcePath, destPath);
+      console.log(`[OrderFolderService] ✅ Moved folder from ${fromLocation} to ${toLocation}: ${folderName}`);
+
+      return { success: true, conflict: false };
+    } catch (error) {
+      console.error('[OrderFolderService] Error moving folder:', error);
+      return {
+        success: false,
+        conflict: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
    * Rename order folder on SMB share
-   * Handles both active and finished folder locations
+   * Handles all folder locations
    *
    * @param oldFolderName - Current folder name
    * @param newFolderName - New folder name to rename to
-   * @param location - 'active' or 'finished'
+   * @param location - 'active', 'finished', 'cancelled', or 'hold'
    * @param isMigrated - Whether this is a legacy migrated order (default: false)
    * @returns { success: boolean, error?: string }
    */
   renameOrderFolder(
     oldFolderName: string,
     newFolderName: string,
-    location: 'active' | 'finished',
+    location: 'active' | 'finished' | 'cancelled' | 'hold',
     isMigrated: boolean = false
   ): { success: boolean; error?: string } {
     try {
@@ -457,7 +641,7 @@ export class OrderFolderService {
    */
   listImagesInFolder(
     folderName: string,
-    location: 'active' | 'finished' = 'active',
+    location: 'active' | 'finished' | 'cancelled' | 'hold' = 'active',
     isMigrated: boolean = false
   ): Array<{
     filename: string;
@@ -513,7 +697,7 @@ export class OrderFolderService {
   imageExists(
     folderName: string,
     filename: string,
-    location: 'active' | 'finished' = 'active',
+    location: 'active' | 'finished' | 'cancelled' | 'hold' = 'active',
     isMigrated: boolean = false
   ): boolean {
     try {
@@ -530,7 +714,7 @@ export class OrderFolderService {
   /**
    * Get folder location from database
    */
-  async getFolderLocation(orderId: number): Promise<'active' | 'finished' | 'none'> {
+  async getFolderLocation(orderId: number): Promise<'active' | 'finished' | 'cancelled' | 'hold' | 'none'> {
     try {
       return await orderFormRepository.getOrderFolderLocation(orderId);
     } catch (error) {
@@ -547,7 +731,7 @@ export class OrderFolderService {
     orderId: number,
     folderName: string,
     folderExists: boolean,
-    folderLocation: 'active' | 'finished' | 'none',
+    folderLocation: 'active' | 'finished' | 'cancelled' | 'hold' | 'none',
     connection?: any
   ): Promise<void> {
     try {

@@ -81,5 +81,6 @@ export interface DualTableLayoutProps {
   initialParts: OrderPart[];
   taxName?: string;
   cash?: boolean;
+  estimateId?: number;  // Linked estimate for auto-navigation in import modal
   onPartsChange?: (parts: OrderPart[]) => void;
 }

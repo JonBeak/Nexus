@@ -5,8 +5,21 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, AlertCircle, Grid3X3, X, Check, Minus } from 'lucide-react';
-import { settingsApi, PaintingMatrixEntry, ProductType, TaskDefinition } from '../../services/api/settings';
+import { settingsApi, PaintingMatrixEntry, ProductType } from '../../services/api/settings';
 import { Notification } from '../inventory/Notification';
+
+// Painting-specific task definitions (matches backend paintingTaskMatrix.ts)
+// These use a 1-8 numbering system specific to painting operations
+const PAINTING_TASKS: Record<number, string> = {
+  1: 'Sanding (320) before cutting',
+  2: 'Scuffing before cutting',
+  3: 'Paint before cutting',
+  4: 'Sanding (320) after cutting',
+  5: 'Scuffing after cutting',
+  6: 'Paint After Cutting',
+  7: 'Paint After Bending',
+  8: 'Paint after Fabrication',
+};
 
 // =============================================================================
 // Matrix Cell Editor Modal
@@ -14,13 +27,12 @@ import { Notification } from '../inventory/Notification';
 
 interface CellEditorProps {
   entry: PaintingMatrixEntry;
-  tasks: TaskDefinition[];
   onSave: (matrixId: number, taskNumbers: number[] | null) => Promise<boolean>;
   onClose: () => void;
   saving?: boolean;
 }
 
-const CellEditor: React.FC<CellEditorProps> = ({ entry, tasks, onSave, onClose, saving = false }) => {
+const CellEditor: React.FC<CellEditorProps> = ({ entry, onSave, onClose, saving = false }) => {
   const [selectedTasks, setSelectedTasks] = useState<number[]>(entry.task_numbers || []);
 
   const toggleTask = (taskId: number) => {
@@ -53,29 +65,32 @@ const CellEditor: React.FC<CellEditorProps> = ({ entry, tasks, onSave, onClose, 
           </div>
 
           <div className="p-6">
-            <p className="text-sm text-gray-600 mb-4">Select tasks to assign to this cell:</p>
+            <p className="text-sm text-gray-600 mb-4">Select painting tasks to assign to this cell:</p>
             <div className="max-h-64 overflow-y-auto space-y-2">
-              {tasks.filter(t => t.is_active).map(task => (
-                <button
-                  key={task.task_id}
-                  onClick={() => toggleTask(task.task_id)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border transition-all ${
-                    selectedTasks.includes(task.task_id)
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="w-6 h-6 rounded-full bg-gray-200 text-xs font-bold flex items-center justify-center">
-                      {task.task_id}
-                    </span>
-                    <span className="text-sm font-medium text-gray-900">{task.task_name}</span>
-                  </div>
-                  {selectedTasks.includes(task.task_id) && (
-                    <Check className="w-5 h-5 text-blue-600" />
-                  )}
-                </button>
-              ))}
+              {Object.entries(PAINTING_TASKS).map(([id, name]) => {
+                const taskId = Number(id);
+                return (
+                  <button
+                    key={taskId}
+                    onClick={() => toggleTask(taskId)}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border transition-all ${
+                      selectedTasks.includes(taskId)
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="w-6 h-6 rounded-full bg-gray-200 text-xs font-bold flex items-center justify-center">
+                        {taskId}
+                      </span>
+                      <span className="text-sm font-medium text-gray-900">{name}</span>
+                    </div>
+                    {selectedTasks.includes(taskId) && (
+                      <Check className="w-5 h-5 text-blue-600" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="mt-4 p-3 bg-gray-50 rounded-lg">
@@ -150,7 +165,6 @@ export const PaintingMatrixManager: React.FC = () => {
   const [productTypes, setProductTypes] = useState<ProductType[]>([]);
   const [selectedProductType, setSelectedProductType] = useState<string>('');
   const [matrixEntries, setMatrixEntries] = useState<PaintingMatrixEntry[]>([]);
-  const [tasks, setTasks] = useState<TaskDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMatrix, setLoadingMatrix] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -165,17 +179,13 @@ export const PaintingMatrixManager: React.FC = () => {
     setTimeout(() => setNotification(prev => ({ ...prev, show: false })), 5000);
   }, []);
 
-  // Load product types and tasks
+  // Load product types
   const loadInitialData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const [typesData, tasksData] = await Promise.all([
-        settingsApi.getProductTypes(),
-        settingsApi.getTasks()
-      ]);
+      const typesData = await settingsApi.getProductTypes();
       setProductTypes(typesData);
-      setTasks(tasksData);
       if (typesData.length > 0) {
         setSelectedProductType(typesData[0].product_type_key);
       }
@@ -222,9 +232,11 @@ export const PaintingMatrixManager: React.FC = () => {
     }
   };
 
-  // Build matrix structure
+  // Build matrix structure with fixed column order
   const components = [...new Set(matrixEntries.map(e => e.component))];
-  const timings = [...new Set(matrixEntries.map(e => e.timing))];
+  const TIMING_ORDER = ['Before Cutting', 'After Cutting', 'After Bending', 'After Fabrication'];
+  const availableTimings = new Set(matrixEntries.map(e => e.timing));
+  const timings = TIMING_ORDER.filter(t => availableTimings.has(t));
 
   const getEntry = (component: string, timing: string) =>
     matrixEntries.find(e => e.component === component && e.timing === timing);
@@ -239,9 +251,9 @@ export const PaintingMatrixManager: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        {/* Header */}
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h2 className="text-xl font-semibold text-gray-800">Painting Matrix</h2>
@@ -267,82 +279,87 @@ export const PaintingMatrixManager: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Error */}
-        {error && (
-          <div className="mx-6 mt-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500" />
-            <span className="text-red-700">{error}</span>
+      {/* Error */}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-500" />
+          <span className="text-red-700">{error}</span>
+        </div>
+      )}
+
+      {/* Two-panel layout: Legend on left, Matrix on right */}
+      <div className="flex gap-6">
+        {/* Left Panel - Legend */}
+        <div className="w-64 flex-shrink-0">
+          <div className="bg-white rounded-xl shadow-md p-5 sticky top-4">
+            <h4 className="text-sm font-semibold text-gray-800 mb-4">Painting Tasks</h4>
+            <div className="space-y-2">
+              {Object.entries(PAINTING_TASKS).map(([id, name]) => (
+                <div key={id} className="flex items-center gap-3">
+                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-500 text-white text-xs font-bold flex-shrink-0">
+                    {id}
+                  </span>
+                  <span className="text-sm text-gray-700">{name}</span>
+                </div>
+              ))}
+            </div>
           </div>
-        )}
+        </div>
 
-        {/* Matrix Grid */}
-        <div className="p-6">
-          {loadingMatrix ? (
-            <div className="flex justify-center py-12">
-              <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : matrixEntries.length === 0 ? (
-            <div className="text-center py-12">
-              <Grid3X3 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">No matrix data for this product type.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr>
-                    <th className="p-3 bg-gray-100 border border-gray-200 text-left text-xs font-medium text-gray-500 uppercase w-40">
-                      Component / Timing
-                    </th>
-                    {timings.map(timing => (
-                      <th key={timing} className="p-3 bg-gray-100 border border-gray-200 text-center text-xs font-medium text-gray-500 uppercase min-w-[100px]">
-                        {timing}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {components.map(component => (
-                    <tr key={component}>
-                      <td className="p-3 bg-gray-50 border border-gray-200 font-medium text-sm text-gray-700">
-                        {component}
-                      </td>
-                      {timings.map(timing => {
-                        const entry = getEntry(component, timing);
-                        return (
-                          <td key={timing} className="p-2 border border-gray-200">
-                            {entry ? (
-                              <MatrixCell entry={entry} onClick={() => setEditingEntry(entry)} />
-                            ) : (
-                              <div className="text-center text-gray-400 text-xs">N/A</div>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Legend */}
-          {matrixEntries.length > 0 && (
-            <div className="mt-6 pt-4 border-t border-gray-200">
-              <h4 className="text-sm font-medium text-gray-700 mb-3">Task Legend</h4>
-              <div className="flex flex-wrap gap-3">
-                {tasks.filter(t => t.is_active).map(task => (
-                  <div key={task.task_id} className="flex items-center gap-2">
-                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold">
-                      {task.task_id}
-                    </span>
-                    <span className="text-sm text-gray-600">{task.task_name}</span>
-                  </div>
-                ))}
+        {/* Right Panel - Matrix Grid */}
+        <div className="flex-1 bg-white rounded-xl shadow-md overflow-hidden">
+          <div className="p-6">
+            {loadingMatrix ? (
+              <div className="flex justify-center py-12">
+                <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
               </div>
-            </div>
-          )}
+            ) : matrixEntries.length === 0 ? (
+              <div className="text-center py-12">
+                <Grid3X3 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">No matrix data for this product type.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr>
+                      <th className="p-3 bg-gray-100 border border-gray-200 text-left text-xs font-medium text-gray-500 uppercase w-40">
+                        Component / Timing
+                      </th>
+                      {timings.map(timing => (
+                        <th key={timing} className="p-3 bg-gray-100 border border-gray-200 text-center text-xs font-medium text-gray-500 uppercase min-w-[100px]">
+                          {timing}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {components.map(component => (
+                      <tr key={component}>
+                        <td className="p-3 bg-gray-50 border border-gray-200 font-medium text-sm text-gray-700">
+                          {component}
+                        </td>
+                        {timings.map(timing => {
+                          const entry = getEntry(component, timing);
+                          return (
+                            <td key={timing} className="p-2 border border-gray-200">
+                              {entry ? (
+                                <MatrixCell entry={entry} onClick={() => setEditingEntry(entry)} />
+                              ) : (
+                                <div className="text-center text-gray-400 text-xs">N/A</div>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -350,7 +367,6 @@ export const PaintingMatrixManager: React.FC = () => {
       {editingEntry && (
         <CellEditor
           entry={editingEntry}
-          tasks={tasks}
           onSave={handleSaveCell}
           onClose={() => setEditingEntry(null)}
           saving={saving}

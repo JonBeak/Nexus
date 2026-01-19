@@ -13,7 +13,7 @@ export type PrepareStepId =
   | 'generate_pdfs'
   | 'generate_tasks';
 
-export type StepStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type StepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
 export type PreparationPhase = 'prepare' | 'send';
 
 export interface PrepareStep {

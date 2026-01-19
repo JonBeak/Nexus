@@ -12,7 +12,7 @@
  * - Constants extracted to dualtable/constants/
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { getAllTemplateNames } from '@/config/orderProductTemplates';
@@ -22,14 +22,19 @@ import { usePartUpdates } from './dualtable/hooks/usePartUpdates';
 import { TableHeader } from './dualtable/components/TableHeader';
 import { PartRow } from './dualtable/components/PartRow';
 import { InvoiceSummary } from './dualtable/components/InvoiceSummary';
+import { ImportFromEstimateModal } from '../modals/ImportFromEstimateModal';
 
 export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
   orderNumber,
   initialParts,
   taxName,
   cash,
+  estimateId,
   onPartsChange
 }) => {
+  // Import modal state
+  const [showImportModal, setShowImportModal] = useState(false);
+
   // Use custom hooks for data and updates
   const {
     parts,
@@ -125,7 +130,7 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
     <div className="bg-white rounded-lg shadow overflow-hidden w-fit max-w-full">
       <div className="overflow-x-auto w-fit max-w-full">
         {/* Header */}
-        <TableHeader />
+        <TableHeader onImportClick={() => setShowImportModal(true)} />
 
         {/* Body */}
         <DndContext
@@ -176,6 +181,16 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
           onAddPartRow={addPartRow}
         />
       </div>
+
+      {/* Import From Estimate Modal */}
+      <ImportFromEstimateModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        orderNumber={orderNumber}
+        estimateId={estimateId}
+        targetParts={parts}
+        onImportComplete={handleRefreshParts}
+      />
     </div>
   );
 };

@@ -4,6 +4,7 @@
 // =====================================================
 
 import api from './api';
+import { initializeSocket, onPricingCacheInvalidated } from './socketClient';
 
 // =====================================================
 // TYPE DEFINITIONS
@@ -223,10 +224,40 @@ export class PricingDataResource {
   private static substrateCutBasePricingMapCache: Record<string, number> | null = null;
   private static shippingRatesMapCache: Record<string, number> | null = null;
 
+  // WebSocket subscription flag
+  private static socketSubscriptionSetup = false;
+
+  /**
+   * Set up WebSocket subscription for pricing cache invalidation
+   * Called lazily when pricing data is first requested
+   */
+  private static setupSocketSubscription(): void {
+    if (this.socketSubscriptionSetup) return;
+    this.socketSubscriptionSetup = true;
+
+    // Set up subscription asynchronously - don't block on socket connection
+    initializeSocket()
+      .then(() => {
+        onPricingCacheInvalidated((payload) => {
+          console.log(`💰 Pricing cache invalidated (category: ${payload.category})`);
+          this.clearCache();
+        });
+        console.log('💰 Pricing cache invalidation listener registered');
+      })
+      .catch((err) => {
+        // Socket not available (user not logged in) - that's OK, reset flag to try again later
+        console.log('💰 Socket not available for pricing cache subscription:', err.message);
+        this.socketSubscriptionSetup = false;
+      });
+  }
+
   /**
    * Get all pricing data - cached for session
    */
   static async getAllPricingData(): Promise<AllPricingData> {
+    // Set up WebSocket subscription for cache invalidation (lazy initialization)
+    this.setupSocketSubscription();
+
     // Check if we have valid cached data
     if (this.isCacheValid()) {
       return this.cachedData!;
