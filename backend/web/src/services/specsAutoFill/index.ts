@@ -71,6 +71,24 @@ export async function autoFillSpecifications(input: AutoFillInput): Promise<Auto
     case 'Return':
     case 'Material Cut':
       autoFillChannelLetters(input, parsed, specs, warnings, filledFields);
+
+      // Auto-fill Face Assembly spec for products that have it (Halo Lit, Front Lit Acrylic Face)
+      if (input.specsDisplayName === 'Halo Lit' || input.specsDisplayName === 'Front Lit Acrylic Face') {
+        for (let i = 1; i <= 10; i++) {
+          const templateName = specs[`_template_${i}`];
+          if (!templateName) break;
+          if (templateName === 'Face Assembly') {
+            const descField = `row${i}_description`;
+            const defaultDesc = input.specsDisplayName === 'Halo Lit'
+              ? 'Face to Return'
+              : 'Acrylic Tabs on Face';
+            specs[descField] = defaultDesc;
+            filledFields.push(descField);
+            console.log(`[Specs Auto-Fill] ✓ Filled ${descField} = "${defaultDesc}" for ${input.specsDisplayName}`);
+            break;
+          }
+        }
+      }
       break;
 
     // Trim Cap - uses channel letters handler for Face defaults

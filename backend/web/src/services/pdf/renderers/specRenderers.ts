@@ -78,6 +78,12 @@ function shouldSkipCuttingSpec(specsDisplayName: string | null): boolean {
   return SKIP_CUTTING_SPEC_PRODUCT_TYPES.includes(specsDisplayName);
 }
 
+/**
+ * Specs that should be hidden from all PDF order forms
+ * These specs are used internally for task generation but shouldn't appear on printed forms
+ */
+const HIDDEN_SPECS_FROM_PDF = ['Assembly', 'Face Assembly'];
+
 // ============================================
 // SPEEDBOX CONSOLIDATION (Customer Forms Only)
 // ============================================
@@ -554,6 +560,12 @@ export function renderSpecifications(
     // Skip Cutting spec for Backer products (redundant info)
     if (row.template === 'Cutting' && shouldSkipCuttingSpec(specsDisplayName)) {
       debugLog(`[PDF RENDER] Skipping Cutting spec for ${specsDisplayName}`);
+      return; // Skip to next row
+    }
+
+    // Skip specs that should be hidden from PDFs (e.g., Assembly - used for task generation only)
+    if (HIDDEN_SPECS_FROM_PDF.includes(row.template)) {
+      debugLog(`[PDF RENDER] Skipping hidden spec: ${row.template}`);
       return; // Skip to next row
     }
 

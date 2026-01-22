@@ -15,6 +15,7 @@ interface CalendarColumnProps {
   isOverdue?: boolean;
   orders: CalendarOrder[];
   showDaysLate?: boolean;
+  showImages?: boolean;
   onCardClick: (order: CalendarOrder) => void;
 }
 
@@ -25,6 +26,7 @@ export const CalendarColumn: React.FC<CalendarColumnProps> = ({
   isOverdue = false,
   orders,
   showDaysLate = false,
+  showImages = false,
   onCardClick
 }) => {
   // Header styling based on column type
@@ -63,6 +65,7 @@ export const CalendarColumn: React.FC<CalendarColumnProps> = ({
               key={order.order_id}
               order={order}
               showDaysLate={showDaysLate}
+              showImages={showImages}
               onCardClick={onCardClick}
             />
           ))

@@ -68,7 +68,9 @@ export type {
   EmailPreview,
   InvoiceSearchResult,
   CustomerInvoiceListItem,
-  CustomerInvoiceListResult
+  CustomerInvoiceListResult,
+  InvoiceLineItem,
+  InvoiceDetailsResult
 } from './orders/qbInvoiceApi';
 
 export {

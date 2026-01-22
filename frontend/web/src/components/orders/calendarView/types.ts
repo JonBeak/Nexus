@@ -29,8 +29,9 @@ export interface DateColumn {
 
 /**
  * Progress indicator color based on urgency
+ * darkred = hard due time orders (highest visual priority)
  */
-export type ProgressColor = 'red' | 'yellow' | 'green';
+export type ProgressColor = 'red' | 'yellow' | 'green' | 'darkred';
 
 /**
  * Default statuses to show in Calendar View

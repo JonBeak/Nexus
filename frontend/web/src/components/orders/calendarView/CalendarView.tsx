@@ -49,6 +49,7 @@ export const CalendarView: React.FC = () => {
 
   // Filter state
   const [showAllOrders, setShowAllOrders] = useState(false);
+  const [showImages, setShowImages] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Modal state
@@ -176,10 +177,10 @@ export const CalendarView: React.FC = () => {
     });
   }, [ordersWithProgress, effectiveToday]);
 
-  // Group future orders by date
+  // Group future orders by date (weekend/holiday orders shifted to previous business day)
   const ordersByDate = useMemo(() => {
-    return groupOrdersByDate(futureOrders);
-  }, [futureOrders]);
+    return groupOrdersByDate(futureOrders, holidays);
+  }, [futureOrders, holidays]);
 
   // Generate visible date columns
   // Show 7 date columns when overdue is visible, 8 when it's not (to always have 8 total)
@@ -198,12 +199,36 @@ export const CalendarView: React.FC = () => {
     );
   }, [viewStartDate, holidays, ordersByDate, visibleBusinessDays, effectiveToday]);
 
-  // Handle navigation - mobile scrolls by 3 days, desktop by 5
+  // Handle navigation - mobile matches displayed columns, never go before today
   const handleNavigate = useCallback((direction: 'prev' | 'next' | 'today') => {
-    const businessDaysToMove = isMobile ? 3 : 5;
-    const newDate = navigateWeek(viewStartDate, direction, holidays, businessDaysToMove);
+    // Already at today - can't go back further
+    if (isMobile && direction === 'prev' && showOverdueColumn) {
+      return;
+    }
+
+    let businessDaysToMove: number;
+
+    if (isMobile) {
+      // Overdue visible: 2 date columns, Future: 3 date columns
+      businessDaysToMove = showOverdueColumn ? 2 : 3;
+    } else {
+      // Desktop moves by 5 days (roughly one work week)
+      businessDaysToMove = 5;
+    }
+
+    let newDate = navigateWeek(viewStartDate, direction, holidays, businessDaysToMove);
+
+    // Mobile: if going back would land before today, snap to today instead
+    if (isMobile && direction === 'prev') {
+      const newDateKey = formatDateKey(newDate);
+      const effectiveTodayKey = formatDateKey(effectiveToday);
+      if (newDateKey < effectiveTodayKey) {
+        newDate = new Date(effectiveToday);
+      }
+    }
+
     setViewStartDate(newDate);
-  }, [viewStartDate, holidays, isMobile]);
+  }, [viewStartDate, holidays, isMobile, showOverdueColumn, effectiveToday]);
 
   // Handle search with debounce
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -241,8 +266,8 @@ export const CalendarView: React.FC = () => {
               className={`w-full px-3 py-2.5 border ${PAGE_STYLES.panel.border} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent min-h-[44px]`}
             />
 
-            {/* Toggle + Count row */}
-            <div className="flex items-center justify-between">
+            {/* Toggle row */}
+            <div className="flex items-center gap-4">
               <label className="flex items-center gap-2 cursor-pointer min-h-[44px]">
                 <input
                   type="checkbox"
@@ -252,7 +277,16 @@ export const CalendarView: React.FC = () => {
                 />
                 <span className={`text-sm ${PAGE_STYLES.header.text}`}>Show all</span>
               </label>
-              <span className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>
+              <label className="flex items-center gap-2 cursor-pointer min-h-[44px]">
+                <input
+                  type="checkbox"
+                  checked={showImages}
+                  onChange={(e) => setShowImages(e.target.checked)}
+                  className={`h-5 w-5 text-orange-500 focus:ring-orange-500 ${PAGE_STYLES.panel.border} rounded`}
+                />
+                <span className={`text-sm ${PAGE_STYLES.header.text}`}>Images</span>
+              </label>
+              <span className={`text-xs ${PAGE_STYLES.panel.textMuted} ml-auto`}>
                 {overdueOrders.length} late, {futureOrders.length} upcoming
               </span>
             </div>
@@ -277,6 +311,7 @@ export const CalendarView: React.FC = () => {
               overdueOrders={overdueOrders}
               showOverdueColumn={showOverdueColumn}
               viewStartDate={viewStartDate}
+              showImages={showImages}
               onNavigate={handleNavigate}
               onCardClick={handleOrderClick}
             />
@@ -325,6 +360,17 @@ export const CalendarView: React.FC = () => {
               <span className={`text-sm ${PAGE_STYLES.header.text}`}>Show all orders</span>
             </label>
 
+            {/* Show Images Toggle */}
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showImages}
+                onChange={(e) => setShowImages(e.target.checked)}
+                className={`h-4 w-4 text-orange-500 focus:ring-orange-500 ${PAGE_STYLES.panel.border} rounded`}
+              />
+              <span className={`text-sm ${PAGE_STYLES.header.text}`}>Show images</span>
+            </label>
+
             {/* Order count */}
             <span className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>
               {overdueOrders.length} overdue, {futureOrders.length} upcoming
@@ -368,6 +414,7 @@ export const CalendarView: React.FC = () => {
                     orders={overdueOrders}
                     isOverdue={true}
                     showDaysLate={true}
+                    showImages={showImages}
                     onCardClick={handleOrderClick}
                   />
                 </div>
@@ -385,6 +432,7 @@ export const CalendarView: React.FC = () => {
                     subLabel={column.dayOfWeek}
                     isToday={column.isToday}
                     orders={column.orders}
+                    showImages={showImages}
                     onCardClick={handleOrderClick}
                   />
                 </div>

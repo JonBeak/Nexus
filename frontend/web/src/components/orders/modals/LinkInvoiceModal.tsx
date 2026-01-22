@@ -12,9 +12,18 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Loader2, Link, Search, FileText, AlertCircle, Check, ChevronLeft, ChevronRight, Unlink, AlertTriangle } from 'lucide-react';
-import { qbInvoiceApi, CustomerInvoiceListItem, CustomerInvoiceListResult } from '../../../services/api';
+import { qbInvoiceApi, CustomerInvoiceListItem, CustomerInvoiceListResult, InvoiceLineItem } from '../../../services/api';
 import { useIsMobile } from '../../../hooks/useMediaQuery';
 import { useBodyScrollLock } from '../../../hooks/useBodyScrollLock';
+
+/** Order totals for comparison with QB invoices */
+export interface OrderTotals {
+  subtotal: number;
+  taxName: string;
+  taxPercent: number;  // e.g., 13 for 13%
+  taxAmount: number;
+  total: number;
+}
 
 interface LinkInvoiceModalProps {
   isOpen: boolean;
@@ -28,6 +37,8 @@ interface LinkInvoiceModalProps {
   };
   /** Invoice status if known (from InvoiceButton check) */
   invoiceStatus?: 'exists' | 'not_found' | 'error' | 'not_linked';
+  /** Order totals for comparison display */
+  orderTotals?: OrderTotals;
 }
 
 type ViewMode = 'list' | 'search';
@@ -38,7 +49,8 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
   orderNumber,
   onSuccess,
   currentInvoice,
-  invoiceStatus
+  invoiceStatus,
+  orderTotals
 }) => {
   // View mode
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -69,8 +81,15 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
   const [unlinkError, setUnlinkError] = useState<string | null>(null);
   const [unlinkSuccess, setUnlinkSuccess] = useState(false);
 
+  // Preview panel state
+  const [previewInvoiceId, setPreviewInvoiceId] = useState<string | null>(null);
+  const [previewInvoice, setPreviewInvoice] = useState<CustomerInvoiceListItem | null>(null);
+  const [invoiceDetails, setInvoiceDetails] = useState<Record<string, InvoiceLineItem[]>>({});
+  const [loadingDetails, setLoadingDetails] = useState<Set<string>>(new Set());
+
   // Refs for backdrop click handling
   const modalContentRef = useRef<HTMLDivElement>(null);
+  const previewPanelRef = useRef<HTMLDivElement>(null);
   const mouseDownOutsideRef = useRef(false);
 
   // Mobile detection
@@ -123,11 +142,17 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
 
   // Handle backdrop click - only close if both mousedown and mouseup are outside modal content
   const handleBackdropMouseDown = (e: React.MouseEvent) => {
-    mouseDownOutsideRef.current = modalContentRef.current ? !modalContentRef.current.contains(e.target as Node) : false;
+    const target = e.target as Node;
+    const isInsideModal = modalContentRef.current?.contains(target);
+    const isInsidePreview = previewPanelRef.current?.contains(target);
+    mouseDownOutsideRef.current = !isInsideModal && !isInsidePreview;
   };
 
   const handleBackdropMouseUp = (e: React.MouseEvent) => {
-    if (mouseDownOutsideRef.current && modalContentRef.current && !modalContentRef.current.contains(e.target as Node)) {
+    const target = e.target as Node;
+    const isInsideModal = modalContentRef.current?.contains(target);
+    const isInsidePreview = previewPanelRef.current?.contains(target);
+    if (mouseDownOutsideRef.current && !isInsideModal && !isInsidePreview) {
       onClose();
     }
     mouseDownOutsideRef.current = false;
@@ -220,6 +245,45 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
     }
   };
 
+  // Open preview panel for invoice
+  const openPreview = async (invoice: CustomerInvoiceListItem) => {
+    const invoiceId = invoice.invoiceId;
+
+    if (previewInvoiceId === invoiceId) {
+      // Close if same invoice clicked
+      setPreviewInvoiceId(null);
+      setPreviewInvoice(null);
+      return;
+    }
+
+    setPreviewInvoiceId(invoiceId);
+    setPreviewInvoice(invoice);
+
+    // Fetch details if not cached
+    if (!invoiceDetails[invoiceId]) {
+      setLoadingDetails(prev => new Set(prev).add(invoiceId));
+      try {
+        const details = await qbInvoiceApi.getInvoiceDetails(invoiceId);
+        const lineItems = details?.lineItems || [];
+        setInvoiceDetails(prev => ({ ...prev, [invoiceId]: lineItems }));
+      } catch (err) {
+        console.error('Failed to load invoice details:', err);
+        setInvoiceDetails(prev => ({ ...prev, [invoiceId]: [] }));
+      } finally {
+        setLoadingDetails(prev => {
+          const next = new Set(prev);
+          next.delete(invoiceId);
+          return next;
+        });
+      }
+    }
+  };
+
+  const closePreview = () => {
+    setPreviewInvoiceId(null);
+    setPreviewInvoice(null);
+  };
+
   const resetForm = () => {
     setViewMode('list');
     setInvoiceList(null);
@@ -233,6 +297,10 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
     setSuccess(false);
     setUnlinkError(null);
     setUnlinkSuccess(false);
+    setPreviewInvoiceId(null);
+    setPreviewInvoice(null);
+    setInvoiceDetails({});
+    setLoadingDetails(new Set());
   };
 
   if (!isOpen) return null;
@@ -249,11 +317,13 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
       onMouseDown={handleBackdropMouseDown}
       onMouseUp={handleBackdropMouseUp}
     >
-      <div ref={modalContentRef} className={`bg-white rounded-lg shadow-2xl w-full flex flex-col ${
-        isMobile
-          ? 'min-h-full'
-          : 'max-w-lg max-h-[90vh]'
-      }`}>
+      <div className={`flex ${isMobile ? '' : 'gap-3'}`}>
+        {/* Main Modal */}
+        <div ref={modalContentRef} className={`bg-white rounded-lg shadow-2xl flex flex-col flex-shrink-0 ${
+          isMobile
+            ? 'w-full min-h-full'
+            : 'w-[576px] max-h-[90vh]'
+        }`}>
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-start justify-between">
@@ -281,7 +351,7 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-6 flex-1 overflow-auto">
+        <div className="p-6 flex-1 overflow-hidden flex flex-col">
           {success ? (
             <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
               <Check className="w-12 h-12 text-green-600 mx-auto mb-3" />
@@ -302,6 +372,29 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
             </div>
           ) : (
             <>
+              {/* Order Totals Reference */}
+              {orderTotals && (
+                <div className="mb-3 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between">
+                  <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    Order #{orderNumber} Totals
+                  </div>
+                  <div className="flex items-center gap-5">
+                    <div className="text-center">
+                      <div className="text-xs text-gray-500">Subtotal</div>
+                      <div className="text-sm font-medium text-gray-700">${orderTotals.subtotal.toFixed(2)}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-gray-500">{orderTotals.taxName || 'Tax'} ({orderTotals.taxPercent.toFixed(0)}%)</div>
+                      <div className="text-sm font-medium text-gray-700">${orderTotals.taxAmount.toFixed(2)}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-gray-500">Total</div>
+                      <div className="text-sm font-bold text-gray-900">${orderTotals.total.toFixed(2)}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Current Invoice Status Banner */}
               {hasCurrentInvoice && (
                 <div className={`mb-4 p-4 rounded-lg border ${
@@ -390,7 +483,7 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
 
               {viewMode === 'list' ? (
                 /* Invoice List View */
-                <div className="space-y-4">
+                <div className="flex-1 flex flex-col min-h-0">
                   {loadingList ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="w-6 h-6 animate-spin text-blue-600 mr-2" />
@@ -408,59 +501,81 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
                       <p className="text-sm mt-1">Try searching by invoice number instead.</p>
                     </div>
                   ) : invoiceList ? (
-                    <>
+                    <div className="flex-1 flex flex-col min-h-0">
                       {/* Invoice List */}
-                      <div className={`space-y-2 ${isMobile ? '' : 'max-h-[300px]'} overflow-y-auto`}>
+                      <div className={`space-y-2 flex-1 overflow-y-auto ${isMobile ? '' : 'min-h-0'}`}>
                         {invoiceList.invoices.map((invoice) => (
-                          <button
+                          <div
                             key={invoice.invoiceId}
-                            onClick={() => setSelectedInvoice(
-                              selectedInvoice?.invoiceId === invoice.invoiceId ? null : invoice
-                            )}
-                            className={`w-full rounded-lg border text-left transition-colors ${
-                              isMobile ? 'p-4 min-h-[72px]' : 'p-3'
-                            } ${
+                            className={`rounded-lg border transition-colors ${
                               selectedInvoice?.invoiceId === invoice.invoiceId
                                 ? 'border-blue-500 bg-blue-50'
-                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 active:bg-gray-100'
+                                : 'border-gray-200'
                             }`}
                           >
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium text-gray-900">
-                                    #{invoice.docNumber}
-                                  </span>
-                                  <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                    invoice.isOpen
-                                      ? 'bg-orange-100 text-orange-700'
-                                      : 'bg-green-100 text-green-700'
-                                  }`}>
-                                    {invoice.isOpen ? 'Open' : 'Paid'}
-                                  </span>
-                                </div>
-                                <div className="text-xs text-gray-500 mt-1">
-                                  {invoice.txnDate}
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <div className="font-medium text-gray-900">
-                                  ${invoice.total.toFixed(2)}
-                                </div>
-                                {invoice.isOpen && (
-                                  <div className="text-xs text-orange-600">
-                                    Bal: ${invoice.balance.toFixed(2)}
-                                  </div>
+                            {/* Main invoice row */}
+                            <div className="flex items-stretch">
+                              {/* Invoice info - clickable for selection */}
+                              <button
+                                onClick={() => setSelectedInvoice(
+                                  selectedInvoice?.invoiceId === invoice.invoiceId ? null : invoice
                                 )}
-                              </div>
+                                className={`flex-1 text-left transition-colors ${
+                                  isMobile ? 'p-4 min-h-[72px]' : 'p-3'
+                                } hover:bg-gray-50 active:bg-gray-100 rounded-l-lg`}
+                              >
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium text-gray-900">
+                                        #{invoice.docNumber}
+                                      </span>
+                                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                        invoice.isOpen
+                                          ? 'bg-orange-100 text-orange-700'
+                                          : 'bg-green-100 text-green-700'
+                                      }`}>
+                                        {invoice.isOpen ? 'Open' : 'Paid'}
+                                      </span>
+                                    </div>
+                                    <div className="text-xs text-gray-500 mt-1">
+                                      {invoice.txnDate}
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="font-medium text-gray-900">
+                                      ${invoice.total.toFixed(2)}
+                                    </div>
+                                    {invoice.isOpen && (
+                                      <div className="text-xs text-orange-600">
+                                        Bal: ${invoice.balance.toFixed(2)}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </button>
+
+                              {/* Preview button */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openPreview(invoice);
+                                }}
+                                className={`flex-shrink-0 px-3 flex items-center justify-center hover:bg-gray-100 rounded-r-lg border-l border-gray-200 ${
+                                  previewInvoiceId === invoice.invoiceId ? 'bg-blue-50' : ''
+                                }`}
+                                title="View line items"
+                              >
+                                <ChevronRight className={`w-4 h-4 ${previewInvoiceId === invoice.invoiceId ? 'text-blue-600' : 'text-gray-400'}`} />
+                              </button>
                             </div>
-                          </button>
+                          </div>
                         ))}
                       </div>
 
                       {/* Pagination */}
                       {invoiceList.totalPages > 1 && (
-                        <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+                        <div className="flex items-center justify-between pt-3 border-t border-gray-200 flex-shrink-0">
                           <button
                             onClick={() => loadInvoices(currentPage - 1)}
                             disabled={currentPage === 1 || loadingList}
@@ -494,12 +609,7 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
                           </button>
                         </div>
                       )}
-
-                      {/* Total count */}
-                      <div className="text-xs text-gray-500 text-center">
-                        {invoiceList.totalCount} invoice{invoiceList.totalCount !== 1 ? 's' : ''} available
-                      </div>
-                    </>
+                    </div>
                   ) : null}
                 </div>
               ) : (
@@ -619,7 +729,7 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className={`px-6 py-4 border-t border-gray-200 bg-gray-50 flex ${
+        <div className={`px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-lg flex ${
           isMobile ? 'flex-col-reverse gap-2' : 'justify-between'
         } flex-shrink-0`}>
           <button
@@ -659,6 +769,75 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
             </button>
           )}
         </div>
+      </div>
+
+      {/* Preview Panel */}
+      {previewInvoiceId && previewInvoice && !isMobile && (
+        <div ref={previewPanelRef} className="bg-white rounded-lg shadow-2xl w-[450px] max-h-[90vh] flex flex-col flex-shrink-0">
+          {/* Preview Header */}
+          <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+            <div>
+              <div className="text-sm font-medium text-gray-900">Invoice #{previewInvoice.docNumber}</div>
+              <div className="text-xs text-gray-500">{previewInvoice.txnDate}</div>
+            </div>
+            <button
+              onClick={closePreview}
+              className="p-1 hover:bg-gray-100 rounded"
+            >
+              <X className="w-4 h-4 text-gray-500" />
+            </button>
+          </div>
+
+          {/* Preview Content */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {/* Invoice Summary */}
+            <div className="mb-4 pb-3 border-b border-gray-200">
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-gray-500">Total:</span>
+                <span className="font-medium">${previewInvoice.total.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Balance:</span>
+                <span className={`font-medium ${previewInvoice.balance === 0 ? 'text-green-600' : 'text-orange-600'}`}>
+                  ${previewInvoice.balance.toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            {/* Line Items */}
+            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+              Line Items
+            </div>
+            {loadingDetails.has(previewInvoiceId) ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="w-5 h-5 animate-spin text-blue-600 mr-2" />
+                <span className="text-sm text-gray-500">Loading...</span>
+              </div>
+            ) : invoiceDetails[previewInvoiceId] && invoiceDetails[previewInvoiceId].length > 0 ? (
+              <div className="space-y-3">
+                {invoiceDetails[previewInvoiceId].map((line, idx) => (
+                  <div key={idx} className="text-sm border-b border-gray-100 pb-2 last:border-0">
+                    <div className="flex items-center">
+                      <span className="font-medium text-gray-900 flex-1">{line.itemName}</span>
+                      <span className="text-gray-500 w-24 text-right">{line.quantity} × ${line.unitPrice?.toFixed(2) || '0.00'}</span>
+                      <span className="font-medium text-gray-900 w-20 text-right">${line.amount.toFixed(2)}</span>
+                    </div>
+                    {line.description && (
+                      <div className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">
+                        {line.description}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500 text-center py-4">
+                No line items found
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );

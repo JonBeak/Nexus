@@ -495,6 +495,30 @@ export class EstimateVersioningService {
   ) {
     return this.estimateService.updateLineDescriptions(estimateId, updates);
   }
+
+  // =============================================
+  // ESTIMATE VALIDITY MANAGEMENT
+  // =============================================
+
+  /**
+   * Mark estimate as invalid (visual indication only)
+   * @param estimateId - The estimate ID
+   * @param userId - User performing the action
+   * @returns True if update successful
+   */
+  async markEstimateInvalid(estimateId: number, userId: number): Promise<boolean> {
+    return this.estimateRepository.markEstimateInvalid(estimateId, userId);
+  }
+
+  /**
+   * Mark estimate as valid (restore from invalid)
+   * @param estimateId - The estimate ID
+   * @param userId - User performing the action
+   * @returns True if update successful
+   */
+  async markEstimateValid(estimateId: number, userId: number): Promise<boolean> {
+    return this.estimateRepository.markEstimateValid(estimateId, userId);
+  }
 }
 
 // Export all interfaces for backward compatibility

@@ -453,28 +453,21 @@ export class OrderPartRepository {
 
   /**
    * Get available task templates (Phase 1.5.c)
-   * Returns all defined tasks from TASK_ROLE_MAP, sorted by TASK_ORDER
+   * Returns all active tasks from task_definitions table, sorted by display_order
+   * Now database-driven instead of hardcoded TASK_ROLE_MAP
    */
   async getAvailableTasks(): Promise<{
     task_name: string;
     assigned_role: string | null;
   }[]> {
-    const { TASK_ROLE_MAP, TASK_ORDER } = await import('../services/taskGeneration/taskRules');
+    const rows = await query(
+      'SELECT task_name, assigned_role FROM task_definitions WHERE is_active = TRUE ORDER BY display_order'
+    ) as RowDataPacket[];
 
-    // Build list from static TASK_ROLE_MAP, sorted by TASK_ORDER
-    const tasks = Object.entries(TASK_ROLE_MAP).map(([task_name, assigned_role]) => ({
-      task_name,
-      assigned_role
+    return rows.map(row => ({
+      task_name: row.task_name,
+      assigned_role: row.assigned_role
     }));
-
-    // Sort by TASK_ORDER position
-    tasks.sort((a, b) => {
-      const orderA = TASK_ORDER.indexOf(a.task_name);
-      const orderB = TASK_ORDER.indexOf(b.task_name);
-      return (orderA === -1 ? 999 : orderA) - (orderB === -1 ? 999 : orderB);
-    });
-
-    return tasks;
   }
 
   /**

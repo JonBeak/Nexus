@@ -157,7 +157,7 @@ export class SettingsService {
 
   async updateTask(
     taskId: number,
-    updates: { task_name?: string; assigned_role?: string; description?: string; is_active?: boolean },
+    updates: { task_name?: string; assigned_role?: string; description?: string; is_active?: boolean; auto_hide?: boolean },
     userId: number
   ): Promise<ServiceResult<void>> {
     try {

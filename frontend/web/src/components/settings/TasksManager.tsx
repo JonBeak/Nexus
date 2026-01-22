@@ -36,6 +36,7 @@ interface SortableTaskRowProps {
   onEdit: (task: TaskDefinition) => void;
   onDeactivate: (taskId: number, taskName: string) => void;
   onRoleChange: (taskId: number, roleKey: string) => void;
+  onAutoHideToggle: (taskId: number, autoHide: boolean) => void;
   disabled?: boolean;
 }
 
@@ -45,6 +46,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
   onEdit,
   onDeactivate,
   onRoleChange,
+  onAutoHideToggle,
   disabled
 }) => {
   const {
@@ -87,7 +89,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="text-gray-900 font-medium">{task.task_name}</span>
-          {task.is_system && (
+          {!!task.is_system && (
             <span
               className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded"
               title="System task - cannot be deleted"
@@ -125,6 +127,20 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
       {/* Display Order */}
       <td className="px-4 py-3 w-16 text-center">
         <span className="text-sm text-gray-500">{task.display_order}</span>
+      </td>
+
+      {/* Auto-Hide Toggle */}
+      <td className="px-4 py-3 w-24 text-center">
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={task.auto_hide}
+            onChange={(e) => onAutoHideToggle(task.task_id, e.target.checked)}
+            disabled={disabled}
+            className="sr-only peer"
+          />
+          <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+        </label>
       </td>
 
       {/* Actions */}
@@ -212,7 +228,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
               Edit Task
-              {task.is_system && <Lock className="h-4 w-4 text-gray-400" />}
+              {!!task.is_system && <Lock className="h-4 w-4 text-gray-400" />}
             </h3>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
               <X className="h-5 w-5" />
@@ -254,7 +270,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
                 ))}
               </select>
             </div>
-            {task.is_system && (
+            {!!task.is_system && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <p className="text-sm text-amber-800">System task - you can edit details but cannot delete it.</p>
               </div>
@@ -358,6 +374,19 @@ export const TasksManager: React.FC = () => {
     }
   };
 
+  const handleAutoHideToggle = async (taskId: number, autoHide: boolean) => {
+    setSaving(true);
+    try {
+      await settingsApi.updateTask(taskId, { auto_hide: autoHide });
+      setTasks(prev => prev.map(t => t.task_id === taskId ? { ...t, auto_hide: autoHide } : t));
+      showNotification(`Auto-hide ${autoHide ? 'enabled' : 'disabled'}`, 'success');
+    } catch {
+      showNotification('Failed to update auto-hide setting', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleAddTask = async () => {
     const trimmedName = newTaskName.trim();
     if (!trimmedName || !newTaskRole) return;
@@ -456,6 +485,7 @@ export const TasksManager: React.FC = () => {
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Task</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-48">Role</th>
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-16">Order</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-24" title="When enabled, this column hides in Tasks Table if no data on current page">Auto-Hide</th>
                         <th className="px-4 py-3 w-24"></th>
                       </tr>
                     </thead>
@@ -468,6 +498,7 @@ export const TasksManager: React.FC = () => {
                           onEdit={setEditingTask}
                           onDeactivate={handleDeactivate}
                           onRoleChange={handleRoleChange}
+                          onAutoHideToggle={handleAutoHideToggle}
                           disabled={saving}
                         />
                       ))}

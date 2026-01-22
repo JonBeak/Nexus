@@ -124,3 +124,69 @@ export const checkEditPermission = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+// =============================================
+// ESTIMATE VALIDITY ENDPOINTS
+// =============================================
+
+/**
+ * Mark estimate as invalid (visual indication only)
+ * @route POST /estimates/:estimateId/mark-invalid
+ */
+export const markEstimateInvalid = async (req: AuthRequest, res: Response) => {
+  try {
+    const validated = validateEstimateRequest(req, res);
+    if (!validated) return;
+
+    const success = await versioningService.markEstimateInvalid(validated.estimateId, validated.userId);
+
+    if (!success) {
+      return res.status(404).json({
+        success: false,
+        message: 'Estimate not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Estimate marked as invalid'
+    });
+  } catch (error) {
+    console.error('Controller error marking estimate invalid:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to mark estimate as invalid'
+    });
+  }
+};
+
+/**
+ * Mark estimate as valid (restore from invalid)
+ * @route POST /estimates/:estimateId/mark-valid
+ */
+export const markEstimateValid = async (req: AuthRequest, res: Response) => {
+  try {
+    const validated = validateEstimateRequest(req, res);
+    if (!validated) return;
+
+    const success = await versioningService.markEstimateValid(validated.estimateId, validated.userId);
+
+    if (!success) {
+      return res.status(404).json({
+        success: false,
+        message: 'Estimate not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Estimate marked as valid'
+    });
+  } catch (error) {
+    console.error('Controller error marking estimate valid:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to mark estimate as valid'
+    });
+  }
+};

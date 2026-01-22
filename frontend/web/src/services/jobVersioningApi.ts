@@ -141,6 +141,17 @@ export const jobVersioningApi = {
     return response.data;
   },
 
+  // Estimate Validity (mark as invalid/valid)
+  markEstimateInvalid: async (estimateId: number) => {
+    const response = await api.post(`/job-estimation/estimates/${estimateId}/mark-invalid`);
+    return response.data;
+  },
+
+  markEstimateValid: async (estimateId: number) => {
+    const response = await api.post(`/job-estimation/estimates/${estimateId}/mark-valid`);
+    return response.data;
+  },
+
   // Multiple orders support
   checkExistingOrders: async (jobId: number) => {
     const response = await api.get(`/job-estimation/jobs/${jobId}/check-existing-orders`);

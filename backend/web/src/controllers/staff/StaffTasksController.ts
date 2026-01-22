@@ -99,7 +99,7 @@ export const startTask = async (req: AuthRequest, res: Response) => {
     console.error('Error starting task session:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to start task';
 
-    if (errorMessage.includes('already have an active')) {
+    if (errorMessage.includes('already have an active') || errorMessage.includes('must be clocked in')) {
       return sendErrorResponse(res, errorMessage, 'VALIDATION_ERROR');
     }
     if (errorMessage.includes('not found') || errorMessage.includes('completed')) {

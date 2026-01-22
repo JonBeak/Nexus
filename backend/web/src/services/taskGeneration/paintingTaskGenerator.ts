@@ -15,7 +15,7 @@ import {
 } from './paintingTaskMatrix';
 import { GeneratedTask, PartGroup } from './types';
 import { findSpec, hasSpec } from './specParser';
-import { getTaskSortOrder, TASK_ROLE_MAP } from './taskRules';
+import { getTaskSortOrder, getTaskSortOrderAsync, getRoleAsync, TASK_ROLE_MAP } from './taskRules';
 import { settingsRepository } from '../../repositories/settingsRepository';
 
 export interface PaintingTaskResult {
@@ -152,19 +152,25 @@ export async function generatePaintingTasks(
 
   console.log(`[PaintingTaskGenerator] Matrix lookup result: [${taskNumbers.join(', ')}]`);
 
-  // Convert task numbers to task objects
+  // Convert task numbers to task objects (using async DB-backed methods)
   const taskNames = getTaskNames(taskNumbers);
 
   for (const taskName of taskNames) {
     const notes = colour ? `Colour: ${colour}` : null;
 
+    // Use async database-backed methods for role and sort order
+    const [assignedRole, sortOrder] = await Promise.all([
+      getRoleAsync(taskName),
+      getTaskSortOrderAsync(taskName)
+    ]);
+
     result.tasks.push({
       taskName,
-      assignedRole: TASK_ROLE_MAP[taskName] || 'painter',
+      assignedRole,
       notes,
       partId,
       orderId,
-      sortOrder: getTaskSortOrder(taskName)
+      sortOrder
     });
   }
 

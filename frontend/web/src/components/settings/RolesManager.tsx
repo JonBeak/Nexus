@@ -91,7 +91,7 @@ const SortableRoleRow: React.FC<SortableRoleRowProps> = ({
           </div>
           <div>
             <span className="text-gray-900 font-medium">{role.display_name}</span>
-            {role.is_system && (
+            {!!role.is_system && (
               <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">
                 <Lock className="w-3 h-3" />
                 System
@@ -181,7 +181,7 @@ const EditRoleModal: React.FC<EditRoleModalProps> = ({ isOpen, onClose, role, on
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
               Edit Role
-              {role.is_system && <Lock className="h-4 w-4 text-gray-400" />}
+              {!!role.is_system && <Lock className="h-4 w-4 text-gray-400" />}
             </h3>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
           </div>
@@ -217,7 +217,7 @@ const EditRoleModal: React.FC<EditRoleModalProps> = ({ isOpen, onClose, role, on
                 </div>
               </div>
             </div>
-            {role.is_system && (
+            {!!role.is_system && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <p className="text-sm text-amber-800">System role - you can edit display settings but cannot delete it.</p>
               </div>

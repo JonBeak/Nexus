@@ -9,6 +9,17 @@ const DAY_ABBREVIATIONS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /**
+ * Parse a date string (YYYY-MM-DD) as local date, not UTC
+ * This prevents timezone conversion issues where "2026-01-23" becomes Jan 22 in EST
+ */
+export function parseLocalDate(dateStr: string): Date {
+  // Handle ISO strings with time component
+  const datePart = dateStr.split('T')[0];
+  const [year, month, day] = datePart.split('-').map(Number);
+  return new Date(year, month - 1, day);  // month is 0-indexed
+}
+
+/**
  * Format date as 'YYYY-MM-DD' for map keys and comparisons
  */
 export function formatDateKey(date: Date): string {
@@ -107,14 +118,11 @@ export function generateDateColumns(
     const isWeekend = current.getDay() === 0 || current.getDay() === 6;
     const isHoliday = holidays.has(dateKey);
     const orders = ordersByDate.get(dateKey) || [];
-    const hasOrders = orders.length > 0;
 
-    // Include column if:
-    // 1. It's a business day (not weekend, not holiday), OR
-    // 2. It has orders due on this day (even if weekend/holiday)
-    const isBusinessDay = !isWeekend && !isHoliday;
-
-    if (isBusinessDay || hasOrders) {
+    // Include column for any weekday (including holidays)
+    // Weekends are never shown - their orders are shifted to Friday
+    // Holidays still appear as columns since they're workdays (orders due on them are shifted)
+    if (!isWeekend) {
       columns.push({
         date: new Date(current),
         dateKey,
@@ -126,10 +134,8 @@ export function generateDateColumns(
         orders
       });
 
-      // Only count business days toward the visible limit
-      if (isBusinessDay) {
-        businessDaysCount++;
-      }
+      // Count all weekdays toward the visible limit
+      businessDaysCount++;
     }
 
     current.setDate(current.getDate() + 1);
@@ -154,7 +160,7 @@ export function calculateWorkDaysLeft(
   const WORK_HOURS_PER_DAY = 8.5;
 
   const now = new Date();
-  const dueDateTime = new Date(dueDate);
+  const dueDateTime = parseLocalDate(dueDate);
 
   if (dueTime) {
     const [h, m] = dueTime.split(':').map(Number);
@@ -212,10 +218,18 @@ export function calculateWorkDaysLeft(
  * Blue (green) = completed OR no urgency
  * Orange (yellow) = late (incomplete, < 3 days left)
  * Red = overdue (incomplete, past due)
+ * Darkred = has hard due time (highest visual priority)
  */
-export function getProgressColor(workDaysLeft: number | null, progressPercent?: number): ProgressColor {
+export function getProgressColor(
+  workDaysLeft: number | null,
+  progressPercent?: number,
+  hasHardDueTime?: boolean
+): ProgressColor {
   // If job is complete, always show blue (green)
   if (progressPercent === 100) return 'green';
+
+  // Hard due time takes priority (darker red styling)
+  if (hasHardDueTime) return 'darkred';
 
   // Only show urgency colors for incomplete jobs
   if (workDaysLeft === null) return 'green';
@@ -225,25 +239,69 @@ export function getProgressColor(workDaysLeft: number | null, progressPercent?: 
 }
 
 /**
- * Group orders by due date
+ * Find previous business day (not weekend, not holiday)
  */
-export function groupOrdersByDate(orders: CalendarOrder[]): Map<string, CalendarOrder[]> {
+function findPreviousBusinessDay(date: Date, holidays: Set<string>): Date {
+  const result = new Date(date);
+  do {
+    result.setDate(result.getDate() - 1);
+    const dateKey = formatDateKey(result);
+    const isWeekend = result.getDay() === 0 || result.getDay() === 6;
+    const isHoliday = holidays.has(dateKey);
+    if (!isWeekend && !isHoliday) {
+      return result;
+    }
+  } while (true);
+}
+
+/**
+ * Group orders by due date
+ * Orders due on weekends or holidays are shifted to the previous business day
+ */
+export function groupOrdersByDate(
+  orders: CalendarOrder[],
+  holidays: Set<string>
+): Map<string, CalendarOrder[]> {
   const grouped = new Map<string, CalendarOrder[]>();
 
   for (const order of orders) {
     if (!order.due_date) continue;
-    const dateKey = order.due_date.split('T')[0];
+
+    // Get the due date (parse as local to avoid UTC timezone shift)
+    const dueDate = parseLocalDate(order.due_date);
+
+    // Check if it's a weekend or holiday
+    let dateKey = formatDateKey(dueDate);
+    const isWeekend = dueDate.getDay() === 0 || dueDate.getDay() === 6;
+    const isHoliday = holidays.has(dateKey);
+
+    // Shift weekends and holidays to previous business day
+    if (isWeekend || isHoliday) {
+      const shiftedDate = findPreviousBusinessDay(dueDate, holidays);
+      dateKey = formatDateKey(shiftedDate);
+    }
+
     const existing = grouped.get(dateKey) || [];
     existing.push(order);
     grouped.set(dateKey, existing);
   }
 
-  // Sort orders within each day by work_days_left (most urgent first)
+  // Sort orders within each day:
+  // 1. Hard due time orders first (prioritized)
+  // 2. Then by due date (earlier first)
   for (const [, dayOrders] of grouped) {
     dayOrders.sort((a, b) => {
-      const aVal = a.work_days_left ?? Infinity;
-      const bVal = b.work_days_left ?? Infinity;
-      return aVal - bVal;
+      // Priority 1: Hard due time orders first
+      const aHasHardDue = a.hard_due_date_time ? 1 : 0;
+      const bHasHardDue = b.hard_due_date_time ? 1 : 0;
+      if (aHasHardDue !== bHasHardDue) {
+        return bHasHardDue - aHasHardDue; // Hard due orders first
+      }
+
+      // Priority 2: Sort by due date (earlier first)
+      const aDate = a.due_date ? parseLocalDate(a.due_date).getTime() : Infinity;
+      const bDate = b.due_date ? parseLocalDate(b.due_date).getTime() : Infinity;
+      return aDate - bDate;
     });
   }
 

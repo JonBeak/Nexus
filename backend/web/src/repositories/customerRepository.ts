@@ -127,7 +127,8 @@ export class CustomerRepository {
         special_instructions,
         comments,
         active,
-        drain_holes_yes_or_no
+        drain_holes_yes_or_no,
+        shipping_yes_or_no
       FROM customers
       WHERE customer_id = ?`,
       [customerId]

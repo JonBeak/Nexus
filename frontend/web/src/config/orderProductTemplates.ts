@@ -521,6 +521,23 @@ export const ASSEMBLY_TEMPLATE: SpecificationTemplate = {
 };
 
 /**
+ * Template: Face Assembly
+ * Used for face-type products (Halo Lit, Trimless Letters) - separate from structural Assembly
+ * Spec 1: Description (textbox)
+ * Spec 2: -
+ * Spec 3: -
+ */
+export const FACE_ASSEMBLY_TEMPLATE: SpecificationTemplate = {
+  templateName: 'Face Assembly',
+  spec1: {
+    key: 'description',
+    label: 'Description',
+    type: 'textbox',
+    placeholder: 'Description'
+  }
+};
+
+/**
  * Template: D-Tape
  * Spec 1: Include (boolean yes/no)
  * Spec 2: Thickness (combobox: 62 MIL (Thick), 45 MIL (Medium), 16 MIL (Thin))
@@ -738,6 +755,7 @@ const TEMPLATE_REGISTRY: Record<string, SpecificationTemplate> = {
   'Neon Base': NEON_BASE_TEMPLATE,
   'Neon LED': NEON_LED_TEMPLATE,
   'Assembly': ASSEMBLY_TEMPLATE,
+  'Face Assembly': FACE_ASSEMBLY_TEMPLATE,
   'D-Tape': D_TAPE_TEMPLATE,
   'Cut': CUT_TEMPLATE,
   'Peel': PEEL_TEMPLATE,

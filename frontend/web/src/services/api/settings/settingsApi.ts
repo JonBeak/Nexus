@@ -49,6 +49,7 @@ export interface TaskDefinition {
   assigned_role: string;
   is_active: boolean;
   is_system: boolean;
+  auto_hide: boolean;
   description: string | null;
 }
 
@@ -249,6 +250,7 @@ export const settingsApi = {
     assigned_role?: string;
     description?: string;
     is_active?: boolean;
+    auto_hide?: boolean;
   }): Promise<void> {
     await api.put(`/settings/tasks/${taskId}`, updates);
   },

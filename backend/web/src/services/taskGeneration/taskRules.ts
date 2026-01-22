@@ -1,6 +1,9 @@
 /**
  * Task Rules Engine
  * Defines spec-to-task mapping rules based on the Task Generation Specification
+ *
+ * Updated 2026-01-22: Added async database-backed versions via taskConfigService
+ * Hardcoded arrays kept as fallback for backwards compatibility
  */
 
 import { ProductionRole } from '../../types/orders';
@@ -8,6 +11,7 @@ import { GeneratedTask, PartGroup, UnknownApplication } from './types';
 import { hasSpec, getSpecValue, findSpec, getCuttingMethod, extractBoxTypeMaterial, findAllSpecs, parseSpecifications } from './specParser';
 import { vinylMatrixService } from '../vinylMatrixService';
 import { generatePaintingTasks } from './paintingTaskGenerator';
+import { taskConfigService } from './taskConfigService';
 
 /**
  * Default sort order for tasks not found in TASK_ORDER
@@ -52,7 +56,8 @@ export const TASK_ORDER: string[] = [
   'Backer / Raceway Fabrication',
   'Vinyl after Fabrication',
   'Paint after Fabrication',
-  'Assembly'
+  'Assembly',
+  'QC & Packing'
 ];
 
 /**
@@ -109,6 +114,47 @@ export const TASK_ROLE_MAP: Record<string, ProductionRole> = {
  */
 export function getRole(taskName: string): ProductionRole {
   return TASK_ROLE_MAP[taskName] || 'manager';
+}
+
+// =============================================================================
+// Async Database-Backed Versions (via taskConfigService)
+// =============================================================================
+
+/**
+ * Get sort order for a task name (async, database-backed with caching)
+ * Returns the index in task order, or UNKNOWN_TASK_SORT_ORDER if not found
+ */
+export async function getTaskSortOrderAsync(taskName: string): Promise<number> {
+  return taskConfigService.getTaskSortOrder(taskName);
+}
+
+/**
+ * Get role for a task name (async, database-backed with caching)
+ * Returns 'manager' as default if not found
+ */
+export async function getRoleAsync(taskName: string): Promise<ProductionRole> {
+  return taskConfigService.getRole(taskName);
+}
+
+/**
+ * Get task order array (async, database-backed with caching)
+ */
+export async function getTaskOrderAsync(): Promise<string[]> {
+  return taskConfigService.getTaskOrder();
+}
+
+/**
+ * Get task role map (async, database-backed with caching)
+ */
+export async function getTaskRoleMapAsync(): Promise<Record<string, ProductionRole>> {
+  return taskConfigService.getTaskRoleMap();
+}
+
+/**
+ * Invalidate task config cache (call after settings updates)
+ */
+export async function invalidateTaskConfigCache(): Promise<void> {
+  return taskConfigService.invalidateCache();
 }
 
 /**
@@ -444,6 +490,21 @@ export async function generateConditionalTasks(
       partId,
       orderId,
       sortOrder: getTaskSortOrder('CNC Router Cut')
+    });
+  }
+
+  // Face Assembly spec → Face Assembly task (for Halo Lit, Trimless Letters, etc.)
+  if (hasSpec(group, 'Face Assembly')) {
+    const faceAssemblySpec = findSpec(group, 'Face Assembly');
+    const description = faceAssemblySpec?.values.description || null;
+
+    tasks.push({
+      taskName: 'Face Assembly',
+      assignedRole: getRole('Face Assembly'),
+      notes: description,
+      partId,
+      orderId,
+      sortOrder: getTaskSortOrder('Face Assembly')
     });
   }
 

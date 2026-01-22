@@ -13,35 +13,93 @@ interface MobileCalendarViewProps {
   overdueOrders: CalendarOrder[];
   showOverdueColumn: boolean;
   viewStartDate: Date;
+  showImages?: boolean;
   onNavigate: (direction: 'prev' | 'next' | 'today') => void;
   onCardClick: (order: CalendarOrder) => void;
 }
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
+/**
+ * Get image URL for order
+ */
+const getOrderImageUrl = (order: {
+  sign_image_path?: string;
+  folder_name?: string;
+  folder_location?: 'active' | 'finished' | 'none';
+  is_migrated?: boolean;
+}): string | null => {
+  const { sign_image_path, folder_name, folder_location, is_migrated } = order;
+
+  if (!sign_image_path || !folder_name || folder_location === 'none') return null;
+
+  const serverUrl = API_BASE_URL.replace(/\/api$/, '');
+  const basePath = `${serverUrl}/order-images`;
+  const encodedFolder = encodeURIComponent(folder_name);
+  const encodedFile = encodeURIComponent(sign_image_path);
+
+  if (is_migrated) {
+    return folder_location === 'active'
+      ? `${basePath}/${encodedFolder}/${encodedFile}`
+      : `${basePath}/1Finished/${encodedFolder}/${encodedFile}`;
+  } else {
+    return folder_location === 'active'
+      ? `${basePath}/Orders/${encodedFolder}/${encodedFile}`
+      : `${basePath}/Orders/1Finished/${encodedFolder}/${encodedFile}`;
+  }
+};
 
 // Compact mobile order card
 const MobileOrderCard: React.FC<{
   order: CalendarOrder;
   showDaysLate?: boolean;
+  showImages?: boolean;
   onClick: () => void;
-}> = ({ order, showDaysLate = false, onClick }) => {
+}> = ({ order, showDaysLate = false, showImages = false, onClick }) => {
+  const [imageError, setImageError] = React.useState(false);
   const daysLateDisplay = order.work_days_left !== null && order.work_days_left < 0
     ? `${Math.abs(order.work_days_left).toFixed(0)}d`
     : null;
 
   // Color based on urgency (blue when complete, orange/red only for incomplete jobs)
+  // Hard due time takes highest priority (darker red styling)
   const isComplete = order.progress_percent === 100;
+  const hasHardDueTime = !!order.hard_due_date_time;
   const borderColor = isComplete
     ? 'border-l-blue-500 bg-white'
-    : order.work_days_left !== null && order.work_days_left < 0
-      ? 'border-l-red-500 bg-red-50'
-      : order.work_days_left !== null && order.work_days_left <= 1
-        ? 'border-l-orange-500 bg-orange-50'
-        : 'border-l-blue-500 bg-white';
+    : hasHardDueTime
+      ? 'border-l-red-700 bg-red-200'  // Darker red for hard due time
+      : order.work_days_left !== null && order.work_days_left < 0
+        ? 'border-l-red-500 bg-red-50'
+        : order.work_days_left !== null && order.work_days_left <= 1
+          ? 'border-l-orange-500 bg-orange-50'
+          : 'border-l-blue-500 bg-white';
+
+  // Get image URL if showing images
+  const imageUrl = showImages ? getOrderImageUrl(order) : null;
+  const hasImage = imageUrl && !imageError;
 
   return (
     <div
-      className={`p-2 mb-1.5 rounded shadow-sm cursor-pointer active:bg-gray-100 border-l-4 ${borderColor} min-h-[48px]`}
+      className={`mb-1.5 rounded shadow-sm cursor-pointer active:bg-gray-100 border-l-4 ${borderColor} min-h-[48px] overflow-hidden`}
       onClick={onClick}
     >
+      {/* Order Image - only shown when showImages is true and image exists */}
+      {hasImage && (
+        <div className="w-full bg-gray-100 flex items-center justify-center">
+          <img
+            src={imageUrl}
+            alt={order.order_name}
+            className="w-full h-auto object-contain"
+            style={{ maxHeight: '60px' }}
+            onError={() => setImageError(true)}
+            draggable={false}
+          />
+        </div>
+      )}
+
+      {/* Card Content */}
+      <div className="p-2">
       <div className="flex items-start justify-between gap-1">
         <div className="flex-1 min-w-0">
           <div className={`text-xs font-semibold ${PAGE_STYLES.panel.text} break-words leading-tight`}>
@@ -73,11 +131,13 @@ const MobileOrderCard: React.FC<{
             className={`h-1 rounded-full ${
               isComplete
                 ? 'bg-blue-500'
-                : order.work_days_left !== null && order.work_days_left < 0
-                  ? 'bg-red-500'
-                  : order.work_days_left !== null && order.work_days_left <= 1
-                    ? 'bg-orange-500'
-                    : 'bg-blue-500'
+                : hasHardDueTime
+                  ? 'bg-red-700'  // Darker red for hard due time
+                  : order.work_days_left !== null && order.work_days_left < 0
+                    ? 'bg-red-500'
+                    : order.work_days_left !== null && order.work_days_left <= 1
+                      ? 'bg-orange-500'
+                      : 'bg-blue-500'
             }`}
             style={{ width: `${order.progress_percent}%` }}
           />
@@ -85,6 +145,7 @@ const MobileOrderCard: React.FC<{
         <span className="text-[10px] text-gray-500 w-6 text-right">
           {order.progress_percent}%
         </span>
+      </div>
       </div>
     </div>
   );
@@ -98,8 +159,9 @@ const MobileColumn: React.FC<{
   isOverdue?: boolean;
   orders: CalendarOrder[];
   showDaysLate?: boolean;
+  showImages?: boolean;
   onCardClick: (order: CalendarOrder) => void;
-}> = ({ headerLabel, subLabel, isToday, isOverdue, orders, showDaysLate, onCardClick }) => {
+}> = ({ headerLabel, subLabel, isToday, isOverdue, orders, showDaysLate, showImages, onCardClick }) => {
   const headerClasses = isOverdue
     ? 'bg-red-600 text-white'
     : isToday
@@ -131,6 +193,7 @@ const MobileColumn: React.FC<{
               key={order.order_id}
               order={order}
               showDaysLate={showDaysLate}
+              showImages={showImages}
               onClick={() => onCardClick(order)}
             />
           ))
@@ -145,6 +208,7 @@ export const MobileCalendarView: React.FC<MobileCalendarViewProps> = ({
   overdueOrders,
   showOverdueColumn,
   viewStartDate,
+  showImages = false,
   onNavigate,
   onCardClick
 }) => {
@@ -213,6 +277,7 @@ export const MobileCalendarView: React.FC<MobileCalendarViewProps> = ({
               isOverdue={col.isOverdue}
               orders={col.orders}
               showDaysLate={col.showDaysLate}
+              showImages={showImages}
               onCardClick={onCardClick}
             />
           </div>

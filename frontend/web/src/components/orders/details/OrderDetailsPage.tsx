@@ -1,4 +1,4 @@
-import React, { useState, useRef, useLayoutEffect, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useLayoutEffect, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ProgressView from '../progress/ProgressView';
 import DualTableLayout from './DualTableLayout';
@@ -32,7 +32,7 @@ import ConfirmationModal from './components/ConfirmationModal';
 import { InvoiceAction } from './components/InvoiceButton';
 import InvoiceActionModal from '../modals/InvoiceActionModal';
 import RecordPaymentModal from '../modals/RecordPaymentModal';
-import LinkInvoiceModal from '../modals/LinkInvoiceModal';
+import LinkInvoiceModal, { OrderTotals } from '../modals/LinkInvoiceModal';
 import InvoiceConflictModal from '../modals/InvoiceConflictModal';
 import PrintApprovalSuccessModal from '../modals/PrintApprovalSuccessModal';
 import PrintApprovalErrorModal from '../modals/PrintApprovalErrorModal';
@@ -631,6 +631,29 @@ export const OrderDetailsPage: React.FC = () => {
     }
   };
 
+  // Calculate order totals for LinkInvoiceModal comparison
+  const orderTotals = useMemo((): OrderTotals | undefined => {
+    if (!orderData.order || !orderData.parts) return undefined;
+
+    const subtotal = orderData.parts.reduce((sum, part) => {
+      // Skip header rows
+      if (part.is_header_row) return sum;
+      return sum + parseFloat(part.extended_price?.toString() || '0');
+    }, 0);
+
+    const taxRule = orderData.taxRules.find(r => r.tax_name === orderData.order?.tax_name);
+    const taxDecimal = taxRule ? parseFloat(taxRule.tax_percent.toString()) : 0;
+    const taxAmount = subtotal * taxDecimal;
+
+    return {
+      subtotal,
+      taxName: orderData.order.tax_name || '',
+      taxPercent: taxDecimal * 100,
+      taxAmount,
+      total: subtotal + taxAmount
+    };
+  }, [orderData.parts, orderData.taxRules, orderData.order?.tax_name, orderData.order]);
+
   if (uiState.initialLoad) {
     return <LoadingState />;
   }
@@ -1129,6 +1152,7 @@ export const OrderDetailsPage: React.FC = () => {
         onSuccess={handleLinkInvoiceSuccess}
         currentInvoice={reassignInvoiceInfo || undefined}
         invoiceStatus={reassignInvoiceInfo ? 'not_found' : 'not_linked'}
+        orderTotals={orderTotals}
       />
 
       {/* Phase 2: Invoice Conflict Modal for bi-directional sync */}

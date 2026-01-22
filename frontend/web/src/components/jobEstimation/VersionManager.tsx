@@ -6,7 +6,9 @@ import {
   Edit3,
   Copy,
   AlertTriangle,
-  ArrowRight
+  ArrowRight,
+  XCircle,
+  CheckCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { jobVersioningApi, ordersApi } from '../../services/api';
@@ -201,10 +203,25 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
     navigate(`/orders/${orderNumber}`);
   };
 
+  const handleToggleValidity = async (version: EstimateVersion) => {
+    try {
+      if (!version.is_valid) {
+        await jobVersioningApi.markEstimateValid(version.id);
+      } else {
+        await jobVersioningApi.markEstimateInvalid(version.id);
+      }
+      fetchVersions();
+    } catch (err) {
+      console.error('Error toggling estimate validity:', err);
+      setError('Failed to update estimate validity');
+    }
+  };
+
   const renderActionButtons = (version: EstimateVersion) => {
     const orderNumber = estimateOrders.get(version.id);
     // Show "View" for approved estimates (converted to orders), otherwise show "Edit" for drafts
     const isViewOnly = version.is_approved || !version.is_draft;
+    const isInvalid = !version.is_valid;
 
     return (
       <div className="flex flex-col items-center justify-center gap-2 w-full">
@@ -235,6 +252,28 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
           >
             <Copy className="w-3 h-3" />
             <span>Copy</span>
+          </button>
+          {/* Validity toggle button */}
+          <button
+            onClick={() => handleToggleValidity(version)}
+            className={`flex items-center justify-center space-x-1 px-2 py-1 text-sm rounded flex-1 ${
+              isInvalid
+                ? 'bg-green-600 text-white hover:bg-green-700'
+                : 'bg-gray-500 text-white hover:bg-gray-600'
+            }`}
+            title={isInvalid ? 'Mark as Valid' : 'Mark as Invalid'}
+          >
+            {isInvalid ? (
+              <>
+                <CheckCircle className="w-3 h-3" />
+                <span>Valid</span>
+              </>
+            ) : (
+              <>
+                <XCircle className="w-3 h-3" />
+                <span>Invalid</span>
+              </>
+            )}
           </button>
         </div>
         {/* Show "Go to Order" button if order exists */}
@@ -275,11 +314,11 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
         <table className="w-full table-fixed">
           <thead className={`${PAGE_STYLES.header.background} border-b ${PAGE_STYLES.border}`}>
             <tr>
-              <th className={`text-left p-3 font-medium ${PAGE_STYLES.panel.textSecondary} w-36`}>Version</th>
-              <th className={`text-left p-3 font-medium ${PAGE_STYLES.panel.textSecondary} w-44`}>Description</th>
+              <th className={`text-left p-3 font-medium ${PAGE_STYLES.panel.textSecondary} w-28`}>Version</th>
+              <th className={`text-left p-3 font-medium ${PAGE_STYLES.panel.textSecondary}`}>Description</th>
               <th className={`text-center p-3 font-medium ${PAGE_STYLES.panel.textSecondary} w-24`}>Status</th>
               <th className={`text-right p-3 font-medium ${PAGE_STYLES.panel.textSecondary} w-20`}>Total</th>
-              <th className={`text-center p-3 font-medium ${PAGE_STYLES.panel.textSecondary} w-28`}>Actions</th>
+              <th className={`text-center p-3 font-medium ${PAGE_STYLES.panel.textSecondary} w-64`}>Actions</th>
             </tr>
           </thead>
           <tbody className={`divide-y ${PAGE_STYLES.divider} border-b ${PAGE_STYLES.border}`}>
@@ -315,14 +354,13 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
               versions.map((version) => (
                 <tr
                   key={version.id}
-                  className={PAGE_STYLES.interactive.hover}
+                  className={`${PAGE_STYLES.interactive.hover} ${!version.is_valid ? 'opacity-50 bg-[var(--theme-header-bg)] border-l-4 border-l-red-500' : ''}`}
                 >
                   <td className="p-3">
-                    <div className="flex items-baseline gap-2">
+                    <div className="flex flex-col">
                       <span className="font-medium">v{version.version_number}</span>
-                      <span className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>
-                        {formatDate(version.updated_at).date} <span className={PAGE_STYLES.panel.textMuted}>{formatDate(version.updated_at).time}</span>
-                      </span>
+                      <span className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>{formatDate(version.updated_at).date}</span>
+                      <span className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>{formatDate(version.updated_at).time}</span>
                     </div>
                     {getLockIndicator(version)}
                   </td>
@@ -346,15 +384,14 @@ export const VersionManager: React.FC<VersionManagerProps> = ({
         {versions.map((version) => (
           <div
             key={version.id}
-            className={`border rounded-lg p-4 ${PAGE_STYLES.panel.background} ${PAGE_STYLES.border}`}
+            className={`border rounded-lg p-4 ${!version.is_valid ? 'opacity-50 bg-[var(--theme-header-bg)] border-l-4 border-l-red-500' : `${PAGE_STYLES.panel.background}`} ${PAGE_STYLES.border}`}
           >
             <div className="flex items-start justify-between mb-3">
               <div className="flex-shrink-0">
-                <div className="flex items-baseline gap-2">
+                <div className="flex flex-col">
                   <span className="font-semibold text-lg">v{version.version_number}</span>
-                  <span className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>
-                    {formatDate(version.updated_at).date} <span className={PAGE_STYLES.panel.textMuted}>{formatDate(version.updated_at).time}</span>
-                  </span>
+                  <span className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>{formatDate(version.updated_at).date}</span>
+                  <span className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>{formatDate(version.updated_at).time}</span>
                 </div>
                 {getLockIndicator(version)}
               </div>

@@ -182,7 +182,7 @@ export class OrderConversionService {
         tax_name: taxName,                                           // Auto-fill from billing/primary address
         accounting_emails: accountingEmailsSnapshot,                 // Snapshot from customer accounting emails
         form_version: 1,
-        shipping_required: false,
+        shipping_required: Boolean(customer?.shipping_yes_or_no) || false,  // Auto-fill from customer preference
         status: 'job_details_setup' as const,  // Phase 1.5: Start in job details setup
         created_by: userId
       };

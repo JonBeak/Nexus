@@ -91,4 +91,15 @@ router.get(
   qbInvoiceController.searchInvoice
 );
 
+/**
+ * Get detailed QB invoice including line items (for LinkInvoiceModal preview)
+ * GET /api/invoices/:invoiceId/details
+ */
+router.get(
+  '/:invoiceId/details',
+  authenticateToken,
+  requirePermission('orders.view'),
+  qbInvoiceController.getInvoiceDetails
+);
+
 export default router;

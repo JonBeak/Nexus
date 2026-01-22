@@ -462,7 +462,8 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
             company_name: createData[0].company_name,
             company_address: createData[0].company_address
           });
-          const addresses = createData[1] as Address[];
+          const addressResponse = createData[1] as { addresses: Address[] };
+          const addresses = addressResponse.addresses || [];
           const billingAddr = addresses.find(a => a.is_billing) || addresses.find(a => a.is_primary) || null;
           setCustomerBillingAddress(billingAddr);
         }
@@ -1026,41 +1027,79 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                   <p className="text-sm text-gray-900">{formattedDate}</p>
                 </div>
 
-                {/* Line Items Table */}
+                {/* Line Items - Table on desktop, Cards on mobile */}
                 <div className="mb-6">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-300">
-                        <th className="text-left py-2 font-medium text-gray-700">Item Name</th>
-                        <th className="text-left py-2 font-medium text-gray-700">QB Description</th>
-                        <th className="text-right py-2 font-medium text-gray-700 w-16">Qty</th>
-                        <th className="text-right py-2 font-medium text-gray-700 w-24">Price</th>
-                        <th className="text-right py-2 font-medium text-gray-700 w-24">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                  {isMobile ? (
+                    /* Mobile: Card layout */
+                    <div className="space-y-3">
                       {order.parts?.filter(p => !p.is_header_row && p.quantity && p.quantity > 0).map((part, idx) => (
-                        <tr key={idx} className="border-b border-gray-100">
-                          <td className="py-2 text-gray-900">{part.qb_item_name || '-'}</td>
-                          <td className="py-2 text-gray-600">{part.qb_description || '-'}</td>
-                          <td className="py-2 text-right text-gray-600">{part.quantity}</td>
-                          <td className="py-2 text-right text-gray-600">
-                            ${Number(part.unit_price || 0).toFixed(2)}
-                          </td>
-                          <td className="py-2 text-right text-gray-900">
-                            ${Number(part.extended_price || 0).toFixed(2)}
-                          </td>
-                        </tr>
+                        <div key={idx} className="bg-white border border-gray-300 rounded-lg p-3">
+                          {/* Item Name */}
+                          <div className="font-medium text-gray-900 text-sm">
+                            {part.qb_item_name || '-'}
+                          </div>
+                          {/* Qty, Unit Price, Ext Price */}
+                          <div className="flex items-center justify-between mt-2 text-sm">
+                            <span className="text-gray-600">
+                              Qty: <span className="font-medium">{part.quantity}</span>
+                            </span>
+                            <span className="text-gray-600">
+                              @ ${Number(part.unit_price || 0).toFixed(2)}
+                            </span>
+                            <span className="font-semibold text-gray-900">
+                              ${Number(part.extended_price || 0).toFixed(2)}
+                            </span>
+                          </div>
+                          {/* QB Description */}
+                          {part.qb_description && (
+                            <div className="mt-2 pt-2 border-t border-gray-200 text-xs text-gray-600 whitespace-pre-wrap">
+                              {part.qb_description}
+                            </div>
+                          )}
+                        </div>
                       ))}
                       {(!order.parts || order.parts.filter(p => !p.is_header_row && p.quantity).length === 0) && (
-                        <tr>
-                          <td colSpan={5} className="py-4 text-center text-gray-500 italic">
-                            No line items
-                          </td>
-                        </tr>
+                        <div className="py-4 text-center text-gray-500 italic text-sm">
+                          No line items
+                        </div>
                       )}
-                    </tbody>
-                  </table>
+                    </div>
+                  ) : (
+                    /* Desktop: Table layout */
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-300">
+                          <th className="text-left py-2 font-medium text-gray-700">Item Name</th>
+                          <th className="text-left py-2 font-medium text-gray-700">QB Description</th>
+                          <th className="text-right py-2 font-medium text-gray-700 w-16">Qty</th>
+                          <th className="text-right py-2 font-medium text-gray-700 w-24">Price</th>
+                          <th className="text-right py-2 font-medium text-gray-700 w-24">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {order.parts?.filter(p => !p.is_header_row && p.quantity && p.quantity > 0).map((part, idx) => (
+                          <tr key={idx} className="border-b border-gray-300">
+                            <td className="py-2 text-gray-900">{part.qb_item_name || '-'}</td>
+                            <td className="py-2 text-gray-600 whitespace-pre-wrap">{part.qb_description || '-'}</td>
+                            <td className="py-2 text-right text-gray-600">{part.quantity}</td>
+                            <td className="py-2 text-right text-gray-600">
+                              ${Number(part.unit_price || 0).toFixed(2)}
+                            </td>
+                            <td className="py-2 text-right text-gray-900">
+                              ${Number(part.extended_price || 0).toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                        {(!order.parts || order.parts.filter(p => !p.is_header_row && p.quantity).length === 0) && (
+                          <tr>
+                            <td colSpan={5} className="py-4 text-center text-gray-500 italic">
+                              No line items
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
 
                 {/* Totals */}
@@ -1791,7 +1830,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                       </thead>
                       <tbody>
                         {lineItems.map((item, idx) => (
-                          <tr key={idx} className="border-b border-gray-100">
+                          <tr key={idx} className="border-b border-gray-300">
                             <td className="py-2 text-gray-900">{item.description}</td>
                             <td className="py-2 text-right text-gray-600">{item.quantity}</td>
                             <td className="py-2 text-right text-gray-600">${item.unitPrice.toFixed(2)}</td>

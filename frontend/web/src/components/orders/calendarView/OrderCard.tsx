@@ -3,18 +3,55 @@
  * Displays a single order in the calendar view as a clickable card
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { CalendarOrder, ProgressColor } from './types';
 import { getProgressColor } from './utils';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
+/**
+ * Get image URL for order
+ */
+const getOrderImageUrl = (order: {
+  sign_image_path?: string;
+  folder_name?: string;
+  folder_location?: 'active' | 'finished' | 'none';
+  is_migrated?: boolean;
+}): string | null => {
+  const { sign_image_path, folder_name, folder_location, is_migrated } = order;
+
+  if (!sign_image_path || !folder_name || folder_location === 'none') return null;
+
+  const serverUrl = API_BASE_URL.replace(/\/api$/, '');
+  const basePath = `${serverUrl}/order-images`;
+  const encodedFolder = encodeURIComponent(folder_name);
+  const encodedFile = encodeURIComponent(sign_image_path);
+
+  if (is_migrated) {
+    return folder_location === 'active'
+      ? `${basePath}/${encodedFolder}/${encodedFile}`
+      : `${basePath}/1Finished/${encodedFolder}/${encodedFile}`;
+  } else {
+    return folder_location === 'active'
+      ? `${basePath}/Orders/${encodedFolder}/${encodedFile}`
+      : `${basePath}/Orders/1Finished/${encodedFolder}/${encodedFile}`;
+  }
+};
+
 interface OrderCardProps {
   order: CalendarOrder;
   showDaysLate?: boolean;
+  showImages?: boolean;
   onCardClick: (order: CalendarOrder) => void;
 }
 
 const colorClasses: Record<ProgressColor, { border: string; bg: string; progress: string }> = {
+  darkred: {
+    border: 'border-l-red-700',
+    bg: 'bg-red-200',
+    progress: 'bg-red-700'
+  },
   red: {
     border: 'border-l-red-500',
     bg: 'bg-red-100',
@@ -32,8 +69,10 @@ const colorClasses: Record<ProgressColor, { border: string; bg: string; progress
   }
 };
 
-export const OrderCard: React.FC<OrderCardProps> = ({ order, showDaysLate = false, onCardClick }) => {
-  const progressColor = getProgressColor(order.work_days_left, order.progress_percent);
+export const OrderCard: React.FC<OrderCardProps> = ({ order, showDaysLate = false, showImages = false, onCardClick }) => {
+  const [imageError, setImageError] = useState(false);
+  const hasHardDueTime = !!order.hard_due_date_time;
+  const progressColor = getProgressColor(order.work_days_left, order.progress_percent, hasHardDueTime);
   const colors = colorClasses[progressColor];
 
   const handleClick = () => {
@@ -45,17 +84,37 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, showDaysLate = fals
     ? `${Math.abs(order.work_days_left).toFixed(1)}d late`
     : null;
 
+  // Get image URL if showing images
+  const imageUrl = showImages ? getOrderImageUrl(order) : null;
+  const hasImage = imageUrl && !imageError;
+
   return (
     <div
       className={`
-        p-2 md:p-1.5 mb-1.5 md:mb-1 rounded shadow-sm cursor-pointer
+        mb-1.5 md:mb-1 rounded shadow-sm cursor-pointer
         hover:shadow-md active:bg-gray-100 transition-shadow
         border-l-4 ${colors.border} ${colors.bg}
-        min-h-[48px] md:min-h-0
+        min-h-[48px] md:min-h-0 overflow-hidden
       `}
       onClick={handleClick}
       title={`Order #${order.order_number} - ${order.customer_name || 'Unknown'}`}
     >
+      {/* Order Image - only shown when showImages is true and image exists */}
+      {hasImage && (
+        <div className="w-full bg-gray-100 flex items-center justify-center">
+          <img
+            src={imageUrl}
+            alt={order.order_name}
+            className="w-full h-auto object-contain"
+            style={{ maxHeight: '60px' }}
+            onError={() => setImageError(true)}
+            draggable={false}
+          />
+        </div>
+      )}
+
+      {/* Card Content */}
+      <div className="p-2 md:p-1.5">
       {/* Order Name - Primary */}
       <div className={`text-sm font-bold ${PAGE_STYLES.panel.text} break-words`}>
         {order.order_name}
@@ -99,6 +158,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, showDaysLate = fals
           {daysLateDisplay}
         </div>
       )}
+      </div>
     </div>
   );
 };

@@ -792,6 +792,60 @@ export const getStyledEmailPreview = async (req: Request, res: Response) => {
 };
 
 /**
+ * Get detailed QB invoice including line items (for LinkInvoiceModal preview)
+ * GET /api/invoices/:invoiceId/details
+ */
+export const getInvoiceDetails = async (req: Request, res: Response) => {
+  try {
+    const { invoiceId } = req.params;
+
+    if (!invoiceId) {
+      return sendErrorResponse(res, 'Invoice ID is required', 'VALIDATION_ERROR');
+    }
+
+    // Get realm ID
+    const { quickbooksRepository } = await import('../repositories/quickbooksRepository');
+    const realmId = await quickbooksRepository.getDefaultRealmId();
+    if (!realmId) {
+      return sendErrorResponse(res, 'QuickBooks not configured', 'CONFIGURATION_ERROR');
+    }
+
+    // Fetch invoice details from QuickBooks
+    const { getQBInvoice } = await import('../utils/quickbooks/invoiceClient');
+    const invoice = await getQBInvoice(invoiceId, realmId, false);
+
+    // Transform line items for frontend display
+    const lineItems = (invoice.Line || [])
+      .filter((line: any) => line.DetailType === 'SalesItemLineDetail')
+      .map((line: any) => ({
+        description: line.Description || '',
+        itemName: line.SalesItemLineDetail?.ItemRef?.name || '-',
+        quantity: line.SalesItemLineDetail?.Qty || 0,
+        unitPrice: line.SalesItemLineDetail?.UnitPrice || 0,
+        amount: line.Amount || 0
+      }));
+
+    res.json({
+      success: true,
+      data: {
+        invoiceId: invoice.Id,
+        docNumber: invoice.DocNumber,
+        txnDate: invoice.TxnDate,
+        dueDate: invoice.DueDate,
+        total: invoice.TotalAmt,
+        balance: invoice.Balance,
+        customerName: invoice.CustomerRef?.name || '',
+        lineItems
+      }
+    });
+  } catch (error) {
+    console.error('Error getting invoice details:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get invoice details';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
  * Mark order as invoice sent (manual marking)
  * POST /api/orders/:orderNumber/qb-invoice/mark-sent
  *

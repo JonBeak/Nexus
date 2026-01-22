@@ -80,8 +80,11 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
     taskRole: string | null;
   } | null>(null);
 
+  // Use different IDs for draggable vs static cards to prevent @dnd-kit ID conflicts
+  // When same order appears in both status and painting columns, they need unique IDs
+  // so transforms only apply to the card being dragged, not both
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: `order-${order.order_id}`,
+    id: disableDrag ? `static-${order.order_id}` : `order-${order.order_id}`,
     data: {
       orderNumber: order.order_number,
       currentStatus: order.status
@@ -119,7 +122,7 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
     }
   }, [expanded, tasksFetched, loadingTasks, order.order_number]);
 
-  // Calculate max image height based on container width (golden ratio: height = width / 1.618)
+  // Calculate max image height based on container width (3/7 ratio)
   useEffect(() => {
     const container = imageContainerRef.current;
     if (!container) return;
@@ -127,7 +130,7 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
     const updateMaxHeight = () => {
       const width = container.offsetWidth;
       if (width > 0) {
-        setImageMaxHeight(width / 1.618);
+        setImageMaxHeight(width * 3 / 7);
       }
     };
 

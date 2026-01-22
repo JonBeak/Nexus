@@ -411,6 +411,16 @@ export const qbInvoiceApi = {
     });
     return response.data;
   },
+
+  /**
+   * Get detailed QB invoice including line items
+   * Used for LinkInvoiceModal expandable row preview
+   */
+  async getInvoiceDetails(invoiceId: string): Promise<InvoiceDetailsResult> {
+    const response = await api.get(`/invoices/${invoiceId}/details`);
+    // Interceptor unwraps { success, data } automatically
+    return response.data;
+  },
 };
 
 // Search result interface
@@ -435,6 +445,27 @@ export interface CustomerInvoiceListItem {
   balance: number;
   txnDate: string | null;
   isOpen: boolean;
+}
+
+// Invoice line item detail
+export interface InvoiceLineItem {
+  description: string;
+  itemName: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+}
+
+// Invoice details with line items
+export interface InvoiceDetailsResult {
+  invoiceId: string;
+  docNumber: string;
+  txnDate: string;
+  dueDate?: string;
+  total: number;
+  balance: number;
+  customerName: string;
+  lineItems: InvoiceLineItem[];
 }
 
 export interface CustomerInvoiceListResult {

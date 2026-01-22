@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   X,
   ExternalLink,
@@ -43,7 +43,7 @@ import PrepareOrderModal from '../preparation/PrepareOrderModal';
 import ConfirmationModal from '../details/components/ConfirmationModal';
 import InvoiceActionModal from '../modals/InvoiceActionModal';
 import InvoiceConflictModal from '../modals/InvoiceConflictModal';
-import LinkInvoiceModal from '../modals/LinkInvoiceModal';
+import LinkInvoiceModal, { OrderTotals } from '../modals/LinkInvoiceModal';
 import PrintFormsModal from '../details/components/PrintFormsModal';
 import PDFViewerModal from '../modals/PDFViewerModal';
 import SessionsModal from '../../staff/SessionsModal';
@@ -118,7 +118,6 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   onClose,
   onOrderUpdated
 }) => {
-  const navigate = useNavigate();
   const isMobile = useIsMobile();
 
   // Lock body scroll on mobile when modal is open (and no child modal is open)
@@ -218,6 +217,29 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
     fetchOrderDetails();
     onOrderUpdated();
   });
+
+  // Calculate order totals for LinkInvoiceModal comparison
+  const orderTotals = useMemo((): OrderTotals | undefined => {
+    if (!orderDetails || !parts || parts.length === 0) return undefined;
+
+    const subtotal = parts.reduce((sum, part) => {
+      if (part.is_header_row) return sum;
+      return sum + parseFloat(part.extended_price?.toString() || '0');
+    }, 0);
+
+    // Use order's tax info - default to 13% HST if cash job or no tax name
+    const isCashJob = !!orderDetails.cash;
+    const taxPercent = isCashJob ? 0 : 13; // Default to 13% HST
+    const taxAmount = subtotal * (taxPercent / 100);
+
+    return {
+      subtotal,
+      taxName: orderDetails.tax_name || (isCashJob ? 'No Tax' : 'HST'),
+      taxPercent,
+      taxAmount,
+      total: subtotal + taxAmount
+    };
+  }, [orderDetails, parts]);
 
   // Fetch order details when modal opens
   const fetchOrderDetails = useCallback(async () => {
@@ -492,11 +514,6 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
     }
     folderPath += orderDetails.folder_name;
     window.location.href = `nexus://open?path=${encodeURIComponent(folderPath)}`;
-  };
-
-  // Handle go to order
-  const handleGoToOrder = () => {
-    navigate(`/orders/${order.order_number}`);
   };
 
   // Helper to check if a point is inside either panel
@@ -1051,14 +1068,14 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
 
             {/* Actions */}
             <div className="flex flex-wrap gap-2">
-              <button
-                onClick={handleGoToOrder}
+              <Link
+                to={`/orders/${order.order_number}`}
                 className={`flex-1 min-w-[45%] md:min-w-0 flex items-center justify-center gap-1.5 px-3 py-3 md:py-2 ${MODULE_COLORS.orders.base} text-white ${MODULE_COLORS.orders.hover} active:opacity-80 transition-colors text-sm font-medium rounded min-h-[44px]`}
               >
                 <ExternalLink className="w-4 h-4" />
                 <span className="hidden md:inline">Go to Order</span>
                 <span className="md:hidden">Order</span>
-              </button>
+              </Link>
               <button
                 onClick={handleOpenFolder}
                 disabled={!orderDetails?.folder_name || orderDetails.folder_location === 'none'}
@@ -1333,8 +1350,8 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
           isOpen={showLinkInvoiceModal}
           onClose={() => setShowLinkInvoiceModal(false)}
           orderNumber={orderDetails.order_number}
-          customerName={orderDetails.customer_name || ''}
           onSuccess={handleLinkInvoiceSuccess}
+          orderTotals={orderTotals}
         />
       )}
 

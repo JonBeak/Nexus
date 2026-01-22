@@ -165,6 +165,7 @@ export class EstimateRepository {
         CAST(e.is_draft AS UNSIGNED) as is_draft,
         CAST(e.is_prepared AS UNSIGNED) as is_prepared,
         CAST(e.is_active AS UNSIGNED) as is_active,
+        CAST(e.is_valid AS UNSIGNED) as is_valid,
         e.status,
         e.finalized_at,
         fu.username as finalized_by_name,
@@ -221,6 +222,7 @@ export class EstimateRepository {
         CAST(e.is_draft AS UNSIGNED) as is_draft,
         CAST(e.is_prepared AS UNSIGNED) as is_prepared,
         CAST(e.is_active AS UNSIGNED) as is_active,
+        CAST(e.is_valid AS UNSIGNED) as is_valid,
         e.status,
         e.finalized_at,
         fu.username as finalized_by_name,
@@ -905,5 +907,41 @@ export class EstimateRepository {
     ) as RowDataPacket[];
 
     return rows.length > 0 ? rows[0] : null;
+  }
+
+  // =============================================
+  // ESTIMATE VALIDITY METHODS
+  // =============================================
+
+  /**
+   * Mark estimate as invalid
+   * Sets is_valid = FALSE for visual indication in version list
+   * @param estimateId - The estimate ID
+   * @param userId - User performing the action
+   * @returns True if update successful
+   */
+  async markEstimateInvalid(estimateId: number, userId: number): Promise<boolean> {
+    const result = await query(
+      'UPDATE job_estimates SET is_valid = FALSE, updated_by = ?, updated_at = NOW() WHERE id = ?',
+      [userId, estimateId]
+    ) as ResultSetHeader;
+
+    return result.affectedRows > 0;
+  }
+
+  /**
+   * Mark estimate as valid
+   * Sets is_valid = TRUE for visual indication in version list
+   * @param estimateId - The estimate ID
+   * @param userId - User performing the action
+   * @returns True if update successful
+   */
+  async markEstimateValid(estimateId: number, userId: number): Promise<boolean> {
+    const result = await query(
+      'UPDATE job_estimates SET is_valid = TRUE, updated_by = ?, updated_at = NOW() WHERE id = ?',
+      [userId, estimateId]
+    ) as ResultSetHeader;
+
+    return result.affectedRows > 0;
   }
 }

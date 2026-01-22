@@ -17,6 +17,7 @@ export interface TaskDefinition {
   assigned_role: string;
   is_active: boolean;
   is_system: boolean;
+  auto_hide: boolean;
   description: string | null;
   created_at: Date;
   updated_at: Date;
@@ -136,6 +137,7 @@ export interface UpdateTaskRequest {
   assigned_role?: string;
   description?: string;
   is_active?: boolean;
+  auto_hide?: boolean;
 }
 
 export interface UpdateRoleRequest {

@@ -62,6 +62,10 @@ router.post('/estimates/:estimateId/save-draft', authenticateToken, estimateWork
 router.post('/estimates/:estimateId/finalize', authenticateToken, estimateWorkflowController.finalizeEstimate);
 router.get('/estimates/:estimateId/can-edit', authenticateToken, estimateWorkflowController.checkEditPermission);
 
+// Estimate Validity - Mark as invalid/valid (visual indication only)
+router.post('/estimates/:estimateId/mark-invalid', authenticateToken, estimateWorkflowController.markEstimateInvalid);
+router.post('/estimates/:estimateId/mark-valid', authenticateToken, estimateWorkflowController.markEstimateValid);
+
 // Duplicate Estimate as New Version - Using EstimateVersionController
 router.post('/estimates/:estimateId/duplicate', authenticateToken, estimateVersionController.duplicateEstimateAsNewVersion);
 

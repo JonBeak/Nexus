@@ -49,6 +49,7 @@ export const SPEC_ORDER = [
   'Peel',
   'Mask',
   'Assembly',
+  'Face Assembly',
   'LEDs',
   'Neon LED',
   'Power Supply',

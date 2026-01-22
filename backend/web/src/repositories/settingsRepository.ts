@@ -33,6 +33,23 @@ export class SettingsRepository {
     return await query(sql) as TaskDefinition[];
   }
 
+  /**
+   * Get task metadata for frontend consumption (TasksTable, task generation)
+   * Returns taskOrder, taskRoleMap, and autoHideColumns derived from database
+   */
+  async getTaskMetadata(): Promise<{
+    taskOrder: string[];
+    taskRoleMap: Record<string, string>;
+    autoHideColumns: string[];
+  }> {
+    const tasks = await this.getAllTaskDefinitions(false);
+    return {
+      taskOrder: tasks.map(t => t.task_name),
+      taskRoleMap: tasks.reduce((acc, t) => ({ ...acc, [t.task_name]: t.assigned_role }), {} as Record<string, string>),
+      autoHideColumns: tasks.filter(t => t.auto_hide).map(t => t.task_name)
+    };
+  }
+
   async getTaskDefinitionById(taskId: number): Promise<TaskDefinition | null> {
     const rows = await query(
       'SELECT * FROM task_definitions WHERE task_id = ?',
@@ -87,6 +104,7 @@ export class SettingsRepository {
     assigned_role?: string;
     description?: string;
     is_active?: boolean;
+    auto_hide?: boolean;
   }): Promise<void> {
     const fields: string[] = [];
     const values: unknown[] = [];
@@ -106,6 +124,10 @@ export class SettingsRepository {
     if (updates.is_active !== undefined) {
       fields.push('is_active = ?');
       values.push(updates.is_active);
+    }
+    if (updates.auto_hide !== undefined) {
+      fields.push('auto_hide = ?');
+      values.push(updates.auto_hide);
     }
 
     if (fields.length === 0) return;
