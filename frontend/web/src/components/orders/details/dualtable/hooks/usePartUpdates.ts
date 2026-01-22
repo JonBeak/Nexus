@@ -15,6 +15,7 @@ import { useCallback, useState, Dispatch, SetStateAction, MutableRefObject } fro
 import { ordersApi, orderPartsApi } from '@/services/api';
 import { OrderPart } from '@/types/orders';
 import { DuplicateMode } from '@/components/orders/modals/DuplicateRowModal';
+import { useAlert } from '@/contexts/AlertContext';
 
 interface UsePartUpdatesParams {
   orderNumber: number;
@@ -34,6 +35,7 @@ export const usePartUpdates = ({
   setSpecRowCounts
 }: UsePartUpdatesParams) => {
   const [saving, setSaving] = useState(false);
+  const { showError, showWarning, showConfirmation } = useAlert();
 
   // Unified save handler for editable fields (textareas and inputs)
   const handleFieldSave = useCallback(async (partId: number, field: string, value: string) => {
@@ -86,10 +88,10 @@ export const usePartUpdates = ({
       );
     } catch (error) {
       console.error('Error saving field:', error);
-      alert('Failed to save changes. Please try again.');
+      showError('Failed to save changes. Please try again.');
       throw error; // Re-throw so component knows save failed
     }
-  }, [orderNumber, partsRef, setParts]);
+  }, [orderNumber, partsRef, setParts, showError]);
 
   // Save handler for template dropdown changes
   const handleTemplateSave = useCallback(async (partId: number, rowNum: number, value: string) => {
@@ -151,10 +153,10 @@ export const usePartUpdates = ({
       console.log('[handleTemplateSave] COMPLETE');
     } catch (error) {
       console.error('[handleTemplateSave] ERROR:', error);
-      alert('Failed to save template selection. Please try again.');
+      showError('Failed to save template selection. Please try again.');
       throw error;
     }
-  }, [orderNumber, partsRef, setParts]);
+  }, [orderNumber, partsRef, setParts, showError]);
 
   // Save handler for spec field changes
   const handleSpecFieldSave = useCallback(async (partId: number, specKey: string, value: string) => {
@@ -191,10 +193,10 @@ export const usePartUpdates = ({
       );
     } catch (error) {
       console.error('Error saving spec field:', error);
-      alert('Failed to save specification. Please try again.');
+      showError('Failed to save specification. Please try again.');
       throw error;
     }
-  }, [orderNumber, partsRef, setParts]);
+  }, [orderNumber, partsRef, setParts, showError]);
 
   // Add specification row
   const addSpecRow = useCallback(async (partId: number) => {
@@ -243,11 +245,11 @@ export const usePartUpdates = ({
       );
     } catch (error) {
       console.error('Error saving row count:', error);
-      alert('Failed to save row count. Please try again.');
+      showError('Failed to save row count. Please try again.');
     } finally {
       setSaving(false);
     }
-  }, [orderNumber, parts, specRowCounts, setParts, setSpecRowCounts]);
+  }, [orderNumber, parts, specRowCounts, setParts, setSpecRowCounts, showError]);
 
   // Remove specification row
   const removeSpecRow = useCallback(async (partId: number) => {
@@ -308,11 +310,11 @@ export const usePartUpdates = ({
       );
     } catch (error) {
       console.error('Error saving row count:', error);
-      alert('Failed to save row count. Please try again.');
+      showError('Failed to save row count. Please try again.');
     } finally {
       setSaving(false);
     }
-  }, [orderNumber, parts, specRowCounts, setParts, setSpecRowCounts]);
+  }, [orderNumber, parts, specRowCounts, setParts, setSpecRowCounts, showError]);
 
   // Insert blank specification row AFTER specified row
   const insertSpecRowAfter = useCallback(async (partId: number, afterRowNum: number) => {
@@ -327,7 +329,7 @@ export const usePartUpdates = ({
 
     // Max 20 rows
     if (currentCount >= 20) {
-      alert('Maximum 20 specification rows allowed.');
+      showWarning('Maximum 20 specification rows allowed.');
       return;
     }
 
@@ -380,11 +382,11 @@ export const usePartUpdates = ({
       }));
     } catch (error) {
       console.error('Error inserting spec row:', error);
-      alert('Failed to insert row. Please try again.');
+      showError('Failed to insert row. Please try again.');
     } finally {
       setSaving(false);
     }
-  }, [orderNumber, parts, specRowCounts, setParts, setSpecRowCounts]);
+  }, [orderNumber, parts, specRowCounts, setParts, setSpecRowCounts, showError]);
 
   // Clear a specific specification row (reset to "Select...")
   const clearSpecRow = useCallback(async (partId: number, rowNum: number) => {
@@ -427,11 +429,11 @@ export const usePartUpdates = ({
       );
     } catch (error) {
       console.error('Error clearing spec row:', error);
-      alert('Failed to clear row. Please try again.');
+      showError('Failed to clear row. Please try again.');
     } finally {
       setSaving(false);
     }
-  }, [orderNumber, parts, setParts]);
+  }, [orderNumber, parts, setParts, showError]);
 
   // Delete specific specification row with renumbering
   const deleteSpecRow = useCallback(async (partId: number, rowNum: number) => {
@@ -446,7 +448,7 @@ export const usePartUpdates = ({
 
     // Minimum 1 row
     if (currentCount <= 1) {
-      alert('Cannot delete the last specification row.');
+      showWarning('Cannot delete the last specification row.');
       return;
     }
 
@@ -494,11 +496,11 @@ export const usePartUpdates = ({
       }));
     } catch (error) {
       console.error('Error deleting spec row:', error);
-      alert('Failed to delete row. Please try again.');
+      showError('Failed to delete row. Please try again.');
     } finally {
       setSaving(false);
     }
-  }, [orderNumber, parts, specRowCounts, setParts, setSpecRowCounts]);
+  }, [orderNumber, parts, specRowCounts, setParts, setSpecRowCounts, showError]);
 
   // Toggle is_parent status
   const toggleIsParent = useCallback(async (partId: number) => {
@@ -509,7 +511,7 @@ export const usePartUpdates = ({
 
     // Validation: Cannot set as parent if no Item Name (specs_display_name) is selected
     if (newIsParent && !part.specs_display_name) {
-      alert('Cannot promote to Base Item: Please select an Item Name first.');
+      showWarning('Cannot promote to Base Item: Please select an Item Name first.');
       return;
     }
 
@@ -525,11 +527,11 @@ export const usePartUpdates = ({
       );
     } catch (error) {
       console.error('Error toggling is_parent:', error);
-      alert('Failed to toggle item type. Please try again.');
+      showError('Failed to toggle item type. Please try again.');
     } finally {
       setSaving(false);
     }
-  }, [orderNumber, parts, setParts]);
+  }, [orderNumber, parts, setParts, showError]);
 
   // Refresh parts data after external updates
   const handleRefreshParts = useCallback(async () => {
@@ -567,11 +569,11 @@ export const usePartUpdates = ({
       await handleRefreshParts();
     } catch (error) {
       console.error('Error adding part row:', error);
-      alert('Failed to add part row. Please try again.');
+      showError('Failed to add part row. Please try again.');
     } finally {
       setSaving(false);
     }
-  }, [orderNumber, handleRefreshParts]);
+  }, [orderNumber, handleRefreshParts, showError]);
 
   // Remove a part row from the order
   const removePartRow = useCallback(async (partId: number) => {
@@ -579,9 +581,13 @@ export const usePartUpdates = ({
     if (!part) return;
 
     // Confirm deletion
-    if (!confirm('Are you sure you want to remove this part row? This action cannot be undone.')) {
-      return;
-    }
+    const confirmed = await showConfirmation({
+      title: 'Remove Part Row',
+      message: 'Are you sure you want to remove this part row? This action cannot be undone.',
+      variant: 'danger',
+      confirmText: 'Remove'
+    });
+    if (!confirmed) return;
 
     try {
       setSaving(true);
@@ -591,11 +597,11 @@ export const usePartUpdates = ({
       await handleRefreshParts();
     } catch (error) {
       console.error('Error removing part row:', error);
-      alert('Failed to remove part row. Please try again.');
+      showError('Failed to remove part row. Please try again.');
     } finally {
       setSaving(false);
     }
-  }, [orderNumber, parts, handleRefreshParts]);
+  }, [orderNumber, parts, handleRefreshParts, showConfirmation, showError]);
 
   // Reorder parts in bulk (for drag-and-drop)
   const reorderParts = useCallback(async (partIds: number[]) => {
@@ -607,11 +613,11 @@ export const usePartUpdates = ({
       await handleRefreshParts();
     } catch (error) {
       console.error('Error reordering parts:', error);
-      alert('Failed to reorder parts. Please try again.');
+      showError('Failed to reorder parts. Please try again.');
     } finally {
       setSaving(false);
     }
-  }, [orderNumber, handleRefreshParts]);
+  }, [orderNumber, handleRefreshParts, showError]);
 
   // Duplicate a part row with specified mode (Phase 1.5.e)
   const duplicatePart = useCallback(async (partId: number, mode: DuplicateMode) => {
@@ -623,11 +629,11 @@ export const usePartUpdates = ({
       await handleRefreshParts();
     } catch (error) {
       console.error('Error duplicating part:', error);
-      alert('Failed to duplicate part. Please try again.');
+      showError('Failed to duplicate part. Please try again.');
     } finally {
       setSaving(false);
     }
-  }, [orderNumber, handleRefreshParts]);
+  }, [orderNumber, handleRefreshParts, showError]);
 
   return {
     saving,

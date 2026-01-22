@@ -23,6 +23,7 @@ import { PointPersonEntry } from '../../../types/estimatePointPerson';
 import { EmailSummaryConfig, EstimateEmailData } from '../types';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
 import { COMPANY_BCC_EMAIL, RecipientType } from '../../../constants/emailSettings';
+import { useAlert } from '../../../contexts/AlertContext';
 
 export interface EmailRecipients {
   to: string[];
@@ -58,6 +59,7 @@ export const EstimateEmailPreviewModal: React.FC<Props> = ({
   emailSummaryConfig,
   estimateData
 }) => {
+  const { showWarning } = useAlert();
   // Track recipient type for each email: 'to', 'cc', 'bcc', or undefined (not selected)
   const [recipientTypes, setRecipientTypes] = useState<Map<string, RecipientType>>(
     new Map(pointPersons.filter(p => p.contact_email).map(p => [p.contact_email, 'to' as RecipientType]))
@@ -119,7 +121,7 @@ export const EstimateEmailPreviewModal: React.FC<Props> = ({
 
   const handleConfirm = () => {
     if (toRecipients.length === 0) {
-      alert('Please select at least one recipient in the To: field');
+      showWarning('Please select at least one recipient in the To: field', 'Recipients Required');
       return;
     }
     // Always include company BCC email

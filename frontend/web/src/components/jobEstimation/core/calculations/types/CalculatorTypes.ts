@@ -36,6 +36,8 @@ export interface ComponentItem {
   price: number;          // Unit price for this component
   type: string;           // Component type identifier (e.g., 'channel_letters', 'leds', 'power_supplies')
   calculationDisplay?: string; // Optional: detailed breakdown for this component (shown in gray text)
+  quantity?: number;      // Optional: component-specific quantity (defaults to parent row qty if not set)
+                          // Use quantity=1 for fixed-price components like UL that shouldn't multiply by parent qty
 }
 
 /**

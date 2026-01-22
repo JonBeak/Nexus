@@ -6,9 +6,9 @@
  * Supports auto-navigation to a linked estimate via linkedEstimateId prop.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Search, Loader2, ChevronRight } from 'lucide-react';
+import { X, Search, Loader2, ChevronRight, RefreshCw, AlertCircle } from 'lucide-react';
 import { jobVersioningApi } from '@/services/jobVersioningApi';
 import { api } from '@/services/apiClient';
 import { SelectSourceEstimateModalProps, ImportSourceEstimate } from './types';
@@ -68,56 +68,83 @@ export const SelectSourceEstimateModal: React.FC<SelectSourceEstimateModalProps>
   // Version state
   const [versions, setVersions] = useState<EstimateVersion[]>([]);
   const [loadingVersions, setLoadingVersions] = useState(false);
+  const [versionsError, setVersionsError] = useState<string | null>(null);
 
-  // Auto-navigation state
-  const [autoNavigating, setAutoNavigating] = useState(false);
+  // Error state
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Refs to track whether operations have been attempted (prevents re-render loops)
+  const autoNavigateAttemptedRef = useRef(false);
+  const initialLoadAttemptedRef = useRef(false);
+  const loadingVersionsForJobRef = useRef<number | null>(null);
+
+  // Load initial data function (extracted for retry capability)
+  const loadInitialData = useCallback(async (isRetry = false) => {
+    // Skip if already attempted (unless this is a manual retry)
+    if (initialLoadAttemptedRef.current && !isRetry) {
+      return;
+    }
+    initialLoadAttemptedRef.current = true;
+
+    setLoadingCustomers(true);
+    setLoadingJobs(true);
+    setLoadError(null);
+
+    try {
+      // Load customers
+      const customerResponse = await api.get('/customers?limit=1000');
+      const customerList = customerResponse.data.customers || [];
+      setCustomers(customerList);
+      setFilteredCustomers(customerList);
+
+      // Load all jobs for "All Customers" mode
+      const jobsResponse = await jobVersioningApi.getAllJobsWithActivity();
+      const jobsData = Array.isArray(jobsResponse) ? jobsResponse : (jobsResponse.data || []);
+
+      // Sort by last activity/modified, newest first
+      const sortedJobs = [...jobsData].sort((a: Job, b: Job) => {
+        const dateA = new Date(a.last_activity || a.updated_at || a.created_at || 0).getTime();
+        const dateB = new Date(b.last_activity || b.updated_at || b.created_at || 0).getTime();
+        return dateB - dateA;
+      });
+
+      setAllJobs(sortedJobs);
+      setJobs(sortedJobs);
+      setFilteredJobs(sortedJobs);
+    } catch (error: unknown) {
+      console.error('Error loading initial data:', error);
+      const axiosError = error as { response?: { status?: number } };
+      if (axiosError.response?.status === 429) {
+        setLoadError('Too many requests. Please wait a moment and try again.');
+      } else {
+        setLoadError('Failed to load data. Please try again.');
+      }
+    } finally {
+      setLoadingCustomers(false);
+      setLoadingJobs(false);
+    }
+  }, []);
 
   // Load customers and all jobs on mount
   useEffect(() => {
-    if (!isOpen) return;
-
-    const loadInitialData = async () => {
-      setLoadingCustomers(true);
-      setLoadingJobs(true);
-
-      try {
-        // Load customers
-        const customerResponse = await api.get('/customers?limit=1000');
-        const customerList = customerResponse.data.customers || [];
-        setCustomers(customerList);
-        setFilteredCustomers(customerList);
-
-        // Load all jobs for "All Customers" mode
-        const jobsResponse = await jobVersioningApi.getAllJobsWithActivity();
-        const jobsData = Array.isArray(jobsResponse) ? jobsResponse : (jobsResponse.data || []);
-
-        // Sort by last activity/modified, newest first
-        const sortedJobs = [...jobsData].sort((a: Job, b: Job) => {
-          const dateA = new Date(a.last_activity || a.updated_at || a.created_at || 0).getTime();
-          const dateB = new Date(b.last_activity || b.updated_at || b.created_at || 0).getTime();
-          return dateB - dateA;
-        });
-
-        setAllJobs(sortedJobs);
-        setJobs(sortedJobs);
-        setFilteredJobs(sortedJobs);
-      } catch (error) {
-        console.error('Error loading initial data:', error);
-      } finally {
-        setLoadingCustomers(false);
-        setLoadingJobs(false);
-      }
-    };
+    if (!isOpen) {
+      // Reset refs when modal closes so next open will load fresh
+      autoNavigateAttemptedRef.current = false;
+      initialLoadAttemptedRef.current = false;
+      loadingVersionsForJobRef.current = null;
+      return;
+    }
 
     loadInitialData();
-  }, [isOpen]);
+  }, [isOpen, loadInitialData]);
 
   // Auto-navigate to linked estimate if provided
   useEffect(() => {
-    if (!isOpen || !linkedEstimateId || allJobs.length === 0 || autoNavigating) return;
+    // Use ref to prevent re-triggering (no state in dependency array = no loop)
+    if (!isOpen || !linkedEstimateId || allJobs.length === 0 || autoNavigateAttemptedRef.current) return;
 
     const autoNavigate = async () => {
-      setAutoNavigating(true);
+      autoNavigateAttemptedRef.current = true;
       try {
         // Fetch estimate details to get job_id
         const response = await api.get(`/job-estimation/estimates/${linkedEstimateId}`);
@@ -137,44 +164,14 @@ export const SelectSourceEstimateModal: React.FC<SelectSourceEstimateModalProps>
             setSelectedJobId(job.job_id);
           }
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('Error auto-navigating to linked estimate:', error);
-      } finally {
-        setAutoNavigating(false);
+        // Don't set loadError here - user can still manually navigate
       }
     };
 
     autoNavigate();
-  }, [isOpen, linkedEstimateId, allJobs, autoNavigating]);
-
-  // Auto-select the linked estimate when versions load
-  useEffect(() => {
-    if (!linkedEstimateId || versions.length === 0) return;
-
-    const linkedVersion = versions.find(v => v.id === linkedEstimateId);
-    if (linkedVersion) {
-      // Auto-select by calling handleVersionSelect
-      const selectedJob = jobs.find(j => j.job_id === selectedJobId);
-      const selectedCustomer = selectedCustomerId === ALL_CUSTOMERS_ID
-        ? customers.find(c => c.customer_id === selectedJob?.customer_id)
-        : customers.find(c => c.customer_id === selectedCustomerId);
-
-      if (selectedJob) {
-        const estimate: ImportSourceEstimate = {
-          id: linkedVersion.id,
-          job_id: selectedJobId!,
-          job_name: selectedJob.job_name,
-          customer_name: selectedCustomer?.company_name || 'Unknown',
-          version_number: linkedVersion.version_number,
-          qb_doc_number: linkedVersion.qb_doc_number || null,
-          status: linkedVersion.status || 'draft'
-        };
-
-        onSelect(estimate);
-        onClose();
-      }
-    }
-  }, [linkedEstimateId, versions, jobs, customers, selectedJobId, selectedCustomerId, onSelect, onClose]);
+  }, [isOpen, linkedEstimateId, allJobs]);
 
   // Filter customers by search
   useEffect(() => {
@@ -214,34 +211,53 @@ export const SelectSourceEstimateModal: React.FC<SelectSourceEstimateModalProps>
   }, [jobSearch, jobs]);
 
   // Load versions when job selected
+  const loadVersions = useCallback(async (jobId: number, isRetry = false) => {
+    // Prevent duplicate calls for the same job (unless retry)
+    if (loadingVersionsForJobRef.current === jobId && !isRetry) {
+      return;
+    }
+    loadingVersionsForJobRef.current = jobId;
+
+    setLoadingVersions(true);
+    setVersionsError(null);
+    try {
+      const response = await jobVersioningApi.getEstimateVersions(jobId);
+      const versionsData = Array.isArray(response) ? response : (response.data || []);
+
+      // Filter to active versions with preparation table data OR sent status
+      const validVersions = versionsData.filter((v: EstimateVersion) =>
+        v.is_active !== 0 &&
+        (v.uses_preparation_table === 1 || v.status === 'sent')
+      );
+
+      setVersions(validVersions);
+    } catch (error: unknown) {
+      console.error('Error loading versions:', error);
+      const axiosError = error as { response?: { status?: number } };
+      if (axiosError.response?.status === 429) {
+        setVersionsError('Too many requests. Click to retry.');
+      } else {
+        setVersionsError('Failed to load versions. Click to retry.');
+      }
+    } finally {
+      setLoadingVersions(false);
+      // Clear the ref after completion so a different job can be loaded
+      if (loadingVersionsForJobRef.current === jobId) {
+        loadingVersionsForJobRef.current = null;
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (!selectedJobId) {
       setVersions([]);
+      setVersionsError(null);
+      loadingVersionsForJobRef.current = null;
       return;
     }
 
-    const loadVersions = async () => {
-      setLoadingVersions(true);
-      try {
-        const response = await jobVersioningApi.getEstimateVersions(selectedJobId);
-        const versionsData = Array.isArray(response) ? response : (response.data || []);
-
-        // Filter to active versions with preparation table data OR sent status
-        const validVersions = versionsData.filter((v: EstimateVersion) =>
-          v.is_active !== 0 &&
-          (v.uses_preparation_table === 1 || v.status === 'sent')
-        );
-
-        setVersions(validVersions);
-      } catch (error) {
-        console.error('Error loading versions:', error);
-      } finally {
-        setLoadingVersions(false);
-      }
-    };
-
-    loadVersions();
-  }, [selectedJobId]);
+    loadVersions(selectedJobId);
+  }, [selectedJobId, loadVersions]);
 
   // Handle customer selection
   const handleCustomerSelect = useCallback((customerId: number) => {
@@ -308,6 +324,24 @@ export const SelectSourceEstimateModal: React.FC<SelectSourceEstimateModalProps>
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
+
+        {/* Error Banner */}
+        {loadError && (
+          <div className="px-6 py-3 bg-red-50 border-b border-red-200 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-red-600" />
+              <p className="text-sm text-red-700">{loadError}</p>
+            </div>
+            <button
+              onClick={() => loadInitialData(true)}
+              disabled={loadingCustomers || loadingJobs}
+              className="flex items-center gap-1 px-3 py-1 text-sm text-red-700 hover:bg-red-100 rounded disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${loadingCustomers || loadingJobs ? 'animate-spin' : ''}`} />
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* 3-Panel Navigation */}
         <div className="flex flex-1 min-h-0" style={{ height: '400px' }}>
@@ -427,6 +461,17 @@ export const SelectSourceEstimateModal: React.FC<SelectSourceEstimateModalProps>
               ) : loadingVersions ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                </div>
+              ) : versionsError ? (
+                <div className="text-center py-8 px-4">
+                  <div className="text-sm text-red-600 mb-2">{versionsError}</div>
+                  <button
+                    onClick={() => selectedJobId && loadVersions(selectedJobId, true)}
+                    className="flex items-center gap-1 mx-auto px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Retry
+                  </button>
                 </div>
               ) : versions.length === 0 ? (
                 <div className="text-center text-gray-400 text-sm py-8 px-4">

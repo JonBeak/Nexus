@@ -230,3 +230,16 @@ export const syncProductFromInventory = async (req: AuthRequest, res: Response) 
     sendErrorResponse(res, 'Failed to sync product from inventory', 'INTERNAL_ERROR', error.message);
   }
 };
+
+/**
+ * Get vinyl colour options for specification dropdown
+ * Returns formatted strings for combobox: "{Series}-{ColourNumber} {ColourName}"
+ */
+export const getColourOptions = async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await VinylProductsService.getColourOptions();
+    handleServiceResult(res, result);
+  } catch (error: any) {
+    sendErrorResponse(res, 'Failed to fetch vinyl colour options', 'INTERNAL_ERROR', error.message);
+  }
+};

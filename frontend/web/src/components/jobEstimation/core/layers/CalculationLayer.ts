@@ -166,7 +166,10 @@ export const createCalculationOperations = (): CalculationOperations => {
             for (const component of calculation.data.components) {
               const isDescriptionOnly = component.type === 'description';
               const componentUnitPrice = Math.round((component.price || 0) * 100) / 100;
-              const componentExtendedPrice = Math.round((componentUnitPrice * overallQuantity) * 100) / 100;
+              // Use component-specific quantity if defined (e.g., UL with quantity=1),
+              // otherwise use the parent row's overall quantity
+              const componentQuantity = component.quantity ?? overallQuantity;
+              const componentExtendedPrice = Math.round((componentUnitPrice * componentQuantity) * 100) / 100;
               items.push({
                 rowId,
                 inputGridDisplayNumber: metadata.displayNumber,
@@ -177,7 +180,7 @@ export const createCalculationOperations = (): CalculationOperations => {
                 calculationDisplay: (component as any).calculationDisplay || '',  // Use component-specific display if available
                 calculationComponents: calculation.data.components,
                 unitPrice: componentUnitPrice,
-                quantity: overallQuantity,
+                quantity: componentQuantity,
                 extendedPrice: componentExtendedPrice,
                 isDescriptionOnly: isDescriptionOnly,  // Flag description-only items
                 // assemblyGroupId: undefined // Unused for now

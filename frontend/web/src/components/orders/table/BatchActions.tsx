@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { OrderStatus, ORDER_STATUS_LABELS } from '../../../types/orders';
+import { useAlert } from '../../../contexts/AlertContext';
 
 interface Props {
   selectedCount: number;
@@ -12,10 +13,17 @@ export const BatchActions: React.FC<Props> = ({
   onStatusUpdate,
   onClear
 }) => {
+  const { showConfirmation } = useAlert();
   const [showStatusMenu, setShowStatusMenu] = useState(false);
 
-  const handleStatusUpdate = (status: OrderStatus) => {
-    if (confirm(`Update ${selectedCount} orders to status: ${ORDER_STATUS_LABELS[status]}?`)) {
+  const handleStatusUpdate = async (status: OrderStatus) => {
+    const confirmed = await showConfirmation({
+      title: 'Update Order Status',
+      message: `Update ${selectedCount} orders to status: ${ORDER_STATUS_LABELS[status]}?`,
+      confirmText: 'Update',
+      variant: 'warning'
+    });
+    if (confirmed) {
       onStatusUpdate(status);
       setShowStatusMenu(false);
     }

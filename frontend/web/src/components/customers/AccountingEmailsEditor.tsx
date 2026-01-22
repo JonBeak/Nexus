@@ -11,6 +11,7 @@ import {
   AccountingEmailType
 } from '../../services/api';
 import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
+import { useAlert } from '../../contexts/AlertContext';
 
 interface EditingEmail {
   id?: number;  // undefined for new emails
@@ -36,6 +37,7 @@ const EMAIL_TYPE_COLORS: Record<AccountingEmailType, string> = {
 };
 
 const AccountingEmailsEditor: React.FC<AccountingEmailsEditorProps> = ({ customerId }) => {
+  const { showConfirmation } = useAlert();
   const [emails, setEmails] = useState<CustomerAccountingEmail[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -145,7 +147,13 @@ const AccountingEmailsEditor: React.FC<AccountingEmailsEditorProps> = ({ custome
 
   // Delete email
   const handleDelete = async (emailId: number) => {
-    if (!confirm('Are you sure you want to delete this accounting email?')) return;
+    const confirmed = await showConfirmation({
+      title: 'Delete Accounting Email',
+      message: 'Are you sure you want to delete this accounting email?',
+      variant: 'danger',
+      confirmText: 'Delete'
+    });
+    if (!confirmed) return;
 
     try {
       setSaving(true);

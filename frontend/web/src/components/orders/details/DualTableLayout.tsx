@@ -35,6 +35,22 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
   // Import modal state
   const [showImportModal, setShowImportModal] = useState(false);
 
+  // Price Calculation column expand/collapse state - persisted per order
+  const priceCalcStorageKey = `priceCalcExpanded_${orderNumber}`;
+  const [isPriceCalcExpanded, setIsPriceCalcExpanded] = useState(() => {
+    const stored = localStorage.getItem(priceCalcStorageKey);
+    return stored === null ? true : stored === 'true';
+  });
+
+  // Persist price calc state to localStorage when it changes
+  const handleTogglePriceCalc = useCallback(() => {
+    setIsPriceCalcExpanded(prev => {
+      const newValue = !prev;
+      localStorage.setItem(priceCalcStorageKey, String(newValue));
+      return newValue;
+    });
+  }, [priceCalcStorageKey]);
+
   // Use custom hooks for data and updates
   const {
     parts,
@@ -130,7 +146,11 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
     <div className="bg-white rounded-lg shadow overflow-hidden w-fit max-w-full">
       <div className="overflow-x-auto w-fit max-w-full">
         {/* Header */}
-        <TableHeader onImportClick={() => setShowImportModal(true)} />
+        <TableHeader
+          onImportClick={() => setShowImportModal(true)}
+          isPriceCalcExpanded={isPriceCalcExpanded}
+          onTogglePriceCalc={handleTogglePriceCalc}
+        />
 
         {/* Body */}
         <DndContext
@@ -152,6 +172,7 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
                     availableTemplates={availableTemplates}
                     qbItems={qbItems}
                     rowCount={rowCounts[part.part_id]}
+                    isPriceCalcExpanded={isPriceCalcExpanded}
                     onFieldSave={handleFieldSave}
                     onTemplateSave={handleTemplateSave}
                     onSpecFieldSave={handleSpecFieldSave}

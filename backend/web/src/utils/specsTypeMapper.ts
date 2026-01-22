@@ -65,7 +65,7 @@ export function mapSpecsDisplayNameToTypes(
     'Trim Cap': ['Trim', 'Face'],
 
     // Structural/Mounting
-    'Backer': ['Box Type', 'Cutting', 'Assembly'],
+    'Backer': ['Box Type', 'Cutting', 'Assembly', 'Wire Length'],
     'Frame': ['Material', 'Assembly'],
     'Aluminum Raceway': ['Material', 'Assembly'],
     'Extrusion Raceway': ['Extr. Colour', 'Assembly'],

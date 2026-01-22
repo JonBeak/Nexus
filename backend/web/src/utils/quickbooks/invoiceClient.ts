@@ -6,7 +6,7 @@
  * Handles authenticated API calls for Invoice and Payment operations
  */
 
-import { makeQBApiCall, queryQB, APIError } from './apiClient';
+import { makeQBApiCall, queryQB, APIError, isCustomTxnNumbersEnabled } from './apiClient';
 import { QBInvoicePayload, QBPaymentPayload, QBInvoice, QBPayment } from '../../types/qbInvoice';
 
 // =============================================
@@ -17,11 +17,67 @@ const QB_API_BASE_URL = 'https://quickbooks.api.intuit.com/v3/company';
 const QB_ENVIRONMENT = process.env.QB_ENVIRONMENT || 'sandbox';
 
 // =============================================
+// INVOICE NUMBER GENERATION
+// =============================================
+
+/**
+ * Get the next invoice document number
+ * Queries recent invoices and returns max + 1
+ *
+ * Strategy: Query most recently created invoices (by CreateTime DESC).
+ * With sequential numbering, recent invoices will have the highest numbers.
+ */
+export async function getNextInvoiceNumber(realmId: string): Promise<string> {
+  try {
+    console.log('🔍 Querying for max invoice DocNumber...');
+
+    // Query most recent invoices - they're most likely to have highest numbers
+    const response = await queryQB(
+      'SELECT DocNumber FROM Invoice ORDERBY MetaData.CreateTime DESC MAXRESULTS 500',
+      realmId
+    );
+
+    const invoices = response?.QueryResponse?.Invoice || [];
+    console.log(`📋 Retrieved ${invoices.length} recent invoices to scan`);
+
+    // Find the highest numeric doc number
+    let maxNum = 0;
+    for (const inv of invoices) {
+      if (inv.DocNumber) {
+        // Extract numeric portion (handle formats like "1001", "INV-1001", etc.)
+        const matches = inv.DocNumber.match(/(\d+)/);
+        if (matches) {
+          const num = parseInt(matches[1], 10);
+          if (num > maxNum) {
+            maxNum = num;
+          }
+        }
+      }
+    }
+
+    const nextNum = (maxNum + 1).toString();
+    console.log(`📋 Max invoice number found: ${maxNum}, next: ${nextNum}`);
+    return nextNum;
+  } catch (error) {
+    console.error('⚠️ Failed to get max invoice number:', error);
+    // Fallback: use timestamp-based number
+    const fallback = Date.now().toString().slice(-8);
+    console.log(`📋 Using fallback invoice number: ${fallback}`);
+    return fallback;
+  }
+}
+
+// =============================================
 // INVOICE OPERATIONS
 // =============================================
 
 /**
  * Create invoice in QuickBooks
+ *
+ * Handles "Custom Transaction Numbers" setting:
+ * - Checks if CustomTxnNumbers is enabled via Preferences API
+ * - If enabled, generates the next DocNumber before creating
+ * - If disabled, lets QB auto-generate the number
  */
 export async function createQBInvoice(
   invoicePayload: QBInvoicePayload,
@@ -29,17 +85,33 @@ export async function createQBInvoice(
 ): Promise<{ invoiceId: string; docNumber: string }> {
   console.log('📝 Creating invoice in QuickBooks...');
 
+  // Check if we need to provide our own DocNumber
+  const customTxnEnabled = await isCustomTxnNumbersEnabled(realmId);
+
+  let finalPayload = invoicePayload;
+  if (customTxnEnabled) {
+    const nextDocNumber = await getNextInvoiceNumber(realmId);
+    console.log(`📋 Custom Transaction Numbers enabled - using DocNumber: ${nextDocNumber}`);
+    finalPayload = {
+      ...invoicePayload,
+      DocNumber: nextDocNumber
+    } as QBInvoicePayload & { DocNumber: string };
+  }
+
   // Log the actual API call being made
   console.log('\n🌐 QUICKBOOKS API CALL:');
   console.log('=======================');
   console.log(`Endpoint: POST /v3/company/${realmId}/invoice`);
   console.log(`Environment: ${QB_ENVIRONMENT}`);
-  console.log(`Customer: ${invoicePayload.CustomerRef.name || invoicePayload.CustomerRef.value}`);
-  console.log(`Line Items Count: ${invoicePayload.Line.length}`);
+  console.log(`Customer: ${finalPayload.CustomerRef.name || finalPayload.CustomerRef.value}`);
+  console.log(`Line Items Count: ${finalPayload.Line.length}`);
+  if ((finalPayload as any).DocNumber) {
+    console.log(`DocNumber: ${(finalPayload as any).DocNumber}`);
+  }
   console.log('=======================\n');
 
   const response = await makeQBApiCall('POST', 'invoice', realmId, {
-    data: invoicePayload,
+    data: finalPayload,
     headers: {
       'Content-Type': 'application/json',
     },
@@ -51,6 +123,11 @@ export async function createQBInvoice(
   }
 
   console.log(`✅ Invoice created: ID=${invoice.Id}, Doc#=${invoice.DocNumber}`);
+
+  // Validate we got a DocNumber
+  if (!invoice.DocNumber) {
+    throw new APIError('Invoice creation failed: DocNumber is undefined. Check QuickBooks Custom Transaction Numbers setting.');
+  }
 
   return {
     invoiceId: invoice.Id,

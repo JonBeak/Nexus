@@ -161,3 +161,13 @@ export type {
   FeedbackListResponse,
   FeedbackDetailResponse
 } from './feedbackApi';
+
+// File Browser (Owner-only, Jan 2026)
+export { fileBrowserApi } from './fileBrowserApi';
+export type {
+  FileItem,
+  DirectoryListing,
+  HealthStatus,
+  UploadResult,
+  UploadResponse
+} from './fileBrowserApi';

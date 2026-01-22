@@ -385,10 +385,9 @@ export const CombinedStagingTargetPanel: React.FC<CombinedStagingTargetPanelProp
                 )}
               </div>
 
-              {/* Product Type (non-copyable, equivalent to calculation_display) */}
+              {/* Price Calculation (non-copyable, shows invoice_description) */}
               <div className="w-40 px-2 py-1.5 border-r border-gray-200 text-gray-500 shrink-0" style={{ wordBreak: 'break-word' }}>
-                {targetPart.display_number ? `${targetPart.display_number}. ` : ''}
-                {targetPart.product_type || <span className="text-gray-400 italic">-</span>}
+                {targetPart.invoice_description || <span className="text-gray-400 italic">-</span>}
               </div>
 
               {/* Qty */}
@@ -501,7 +500,7 @@ export const CombinedStagingTargetPanel: React.FC<CombinedStagingTargetPanelProp
           <div className="flex flex-1 bg-gray-50">
             <div className="w-32 px-2 py-1.5 text-gray-600 border-r border-gray-200 shrink-0">QB Item</div>
             <div className="flex-1 min-w-0 px-2 py-1.5 text-gray-600 border-r border-gray-200">QB Description</div>
-            <div className="w-40 px-2 py-1.5 text-gray-600 border-r border-gray-200 shrink-0">Product Type</div>
+            <div className="w-40 px-2 py-1.5 text-gray-600 border-r border-gray-200 shrink-0">Price Calculation</div>
             <div className="w-10 px-2 py-1.5 text-gray-600 text-center border-r border-gray-200 shrink-0">Qty</div>
             <div className="w-16 px-2 py-1.5 text-gray-600 text-right shrink-0">Unit$</div>
           </div>

@@ -84,3 +84,19 @@ export interface DualTableLayoutProps {
   estimateId?: number;  // Linked estimate for auto-navigation in import modal
   onPartsChange?: (parts: OrderPart[]) => void;
 }
+
+/**
+ * Get the grid template columns based on Price Calculation expand/collapse state
+ * - Expanded: Spec columns at 123px each, Price Calculation at 270px
+ * - Collapsed: Spec columns at 200px each, Price Calculation at 40px (icon only)
+ * Space calculation: 270px - 40px = 230px freed → distributed to 3 spec columns
+ */
+export const getGridTemplate = (isPriceCalcExpanded: boolean): string => {
+  if (isPriceCalcExpanded) {
+    // Original: Spec1-3 at 123px, PriceCalc at 270px
+    return '40px 165px 115px 123px 123px 123px 62px 140px 380px 270px 55px 75px 85px';
+  } else {
+    // Collapsed: Spec1-3 at 200px, PriceCalc at 40px
+    return '40px 165px 115px 200px 200px 200px 62px 140px 380px 40px 55px 75px 85px';
+  }
+};

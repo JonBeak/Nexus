@@ -4,6 +4,7 @@ import ProgressView from '../progress/ProgressView';
 import DualTableLayout from './DualTableLayout';
 import OrderImage from '../common/OrderImage';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
+import { useAlert } from '../../../contexts/AlertContext';
 
 // Import the new custom hooks
 import { useOrderDetails } from './hooks/useOrderDetails';
@@ -33,10 +34,13 @@ import InvoiceActionModal from '../modals/InvoiceActionModal';
 import RecordPaymentModal from '../modals/RecordPaymentModal';
 import LinkInvoiceModal from '../modals/LinkInvoiceModal';
 import InvoiceConflictModal from '../modals/InvoiceConflictModal';
+import PrintApprovalSuccessModal from '../modals/PrintApprovalSuccessModal';
+import PrintApprovalErrorModal from '../modals/PrintApprovalErrorModal';
 
 export const OrderDetailsPage: React.FC = () => {
   const { orderNumber } = useParams<{ orderNumber: string }>();
   const navigate = useNavigate();
+  const { showSuccess, showError, showWarning } = useAlert();
 
   // Ref for scroll container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -121,7 +125,11 @@ export const OrderDetailsPage: React.FC = () => {
     handleMoveToProductionWithoutPrinting,
     handleGenerateForms,
     handlePrintMasterForm,
-    formUrls
+    formUrls,
+    successModalData,
+    handleCloseSuccessModal,
+    errorModalData,
+    handleCloseErrorModal
   } = useOrderPrinting(orderData, setUiState, refetch);
 
   const {
@@ -215,11 +223,11 @@ export const OrderDetailsPage: React.FC = () => {
         newStatus,
         'Customer approved the estimate'
       );
-      alert('Order status updated to Pending Files Creation');
+      showSuccess('Order status updated to Pending Files Creation');
       refetch();
     } catch (err) {
       console.error('Error updating order status:', err);
-      alert('Failed to update order status. Please try again.');
+      showError('Failed to update order status. Please try again.');
     } finally {
       setUiState(prev => ({ ...prev, saving: false }));
     }
@@ -241,11 +249,11 @@ export const OrderDetailsPage: React.FC = () => {
         'Production files created and ready for approval'
       );
       setShowFilesCreatedModal(false);
-      alert('Order status updated to Pending Files Approval');
+      showSuccess('Order status updated to Pending Files Approval');
       refetch();
     } catch (err) {
       console.error('Error updating order status:', err);
-      alert('Failed to update order status. Please try again.');
+      showError('Failed to update order status. Please try again.');
     } finally {
       setUiState(prev => ({ ...prev, saving: false }));
     }
@@ -400,7 +408,7 @@ export const OrderDetailsPage: React.FC = () => {
       refetch();
     } catch (err) {
       console.error('Error updating order status:', err);
-      alert('Failed to update order status. Please try again.');
+      showError('Failed to update order status. Please try again.');
     } finally {
       setUiState(prev => ({ ...prev, saving: false }));
     }
@@ -429,7 +437,7 @@ export const OrderDetailsPage: React.FC = () => {
     });
 
     if (!orderData.order.folder_name || orderData.order.folder_location === 'none') {
-      alert('No folder exists for this order');
+      showWarning('No folder exists for this order');
       return;
     }
 
@@ -561,7 +569,7 @@ export const OrderDetailsPage: React.FC = () => {
       }
     } catch (err) {
       console.error('Error updating cash job:', err);
-      alert('Failed to update cash job. Please try again.');
+      showError('Failed to update cash job. Please try again.');
     } finally {
       setUiState(prev => ({ ...prev, saving: false }));
     }
@@ -590,7 +598,7 @@ export const OrderDetailsPage: React.FC = () => {
       await refetch();
     } catch (err) {
       console.error('Error updating point persons:', err);
-      alert('Failed to update point persons. Please try again.');
+      showError('Failed to update point persons. Please try again.');
     } finally {
       setUiState(prev => ({ ...prev, saving: false }));
     }
@@ -617,7 +625,7 @@ export const OrderDetailsPage: React.FC = () => {
       await refetch();
     } catch (err) {
       console.error('Error updating accounting emails:', err);
-      alert('Failed to update accounting emails. Please try again.');
+      showError('Failed to update accounting emails. Please try again.');
     } finally {
       setUiState(prev => ({ ...prev, saving: false }));
     }
@@ -1031,6 +1039,20 @@ export const OrderDetailsPage: React.FC = () => {
         mode={printMode}
         onPrintAndMoveToProduction={handlePrintAndMoveToProduction}
         onMoveToProductionWithoutPrinting={handleMoveToProductionWithoutPrinting}
+      />
+
+      {/* Print Approval Success Modal */}
+      <PrintApprovalSuccessModal
+        isOpen={!!successModalData}
+        onClose={handleCloseSuccessModal}
+        data={successModalData}
+      />
+
+      {/* Print Approval Error Modal */}
+      <PrintApprovalErrorModal
+        isOpen={!!errorModalData}
+        onClose={handleCloseErrorModal}
+        data={errorModalData}
       />
 
       {/* Prepare Order Modal - Phase 1.5.c.6.1 */}

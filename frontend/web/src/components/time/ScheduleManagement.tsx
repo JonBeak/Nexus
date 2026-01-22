@@ -3,6 +3,7 @@ import { Calendar, Clock, Plus, Save, X } from 'lucide-react';
 import { timeApi, authApi } from '../../services/api';
 import type { TimeUser } from '../../types/time';
 import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
+import { useAlert } from '../../contexts/AlertContext';
 
 const TIME_COLORS = MODULE_COLORS.timeTracking;
 
@@ -29,6 +30,7 @@ interface ScheduleManagementProps {
 }
 
 export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ onClose }) => {
+  const { showError, showSuccess, showConfirmation } = useAlert();
   const [activeTab, setActiveTab] = useState<'schedules' | 'holidays'>('schedules');
   const [users, setUsers] = useState<TimeUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
@@ -97,10 +99,10 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ onClose 
     setLoading(true);
     try {
       await timeApi.updateSchedules(selectedUser, schedules);
-      alert('Schedule saved successfully!');
+      showSuccess('Schedule saved successfully!');
     } catch (error) {
       console.error('Error saving schedule:', error);
-      alert('Error saving schedule');
+      showError('Error saving schedule');
     } finally {
       setLoading(false);
     }
@@ -128,9 +130,12 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ onClose 
         const [year, month, day] = dateStr.split('-').map(Number);
         const formattedDate = new Date(year, month - 1, day).toLocaleDateString();
 
-        const confirmOverwrite = confirm(
-          `A holiday "${existingHoliday.holiday_name}" already exists on ${formattedDate}.\n\nDo you want to overwrite it with "${newHoliday.name}"?`
-        );
+        const confirmOverwrite = await showConfirmation({
+          title: 'Holiday Already Exists',
+          message: `A holiday "${existingHoliday.holiday_name}" already exists on ${formattedDate}. Do you want to overwrite it with "${newHoliday.name}"?`,
+          confirmText: 'Overwrite',
+          variant: 'warning'
+        });
 
         if (confirmOverwrite) {
           // Retry with overwrite flag
@@ -138,20 +143,26 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ onClose 
         }
       } else {
         console.error('Error adding holiday:', error);
-        alert('Error adding holiday');
+        showError('Error adding holiday');
       }
     }
   };
 
   const removeHoliday = async (holidayId: number) => {
-    if (!confirm('Are you sure you want to remove this holiday?')) return;
+    const confirmed = await showConfirmation({
+      title: 'Remove Holiday',
+      message: 'Are you sure you want to remove this holiday?',
+      confirmText: 'Remove',
+      variant: 'danger'
+    });
+    if (!confirmed) return;
 
     try {
       await timeApi.deleteHoliday(holidayId);
       fetchHolidays();
     } catch (error) {
       console.error('Error removing holiday:', error);
-      alert('Failed to remove holiday');
+      showError('Failed to remove holiday');
     }
   };
 
@@ -169,7 +180,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ onClose 
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error exporting holidays:', error);
-      alert('Error exporting holidays');
+      showError('Error exporting holidays');
     }
   };
 
@@ -180,27 +191,30 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ onClose 
     try {
       const csvData = await file.text();
       await importHolidays(csvData);
-      
+
       // Reset the file input
       event.target.value = '';
     } catch (error) {
       console.error('Error reading file:', error);
-      alert('Error reading file');
+      showError('Error reading file');
     }
   };
 
   const importHolidays = async (csvData: string, overwriteAll = false) => {
     try {
       const data = await timeApi.importHolidays({ csvData, overwriteAll });
-      alert(`${data.message}`);
+      showSuccess(data.message);
       fetchHolidays(); // Refresh the holidays list
     } catch (error: any) {
       if (error.response?.status === 409) {
         // Conflicts found
         const conflictCount = error.response.data.conflicts.length;
-        const confirmOverwrite = confirm(
-          `Found ${conflictCount} holidays that conflict with existing ones.\n\nDo you want to overwrite all conflicting holidays?`
-        );
+        const confirmOverwrite = await showConfirmation({
+          title: 'Holiday Conflicts Found',
+          message: `Found ${conflictCount} holidays that conflict with existing ones. Do you want to overwrite all conflicting holidays?`,
+          confirmText: 'Overwrite All',
+          variant: 'warning'
+        });
 
         if (confirmOverwrite) {
           // Retry with overwriteAll flag
@@ -208,7 +222,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ onClose 
         }
       } else {
         console.error('Error importing holidays:', error);
-        alert(`Failed to import holidays: ${error.response?.data?.error || 'Unknown error'}`);
+        showError(`Failed to import holidays: ${error.response?.data?.error || 'Unknown error'}`);
       }
     }
   };
@@ -303,7 +317,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ onClose 
                           Work Day
                         </label>
 
-                        {schedule.is_work_day && (
+                        {!!schedule.is_work_day && (
                           <>
                             <div className="flex items-center space-x-2">
                               <span className={`text-sm ${PAGE_STYLES.panel.textSecondary}`}>From:</span>

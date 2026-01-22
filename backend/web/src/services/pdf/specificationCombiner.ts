@@ -57,6 +57,7 @@ export function combineSpecifications(parts: OrderPartForPDF[]): Map<string, str
           // Collect all field values for this row (excluding internal fields)
           Object.keys(specs).forEach(fieldKey => {
             if (fieldKey.startsWith(`row${rowNum}_`) && !fieldKey.startsWith('_')) {
+              const fieldName = fieldKey.replace(`row${rowNum}_`, '');
               const value = specs[fieldKey];
 
               // Skip only empty/null/undefined values (but include boolean false)
@@ -64,11 +65,19 @@ export function combineSpecifications(parts: OrderPartForPDF[]): Map<string, str
                 // First, format boolean values to Yes/No
                 let formattedValue = formatBooleanValue(value);
 
-                // Then clean up spec values (remove parenthetical details)
-                const cleanedValue = cleanSpecValue(String(formattedValue).trim());
+                // Only clean LED/PS type fields (remove parenthetical details)
+                const isLedTypeField = templateName === 'LEDs' && ['type', 'led_type'].includes(fieldName);
+                const isPsTypeField = templateName === 'Power Supply' && ['ps_type', 'model', 'power_supply'].includes(fieldName);
 
-                if (cleanedValue) {
-                  values.push(cleanedValue);
+                let finalValue: string;
+                if (isLedTypeField || isPsTypeField) {
+                  finalValue = cleanSpecValue(String(formattedValue).trim());
+                } else {
+                  finalValue = String(formattedValue).trim();
+                }
+
+                if (finalValue) {
+                  values.push(finalValue);
                 }
               }
             }

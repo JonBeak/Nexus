@@ -6,14 +6,21 @@
  */
 
 import React from 'react';
-import { Download } from 'lucide-react';
+import { Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PAGE_STYLES } from '../../../../../constants/moduleColors';
+import { getGridTemplate } from '../constants/tableConstants';
 
 interface TableHeaderProps {
   onImportClick?: () => void;
+  isPriceCalcExpanded?: boolean;
+  onTogglePriceCalc?: () => void;
 }
 
-export const TableHeader: React.FC<TableHeaderProps> = ({ onImportClick }) => {
+export const TableHeader: React.FC<TableHeaderProps> = ({
+  onImportClick,
+  isPriceCalcExpanded = true,
+  onTogglePriceCalc
+}) => {
   const headerCell = `text-xs font-semibold ${PAGE_STYLES.header.text} uppercase tracking-wider py-2`;
   const dividerBorder = `border-l-2 ${PAGE_STYLES.panel.border}`;
 
@@ -21,7 +28,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({ onImportClick }) => {
     <div
       className={`${PAGE_STYLES.header.background} border-b-2 ${PAGE_STYLES.panel.border} grid gap-2 px-2`}
       style={{
-        gridTemplateColumns: '40px 165px 115px 123px 123px 123px 62px 140px 380px 270px 55px 75px 85px'
+        gridTemplateColumns: getGridTemplate(isPriceCalcExpanded)
       }}
     >
       <div className={`${headerCell} text-center`}>
@@ -60,8 +67,31 @@ export const TableHeader: React.FC<TableHeaderProps> = ({ onImportClick }) => {
           </button>
         )}
       </div>
-      <div className={headerCell}>
-        Price Calculation
+      <div className={`${headerCell} flex items-center gap-1`}>
+        {isPriceCalcExpanded ? (
+          <>
+            Price Calculation
+            {onTogglePriceCalc && (
+              <button
+                onClick={onTogglePriceCalc}
+                className="ml-1 p-0.5 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded"
+                title="Collapse Price Calculation column"
+              >
+                <ChevronLeft className="w-3 h-3" />
+              </button>
+            )}
+          </>
+        ) : (
+          onTogglePriceCalc && (
+            <button
+              onClick={onTogglePriceCalc}
+              className="p-0.5 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded"
+              title="Expand Price Calculation column"
+            >
+              <ChevronRight className="w-3 h-3" />
+            </button>
+          )
+        )}
       </div>
       <div className={headerCell}>
         Qty

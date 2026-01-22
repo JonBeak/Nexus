@@ -61,12 +61,18 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ url, label }) => {
     setNumPages(null);
   }, [url]);
 
+  // Clean PDF widths that scale well from 612pt native size (LETTER format)
+  // Using clean multiples avoids subpixel rendering artifacts in preview
+  const PDF_WIDTHS = [612, 765, 918, 1224]; // 1x, 1.25x, 1.5x, 2x
+
   // Measure container width for responsive PDF sizing
   useEffect(() => {
     const updateWidth = () => {
       if (containerRef.current) {
-        const width = containerRef.current.offsetWidth - 16; // Account for padding
-        setContainerWidth(Math.max(400, width));
+        const availableWidth = containerRef.current.offsetWidth - 16; // Account for padding
+        // Find largest clean width that fits to avoid subpixel scaling artifacts
+        const cleanWidth = PDF_WIDTHS.filter(w => w <= availableWidth).pop() || 612;
+        setContainerWidth(cleanWidth);
       }
     };
     updateWidth();

@@ -18,6 +18,7 @@ import { InvoiceSentSuccessModal } from './InvoiceSentSuccessModal';
 import InvoiceEmailComposer, { InvoiceEmailConfig, InvoiceSummaryConfig, InvoiceEmailData, DEFAULT_INVOICE_SUMMARY_CONFIG, DEFAULT_INVOICE_BEGINNING, DEFAULT_INVOICE_END } from './InvoiceEmailComposer';
 import { useIsMobile } from '../../../hooks/useMediaQuery';
 import { useBodyScrollLock } from '../../../hooks/useBodyScrollLock';
+import { useAlert } from '../../../contexts/AlertContext';
 
 interface InvoiceActionModalProps {
   isOpen: boolean;
@@ -68,6 +69,8 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   onReassign,
   onLinkExisting
 }) => {
+  const { showConfirmation } = useAlert();
+
   // Form State
   const [recipientEntries, setRecipientEntries] = useState<RecipientEntry[]>([]);
   const [subject, setSubject] = useState('');
@@ -94,11 +97,12 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
   const [previewTab, setPreviewTab] = useState<'invoice' | 'email'>('email');
   // Email preview HTML fetched from backend (4-part structure with logo/footer)
   const [previewHtml, setPreviewHtml] = useState<string>('');
   const [showScheduleModal, setShowScheduleModal] = useState(false);
-  // Note: iframeRef removed - now using dangerouslySetInnerHTML like estimate modal
+  // Note: Uses iframe with srcDoc for email preview to isolate CSS from parent
 
   // Subject prefix state
   const [pickupChecked, setPickupChecked] = useState(false);
@@ -143,13 +147,18 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   const scheduleModalRef = useRef<HTMLDivElement>(null);
   const scheduleMouseDownOutsideRef = useRef(false);
 
+  // Ref to track if prefix has been auto-applied (prevents race conditions)
+  const hasAutoAppliedPrefixRef = useRef(false);
+
+  // Ref to prevent concurrent initialization (guards against effect re-runs during async init)
+  const hasStartedInitRef = useRef(false);
+
   // Create mode: company and customer address data
   const [companySettings, setCompanySettings] = useState<{
     company_name: string | null;
     company_address: string | null;
   } | null>(null);
   const [customerBillingAddress, setCustomerBillingAddress] = useState<Address | null>(null);
-  const [loadingCreateData, setLoadingCreateData] = useState(false);
 
   // Determine template based on order type and deposit payment status
   const templateKey = useMemo(() => {
@@ -255,13 +264,249 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     scheduleMouseDownOutsideRef.current = false;
   };
 
-  // Fetch styled email preview from backend
+  // CONSOLIDATED INITIALIZATION EFFECT
+  // Replaces multiple separate effects to prevent cascade of state updates and re-renders
   useEffect(() => {
-    if (!isOpen) return;
+    console.log('🔍 Init effect triggered:', {
+      isOpen,
+      mode,
+      templateKey,
+      orderNumber: order.order_number,
+      qbInvoiceId: order.qb_invoice_id,
+      customerId: order.customer_id,
+      status: order.status
+    });
+
+    if (!isOpen) {
+      // Reset all state when modal closes
+      setIsInitialized(false);
+      setError(null);
+      setScheduleEnabled(false);
+      setScheduledDate('');
+      setScheduledTime('09:00');
+      setShowScheduleModal(false);
+      setPickupChecked(false);
+      setShippingChecked(false);
+      setCompletedChecked(false);
+      setQbInvoiceData(null);
+      setEmailHistory([]);
+      setIsStale(false);
+      setUpdateCompleted(false);
+      setShowConflictModal(false);
+      setSyncStatus(null);
+      setSyncDifferences([]);
+      setInvoicePdf(null);
+      setPdfError(null);
+      setRecipientEntries([]);
+      setShowSuccessModal(false);
+      setSuccessModalData(null);
+      setPreviewHtml('');
+      setEmailConfig({
+        subject: '',
+        beginning: DEFAULT_INVOICE_BEGINNING,
+        end: DEFAULT_INVOICE_END,
+        summaryConfig: DEFAULT_INVOICE_SUMMARY_CONFIG,
+        includePayButton: true
+      });
+      setCompanySettings(null);
+      setCustomerBillingAddress(null);
+      hasAutoAppliedPrefixRef.current = false;
+      hasStartedInitRef.current = false;
+      return;
+    }
+
+    const initializeModal = async () => {
+      console.log('🚀 initializeModal called, hasStartedInitRef:', hasStartedInitRef.current);
+
+      // Skip if initialization already started (ref is synchronous, prevents concurrent inits)
+      if (hasStartedInitRef.current) return;
+      hasStartedInitRef.current = true;
+
+      setLoadingPreview(true);
+
+      try {
+        // 1. Start all parallel fetches
+        const promises: Promise<any>[] = [];
+
+        // Email preview (always needed)
+        const emailPreviewPromise = qbInvoiceApi.getEmailPreview(order.order_number, templateKey);
+        promises.push(emailPreviewPromise);
+
+        // QB invoice data (if invoice exists and mode needs it)
+        let qbInvoicePromise: Promise<InvoiceDetails | null> | null = null;
+        if (order.qb_invoice_id && (mode === 'update' || mode === 'send' || mode === 'view')) {
+          qbInvoicePromise = qbInvoiceApi.getInvoice(order.order_number);
+          promises.push(qbInvoicePromise);
+        }
+
+        // Create mode data
+        let createDataPromise: Promise<[any, Address[]]> | null = null;
+        if (mode === 'create') {
+          createDataPromise = Promise.all([
+            settingsApi.getCompanySettings(),
+            customerApi.getAddresses(order.customer_id)
+          ]) as Promise<[any, Address[]]>;
+          promises.push(createDataPromise);
+        }
+
+        // Email history (view mode only)
+        let emailHistoryPromise: Promise<any> | null = null;
+        if (mode === 'view') {
+          emailHistoryPromise = qbInvoiceApi.getEmailHistory(order.order_number);
+          promises.push(emailHistoryPromise);
+        }
+
+        // Invoice PDF (if QB invoice exists)
+        let pdfPromise: Promise<any> | null = null;
+        if (order.qb_invoice_id) {
+          pdfPromise = qbInvoiceApi.getInvoicePdf(order.order_number).catch(() => null);
+          promises.push(pdfPromise);
+        }
+
+        // 2. Wait for all fetches
+        await Promise.all(promises);
+
+        // 3. Get results
+        const emailPreview = await emailPreviewPromise;
+        const qbData = qbInvoicePromise ? await qbInvoicePromise : null;
+        const createData = createDataPromise ? await createDataPromise : null;
+        const historyData = emailHistoryPromise ? await emailHistoryPromise : null;
+        const pdfData = pdfPromise ? await pdfPromise : null;
+
+        // 4. Compute final subject with prefix
+        let finalSubject = emailPreview.subject;
+        let pickupCheck = false;
+        let shippingCheck = false;
+        let completedCheck = false;
+
+        if (!hasAutoAppliedPrefixRef.current) {
+          const status = order.status;
+          if (!/^\[(Ready for Pickup|Ready for Shipping|Order Completed)\]/.test(finalSubject)) {
+            if (status === 'pick_up') {
+              hasAutoAppliedPrefixRef.current = true;
+              pickupCheck = true;
+              finalSubject = `[Ready for Pickup] ${finalSubject}`;
+            } else if (status === 'shipping') {
+              hasAutoAppliedPrefixRef.current = true;
+              shippingCheck = true;
+              finalSubject = `[Ready for Shipping] ${finalSubject}`;
+            } else if (status === 'awaiting_payment') {
+              hasAutoAppliedPrefixRef.current = true;
+              completedCheck = true;
+              finalSubject = `[Order Completed] ${finalSubject}`;
+            }
+          }
+        }
+
+        // 5. Compute emailConfig with auto-enabled Balance Due if needed
+        let summaryConfig = { ...DEFAULT_INVOICE_SUMMARY_CONFIG };
+        if (qbData?.balance !== undefined && qbData?.total !== undefined) {
+          if (qbData.balance !== qbData.total) {
+            summaryConfig.includeBalanceDue = true;
+          }
+        }
+
+        const finalEmailConfig: InvoiceEmailConfig = {
+          subject: finalSubject,
+          beginning: DEFAULT_INVOICE_BEGINNING,
+          end: DEFAULT_INVOICE_END,
+          summaryConfig,
+          includePayButton: true
+        };
+
+        // 6. Initialize recipients
+        const entries: RecipientEntry[] = [];
+        const addedEmails = new Set<string>();
+
+        if (order.accounting_emails?.length > 0) {
+          order.accounting_emails.forEach((ae, idx) => {
+            entries.push({
+              id: `accounting-${idx}`,
+              source: 'accounting',
+              email: ae.email,
+              name: ae.label || 'Accounting',
+              label: 'Accounting',
+              emailType: ae.email_type || 'to'
+            });
+            addedEmails.add(ae.email.toLowerCase());
+          });
+        }
+
+        if (order.point_persons?.length > 0) {
+          order.point_persons.forEach((pp, idx) => {
+            if (pp.contact_email && !addedEmails.has(pp.contact_email.toLowerCase())) {
+              entries.push({
+                id: `pp-${pp.id || idx}`,
+                source: 'point_person',
+                email: pp.contact_email,
+                name: pp.contact_name,
+                label: pp.contact_role || 'Point Person',
+                emailType: 'to'
+              });
+              addedEmails.add(pp.contact_email.toLowerCase());
+            }
+          });
+        }
+
+        // 7. SET ALL STATE AT ONCE (minimizes re-renders)
+        setSubject(finalSubject);
+        setEmailConfig(finalEmailConfig);
+        setPickupChecked(pickupCheck);
+        setShippingChecked(shippingCheck);
+        setCompletedChecked(completedCheck);
+        setRecipientEntries(entries);
+
+        if (qbData) setQbInvoiceData(qbData);
+        if (createData) {
+          setCompanySettings({
+            company_name: createData[0].company_name,
+            company_address: createData[0].company_address
+          });
+          const addresses = createData[1] as Address[];
+          const billingAddr = addresses.find(a => a.is_billing) || addresses.find(a => a.is_primary) || null;
+          setCustomerBillingAddress(billingAddr);
+        }
+        if (historyData) setEmailHistory(historyData);
+        if (pdfData?.pdf) setInvoicePdf(pdfData.pdf);
+
+        // 8. Mark initialization complete
+        console.log('✅ Initialization complete, setting isInitialized=true');
+        setIsInitialized(true);
+
+      } catch (err) {
+        console.error('Failed to initialize modal:', err);
+        // Fallback with defaults
+        const fallbackSubject = order.qb_invoice_doc_number
+          ? `${order.order_name} | Invoice #${order.qb_invoice_doc_number}`
+          : `${order.order_name} | Order #${order.order_number}`;
+        setSubject(fallbackSubject);
+        setEmailConfig({
+          subject: fallbackSubject,
+          beginning: DEFAULT_INVOICE_BEGINNING,
+          end: DEFAULT_INVOICE_END,
+          summaryConfig: DEFAULT_INVOICE_SUMMARY_CONFIG,
+          includePayButton: true
+        });
+        // Initialize empty recipients on error
+        setRecipientEntries([]);
+        setIsInitialized(true);
+      } finally {
+        setLoadingPreview(false);
+      }
+    };
+
+    initializeModal();
+  }, [isOpen, mode, templateKey, order.order_number, order.qb_invoice_id, order.customer_id, order.status]);
+
+  // Fetch styled email preview from backend - ONLY after initialization
+  // This effect handles UPDATES to emailConfig after initial load (user edits)
+  useEffect(() => {
+    // Skip if not open or not yet initialized (initialization effect handles first load)
+    if (!isOpen || !isInitialized) return;
 
     const fetchPreview = async () => {
       try {
-        setLoadingPreview(true);
+        // Don't show loading spinner for updates - keep old preview visible until new one arrives
         const result = await qbInvoiceApi.getStyledEmailPreview(order.order_number, {
           subject: emailConfig.subject,
           beginning: emailConfig.beginning,
@@ -285,140 +530,31 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
         setPreviewHtml(result.html);
       } catch (err) {
         console.error('Failed to fetch email preview:', err);
-        setPreviewHtml('');
-      } finally {
-        setLoadingPreview(false);
+        // Don't clear preview on error - keep showing last good preview
       }
     };
 
-    // Debounce the fetch to avoid too many requests while typing
+    // Debounce to avoid excessive requests while typing
     const timeoutId = setTimeout(fetchPreview, 300);
     return () => clearTimeout(timeoutId);
-  }, [isOpen, order.order_number, emailConfig, invoiceEmailData, qbInvoiceData?.invoiceUrl]);
-
-  // Initialize recipients: accounting emails first, then point persons
-  useEffect(() => {
-    if (isOpen) {
-      const entries: RecipientEntry[] = [];
-      const addedEmails = new Set<string>(); // Track added emails for deduplication
-
-      // Add accounting emails with their default email_type from customer data
-      if (order.accounting_emails && order.accounting_emails.length > 0) {
-        order.accounting_emails.forEach((ae, idx) => {
-          entries.push({
-            id: `accounting-${idx}`,
-            source: 'accounting',
-            email: ae.email,
-            name: ae.label || 'Accounting',
-            label: 'Accounting',
-            emailType: ae.email_type || 'to'  // Use stored default preference
-          });
-          addedEmails.add(ae.email.toLowerCase());
-        });
-      }
-
-      // Add point persons (skip if already added as accounting email)
-      if (order.point_persons) {
-        order.point_persons.forEach((pp, idx) => {
-          if (pp.contact_email) {
-            // Skip if already added as accounting email
-            if (addedEmails.has(pp.contact_email.toLowerCase())) return;
-
-            entries.push({
-              id: `pp-${pp.id || idx}`,
-              source: 'point_person',
-              email: pp.contact_email,
-              name: pp.contact_name,
-              label: pp.contact_role || 'Point Person',
-              emailType: 'to'  // Default point persons to "to"
-            });
-            addedEmails.add(pp.contact_email.toLowerCase());
-          }
-        });
-      }
-
-      setRecipientEntries(entries);
-    }
-  }, [isOpen, order.point_persons, order.accounting_emails]);
-
-  // Load company settings and customer billing address for create mode
-  useEffect(() => {
-    if (isOpen && mode === 'create') {
-      const loadCreateData = async () => {
-        setLoadingCreateData(true);
-        try {
-          // Fetch company settings and customer addresses in parallel
-          const [companyResult, addressesResult] = await Promise.all([
-            settingsApi.getCompanySettings(),
-            customerApi.getAddresses(order.customer_id)
-          ]);
-
-          setCompanySettings({
-            company_name: companyResult.company_name,
-            company_address: companyResult.company_address
-          });
-
-          // Find billing address, fallback to primary
-          const addresses = addressesResult as Address[];
-          const billingAddr = addresses.find(a => a.is_billing) || addresses.find(a => a.is_primary) || null;
-          setCustomerBillingAddress(billingAddr);
-        } catch (err) {
-          console.error('Failed to load create mode data:', err);
-        } finally {
-          setLoadingCreateData(false);
-        }
-      };
-      loadCreateData();
-    }
-  }, [isOpen, mode, order.customer_id]);
-
-  // Load email preview/template
-  useEffect(() => {
-    if (isOpen) {
-      loadEmailPreview();
-    }
-  }, [isOpen, mode, templateKey, order.order_number]);
-
-  // Default subject format: Use Invoice # if linked to QB, otherwise Order #
-  const defaultSubject = order.qb_invoice_doc_number
-    ? `${order.order_name} | Invoice #${order.qb_invoice_doc_number}`
-    : `${order.order_name} | Order #${order.order_number}`;
-
-  const loadEmailPreview = async () => {
-    try {
-      setLoadingPreview(true);
-      const preview = await qbInvoiceApi.getEmailPreview(order.order_number, templateKey);
-      // Use subject from template (includes PO#, Job# if available)
-      setSubject(preview.subject);
-      // Set initial email config - composer will use defaults for beginning/end
-      setEmailConfig(prev => ({
-        ...prev,
-        subject: preview.subject
-      }));
-    } catch (err) {
-      console.error('Failed to load email preview:', err);
-      // Fallback to basic subject
-      setSubject(defaultSubject);
-      setEmailConfig(prev => ({
-        ...prev,
-        subject: defaultSubject
-      }));
-    } finally {
-      setLoadingPreview(false);
-    }
-  };
+  }, [isOpen, isInitialized, order.order_number, emailConfig, invoiceEmailData, qbInvoiceData?.invoiceUrl]);
 
   // Handle email config changes from composer
   const handleEmailConfigChange = (config: InvoiceEmailConfig) => {
     setEmailConfig(config);
-    // Sync subject with pickup/shipping prefixes
-    let finalSubject = config.subject;
-    if (pickupChecked && !finalSubject.startsWith('[Ready for Pickup]')) {
-      finalSubject = `[Ready for Pickup] ${finalSubject.replace(/^\[Ready for (Pickup|Shipping)\]\s*/i, '')}`;
-    } else if (shippingChecked && !finalSubject.startsWith('[Ready for Shipping]')) {
-      finalSubject = `[Ready for Shipping] ${finalSubject.replace(/^\[Ready for (Pickup|Shipping)\]\s*/i, '')}`;
+    const newSubject = config.subject;
+    setSubject(newSubject);
+
+    // Sync checkbox state with subject prefix (detect manual prefix removal)
+    if (!newSubject.startsWith('[Ready for Pickup]') && pickupChecked) {
+      setPickupChecked(false);
     }
-    setSubject(finalSubject);
+    if (!newSubject.startsWith('[Ready for Shipping]') && shippingChecked) {
+      setShippingChecked(false);
+    }
+    if (!newSubject.startsWith('[Order Completed]') && completedChecked) {
+      setCompletedChecked(false);
+    }
   };
 
   // Load QB invoice data when switching to invoice tab (if invoice exists)
@@ -441,37 +577,8 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     }
   };
 
-  // Auto-enable Balance Due in summary config when balance differs from total
-  useEffect(() => {
-    if (qbInvoiceData?.balance !== undefined && qbInvoiceData?.total !== undefined) {
-      const balanceDiffersFromTotal = qbInvoiceData.balance !== qbInvoiceData.total;
-      if (balanceDiffersFromTotal && !emailConfig.summaryConfig.includeBalanceDue) {
-        setEmailConfig(prev => ({
-          ...prev,
-          summaryConfig: {
-            ...prev.summaryConfig,
-            includeBalanceDue: true
-          }
-        }));
-      }
-    }
-  }, [qbInvoiceData?.balance, qbInvoiceData?.total]);
-
-  // Load email history when modal opens in view mode
-  useEffect(() => {
-    if (isOpen && mode === 'view') {
-      loadEmailHistory();
-    }
-  }, [isOpen, mode]);
-
-  // Load QB invoice data when modal opens (for update/send/view modes with existing invoice)
-  useEffect(() => {
-    if (isOpen && order.qb_invoice_id && (mode === 'update' || mode === 'send' || mode === 'view') && !qbInvoiceData) {
-      loadQbInvoiceData();
-    }
-  }, [isOpen, mode, order.qb_invoice_id]);
-
   // Check sync status when modal opens with existing invoice (view or update mode)
+  // Separate from initialization - runs after init to check for conflicts
   useEffect(() => {
     if (isOpen && order.qb_invoice_id && (mode === 'view' || mode === 'update')) {
       checkSyncStatus();
@@ -521,13 +628,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     }
   };
 
-  // Load invoice PDF as soon as modal opens (if QB invoice exists)
-  useEffect(() => {
-    if (isOpen && order.qb_invoice_id && !invoicePdf && !loadingPdf) {
-      loadInvoicePdf();
-    }
-  }, [isOpen, order.qb_invoice_id]);
-
+  // Load invoice PDF (used for reload operations - initial load handled by initializeModal)
   const loadInvoicePdf = async () => {
     try {
       setLoadingPdf(true);
@@ -541,19 +642,6 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
       setLoadingPdf(false);
     }
   };
-
-  // Smart checkbox behavior - uncheck if prefix is manually removed
-  useEffect(() => {
-    if (pickupChecked && !subject.startsWith('[Ready for Pickup]')) {
-      setPickupChecked(false);
-    }
-    if (shippingChecked && !subject.startsWith('[Ready for Shipping]')) {
-      setShippingChecked(false);
-    }
-    if (completedChecked && !subject.startsWith('[Order Completed]')) {
-      setCompletedChecked(false);
-    }
-  }, [subject]);
 
   // Checkbox handlers
   const handlePickupChange = (checked: boolean) => {
@@ -597,42 +685,6 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     }
     setCompletedChecked(checked);
   };
-
-  // Reset state when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      setError(null);
-      setScheduleEnabled(false);
-      setScheduledDate('');
-      setScheduledTime('09:00');
-      setShowScheduleModal(false);
-      setPickupChecked(false);
-      setShippingChecked(false);
-      setCompletedChecked(false);
-      setQbInvoiceData(null);
-      setEmailHistory([]);
-      setIsStale(false);
-      setUpdateCompleted(false);
-      setShowConflictModal(false);
-      setSyncStatus(null);
-      setSyncDifferences([]);
-      setInvoicePdf(null);
-      setPdfError(null);
-      setRecipientEntries([]);
-      setShowSuccessModal(false);
-      setSuccessModalData(null);
-      setEmailConfig({
-        subject: '',
-        beginning: DEFAULT_INVOICE_BEGINNING,
-        end: DEFAULT_INVOICE_END,
-        summaryConfig: DEFAULT_INVOICE_SUMMARY_CONFIG,
-        includePayButton: true
-      });
-      // Reset create mode data
-      setCompanySettings(null);
-      setCustomerBillingAddress(null);
-    }
-  }, [isOpen]);
 
   // Handle creating/updating invoice only (no email)
   // For update mode: stay open and reload data so user can then send
@@ -938,7 +990,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
 
           {/* Body - Invoice Preview */}
           <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-4' : 'p-6'}`}>
-            {loadingCreateData ? (
+            {!isInitialized ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                 <span className="ml-2 text-gray-500">Loading...</span>
@@ -1483,7 +1535,14 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                             {email.status === 'pending' && (
                               <button
                                 onClick={async () => {
-                                  if (window.confirm('Cancel this scheduled email?')) {
+                                  const confirmed = await showConfirmation({
+                                    title: 'Cancel Scheduled Email',
+                                    message: 'Cancel this scheduled email?',
+                                    confirmText: 'Yes, Cancel',
+                                    cancelText: 'No, Keep It',
+                                    variant: 'danger'
+                                  });
+                                  if (confirmed) {
                                     try {
                                       await qbInvoiceApi.cancelScheduledEmail(order.order_number, email.id);
                                       // Refresh history
@@ -1661,9 +1720,11 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                     <span className="ml-2 text-gray-500">Loading preview...</span>
                   </div>
                 ) : previewHtml ? (
-                  <div
-                    className="w-full h-full overflow-auto bg-white p-6"
-                    dangerouslySetInnerHTML={{ __html: previewHtml }}
+                  <iframe
+                    srcDoc={previewHtml}
+                    title="Email Preview"
+                    className="w-full h-full border-0 bg-white"
+                    sandbox="allow-same-origin"
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full text-gray-500 bg-white">

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DollarSign, FileText } from 'lucide-react';
 import { HomeButton } from '../common/HomeButton';
+import { useAlert } from '../../contexts/AlertContext';
 import { UserWageData, PaymentRecord, DeductionOverrides, EditingField, PayPeriodOverrides, WageEntry } from './types/WageTypes';
 import { AccountUser } from '../../types/user';
 import { PendingChange } from './hooks/useAutoSave';
@@ -32,6 +33,7 @@ import { WageControls } from './components/WageControls';
 
 export const WageManagement: React.FC = () => {
   const navigate = useNavigate();
+  const { showError, showSuccess, showWarning, showConfirmation } = useAlert();
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [biWeekStart, setBiWeekStart] = useState<string>(() => getCurrentPayPeriod());
   const [wageData, setWageData] = useState<UserWageData[]>([]);
@@ -166,10 +168,15 @@ export const WageManagement: React.FC = () => {
   };
 
   const saveChanges = async () => {
-    const success = await savePayrollChanges(wageData);
-    if (success) {
+    const result = await savePayrollChanges(wageData);
+    if (result.success) {
+      showSuccess('Changes saved successfully');
       setEditedCells(new Set());
       loadWageData(); // Refresh with recalculated totals
+    } else if (result.reason === 'no_changes') {
+      showWarning('No changes to save');
+    } else {
+      showError('Failed to save changes');
     }
   };
 
@@ -271,20 +278,26 @@ export const WageManagement: React.FC = () => {
     if (!wageData.length || !dates.length) return;
 
     const paymentDate = calculatePaymentDate(dates[dates.length - 1]);
-    
-    if (!confirm(`Record payment for period ${biWeekStart} to ${dates[dates.length - 1]}?\nPayment date: ${paymentDate}`)) {
-      return;
-    }
 
-    const success = await apiRecordPayment(
-      biWeekStart, 
-      dates[dates.length - 1], 
-      paymentDate, 
-      wageData, 
+    const confirmed = await showConfirmation({
+      title: 'Record Payment',
+      message: `Record payment for period ${biWeekStart} to ${dates[dates.length - 1]}?\n\nPayment date: ${paymentDate}`,
+      confirmText: 'Record Payment',
+      variant: 'primary'
+    });
+
+    if (!confirmed) return;
+
+    const result = await apiRecordPayment(
+      biWeekStart,
+      dates[dates.length - 1],
+      paymentDate,
+      wageData,
       deductionOverrides
     );
-    
-    if (success) {
+
+    if (result.success) {
+      showSuccess('Payment recorded successfully!');
       // Clear only the current pay period overrides
       const payPeriodKey = `${biWeekStart}-${dates[dates.length - 1]}`;
       setDeductionOverrides(prev => {
@@ -293,6 +306,8 @@ export const WageManagement: React.FC = () => {
         return newOverrides;
       });
       loadPaymentHistory();
+    } else {
+      showError('Failed to record payment');
     }
   };
 
@@ -317,37 +332,43 @@ export const WageManagement: React.FC = () => {
 
   // Delete payment record
   const handleDeletePaymentRecord = async (recordId: number, payPeriod: string) => {
-    const confirmed = confirm(
-      `Are you sure you want to deactivate this payment record?\n\nPay Period: ${payPeriod}\n\nThis record will be hidden from the main view but can be restored later.`
-    );
-    
+    const confirmed = await showConfirmation({
+      title: 'Deactivate Payment Record',
+      message: `Are you sure you want to deactivate this payment record?\n\nPay Period: ${payPeriod}\n\nThis record will be hidden from the main view but can be restored later.`,
+      confirmText: 'Deactivate',
+      variant: 'warning'
+    });
+
     if (!confirmed) return;
 
     const success = await apiDeletePaymentRecord(recordId);
-    
+
     if (success) {
-      alert('Payment record deactivated successfully');
+      showSuccess('Payment record deactivated successfully');
       loadPaymentHistory(); // Refresh the list
     } else {
-      alert('Failed to deactivate payment record');
+      showError('Failed to deactivate payment record');
     }
   };
 
   // Reactivate payment record
   const handleReactivatePaymentRecord = async (recordId: number, payPeriod: string) => {
-    const confirmed = confirm(
-      `Are you sure you want to reactivate this payment record?\n\nPay Period: ${payPeriod}`
-    );
-    
+    const confirmed = await showConfirmation({
+      title: 'Reactivate Payment Record',
+      message: `Are you sure you want to reactivate this payment record?\n\nPay Period: ${payPeriod}`,
+      confirmText: 'Reactivate',
+      variant: 'primary'
+    });
+
     if (!confirmed) return;
 
     const success = await apiReactivatePaymentRecord(recordId);
-    
+
     if (success) {
-      alert('Payment record reactivated successfully');
+      showSuccess('Payment record reactivated successfully');
       loadPaymentHistory(); // Refresh the list
     } else {
-      alert('Failed to reactivate payment record');
+      showError('Failed to reactivate payment record');
     }
   };
 

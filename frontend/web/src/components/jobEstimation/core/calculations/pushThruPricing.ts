@@ -2,8 +2,8 @@
 // Dedicated pricing logic for Push Thru products (Product Type 5)
 // Only receives validated data from validation layer - no raw grid data
 
-import { RowCalculationResult, ComponentItem } from '../types/LayerTypes';
-import { ValidatedPricingInput, PricingCalculationData } from './types/CalculatorTypes';
+import { RowCalculationResult } from '../types/LayerTypes';
+import { ValidatedPricingInput, ComponentItem, PricingCalculationData } from './types/CalculatorTypes';
 import { BackerLookupTables, lookupAluminumPrice, lookupAcmPrice } from './backerPricingLookup';
 import { PricingDataResource } from '../../../../services/pricingDataResource';
 import { selectPowerSupplies, PowerSupplySelectionInput } from './powerSupplySelector';
@@ -563,18 +563,31 @@ export const calculatePushThru = async (
         // Parse pricing values (may come as strings from DB)
         const baseFee = typeof ulPricing.base_fee === 'string' ? parseFloat(ulPricing.base_fee) : ulPricing.base_fee;
         const perSetFee = typeof ulPricing.per_set_fee === 'string' ? parseFloat(ulPricing.per_set_fee) : ulPricing.per_set_fee;
-        const minimumSets = typeof ulPricing.minimum_sets === 'string' ? parseFloat(ulPricing.minimum_sets) : ulPricing.minimum_sets;
 
-        // Determine set count (use minimum if not specified)
-        const effectiveSetCount = ulSetCount ?? minimumSets;
-        const ulCost = baseFee + (effectiveSetCount * perSetFee);
+        // Use parent quantity as effective set count when no explicit override
+        // This prevents UL from being multiplied by parent qty again in extended price
+        const effectiveSetCount = ulSetCount ?? quantity;
+        const setsAmount = effectiveSetCount * perSetFee;
 
-        const setCountDisplay = ulSetCount === null ? `${effectiveSetCount} (minimum)` : `${effectiveSetCount}`;
+        // Cumulative UL logic: Only add base fee if this is the first row with UL
+        let ulCost: number;
+        let ulDisplay: string;
+        if (input.ulExistsInPreviousRows) {
+          // UL already exists in job - only add per-set fees
+          ulCost = setsAmount;
+          ulDisplay = `${effectiveSetCount} Set${effectiveSetCount !== 1 ? 's' : ''} ($${formatPrice(setsAmount)})`;
+        } else {
+          // First UL in job - add base fee + per-set fees
+          ulCost = baseFee + setsAmount;
+          ulDisplay = `Base ($${formatPrice(baseFee)}) + ${effectiveSetCount} Set${effectiveSetCount !== 1 ? 's' : ''} ($${formatPrice(setsAmount)})`;
+        }
+
         components.push({
           name: 'UL',
           price: ulCost,
           type: 'ul',
-          calculationDisplay: `$${formatPrice(baseFee)} base + ${setCountDisplay} sets @ $${formatPrice(perSetFee)}/set = $${formatPrice(ulCost)}`
+          calculationDisplay: ulDisplay,
+          quantity: 1  // Fixed quantity - UL price already includes all sets, don't multiply by parent qty
         });
       }
     }

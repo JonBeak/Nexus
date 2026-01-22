@@ -30,10 +30,26 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     () => selectedDate ? getPreviousSaturdayOfWeek(selectedDate) : '',
     [selectedDate]
   );
+
+  // Memoize pay period group calculation - needs to be after weekStart is defined
+  // but we need the getPayPeriodGroup function, so we'll compute it inline
+  const payPeriodGroup = useMemo(() => {
+    if (!weekStart) return 'A';
+    const GROUP_A_REFERENCE = new Date('2025-12-13T12:00:00');
+    const startDate = createNoonDate(weekStart);
+    const diffTime = startDate.getTime() - GROUP_A_REFERENCE.getTime();
+    const diffWeeks = Math.round(diffTime / (7 * 24 * 60 * 60 * 1000));
+    return diffWeeks % 2 === 0 ? 'A' : 'B';
+  }, [weekStart]);
+
   const [timeData, setTimeData] = useState<UserTimeData[]>([]);
   const [allUsers, setAllUsers] = useState<TimeUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [editedCells, setEditedCells] = useState<Set<string>>(new Set());
+  const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
+
+  // Today's date for active entry detection
+  const today = useMemo(() => toDateString(new Date()), []);
   const [focusedBreakCell, setFocusedBreakCell] = useState<string | null>(null);
   const [deletingEntry, setDeletingEntry] = useState<{
     userId: number;
@@ -93,6 +109,27 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     fetchTimeData();
   }, [fetchTimeData]);
 
+  // Fetch holidays on mount
+  useEffect(() => {
+    const fetchHolidays = async () => {
+      try {
+        const holidays = await timeApi.getHolidays();
+        const dates = new Set<string>();
+        holidays.forEach((h: { holiday_date: string }) => {
+          // Normalize date format to YYYY-MM-DD
+          const dateStr = typeof h.holiday_date === 'string'
+            ? h.holiday_date.split('T')[0]
+            : new Date(h.holiday_date).toISOString().split('T')[0];
+          dates.add(dateStr);
+        });
+        setHolidayDates(dates);
+      } catch (error) {
+        console.error('Error fetching holidays:', error);
+      }
+    };
+    fetchHolidays();
+  }, []);
+
   const navigateWeek = (direction: 'prev' | 'next') => {
     // Calculate from selectedDate to ensure consistency (single source of truth)
     const currentSaturday = getSaturdayOfWeek(selectedDate);
@@ -100,6 +137,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     current.setDate(current.getDate() + (direction === 'next' ? 7 : -7));
     const newDate = toDateString(current);
     setSelectedDate(newDate); // Only update parent state - useMemo will recalculate weekStart
+  };
+
+  const navigateToToday = () => {
+    const today = toDateString(new Date());
+    setSelectedDate(today);
   };
 
   const handleCellEdit = (userId: number, date: string, field: 'in' | 'out' | 'break', value: string) => {
@@ -365,8 +407,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
-              <span className={`px-3 py-2 ${PAGE_STYLES.input.border} border rounded-md min-w-[250px] text-center ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text}`}>
-                {weekStart} to {dates[13] || ''}
+              <button
+                onClick={navigateToToday}
+                disabled={loading}
+                className={`px-3 py-1.5 text-sm font-medium rounded ${
+                  loading
+                    ? `${PAGE_STYLES.panel.textMuted} cursor-not-allowed`
+                    : `${TIME_COLORS.lightTextDark} ${TIME_COLORS.light} border border-yellow-300 hover:bg-yellow-100`
+                }`}
+              >
+                Today
+              </button>
+              <span className={`px-3 py-2 ${PAGE_STYLES.input.border} border rounded-md min-w-[320px] text-center ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text}`}>
+                Group {payPeriodGroup}: {createNoonDate(weekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - {dates[13] ? createNoonDate(dates[13]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
               </span>
               <button
                 onClick={() => navigateWeek('next')}
@@ -452,8 +505,27 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   const dateObj = createNoonDate(date);
                   const dayOfWeek = dateObj.getDay();
                   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                  const cellBg = isWeekend ? PAGE_STYLES.header.background : PAGE_STYLES.panel.background;
-                  
+                  const isHoliday = holidayDates.has(date);
+                  const isToday = date === today;
+
+                  // Detect active entry (no clock_out)
+                  const isActiveEntry = entry && (!entry.clock_out || entry.clock_out === '');
+                  const activeState = isActiveEntry
+                    ? (isToday ? 'today' : 'other-day')
+                    : undefined;
+
+                  // Missing work day: no entry, not weekend, not holiday, not future
+                  const isMissingWorkDay = !entry && !isWeekend && !isHoliday && date <= today;
+
+                  // Cell background priority: holiday > weekend > missing work day > normal
+                  const cellBg = isHoliday
+                    ? 'bg-amber-100'
+                    : isWeekend
+                      ? PAGE_STYLES.header.background
+                      : isMissingWorkDay
+                        ? 'bg-red-100'
+                        : PAGE_STYLES.panel.background;
+
                   return (
                     <td key={date} className={`text-center text-xs ${cellBg} border-l ${PAGE_STYLES.panel.border} relative`} style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}>
                       {hasMultipleEntries && (
@@ -468,12 +540,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             onChange={(value) => handleCellEdit(userData.user_id, date, 'in', value)}
                             className="w-full max-w-[90px]"
                             isEdited={editedCells.has(calendarHelpers.generateCellKey(userData.user_id, date, 'in'))}
+                            activeState={activeState}
                           />
                           <TimeInput
                             value={entry.clock_out}
                             onChange={(value) => handleCellEdit(userData.user_id, date, 'out', value)}
                             className="w-full max-w-[90px]"
                             isEdited={editedCells.has(calendarHelpers.generateCellKey(userData.user_id, date, 'out'))}
+                            activeState={activeState}
                           />
                           <input
                             type="text"
@@ -492,10 +566,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             onFocus={() => setFocusedBreakCell(calendarHelpers.generateCellKey(userData.user_id, date, 'break'))}
                             onBlur={() => setFocusedBreakCell(null)}
                             placeholder="No break"
-                            className={`w-full max-w-[90px] px-1 py-1 text-xs border ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} hover:border-yellow-400 focus:outline-none focus:ring-1 focus:ring-yellow-500 ${
+                            className={`w-full max-w-[90px] px-1 py-1 text-xs border hover:border-yellow-400 focus:outline-none focus:ring-1 focus:ring-yellow-500 ${PAGE_STYLES.input.text} ${
                               editedCells.has(calendarHelpers.generateCellKey(userData.user_id, date, 'break'))
                                 ? 'bg-orange-100 border-orange-300'
-                                : ''
+                                : activeState === 'other-day'
+                                  ? 'bg-red-200 border-red-400'
+                                  : activeState === 'today'
+                                    ? 'bg-green-100 border-green-300'
+                                    : `${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background}`
                             }`}
                           />
                           <div className={`font-bold text-xs mt-2 pl-1 pb-1 ${PAGE_STYLES.panel.textSecondary} text-left truncate max-w-[90px]`}>

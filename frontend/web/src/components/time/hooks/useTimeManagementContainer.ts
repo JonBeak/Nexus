@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { detectMultipleEntries } from '../../../lib/timeUtils';
 import { timeApi, authApi } from '../../../services/api';
+import { useAlert } from '../../../contexts/AlertContext';
 import type {
   ViewMode,
   FilterStatus,
@@ -19,6 +20,7 @@ interface UseTimeManagementContainerProps {
 
 export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerProps) => {
   const navigate = useNavigate();
+  const { showError, showSuccess, showWarning } = useAlert();
   
   // State management
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
@@ -174,14 +176,14 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
     const clockOutTime = prompt(`Clock out time (HH:MM format):`, missingEntry.expected_end);
 
     if (!clockInTime || !clockOutTime) {
-      alert('Both clock in and clock out times are required');
+      showWarning('Both clock in and clock out times are required');
       return;
     }
 
     const breakInput = prompt('Break minutes (0-480):', '30');
     const breakMinutes = Number(breakInput ?? 0);
     if (Number.isNaN(breakMinutes)) {
-      alert('Invalid break minutes. Please try again.');
+      showWarning('Invalid break minutes. Please try again.');
       return;
     }
 
@@ -194,7 +196,7 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
         break_minutes: breakMinutes
       });
 
-      alert('Time entry added successfully');
+      showSuccess('Time entry added successfully');
       setMissingEntries([]);
       setTimeout(() => {
         fetchMissingEntries();
@@ -204,7 +206,7 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
       }, 100);
     } catch (error) {
       console.error('Error adding time entry:', error);
-      alert('Error adding time entry');
+      showError('Error adding time entry');
     }
   };
   
@@ -220,14 +222,14 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
         break_minutes: 0
       });
 
-      alert('Marked as excused');
+      showSuccess('Marked as excused');
       setMissingEntries([]);
       setTimeout(() => {
         fetchMissingEntries();
       }, 100);
     } catch (error) {
       console.error('Error marking as excused:', error);
-      alert('Error marking as excused');
+      showError('Error marking as excused');
     }
   };
 

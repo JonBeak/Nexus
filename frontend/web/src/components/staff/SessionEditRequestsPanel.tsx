@@ -11,6 +11,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { sessionEditRequestsApi } from '../../services/api/staff/sessionEditRequestsApi';
 import type { PendingSessionEditRequest, ProcessRequestData } from '../../services/api/staff/sessionEditRequestsApi';
 import { PAGE_STYLES } from '../../constants/moduleColors';
+import { useAlert } from '../../contexts/AlertContext';
 import { useEditRequestsSocket } from '../../hooks/useEditRequestsSocket';
 import { formatDateTime, formatDuration, toDateTimeLocal } from '../../utils/dateUtils';
 
@@ -21,6 +22,7 @@ interface ModifiedValues {
 }
 
 function SessionEditRequestsPanel() {
+  const { showSuccess, showError } = useAlert();
   const [pendingRequests, setPendingRequests] = useState<PendingSessionEditRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState<PendingSessionEditRequest | null>(null);
@@ -72,7 +74,7 @@ function SessionEditRequestsPanel() {
       await sessionEditRequestsApi.processRequest(body);
 
       const actionPastTense = body.action === 'modify' ? 'modified' : body.action === 'approve' ? 'approved' : 'rejected';
-      alert(`Request ${actionPastTense} successfully!`);
+      showSuccess(`Request ${actionPastTense} successfully!`);
 
       // Clear all state
       setShowApprovalModal(false);
@@ -83,7 +85,7 @@ function SessionEditRequestsPanel() {
       fetchPendingRequests();
     } catch (error: any) {
       console.error('Error processing session request:', error);
-      alert(`Error processing request: ${error.response?.data?.message || 'Unknown error'}`);
+      showError(`Error processing request: ${error.response?.data?.message || 'Unknown error'}`);
     }
   };
 

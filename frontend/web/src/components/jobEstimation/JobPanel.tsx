@@ -5,6 +5,7 @@ import { JobSummary, JobValidationResponse } from './types';
 import { User } from '../../types';
 import { validateJobOrOrderName } from '../../utils/folderNameValidation';
 import { PAGE_STYLES } from '../../constants/moduleColors';
+import { useAlert } from '../../contexts/AlertContext';
 
 interface JobPanelProps {
   selectedCustomerId: number | null;
@@ -23,6 +24,7 @@ export const JobPanel: React.FC<JobPanelProps> = ({
   onCreateNewJob,
   user
 }) => {
+  const { showError } = useAlert();
   const [allJobs, setAllJobs] = useState<JobSummary[]>([]);
   const [jobSearchTerm, setJobSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
@@ -128,7 +130,7 @@ export const JobPanel: React.FC<JobPanelProps> = ({
     // Client-side validation for Windows folder name compatibility
     const clientValidation = validateJobOrOrderName(editingJobName);
     if (!clientValidation.isValid) {
-      alert(clientValidation.error);  // Show error inline
+      showError(clientValidation.error || 'Invalid job name', 'Validation Error');
       return;  // Don't cancel editing so user can fix
     }
 
@@ -158,7 +160,7 @@ export const JobPanel: React.FC<JobPanelProps> = ({
       console.error('Error updating job:', error);
       // Show error but don't cancel editing so user can try again
       const errorMessage = error instanceof Error ? error.message : 'Failed to update job';
-      alert(errorMessage);
+      showError(errorMessage);
     } finally {
       setEditingLoading(false);
     }

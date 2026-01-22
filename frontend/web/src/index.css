@@ -11,3 +11,37 @@ html, body, #root {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+/* Thin scrollbar for kanban columns (Chrome/Safari/Edge) */
+[data-kanban-scroll]::-webkit-scrollbar {
+  width: 6px !important;
+}
+[data-kanban-scroll]::-webkit-scrollbar-track {
+  background: var(--theme-panel-bg, #f5f5f4) !important;
+}
+[data-kanban-scroll]::-webkit-scrollbar-thumb {
+  background-color: var(--theme-border, #a8a29e) !important;
+  border-radius: 3px !important;
+}
+[data-kanban-scroll]::-webkit-scrollbar-thumb:hover {
+  background-color: var(--theme-text-muted, #78716c) !important;
+}
+[data-kanban-scroll]::-webkit-scrollbar-button {
+  display: none !important;
+  height: 0 !important;
+  width: 0 !important;
+  background: transparent !important;
+}
+[data-kanban-scroll]::-webkit-scrollbar-button:start:decrement,
+[data-kanban-scroll]::-webkit-scrollbar-button:end:increment {
+  display: none !important;
+  height: 0 !important;
+  width: 0 !important;
+}
+[data-kanban-scroll]::-webkit-scrollbar-button:vertical:start:increment,
+[data-kanban-scroll]::-webkit-scrollbar-button:vertical:end:decrement {
+  display: none !important;
+}
+[data-kanban-scroll]::-webkit-scrollbar-corner {
+  background: var(--theme-panel-bg, #f5f5f4) !important;
+}

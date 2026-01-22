@@ -522,7 +522,8 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
             ulCalculationDisplay = `Base ($${formatPrice(baseFee)}) + ${ulSetCount} Set${ulSetCount !== 1 ? 's' : ''} ($${formatPrice(setsAmount)})`;
           }
         } else {
-          // Default: Calculate for 1 set
+          // Default: Use parent quantity as set count (UL covers all sets in the row)
+          // This prevents UL from being multiplied by parent qty again in extended price
           const baseFee = Number(ulPricing.base_fee);
           const perSetFee = Number(ulPricing.per_set_fee);
 
@@ -534,15 +535,19 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
             };
           }
 
+          // Use parent quantity as effective set count when no explicit override
+          const effectiveSetCount = quantity;
+          const setsAmount = perSetFee * effectiveSetCount;
+
           // Cumulative UL logic: Only add base fee if this is the first row with UL
           if (input.ulExistsInPreviousRows) {
-            // UL already exists in job - only add per-set fee for 1 set
-            ulPrice = perSetFee;
-            ulCalculationDisplay = `1 Set ($${formatPrice(perSetFee)})`;
+            // UL already exists in job - only add per-set fees
+            ulPrice = setsAmount;
+            ulCalculationDisplay = `${effectiveSetCount} Set${effectiveSetCount !== 1 ? 's' : ''} ($${formatPrice(setsAmount)})`;
           } else {
-            // First UL in job - add base fee + per-set fee for 1 set
-            ulPrice = baseFee + perSetFee;
-            ulCalculationDisplay = `Base ($${formatPrice(baseFee)}) + 1 Set ($${formatPrice(perSetFee)})`;
+            // First UL in job - add base fee + per-set fees
+            ulPrice = baseFee + setsAmount;
+            ulCalculationDisplay = `Base ($${formatPrice(baseFee)}) + ${effectiveSetCount} Set${effectiveSetCount !== 1 ? 's' : ''} ($${formatPrice(setsAmount)})`;
           }
         }
       }
@@ -552,7 +557,8 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
           name: 'UL',
           price: ulPrice,
           type: 'ul',
-          calculationDisplay: ulCalculationDisplay
+          calculationDisplay: ulCalculationDisplay,
+          quantity: 1  // Fixed quantity - UL price already includes all sets, don't multiply by parent qty
         });
         totalPrice += ulPrice;
         console.log('[CL] Added UL component, total components now:', components.length);

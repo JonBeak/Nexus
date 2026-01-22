@@ -381,6 +381,8 @@ export const calculateBladeSign = async (input: ValidatedPricingInput): Promise<
             ulCalculationDisplay = `Base ($${formatPrice(baseFee)}) + ${ulSetCount} Set${ulSetCount !== 1 ? 's' : ''} ($${formatPrice(setsAmount)})`;
           }
         } else {
+          // Default: Use parent quantity as set count (UL covers all sets in the row)
+          // This prevents UL from being multiplied by parent qty again in extended price
           const baseFee = Number(ulPricing.base_fee);
           const perSetFee = Number(ulPricing.per_set_fee);
 
@@ -392,12 +394,16 @@ export const calculateBladeSign = async (input: ValidatedPricingInput): Promise<
             };
           }
 
+          // Use parent quantity as effective set count when no explicit override
+          const effectiveSetCount = quantity;
+          const setsAmount = perSetFee * effectiveSetCount;
+
           if (input.ulExistsInPreviousRows) {
-            ulPrice = perSetFee;
-            ulCalculationDisplay = `1 Set ($${formatPrice(perSetFee)})`;
+            ulPrice = setsAmount;
+            ulCalculationDisplay = `${effectiveSetCount} Set${effectiveSetCount !== 1 ? 's' : ''} ($${formatPrice(setsAmount)})`;
           } else {
-            ulPrice = baseFee + perSetFee;
-            ulCalculationDisplay = `Base ($${formatPrice(baseFee)}) + 1 Set ($${formatPrice(perSetFee)})`;
+            ulPrice = baseFee + setsAmount;
+            ulCalculationDisplay = `Base ($${formatPrice(baseFee)}) + ${effectiveSetCount} Set${effectiveSetCount !== 1 ? 's' : ''} ($${formatPrice(setsAmount)})`;
           }
         }
       }
@@ -407,7 +413,8 @@ export const calculateBladeSign = async (input: ValidatedPricingInput): Promise<
           name: 'UL',
           price: ulPrice,
           type: 'ul',
-          calculationDisplay: ulCalculationDisplay
+          calculationDisplay: ulCalculationDisplay,
+          quantity: 1  // Fixed quantity - UL price already includes all sets, don't multiply by parent qty
         });
         totalPrice += ulPrice;
       }

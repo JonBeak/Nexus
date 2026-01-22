@@ -8,6 +8,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ordersApi } from '@/services/api';
+import { useAlert } from '@/contexts/AlertContext';
 
 interface EditableSpecsQtyProps {
   partId: number;
@@ -24,6 +25,8 @@ export const EditableSpecsQty = React.memo<EditableSpecsQtyProps>(({
   invoiceQuantity,
   onUpdate
 }) => {
+  const { showError } = useAlert();
+
   const [localValue, setLocalValue] = useState(currentValue?.toString() ?? '0');
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -50,13 +53,13 @@ export const EditableSpecsQty = React.memo<EditableSpecsQtyProps>(({
           onUpdate();
         } else {
           console.error('[EditableSpecsQty] Failed to update:', response.error);
-          alert(`Failed to update QTY: ${response.error || 'Unknown error'}`);
+          showError(`Failed to update QTY: ${response.error || 'Unknown error'}`);
           // Revert to previous value
           setLocalValue(currentValue?.toString() ?? '0');
         }
       } catch (error) {
         console.error('[EditableSpecsQty] Error updating specs_qty:', error);
-        alert('Failed to update QTY. Please try again.');
+        showError('Failed to update QTY. Please try again.');
         // Revert to previous value
         setLocalValue(currentValue?.toString() ?? '0');
       } finally {

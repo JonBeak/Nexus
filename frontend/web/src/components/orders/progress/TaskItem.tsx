@@ -9,6 +9,7 @@ import React from 'react';
 import { ordersApi, orderTasksApi } from '../../../services/api';
 import { staffTasksApi } from '../../../services/api/staff/staffTasksApi';
 import { TaskRow } from '../common/TaskRow';
+import { useAlert } from '../../../contexts/AlertContext';
 
 interface Props {
   task: any;
@@ -27,6 +28,7 @@ export const TaskItem: React.FC<Props> = ({
   isManager = false,
   onOpenSessionsModal
 }) => {
+  const { showError } = useAlert();
   const handleStart = async () => {
     // Use session-based start for non-managers
     try {
@@ -71,7 +73,7 @@ export const TaskItem: React.FC<Props> = ({
       onUpdated();
     } catch (error) {
       console.error('Error updating notes:', error);
-      alert('Failed to update notes');
+      showError('Failed to update notes');
     }
   };
 
@@ -81,7 +83,7 @@ export const TaskItem: React.FC<Props> = ({
       onUpdated();
     } catch (error) {
       console.error('Error removing task:', error);
-      alert('Failed to remove task. Please try again.');
+      showError('Failed to remove task. Please try again.');
     }
   };
 

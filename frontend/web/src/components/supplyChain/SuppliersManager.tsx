@@ -17,6 +17,7 @@ import {
   Hash
 } from 'lucide-react';
 import api from '../../services/api';
+import { useAlert } from '../../contexts/AlertContext';
 import { SupplierContactsSection } from './SupplierContactsSection';
 
 interface Supplier {
@@ -50,6 +51,7 @@ const PAYMENT_TERMS_OPTIONS = [
 export const SuppliersManager: React.FC<SuppliersManagerProps> = ({
   showNotification
 }) => {
+  const { showConfirmation } = useAlert();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -135,7 +137,13 @@ export const SuppliersManager: React.FC<SuppliersManagerProps> = ({
   };
 
   const handleDeleteSupplier = async (supplierId: number, name: string) => {
-    if (!confirm(`Are you sure you want to delete supplier "${name}"?`)) return;
+    const confirmed = await showConfirmation({
+      title: 'Delete Supplier',
+      message: `Are you sure you want to delete supplier "${name}"?`,
+      variant: 'danger',
+      confirmText: 'Delete'
+    });
+    if (!confirmed) return;
 
     try {
       await api.delete(`/suppliers/${supplierId}`);

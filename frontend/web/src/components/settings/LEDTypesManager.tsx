@@ -8,6 +8,7 @@ import { Plus, Pencil, Trash2, RefreshCw, AlertCircle, X, Star } from 'lucide-re
 import { ledsApi, LEDType } from '../../services/api/ledsApi';
 import { Notification } from '../inventory/Notification';
 import { PricingDataResource } from '../../services/pricingDataResource';
+import { useAlert } from '../../contexts/AlertContext';
 
 // =============================================================================
 // Edit LED Modal
@@ -234,6 +235,7 @@ const EditLEDModal: React.FC<EditLEDModalProps> = ({
 // =============================================================================
 
 export const LEDTypesManager: React.FC = () => {
+  const { showConfirmation } = useAlert();
   const [leds, setLeds] = useState<LEDType[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -327,9 +329,13 @@ export const LEDTypesManager: React.FC = () => {
   };
 
   const handleDeactivate = async (led: LEDType) => {
-    if (!window.confirm(`Deactivate "${led.product_code}"? It will no longer appear in specification dropdowns.`)) {
-      return;
-    }
+    const confirmed = await showConfirmation({
+      title: 'Deactivate LED Type',
+      message: `Deactivate "${led.product_code}"? It will no longer appear in specification dropdowns.`,
+      variant: 'danger',
+      confirmText: 'Deactivate'
+    });
+    if (!confirmed) return;
 
     setSaving(true);
     try {

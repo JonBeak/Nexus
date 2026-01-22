@@ -8,6 +8,7 @@ import { Plus, Pencil, Trash2, RefreshCw, AlertCircle, X, Star, Check } from 'lu
 import { powerSuppliesApi, PowerSupplyType } from '../../services/api/powerSuppliesApi';
 import { Notification } from '../inventory/Notification';
 import { PricingDataResource } from '../../services/pricingDataResource';
+import { useAlert } from '../../contexts/AlertContext';
 
 // =============================================================================
 // Edit Power Supply Modal
@@ -250,6 +251,7 @@ const EditPowerSupplyModal: React.FC<EditPowerSupplyModalProps> = ({
 // =============================================================================
 
 export const PowerSuppliesManager: React.FC = () => {
+  const { showConfirmation } = useAlert();
   const [powerSupplies, setPowerSupplies] = useState<PowerSupplyType[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -358,9 +360,13 @@ export const PowerSuppliesManager: React.FC = () => {
   };
 
   const handleDeactivate = async (ps: PowerSupplyType) => {
-    if (!window.confirm(`Deactivate "${ps.transformer_type}"? It will no longer appear in specification dropdowns.`)) {
-      return;
-    }
+    const confirmed = await showConfirmation({
+      title: 'Deactivate Power Supply',
+      message: `Deactivate "${ps.transformer_type}"? It will no longer appear in specification dropdowns.`,
+      variant: 'danger',
+      confirmText: 'Deactivate'
+    });
+    if (!confirmed) return;
 
     setSaving(true);
     try {

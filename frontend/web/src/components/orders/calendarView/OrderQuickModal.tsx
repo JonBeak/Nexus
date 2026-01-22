@@ -49,6 +49,7 @@ import PDFViewerModal from '../modals/PDFViewerModal';
 import SessionsModal from '../../staff/SessionsModal';
 import { useOrderPrinting, PrintMode } from '../details/hooks/useOrderPrinting';
 import { calculateShopCount } from '../details/services/orderCalculations';
+import { useAlert } from '../../../contexts/AlertContext';
 
 interface OrderQuickModalProps {
   isOpen: boolean;
@@ -177,6 +178,9 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
 
   // Get user data from AuthContext (no API call needed!)
   const { userId: currentUserId, isManager } = useAuth();
+
+  // Alert context for custom alerts
+  const { showError } = useAlert();
 
   // Session modal state
   const [sessionsModalTask, setSessionsModalTask] = useState<{
@@ -560,7 +564,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
       onOrderUpdated();
     } catch (err) {
       console.error('Error updating order status:', err);
-      alert('Failed to update order status. Please try again.');
+      showError('Failed to update order status. Please try again.');
     } finally {
       setActionLoading(false);
     }
@@ -585,7 +589,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
       onOrderUpdated();
     } catch (err) {
       console.error('Error updating order status:', err);
-      alert('Failed to update order status. Please try again.');
+      showError('Failed to update order status. Please try again.');
     } finally {
       setActionLoading(false);
     }

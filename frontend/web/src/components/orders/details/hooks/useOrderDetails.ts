@@ -6,7 +6,8 @@ import {
   provincesApi,
   customerApi,
   ledsApi,
-  powerSuppliesApi
+  powerSuppliesApi,
+  vinylProductsApi
 } from '../../../../services/api';
 import { PricingDataResource } from '../../../../services/pricingDataResource';
 import { SpecificationOptionsCache } from '../../../../services/specificationOptionsCache';
@@ -14,11 +15,13 @@ import {
   populateLEDOptions,
   populatePowerSupplyOptions,
   populateMaterialOptions,
+  populateVinylColourOptions,
   populateSpecificationOptions,
   areTemplatesPopulated,
   getCachedLEDs,
   getCachedPowerSupplies,
-  getCachedMaterials
+  getCachedMaterials,
+  getCachedVinylColours
 } from '../../../../config/orderProductTemplates';
 import type { LEDType, PowerSupplyType } from '../../../../config/specificationConstants';
 
@@ -99,7 +102,8 @@ export function useOrderDetails(orderNumber: string | undefined) {
   const fetchSpecificationData = async () => {
     try {
       // Check if templates are already populated (cached)
-      if (areTemplatesPopulated() && SpecificationOptionsCache.isCachePopulated()) {
+      // Also check vinyl colours are cached (they come from a different API)
+      if (areTemplatesPopulated() && SpecificationOptionsCache.isCachePopulated() && getCachedVinylColours().length > 0) {
         // Use cached data
         setCalculatedValues(prev => ({
           ...prev,
@@ -111,12 +115,13 @@ export function useOrderDetails(orderNumber: string | undefined) {
         return;
       }
 
-      // Fetch LEDs, Power Supplies, Materials, and Spec Options in parallel
-      const [ledsData, powerSuppliesData, pricingData, specOptionsData] = await Promise.all([
+      // Fetch LEDs, Power Supplies, Materials, Spec Options, and Vinyl Colours in parallel
+      const [ledsData, powerSuppliesData, pricingData, specOptionsData, vinylColours] = await Promise.all([
         ledsApi.getActiveLEDs(),
         powerSuppliesApi.getActivePowerSupplies(),
         PricingDataResource.getAllPricingData(),
-        SpecificationOptionsCache.getAllOptions()
+        SpecificationOptionsCache.getAllOptions(),
+        vinylProductsApi.getVinylColourOptions()
       ]);
 
       // Extract substrate names from pricing data
@@ -135,6 +140,7 @@ export function useOrderDetails(orderNumber: string | undefined) {
       populateLEDOptions(ledsData.leds || ledsData);
       populatePowerSupplyOptions(powerSuppliesData.powerSupplies || powerSuppliesData);
       populateMaterialOptions(materialsData);
+      populateVinylColourOptions(vinylColours);
 
       // Populate specification dropdown options from database
       populateSpecificationOptions(specOptionsData);

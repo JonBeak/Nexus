@@ -499,4 +499,22 @@ export class VinylProductsRepository {
     const result = await query(sql, [productId]) as any[];
     return result.length > 0;
   }
+
+  /**
+   * Get vinyl colour options for specification dropdown
+   * Returns formatted strings: "{Series}-{ColourNumber} {ColourName}"
+   * Only includes active products
+   */
+  static async getColourOptions(): Promise<string[]> {
+    const sql = `
+      SELECT CONCAT(series, '-', colour_number, ' ', colour_name) as colour_option
+      FROM vinyl_products
+      WHERE is_active = 1
+        AND colour_number IS NOT NULL
+        AND colour_name IS NOT NULL
+      ORDER BY series, colour_number
+    `;
+    const rows = await query(sql) as { colour_option: string }[];
+    return rows.map(r => r.colour_option);
+  }
 }

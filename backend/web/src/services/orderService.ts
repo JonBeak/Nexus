@@ -34,6 +34,9 @@ import {
   UpdateOrderData,
   OrderStatusHistory
 } from '../types/orders';
+import { getQBInvoice } from '../utils/quickbooks/invoiceClient';
+import { quickbooksRepository } from '../repositories/quickbooksRepository';
+import * as invoiceListingRepo from '../repositories/invoiceListingRepository';
 
 // QC task constants
 const QC_TASK_NAME = 'QC & Packing';
@@ -110,9 +113,15 @@ export class OrderService {
       completed_tasks: tasks.filter(task => task.part_id === part.part_id && task.completed).length
     }));
 
-    // Calculate progress
-    const completedTasksCount = tasks.filter(t => t.completed).length;
-    const totalTasksCount = tasks.length;
+    // Calculate progress - only count tasks in visible parts (is_parent=1 or is_order_wide=1)
+    const visiblePartIds = new Set(
+      parts
+        .filter(part => part.is_parent || part.is_order_wide)
+        .map(part => part.part_id)
+    );
+    const visibleTasks = tasks.filter(t => t.part_id && visiblePartIds.has(t.part_id));
+    const completedTasksCount = visibleTasks.filter(t => t.completed).length;
+    const totalTasksCount = visibleTasks.length;
     const progressPercent = totalTasksCount > 0
       ? Math.round((completedTasksCount / totalTasksCount) * 100)
       : 0;
@@ -329,6 +338,27 @@ export class OrderService {
       return;
     }
 
+    // Check if moving to awaiting_payment with a fully-paid invoice
+    // If invoice is already paid, skip to completed instead
+    if (status === 'awaiting_payment' && order.qb_invoice_id) {
+      try {
+        const realmId = await quickbooksRepository.getDefaultRealmId();
+        if (realmId) {
+          const qbInvoice = await getQBInvoice(order.qb_invoice_id, realmId);
+          // Update cached balance regardless
+          await invoiceListingRepo.updateCachedBalance(orderId, qbInvoice.Balance, qbInvoice.TotalAmt);
+
+          if (qbInvoice.Balance === 0) {
+            console.log(`✅ Order #${order.order_number}: Invoice fully paid, moving to completed instead of awaiting_payment`);
+            status = 'completed'; // Override target status
+          }
+        }
+      } catch (invoiceError) {
+        // Non-blocking: if balance check fails, proceed with awaiting_payment
+        console.error('⚠️  Invoice balance check failed:', invoiceError);
+      }
+    }
+
     // Update order status
     await orderRepository.updateOrderStatus(orderId, status);
 
@@ -515,8 +545,18 @@ export class OrderService {
     const parts = await orderPartRepository.getOrderParts(orderId);
     const tasks = await orderPartRepository.getOrderTasks(orderId);
 
-    const completedTasks = tasks.filter(t => t.completed).length;
-    const totalTasks = tasks.length;
+    // Get visible part IDs (same logic as getTasksByPart - parents and order-wide parts)
+    const visiblePartIds = new Set(
+      parts
+        .filter(part => part.is_parent || part.is_order_wide)
+        .map(part => part.part_id)
+    );
+
+    // Only count tasks in visible parts (exclude NULL part_id tasks)
+    const visibleTasks = tasks.filter(t => t.part_id && visiblePartIds.has(t.part_id));
+
+    const completedTasks = visibleTasks.filter(t => t.completed).length;
+    const totalTasks = visibleTasks.length;
     const progressPercent = totalTasks > 0
       ? Math.round((completedTasks / totalTasks) * 100)
       : 0;

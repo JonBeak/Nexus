@@ -12,6 +12,7 @@ import {
   X
 } from 'lucide-react';
 import api from '../../services/api';
+import { useAlert } from '../../contexts/AlertContext';
 
 type ContactRole = 'sales' | 'accounts_payable' | 'customer_service' | 'technical' | 'general';
 
@@ -52,6 +53,7 @@ export const SupplierContactsSection: React.FC<SupplierContactsSectionProps> = (
   supplierId,
   showNotification
 }) => {
+  const { showConfirmation } = useAlert();
   const [contacts, setContacts] = useState<SupplierContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -119,7 +121,13 @@ export const SupplierContactsSection: React.FC<SupplierContactsSectionProps> = (
   };
 
   const handleDeleteContact = async (contactId: number, name: string) => {
-    if (!confirm(`Are you sure you want to delete contact "${name}"?`)) return;
+    const confirmed = await showConfirmation({
+      title: 'Delete Contact',
+      message: `Are you sure you want to delete contact "${name}"?`,
+      variant: 'danger',
+      confirmText: 'Delete'
+    });
+    if (!confirmed) return;
 
     try {
       await api.delete(`/suppliers/${supplierId}/contacts/${contactId}`);

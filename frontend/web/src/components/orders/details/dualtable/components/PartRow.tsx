@@ -20,7 +20,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ordersApi } from '@/services/api';
 import { OrderPart } from '@/types/orders';
-import { QBItem } from '../constants/tableConstants';
+import { QBItem, getGridTemplate } from '../constants/tableConstants';
 import { formatCurrency } from '../utils/formatting';
 import { getValidInputClass, EMPTY_FIELD_BG_CLASS } from '@/utils/highlightStyles';
 import { INPUT_STYLES } from '@/utils/inputStyles';
@@ -31,6 +31,7 @@ import { SpecificationRows } from './SpecificationRows';
 import { EditableTextarea } from './EditableTextarea';
 import { EditableInput } from './EditableInput';
 import { DuplicateRowModal, DuplicateMode } from '@/components/orders/modals/DuplicateRowModal';
+import { useAlert } from '@/contexts/AlertContext';
 
 interface PartRowProps {
   part: OrderPart;
@@ -38,6 +39,7 @@ interface PartRowProps {
   availableTemplates: string[];
   qbItems: QBItem[];
   rowCount: number;
+  isPriceCalcExpanded?: boolean;
   onFieldSave: (partId: number, field: string, value: string) => Promise<void>;
   onTemplateSave: (partId: number, rowNum: number, value: string) => Promise<void>;
   onSpecFieldSave: (partId: number, specKey: string, value: string) => Promise<void>;
@@ -56,6 +58,7 @@ export const PartRow: React.FC<PartRowProps> = ({
   availableTemplates,
   qbItems,
   rowCount,
+  isPriceCalcExpanded = true,
   onFieldSave,
   onTemplateSave,
   onSpecFieldSave,
@@ -73,7 +76,7 @@ export const PartRow: React.FC<PartRowProps> = ({
       <div
         className="border-b-2 border-gray-300 grid gap-2 px-2 bg-gray-100"
         style={{
-          gridTemplateColumns:'40px 165px 115px 123px 123px 123px 62px 140px 380px 270px 55px 75px 85px'
+          gridTemplateColumns: getGridTemplate(isPriceCalcExpanded)
         }}
       >
         {/* Row Controls - empty */}
@@ -109,6 +112,8 @@ export const PartRow: React.FC<PartRowProps> = ({
       </div>
     );
   }
+
+  const { showError } = useAlert();
 
   const [saving, setSaving] = useState(false);
   const [localPartScope, setLocalPartScope] = useState(part.part_scope || '');
@@ -250,7 +255,7 @@ export const PartRow: React.FC<PartRowProps> = ({
         onUpdate();
       } catch (error) {
         console.error('Error saving QB item:', error);
-        alert('Failed to save QB item. Please try again.');
+        showError('Failed to save QB item. Please try again.');
       } finally {
         setSaving(false);
       }
@@ -286,7 +291,7 @@ export const PartRow: React.FC<PartRowProps> = ({
       className="border-b-2 border-gray-300 grid gap-2 px-2"
       style={{
         ...style,
-        gridTemplateColumns:'40px 165px 115px 123px 123px 123px 62px 140px 380px 270px 55px 75px 85px'
+        gridTemplateColumns: getGridTemplate(isPriceCalcExpanded)
       }}
     >
       {/* Row Controls: Drag Handle + Actions Dropdown */}
@@ -441,17 +446,22 @@ export const PartRow: React.FC<PartRowProps> = ({
         />
       </div>
 
-      {/* Price Calculation - spans full height */}
+      {/* Price Calculation - spans full height, collapsible */}
       <div className="h-full">
-        <EditableTextarea
-          partId={part.part_id}
-          field="invoice_description"
-          currentValue={part.invoice_description || ''}
-          onSave={onFieldSave}
-          placeholder=""
-          hasValue={false} // invoice_description doesn't use highlighting
-          applyGrayBackground={isQBDataEmpty}
-        />
+        {isPriceCalcExpanded ? (
+          <EditableTextarea
+            partId={part.part_id}
+            field="invoice_description"
+            currentValue={part.invoice_description || ''}
+            onSave={onFieldSave}
+            placeholder=""
+            hasValue={false} // invoice_description doesn't use highlighting
+            applyGrayBackground={isQBDataEmpty}
+          />
+        ) : (
+          // Collapsed state - empty cell (user expands via header)
+          <div className="w-full h-full" />
+        )}
       </div>
 
       {/* Quantity - spans full height */}

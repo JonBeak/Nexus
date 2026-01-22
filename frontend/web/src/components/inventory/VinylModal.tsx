@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { vinylApi, suppliersApi, jobsApi } from '../../services/api';
+import { useAlert } from '../../contexts/AlertContext';
 import { AutofillComboBox } from '../common/AutofillComboBox';
 import {
   JobSuggestion,
@@ -47,6 +48,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
   autofillSuggestions,
   products
 }) => {
+  const { showWarning } = useAlert();
   const [formData, setFormData] = useState<VinylFormState>({
     brand: '',
     series: '',
@@ -147,13 +149,13 @@ export const VinylModal: React.FC<VinylModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Custom validation: either colour_number or colour_name must be provided
     if (!formData.colour_number && !formData.colour_name) {
-      alert('Please provide either a Color Number or Color Name (or both).');
+      showWarning('Please provide either a Color Number or Color Name (or both).');
       return;
     }
-    
+
     setLoading(true);
 
     try {

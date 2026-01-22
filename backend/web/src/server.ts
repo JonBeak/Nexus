@@ -53,11 +53,13 @@ import dashboardPanelsRoutes from './routes/dashboardPanels';  // Customizable O
 import serverManagementRoutes from './routes/serverManagement';  // Server Management GUI (Dec 23, 2025)
 import staffTasksRoutes from './routes/staffTasks';  // Staff task sessions (Jan 7, 2026)
 import feedbackRoutes from './routes/feedback';  // Feedback/error reporting system (Jan 16, 2026)
+import fileBrowserRoutes from './routes/fileBrowser';  // File Browser (Jan 2026)
 
 // QuickBooks utilities for startup
 import { quickbooksOAuthRepository } from './repositories/quickbooksOAuthRepository';
 import { startQuickBooksCleanupJob } from './jobs/quickbooksCleanup';
 import { startScheduledEmailJob } from './jobs/scheduledEmailJob';
+import { startOverdueOrderJob } from './jobs/overdueOrderJob';
 import { checkAwaitingPaymentOrders } from './services/invoiceListingService';
 
 // SMB path configuration
@@ -165,6 +167,7 @@ app.use('/api/dashboard-panels', dashboardPanelsRoutes);  // Customizable Orders
 app.use('/api/server-management', serverManagementRoutes);  // Server Management GUI (Dec 23, 2025)
 app.use('/api/staff', staffTasksRoutes);  // Staff task sessions (Jan 7, 2026)
 app.use('/api/feedback', feedbackRoutes);  // Feedback/error reporting system (Jan 16, 2026)
+app.use('/api/file-browser', fileBrowserRoutes);  // File Browser (Jan 2026)
 
 // =============================================
 // STATIC FILE SERVING (Phase 1.5.g)
@@ -270,6 +273,9 @@ const startServer = async () => {
 
     // Start scheduled email job (runs every 5 minutes)
     startScheduledEmailJob();
+
+    // Start overdue order job (runs hourly 8am-5pm Mon-Fri)
+    startOverdueOrderJob();
 
     // Start awaiting payment check job (runs every hour)
     // Auto-completes orders when linked invoice is fully paid

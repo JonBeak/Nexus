@@ -12,6 +12,7 @@ import { useTasksSocket } from '../../../hooks/useTasksSocket';
 import RoleCard from './RoleCard';
 import SessionsModal from '../../staff/SessionsModal';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useAlert } from '../../../contexts/AlertContext';
 import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface TaskUpdate {
@@ -69,6 +70,7 @@ const ROLE_ROWS: { role: string; label: string }[][] = [
 export const ProgressRoleView: React.FC = () => {
   // Get user data from AuthContext (no API call needed!)
   const { userId: currentUserId, userRole, isManager } = useAuth();
+  const { showSuccess, showError, showConfirmation } = useAlert();
 
   const [tasksByRole, setTasksByRole] = useState<any>({});
   const [showCompleted, setShowCompleted] = useState(false);
@@ -165,7 +167,7 @@ export const ProgressRoleView: React.FC = () => {
     return false;
   };
 
-  const handleRecordProgress = async () => {
+  const handleRecordProgress = useCallback(async () => {
     if (stagedUpdates.size === 0) return;
 
     try {
@@ -177,21 +179,26 @@ export const ProgressRoleView: React.FC = () => {
       setStagedUpdates(new Map());
       await fetchTasks();
 
-      alert(`Successfully recorded ${updates.length} task updates`);
+      showSuccess(`Successfully recorded ${updates.length} task updates`);
     } catch (error) {
       console.error('Error recording progress:', error);
-      alert('Failed to record progress. Please try again.');
+      showError('Failed to record progress. Please try again.');
     } finally {
       setSaving(false);
     }
-  };
+  }, [stagedUpdates, fetchTasks, showSuccess, showError]);
 
-  const handleReset = () => {
+  const handleReset = useCallback(async () => {
     if (stagedUpdates.size === 0) return;
-    if (confirm(`Reset ${stagedUpdates.size} staged changes?`)) {
+    const confirmed = await showConfirmation({
+      title: 'Reset Changes',
+      message: `Reset ${stagedUpdates.size} staged changes?`,
+      variant: 'warning'
+    });
+    if (confirmed) {
       setStagedUpdates(new Map());
     }
-  };
+  }, [stagedUpdates.size, showConfirmation]);
 
   const hasUpdates = stagedUpdates.size > 0;
 

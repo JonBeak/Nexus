@@ -32,10 +32,27 @@ export class TimeEntryRepository {
    */
   static async getActiveEntry(userId: number): Promise<TimeEntry | null> {
     const rows = await query(
-      `SELECT entry_id, clock_in, break_minutes, auto_break_minutes
-       FROM time_entries
-       WHERE user_id = ? AND status = 'active'
-       ORDER BY clock_in DESC LIMIT 1`,
+      `SELECT te.entry_id, te.clock_in, te.break_minutes, te.auto_break_minutes
+       FROM time_entries te
+       WHERE te.user_id = ?
+         AND te.clock_out IS NULL
+         AND te.is_deleted = FALSE
+         -- Ensure this is the ONLY incomplete entry
+         AND NOT EXISTS (
+           SELECT 1 FROM time_entries te2
+           WHERE te2.user_id = te.user_id
+             AND te2.clock_out IS NULL
+             AND te2.is_deleted = FALSE
+             AND te2.entry_id != te.entry_id
+         )
+         -- Ensure this is the most recent entry overall
+         AND NOT EXISTS (
+           SELECT 1 FROM time_entries te3
+           WHERE te3.user_id = te.user_id
+             AND te3.clock_in > te.clock_in
+             AND te3.is_deleted = FALSE
+         )
+       LIMIT 1`,
       [userId]
     ) as TimeEntry[];
 

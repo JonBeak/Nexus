@@ -3,6 +3,9 @@ import { ordersApi, printApi } from '../../../../services/api';
 import { orderStatusApi } from '../../../../services/api/orders/orderStatusApi';
 import { Order, OrderPart } from '../../../../types/orders';
 import { calculateShopCount } from '../services/orderCalculations';
+import { PrintApprovalSuccessData } from '../../modals/PrintApprovalSuccessModal';
+import { PrintApprovalErrorData } from '../../modals/PrintApprovalErrorModal';
+import { useAlert } from '../../../../contexts/AlertContext';
 
 interface PrintConfig {
   master: number;
@@ -33,6 +36,8 @@ export function useOrderPrinting(
   setUiState: (updater: (prev: any) => any) => void,
   onOrderUpdated?: () => void
 ) {
+  const { showSuccess, showError } = useAlert();
+
   // Print Configuration
   const [printConfig, setPrintConfig] = useState<PrintConfig>({
     master: 1,
@@ -44,6 +49,12 @@ export function useOrderPrinting(
   // Print Mode
   const [printMode, setPrintMode] = useState<PrintMode>('full');
 
+  // Success modal state
+  const [successModalData, setSuccessModalData] = useState<PrintApprovalSuccessData | null>(null);
+
+  // Error modal state
+  const [errorModalData, setErrorModalData] = useState<PrintApprovalErrorData | null>(null);
+
   // Refresh key to force formUrls regeneration when modal opens
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -53,10 +64,10 @@ export function useOrderPrinting(
     try {
       setUiState(prev => ({ ...prev, generatingForms: true }));
       await ordersApi.generateOrderForms(orderData.order.order_number, false);
-      alert('Order forms generated successfully!');
+      showSuccess('Order forms generated successfully!');
     } catch (err) {
       console.error('Error generating forms:', err);
-      alert('Failed to generate order forms. Please try again.');
+      showError('Failed to generate order forms. Please try again.');
     } finally {
       setUiState(prev => ({ ...prev, generatingForms: false }));
     }
@@ -115,26 +126,21 @@ export function useOrderPrinting(
 
       if (result.success) {
         const { summary } = result;
-        let message = `Successfully printed ${summary.printedCopies} forms in a single job!\n\n` +
-          `Master: ${summary.master}\n` +
-          `Estimate: ${summary.estimate}\n` +
-          `Shop: ${summary.shop}\n` +
-          `Packing: ${summary.packing}\n\n` +
-          `Job ID: ${result.jobId}`;
+        let message = `Master: ${summary.master}\nEstimate: ${summary.estimate}\nShop: ${summary.shop}\nPacking: ${summary.packing}`;
 
         if (summary.skipped && summary.skipped.length > 0) {
-          message += `\n\n⚠️ Note: ${summary.skipped.join(', ')} not found and skipped`;
+          message += `\n\nNote: ${summary.skipped.join(', ')} not found and skipped`;
         }
 
-        alert(message);
+        showSuccess(message, `Printed ${summary.printedCopies} Forms (Job: ${result.jobId})`);
       } else {
-        alert('Failed to print forms. Please check the printer and try again.');
+        showError('Failed to print forms. Please check the printer and try again.');
       }
 
       setUiState(prev => ({ ...prev, showPrintModal: false }));
     } catch (err: any) {
       console.error('Error printing forms:', err);
-      alert(err.response?.data?.message || 'Failed to print forms. Please check that CUPS is installed and a printer is configured.');
+      showError(err.response?.data?.message || 'Failed to print forms. Please check that CUPS is installed and a printer is configured.');
     } finally {
       setUiState(prev => ({ ...prev, printingForm: false }));
     }
@@ -156,24 +162,21 @@ export function useOrderPrinting(
 
       if (result.success) {
         const { summary } = result;
-        let message = `Successfully printed Master & Estimate forms!\n\n` +
-          `Master: ${summary.master}\n` +
-          `Estimate: ${summary.estimate}\n\n` +
-          `Job ID: ${result.jobId}`;
+        let message = `Master: ${summary.master}\nEstimate: ${summary.estimate}`;
 
         if (summary.skipped && summary.skipped.length > 0) {
-          message += `\n\n⚠️ Note: ${summary.skipped.join(', ')} not found and skipped`;
+          message += `\n\nNote: ${summary.skipped.join(', ')} not found and skipped`;
         }
 
-        alert(message);
+        showSuccess(message, `Master & Estimate Printed (Job: ${result.jobId})`);
       } else {
-        alert('Failed to print forms. Please check the printer and try again.');
+        showError('Failed to print forms. Please check the printer and try again.');
       }
 
       setUiState(prev => ({ ...prev, showPrintModal: false }));
     } catch (err: any) {
       console.error('Error printing master/estimate forms:', err);
-      alert(err.response?.data?.message || 'Failed to print forms. Please check that CUPS is installed and a printer is configured.');
+      showError(err.response?.data?.message || 'Failed to print forms. Please check that CUPS is installed and a printer is configured.');
     } finally {
       setUiState(prev => ({ ...prev, printingForm: false }));
     }
@@ -195,24 +198,21 @@ export function useOrderPrinting(
 
       if (result.success) {
         const { summary } = result;
-        let message = `Successfully printed Shop & Packing forms!\n\n` +
-          `Shop: ${summary.shop}\n` +
-          `Packing: ${summary.packing}\n\n` +
-          `Job ID: ${result.jobId}`;
+        let message = `Shop: ${summary.shop}\nPacking: ${summary.packing}`;
 
         if (summary.skipped && summary.skipped.length > 0) {
-          message += `\n\n⚠️ Note: ${summary.skipped.join(', ')} not found and skipped`;
+          message += `\n\nNote: ${summary.skipped.join(', ')} not found and skipped`;
         }
 
-        alert(message);
+        showSuccess(message, `Shop & Packing Printed (Job: ${result.jobId})`);
       } else {
-        alert('Failed to print forms. Please check the printer and try again.');
+        showError('Failed to print forms. Please check the printer and try again.');
       }
 
       setUiState(prev => ({ ...prev, showPrintModal: false }));
     } catch (err: any) {
       console.error('Error printing shop/packing forms:', err);
-      alert(err.response?.data?.message || 'Failed to print forms. Please check that CUPS is installed and a printer is configured.');
+      showError(err.response?.data?.message || 'Failed to print forms. Please check that CUPS is installed and a printer is configured.');
     } finally {
       setUiState(prev => ({ ...prev, printingForm: false }));
     }
@@ -224,10 +224,10 @@ export function useOrderPrinting(
     try {
       setUiState(prev => ({ ...prev, printingForm: true }));
       const result = await printApi.printOrderForm(orderData.order.order_number, 'master');
-      alert(`Print job submitted successfully! Job ID: ${result.jobId || 'unknown'}`);
+      showSuccess(`Print job submitted successfully!`, `Job ID: ${result.jobId || 'unknown'}`);
     } catch (err: any) {
       console.error('Error printing master form:', err);
-      alert(err.response?.data?.message || 'Failed to print master form. Please check that CUPS is installed and a printer is configured.');
+      showError(err.response?.data?.message || 'Failed to print master form. Please check that CUPS is installed and a printer is configured.');
     } finally {
       setUiState(prev => ({ ...prev, printingForm: false }));
     }
@@ -241,7 +241,11 @@ export function useOrderPrinting(
 
       // Check if at least one form is selected
       if (printConfig.shop === 0 && printConfig.packing === 0) {
-        alert('Please select at least one form to print (Shop or Packing).');
+        setErrorModalData({
+          type: 'validation',
+          title: 'No Forms Selected',
+          message: 'Please select at least one form to print (Shop or Packing).'
+        });
         setUiState(prev => ({ ...prev, printingForm: false }));
         return;
       }
@@ -257,22 +261,14 @@ export function useOrderPrinting(
       const result = await printApi.printOrderFormsBatch(orderData.order.order_number, shopPackingConfig);
 
       if (!result.success) {
-        alert('Failed to print forms. Please check the printer and try again.');
+        setErrorModalData({
+          type: 'print_failure',
+          title: 'Print Failed',
+          message: 'Failed to print forms. Please check the printer and try again.'
+        });
         setUiState(prev => ({ ...prev, printingForm: false }));
         return;
       }
-
-      const { summary } = result;
-      let message = `Successfully printed Shop & Packing forms!\n\n` +
-        `Shop: ${summary.shop}\n` +
-        `Packing: ${summary.packing}\n\n` +
-        `Job ID: ${result.jobId}`;
-
-      if (summary.skipped && summary.skipped.length > 0) {
-        message += `\n\n⚠️ Note: ${summary.skipped.join(', ')} not found and skipped`;
-      }
-
-      alert(message);
 
       // Update order status to production_queue
       await orderStatusApi.updateOrderStatus(
@@ -281,7 +277,15 @@ export function useOrderPrinting(
         'Order approved and moved to production queue (printed forms)'
       );
 
-      alert('Order moved to Production Queue successfully!');
+      // Show success modal with print summary and production status
+      setSuccessModalData({
+        type: 'print_and_production',
+        printSummary: result.summary,
+        jobId: result.jobId,
+        movedToProduction: true,
+        orderNumber: orderData.order.order_number,
+        orderName: orderData.order.order_name
+      });
 
       setUiState(prev => ({ ...prev, showPrintModal: false }));
 
@@ -291,7 +295,12 @@ export function useOrderPrinting(
       }
     } catch (err: any) {
       console.error('Error printing and moving to production:', err);
-      alert(err.response?.data?.message || 'Failed to move order to production. Please try again.');
+      setErrorModalData({
+        type: 'production_failure',
+        title: 'Operation Failed',
+        message: 'Failed to move order to production.',
+        details: err.response?.data?.message || err.message
+      });
     } finally {
       setUiState(prev => ({ ...prev, printingForm: false }));
     }
@@ -310,7 +319,13 @@ export function useOrderPrinting(
         'Order approved and moved to production queue (no forms printed)'
       );
 
-      alert('Order moved to Production Queue successfully!');
+      // Show success modal with production status only
+      setSuccessModalData({
+        type: 'production_only',
+        movedToProduction: true,
+        orderNumber: orderData.order.order_number,
+        orderName: orderData.order.order_name
+      });
 
       setUiState(prev => ({ ...prev, showPrintModal: false }));
 
@@ -320,7 +335,12 @@ export function useOrderPrinting(
       }
     } catch (err: any) {
       console.error('Error moving to production:', err);
-      alert(err.response?.data?.message || 'Failed to move order to production. Please try again.');
+      setErrorModalData({
+        type: 'production_failure',
+        title: 'Operation Failed',
+        message: 'Failed to move order to production.',
+        details: err.response?.data?.message || err.message
+      });
     } finally {
       setUiState(prev => ({ ...prev, printingForm: false }));
     }
@@ -361,6 +381,14 @@ export function useOrderPrinting(
     refreshKey
   ]);
 
+  const handleCloseSuccessModal = () => {
+    setSuccessModalData(null);
+  };
+
+  const handleCloseErrorModal = () => {
+    setErrorModalData(null);
+  };
+
   return {
     printConfig,
     setPrintConfig,
@@ -375,6 +403,10 @@ export function useOrderPrinting(
     handleMoveToProductionWithoutPrinting,
     handleGenerateForms,
     handlePrintMasterForm,
-    formUrls
+    formUrls,
+    successModalData,
+    handleCloseSuccessModal,
+    errorModalData,
+    handleCloseErrorModal
   };
 }

@@ -182,43 +182,8 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
     else setIncludePayButton(initialIncludePayButton);
   }, [config?.includePayButton, initialIncludePayButton]);
 
-  // Auto-apply pickup/shipping prefix based on order status (runs once when subject is first set)
-  const hasAutoAppliedPrefix = useRef(false);
-  useEffect(() => {
-    // Only run once when subject is populated and no prefix exists yet
-    if (hasAutoAppliedPrefix.current) return;
-    // Check for any existing prefix (pickup, shipping, or completed)
-    if (!subject || /^\[(Ready for Pickup|Ready for Shipping|Order Completed)\]/.test(subject)) return;
-    if (!orderStatus || (orderStatus !== 'pick_up' && orderStatus !== 'shipping')) return;
-
-    hasAutoAppliedPrefix.current = true;
-
-    if (orderStatus === 'pick_up') {
-      const newSubject = `[Ready for Pickup] ${subject}`;
-      setSubject(newSubject);
-      onPickupChange?.(true);
-      // Notify parent with updated subject
-      onChange({
-        subject: newSubject,
-        beginning,
-        end,
-        summaryConfig,
-        includePayButton
-      });
-    } else if (orderStatus === 'shipping') {
-      const newSubject = `[Ready for Shipping] ${subject}`;
-      setSubject(newSubject);
-      onShippingChange?.(true);
-      // Notify parent with updated subject
-      onChange({
-        subject: newSubject,
-        beginning,
-        end,
-        summaryConfig,
-        includePayButton
-      });
-    }
-  }, [subject, orderStatus, onPickupChange, onShippingChange, onChange, beginning, end, summaryConfig, includePayButton]);
+  // Note: Auto-apply prefix based on order status is now handled in the parent component
+  // (InvoiceActionModal) to avoid race conditions between child and parent state updates
 
   // Notify parent of changes
   const notifyChange = useCallback((

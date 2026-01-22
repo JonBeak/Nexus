@@ -25,6 +25,7 @@ router.get('/active', requirePermission('vinyl.read'), vinylProductsController.g
 router.get('/search', requirePermission('vinyl.read'), vinylProductsController.searchProducts);
 router.get('/stats/summary', requirePermission('vinyl.read'), vinylProductsController.getVinylProductStats);
 router.get('/autofill/suggestions', requirePermission('vinyl.read'), vinylProductsController.getAutofillSuggestions);
+router.get('/colour-options', requirePermission('vinyl.read'), vinylProductsController.getColourOptions);
 router.get('/brand/:brand', requirePermission('vinyl.read'), vinylProductsController.getProductsByBrand);
 router.get('/:id', requirePermission('vinyl.read'), vinylProductsController.getVinylProductById);
 

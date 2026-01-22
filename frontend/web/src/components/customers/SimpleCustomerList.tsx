@@ -8,9 +8,11 @@ import CustomerDetailsModal from './CustomerDetailsModal';
 import { CustomerCreationModal } from './CustomerCreationModal';
 import { Customer } from '../../types';
 import { PAGE_STYLES } from '../../constants/moduleColors';
+import { useAlert } from '../../contexts/AlertContext';
 import '../jobEstimation/JobEstimation.css';
 
 function SimpleCustomerList() {
+  const { showError } = useAlert();
   // Custom hooks for business logic
   const { ledTypes, powerSupplyTypes } = useCustomerAPI();
   const {
@@ -38,7 +40,7 @@ function SimpleCustomerList() {
     handleReactivateCustomer,
     handleCustomerCreated,
     handleCloseCustomerDetails
-  } = useCustomerListData(searchTerm, showDeactivatedCustomers);
+  } = useCustomerListData(searchTerm, showDeactivatedCustomers, showError);
 
   // Search handlers with hooks integration
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -111,7 +113,7 @@ function SimpleCustomerList() {
         showNotification={(message, type) => {
           if (type === 'error') {
             console.error(message);
-            alert(message);
+            showError(message);
           } else {
             console.log(message);
           }

@@ -15,6 +15,7 @@ import {
   GripVertical
 } from 'lucide-react';
 import api, { suppliersApi } from '../../services/api';
+import { useAlert } from '../../contexts/AlertContext';
 import { ArchetypeSupplierProducts } from './ArchetypeSupplierProducts';
 
 interface Category {
@@ -67,6 +68,7 @@ const DEFAULT_COLORS = [
 export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> = ({
   showNotification
 }) => {
+  const { showConfirmation } = useAlert();
   const [archetypes, setArchetypes] = useState<Archetype[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
@@ -199,7 +201,13 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
   };
 
   const handleDeleteProductType = async (archetypeId: number, name: string) => {
-    if (!confirm(`Are you sure you want to deactivate "${name}"?`)) return;
+    const confirmed = await showConfirmation({
+      title: 'Deactivate Product Type',
+      message: `Are you sure you want to deactivate "${name}"?`,
+      variant: 'danger',
+      confirmText: 'Deactivate'
+    });
+    if (!confirmed) return;
 
     try {
       await api.delete(`/product-types/${archetypeId}`);
@@ -264,7 +272,13 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
       showNotification(`Cannot delete category with ${category.material_count} product types`, 'error');
       return;
     }
-    if (!confirm(`Are you sure you want to delete "${category.name}"?`)) return;
+    const confirmed = await showConfirmation({
+      title: 'Delete Category',
+      message: `Are you sure you want to delete "${category.name}"?`,
+      variant: 'danger',
+      confirmText: 'Delete'
+    });
+    if (!confirmed) return;
 
     try {
       await api.delete(`/product-types/categories/${category.id}`);

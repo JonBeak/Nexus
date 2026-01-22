@@ -24,6 +24,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Plus, Pencil, Trash2, Lock, RefreshCw, AlertCircle, X } from 'lucide-react';
 import { settingsApi, TaskDefinition, ProductionRole } from '../../services/api/settings';
 import { Notification } from '../inventory/Notification';
+import { useAlert } from '../../contexts/AlertContext';
 
 // =============================================================================
 // Sortable Task Row Component
@@ -33,7 +34,7 @@ interface SortableTaskRowProps {
   task: TaskDefinition;
   roles: ProductionRole[];
   onEdit: (task: TaskDefinition) => void;
-  onDeactivate: (taskId: number) => void;
+  onDeactivate: (taskId: number, taskName: string) => void;
   onRoleChange: (taskId: number, roleKey: string) => void;
   disabled?: boolean;
 }
@@ -138,11 +139,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
           </button>
           {!task.is_system && (
             <button
-              onClick={() => {
-                if (window.confirm(`Deactivate "${task.task_name}"? It will no longer appear in production.`)) {
-                  onDeactivate(task.task_id);
-                }
-              }}
+              onClick={() => onDeactivate(task.task_id, task.task_name)}
               className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
               title="Deactivate task"
             >
@@ -282,6 +279,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
 // =============================================================================
 
 export const TasksManager: React.FC = () => {
+  const { showConfirmation } = useAlert();
   const [tasks, setTasks] = useState<TaskDefinition[]>([]);
   const [roles, setRoles] = useState<ProductionRole[]>([]);
   const [loading, setLoading] = useState(true);
@@ -391,7 +389,15 @@ export const TasksManager: React.FC = () => {
     }
   };
 
-  const handleDeactivate = async (taskId: number) => {
+  const handleDeactivate = async (taskId: number, taskName: string) => {
+    const confirmed = await showConfirmation({
+      title: 'Deactivate Task',
+      message: `Deactivate "${taskName}"? It will no longer appear in production.`,
+      variant: 'danger',
+      confirmText: 'Deactivate'
+    });
+    if (!confirmed) return;
+
     setSaving(true);
     try {
       await settingsApi.updateTask(taskId, { is_active: false });

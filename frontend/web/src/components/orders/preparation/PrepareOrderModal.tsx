@@ -21,6 +21,7 @@ import { orderPreparationApi } from '../../../services/api/orders/orderPreparati
 import { RecipientSelection } from './send/PointPersonSelector';
 import { OrderEmailContent, DEFAULT_ORDER_EMAIL_CONTENT } from './send/OrderEmailComposer';
 import { OrderEmailPreviewPanel } from './send/OrderEmailPreviewPanel';
+import { useAlert } from '../../../contexts/AlertContext';
 
 interface Props {
   isOpen: boolean;
@@ -37,6 +38,7 @@ export const PrepareOrderModal: React.FC<Props> = ({
   onComplete,
   onDataChanged
 }) => {
+  const { showError, showSuccess, showWarning, showConfirmation } = useAlert();
   const [phase, setPhase] = useState<PreparationPhase>('prepare');
   const [isSending, setIsSending] = useState(false);
 
@@ -147,7 +149,7 @@ export const PrepareOrderModal: React.FC<Props> = ({
 
   const handleNextToSend = () => {
     if (!preparationState.canProceedToSend) {
-      alert('Please complete all preparation steps first (100% progress required)');
+      showWarning('Please complete all preparation steps first (100% progress required)');
       return;
     }
     setPhase('send');
@@ -200,15 +202,15 @@ export const PrepareOrderModal: React.FC<Props> = ({
 
       // API client unwraps the response, so result is the data object directly
       if (result.emailSent !== undefined && result.statusUpdated) {
-        alert(result.message || 'Order finalized successfully');
+        showSuccess(result.message || 'Order finalized successfully');
         onComplete(); // Close modal and refresh order page
       } else {
-        alert(`Failed to finalize order: ${result.message || 'Unknown error'}`);
+        showError(`Failed to finalize order: ${result.message || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error sending and finalizing:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to finalize order. Please try again.';
-      alert(errorMessage);
+      showError(errorMessage);
     } finally {
       setIsSending(false);
     }
@@ -219,10 +221,12 @@ export const PrepareOrderModal: React.FC<Props> = ({
     if (isSending) return;
 
     try {
-      const confirmed = confirm(
-        'Skip sending email and finalize order?\n\n' +
-        'The order status will be updated to "Pending Confirmation" without sending any notification emails.'
-      );
+      const confirmed = await showConfirmation({
+        title: 'Skip Email & Finalize',
+        message: 'Skip sending email and finalize order?\n\nThe order status will be updated to "Pending Confirmation" without sending any notification emails.',
+        variant: 'warning',
+        confirmText: 'Skip Email & Finalize'
+      });
 
       if (!confirmed) return;
 
@@ -237,14 +241,14 @@ export const PrepareOrderModal: React.FC<Props> = ({
 
       // API client unwraps the response, so result is the data object directly
       if (result.statusUpdated !== undefined) {
-        alert(result.message || 'Order finalized successfully');
+        showSuccess(result.message || 'Order finalized successfully');
         onComplete(); // Close modal and refresh order page
       } else {
-        alert(`Failed to finalize order: ${result.error || 'Unknown error'}`);
+        showError(`Failed to finalize order: ${result.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error skipping email and finalizing:', error);
-      alert('Failed to finalize order. Please try again.');
+      showError('Failed to finalize order. Please try again.');
     } finally {
       setIsSending(false);
     }

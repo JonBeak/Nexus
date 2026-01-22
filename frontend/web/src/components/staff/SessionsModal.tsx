@@ -15,6 +15,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, Clock, User, Edit2, Trash2, Save, XCircle, Play, Square, ChevronDown, ChevronRight, Plus, MessageSquare, CheckCircle } from 'lucide-react';
 import { PAGE_STYLES } from '../../constants/moduleColors';
+import { useAlert } from '../../contexts/AlertContext';
 import { staffTasksApi } from '../../services/api/staff/staffTasksApi';
 import { orderTasksApi } from '../../services/api/orders/orderTasksApi';
 import { accountsApi } from '../../services/api/accountsApi';
@@ -55,6 +56,7 @@ export const SessionsModal: React.FC<Props> = ({
   taskCompleted,
   onComplete
 }) => {
+  const { showConfirmation } = useAlert();
   const [sessionHistory, setSessionHistory] = useState<TaskSessionHistory | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -210,7 +212,13 @@ export const SessionsModal: React.FC<Props> = ({
   };
 
   const handleDelete = async (sessionId: number) => {
-    if (!confirm('Are you sure you want to delete this session?')) return;
+    const confirmed = await showConfirmation({
+      title: 'Delete Session',
+      message: 'Are you sure you want to delete this session?',
+      variant: 'danger',
+      confirmText: 'Delete'
+    });
+    if (!confirmed) return;
 
     try {
       setSaving(true);
@@ -321,7 +329,13 @@ export const SessionsModal: React.FC<Props> = ({
   };
 
   const handleDeleteNote = async (noteId: number) => {
-    if (!confirm('Are you sure you want to delete this note?')) return;
+    const confirmed = await showConfirmation({
+      title: 'Delete Note',
+      message: 'Are you sure you want to delete this note?',
+      variant: 'danger',
+      confirmText: 'Delete'
+    });
+    if (!confirmed) return;
 
     try {
       setSavingNote(true);

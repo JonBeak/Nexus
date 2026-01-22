@@ -22,6 +22,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Download } from 'lucide-react';
 import { PAGE_STYLES } from '../../constants/moduleColors';
+import { useAlert } from '../../contexts/AlertContext';
 
 // ============================================================================
 // Types
@@ -256,6 +257,7 @@ export const EstimatePreparationTable: React.FC<EstimatePreparationTableProps> =
   // Debug: check if jobId is being passed
   console.log('[PrepTable] Props:', { estimateId, jobId, readOnly });
 
+  const { showConfirmation } = useAlert();
   const [items, setItems] = useState<PreparationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -377,7 +379,14 @@ export const EstimatePreparationTable: React.FC<EstimatePreparationTableProps> =
 
   // Delete row
   const handleDeleteRow = useCallback(async (itemId: number) => {
-    if (!window.confirm('Delete this row?')) return;
+    const confirmed = await showConfirmation({
+      title: 'Delete Row',
+      message: 'Delete this row?',
+      variant: 'danger',
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    });
+    if (!confirmed) return;
     try {
       // API returns message on success, just reload
       await jobVersioningApi.deletePreparationItem(estimateId, itemId);
@@ -385,7 +394,7 @@ export const EstimatePreparationTable: React.FC<EstimatePreparationTableProps> =
     } catch (err) {
       console.error('Error deleting row:', err);
     }
-  }, [estimateId, loadItems]);
+  }, [estimateId, loadItems, showConfirmation]);
 
   // Drag and drop sensors
   const sensors = useSensors(

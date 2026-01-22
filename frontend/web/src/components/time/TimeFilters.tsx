@@ -86,115 +86,178 @@ export const TimeFilters: React.FC<TimeFiltersProps> = ({
     onDatePresetApply(preset.startDate, preset.endDate);
     setShowPresetMenu(false);
   };
+  // Check if we should show date filters (not needed for calendar view)
+  const showDateFilters = viewMode !== 'calendar';
+
   return (
     <>
+      {/* View Tabs - Now at the top */}
+      <div className="max-w-none mx-auto px-4 sm:px-6 lg:px-8 pt-4" style={{ maxWidth: '1408px' }}>
+        <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow px-4`}>
+          <nav className="flex space-x-8">
+            <button
+              onClick={() => onViewModeChange('calendar')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm ${
+                viewMode === 'calendar'
+                  ? `${TIME_COLORS.border} ${TIME_COLORS.textDark}`
+                  : `border-transparent ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.textSecondary} hover:border-[var(--theme-border)]`
+              }`}
+            >
+              Calendar
+            </button>
+            <button
+              onClick={() => onViewModeChange('single')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm ${
+                viewMode === 'single'
+                  ? `${TIME_COLORS.border} ${TIME_COLORS.textDark}`
+                  : `border-transparent ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.textSecondary} hover:border-[var(--theme-border)]`
+              }`}
+            >
+              Single Entries
+            </button>
+            <button
+              onClick={() => onViewModeChange('summary')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm ${
+                viewMode === 'summary'
+                  ? `${TIME_COLORS.border} ${TIME_COLORS.textDark}`
+                  : `border-transparent ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.textSecondary} hover:border-[var(--theme-border)]`
+              }`}
+            >
+              Summary
+            </button>
+            <button
+              onClick={() => onViewModeChange('analytics')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm ${
+                viewMode === 'analytics'
+                  ? `${TIME_COLORS.border} ${TIME_COLORS.textDark}`
+                  : `border-transparent ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.textSecondary} hover:border-[var(--theme-border)]`
+              }`}
+            >
+              Analytics
+            </button>
+            <button
+              onClick={() => onViewModeChange('missing')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm ${
+                viewMode === 'missing'
+                  ? `${TIME_COLORS.border} ${TIME_COLORS.textDark}`
+                  : `border-transparent ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.textSecondary} hover:border-[var(--theme-border)]`
+              }`}
+            >
+              Missing Entries
+            </button>
+          </nav>
+        </div>
+      </div>
+
       {/* Filter Bar */}
       <div className="max-w-none mx-auto px-4 sm:px-6 lg:px-8 py-4" style={{ maxWidth: '1408px' }}>
         <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow p-4`}>
-          {/* First Row - Date Controls */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            {/* Date Range Toggle */}
-            <div>
-              <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>Date Range</label>
-              <select
-                value={dateRange}
-                onChange={(e) => onDateRangeChange(e.target.value as 'single' | 'range')}
-                className={`w-full px-3 py-2 ${PAGE_STYLES.input.border} rounded-md ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text}`}
-              >
-                <option value="single">Single Date</option>
-                <option value="range">Date Range</option>
-              </select>
-            </div>
-
-            {/* Quick Date Presets */}
-            <div className="relative" ref={presetMenuRef}>
-              <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>
-                <Clock className="inline w-4 h-4 mr-1" />
-                Quick Select
-              </label>
-              <button
-                onClick={() => setShowPresetMenu(!showPresetMenu)}
-                className={`w-full px-3 py-2 ${PAGE_STYLES.input.border} rounded-md text-left ${PAGE_STYLES.input.background} ${PAGE_STYLES.interactive.hover} flex items-center justify-between`}
-              >
-                <span className={`text-sm ${PAGE_STYLES.input.text}`}>
-                  {currentPreset ? currentPreset.label : 'Choose date range...'}
-                </span>
-                <span className={PAGE_STYLES.panel.textMuted}>▼</span>
-              </button>
-
-              {showPresetMenu && (
-                <div className={`absolute top-full left-0 mt-1 w-full ${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.border} border rounded-md shadow-lg z-20 max-h-64 overflow-y-auto`}>
-                  {datePresets.map((preset) => (
-                    <button
-                      key={preset.id}
-                      onClick={() => handlePresetSelect(preset)}
-                      className={`w-full px-3 py-2 text-left text-sm ${PAGE_STYLES.interactive.hover} border-b border-[var(--theme-border)] last:border-b-0 ${
-                        currentPreset?.id === preset.id ? `${TIME_COLORS.light} ${TIME_COLORS.lightTextDark}` : PAGE_STYLES.panel.textSecondary
-                      }`}
-                      title={preset.description}
-                    >
-                      <div className="font-medium">{preset.label}</div>
-                      <div className={`text-xs ${PAGE_STYLES.panel.textMuted} mt-1`}>
-                        {preset.startDate === preset.endDate ?
-                          preset.startDate :
-                          `${preset.startDate} to ${preset.endDate}`
-                        }
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Date with Navigation */}
-            <div>
-              <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>
-                <Calendar className="inline w-4 h-4 mr-1" />
-                {dateRange === 'range' ? 'Start Date' : 'Date'}
-              </label>
-              <div className="flex items-center space-x-1">
-                <button
-                  onClick={() => onNavigateDate('prev')}
-                  className={`px-2 py-2 ${PAGE_STYLES.panel.textSecondary} ${PAGE_STYLES.interactive.hover} rounded-md`}
-                  title="Previous period"
+          {/* First Row - Date Controls (hidden for Calendar view) */}
+          {showDateFilters && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+              {/* Date Range Toggle */}
+              <div>
+                <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>Date Range</label>
+                <select
+                  value={dateRange}
+                  onChange={(e) => onDateRangeChange(e.target.value as 'single' | 'range')}
+                  className={`w-full px-3 py-2 ${PAGE_STYLES.input.border} rounded-md ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text}`}
                 >
-                  ◀
-                </button>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => onSelectedDateChange(e.target.value)}
-                  className={`flex-1 px-3 py-2 ${PAGE_STYLES.input.border} rounded-md ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text}`}
-                />
-                <button
-                  onClick={() => onNavigateDate('next')}
-                  className={`px-2 py-2 ${PAGE_STYLES.panel.textSecondary} ${PAGE_STYLES.interactive.hover} rounded-md`}
-                  title="Next period"
-                >
-                  ▶
-                </button>
+                  <option value="single">Single Date</option>
+                  <option value="range">Date Range</option>
+                </select>
               </div>
-            </div>
 
-            {/* End Date */}
-            {dateRange === 'range' && (
+              {/* Quick Date Presets */}
+              <div className="relative" ref={presetMenuRef}>
+                <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>
+                  <Clock className="inline w-4 h-4 mr-1" />
+                  Quick Select
+                </label>
+                <button
+                  onClick={() => setShowPresetMenu(!showPresetMenu)}
+                  className={`w-full px-3 py-2 ${PAGE_STYLES.input.border} rounded-md text-left ${PAGE_STYLES.input.background} ${PAGE_STYLES.interactive.hover} flex items-center justify-between`}
+                >
+                  <span className={`text-sm ${PAGE_STYLES.input.text}`}>
+                    {currentPreset ? currentPreset.label : 'Choose date range...'}
+                  </span>
+                  <span className={PAGE_STYLES.panel.textMuted}>▼</span>
+                </button>
+
+                {showPresetMenu && (
+                  <div className={`absolute top-full left-0 mt-1 w-full ${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.border} border rounded-md shadow-lg z-20 max-h-64 overflow-y-auto`}>
+                    {datePresets.map((preset) => (
+                      <button
+                        key={preset.id}
+                        onClick={() => handlePresetSelect(preset)}
+                        className={`w-full px-3 py-2 text-left text-sm ${PAGE_STYLES.interactive.hover} border-b border-[var(--theme-border)] last:border-b-0 ${
+                          currentPreset?.id === preset.id ? `${TIME_COLORS.light} ${TIME_COLORS.lightTextDark}` : PAGE_STYLES.panel.textSecondary
+                        }`}
+                        title={preset.description}
+                      >
+                        <div className="font-medium">{preset.label}</div>
+                        <div className={`text-xs ${PAGE_STYLES.panel.textMuted} mt-1`}>
+                          {preset.startDate === preset.endDate ?
+                            preset.startDate :
+                            `${preset.startDate} to ${preset.endDate}`
+                          }
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Date with Navigation */}
               <div>
                 <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>
                   <Calendar className="inline w-4 h-4 mr-1" />
-                  End Date
+                  {dateRange === 'range' ? 'Start Date' : 'Date'}
                 </label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => onEndDateChange(e.target.value)}
-                  className={`w-full px-3 py-2 ${PAGE_STYLES.input.border} rounded-md ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text}`}
-                />
+                <div className="flex items-center space-x-1">
+                  <button
+                    onClick={() => onNavigateDate('prev')}
+                    className={`px-2 py-2 ${PAGE_STYLES.panel.textSecondary} ${PAGE_STYLES.interactive.hover} rounded-md`}
+                    title="Previous period"
+                  >
+                    ◀
+                  </button>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => onSelectedDateChange(e.target.value)}
+                    className={`flex-1 px-3 py-2 ${PAGE_STYLES.input.border} rounded-md ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text}`}
+                  />
+                  <button
+                    onClick={() => onNavigateDate('next')}
+                    className={`px-2 py-2 ${PAGE_STYLES.panel.textSecondary} ${PAGE_STYLES.interactive.hover} rounded-md`}
+                    title="Next period"
+                  >
+                    ▶
+                  </button>
+                </div>
               </div>
-            )}
-          </div>
+
+              {/* End Date */}
+              {dateRange === 'range' && (
+                <div>
+                  <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>
+                    <Calendar className="inline w-4 h-4 mr-1" />
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => onEndDateChange(e.target.value)}
+                    className={`w-full px-3 py-2 ${PAGE_STYLES.input.border} rounded-md ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text}`}
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Second Row - Filters and Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <div className={`grid grid-cols-1 md:grid-cols-4 gap-4 ${showDateFilters ? '' : ''}`}>
             {/* User Filter */}
             <div>
               <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>
@@ -276,64 +339,6 @@ export const TimeFilters: React.FC<TimeFiltersProps> = ({
               )}
             </div>
           </div>
-        </div>
-      </div>
-      
-      {/* View Tabs */}
-      <div className="max-w-none mx-auto px-4 sm:px-6 lg:px-8" style={{ maxWidth: '1408px' }}>
-        <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow px-4`}>
-          <nav className="flex space-x-8">
-            <button
-              onClick={() => onViewModeChange('calendar')}
-              className={`py-3 px-1 border-b-2 font-medium text-sm ${
-                viewMode === 'calendar'
-                  ? `${TIME_COLORS.border} ${TIME_COLORS.textDark}`
-                  : `border-transparent ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.textSecondary} hover:border-[var(--theme-border)]`
-              }`}
-            >
-              Calendar
-            </button>
-            <button
-              onClick={() => onViewModeChange('single')}
-              className={`py-3 px-1 border-b-2 font-medium text-sm ${
-                viewMode === 'single'
-                  ? `${TIME_COLORS.border} ${TIME_COLORS.textDark}`
-                  : `border-transparent ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.textSecondary} hover:border-[var(--theme-border)]`
-              }`}
-            >
-              Single Entries
-            </button>
-            <button
-              onClick={() => onViewModeChange('summary')}
-              className={`py-3 px-1 border-b-2 font-medium text-sm ${
-                viewMode === 'summary'
-                  ? `${TIME_COLORS.border} ${TIME_COLORS.textDark}`
-                  : `border-transparent ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.textSecondary} hover:border-[var(--theme-border)]`
-              }`}
-            >
-              Summary
-            </button>
-            <button
-              onClick={() => onViewModeChange('analytics')}
-              className={`py-3 px-1 border-b-2 font-medium text-sm ${
-                viewMode === 'analytics'
-                  ? `${TIME_COLORS.border} ${TIME_COLORS.textDark}`
-                  : `border-transparent ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.textSecondary} hover:border-[var(--theme-border)]`
-              }`}
-            >
-              Analytics
-            </button>
-            <button
-              onClick={() => onViewModeChange('missing')}
-              className={`py-3 px-1 border-b-2 font-medium text-sm ${
-                viewMode === 'missing'
-                  ? `${TIME_COLORS.border} ${TIME_COLORS.textDark}`
-                  : `border-transparent ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.textSecondary} hover:border-[var(--theme-border)]`
-              }`}
-            >
-              Missing Entries
-            </button>
-          </nav>
         </div>
       </div>
     </>

@@ -75,4 +75,13 @@ export const vinylProductsApi = {
     const response = await api.get('/vinyl-products/autofill/suggestions', { params });
     return response.data;
   },
+
+  /**
+   * Get vinyl colour options for specification dropdown
+   * Returns formatted strings: "{Series}-{ColourNumber} {ColourName}"
+   */
+  getVinylColourOptions: async (): Promise<string[]> => {
+    const response = await api.get('/vinyl-products/colour-options');
+    return response.data; // apiClient interceptor already unwraps {success, data} response
+  },
 };

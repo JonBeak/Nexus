@@ -28,7 +28,8 @@ interface UseCustomerListDataReturn {
 
 export const useCustomerListData = (
   searchTerm: string,
-  showDeactivatedCustomers: boolean
+  showDeactivatedCustomers: boolean,
+  onError?: (message: string) => void
 ): UseCustomerListDataReturn => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -98,10 +99,10 @@ export const useCustomerListData = (
       await reactivateCustomer(customerId);
       await refreshCustomers(currentSearchTerm, showDeactivatedCustomers);
     } catch (error) {
-      // Error is already handled in reactivateCustomer
       console.error('Error in handleReactivateCustomer:', error);
+      onError?.('Failed to reactivate customer. Please try again.');
     }
-  }, [reactivateCustomer, refreshCustomers, showDeactivatedCustomers]);
+  }, [reactivateCustomer, refreshCustomers, showDeactivatedCustomers, onError]);
 
   // Handle new customer creation
   const handleCustomerCreated = useCallback((

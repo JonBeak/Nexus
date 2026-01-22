@@ -5,7 +5,8 @@
  * browser navigation (via beforeunload event).
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { useAlert } from '../../../contexts/AlertContext';
 
 interface UseNavigationGuardParams {
   onRequestNavigation?: (guard: ((navigationFn?: () => void) => void) | null) => void;
@@ -24,14 +25,25 @@ export const useNavigationGuard = ({
   hasUnsavedChanges,
   isReadOnly
 }: UseNavigationGuardParams): void => {
+  const { showConfirmation } = useAlert();
+  // Use ref to capture showConfirmation without causing effect re-runs
+  const showConfirmationRef = useRef(showConfirmation);
+  showConfirmationRef.current = showConfirmation;
+
   // Navigation guard - simplified
   useEffect(() => {
     if (onRequestNavigation) {
-      const navigationGuard = (navigationFn?: () => void) => {
+      const navigationGuard = async (navigationFn?: () => void) => {
         // Only proceed if we have a valid function
         if (typeof navigationFn === 'function') {
           if (hasUnsavedChanges) {
-            const confirmed = window.confirm('You have unsaved changes. Are you sure you want to leave?');
+            const confirmed = await showConfirmationRef.current({
+              title: 'Unsaved Changes',
+              message: 'You have unsaved changes. Are you sure you want to leave?',
+              variant: 'warning',
+              confirmText: 'Leave',
+              cancelText: 'Stay'
+            });
             if (confirmed) {
               navigationFn();
             }
@@ -49,7 +61,8 @@ export const useNavigationGuard = ({
     }
   }, [onRequestNavigation, hasUnsavedChanges]);
 
-  // Beforeunload protection
+  // Beforeunload protection - must use browser native dialog
+  // (Custom alerts cannot be shown during beforeunload event)
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasUnsavedChanges && !isReadOnly) {

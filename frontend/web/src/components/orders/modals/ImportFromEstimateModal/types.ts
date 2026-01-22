@@ -62,6 +62,7 @@ export interface TargetOrderPart {
   part_id: number;
   display_number: number | null;
   product_type: string | null;
+  invoice_description: string | null;  // Price calculation display (e.g., "124" @ $8.50/inch - [9 pcs]")
   qb_description: string | null;
   qb_item_name: string | null;
   quantity: number;

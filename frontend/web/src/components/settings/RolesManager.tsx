@@ -24,6 +24,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Plus, Pencil, Trash2, Lock, RefreshCw, AlertCircle, X } from 'lucide-react';
 import { settingsApi, ProductionRole } from '../../services/api/settings';
 import { Notification } from '../inventory/Notification';
+import { useAlert } from '../../contexts/AlertContext';
 
 // Predefined color palette
 const COLOR_PRESETS = [
@@ -46,7 +47,7 @@ const COLOR_PRESETS = [
 interface SortableRoleRowProps {
   role: ProductionRole;
   onEdit: (role: ProductionRole) => void;
-  onDeactivate: (roleId: number) => void;
+  onDeactivate: (roleId: number, displayName: string) => void;
   disabled?: boolean;
 }
 
@@ -124,11 +125,8 @@ const SortableRoleRow: React.FC<SortableRoleRowProps> = ({
             <Pencil className="w-4 h-4" />
           </button>
           {!role.is_system && (
-            <button onClick={() => {
-              if (window.confirm(`Deactivate "${role.display_name}"? Tasks assigned to this role will need reassignment.`)) {
-                onDeactivate(role.role_id);
-              }
-            }} className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
+            <button onClick={() => onDeactivate(role.role_id, role.display_name)}
+              className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
               <Trash2 className="w-4 h-4" />
             </button>
           )}
@@ -244,6 +242,7 @@ const EditRoleModal: React.FC<EditRoleModalProps> = ({ isOpen, onClose, role, on
 // =============================================================================
 
 export const RolesManager: React.FC = () => {
+  const { showConfirmation } = useAlert();
   const [roles, setRoles] = useState<ProductionRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -331,7 +330,15 @@ export const RolesManager: React.FC = () => {
     }
   };
 
-  const handleDeactivate = async (roleId: number) => {
+  const handleDeactivate = async (roleId: number, displayName: string) => {
+    const confirmed = await showConfirmation({
+      title: 'Deactivate Role',
+      message: `Deactivate "${displayName}"? Tasks assigned to this role will need reassignment.`,
+      variant: 'danger',
+      confirmText: 'Deactivate'
+    });
+    if (!confirmed) return;
+
     setSaving(true);
     try {
       await settingsApi.updateRole(roleId, { is_active: false });

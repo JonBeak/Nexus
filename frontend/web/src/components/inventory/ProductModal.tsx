@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { suppliersApi } from '../../services/api';
+import { useAlert } from '../../contexts/AlertContext';
 import { AutofillComboBox } from '../common/AutofillComboBox';
 import {
   SupplierSummary,
@@ -37,6 +38,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   initialData,
   autofillSuggestions
 }) => {
+  const { showWarning } = useAlert();
   const [formData, setFormData] = useState<ProductFormState>({
     brand: '',
     series: '',
@@ -102,13 +104,13 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Custom validation: either colour_number or colour_name must be provided
     if (!formData.colour_number && !formData.colour_name) {
-      alert('Please provide either a Color Number or Color Name (or both).');
+      showWarning('Please provide either a Color Number or Color Name (or both).');
       return;
     }
-    
+
     setLoading(true);
 
     try {

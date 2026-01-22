@@ -7,6 +7,7 @@ import { useState, useCallback } from 'react';
 import { lockService } from '../../../services/lockService';
 import { EstimateVersion, EditLockStatus } from '../types';
 import { User } from '../../../types';
+import { useAlert } from '../../../contexts/AlertContext';
 
 interface UseVersionLockingParams {
   user: User;
@@ -14,6 +15,7 @@ interface UseVersionLockingParams {
 }
 
 export const useVersionLocking = ({ user, onVersionSelect }: UseVersionLockingParams) => {
+  const { showConfirmation } = useAlert();
   const [lockStatuses, setLockStatuses] = useState<Record<number, EditLockStatus>>({});
 
   const checkEditLockStatus = useCallback(async (estimateId: number) => {
@@ -45,18 +47,35 @@ export const useVersionLocking = ({ user, onVersionSelect }: UseVersionLockingPa
     }
   }, [user.role, checkEditLockStatus, onVersionSelect]);
 
-  const showLockConflictDialog = useCallback((version: EstimateVersion, lockStatus: EditLockStatus) => {
+  const showLockConflictDialog = useCallback(async (version: EstimateVersion, lockStatus: EditLockStatus) => {
     const canOverride = user.role === 'manager' || user.role === 'owner';
     const message = `${lockStatus.editing_user} is currently editing this estimate.`;
 
-    if (window.confirm(`${message}\n\n${canOverride ? 'Override lock and edit anyway?' : 'View in read-only mode?'}`)) {
-      if (canOverride && window.confirm('Are you sure you want to override the edit lock? This may cause conflicts.')) {
-        handleOverrideLock(version.id);
+    const firstConfirm = await showConfirmation({
+      title: 'Edit Lock Conflict',
+      message: message,
+      variant: 'warning',
+      confirmText: canOverride ? 'Override Lock' : 'View Read-Only',
+      cancelText: 'Cancel'
+    });
+
+    if (firstConfirm) {
+      if (canOverride) {
+        const secondConfirm = await showConfirmation({
+          title: 'Confirm Override',
+          message: 'Are you sure you want to override the edit lock? This may cause conflicts.',
+          variant: 'danger',
+          confirmText: 'Override',
+          cancelText: 'Cancel'
+        });
+        if (secondConfirm) {
+          handleOverrideLock(version.id);
+        }
       } else {
         onVersionSelect(version.id);
       }
     }
-  }, [user.role, handleOverrideLock, onVersionSelect]);
+  }, [user.role, handleOverrideLock, onVersionSelect, showConfirmation]);
 
   const handleVersionSelect = useCallback((version: EstimateVersion) => {
     if (version.is_draft) {

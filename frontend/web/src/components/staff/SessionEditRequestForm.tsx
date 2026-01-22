@@ -11,6 +11,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, RefreshCw, Pencil, Trash2 } from 'lucide-react';
 import { PAGE_STYLES } from '../../constants/moduleColors';
+import { useAlert } from '../../contexts/AlertContext';
 import { sessionEditRequestsApi, SessionPendingRequest } from '../../services/api/staff/sessionEditRequestsApi';
 import type { CompletedSessionDisplay } from '../../services/api/staff/types';
 import { formatTime, formatDuration, toDateTimeLocal } from '../../utils/dateUtils';
@@ -30,6 +31,8 @@ export const SessionEditRequestForm: React.FC<Props> = ({
   onClose,
   onSuccess
 }) => {
+  const { showConfirmation } = useAlert();
+
   // Request type can toggle between edit and delete
   const [requestType, setRequestType] = useState<'edit' | 'delete'>(mode);
   const [startedAt, setStartedAt] = useState('');
@@ -140,9 +143,13 @@ export const SessionEditRequestForm: React.FC<Props> = ({
   const handleCancelRequest = async () => {
     if (!pendingRequest) return;
 
-    if (!window.confirm('Are you sure you want to cancel this request?')) {
-      return;
-    }
+    const confirmed = await showConfirmation({
+      title: 'Cancel Request',
+      message: 'Are you sure you want to cancel this request?',
+      variant: 'warning',
+      confirmText: 'Cancel Request'
+    });
+    if (!confirmed) return;
 
     setCancelling(true);
     setError(null);

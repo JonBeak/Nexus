@@ -525,6 +525,23 @@ export class VinylProductsService {
   }
 
   /**
+   * Get vinyl colour options for specification dropdown
+   * Returns formatted strings: "{Series}-{ColourNumber} {ColourName}"
+   */
+  static async getColourOptions(): Promise<VinylResponse<string[]>> {
+    try {
+      const options = await VinylProductsRepository.getColourOptions();
+      return { success: true, data: options };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch vinyl colour options',
+        code: 'FETCH_COLOUR_OPTIONS_ERROR'
+      };
+    }
+  }
+
+  /**
    * Sync product from inventory item
    * Used when inventory items are created and need corresponding products
    */

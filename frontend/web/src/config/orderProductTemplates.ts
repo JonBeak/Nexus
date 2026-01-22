@@ -105,18 +105,19 @@ export const FACE_TEMPLATE: SpecificationTemplate = {
 
 /**
  * Template: Vinyl
- * Spec 1: Colours (textbox) - Multi-select vinyl products (deferred)
+ * Spec 1: Colours (combobox) - Searchable dropdown of active vinyl products
  * Spec 2: Application (combobox: Face, Return Wrap, Trim Wrap, etc.)
  * Spec 3: Size (textbox) - Auto-filled with yards from estimate
  *
- * NOTE: Full vinyl selector implementation deferred to later phase
+ * NOTE: Spec1 populated from vinyl_products table via getVinylColourOptions()
  */
 export const VINYL_TEMPLATE: SpecificationTemplate = {
   templateName: 'Vinyl',
   spec1: {
     key: 'colours',
     label: 'Vinyl',
-    type: 'textbox',
+    type: 'combobox',
+    options: [], // Populated from API: vinyl colour options
     placeholder: 'Vinyl Code'
   },
   spec2: {
@@ -230,7 +231,7 @@ export const POWER_SUPPLY_TEMPLATE: SpecificationTemplate = {
  * Template: Wire Length
  * Spec 1: Length (textbox)
  * Spec 2: Wire Gauge (combobox: 18 AWG, 22 AWG)
- * Spec 3: -
+ * Spec 3: Note (textbox) - Additional notes displayed in PDF as "({note})"
  */
 export const WIRE_LENGTH_TEMPLATE: SpecificationTemplate = {
   templateName: 'Wire Length',
@@ -246,6 +247,12 @@ export const WIRE_LENGTH_TEMPLATE: SpecificationTemplate = {
     type: 'combobox',
     options: [], // Populated from DB: wire_gauges
     placeholder: 'Wire Gauge'
+  },
+  spec3: {
+    key: 'note',
+    label: 'Note',
+    type: 'textbox',
+    placeholder: 'Additional notes'
   }
 };
 
@@ -748,6 +755,7 @@ let templatesPopulated = false;
 let cachedLEDs: LEDType[] = [];
 let cachedPowerSupplies: PowerSupplyType[] = [];
 let cachedMaterials: string[] = [];
+let cachedVinylColours: string[] = [];
 
 /**
  * Get specification template by name
@@ -863,6 +871,15 @@ export function getCachedMaterials(): string[] {
 }
 
 /**
+ * Get cached Vinyl Colours data
+ *
+ * @returns Cached vinyl colours array
+ */
+export function getCachedVinylColours(): string[] {
+  return cachedVinylColours;
+}
+
+/**
  * Populate Material options in the Material template
  * Called after fetching substrate materials from API
  * Caches data to avoid repeated API calls
@@ -881,6 +898,24 @@ export function populateMaterialOptions(materials: string[]): void {
   // Mark templates as populated when all have been set
   if (cachedLEDs.length > 0 && cachedPowerSupplies.length > 0 && cachedMaterials.length > 0) {
     templatesPopulated = true;
+  }
+}
+
+/**
+ * Populate Vinyl Colour options in the Vinyl template
+ * Called after fetching vinyl colour options from API
+ * Caches data to avoid repeated API calls
+ *
+ * @param vinylColours - Array of formatted vinyl colour strings from vinyl_products
+ */
+export function populateVinylColourOptions(vinylColours: string[]): void {
+  if (!vinylColours || !Array.isArray(vinylColours)) {
+    console.warn('populateVinylColourOptions called with invalid data:', vinylColours);
+    return;
+  }
+  cachedVinylColours = vinylColours;
+  if (VINYL_TEMPLATE.spec1) {
+    VINYL_TEMPLATE.spec1.options = vinylColours;
   }
 }
 
@@ -937,6 +972,7 @@ export function populateSpecificationOptions(optionsMap: Record<string, string[]
   }
 
   // VINYL_TEMPLATE
+  // Note: spec1 (vinyl colours) is populated by populateVinylColourOptions() from vinyl_products API
   if (VINYL_TEMPLATE.spec2) {
     VINYL_TEMPLATE.spec2.options = getOptions('vinyl_applications');
   }

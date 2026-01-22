@@ -3,9 +3,11 @@ import { timeApi } from '../../services/api';
 import type { TimeEditRequest, EditRequestDraft } from '../../types/time';
 import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 import { useEditRequestsSocket } from '../../hooks/useEditRequestsSocket';
+import { useAlert } from '../../contexts/AlertContext';
 import '../jobEstimation/JobEstimation.css';
 
 function TimeApprovals() {
+  const { showError, showSuccess } = useAlert();
   const [pendingRequests, setPendingRequests] = useState<TimeEditRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState<TimeEditRequest | null>(null);
@@ -70,7 +72,7 @@ function TimeApprovals() {
       await timeApi.processRequest(body);
 
       const actionPastTense = body.action === 'modify' ? 'modified' : body.action === 'approve' ? 'approved' : 'rejected';
-      alert(`Request ${actionPastTense} successfully!`);
+      showSuccess(`Request ${actionPastTense} successfully!`);
       // Clear all state properly
       setShowApprovalModal(false);
       setSelectedRequest(null);
@@ -80,7 +82,7 @@ function TimeApprovals() {
       fetchPendingRequests();
     } catch (error: any) {
       console.error('Error processing request:', error);
-      alert(`Error processing request: ${error.response?.data?.error || 'Unknown error'}`);
+      showError(`Error processing request: ${error.response?.data?.error || 'Unknown error'}`);
     }
   };
 

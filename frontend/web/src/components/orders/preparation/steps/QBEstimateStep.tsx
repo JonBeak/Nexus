@@ -17,6 +17,7 @@ import { Order } from '@/types/orders';
 import { updateStepStatus, canRunStep } from '@/utils/stepOrchestration';
 import { ordersApi, quickbooksApi } from '@/services/api';
 import { buildPdfUrls } from '@/utils/pdfUrls';
+import { useAlert } from '@/contexts/AlertContext';
 
 interface QBEstimateStepProps {
   step: PrepareStep;
@@ -35,6 +36,7 @@ export const QBEstimateStep: React.FC<QBEstimateStepProps> = ({
   order,
   isOpen
 }) => {
+  const { showError } = useAlert();
   const orderNumber = order.order_number;
   const [qbEstimate, setQbEstimate] = useState<QBEstimateInfo | null>(state.qbEstimate);
   const [message, setMessage] = useState<string>('');
@@ -89,7 +91,7 @@ export const QBEstimateStep: React.FC<QBEstimateStepProps> = ({
       // Check if credentials are configured
       const configStatus = await quickbooksApi.getConfigStatus();
       if (!configStatus.configured) {
-        alert('QuickBooks credentials not configured. Please contact administrator.');
+        showError('QuickBooks credentials not configured. Please contact administrator.');
         setIsConnecting(false);
         return;
       }
@@ -125,7 +127,7 @@ export const QBEstimateStep: React.FC<QBEstimateStepProps> = ({
 
     } catch (error) {
       console.error('Error connecting to QuickBooks:', error);
-      alert('Failed to connect to QuickBooks. Please try again.');
+      showError('Failed to connect to QuickBooks. Please try again.');
       setIsConnecting(false);
     }
   };

@@ -194,6 +194,13 @@ export const KanbanView: React.FC = () => {
     fetchHolidays();
   }, []);
 
+  // Check awaiting payment orders on mount - auto-complete if fully paid
+  useEffect(() => {
+    ordersApi.checkAwaitingPayments().catch(error => {
+      console.error('Error checking awaiting payment orders:', error);
+    });
+  }, []);
+
   // Fetch orders (silent - no loading spinner for smooth UX)
   const fetchOrders = useCallback(async () => {
     try {

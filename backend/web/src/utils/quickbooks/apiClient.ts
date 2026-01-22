@@ -300,8 +300,81 @@ export interface QBEstimatePayload {
   Line: QBEstimateLine[];
 }
 
+// =============================================
+// COMPANY PREFERENCES
+// =============================================
+
+/**
+ * Check if Custom Transaction Numbers is enabled in QuickBooks company settings
+ * When enabled, QB won't auto-generate DocNumbers - we must provide our own
+ */
+export async function isCustomTxnNumbersEnabled(realmId: string): Promise<boolean> {
+  try {
+    console.log('🔍 Checking CustomTxnNumbers preference...');
+    const response = await makeQBApiCall('GET', 'preferences', realmId, {});
+    const customTxnNumbers = response?.Preferences?.SalesFormsPrefs?.CustomTxnNumbers;
+    console.log(`📋 CustomTxnNumbers setting: ${customTxnNumbers}`);
+    return customTxnNumbers === true;
+  } catch (error) {
+    console.error('⚠️ Failed to check CustomTxnNumbers preference, assuming OFF:', error);
+    return false;
+  }
+}
+
+/**
+ * Get the next estimate document number
+ * Queries recent estimates and returns max + 1
+ *
+ * Strategy: Query most recently created estimates (by CreateTime DESC).
+ * With sequential numbering, recent estimates will have the highest numbers.
+ */
+export async function getNextEstimateNumber(realmId: string): Promise<string> {
+  try {
+    console.log('🔍 Querying for max estimate DocNumber...');
+
+    // Query most recent estimates - they're most likely to have highest numbers
+    const response = await queryQB(
+      'SELECT DocNumber FROM Estimate ORDERBY MetaData.CreateTime DESC MAXRESULTS 500',
+      realmId
+    );
+
+    const estimates = response?.QueryResponse?.Estimate || [];
+    console.log(`📋 Retrieved ${estimates.length} recent estimates to scan`);
+
+    // Find the highest numeric doc number
+    let maxNum = 0;
+    for (const est of estimates) {
+      if (est.DocNumber) {
+        // Extract numeric portion (handle formats like "1001", "EST-1001", etc.)
+        const matches = est.DocNumber.match(/(\d+)/);
+        if (matches) {
+          const num = parseInt(matches[1], 10);
+          if (num > maxNum) {
+            maxNum = num;
+          }
+        }
+      }
+    }
+
+    const nextNum = (maxNum + 1).toString();
+    console.log(`📋 Max estimate number found: ${maxNum}, next: ${nextNum}`);
+    return nextNum;
+  } catch (error) {
+    console.error('⚠️ Failed to get max estimate number:', error);
+    // Fallback: use timestamp-based number
+    const fallback = Date.now().toString().slice(-8);
+    console.log(`📋 Using fallback estimate number: ${fallback}`);
+    return fallback;
+  }
+}
+
 /**
  * Create estimate in QuickBooks
+ *
+ * Handles "Custom Transaction Numbers" setting:
+ * - Checks if CustomTxnNumbers is enabled via Preferences API
+ * - If enabled, generates the next DocNumber before creating
+ * - If disabled, lets QB auto-generate the number
  */
 export async function createEstimate(
   estimatePayload: QBEstimatePayload,
@@ -309,20 +382,36 @@ export async function createEstimate(
 ): Promise<{ estimateId: string; docNumber: string; txnDate: string }> {
   console.log('📝 Creating estimate in QuickBooks...');
 
+  // Check if we need to provide our own DocNumber
+  const customTxnEnabled = await isCustomTxnNumbersEnabled(realmId);
+
+  let finalPayload = estimatePayload;
+  if (customTxnEnabled) {
+    const nextDocNumber = await getNextEstimateNumber(realmId);
+    console.log(`📋 Custom Transaction Numbers enabled - using DocNumber: ${nextDocNumber}`);
+    finalPayload = {
+      ...estimatePayload,
+      DocNumber: nextDocNumber
+    } as QBEstimatePayload & { DocNumber: string };
+  }
+
   // Log the actual API call being made
   console.log('\n🌐 QUICKBOOKS API CALL:');
   console.log('=======================');
   console.log(`Endpoint: POST /v3/company/${realmId}/estimate`);
   console.log(`Environment: ${QB_ENVIRONMENT}`);
-  console.log(`Line Items Count: ${estimatePayload.Line.length}`);
+  console.log(`Line Items Count: ${finalPayload.Line.length}`);
+  if ((finalPayload as any).DocNumber) {
+    console.log(`DocNumber: ${(finalPayload as any).DocNumber}`);
+  }
   console.log('\nLine Items Summary:');
-  estimatePayload.Line.forEach((line, idx) => {
+  finalPayload.Line.forEach((line, idx) => {
     console.log(`  ${idx + 1}. ${line.DetailType}${line.Description ? `: "${line.Description.substring(0, 50)}${line.Description.length > 50 ? '...' : ''}"` : ''}`);
   });
   console.log('=======================\n');
 
   const response = await makeQBApiCall('POST', 'estimate', realmId, {
-    data: estimatePayload,
+    data: finalPayload,
     headers: {
       'Content-Type': 'application/json',
     },
@@ -349,6 +438,11 @@ export async function createEstimate(
     });
   }
   console.log('=======================\n');
+
+  // Validate we got a DocNumber
+  if (!estimate.DocNumber) {
+    throw new APIError('Estimate creation failed: DocNumber is undefined. Check QuickBooks Custom Transaction Numbers setting.');
+  }
 
   return {
     estimateId: estimate.Id,

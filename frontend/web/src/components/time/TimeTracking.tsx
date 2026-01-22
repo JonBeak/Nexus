@@ -4,6 +4,7 @@ import WeeklySummary from './WeeklySummary';
 import EditRequestForm from './EditRequestForm';
 import NotificationsModal from './NotificationsModal';
 import { timeApi } from '../../services/api';
+import { useAlert } from '../../contexts/AlertContext';
 import type {
   ClockStatus,
   WeeklyData,
@@ -14,6 +15,7 @@ import type {
 } from '../../types/time';
 
 function TimeTracking() {
+  const { showError, showSuccess } = useAlert();
   const [clockStatus, setClockStatus] = useState<ClockStatus | null>(null);
   const [weeklyData, setWeeklyData] = useState<WeeklyData | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
@@ -100,11 +102,11 @@ function TimeTracking() {
       if (data.message && data.message.includes('successfully')) {
         fetchData();
       } else {
-        alert(`Error clocking in: ${data.error || 'Unknown error'}`);
+        showError(`Error clocking in: ${data.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error clocking in:', error);
-      alert('Error clocking in. Please try again.');
+      showError('Error clocking in. Please try again.');
     }
   };
 
@@ -115,11 +117,11 @@ function TimeTracking() {
       if (data.message && data.message.includes('successfully')) {
         fetchData();
       } else {
-        alert(`Error clocking out: ${data.error || 'Unknown error'}`);
+        showError(`Error clocking out: ${data.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error clocking out:', error);
-      alert('Error clocking out. Please try again.');
+      showError('Error clocking out. Please try again.');
     }
   };
 
@@ -137,14 +139,14 @@ function TimeTracking() {
         reason: editRequest.reason
       });
 
-      alert('Edit request submitted successfully!');
+      showSuccess('Edit request submitted successfully!');
       setShowEditModal(false);
       setEditRequest(null);
       setSelectedEntry(null);
       fetchData();
     } catch (error: any) {
       console.error('Error submitting edit request:', error);
-      alert(`Error submitting request: ${error.response?.data?.error || 'Unknown error'}`);
+      showError(`Error submitting request: ${error.response?.data?.error || 'Unknown error'}`);
     }
   };
 
@@ -159,14 +161,14 @@ function TimeTracking() {
         reason: deleteRequest.reason
       });
 
-      alert('Delete request submitted successfully!');
+      showSuccess('Delete request submitted successfully!');
       setShowDeleteModal(false);
       setDeleteRequest(null);
       setSelectedEntry(null);
       fetchData();
     } catch (error: any) {
       console.error('Error submitting delete request:', error);
-      alert(`Error submitting delete request: ${error.response?.data?.error || 'Unknown error'}`);
+      showError(`Error submitting delete request: ${error.response?.data?.error || 'Unknown error'}`);
     }
   };
 

@@ -339,18 +339,30 @@ export function formatSpecValues(
       // Template stores: count, led_type (full string), note
       return formatCountTypeSpec(specs, 'count', ['type', 'led_type'], ' - ', formType, 'note');
 
-    case 'Wire Length':
+    case 'Wire Length': {
       // Add " ft" unit if not already present
+      // Include additional notes in parentheses if present
       const wireLength = getSpecField(specs, 'length', 'wire_length');
       const wireGauge = specs.wire_gauge || '';
+      const wireNote = (specs.note || '').trim();
       const wireLengthWithUnit = wireLength && !String(wireLength).toLowerCase().includes('ft')
         ? `${wireLength} ft`
         : wireLength;
 
+      let wireResult = '';
       if (wireLengthWithUnit && wireGauge) {
-        return `${wireLengthWithUnit} [${wireGauge}]`;
+        wireResult = `${wireLengthWithUnit} [${wireGauge}]`;
+      } else {
+        wireResult = wireLengthWithUnit || '';
       }
-      return wireLengthWithUnit || '';
+
+      // Append note in parentheses if present
+      if (wireNote && wireResult) {
+        wireResult += ` (${wireNote})`;
+      }
+
+      return wireResult;
+    }
 
     case 'Power Supply':
       // Template stores: count, ps_type (full string), note

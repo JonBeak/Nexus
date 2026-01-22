@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { ordersApi } from '../../../../services/api';
 import { Order } from '../../../../types/orders';
 import { orderFieldConfigs } from '../constants/orderFieldConfigs';
+import { useAlert } from '../../../../contexts/AlertContext';
 
 interface EditState {
   editingField: string | null;
@@ -27,6 +28,8 @@ export function useEditableFields(
   scrollContainerRef: React.RefObject<HTMLDivElement>,
   refetch?: () => Promise<void>
 ) {
+  const { showError } = useAlert();
+
   // Edit State
   const [editState, setEditState] = useState<EditState>({
     editingField: null,
@@ -114,7 +117,7 @@ export function useEditableFields(
       }
     } catch (err) {
       console.error('Error updating order:', err);
-      alert('Failed to update order. Please try again.');
+      showError('Failed to update order. Please try again.');
     } finally {
       setUiState((prev: any) => ({ ...prev, saving: false }));
 

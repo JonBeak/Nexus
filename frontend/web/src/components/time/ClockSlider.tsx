@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
+import { useAlert } from '../../contexts/AlertContext';
 
 interface ClockSliderProps {
   isClocked: boolean;
@@ -9,6 +10,7 @@ interface ClockSliderProps {
 const COMPLETION_THRESHOLD = 0.95; // 95% completion required
 
 function ClockSlider({ isClocked, onConfirm, disabled = false }: ClockSliderProps) {
+  const { showConfirmation } = useAlert();
   const [isDragging, setIsDragging] = useState(false);
   const [dragProgress, setDragProgress] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
@@ -91,10 +93,16 @@ function ClockSlider({ isClocked, onConfirm, disabled = false }: ClockSliderProp
   }, [handleEnd]);
 
   // Keyboard support
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = async (e: React.KeyboardEvent) => {
     if ((e.key === 'Enter' || e.key === ' ') && !disabled) {
       e.preventDefault();
-      if (confirm(isClocked ? 'Clock out now?' : 'Clock in now?')) {
+      const confirmed = await showConfirmation({
+        title: isClocked ? 'Clock Out' : 'Clock In',
+        message: isClocked ? 'Clock out now?' : 'Clock in now?',
+        confirmText: isClocked ? 'Clock Out' : 'Clock In',
+        variant: 'default'
+      });
+      if (confirmed) {
         onConfirm();
       }
     }

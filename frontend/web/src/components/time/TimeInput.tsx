@@ -10,6 +10,7 @@ interface TimeInputProps {
   onChange: (value: string) => void;  // Returns HH:MM (24-hour)
   className?: string;
   isEdited?: boolean;      // Triggers orange highlight
+  activeState?: 'today' | 'other-day';  // Active entry indicator
 }
 
 /**
@@ -27,7 +28,7 @@ const getPeriodText = (period: 'AM' | 'PM'): string => {
  * Custom time input component with 12-hour dropdown picker
  * Optimized for compact calendar cells (90px width)
  */
-export const TimeInput = ({ value, onChange, className = '', isEdited = false }: TimeInputProps) => {
+export const TimeInput = ({ value, onChange, className = '', isEdited = false, activeState }: TimeInputProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -115,7 +116,13 @@ export const TimeInput = ({ value, onChange, className = '', isEdited = false }:
         onKeyDown={handleKeyDown}
         className={`
           w-full px-1 py-1 text-xs border text-left
-          ${isEdited ? 'bg-orange-100 border-orange-300' : `${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background}`}
+          ${isEdited
+            ? 'bg-orange-100 border-orange-300'
+            : activeState === 'other-day'
+              ? 'bg-red-200 border-red-400'
+              : activeState === 'today'
+                ? 'bg-green-100 border-green-300'
+                : `${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background}`}
           hover:border-yellow-400 focus:outline-none focus:ring-1 focus:ring-yellow-500
           ${PAGE_STYLES.input.text}
           ${className}

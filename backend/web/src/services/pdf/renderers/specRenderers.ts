@@ -64,6 +64,20 @@ function shouldSkipBackSpec(specsDisplayName: string | null, backSpecs: Record<s
   return backMaterial === defaultBack;
 }
 
+/**
+ * Product types that should skip the Cutting spec on order forms
+ * Backer products have Cutting method (Router) auto-filled but this is redundant on forms
+ */
+const SKIP_CUTTING_SPEC_PRODUCT_TYPES = ['Backer'];
+
+/**
+ * Check if the Cutting spec should be skipped for this product type
+ */
+function shouldSkipCuttingSpec(specsDisplayName: string | null): boolean {
+  if (!specsDisplayName) return false;
+  return SKIP_CUTTING_SPEC_PRODUCT_TYPES.includes(specsDisplayName);
+}
+
 // ============================================
 // SPEEDBOX CONSOLIDATION (Customer Forms Only)
 // ============================================
@@ -281,11 +295,19 @@ export function buildSortedTemplateRows(
                 // First, format boolean values to Yes/No
                 let formattedValue = formatBooleanValue(value);
 
-                // Then clean up spec values (remove parenthetical details)
-                const cleanedValue = cleanSpecValue(String(formattedValue).trim());
+                // Only clean LED/PS type fields (remove parenthetical details)
+                const isLedTypeField = templateName === 'LEDs' && ['type', 'led_type'].includes(fieldName);
+                const isPsTypeField = templateName === 'Power Supply' && ['ps_type', 'model', 'power_supply'].includes(fieldName);
 
-                if (cleanedValue) {
-                  rowSpecs[fieldName] = cleanedValue;
+                let finalValue: string;
+                if (isLedTypeField || isPsTypeField) {
+                  finalValue = cleanSpecValue(String(formattedValue).trim());
+                } else {
+                  finalValue = String(formattedValue).trim();
+                }
+
+                if (finalValue) {
+                  rowSpecs[fieldName] = finalValue;
                 }
               }
             }
@@ -526,6 +548,12 @@ export function renderSpecifications(
     // Skip Back spec if it matches the default value for this product type
     if (row.template === 'Back' && shouldSkipBackSpec(specsDisplayName, row.specs)) {
       debugLog(`[PDF RENDER] Skipping Back spec - matches default value for ${specsDisplayName}`);
+      return; // Skip to next row
+    }
+
+    // Skip Cutting spec for Backer products (redundant info)
+    if (row.template === 'Cutting' && shouldSkipCuttingSpec(specsDisplayName)) {
+      debugLog(`[PDF RENDER] Skipping Cutting spec for ${specsDisplayName}`);
       return; // Skip to next row
     }
 

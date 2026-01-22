@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { OrderStatus, ORDER_STATUS_LABELS } from '../../../types/orders';
 import { ordersApi } from '../../../services/api';
+import { useAlert } from '../../../contexts/AlertContext';
 
 interface Props {
   orderNumber: number;
@@ -30,6 +31,7 @@ export const StatusDropdown: React.FC<Props> = ({
   currentStatus,
   onStatusUpdated
 }) => {
+  const { showError } = useAlert();
   const [updating, setUpdating] = useState(false);
 
   const handleStatusChange = async (newStatus: OrderStatus) => {
@@ -41,7 +43,7 @@ export const StatusDropdown: React.FC<Props> = ({
       onStatusUpdated();
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('Failed to update status. Please try again.');
+      showError('Failed to update status. Please try again.');
     } finally {
       setUpdating(false);
     }

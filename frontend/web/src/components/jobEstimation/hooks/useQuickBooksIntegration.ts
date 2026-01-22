@@ -5,6 +5,7 @@ import { EstimateVersion, EmailSummaryConfig } from '../types';
 import { EstimatePreviewData } from '../core/layers/CalculationLayer';
 import { PointPersonEntry } from '../EstimatePointPersonsEditor';
 import { EmailRecipients } from '../components/EstimateEmailPreviewModal';
+import { useAlert } from '../../../contexts/AlertContext';
 
 interface UseQuickBooksIntegrationParams {
   currentEstimate: EstimateVersion | null;
@@ -33,6 +34,7 @@ export const useQuickBooksIntegration = ({
   lineDescriptions,
   onBeforePrepare
 }: UseQuickBooksIntegrationParams) => {
+  const { showError, showSuccess, showWarning, showConfirmation } = useAlert();
   const [qbConnected, setQbConnected] = useState(false);
   const [qbRealmId, setQbRealmId] = useState<string | null>(null);
   const [qbCheckingStatus, setQbCheckingStatus] = useState(true);
@@ -71,29 +73,27 @@ export const useQuickBooksIntegration = ({
 
   const handleCreateQuickBooksEstimate = async () => {
     if (!currentEstimate || !estimatePreviewData) {
-      alert('No estimate data available.');
+      showWarning('No estimate data available.');
       return;
     }
 
     // Validate QuickBooks name is configured
     if (!estimatePreviewData.customerName || !estimatePreviewData.customerName.trim()) {
-      alert(
-        '❌ QuickBooks Name Not Configured\n\n' +
-        'This customer does not have a QuickBooks name set.\n\n' +
-        'Please edit the customer and set their QuickBooks name to match ' +
-        'their exact DisplayName in QuickBooks before creating estimates.'
+      showError(
+        'This customer does not have a QuickBooks name set. Please edit the customer and set their QuickBooks name to match their exact DisplayName in QuickBooks before creating estimates.',
+        'QuickBooks Name Not Configured'
       );
       return;
     }
 
     // Allow QB creation from draft OR prepared state
     if (!currentEstimate.is_draft && !currentEstimate.is_prepared) {
-      alert('Only draft or prepared estimates can be sent to QuickBooks.');
+      showWarning('Only draft or prepared estimates can be sent to QuickBooks.');
       return;
     }
 
     if (!qbConnected) {
-      alert('Not connected to QuickBooks. Please connect first.');
+      showWarning('Not connected to QuickBooks. Please connect first.');
       return;
     }
 
@@ -152,12 +152,12 @@ export const useQuickBooksIntegration = ({
         });
         setShowSuccessModal(true);
       } else {
-        alert(`❌ Failed to create estimate:\n\n${result.error || 'Unknown error'}`);
+        showError(result.error || 'Unknown error', 'Failed to Create Estimate');
       }
     } catch (error: any) {
       console.error('Error creating QB estimate:', error);
       const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
-      alert(`❌ Error creating estimate in QuickBooks:\n\n${errorMsg}`);
+      showError(errorMsg, 'Error Creating Estimate in QuickBooks');
     } finally {
       setQbCreatingEstimate(false);
     }
@@ -211,11 +211,11 @@ export const useQuickBooksIntegration = ({
           uses_preparation_table: true
         });
       } else {
-        alert(`Failed to prepare estimate: ${result.message || 'Unknown error'}`);
+        showError(result.message || 'Unknown error', 'Failed to Prepare Estimate');
       }
     } catch (error: any) {
       console.error('Error preparing estimate:', error);
-      alert(`Error preparing estimate: ${error.message || 'Unknown error'}`);
+      showError(error.message || 'Unknown error', 'Error Preparing Estimate');
     } finally {
       setIsPreparing(false);
     }
@@ -261,14 +261,14 @@ export const useQuickBooksIntegration = ({
           setShowSentSuccessModal(true);
         }
       } else {
-        alert(`Failed to send estimate: ${result.message || 'Unknown error'}`);
+        showError(result.message || 'Unknown error', 'Failed to Send Estimate');
       }
     } catch (error: any) {
       console.error('Error sending estimate:', error);
       // Extract backend error message if available
       const backendMessage = error.response?.data?.message;
       const errorMessage = backendMessage || error.message || 'Unknown error';
-      alert(`Error sending estimate: ${errorMessage}`);
+      showError(errorMessage, 'Error Sending Estimate');
     } finally {
       setIsSending(false);
     }
@@ -290,7 +290,7 @@ export const useQuickBooksIntegration = ({
       const configStatus = await quickbooksApi.getConfigStatus();
 
       if (!configStatus.configured) {
-        alert('QuickBooks credentials not configured. Please contact administrator.');
+        showWarning('QuickBooks credentials not configured. Please contact administrator.');
         return;
       }
 
@@ -317,12 +317,19 @@ export const useQuickBooksIntegration = ({
 
     } catch (error) {
       console.error('Error connecting to QuickBooks:', error);
-      alert('Failed to connect to QuickBooks. Please try again.');
+      showError('Failed to connect to QuickBooks. Please try again.');
     }
   };
 
   const handleDisconnectFromQuickBooks = async () => {
-    if (!confirm('Disconnect from QuickBooks? You will need to reconnect to create estimates.')) {
+    const confirmed = await showConfirmation({
+      title: 'Disconnect from QuickBooks',
+      message: 'You will need to reconnect to create estimates. Are you sure you want to disconnect?',
+      variant: 'warning',
+      confirmText: 'Disconnect',
+      cancelText: 'Cancel'
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -331,11 +338,11 @@ export const useQuickBooksIntegration = ({
       if (result.success) {
         setQbConnected(false);
         setQbRealmId(null);
-        alert('✅ Disconnected from QuickBooks');
+        showSuccess('Disconnected from QuickBooks');
       }
     } catch (error) {
       console.error('Error disconnecting from QuickBooks:', error);
-      alert('Failed to disconnect. Please try again.');
+      showError('Failed to disconnect. Please try again.');
     }
   };
 

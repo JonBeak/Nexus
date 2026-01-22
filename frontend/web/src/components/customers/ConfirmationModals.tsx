@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { customerApi } from '../../services/api';
 import { Address, Customer } from '../../types';
 import { PAGE_STYLES } from '../../constants/moduleColors';
+import SelectPrimaryAddressModal from './SelectPrimaryAddressModal';
+import { useAlert } from '../../contexts/AlertContext';
 
 interface DeleteConfirmation {
   show: boolean;
@@ -20,7 +22,9 @@ interface ConfirmationModalsProps {
   deactivateConfirmation: DeactivateConfirmation;
   setDeactivateConfirmation: (confirmation: DeactivateConfirmation) => void;
   customer: Customer;
+  allAddresses: Address[];
   onAddressDeleted: (index: number) => void;
+  onDeletePrimaryAddress: (index: number, newPrimaryAddressId: number | string) => Promise<void>;
   onCustomerDeactivated: () => void;
 }
 
@@ -30,9 +34,15 @@ function ConfirmationModals({
   deactivateConfirmation,
   setDeactivateConfirmation,
   customer,
+  allAddresses,
   onAddressDeleted,
+  onDeletePrimaryAddress,
   onCustomerDeactivated
 }: ConfirmationModalsProps) {
+  const { showError } = useAlert();
+  const [showSelectPrimaryModal, setShowSelectPrimaryModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const getAddressTypeLabels = (address: Address) => {
     const types = [];
     if (address.is_primary) types.push('Primary');
@@ -43,8 +53,78 @@ function ConfirmationModals({
     return types.length > 0 ? types.join(', ') : 'Address';
   };
 
+  // Get remaining active addresses (excluding the one being deleted)
+  const getRemainingAddresses = () => {
+    if (!deleteConfirmation.address) return [];
+    return allAddresses.filter(
+      addr => addr.address_id !== deleteConfirmation.address!.address_id && addr.is_active !== false
+    );
+  };
+
+  // Get the newest address from remaining (for default selection)
+  const getNewestAddressId = (remaining: Address[]): number | string | null => {
+    if (remaining.length === 0) return null;
+    // Assuming higher address_id = newer (auto-increment)
+    // If address_id is string 'new', exclude it
+    const validAddresses = remaining.filter(a => a.address_id !== 'new');
+    if (validAddresses.length === 0) return null;
+    const sorted = [...validAddresses].sort((a, b) => {
+      const idA = typeof a.address_id === 'number' ? a.address_id : parseInt(a.address_id as string, 10);
+      const idB = typeof b.address_id === 'number' ? b.address_id : parseInt(b.address_id as string, 10);
+      return idB - idA; // Descending order (newest first)
+    });
+    return sorted[0].address_id;
+  };
+
   const handleDeleteConfirm = () => {
-    onAddressDeleted(deleteConfirmation.index);
+    const address = deleteConfirmation.address;
+    if (!address) return;
+
+    // Check if deleting primary address
+    if (address.is_primary) {
+      const remaining = getRemainingAddresses();
+
+      if (remaining.length === 0) {
+        // Cannot delete last address - shouldn't happen, but handle it
+        showError('Cannot delete the last address.');
+        setDeleteConfirmation({show: false, address: null, index: -1});
+        return;
+      }
+
+      if (remaining.length === 1) {
+        // Auto-assign the only remaining address
+        handleDeletePrimaryWithAutoAssign(remaining[0].address_id);
+      } else {
+        // Multiple remaining - show selection modal
+        setShowSelectPrimaryModal(true);
+      }
+    } else {
+      // Not primary - normal delete
+      onAddressDeleted(deleteConfirmation.index);
+      setDeleteConfirmation({show: false, address: null, index: -1});
+    }
+  };
+
+  const handleDeletePrimaryWithAutoAssign = async (newPrimaryId: number | string) => {
+    setIsDeleting(true);
+    try {
+      await onDeletePrimaryAddress(deleteConfirmation.index, newPrimaryId);
+      setDeleteConfirmation({show: false, address: null, index: -1});
+    } catch (error) {
+      console.error('Error deleting primary address:', error);
+      showError('Failed to delete address. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleSelectPrimaryConfirm = async (newPrimaryAddressId: number | string) => {
+    setShowSelectPrimaryModal(false);
+    await handleDeletePrimaryWithAutoAssign(newPrimaryAddressId);
+  };
+
+  const handleSelectPrimaryCancel = () => {
+    setShowSelectPrimaryModal(false);
     setDeleteConfirmation({show: false, address: null, index: -1});
   };
 
@@ -55,14 +135,30 @@ function ConfirmationModals({
       onCustomerDeactivated();
     } catch (error) {
       console.error('Error deactivating customer:', error);
-      alert('Failed to deactivate customer. Please try again.');
+      showError('Failed to deactivate customer. Please try again.');
     }
   };
 
+  // Calculate remaining addresses for display logic
+  const remainingAddresses = getRemainingAddresses();
+  const isPrimaryWithOneRemaining = deleteConfirmation.address?.is_primary && remainingAddresses.length === 1;
+  const newestAddressId = getNewestAddressId(remainingAddresses);
+
   return (
     <>
+      {/* Select Primary Address Modal (shown when deleting primary with 2+ remaining) */}
+      {showSelectPrimaryModal && deleteConfirmation.address && newestAddressId && (
+        <SelectPrimaryAddressModal
+          addresses={allAddresses}
+          addressToDelete={deleteConfirmation.address}
+          defaultSelectedId={newestAddressId}
+          onConfirm={handleSelectPrimaryConfirm}
+          onCancel={handleSelectPrimaryCancel}
+        />
+      )}
+
       {/* Delete Confirmation Dialog */}
-      {deleteConfirmation.show && (
+      {deleteConfirmation.show && !showSelectPrimaryModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60">
           <div className={`${PAGE_STYLES.panel.background} rounded-lg p-6 max-w-md w-full mx-4`}>
             <h3 className={`text-lg font-bold ${PAGE_STYLES.panel.text} mb-4`}>Confirm Delete</h3>
@@ -72,18 +168,28 @@ function ConfirmationModals({
               {deleteConfirmation.address!.address_line1}<br />
               {deleteConfirmation.address!.city}, {deleteConfirmation.address!.province_state_short} {deleteConfirmation.address!.postal_zip}
             </div>
+            {/* Note when deleting primary with exactly 1 remaining address */}
+            {isPrimaryWithOneRemaining && (
+              <div className="mb-4 p-3 bg-blue-900/30 border border-blue-500 rounded text-sm">
+                <span className="text-blue-300">
+                  The remaining address will automatically become the new primary.
+                </span>
+              </div>
+            )}
             <div className="flex space-x-3 justify-end">
               <button
                 onClick={() => setDeleteConfirmation({show: false, address: null, index: -1})}
-                className={`px-4 py-2 ${PAGE_STYLES.header.background} hover:bg-gray-500 ${PAGE_STYLES.panel.text} rounded font-semibold transition-colors`}
+                disabled={isDeleting}
+                className={`px-4 py-2 ${PAGE_STYLES.header.background} hover:bg-gray-500 ${PAGE_STYLES.panel.text} rounded font-semibold transition-colors disabled:opacity-50`}
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteConfirm}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded font-semibold transition-colors"
+                disabled={isDeleting}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded font-semibold transition-colors disabled:opacity-50"
               >
-                Delete
+                {isDeleting ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>

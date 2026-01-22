@@ -138,6 +138,15 @@ export const MODULE_COLORS = {
     lightText: 'text-indigo-100',
     border: 'border-indigo-500',
     name: 'Feedback'
+  },
+  files: {
+    base: 'bg-cyan-600',
+    hover: 'hover:bg-cyan-700',
+    text: 'text-cyan-600',
+    light: 'bg-cyan-100',
+    lightText: 'text-cyan-100',
+    border: 'border-cyan-600',
+    name: 'Files'
   }
 } as const;
 

@@ -157,6 +157,34 @@ function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) 
     }
   };
 
+  const handleDeletePrimaryAddress = async (index: number, newPrimaryAddressId: number | string) => {
+    const address = addresses[index];
+    if (address.address_id === 'new') {
+      // Shouldn't happen - new addresses can't be primary, but handle it
+      const newAddresses = addresses.filter((_, i) => i !== index);
+      setAddresses(newAddresses);
+      return;
+    }
+
+    try {
+      // Step 1: Make the selected address the new primary FIRST
+      // This ensures a primary always exists
+      await customerApi.makePrimaryAddress(customer.customer_id, newPrimaryAddressId);
+
+      // Step 2: Now delete the old primary address
+      await customerApi.deleteAddress(customer.customer_id, address.address_id);
+
+      // Step 3: Refresh addresses to show updated state
+      await refreshAddresses();
+    } catch (error) {
+      console.error('Error during primary address reassignment and delete:', error);
+      setSaveError('Failed to complete the operation. Please try again.');
+      // Refresh to show current state (new primary may have been set)
+      await refreshAddresses();
+      throw error; // Re-throw so ConfirmationModals knows it failed
+    }
+  };
+
   const handleCustomerDeactivated = () => {
     onClose(); // Close modal
     window.location.reload(); // Refresh the customer list
@@ -255,13 +283,15 @@ function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) 
         </div>
       </div>
       
-      <ConfirmationModals 
+      <ConfirmationModals
         deleteConfirmation={deleteConfirmation}
         setDeleteConfirmation={setDeleteConfirmation}
         deactivateConfirmation={deactivateConfirmation}
         setDeactivateConfirmation={setDeactivateConfirmation}
         customer={customer}
+        allAddresses={addresses}
         onAddressDeleted={handleAddressDeleted}
+        onDeletePrimaryAddress={handleDeletePrimaryAddress}
         onCustomerDeactivated={handleCustomerDeactivated}
       />
     </div>

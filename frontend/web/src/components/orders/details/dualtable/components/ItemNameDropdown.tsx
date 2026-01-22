@@ -10,6 +10,7 @@ import React, { useState } from 'react';
 import { ordersApi } from '@/services/api';
 import { SPECS_DISPLAY_NAMES } from '../constants/tableConstants';
 import { INPUT_STYLES } from '@/utils/inputStyles';
+import { useAlert } from '@/contexts/AlertContext';
 
 interface ItemNameDropdownProps {
   partId: number;
@@ -28,6 +29,8 @@ export const ItemNameDropdown = React.memo<ItemNameDropdownProps>(({
   isParentOrRegular = false,
   applyGrayBackground = false
 }) => {
+  const { showError } = useAlert();
+
   const [isSaving, setIsSaving] = useState(false);
 
   const handleChange = async (value: string) => {
@@ -47,7 +50,7 @@ export const ItemNameDropdown = React.memo<ItemNameDropdownProps>(({
     } catch (error: any) {
       console.error('[ItemNameDropdown] Error updating specs_display_name:', error);
       const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
-      alert(`Failed to update Item Name: ${errorMsg}`);
+      showError(`Failed to update Item Name: ${errorMsg}`);
     } finally {
       setIsSaving(false);
     }

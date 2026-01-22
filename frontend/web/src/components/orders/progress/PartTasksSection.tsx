@@ -3,6 +3,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import TaskList from './TaskList';
 import TaskTemplateDropdown from './TaskTemplateDropdown';
 import { orderTasksApi } from '../../../services/api';
+import { useAlert } from '../../../contexts/AlertContext';
 
 interface Props {
   part: any;
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export const PartTasksSection: React.FC<Props> = ({ part, partIndex, orderNumber, orderStatus, onTaskUpdated }) => {
+  const { showError, showConfirmation } = useAlert();
   const [showAddDropdown, setShowAddDropdown] = useState(false);
   const [removing, setRemoving] = useState(false);
   const addButtonRef = useRef<HTMLButtonElement>(null);
@@ -29,9 +31,12 @@ export const PartTasksSection: React.FC<Props> = ({ part, partIndex, orderNumber
   };
 
   const handleRemovePart = async () => {
-    if (!confirm(`Remove all tasks for Part ${partIndex}? This part will no longer appear in Job Progress.`)) {
-      return;
-    }
+    const confirmed = await showConfirmation({
+      title: 'Remove Part Tasks',
+      message: `Remove all tasks for Part ${partIndex}? This part will no longer appear in Job Progress.`,
+      variant: 'danger'
+    });
+    if (!confirmed) return;
 
     try {
       setRemoving(true);
@@ -39,7 +44,7 @@ export const PartTasksSection: React.FC<Props> = ({ part, partIndex, orderNumber
       onTaskUpdated();
     } catch (error) {
       console.error('Error removing part tasks:', error);
-      alert('Failed to remove part. Please try again.');
+      showError('Failed to remove part. Please try again.');
     } finally {
       setRemoving(false);
     }

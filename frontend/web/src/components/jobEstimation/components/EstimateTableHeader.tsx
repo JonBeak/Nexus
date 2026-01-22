@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FileText, ExternalLink, Mail } from 'lucide-react';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
+import { useAlert } from '../../../contexts/AlertContext';
 
 interface EstimateTableHeaderProps {
   // Workflow state
@@ -60,6 +61,7 @@ export const EstimateTableHeader: React.FC<EstimateTableHeaderProps> = ({
   onPrepareEstimate,
   onOpenEmailPreview
 }) => {
+  const { showError } = useAlert();
   const [isSavingPointPersons, setIsSavingPointPersons] = useState(false);
 
   const handleSendClick = async () => {
@@ -72,7 +74,7 @@ export const EstimateTableHeader: React.FC<EstimateTableHeaderProps> = ({
       await onSavePointPersons();
     } catch (error) {
       console.error('Failed to auto-save point persons:', error);
-      alert('Failed to save point persons. Please try again.');
+      showError('Failed to save point persons. Please try again.');
       return;
     } finally {
       setIsSavingPointPersons(false);

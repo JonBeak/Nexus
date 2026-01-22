@@ -5,6 +5,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Plus, Edit, Trash2, TrendingUp, AlertCircle } from 'lucide-react';
 import api from '../../services/api';
+import { useAlert } from '../../contexts/AlertContext';
 import { SupplierProduct, Supplier } from '../../types/supplyChain';
 import { SupplierProductEditor } from './SupplierProductEditor';
 import { PriceHistoryModal } from './PriceHistoryModal';
@@ -18,6 +19,7 @@ export const ArchetypeSupplierProducts: React.FC<ArchetypeSupplierProductsProps>
   archetypeId,
   onUpdate
 }) => {
+  const { showConfirmation } = useAlert();
   const [products, setProducts] = useState<SupplierProduct[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(false);
@@ -85,7 +87,13 @@ export const ArchetypeSupplierProducts: React.FC<ArchetypeSupplierProductsProps>
 
   // Handle delete product
   const handleDelete = async (product: SupplierProduct) => {
-    if (!confirm(`Delete "${product.brand_name || product.sku || 'this product'}"?`)) return;
+    const confirmed = await showConfirmation({
+      title: 'Delete Supplier Product',
+      message: `Delete "${product.brand_name || product.sku || 'this product'}"?`,
+      variant: 'danger',
+      confirmText: 'Delete'
+    });
+    if (!confirmed) return;
 
     try {
       await api.delete(`/supplier-products/${product.supplier_product_id}`);

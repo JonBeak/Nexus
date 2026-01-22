@@ -96,7 +96,6 @@ export const useCustomerAPI = (): UseCustomerAPIReturn => {
       await customerApi.reactivateCustomer(customerId);
     } catch (error) {
       console.error('Error reactivating customer:', error);
-      alert('Failed to reactivate customer. Please try again.');
       throw error;
     }
   }, []);

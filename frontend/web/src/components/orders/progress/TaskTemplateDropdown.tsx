@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ordersApi } from '../../../services/api';
 import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
+import { useAlert } from '../../../contexts/AlertContext';
 
 interface Props {
   orderNumber: number;
@@ -27,6 +28,7 @@ export const TaskTemplateDropdown: React.FC<Props> = ({
   triggerRef,
   centered = false
 }) => {
+  const { showError } = useAlert();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
@@ -63,7 +65,7 @@ export const TaskTemplateDropdown: React.FC<Props> = ({
       setTemplates(data);
     } catch (error) {
       console.error('Error loading task templates:', error);
-      alert('Failed to load task templates. Please try again.');
+      showError('Failed to load task templates. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -79,7 +81,7 @@ export const TaskTemplateDropdown: React.FC<Props> = ({
       onTaskAdded();
     } catch (error) {
       console.error('Error adding task:', error);
-      alert('Failed to add task. Please try again.');
+      showError('Failed to add task. Please try again.');
     } finally {
       setAdding(false);
     }

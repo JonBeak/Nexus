@@ -13,6 +13,7 @@ import { PanelWithData, DashboardPanelDefinition, PanelActionType, PanelOrderRow
 import DashboardPanel from './DashboardPanel';
 import PanelSelectionModal from './PanelSelectionModal';
 import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
+import { useAlert } from '../../../contexts/AlertContext';
 
 // Action modal state type
 interface ActionModalState {
@@ -22,6 +23,8 @@ interface ActionModalState {
 }
 
 export const PanelDashboard: React.FC = () => {
+  const { showError } = useAlert();
+
   const [panels, setPanels] = useState<PanelWithData[]>([]);
   const [availablePanels, setAvailablePanels] = useState<DashboardPanelDefinition[]>([]);
   const [loading, setLoading] = useState(true);
@@ -146,7 +149,7 @@ export const PanelDashboard: React.FC = () => {
       }
     } catch (err) {
       console.error(`Error performing action ${action}:`, err);
-      alert(`Failed to perform action: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      showError(`Failed to perform action: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setActionLoading(false);
     }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { timeApi } from '../../../services/api';
+import { useAlert } from '../../../contexts/AlertContext';
 import type { TimeEntry, BulkEditValues } from '../../../types/time';
 
 interface UseTimeEntryActionsProps {
@@ -9,7 +10,8 @@ interface UseTimeEntryActionsProps {
 export const useTimeEntryActions = ({
   onDataRefresh
 }: UseTimeEntryActionsProps) => {
-  
+  const { showConfirmation } = useAlert();
+
   const [editingEntry, setEditingEntry] = useState<number | null>(null);
   const [editValues, setEditValues] = useState<{
     clock_in: string;
@@ -65,7 +67,13 @@ export const useTimeEntryActions = ({
   };
   
   const deleteEntry = async (entryId: number) => {
-    if (!confirm('Are you sure you want to delete this entry? This cannot be undone.')) {
+    const confirmed = await showConfirmation({
+      title: 'Delete Entry',
+      message: 'Are you sure you want to delete this entry? This cannot be undone.',
+      confirmText: 'Delete',
+      variant: 'danger'
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -78,7 +86,13 @@ export const useTimeEntryActions = ({
   };
 
   const bulkDelete = async (selectedEntries: number[]) => {
-    if (!confirm(`Are you sure you want to delete ${selectedEntries.length} entries? This cannot be undone.`)) {
+    const confirmed = await showConfirmation({
+      title: 'Delete Entries',
+      message: `Are you sure you want to delete ${selectedEntries.length} entries? This cannot be undone.`,
+      confirmText: 'Delete All',
+      variant: 'danger'
+    });
+    if (!confirmed) {
       return;
     }
 

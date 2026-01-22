@@ -8,6 +8,7 @@
 import React, { useState } from 'react';
 import { RefreshCw, AlertTriangle, Trash2, CheckCircle } from 'lucide-react';
 import type { RogueProcess } from '../../../services/api/serverManagementApi';
+import { useAlert } from '../../../contexts/AlertContext';
 
 interface RogueProcessesPanelProps {
   processes: RogueProcess[];
@@ -22,14 +23,19 @@ export const RogueProcessesPanel: React.FC<RogueProcessesPanelProps> = ({
   onRefresh,
   onKill
 }) => {
+  const { showConfirmation } = useAlert();
   const [killingPid, setKillingPid] = useState<number | null>(null);
 
   const handleKill = async (pid: number) => {
     if (!onKill) return;
 
-    if (!window.confirm(`Kill process ${pid}? This cannot be undone.`)) {
-      return;
-    }
+    const confirmed = await showConfirmation({
+      title: 'Kill Process',
+      message: `Kill process ${pid}? This cannot be undone.`,
+      variant: 'danger',
+      confirmText: 'Kill Process'
+    });
+    if (!confirmed) return;
 
     setKillingPid(pid);
     try {

@@ -64,6 +64,7 @@ export const ImportFromEstimateModal: React.FC<ImportFromEstimateModalProps> = (
         part_id: p.part_id,
         display_number: p.display_number ?? null,
         product_type: p.product_type ?? null,
+        invoice_description: p.invoice_description ?? null,
         qb_description: p.qb_description ?? null,
         qb_item_name: p.qb_item_name ?? null,
         quantity: p.quantity ?? 1,
@@ -340,6 +341,11 @@ export const ImportFromEstimateModal: React.FC<ImportFromEstimateModalProps> = (
     setStagedRows([]);
   }, []);
 
+  // Handle source selector close (stabilized callback to prevent re-renders)
+  const handleSourceSelectorClose = useCallback(() => {
+    setIsSourceSelectorOpen(false);
+  }, []);
+
   // Handle import/apply
   const handleApply = useCallback(async () => {
     if (stagedRows.length === 0) return;
@@ -554,7 +560,7 @@ export const ImportFromEstimateModal: React.FC<ImportFromEstimateModalProps> = (
       {/* Source Estimate Selector Modal */}
       <SelectSourceEstimateModal
         isOpen={isSourceSelectorOpen}
-        onClose={() => setIsSourceSelectorOpen(false)}
+        onClose={handleSourceSelectorClose}
         onSelect={handleSourceSelect}
         linkedEstimateId={estimateId}
       />

@@ -5,7 +5,7 @@ import TimeTracking from '../time/TimeTracking';
 import TimeApprovals from '../time/TimeApprovals';
 import SessionEditRequestsPanel from '../staff/SessionEditRequestsPanel';
 import type { AccountUser } from '../../types/user';
-import { apiClient } from '../../services/api';
+import { apiClient, feedbackApi } from '../../services/api';
 import { MODULE_COLORS, PAGE_STYLES, getModulePillClasses, getModuleCardClasses } from '../../constants/moduleColors';
 import { useTheme } from '../../contexts/ThemeContext';
 import '../jobEstimation/JobEstimation.css';
@@ -40,6 +40,7 @@ function SimpleDashboard({ user, onLogout }: SimpleDashboardProps) {
   const [backupStatus, setBackupStatus] = useState<BackupStatusData | null>(null);
   const [backupLoading, setBackupLoading] = useState(false);
   const [backupError, setBackupError] = useState<string | null>(null);
+  const [openFeedbackCount, setOpenFeedbackCount] = useState<number>(0);
 
   // Theme from global context (persisted to database)
   const { theme, toggleTheme } = useTheme();
@@ -48,6 +49,15 @@ function SimpleDashboard({ user, onLogout }: SimpleDashboardProps) {
   useEffect(() => {
     if (user.role === 'owner') {
       fetchBackupStatus();
+    }
+  }, [user.role]);
+
+  // Fetch open feedback count for owners
+  useEffect(() => {
+    if (user.role === 'owner') {
+      feedbackApi.getOpenCount()
+        .then(count => setOpenFeedbackCount(count))
+        .catch(err => console.error('Failed to fetch feedback count:', err));
     }
   }, [user.role]);
 
@@ -304,9 +314,20 @@ Check backend logs for detailed comparison!`);
                   </button>
                   <button
                     onClick={() => navigate('/feedback')}
-                    className={getModulePillClasses('feedback')}
+                    className={`${getModulePillClasses('feedback')} relative`}
                   >
                     {MODULE_COLORS.feedback.name}
+                    {openFeedbackCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                        {openFeedbackCount > 99 ? '99+' : openFeedbackCount}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => navigate('/file-browser')}
+                    className={getModulePillClasses('files')}
+                  >
+                    {MODULE_COLORS.files.name}
                   </button>
                 </div>
               </div>

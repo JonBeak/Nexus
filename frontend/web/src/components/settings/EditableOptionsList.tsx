@@ -23,6 +23,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Pencil, Trash2, Lock } from 'lucide-react';
 import { SpecificationOption } from '../../services/api/settings';
+import { useAlert } from '../../contexts/AlertContext';
 
 // =============================================================================
 // Sortable Option Row Component
@@ -31,7 +32,7 @@ import { SpecificationOption } from '../../services/api/settings';
 interface SortableOptionRowProps {
   option: SpecificationOption;
   onEdit: (option: SpecificationOption) => void;
-  onDeactivate: (optionId: number) => void;
+  onDeactivate: (optionId: number, optionValue: string) => void;
 }
 
 const SortableOptionRow: React.FC<SortableOptionRowProps> = ({
@@ -106,11 +107,7 @@ const SortableOptionRow: React.FC<SortableOptionRowProps> = ({
           </button>
           {!option.is_system && (
             <button
-              onClick={() => {
-                if (window.confirm(`Deactivate "${option.option_value}"? It will no longer appear in dropdowns.`)) {
-                  onDeactivate(option.option_id);
-                }
-              }}
+              onClick={() => onDeactivate(option.option_id, option.option_value)}
               className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
               title="Deactivate option"
             >
@@ -142,6 +139,19 @@ export const EditableOptionsList: React.FC<EditableOptionsListProps> = ({
   onReorder,
   disabled = false
 }) => {
+  const { showConfirmation } = useAlert();
+
+  const handleDeactivateWithConfirm = async (optionId: number, optionValue: string) => {
+    const confirmed = await showConfirmation({
+      title: 'Deactivate Option',
+      message: `Deactivate "${optionValue}"? It will no longer appear in dropdowns.`,
+      variant: 'danger',
+      confirmText: 'Deactivate'
+    });
+    if (confirmed) {
+      onDeactivate(optionId);
+    }
+  };
   // Configure sensors for drag detection
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -218,7 +228,7 @@ export const EditableOptionsList: React.FC<EditableOptionsListProps> = ({
                   key={option.option_id}
                   option={option}
                   onEdit={onEdit}
-                  onDeactivate={onDeactivate}
+                  onDeactivate={handleDeactivateWithConfirm}
                 />
               ))}
             </tbody>

@@ -54,24 +54,20 @@ export const savePayrollChanges = async (wageData: UserWageData[]) => {
   });
 
   if (changes.length === 0) {
-    alert('No changes to save');
-    return false;
+    return { success: false, reason: 'no_changes' } as const;
   }
 
   try {
     const res = await api.put('/wages/update-payroll', { changes });
 
     if (res.data) {
-      alert('Changes saved successfully');
-      return true;
+      return { success: true } as const;
     } else {
-      alert('Failed to save changes');
-      return false;
+      return { success: false, reason: 'api_failure' } as const;
     }
   } catch (error) {
     console.error('Error saving changes:', error);
-    alert('Error saving changes');
-    return false;
+    return { success: false, reason: 'error' } as const;
   }
 };
 
@@ -160,16 +156,13 @@ export const recordPayment = async (
     const response = await api.post('/wages/record-payment', recordData);
 
     if (response.data) {
-      alert('Payment recorded successfully!');
-      return true;
+      return { success: true } as const;
     } else {
-      alert('Failed to record payment');
-      return false;
+      return { success: false, reason: 'api_failure' } as const;
     }
   } catch (error) {
     console.error('Error recording payment:', error);
-    alert('Error recording payment');
-    return false;
+    return { success: false, reason: 'error' } as const;
   }
 };
 

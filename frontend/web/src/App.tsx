@@ -10,6 +10,7 @@ import { SessionProvider } from './contexts/SessionContext';
 import { SessionExpiredModal } from './components/common/SessionExpiredModal';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AlertProvider } from './contexts/AlertContext';
 import { FeedbackButton } from './components/feedback';
 
 // Lazy imports (loaded on demand)
@@ -41,6 +42,7 @@ const PaymentsPage = lazy(() => import('./pages/PaymentsPage'));
 const InvoicesPage = lazy(() => import('./components/invoices/InvoicesPage'));
 const ServerManagement = lazy(() => import('./components/serverManagement/ServerManagement'));
 const StaffJobsPage = lazy(() => import('./components/staff/StaffJobsPage'));
+const FileBrowser = lazy(() => import('./components/fileBrowser/FileBrowser'));
 
 // Loading component for lazy routes
 const RouteLoader = () => (
@@ -176,6 +178,11 @@ function AppContent() {
           isOwner ? <ServerManagement /> : <Navigate to="/dashboard" />
         } />
 
+        {/* File Browser - Owner only */}
+        <Route path="/file-browser" element={
+          isOwner ? <FileBrowser /> : <Navigate to="/dashboard" />
+        } />
+
         {/* Feedback Manager - Manager+ */}
         <Route path="/feedback" element={
           isManager ? <FeedbackPage /> : <Navigate to="/dashboard" />
@@ -198,9 +205,11 @@ function App() {
       <ThemeProvider>
         <Router>
           <AuthProvider>
-            <AppContent />
-            <SessionExpiredModal />
-            <FeedbackButton />
+            <AlertProvider>
+              <AppContent />
+              <SessionExpiredModal />
+              <FeedbackButton />
+            </AlertProvider>
           </AuthProvider>
         </Router>
       </ThemeProvider>

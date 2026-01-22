@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, Trash2, Check, X, Loader2 } from 'lucide-react';
 import { customerContactsApi } from '../../services/api';
 import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
+import { useAlert } from '../../contexts/AlertContext';
 
 interface Contact {
   contact_id: number;
@@ -29,6 +30,7 @@ interface ContactsEditorProps {
 }
 
 const ContactsEditor: React.FC<ContactsEditorProps> = ({ customerId }) => {
+  const { showConfirmation } = useAlert();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -141,7 +143,13 @@ const ContactsEditor: React.FC<ContactsEditorProps> = ({ customerId }) => {
 
   // Delete contact
   const handleDelete = async (contactId: number) => {
-    if (!confirm('Are you sure you want to delete this contact?')) return;
+    const confirmed = await showConfirmation({
+      title: 'Delete Contact',
+      message: 'Are you sure you want to delete this contact?',
+      variant: 'danger',
+      confirmText: 'Delete'
+    });
+    if (!confirmed) return;
 
     try {
       setSaving(true);
