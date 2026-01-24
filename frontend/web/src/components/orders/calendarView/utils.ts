@@ -31,8 +31,11 @@ export function formatDateKey(date: Date): string {
 
 /**
  * Get "effective today" for calendar display
- * If past work hours (4 PM), returns the next business day
- * This ensures jobs due today appear only in Overdue after hours
+ * Returns the next business day if:
+ * - Today is a weekend or holiday, OR
+ * - Past work hours (4 PM)
+ * This ensures jobs due today appear only in Overdue after hours,
+ * and viewing on weekends shows Monday as "Today"
  */
 export function getEffectiveToday(holidays: Set<string>): Date {
   const WORK_END = 16; // 4:00 PM
@@ -42,24 +45,26 @@ export function getEffectiveToday(holidays: Set<string>): Date {
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
 
-  // If within business hours, effective today = actual today
-  if (currentHour < WORK_END) {
-    return today;
+  const todayKey = formatDateKey(today);
+  const isWeekend = today.getDay() === 0 || today.getDay() === 6;
+  const isHoliday = holidays.has(todayKey);
+
+  // If today is weekend/holiday OR past work hours, find next business day
+  if (isWeekend || isHoliday || currentHour >= WORK_END) {
+    const nextDay = new Date(today);
+    do {
+      nextDay.setDate(nextDay.getDate() + 1);
+      const dateKey = formatDateKey(nextDay);
+      const dayIsWeekend = nextDay.getDay() === 0 || nextDay.getDay() === 6;
+      const dayIsHoliday = holidays.has(dateKey);
+      if (!dayIsWeekend && !dayIsHoliday) {
+        return nextDay;
+      }
+    } while (true);
   }
 
-  // Past work hours: find next business day
-  const nextDay = new Date(today);
-
-  let isWeekend: boolean;
-  let isHoliday: boolean;
-  do {
-    nextDay.setDate(nextDay.getDate() + 1);
-    const dateKey = formatDateKey(nextDay);
-    isWeekend = nextDay.getDay() === 0 || nextDay.getDay() === 6;
-    isHoliday = holidays.has(dateKey);
-  } while (isWeekend || isHoliday);
-
-  return nextDay;
+  // Within business hours on a workday
+  return today;
 }
 
 /**
@@ -223,10 +228,11 @@ export function calculateWorkDaysLeft(
 export function getProgressColor(
   workDaysLeft: number | null,
   progressPercent?: number,
-  hasHardDueTime?: boolean
+  hasHardDueTime?: boolean,
+  status?: string
 ): ProgressColor {
-  // If job is complete, always show blue (green)
-  if (progressPercent === 100) return 'green';
+  // If job is complete, show blue (green) - but QC&Packing still has work to do
+  if (progressPercent === 100 && status !== 'qc_packing') return 'green';
 
   // Hard due time takes priority (darker red styling)
   if (hasHardDueTime) return 'darkred';

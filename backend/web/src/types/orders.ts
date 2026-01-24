@@ -367,6 +367,7 @@ export interface OrderWithDetails extends Order {
   customer_name?: string;
   parts: OrderPart[];
   tasks: OrderTask[];
+  jobLevelTasks: OrderTask[];  // Job-level tasks (part_id = null), e.g., QC & Packing
   point_persons: OrderPointPerson[];
   completed_tasks_count: number;
   total_tasks_count: number;

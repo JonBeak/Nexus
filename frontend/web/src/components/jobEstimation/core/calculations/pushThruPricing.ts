@@ -524,6 +524,7 @@ export const calculatePushThru = async (
 
       // Use section-level UL for PS optimization (consistent PS types within section)
       const sectionHasUL = input.calculatedValues?.sectionHasUL ?? false;
+      console.log(`[pushThru] Row PS selection: sectionHasUL=${sectionHasUL}, calculatedValues=`, input.calculatedValues);
 
       const psSelectionInput: PowerSupplySelectionInput = {
         totalWattage,

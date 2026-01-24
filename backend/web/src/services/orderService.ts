@@ -113,15 +113,21 @@ export class OrderService {
       completed_tasks: tasks.filter(task => task.part_id === part.part_id && task.completed).length
     }));
 
-    // Calculate progress - only count tasks in visible parts (is_parent=1 or is_order_wide=1)
+    // Job-level tasks (part_id = null) - e.g., QC & Packing
+    // These are separate from order-wide part tasks and can be shown/hidden independently
+    const jobLevelTasks = tasks.filter(t => t.part_id === null);
+
+    // Calculate progress - count tasks in visible parts (is_parent=1 or is_order_wide=1) + job-level tasks
     const visiblePartIds = new Set(
       parts
         .filter(part => part.is_parent || part.is_order_wide)
         .map(part => part.part_id)
     );
-    const visibleTasks = tasks.filter(t => t.part_id && visiblePartIds.has(t.part_id));
-    const completedTasksCount = visibleTasks.filter(t => t.completed).length;
-    const totalTasksCount = visibleTasks.length;
+    const visiblePartTasks = tasks.filter(t => t.part_id && visiblePartIds.has(t.part_id));
+    // Include job-level tasks in progress calculation
+    const allVisibleTasks = [...visiblePartTasks, ...jobLevelTasks];
+    const completedTasksCount = allVisibleTasks.filter(t => t.completed).length;
+    const totalTasksCount = allVisibleTasks.length;
     const progressPercent = totalTasksCount > 0
       ? Math.round((completedTasksCount / totalTasksCount) * 100)
       : 0;
@@ -130,6 +136,7 @@ export class OrderService {
       ...order,
       parts: partsWithTasks,
       tasks,
+      jobLevelTasks,
       point_persons: pointPersons,
       completed_tasks_count: completedTasksCount,
       total_tasks_count: totalTasksCount,
@@ -362,31 +369,30 @@ export class OrderService {
     // Update order status
     await orderRepository.updateOrderStatus(orderId, status);
 
-    // Auto-create QC task when moving to qc_packing status
-    if (status === 'qc_packing') {
+    // Sync QC & Packing task completion based on status change
+    // - shipping/pick_up/awaiting_payment/completed → mark complete
+    // - production statuses → mark incomplete
+    // - on_hold/cancelled → no change
+    const COMPLETE_STATUSES = ['shipping', 'pick_up', 'awaiting_payment', 'completed'];
+    const INCOMPLETE_STATUSES = ['pending_production_files_creation', 'pending_production_files_approval', 'production_queue', 'in_production', 'overdue', 'qc_packing'];
+
+    if (COMPLETE_STATUSES.includes(status) || INCOMPLETE_STATUSES.includes(status)) {
       try {
-        // Check if QC task already exists for this order
         const existingTasks = await orderPartRepository.getOrderTasks(orderId);
-        const qcTaskExists = existingTasks.some(
-          t => t.part_id === null && t.assigned_role === QC_TASK_ROLE && t.task_name === QC_TASK_NAME
+        const qcTask = existingTasks.find(
+          t => t.part_id === null && t.task_name === QC_TASK_NAME
         );
 
-        if (!qcTaskExists) {
-          // Create job-level QC task (part_id = null)
-          const taskId = await orderPartRepository.createOrderTask({
-            order_id: orderId,
-            part_id: null,
-            task_name: QC_TASK_NAME,
-            assigned_role: QC_TASK_ROLE
-          });
-          console.log(`✅ Created QC task for order ${order.order_number} (task_id: ${taskId})`);
-
-          // Broadcast task creation
-          broadcastTaskCreated(taskId, orderId, null, QC_TASK_NAME, QC_TASK_ROLE, userId);
+        if (qcTask) {
+          const shouldBeComplete = COMPLETE_STATUSES.includes(status);
+          if (qcTask.completed !== shouldBeComplete) {
+            await orderPartRepository.updateTaskCompletion(qcTask.task_id, shouldBeComplete);
+            console.log(`✅ QC task ${shouldBeComplete ? 'completed' : 'uncompleted'} for order ${order.order_number} (status: ${status})`);
+          }
         }
       } catch (qcTaskError) {
-        // Non-blocking: if QC task creation fails, continue with status update
-        console.error('⚠️  QC task creation failed (continuing with status update):', qcTaskError);
+        // Non-blocking: if QC task sync fails, continue
+        console.error('⚠️  QC task sync failed (continuing with status update):', qcTaskError);
       }
     }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Save, AlertTriangle, Plus, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Save, AlertTriangle, Plus, X, Pencil } from 'lucide-react';
 import { timeApi } from '../../services/api';
 import type { TimeEntry, TimeUser } from '../../types/time';
 import { calendarHelpers, type UserTimeData as HelperUserTimeData } from './utils/calendarHelpers';
@@ -51,12 +51,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   // Today's date for active entry detection
   const today = useMemo(() => toDateString(new Date()), []);
   const [focusedBreakCell, setFocusedBreakCell] = useState<string | null>(null);
+  const [bulkEditValues, setBulkEditValues] = useState<{ [date: string]: { in: string; out: string; break: string } }>({});
+  const [bulkEditOpen, setBulkEditOpen] = useState<Set<string>>(new Set());
+  const [hoveredColumn, setHoveredColumn] = useState<string | null>(null);
   const [deletingEntry, setDeletingEntry] = useState<{
     userId: number;
     date: string;
     progress: number;
   } | null>(null);
-  const deleteTimerRef = useRef<NodeJS.Timeout | null>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchTimeData = useCallback(async () => {
@@ -209,6 +211,58 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     handleCellEdit(userId, date, 'in', '');
   };
 
+  const handleBulkEditChange = (date: string, field: 'in' | 'out' | 'break', value: string) => {
+    setBulkEditValues(prev => ({
+      ...prev,
+      [date]: {
+        ...prev[date],
+        [field]: value
+      }
+    }));
+  };
+
+  const applyBulkEdit = (date: string) => {
+    const bulkValues = bulkEditValues[date];
+    if (!bulkValues) return;
+
+    // Apply to all users who have entries for this date
+    timeData.forEach(userData => {
+      if (bulkValues.in) {
+        handleCellEdit(userData.user_id, date, 'in', bulkValues.in);
+      }
+      if (bulkValues.out) {
+        handleCellEdit(userData.user_id, date, 'out', bulkValues.out);
+      }
+      if (bulkValues.break) {
+        handleCellEdit(userData.user_id, date, 'break', bulkValues.break);
+      }
+    });
+
+    // Clear the bulk edit values and close the cell
+    setBulkEditValues(prev => {
+      const newValues = { ...prev };
+      delete newValues[date];
+      return newValues;
+    });
+    setBulkEditOpen(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(date);
+      return newSet;
+    });
+  };
+
+  const toggleBulkEditOpen = (date: string) => {
+    setBulkEditOpen(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(date)) {
+        newSet.delete(date);
+      } else {
+        newSet.add(date);
+      }
+      return newSet;
+    });
+  };
+
   const convertToMySQLDateTime = (isoString: string | null): string | null => {
     if (!isoString) return null;
     // Convert from '2025-08-26T17:55:00.000Z' to '2025-08-26 17:55:00'
@@ -306,41 +360,45 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const handleDeleteMouseDown = useCallback((userId: number, date: string, entryId: number) => {
     setDeletingEntry({ userId, date, progress: 0 });
 
-    // Update progress every 10ms for smooth animation (100 steps over 1 second)
+    // Update progress every 10ms - delete triggers when progress reaches 100
     progressIntervalRef.current = setInterval(() => {
-      setDeletingEntry(prev =>
-        prev ? { ...prev, progress: Math.min(prev.progress + 1, 100) } : null
-      );
-    }, 10);
+      setDeletingEntry(prev => {
+        if (!prev) return null;
 
-    // Trigger delete after 1 second
-    deleteTimerRef.current = setTimeout(async () => {
-      try {
-        await timeApi.deleteEntry(entryId);
+        const newProgress = prev.progress + 1;
 
-        // Silently remove from local state
-        setTimeData(prev => prev.map(userData => {
-          if (userData.user_id === userId) {
-            const newEntries = { ...userData.entries };
-            delete newEntries[date];
-            return { ...userData, entries: newEntries };
+        if (newProgress >= 100) {
+          // Clear interval and trigger delete
+          if (progressIntervalRef.current) {
+            clearInterval(progressIntervalRef.current);
+            progressIntervalRef.current = null;
           }
-          return userData;
-        }));
 
-        handleDeleteCancel();
-      } catch (error) {
-        console.error('Failed to delete time entry:', error);
-        handleDeleteCancel();
-      }
-    }, 1000);
+          // Trigger delete (async, runs after state update)
+          timeApi.deleteEntry(entryId).then(() => {
+            setTimeData(prevData => prevData.map(userData => {
+              if (userData.user_id === userId) {
+                const newEntries = { ...userData.entries };
+                delete newEntries[date];
+                return { ...userData, entries: newEntries };
+              }
+              return userData;
+            }));
+          }).catch(error => {
+            console.error('Failed to delete time entry:', error);
+          }).finally(() => {
+            setDeletingEntry(null);
+          });
+
+          return { ...prev, progress: 100 };
+        }
+
+        return { ...prev, progress: newProgress };
+      });
+    }, 10);
   }, []);
 
   const handleDeleteCancel = useCallback(() => {
-    if (deleteTimerRef.current) {
-      clearTimeout(deleteTimerRef.current);
-      deleteTimerRef.current = null;
-    }
     if (progressIntervalRef.current) {
       clearInterval(progressIntervalRef.current);
       progressIntervalRef.current = null;
@@ -348,10 +406,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setDeletingEntry(null);
   }, []);
 
-  // Cleanup timers on unmount
+  // Cleanup timer on unmount
   useEffect(() => {
     return () => {
-      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
     };
   }, []);
@@ -480,12 +537,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <th className={`sticky left-0 ${PAGE_STYLES.header.background} px-4 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.text} uppercase tracking-wider border-r ${PAGE_STYLES.panel.border}`} style={{ width: '140px', minWidth: '140px', maxWidth: '140px' }}>
                 Employee
               </th>
-              {dayLabels.map((label, idx) => (
-                <th key={idx} className={`px-1 py-3 text-center text-xs font-medium ${PAGE_STYLES.panel.text} uppercase tracking-wider`} style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}>
-                  <div>{label.day}</div>
-                  <div className={PAGE_STYLES.panel.textSecondary}>{label.date}</div>
-                </th>
-              ))}
+              {dayLabels.map((label, idx) => {
+                const isColumnHovered = hoveredColumn === label.fullDate;
+                return (
+                  <th key={idx} className={`px-1 py-3 text-center text-xs font-medium ${PAGE_STYLES.panel.text} uppercase tracking-wider transition-colors ${isColumnHovered ? 'bg-yellow-100' : ''}`} style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}>
+                    <div>{label.day}</div>
+                    <div className={PAGE_STYLES.panel.textSecondary}>{label.date}</div>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody className={`${PAGE_STYLES.panel.background}`}>
@@ -517,17 +577,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   // Missing work day: no entry, not weekend, not holiday, not future
                   const isMissingWorkDay = !entry && !isWeekend && !isHoliday && date <= today;
 
-                  // Cell background priority: holiday > weekend > missing work day > normal
-                  const cellBg = isHoliday
-                    ? 'bg-amber-100'
-                    : isWeekend
-                      ? PAGE_STYLES.header.background
-                      : isMissingWorkDay
-                        ? 'bg-red-100'
-                        : PAGE_STYLES.panel.background;
+                  // Cell background priority: column hover > holiday > weekend > missing work day > normal
+                  const isColumnHovered = hoveredColumn === date;
+                  const cellBg = isColumnHovered
+                    ? 'bg-yellow-100'
+                    : isHoliday
+                      ? 'bg-amber-100'
+                      : isWeekend
+                        ? PAGE_STYLES.header.background
+                        : isMissingWorkDay
+                          ? 'bg-red-100'
+                          : PAGE_STYLES.panel.background;
 
                   return (
-                    <td key={date} className={`text-center text-xs ${cellBg} border-l ${PAGE_STYLES.panel.border} relative`} style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}>
+                    <td key={date} className={`text-center text-xs ${cellBg} border-l ${PAGE_STYLES.panel.border} relative transition-colors`} style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}>
                       {hasMultipleEntries && (
                         <div className="absolute inset-0 flex items-center justify-center z-10" title="Multiple time entries found for this date">
                           <AlertTriangle className="h-8 w-8 text-amber-500 fill-amber-100" />
@@ -650,6 +713,88 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 })}
               </tr>
             ))}
+
+            {/* Edit All Row */}
+            {(() => {
+              const anyOpen = bulkEditOpen.size > 0;
+              return (
+                <tr className={`${PAGE_STYLES.header.background} border-t-2 ${PAGE_STYLES.panel.border}`}>
+                  <td className={`sticky left-0 ${PAGE_STYLES.header.background} px-4 ${anyOpen ? 'py-3' : 'py-2'} whitespace-nowrap text-sm font-semibold ${TIME_COLORS.lightTextDark} border-r-2 ${PAGE_STYLES.panel.border}`} style={{ width: '140px', minWidth: '140px', maxWidth: '140px' }}>
+                    Edit All
+                  </td>
+                  {dates.map(date => {
+                    const bulkValues = bulkEditValues[date] || { in: '', out: '', break: '' };
+                    const hasValues = bulkValues.in || bulkValues.out || bulkValues.break;
+                    const isOpen = bulkEditOpen.has(date);
+                    const isColumnHovered = hoveredColumn === date;
+
+                    return (
+                      <td
+                        key={`bulk-${date}`}
+                        className={`text-center text-xs border-l ${PAGE_STYLES.panel.border} transition-colors ${isColumnHovered ? 'bg-yellow-100' : PAGE_STYLES.header.background}`}
+                        style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}
+                        onMouseEnter={() => setHoveredColumn(date)}
+                        onMouseLeave={() => setHoveredColumn(null)}
+                      >
+                        {isOpen ? (
+                          <div className="space-y-0 p-1">
+                            <TimeInput
+                              value={bulkValues.in ? `${date}T${bulkValues.in}:00.000Z` : ''}
+                              onChange={(value) => handleBulkEditChange(date, 'in', value)}
+                              className="w-full max-w-[90px]"
+                            />
+                            <TimeInput
+                              value={bulkValues.out ? `${date}T${bulkValues.out}:00.000Z` : ''}
+                              onChange={(value) => handleBulkEditChange(date, 'out', value)}
+                              className="w-full max-w-[90px]"
+                            />
+                            <input
+                              type="text"
+                              value={bulkValues.break}
+                              onChange={(e) => handleBulkEditChange(date, 'break', e.target.value)}
+                              placeholder="Break"
+                              className={`w-full max-w-[90px] px-1 py-1 text-xs border ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} hover:border-yellow-400 focus:outline-none focus:ring-1 focus:ring-yellow-500`}
+                            />
+                            <div className="flex gap-1 mt-1">
+                              <button
+                                onClick={() => applyBulkEdit(date)}
+                                disabled={!hasValues}
+                                className={`flex-1 px-1 py-1 text-xs rounded ${
+                                  hasValues
+                                    ? `${TIME_COLORS.base} text-white ${TIME_COLORS.hover}`
+                                    : `${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.textMuted} cursor-not-allowed border ${PAGE_STYLES.panel.border}`
+                                }`}
+                              >
+                                Apply
+                              </button>
+                              <button
+                                onClick={() => toggleBulkEditOpen(date)}
+                                className={`px-1 py-1 text-xs rounded ${PAGE_STYLES.panel.textSecondary} ${PAGE_STYLES.interactive.hover}`}
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className={`group ${anyOpen ? 'h-24' : 'h-10'} flex items-center justify-center relative`}>
+                            <div className={PAGE_STYLES.panel.textMuted}>-</div>
+                            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <button
+                                onClick={() => toggleBulkEditOpen(date)}
+                                className={`p-2 ${TIME_COLORS.textDark} ${PAGE_STYLES.panel.background} rounded-full shadow-md ${TIME_COLORS.lightHover} hover:scale-110 transition-all`}
+                                title="Bulk edit all entries for this day"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })()}
           </tbody>
         </table>
       </div>

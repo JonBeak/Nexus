@@ -8,6 +8,7 @@ import { ordersApi, timeSchedulesApi } from '../../../services/api';
 import { Order } from '../../../types/orders';
 import { useTasksSocket } from '../../../hooks/useTasksSocket';
 import { useIsMobile } from '../../../hooks/useMediaQuery';
+import { useAuth } from '../../../contexts/AuthContext';
 import { CalendarOrder, DateColumn, CALENDAR_DEFAULT_STATUSES } from './types';
 import {
   generateDateColumns,
@@ -33,6 +34,9 @@ const VISIBLE_BUSINESS_DAYS_WITHOUT_OVERDUE = 9;
 export const CalendarView: React.FC = () => {
   // Mobile detection
   const isMobile = useIsMobile();
+
+  // Auth context for WebSocket filtering
+  const { user } = useAuth();
 
   // Data state
   const [orders, setOrders] = useState<Order[]>([]);
@@ -94,19 +98,41 @@ export const CalendarView: React.FC = () => {
     }
   }, [searchTerm]);
 
+  // Debounced fetch to prevent rapid-fire API calls from WebSocket events
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedFetchOrders = useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      fetchOrders();
+    }, 300); // 300ms debounce
+  }, [fetchOrders]);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
 
   // WebSocket subscription for real-time updates
+  // Pass userId to filter out own updates and prevent echo
   useTasksSocket({
-    onTasksUpdated: fetchOrders,
-    onOrderStatus: fetchOrders,
-    onOrderCreated: fetchOrders,
-    onOrderUpdated: fetchOrders,
-    onOrderDeleted: fetchOrders,
-    onInvoiceUpdated: fetchOrders,
-    onReconnect: fetchOrders
+    userId: user?.user_id,
+    onTasksUpdated: debouncedFetchOrders,
+    onOrderStatus: debouncedFetchOrders,
+    onOrderCreated: debouncedFetchOrders,
+    onOrderUpdated: debouncedFetchOrders,
+    onOrderDeleted: debouncedFetchOrders,
+    onInvoiceUpdated: debouncedFetchOrders,
+    onReconnect: fetchOrders  // Immediate fetch on reconnect
   });
 
   // Filter orders by status
@@ -152,30 +178,28 @@ export const CalendarView: React.FC = () => {
     return viewStart <= effectiveTodayNormalized;
   }, [viewStartDate, effectiveToday]);
 
-  // Separate overdue orders (work_days_left < 0)
+  // Separate overdue orders (work_days_left <= 0)
+  // Zero work days left means due now/past - treat as urgent/overdue
   const overdueOrders = useMemo(() => {
     return ordersWithProgress
-      .filter(order => order.work_days_left !== null && order.work_days_left < 0)
+      .filter(order => order.work_days_left !== null && order.work_days_left <= 0)
       .sort((a, b) => {
         // Most overdue first (most negative number)
         return (a.work_days_left ?? 0) - (b.work_days_left ?? 0);
       });
   }, [ordersWithProgress]);
 
-  // Get future orders (not overdue, has due date)
-  // Overdue orders (work_days_left < 0) are excluded - they go to the Overdue column only
+  // Get future orders (has time remaining, has due date)
+  // Overdue orders (work_days_left <= 0) are excluded - they go to the Overdue column only
   const futureOrders = useMemo(() => {
-    const effectiveTodayKey = formatDateKey(effectiveToday);
-
     return ordersWithProgress.filter(order => {
       // Exclude overdue orders - they belong in the Overdue column only
-      if (order.work_days_left !== null && order.work_days_left < 0) return false;
+      if (order.work_days_left !== null && order.work_days_left <= 0) return false;
+      // Must have a due date to display
       if (!order.due_date) return false;
-      const orderDateKey = order.due_date.split('T')[0];
-      // Include if due date is on or after effective today
-      return orderDateKey >= effectiveTodayKey;
+      return true;
     });
-  }, [ordersWithProgress, effectiveToday]);
+  }, [ordersWithProgress]);
 
   // Group future orders by date (weekend/holiday orders shifted to previous business day)
   const ordersByDate = useMemo(() => {

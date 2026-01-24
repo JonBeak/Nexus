@@ -1216,13 +1216,13 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   return (
     <div
       className={`fixed inset-0 bg-black bg-opacity-50 z-50 ${
-        isMobile ? 'overflow-y-auto' : 'flex items-center justify-center p-4'
+        isMobile ? '' : 'flex items-center justify-center p-4'
       }`}
       onMouseDown={handleBackdropMouseDown}
       onMouseUp={handleBackdropMouseUp}
     >
       <div ref={modalContentRef} className={`bg-white shadow-2xl w-full flex ${
-        isMobile ? 'flex-col min-h-full' : 'rounded-lg w-[96%] max-w-[1475px] h-[95vh] overflow-hidden'
+        isMobile ? 'flex-col h-full overflow-hidden' : 'rounded-lg w-[96%] max-w-[1475px] h-[95vh] overflow-hidden'
       }`}>
         {/* Mobile Tab Bar */}
         {isMobile && (
@@ -1277,7 +1277,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
 
         {/* Left Panel - Header + Form + Footer (37% on desktop, full width on mobile when form tab) */}
         {(!isMobile || mobileTab === 'form') && (
-        <div className={`${isMobile ? 'flex-1' : 'w-[37%] border-r border-gray-200'} flex flex-col`}>
+        <div className={`${isMobile ? 'flex-1 overflow-hidden' : 'w-[37%] border-r border-gray-200'} flex flex-col`}>
           {/* Header - Left side only (desktop) */}
           {!isMobile && (
           <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
@@ -1324,7 +1324,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
           )}
 
           {/* Form Content */}
-          <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-4' : 'p-6'} space-y-6`}>
+          <div className={`flex-1 overflow-y-auto min-h-0 ${isMobile ? 'p-4' : 'p-6'} space-y-6`}>
             {/* Mobile Quick Actions */}
             {isMobile && (
               <div className="flex flex-wrap items-center gap-2">
@@ -1688,7 +1688,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
 
         {/* Right Panel - Preview (63% on desktop, full width on mobile when preview tab) */}
         {(!isMobile || mobileTab === 'preview') && (
-        <div className={`${isMobile ? 'flex-1' : 'w-[63%]'} bg-gray-50 flex flex-col`}>
+        <div className={`${isMobile ? 'flex-1 overflow-hidden' : 'w-[63%]'} bg-gray-50 flex flex-col`}>
             {/* Preview Tabs (desktop only - mobile uses main tab bar) */}
             {!isMobile && (
             <div className="flex border-b border-gray-300 px-6 pt-3 pb-0 bg-gray-200">
@@ -1719,7 +1719,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
 
             {/* Mobile Preview Sub-tabs */}
             {isMobile && (
-              <div className="flex border-b border-gray-300 bg-gray-100">
+              <div className="flex border-b border-gray-300 bg-gray-100 flex-shrink-0">
                 <button
                   onClick={() => setPreviewTab('email')}
                   className={`flex-1 py-2.5 text-xs font-medium border-b-2 -mb-px transition-colors ${
@@ -1744,7 +1744,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
             )}
 
             {/* Preview Content */}
-            <div className={`flex-1 ${
+            <div className={`flex-1 min-h-0 ${
               previewTab === 'email'
                 ? 'overflow-hidden'
                 : order.qb_invoice_id

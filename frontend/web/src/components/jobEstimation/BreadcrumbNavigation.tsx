@@ -1,5 +1,4 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { ChevronRight, Home, Copy, Check, CheckCircle } from 'lucide-react';
 import { BreadcrumbNavigationProps } from './types';
 import { getStatusColorClasses } from './utils/statusUtils';
@@ -54,53 +53,59 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
         {/* LEFT: Breadcrumb navigation */}
         <div className="flex flex-wrap items-center gap-2 text-sm flex-1">
         {/* Home button - leads to dashboard */}
-        <Link
-          to="/dashboard"
+        <a
+          href="/dashboard"
           onClick={(e) => {
-            if (onNavigateToHome) {
-              e.preventDefault();
-              onNavigateToHome();
+            // Allow ctrl+click, cmd+click, middle-click for new tab
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) {
+              return;
             }
+            e.preventDefault();
+            onNavigateToHome?.();
           }}
-          className={`p-1 ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.text} transition-colors`}
+          className={`p-1 ${PAGE_STYLES.panel.textMuted} hover:text-gray-200 transition-colors`}
           title="Back to Dashboard"
         >
           <Home className="w-5 h-5" />
-        </Link>
+        </a>
 
         <ChevronRight className={`w-4 h-4 ${PAGE_STYLES.panel.textMuted} flex-shrink-0`} />
 
         {/* Job Estimation - leads to navigation page */}
-        <Link
-          to="/estimates"
+        <a
+          href="/estimates"
           onClick={(e) => {
-            if (onNavigateToEstimates) {
-              e.preventDefault();
-              onNavigateToEstimates();
+            // Allow ctrl+click, cmd+click, middle-click for new tab
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) {
+              return;
             }
+            e.preventDefault();
+            onNavigateToEstimates?.();
           }}
-          className={`${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.text} transition-colors`}
+          className={`${PAGE_STYLES.panel.textMuted} hover:text-gray-200 transition-colors`}
         >
           Job Estimation
-        </Link>
+        </a>
 
         {/* Customer - leads to customer's jobs */}
         {customerName && (
           <>
             <ChevronRight className={`w-4 h-4 ${PAGE_STYLES.panel.textMuted} flex-shrink-0`} />
             {jobName && customerId ? (
-              <Link
-                to={`/estimates?cid=${customerId}`}
+              <a
+                href={`/estimates?cid=${customerId}`}
                 onClick={(e) => {
-                  if (onNavigateToCustomer) {
-                    e.preventDefault();
-                    onNavigateToCustomer();
+                  // Allow ctrl+click, cmd+click, middle-click for new tab
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) {
+                    return;
                   }
+                  e.preventDefault();
+                  onNavigateToCustomer?.();
                 }}
-                className={`truncate max-w-[150px] md:max-w-xs ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.text} transition-colors`}
+                className={`truncate max-w-[150px] md:max-w-xs ${PAGE_STYLES.panel.textMuted} hover:text-gray-200 transition-colors`}
               >
                 {customerName}
-              </Link>
+              </a>
             ) : (
               <span className={`truncate max-w-[150px] md:max-w-xs font-medium ${status ? getStatusColor(status) : PAGE_STYLES.panel.text}`}>
                 {customerName}
@@ -114,18 +119,20 @@ export const BreadcrumbNavigation: React.FC<BreadcrumbNavigationProps> = ({
           <>
             <ChevronRight className={`w-4 h-4 ${PAGE_STYLES.panel.textMuted} flex-shrink-0`} />
             {version && customerId && jobId ? (
-              <Link
-                to={`/estimates?cid=${customerId}&jid=${jobId}`}
+              <a
+                href={`/estimates?cid=${customerId}&jid=${jobId}`}
                 onClick={(e) => {
-                  if (onNavigateToJob) {
-                    e.preventDefault();
-                    onNavigateToJob();
+                  // Allow ctrl+click, cmd+click, middle-click for new tab
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) {
+                    return;
                   }
+                  e.preventDefault();
+                  onNavigateToJob?.();
                 }}
-                className={`truncate max-w-[150px] md:max-w-xs ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.text} transition-colors`}
+                className={`truncate max-w-[150px] md:max-w-xs ${PAGE_STYLES.panel.textMuted} hover:text-gray-200 transition-colors`}
               >
                 {jobName}
-              </Link>
+              </a>
             ) : (
               <span className={`truncate max-w-[150px] md:max-w-xs font-medium ${status ? getStatusColor(status) : PAGE_STYLES.panel.text}`}>
                 {jobName}

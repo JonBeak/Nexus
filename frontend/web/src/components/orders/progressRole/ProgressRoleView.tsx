@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { CheckCircle, Clock, RotateCcw, ChevronDown } from 'lucide-react';
-import { ordersApi } from '../../../services/api';
+import { ordersApi, timeSchedulesApi } from '../../../services/api';
 import { useTasksSocket } from '../../../hooks/useTasksSocket';
 import RoleCard from './RoleCard';
 import SessionsModal from '../../staff/SessionsModal';
@@ -77,12 +77,29 @@ export const ProgressRoleView: React.FC = () => {
   const [hoursBack, setHoursBack] = useState<number>(24);
   const [stagedUpdates, setStagedUpdates] = useState<Map<number, TaskUpdate>>(new Map());
   const [saving, setSaving] = useState(false);
+  const [holidays, setHolidays] = useState<Set<string>>(new Set());
 
   // Sessions modal state
   const [sessionsModalTask, setSessionsModalTask] = useState<{
     taskId: number;
     taskRole: string | null;
   } | null>(null);
+
+  // Fetch holidays on mount
+  useEffect(() => {
+    const fetchHolidays = async () => {
+      try {
+        const data = await timeSchedulesApi.getHolidays();
+        const holidayDates = new Set(
+          data.map((h: any) => h.holiday_date?.split('T')[0])
+        );
+        setHolidays(holidayDates);
+      } catch (error) {
+        console.error('Error fetching holidays:', error);
+      }
+    };
+    fetchHolidays();
+  }, []);
 
   useEffect(() => {
     fetchTasks();
@@ -231,6 +248,7 @@ export const ProgressRoleView: React.FC = () => {
                   userRole={userRole}
                   currentUserId={currentUserId || undefined}
                   onOpenSessionsModal={isManager ? handleOpenSessionsModal : undefined}
+                  holidays={holidays}
                 />
               ))}
             </div>

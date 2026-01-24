@@ -371,6 +371,8 @@ export class OrderPartRepository {
         o.order_id,
         o.order_number,
         o.order_name,
+        o.due_date,
+        o.hard_due_date_time,
         c.company_name as customer_name,
         op.specs_display_name,
         op.part_scope,
@@ -384,7 +386,7 @@ export class OrderPartRepository {
        LEFT JOIN customers c ON o.customer_id = c.customer_id
        LEFT JOIN order_parts op ON ot.part_id = op.part_id
        WHERE ot.assigned_role = ? ${completedFilter}
-       ORDER BY o.order_number, COALESCE(op.part_number, 999), ot.task_id`,
+       ORDER BY o.due_date ASC, o.order_number, COALESCE(op.part_number, 999), ot.task_id`,
       params
     ) as RowDataPacket[];
 

@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { FileText, Send } from 'lucide-react';
 import { CalendarOrder, ProgressColor } from './types';
 import { getProgressColor } from './utils';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
@@ -72,7 +73,7 @@ const colorClasses: Record<ProgressColor, { border: string; bg: string; progress
 export const OrderCard: React.FC<OrderCardProps> = ({ order, showDaysLate = false, showImages = false, onCardClick }) => {
   const [imageError, setImageError] = useState(false);
   const hasHardDueTime = !!order.hard_due_date_time;
-  const progressColor = getProgressColor(order.work_days_left, order.progress_percent, hasHardDueTime);
+  const progressColor = getProgressColor(order.work_days_left, order.progress_percent, hasHardDueTime, order.status);
   const colors = colorClasses[progressColor];
 
   const handleClick = () => {
@@ -120,11 +121,17 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, showDaysLate = fals
         {order.order_name}
       </div>
 
-      {/* Customer Name + Shipping/Pickup Label */}
+      {/* Customer Name + Icons */}
       <div className="flex items-center gap-1">
         <span className={`text-xs ${PAGE_STYLES.header.text} truncate flex-1`}>
           {order.customer_name || '-'}
         </span>
+        {/* Invoice Status Icons */}
+        {order.invoice_sent_at ? (
+          <Send className="w-3 h-3 text-green-600 flex-shrink-0" title="Invoice Sent" />
+        ) : order.qb_invoice_id ? (
+          <FileText className="w-3 h-3 text-green-600 flex-shrink-0" title="Invoice Linked" />
+        ) : null}
         <span className={`text-[10px] font-medium px-1 py-0.5 rounded ${
           order.shipping_required
             ? 'bg-blue-100 text-blue-700'

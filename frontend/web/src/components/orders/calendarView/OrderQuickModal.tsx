@@ -1212,11 +1212,18 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                   <h3 className={`text-sm font-semibold ${PAGE_STYLES.header.text} uppercase tracking-wide mb-2`}>
                     Tasks
                   </h3>
-                  {parts.filter(p => (p.is_parent && p.specs_display_name?.trim()) || p.is_order_wide).length === 0 ? (
+                  {parts.filter(p => (p.is_parent && p.specs_display_name?.trim()) || p.is_order_wide).length === 0 && (!orderDetails?.jobLevelTasks || orderDetails.jobLevelTasks.length === 0) ? (
                     <p className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>No parts found</p>
                   ) : (
                     <div className="space-y-4">
-                      {parts.filter(p => (p.is_parent && p.specs_display_name?.trim()) || p.is_order_wide).map((part, idx) => (
+                      {parts.filter(p => (p.is_parent && p.specs_display_name?.trim()) || p.is_order_wide).map((part, idx) => {
+                        // For order-wide parts, append job-level tasks at the end
+                        const partTasks = part.tasks || [];
+                        const jobLevelTasks = part.is_order_wide && orderDetails?.jobLevelTasks ? orderDetails.jobLevelTasks : [];
+                        const allTasks = [...partTasks, ...jobLevelTasks];
+                        const hasTasks = allTasks.length > 0;
+
+                        return (
                         <div key={part.part_id} className={`border ${PAGE_STYLES.panel.border} rounded-lg`}>
                           <div className={`px-3 py-2 ${PAGE_STYLES.page.background} border-b ${PAGE_STYLES.panel.border} rounded-t-lg`}>
                             <span className={`text-sm font-medium ${PAGE_STYLES.header.text}`}>
@@ -1224,11 +1231,11 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                             </span>
                           </div>
                           <div className="p-2">
-                            {!part.tasks || part.tasks.length === 0 ? (
+                            {!hasTasks ? (
                               <p className={`text-xs ${PAGE_STYLES.panel.textMuted} px-2 py-1`}>No tasks</p>
                             ) : (
                               <div className="space-y-0">
-                                {sortTasks(part.tasks).map(task => (
+                                {sortTasks(allTasks).map(task => (
                                   <TaskRow
                                     key={task.task_id}
                                     task={task}
@@ -1267,7 +1274,37 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                             )}
                           </div>
                         </div>
-                      ))}
+                      );
+                      })}
+
+                      {/* Show Order-wide section for job-level tasks if no order-wide part exists */}
+                      {!parts.some(p => p.is_order_wide) && orderDetails?.jobLevelTasks && orderDetails.jobLevelTasks.length > 0 && (
+                        <div className={`border ${PAGE_STYLES.panel.border} rounded-lg`}>
+                          <div className={`px-3 py-2 ${PAGE_STYLES.page.background} border-b ${PAGE_STYLES.panel.border} rounded-t-lg`}>
+                            <span className={`text-sm font-medium ${PAGE_STYLES.header.text}`}>
+                              Order-wide
+                            </span>
+                          </div>
+                          <div className="p-2">
+                            <div className="space-y-0">
+                              {sortTasks(orderDetails.jobLevelTasks).map(task => (
+                                <TaskRow
+                                  key={task.task_id}
+                                  task={task}
+                                  onStart={() => handleTaskStart(task.task_id)}
+                                  onComplete={() => handleTaskComplete(task.task_id)}
+                                  onUncomplete={() => handleTaskUncomplete(task.task_id)}
+                                  onUnstart={() => handleTaskUnstart(task.task_id)}
+                                  onNotesChange={(notes) => handleTaskNotesChange(task.task_id, notes)}
+                                  onRemove={() => handleRemoveTask(task.task_id)}
+                                  isManager={isManager}
+                                  onOpenSessionsModal={isManager ? handleOpenSessionsModal : undefined}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

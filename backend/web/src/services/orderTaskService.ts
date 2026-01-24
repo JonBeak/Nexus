@@ -119,8 +119,76 @@ export class OrderTaskService {
   }
 
   /**
+   * Handle QC task uncompletion - determine appropriate status based on production task completion
+   * - All production tasks complete → qc_packing
+   * - Some production tasks complete → in_production
+   * - No production tasks complete → production_queue
+   */
+  private async handleQcTaskUncompletion(orderId: number, userId: number): Promise<string | null> {
+    const order = await orderRepository.getOrderById(orderId);
+
+    // Only handle if currently in shipping or pick_up
+    if (!order || !['shipping', 'pick_up'].includes(order.status)) {
+      return null;
+    }
+
+    // Check production task completion state (exclude order-wide and QC tasks)
+    const taskStats = await this.getProductionTaskStats(orderId);
+
+    let newStatus: string;
+    let reason: string;
+
+    if (taskStats.allCompleted) {
+      newStatus = 'qc_packing';
+      reason = 'Moved back to QC & Packing (QC task uncompleted, all production tasks complete)';
+    } else if (taskStats.someCompleted) {
+      newStatus = 'in_production';
+      reason = 'Moved back to In Production (QC task uncompleted, some production tasks incomplete)';
+    } else {
+      newStatus = 'production_queue';
+      reason = 'Moved back to Production Queue (QC task uncompleted, no production tasks started)';
+    }
+
+    await orderService.updateOrderStatus(orderId, newStatus, userId, reason);
+
+    return newStatus;
+  }
+
+  /**
+   * Get production task completion stats (excludes order-wide and QC tasks)
+   */
+  private async getProductionTaskStats(orderId: number): Promise<{
+    total: number;
+    completed: number;
+    allCompleted: boolean;
+    someCompleted: boolean;
+  }> {
+    const rows = await query(
+      `SELECT COUNT(*) as total_tasks,
+              SUM(CASE WHEN ot.completed = 1 THEN 1 ELSE 0 END) as completed_tasks
+       FROM order_tasks ot
+       LEFT JOIN order_parts op ON ot.part_id = op.part_id
+       WHERE ot.order_id = ?
+         AND (op.is_order_wide IS NULL OR op.is_order_wide = 0)
+         AND ot.part_id IS NOT NULL`,
+      [orderId]
+    ) as RowDataPacket[];
+
+    const total = Number(rows[0]?.total_tasks || 0);
+    const completed = Number(rows[0]?.completed_tasks || 0);
+
+    return {
+      total,
+      completed,
+      allCompleted: total > 0 && total === completed,
+      someCompleted: completed > 0 && completed < total
+    };
+  }
+
+  /**
    * Check if all tasks for an order are completed
    * Note: Tasks in order-wide parts (is_order_wide = 1) do NOT block QC & Packing status transition
+   * Note: QC & Packing task (part_id IS NULL) is excluded - it's handled separately after qc_packing status
    */
   private async areAllTasksCompleted(orderId: number): Promise<boolean> {
     const rows = await query(
@@ -129,7 +197,8 @@ export class OrderTaskService {
        FROM order_tasks ot
        LEFT JOIN order_parts op ON ot.part_id = op.part_id
        WHERE ot.order_id = ?
-         AND (op.is_order_wide IS NULL OR op.is_order_wide = 0 OR ot.part_id IS NULL)`,
+         AND (op.is_order_wide IS NULL OR op.is_order_wide = 0)
+         AND ot.part_id IS NOT NULL`,
       [orderId]
     ) as RowDataPacket[];
 
@@ -145,10 +214,15 @@ export class OrderTaskService {
 
   /**
    * Update task completion status
-   * Priority Logic:
+   * Priority Logic (when completing):
    * 0. If QC task completed AND order in qc_packing → move to shipping/pick_up
    * 1. If all tasks completed AND order in (production_queue, in_production, overdue) → move to qc_packing
    * 2. Else if order in production_queue → move to in_production
+   *
+   * When uncompleting QC task (order in shipping/pick_up):
+   * - All production tasks complete → qc_packing
+   * - Some production tasks complete → in_production
+   * - No production tasks started → production_queue
    */
   async updateTaskCompletion(
     taskId: number,
@@ -209,6 +283,12 @@ export class OrderTaskService {
           userId,
           'Automatically moved to In Production (first task started)'
         );
+      }
+    } else {
+      // Task was uncompleted - check if this is a QC task uncompletion
+      const qcInfo = await this.getQcTaskInfo(taskId);
+      if (qcInfo && qcInfo.isQcTask) {
+        await this.handleQcTaskUncompletion(orderId, userId);
       }
     }
   }
@@ -309,9 +389,15 @@ export class OrderTaskService {
 
   /**
    * Batch update tasks (start/complete) with optimistic locking support
-   * Priority Logic:
+   * Priority Logic (when completing):
+   * 0. If QC task completed AND order in qc_packing → move to shipping/pick_up
    * 1. If all tasks completed AND order in (production_queue, in_production, overdue) → move to qc_packing
    * 2. Else if order in production_queue → move to in_production
+   *
+   * When uncompleting QC task (order in shipping/pick_up):
+   * - All production tasks complete → qc_packing
+   * - Some production tasks complete → in_production
+   * - No production tasks started → production_queue
    *
    * Returns: BatchUpdateResult with status changes, conflicts, and updated task versions
    */
@@ -323,6 +409,8 @@ export class OrderTaskService {
     const ordersWithCompletedTasks = new Set<number>();
     // Track QC task completions for status transition
     const qcTaskCompletions = new Set<number>(); // order_ids with QC tasks completed
+    // Track QC task uncompletion for status transition
+    const qcTaskUncompletions = new Set<number>(); // order_ids with QC tasks uncompleted
     // Track successful updates for broadcasting
     const successfulUpdates: TaskUpdate[] = [];
 
@@ -378,20 +466,37 @@ export class OrderTaskService {
         updatedTasks.push({ task_id, new_version: result.newVersion! });
         successfulUpdates.push(update);
 
-        if (taskRows.length > 0 && completed) {
+        if (taskRows.length > 0) {
           const orderId = taskRows[0].order_id;
-          ordersWithCompletedTasks.add(orderId);
 
-          // Check if this is a QC task completion
-          const qcInfo = await this.getQcTaskInfo(task_id);
-          if (qcInfo && qcInfo.isQcTask) {
-            qcTaskCompletions.add(orderId);
+          if (completed) {
+            ordersWithCompletedTasks.add(orderId);
+
+            // Check if this is a QC task completion
+            const qcInfo = await this.getQcTaskInfo(task_id);
+            if (qcInfo && qcInfo.isQcTask) {
+              qcTaskCompletions.add(orderId);
+            }
+          } else {
+            // Check if this is a QC task uncompletion
+            const qcInfo = await this.getQcTaskInfo(task_id);
+            if (qcInfo && qcInfo.isQcTask) {
+              qcTaskUncompletions.add(orderId);
+            }
           }
         }
       }
     }
 
-    // PRIORITY 0: Handle QC task completions first (qc_packing -> shipping/pick_up)
+    // Handle QC task uncompletion first (shipping/pick_up -> qc_packing)
+    for (const orderId of qcTaskUncompletions) {
+      const newStatus = await this.handleQcTaskUncompletion(orderId, userId);
+      if (newStatus) {
+        statusChanges.set(orderId, newStatus);
+      }
+    }
+
+    // PRIORITY 0: Handle QC task completions (qc_packing -> shipping/pick_up)
     for (const orderId of qcTaskCompletions) {
       const newStatus = await this.handleQcTaskCompletion(orderId, userId);
       if (newStatus) {

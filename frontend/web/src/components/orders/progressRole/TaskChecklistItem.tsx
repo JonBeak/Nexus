@@ -13,6 +13,7 @@ import { Play, Square, Check, Loader2 } from 'lucide-react';
 import type { UserRole } from '../../../types/user';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
 import { staffTasksApi } from '../../../services/api/staff/staffTasksApi';
+import { calculateWorkDaysLeft } from '../calendarView/utils';
 
 interface TaskUpdate {
   task_id: number;
@@ -30,6 +31,7 @@ interface Props {
   isManager?: boolean;
   currentUserId?: number;
   onOpenSessionsModal?: (taskId: number, taskRole: string | null) => void;
+  holidays: Set<string>;
 }
 
 // Roles that can see customer name (Designer and up)
@@ -47,7 +49,8 @@ export const TaskChecklistItem: React.FC<Props> = ({
   userRole,
   isManager: isManagerProp,
   currentUserId,
-  onOpenSessionsModal
+  onOpenSessionsModal,
+  holidays
 }) => {
   const [startingSession, setStartingSession] = useState(false);
   const [stoppingSession, setStoppingSession] = useState(false);
@@ -118,10 +121,32 @@ export const TaskChecklistItem: React.FC<Props> = ({
 
   // Build product display: "Specs Display Name [Scope]" or "Job Level" for QC tasks
   const isJobLevelTask = task.part_id === null;
-  const productName = isJobLevelTask ? 'Job Level' : (task.specs_display_name || 'Unknown');
-  const productDisplay = !isJobLevelTask && task.part_scope
+  const isOrderWideTask = task.part_scope === 'ORDER_WIDE';
+  const productName = isJobLevelTask ? 'Job Level' : isOrderWideTask ? 'Order Wide' : (task.specs_display_name || 'Unknown');
+  const productDisplay = !isJobLevelTask && task.part_scope && !isOrderWideTask
     ? `${productName} [${task.part_scope}]`
     : productName;
+
+  // Calculate business days until due
+  const workDaysLeft = calculateWorkDaysLeft(task.due_date, task.hard_due_date_time, holidays);
+
+  // Format work days display (floor so 1.7 days = 1d, not 2d)
+  const hasHardDue = !!task.hard_due_date_time;
+  const formatWorkDays = (days: number | null): string | null => {
+    if (days === null) return null;
+    const prefix = hasHardDue ? 'Hard ' : '';
+    if (days < 0) {
+      const overdue = Math.ceil(Math.abs(days)); // Round up for overdue
+      return `${prefix}${overdue}d overdue`;
+    }
+    const floored = Math.floor(days);
+    if (floored === 0) return `${prefix}Due today`;
+    return `${prefix}${floored}d`;
+  };
+
+  const workDaysDisplay = formatWorkDays(workDaysLeft);
+  const isOverdue = workDaysLeft !== null && workDaysLeft < 0;
+  const isUrgent = workDaysLeft !== null && workDaysLeft >= 0 && workDaysLeft < 2;
 
   // Determine start button state and appearance
   const isSessionLoading = startingSession || stoppingSession;
@@ -153,7 +178,7 @@ export const TaskChecklistItem: React.FC<Props> = ({
             )}
           </div>
 
-          {/* Line 2: Product [Scope] */}
+          {/* Line 2: Product [Scope] + Days until due */}
           <div className="flex items-center gap-2 mt-0.5">
             <span
               className={`text-xs ${PAGE_STYLES.panel.textMuted} truncate`}
@@ -161,6 +186,19 @@ export const TaskChecklistItem: React.FC<Props> = ({
             >
               {productDisplay}
             </span>
+            {workDaysDisplay && (
+              <span
+                className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                  isOverdue
+                    ? 'bg-red-100 text-red-700'
+                    : isUrgent
+                    ? 'bg-orange-100 text-orange-700'
+                    : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                {workDaysDisplay}
+              </span>
+            )}
           </div>
 
           {/* Show timestamps if completed */}

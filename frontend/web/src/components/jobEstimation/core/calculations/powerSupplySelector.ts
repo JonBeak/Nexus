@@ -109,6 +109,8 @@ export async function selectPowerSupplies(
     (hasUL && (!psTypeOverride || explicitIsSpeedbox)) ||  // UL and compatible explicit type
     finalIsSpeedbox  // OR final resolved type is Speedbox
   );
+  console.log(`[psSelector] Input: hasUL=${hasUL}, psTypeOverride=${psTypeOverride}, psCountOverride=${psCountOverride}`);
+  console.log(`[psSelector] Decision: shouldUseOptimization=${shouldUseOptimization}, hasExplicitCountOverride=${hasExplicitCountOverride}`);
 
   // =====================================================
   // PATH 1: UL Optimization (when enabled and no explicit count)

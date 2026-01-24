@@ -30,6 +30,7 @@ interface Props {
   userRole: UserRole;
   currentUserId?: number;
   onOpenSessionsModal?: (taskId: number, taskRole: string | null) => void;
+  holidays: Set<string>;
 }
 
 // Format hours into human-readable time window
@@ -53,7 +54,8 @@ export const RoleCard: React.FC<Props> = ({
   hoursBack,
   userRole,
   currentUserId,
-  onOpenSessionsModal
+  onOpenSessionsModal,
+  holidays
 }) => {
   const incompleteTasks = tasks.filter(t => !t.completed);
   const completedTasks = tasks.filter(t => t.completed);
@@ -94,6 +96,7 @@ export const RoleCard: React.FC<Props> = ({
                 userRole={userRole}
                 currentUserId={currentUserId}
                 onOpenSessionsModal={onOpenSessionsModal}
+                holidays={holidays}
               />
             ))}
           </div>

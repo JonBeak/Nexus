@@ -444,6 +444,7 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
     if (shouldCalculatePS) {
       // Use section-level UL for PS optimization (consistent PS types within section)
       const sectionHasUL = input.calculatedValues?.sectionHasUL ?? false;
+      console.log(`[channelLetters] Row PS selection: sectionHasUL=${sectionHasUL}, calculatedValues=`, input.calculatedValues);
 
       const psResult = await selectPowerSupplies({
         totalWattage,

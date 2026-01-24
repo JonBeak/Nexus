@@ -53,10 +53,12 @@ export const useNavigationGuard = ({
         }
       };
 
-      onRequestNavigation(navigationGuard);
+      // Wrap in arrow function - passing a function directly to setState
+      // causes React to call it as a state updater instead of setting it as the value
+      onRequestNavigation(() => navigationGuard);
 
       return () => {
-        onRequestNavigation(null);
+        onRequestNavigation(() => null);
       };
     }
   }, [onRequestNavigation, hasUnsavedChanges]);

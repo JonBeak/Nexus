@@ -30,7 +30,7 @@ const getPeriodText = (period: 'AM' | 'PM'): string => {
  */
 export const TimeInput = ({ value, onChange, className = '', isEdited = false, activeState }: TimeInputProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [position, setPosition] = useState({ top: 0, left: 0, openAbove: false });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -54,9 +54,18 @@ export const TimeInput = ({ value, onChange, className = '', isEdited = false, a
   useEffect(() => {
     if (isOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
+      const dropdownHeight = 160; // Approximate height of dropdown
+      const viewportHeight = window.innerHeight;
+      const spaceBelow = viewportHeight - rect.bottom;
+      const spaceAbove = rect.top;
+
+      // Open above if not enough space below and more space above
+      const openAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
+
       setPosition({
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.left + window.scrollX
+        top: openAbove ? rect.top - 4 : rect.bottom + 4,
+        left: rect.left,
+        openAbove
       });
     }
   }, [isOpen]);
@@ -135,10 +144,11 @@ export const TimeInput = ({ value, onChange, className = '', isEdited = false, a
         <div
           ref={dropdownRef}
           style={{
-            position: 'absolute',
+            position: 'fixed',
             top: `${position.top}px`,
             left: `${position.left}px`,
-            zIndex: 9999
+            zIndex: 9999,
+            ...(position.openAbove && { transform: 'translateY(-100%)' })
           }}
           className={`${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.border} border rounded shadow-lg`}
           onKeyDown={handleKeyDown}
@@ -181,19 +191,35 @@ export const TimeInput = ({ value, onChange, className = '', isEdited = false, a
                 </select>
               </div>
 
-              {/* Period Select */}
+              {/* Period Toggle */}
               <div className="w-16">
                 <label className={`block text-xs ${PAGE_STYLES.panel.textSecondary} mb-1`}>
                   {navigator.language.startsWith('ko') ? '시간' : 'Period'}
                 </label>
-                <select
-                  value={period}
-                  onChange={(e) => setPeriod(e.target.value as 'AM' | 'PM')}
-                  className={`w-full text-xs p-1 ${PAGE_STYLES.input.border} border rounded focus:ring-1 focus:ring-yellow-500 focus:outline-none ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text}`}
-                >
-                  <option value="AM">{getPeriodText('AM')}</option>
-                  <option value="PM">{getPeriodText('PM')}</option>
-                </select>
+                <div className="flex border rounded overflow-hidden" style={{ borderColor: 'rgb(107, 114, 128)' }}>
+                  <button
+                    type="button"
+                    onClick={() => setPeriod('AM')}
+                    className={`flex-1 text-xs py-1 transition-colors ${
+                      period === 'AM'
+                        ? `${TIME_COLORS.base} text-white`
+                        : `${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} hover:bg-gray-200`
+                    }`}
+                  >
+                    {getPeriodText('AM')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPeriod('PM')}
+                    className={`flex-1 text-xs py-1 transition-colors ${
+                      period === 'PM'
+                        ? `${TIME_COLORS.base} text-white`
+                        : `${PAGE_STYLES.input.background} ${PAGE_STYLES.input.text} hover:bg-gray-200`
+                    }`}
+                  >
+                    {getPeriodText('PM')}
+                  </button>
+                </div>
               </div>
             </div>
 

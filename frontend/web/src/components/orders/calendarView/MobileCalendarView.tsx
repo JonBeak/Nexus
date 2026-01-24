@@ -4,7 +4,7 @@
  */
 
 import React, { useMemo } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, Send } from 'lucide-react';
 import { CalendarOrder, DateColumn } from './types';
 import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
@@ -109,16 +109,24 @@ const MobileOrderCard: React.FC<{
             {order.customer_name || '-'}
           </div>
         </div>
-        <div className="flex flex-col items-end flex-shrink-0">
-          <span className={`text-[10px] font-medium px-1 rounded ${
-            order.shipping_required
-              ? 'bg-blue-100 text-blue-700'
-              : 'bg-yellow-100 text-yellow-700'
-          }`}>
-            {order.shipping_required ? 'Ship' : 'P/U'}
-          </span>
+        <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
+          <div className="flex items-center gap-1">
+            {/* Invoice Status Icons */}
+            {order.invoice_sent_at ? (
+              <Send className="w-3 h-3 text-green-600" />
+            ) : order.qb_invoice_id ? (
+              <FileText className="w-3 h-3 text-green-600" />
+            ) : null}
+            <span className={`text-[10px] font-medium px-1 rounded ${
+              order.shipping_required
+                ? 'bg-blue-100 text-blue-700'
+                : 'bg-yellow-100 text-yellow-700'
+            }`}>
+              {order.shipping_required ? 'Ship' : 'P/U'}
+            </span>
+          </div>
           {showDaysLate && daysLateDisplay && (
-            <span className="text-[10px] text-red-600 font-medium mt-0.5">
+            <span className="text-[10px] text-red-600 font-medium">
               {daysLateDisplay}
             </span>
           )}

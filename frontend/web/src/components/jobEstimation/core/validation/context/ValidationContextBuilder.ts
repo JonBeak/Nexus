@@ -778,9 +778,11 @@ export class ValidationContextBuilder {
       if (rowHasUL) {
         sectionHasUL = true;
       }
+      console.log(`[sectionUL] Row ${row.id} (type ${row.productTypeId}): rowHasUL=${rowHasUL}, sectionHasUL now=${sectionHasUL}`);
 
       // Check if this is a Subtotal row (Product Type 21) - marks end of section
       if (row.productTypeId === 21) {
+        console.log(`[sectionUL] Propagating sectionHasUL=${sectionHasUL} to rows:`, currentSectionRowIds);
         // Apply section's UL status to all rows in this section
         for (const rowId of currentSectionRowIds) {
           const calc = calculatedValues.get(rowId);
@@ -796,6 +798,9 @@ export class ValidationContextBuilder {
     }
 
     // Handle last section (if no final Subtotal)
+    if (currentSectionRowIds.length > 0) {
+      console.log(`[sectionUL] Final section (no subtotal) - Propagating sectionHasUL=${sectionHasUL} to rows:`, currentSectionRowIds);
+    }
     for (const rowId of currentSectionRowIds) {
       const calc = calculatedValues.get(rowId);
       if (calc) {

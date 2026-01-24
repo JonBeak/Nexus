@@ -148,6 +148,12 @@ export async function generateTasksForOrder(orderId: number): Promise<TaskGenera
     result.tasksCreated = allTasks.length;
   }
 
+  // 5.5 Create job-level QC & Packing task (part_id = null)
+  // This is always created for every order and syncs bidirectionally with order status
+  await createQCPackingTask(orderId);
+  result.tasksCreated += 1;
+  console.log(`[TaskGeneration] Created QC & Packing job-level task`);
+
   // 6. Update task generation timestamp and hash
   await updateTaskGenerationMeta(orderId);
 
@@ -373,6 +379,28 @@ async function createOrderWidePart(orderId: number): Promise<{ partId: number }>
   });
 
   return { partId };
+}
+
+/**
+ * Create job-level QC & Packing task (part_id = null)
+ * This task is always created for every order and syncs bidirectionally with status:
+ * - Completing task → moves order to shipping/pick_up
+ * - Moving to shipping/pick_up/awaiting_payment/completed → marks task complete
+ * - Moving to production statuses → marks task incomplete
+ * - on_hold/cancelled → no change to task
+ */
+async function createQCPackingTask(orderId: number): Promise<number> {
+  const QC_TASK_NAME = 'QC & Packing';
+  const QC_TASK_ROLE = 'manager';
+  const QC_SORT_ORDER = getTaskSortOrder(QC_TASK_NAME);
+
+  const result = await query(
+    `INSERT INTO order_tasks (order_id, part_id, task_name, sort_order, assigned_role, notes)
+     VALUES (?, NULL, ?, ?, ?, NULL)`,
+    [orderId, QC_TASK_NAME, QC_SORT_ORDER, QC_TASK_ROLE]
+  ) as ResultSetHeader;
+
+  return result.insertId;
 }
 
 // Re-export types
