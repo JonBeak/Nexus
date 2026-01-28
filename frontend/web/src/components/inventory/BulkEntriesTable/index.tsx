@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { BulkEntry } from '../../../hooks/useBulkEntries';
-import { JobSuggestion, VinylItem, VinylAutofillSuggestions } from '../types';
+import { VinylItem, VinylAutofillSuggestions } from '../types';
+import { OrderSuggestion } from '../../common/OrderDropdown';
 import { BulkEntryHeader } from './BulkEntryHeader';
 import { BulkEntryActions } from './BulkEntryActions';
 import { BulkEntryRow } from './BulkEntryRow';
@@ -11,7 +12,7 @@ interface BulkEntriesTableProps {
   bulkEntries: BulkEntry[];
   vinylItems: VinylItem[];
   bulkAutofillSuggestions: VinylAutofillSuggestions;
-  availableJobs: JobSuggestion[];
+  availableOrders: OrderSuggestion[];
   isSaving: boolean;
   bulkLoadingSuggestions: boolean;
   updateBulkEntry: (id: string, updates: Partial<BulkEntry>) => void;
@@ -29,7 +30,7 @@ export const BulkEntriesTable: React.FC<BulkEntriesTableProps> = ({
   bulkEntries,
   vinylItems,
   bulkAutofillSuggestions,
-  availableJobs,
+  availableOrders,
   isSaving,
   bulkLoadingSuggestions,
   updateBulkEntry,
@@ -92,7 +93,7 @@ export const BulkEntriesTable: React.FC<BulkEntriesTableProps> = ({
                     entry={entry}
                     vinylItems={vinylItems}
                     bulkAutofillSuggestions={bulkAutofillSuggestions}
-                    availableJobs={availableJobs}
+                    availableOrders={availableOrders}
                     bulkLoadingSuggestions={bulkLoadingSuggestions}
                     widthSuggestions={suggestionCache.get(entry.id)?.width || []}
                     lengthSuggestions={suggestionCache.get(entry.id)?.length_yards || []}

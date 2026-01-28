@@ -32,6 +32,7 @@ import { RowDataPacket } from 'mysql2';
 import bcrypt from 'bcrypt';
 import { clearUserPermissionCache } from '../middleware/rbac';
 import { ServiceResult } from '../types/serviceResults';
+import { TimeEntriesService } from './timeManagement/TimeEntriesService';
 
 export interface CreateUserData {
   first_name: string;
@@ -217,6 +218,9 @@ export class UserService {
         })
       });
 
+      // Clear time management user cache so new user appears immediately
+      TimeEntriesService.clearUserCache();
+
       return {
         success: true,
         data: userId
@@ -300,6 +304,9 @@ export class UserService {
           production_roles: userData.production_roles
         })
       });
+
+      // Clear time management user cache (handles name changes, activation/deactivation)
+      TimeEntriesService.clearUserCache();
 
       return {
         success: true,

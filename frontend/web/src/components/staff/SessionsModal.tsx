@@ -160,25 +160,36 @@ export const SessionsModal: React.FC<Props> = ({
     }
   };
 
-  // Split users into matching roles and others
-  const { matchingRoleUsers, otherUsers } = React.useMemo(() => {
-    if (!taskRole) {
-      return { matchingRoleUsers: users, otherUsers: [] };
-    }
+  // Template/non-user account usernames
+  const NON_USER_ACCOUNTS = ['admin', 'manager', 'staff'];
 
+  // Split users into matching roles, others, and non-user accounts
+  const { matchingRoleUsers, otherUsers, nonUserAccounts } = React.useMemo(() => {
     const matching: UserWithRoles[] = [];
     const others: UserWithRoles[] = [];
+    const nonUsers: UserWithRoles[] = [];
 
     users.forEach(user => {
+      // Check if this is a non-user account
+      if (NON_USER_ACCOUNTS.includes(user.username.toLowerCase())) {
+        nonUsers.push(user);
+        return;
+      }
+
       const userRoles = user.production_roles || [];
-      if (userRoles.includes(taskRole)) {
+      if (taskRole && userRoles.includes(taskRole)) {
         matching.push(user);
       } else {
         others.push(user);
       }
     });
 
-    return { matchingRoleUsers: matching, otherUsers: others };
+    // If no taskRole, all regular users go to matching (shown first)
+    if (!taskRole) {
+      return { matchingRoleUsers: [...matching, ...others], otherUsers: [], nonUserAccounts: nonUsers };
+    }
+
+    return { matchingRoleUsers: matching, otherUsers: others, nonUserAccounts: nonUsers };
   }, [users, taskRole]);
 
   const handleEdit = (session: TaskSession) => {
@@ -450,6 +461,22 @@ export const SessionsModal: React.FC<Props> = ({
                     {taskRole && otherUsers.length > 0 && (
                       <optgroup label="Other Users">
                         {otherUsers.map(user => (
+                          <option
+                            key={user.user_id}
+                            value={user.user_id}
+                            disabled={userHasActiveSession(user.user_id)}
+                          >
+                            {user.first_name} {user.last_name}
+                            {userHasActiveSession(user.user_id) ? ' (active session)' : ''}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+
+                    {/* Non-user accounts (admin, manager, staff) */}
+                    {nonUserAccounts.length > 0 && (
+                      <optgroup label="Non-User Accounts">
+                        {nonUserAccounts.map(user => (
                           <option
                             key={user.user_id}
                             value={user.user_id}

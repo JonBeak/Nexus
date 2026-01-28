@@ -115,24 +115,24 @@ export const markVinylAsUsed = async (req: AuthRequest, res: Response) => {
 };
 
 /**
- * Update job associations for vinyl item
+ * Update order associations for vinyl item
  */
-export const updateJobLinks = async (req: AuthRequest, res: Response) => {
+export const updateOrderLinks = async (req: AuthRequest, res: Response) => {
   try {
     const id = parseIntParam(req.params.id, 'vinyl item ID');
     if (id === null) {
       return sendErrorResponse(res, 'Invalid vinyl item ID', 'VALIDATION_ERROR');
     }
 
-    const { job_ids } = req.body;
-    if (!Array.isArray(job_ids)) {
-      return sendErrorResponse(res, 'job_ids must be an array', 'VALIDATION_ERROR');
+    const { order_ids } = req.body;
+    if (!Array.isArray(order_ids)) {
+      return sendErrorResponse(res, 'order_ids must be an array', 'VALIDATION_ERROR');
     }
 
-    const result = await VinylInventoryService.updateJobLinks(req.user!, id, job_ids);
+    const result = await VinylInventoryService.updateOrderLinks(req.user!, id, order_ids);
     handleServiceResult(res, result);
   } catch (error: any) {
-    sendErrorResponse(res, 'Failed to update job associations', 'INTERNAL_ERROR', error.message);
+    sendErrorResponse(res, 'Failed to update order associations', 'INTERNAL_ERROR', error.message);
   }
 };
 
@@ -198,27 +198,27 @@ export const changeVinylStatus = async (req: AuthRequest, res: Response) => {
 };
 
 /**
- * Get job links for a vinyl item
+ * Get order links for a vinyl item
  */
-export const getJobLinks = async (req: AuthRequest, res: Response) => {
+export const getOrderLinks = async (req: AuthRequest, res: Response) => {
   try {
     const id = parseIntParam(req.params.id, 'vinyl item ID');
     if (id === null) {
       return sendErrorResponse(res, 'Invalid vinyl item ID', 'VALIDATION_ERROR');
     }
 
-    // Get the vinyl item which includes job associations
+    // Get the vinyl item which includes order associations
     const result = await VinylInventoryService.getVinylItemById(req.user!, id);
 
     if (result.success) {
       res.json({
         success: true,
-        data: result.data.job_associations || []
+        data: result.data.order_associations || []
       });
     } else {
-      sendErrorResponse(res, result.error || 'Failed to fetch job associations', result.code);
+      sendErrorResponse(res, result.error || 'Failed to fetch order associations', result.code);
     }
   } catch (error: any) {
-    sendErrorResponse(res, 'Failed to fetch job associations', 'INTERNAL_ERROR', error.message);
+    sendErrorResponse(res, 'Failed to fetch order associations', 'INTERNAL_ERROR', error.message);
   }
 };

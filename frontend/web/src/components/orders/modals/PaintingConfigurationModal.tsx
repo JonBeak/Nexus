@@ -7,8 +7,9 @@
  * 2. Optionally save the mapping to the matrix for future use
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Check, Paintbrush, ChevronRight, ChevronLeft } from 'lucide-react';
+import { SpecificationOptionsCache } from '@/services/specificationOptionsCache';
 
 // Available painting tasks (must match PAINTING_TASKS in paintingTaskMatrix.ts)
 const PAINTING_TASKS = [
@@ -42,6 +43,7 @@ export interface PaintingResolution {
   timingKey: string;
   colour: string;
   taskNames: string[];
+  saveComponent: boolean;  // Add component to specification_options
   saveToMatrix: boolean;
 }
 
@@ -72,26 +74,53 @@ export const PaintingConfigurationModal: React.FC<PaintingConfigurationModalProp
   saving = false
 }) => {
   // Track resolutions for each painting configuration
+  // saveComponentManual tracks if user manually checked "Add component" (vs auto-checked from "Remember")
   const [resolutions, setResolutions] = useState<Map<string, {
     tasks: string[];
+    saveComponent: boolean;
+    saveComponentManual: boolean;
     saveToMatrix: boolean;
   }>>(
     () => new Map(paintingConfigurations.map(config => [
       `${config.partId}-${config.component}-${config.timing}`,
-      { tasks: [], saveToMatrix: false }
+      { tasks: [], saveComponent: false, saveComponentManual: false, saveToMatrix: false }
     ]))
   );
+
+  // Track existing painting components for "new component" detection
+  const [existingComponents, setExistingComponents] = useState<string[]>([]);
+  const [loadingComponents, setLoadingComponents] = useState(true);
+
+  // Load existing painting components on mount
+  useEffect(() => {
+    const loadComponents = async () => {
+      try {
+        const components = await SpecificationOptionsCache.getOptionsForCategory('painting_components');
+        setExistingComponents(components);
+      } finally {
+        setLoadingComponents(false);
+      }
+    };
+    loadComponents();
+  }, []);
+
+  // Helper to check if component is new (not in system)
+  const isComponentNew = (component: string): boolean => {
+    return !existingComponents.some(
+      existing => existing.toLowerCase() === component.toLowerCase()
+    );
+  };
 
   // Current configuration being edited (for multi-step flow)
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentConfig = paintingConfigurations[currentIndex];
   const currentKey = `${currentConfig.partId}-${currentConfig.component}-${currentConfig.timing}`;
-  const currentResolution = resolutions.get(currentKey) || { tasks: [], saveToMatrix: false };
+  const currentResolution = resolutions.get(currentKey) || { tasks: [], saveComponent: false, saveComponentManual: false, saveToMatrix: false };
 
   const toggleTask = (taskName: string) => {
     setResolutions(prev => {
       const newMap = new Map(prev);
-      const current = newMap.get(currentKey) || { tasks: [], saveToMatrix: false };
+      const current = newMap.get(currentKey) || { tasks: [], saveComponent: false, saveComponentManual: false, saveToMatrix: false };
 
       if (taskName === 'NO_TASK') {
         if (current.tasks.includes('NO_TASK')) {
@@ -112,11 +141,50 @@ export const PaintingConfigurationModal: React.FC<PaintingConfigurationModalProp
     });
   };
 
+  const toggleSaveComponent = () => {
+    setResolutions(prev => {
+      const newMap = new Map(prev);
+      const current = newMap.get(currentKey) || { tasks: [], saveComponent: false, saveComponentManual: false, saveToMatrix: false };
+
+      // If saveToMatrix is on, saveComponent is locked - can't toggle
+      if (current.saveToMatrix) {
+        return prev;
+      }
+
+      const newSaveComponent = !current.saveComponent;
+      newMap.set(currentKey, {
+        ...current,
+        saveComponent: newSaveComponent,
+        saveComponentManual: newSaveComponent  // Track that user manually set this
+      });
+      return newMap;
+    });
+  };
+
   const toggleSaveToMatrix = () => {
     setResolutions(prev => {
       const newMap = new Map(prev);
-      const current = newMap.get(currentKey) || { tasks: [], saveToMatrix: false };
-      newMap.set(currentKey, { ...current, saveToMatrix: !current.saveToMatrix });
+      const current = newMap.get(currentKey) || { tasks: [], saveComponent: false, saveComponentManual: false, saveToMatrix: false };
+
+      const newSaveToMatrix = !current.saveToMatrix;
+
+      if (newSaveToMatrix) {
+        // Enabling "Remember for future" - auto-enable saveComponent if component is new
+        const shouldAutoSave = isComponentNew(currentConfig.component);
+        newMap.set(currentKey, {
+          ...current,
+          saveToMatrix: true,
+          saveComponent: shouldAutoSave ? true : current.saveComponent
+        });
+      } else {
+        // Disabling "Remember for future"
+        // Only uncheck "Add component" if it wasn't manually set before
+        newMap.set(currentKey, {
+          ...current,
+          saveToMatrix: false,
+          saveComponent: current.saveComponentManual ? current.saveComponent : false
+        });
+      }
       return newMap;
     });
   };
@@ -124,7 +192,7 @@ export const PaintingConfigurationModal: React.FC<PaintingConfigurationModalProp
   const handleSubmit = async () => {
     const resolvedConfigs: PaintingResolution[] = paintingConfigurations.map(config => {
       const key = `${config.partId}-${config.component}-${config.timing}`;
-      const resolution = resolutions.get(key) || { tasks: [], saveToMatrix: false };
+      const resolution = resolutions.get(key) || { tasks: [], saveComponent: false, saveComponentManual: false, saveToMatrix: false };
       // Filter out NO_TASK - it's just a UI marker, not a real task
       const realTasks = resolution.tasks.filter(t => t !== 'NO_TASK');
       return {
@@ -137,6 +205,7 @@ export const PaintingConfigurationModal: React.FC<PaintingConfigurationModalProp
         timingKey: toKey(config.timing),
         colour: config.colour,
         taskNames: realTasks,
+        saveComponent: resolution.saveComponent,
         saveToMatrix: resolution.saveToMatrix
       };
     });
@@ -254,8 +323,41 @@ export const PaintingConfigurationModal: React.FC<PaintingConfigurationModalProp
               ))}
             </div>
 
-            {/* Save to Matrix Option */}
-            <div className="mt-4 pt-4 border-t border-gray-200">
+            {/* Save Options */}
+            <div className="mt-4 pt-4 border-t border-gray-200 space-y-3">
+              {/* Add Component Option - Only show if component is NEW */}
+              {!loadingComponents && isComponentNew(currentConfig.component) && (
+                <button
+                  onClick={toggleSaveComponent}
+                  disabled={currentResolution.saveToMatrix}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border transition-all ${
+                    currentResolution.saveComponent
+                      ? currentResolution.saveToMatrix
+                        ? 'border-orange-300 bg-orange-50 cursor-not-allowed'
+                        : 'border-orange-500 bg-orange-50'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                    currentResolution.saveComponent
+                      ? currentResolution.saveToMatrix
+                        ? 'border-orange-300 bg-orange-300'
+                        : 'border-orange-500 bg-orange-500'
+                      : 'border-gray-300'
+                  }`}>
+                    {currentResolution.saveComponent && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                  <div className="flex-1 text-left">
+                    <span className={`text-sm font-medium ${currentResolution.saveToMatrix ? 'text-gray-500' : 'text-gray-900'}`}>
+                      Add component to system
+                      {currentResolution.saveToMatrix && <span className="text-xs ml-1">(required)</span>}
+                    </span>
+                    <p className="text-xs text-gray-500">Add "{currentConfig.component}" to dropdown options</p>
+                  </div>
+                </button>
+              )}
+
+              {/* Save to Matrix Option */}
               {(() => {
                 const hasRealTasks = currentResolution.tasks.length > 0 && !currentResolution.tasks.includes('NO_TASK');
                 return (

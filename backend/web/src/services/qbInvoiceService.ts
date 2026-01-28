@@ -795,6 +795,10 @@ export interface CustomerInvoiceListItem {
   balance: number;
   txnDate: string | null;
   isOpen: boolean;
+  /** If linked to another order, the order number */
+  linkedToOrderNumber?: number;
+  /** If linked to another order, the order name */
+  linkedToOrderName?: string;
 }
 
 export interface CustomerInvoiceListResult {
@@ -842,30 +846,34 @@ export async function listCustomerInvoicesForLinking(
     // 4. Query all invoices for this customer from QB
     const qbInvoices = await queryAllInvoicesByCustomer(qbCustomerId, realmId);
 
-    // 5. Get list of invoice IDs already linked to orders (excluding current order)
-    const linkedInvoiceIds = await qbInvoiceRepo.getLinkedInvoiceIds(orderId);
-    const linkedSet = new Set(linkedInvoiceIds);
+    // 5. Get linked invoice details (invoice ID -> order info) excluding current order
+    const linkedInvoiceDetails = await qbInvoiceRepo.getLinkedInvoiceDetails(orderId);
 
-    // 6. Filter out linked invoices and transform
+    // 6. Transform all invoices (including linked ones, with their linked info)
     const availableInvoices: CustomerInvoiceListItem[] = qbInvoices
-      .filter(inv => !linkedSet.has(inv.Id))
-      .map(inv => ({
-        invoiceId: inv.Id,
-        docNumber: inv.DocNumber,
-        customerName: inv.CustomerRef?.name || null,
-        total: inv.TotalAmt,
-        balance: inv.Balance,
-        txnDate: inv.TxnDate || null,
-        isOpen: inv.Balance > 0
-      }));
+      .map(inv => {
+        const linkedInfo = linkedInvoiceDetails.get(inv.Id);
+        return {
+          invoiceId: inv.Id,
+          docNumber: inv.DocNumber,
+          customerName: inv.CustomerRef?.name || null,
+          total: inv.TotalAmt,
+          balance: inv.Balance,
+          txnDate: inv.TxnDate || null,
+          isOpen: inv.Balance > 0,
+          linkedToOrderNumber: linkedInfo?.orderNumber,
+          linkedToOrderName: linkedInfo?.orderName
+        };
+      });
 
-    // 7. Sort: open invoices first (by date desc), then closed (by date desc)
+    // 7. Sort: open invoices first, then closed (all by date desc) - linked invoices mixed in
     availableInvoices.sort((a, b) => {
       // Open invoices come first
       if (a.isOpen !== b.isOpen) {
         return a.isOpen ? -1 : 1;
       }
-      // Within same status, sort by date descending (newest first)
+
+      // Within same category, sort by date descending (newest first)
       const dateA = a.txnDate || '';
       const dateB = b.txnDate || '';
       return dateB.localeCompare(dateA);

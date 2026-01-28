@@ -32,6 +32,7 @@ import { validateOrderAndGetId } from './helpers/orderHelpers';
 import * as orderFinalizationService from '../services/orderFinalizationService';
 import { getEmailPreviewHtml, getOrderEmailPreviewHtml, OrderEmailContent } from '../services/gmailService';
 import { broadcastTasksRegenerated } from '../websocket';
+import * as cashEstimateSyncService from '../services/cashEstimateSyncService';
 
 /**
  * GET /api/order-preparation/:orderNumber/qb-estimate/staleness
@@ -437,12 +438,13 @@ export const resolvePaintingConfigurations = async (req: AuthRequest, res: Respo
     );
 
     let tasksCreated = 0;
+    let componentsCreated = 0;
     let matrixEntriesCreated = 0;
 
     for (const resolution of resolutions) {
       const {
         partId, itemType, itemTypeKey, component, componentKey,
-        timing, timingKey, colour, taskNames, saveToMatrix
+        timing, timingKey, colour, taskNames, saveComponent, saveToMatrix
       } = resolution;
 
       // Create tasks for this resolution
@@ -455,6 +457,26 @@ export const resolvePaintingConfigurations = async (req: AuthRequest, res: Respo
           [orderId, partId, taskName, getTaskSortOrder(taskName), getRole(taskName), taskNote]
         );
         tasksCreated++;
+      }
+
+      // Optionally save component to specification_options
+      if (saveComponent) {
+        try {
+          const maxOrder = await settingsRepository.getMaxOptionDisplayOrder('painting_components');
+          await settingsRepository.createSpecificationOption({
+            category: 'painting_components',
+            category_display_name: 'Painting Components',
+            option_value: component,
+            option_key: componentKey,
+            display_order: maxOrder + 1,
+            is_active: true,
+            is_system: false
+          });
+          componentsCreated++;
+        } catch (err) {
+          // May already exist, that's okay
+          console.log(`Component "${component}" may already exist:`, err);
+        }
       }
 
       // Optionally save to matrix for future use
@@ -483,6 +505,7 @@ export const resolvePaintingConfigurations = async (req: AuthRequest, res: Respo
     }
 
     const messageParts = [`Created ${tasksCreated} tasks`];
+    if (componentsCreated > 0) messageParts.push(`added ${componentsCreated} component(s)`);
     if (matrixEntriesCreated > 0) messageParts.push(`saved ${matrixEntriesCreated} matrix mapping(s)`);
 
     // Broadcast to connected clients if tasks were created
@@ -492,6 +515,7 @@ export const resolvePaintingConfigurations = async (req: AuthRequest, res: Respo
 
     sendSuccessResponse(res, {
       tasksCreated,
+      componentsCreated,
       matrixEntriesCreated,
       message: messageParts.join(', ')
     });
@@ -720,6 +744,373 @@ export const finalizeOrder = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error finalizing order:', error);
     const message = error instanceof Error ? error.message : 'Failed to finalize order';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+// =============================================
+// CASH JOB ESTIMATE CONFLICT RESOLUTION
+// =============================================
+
+/**
+ * GET /api/order-preparation/:orderNumber/qb-estimate/compare
+ * Compare local order data with QB estimate for conflict detection
+ */
+export const compareQBEstimate = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const orderId = await validateOrderAndGetId(orderNumber, res);
+    if (!orderId) return;
+
+    // Check full sync status (local vs QB)
+    const syncResult = await cashEstimateSyncService.checkFullSyncStatus(orderId);
+
+    sendSuccessResponse(res, {
+      syncStatus: syncResult
+    });
+  } catch (error) {
+    console.error('Error comparing QB estimate:', error);
+    const message = error instanceof Error ? error.message : 'Failed to compare estimate';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * POST /api/order-preparation/:orderNumber/qb-estimate/resolve-conflict
+ * Resolve estimate conflict by applying chosen resolution
+ */
+export const resolveEstimateConflict = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const { resolution } = req.body;
+    const userId = (req as AuthRequest).user?.user_id;
+
+    if (!userId) {
+      return sendErrorResponse(res, 'User not authenticated', 'VALIDATION_ERROR');
+    }
+
+    if (!resolution || !['use_local', 'use_qb'].includes(resolution)) {
+      return sendErrorResponse(res, 'Invalid resolution type. Must be "use_local" or "use_qb"', 'VALIDATION_ERROR');
+    }
+
+    const orderId = await validateOrderAndGetId(orderNumber, res);
+    if (!orderId) return;
+
+    // Resolve the conflict
+    const result = await cashEstimateSyncService.resolveConflict(orderId, resolution, userId);
+
+    sendSuccessResponse(res, {
+      success: result.success,
+      message: result.message
+    });
+  } catch (error) {
+    console.error('Error resolving estimate conflict:', error);
+    const message = error instanceof Error ? error.message : 'Failed to resolve conflict';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * POST /api/order-preparation/:orderNumber/qb-estimate/link
+ * Link an existing QB estimate to the order
+ */
+export const linkExistingEstimate = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const { qbEstimateId, docNumber } = req.body;
+    const userId = (req as AuthRequest).user?.user_id;
+
+    if (!userId) {
+      return sendErrorResponse(res, 'User not authenticated', 'VALIDATION_ERROR');
+    }
+
+    if (!qbEstimateId) {
+      return sendErrorResponse(res, 'QB estimate ID is required', 'VALIDATION_ERROR');
+    }
+
+    const orderId = await validateOrderAndGetId(orderNumber, res);
+    if (!orderId) return;
+
+    // Link the estimate
+    const result = await cashEstimateSyncService.linkExistingEstimate(orderId, qbEstimateId, userId);
+
+    sendSuccessResponse(res, {
+      success: result.success,
+      qbEstimateNumber: result.qbEstimateNumber,
+      message: `Linked QB estimate ${result.qbEstimateNumber} to order`
+    });
+  } catch (error) {
+    console.error('Error linking estimate:', error);
+    const message = error instanceof Error ? error.message : 'Failed to link estimate';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * GET /api/order-preparation/:orderNumber/qb-estimate/customer-estimates
+ * Get QB estimates for the order's customer (for linking)
+ */
+export const getCustomerEstimates = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const orderId = await validateOrderAndGetId(orderNumber, res);
+    if (!orderId) return;
+
+    // Get customer's QB estimates
+    const estimates = await cashEstimateSyncService.getCustomerEstimates(orderId);
+
+    sendSuccessResponse(res, {
+      estimates
+    });
+  } catch (error) {
+    console.error('Error getting customer estimates:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get customer estimates';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+// =============================================
+// CASH JOB ESTIMATE EMAIL WORKFLOW
+// =============================================
+
+/**
+ * GET /api/order-preparation/:orderNumber/qb-estimate/pdf
+ * Get estimate PDF from QuickBooks (base64 encoded)
+ */
+export const getEstimatePdf = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const orderId = await validateOrderAndGetId(orderNumber, res);
+    if (!orderId) return;
+
+    // Get estimate ID from order
+    const order = await orderPrepRepo.getOrderByOrderNumber(parseInt(orderNumber));
+    if (!order?.qb_estimate_id) {
+      return sendErrorResponse(res, 'No estimate linked to this order', 'NOT_FOUND');
+    }
+
+    // Get realm ID
+    const { quickbooksRepository } = await import('../repositories/quickbooksRepository');
+    const realmId = await quickbooksRepository.getDefaultRealmId();
+    if (!realmId) {
+      return sendErrorResponse(res, 'QuickBooks not configured', 'INTERNAL_ERROR');
+    }
+
+    // Get PDF from QuickBooks
+    const { getQBEstimatePdf } = await import('../utils/quickbooks/apiClient');
+    const pdfBuffer = await getQBEstimatePdf(order.qb_estimate_id, realmId);
+
+    // Convert to base64
+    const pdf = pdfBuffer.toString('base64');
+    const filename = `Estimate-${order.qb_estimate_doc_number || orderNumber}.pdf`;
+
+    sendSuccessResponse(res, { pdf, filename });
+  } catch (error) {
+    console.error('Error getting estimate PDF:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get estimate PDF';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * POST /api/order-preparation/:orderNumber/qb-estimate/send-email
+ * Send estimate email to customer
+ */
+export const sendEstimateEmail = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const { recipientEmails, ccEmails, bccEmails, subject, body, attachEstimatePdf } = req.body;
+    const userId = (req as AuthRequest).user?.user_id;
+
+    if (!userId) {
+      return sendErrorResponse(res, 'User not authenticated', 'UNAUTHORIZED');
+    }
+
+    const orderId = await validateOrderAndGetId(orderNumber, res);
+    if (!orderId) return;
+
+    // Validate recipients
+    if (!recipientEmails || !Array.isArray(recipientEmails) || recipientEmails.length === 0) {
+      return sendErrorResponse(res, 'At least one recipient email is required', 'VALIDATION_ERROR');
+    }
+
+    // Get order details
+    const order = await orderPrepRepo.getOrderByOrderNumber(parseInt(orderNumber));
+    if (!order) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    // Import and use estimate email service
+    const { sendEstimateEmailToCustomer } = await import('../services/cashEstimateEmailService');
+    const result = await sendEstimateEmailToCustomer({
+      orderId,
+      orderNumber: parseInt(orderNumber),
+      recipientEmails,
+      ccEmails: ccEmails || [],
+      bccEmails: bccEmails || [],
+      subject,
+      body,
+      attachEstimatePdf: attachEstimatePdf !== false,
+      qbEstimateId: order.qb_estimate_id || undefined,
+      qbEstimateDocNumber: order.qb_estimate_doc_number || undefined,
+      userId
+    });
+
+    if (!result.success) {
+      return sendErrorResponse(res, result.error || 'Failed to send email', 'INTERNAL_ERROR');
+    }
+
+    sendSuccessResponse(res, { success: true, messageId: result.messageId });
+  } catch (error) {
+    console.error('Error sending estimate email:', error);
+    const message = error instanceof Error ? error.message : 'Failed to send estimate email';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * POST /api/order-preparation/:orderNumber/qb-estimate/schedule-email
+ * Schedule estimate email for later delivery
+ */
+export const scheduleEstimateEmail = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const { recipientEmails, ccEmails, bccEmails, subject, body, attachEstimatePdf, scheduledFor } = req.body;
+    const userId = (req as AuthRequest).user?.user_id;
+
+    if (!userId) {
+      return sendErrorResponse(res, 'User not authenticated', 'UNAUTHORIZED');
+    }
+
+    const orderId = await validateOrderAndGetId(orderNumber, res);
+    if (!orderId) return;
+
+    // Validate inputs
+    if (!recipientEmails || recipientEmails.length === 0) {
+      return sendErrorResponse(res, 'At least one recipient email is required', 'VALIDATION_ERROR');
+    }
+    if (!scheduledFor) {
+      return sendErrorResponse(res, 'Scheduled time is required', 'VALIDATION_ERROR');
+    }
+
+    // Import and use estimate email service
+    const { scheduleEstimateEmailForLater } = await import('../services/cashEstimateEmailService');
+    const result = await scheduleEstimateEmailForLater({
+      orderId,
+      recipientEmails,
+      ccEmails: ccEmails || [],
+      bccEmails: bccEmails || [],
+      subject,
+      body,
+      attachEstimatePdf: attachEstimatePdf !== false,
+      scheduledFor: new Date(scheduledFor),
+      userId
+    });
+
+    sendSuccessResponse(res, { scheduledEmailId: result.scheduledEmailId });
+  } catch (error) {
+    console.error('Error scheduling estimate email:', error);
+    const message = error instanceof Error ? error.message : 'Failed to schedule estimate email';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * POST /api/order-preparation/:orderNumber/qb-estimate/mark-sent
+ * Mark estimate as sent manually (without sending email)
+ */
+export const markEstimateAsSent = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const orderId = await validateOrderAndGetId(orderNumber, res);
+    if (!orderId) return;
+
+    // Update invoice_sent_at timestamp (used for both invoices and estimates)
+    const { query } = await import('../config/database');
+    await query(
+      'UPDATE orders SET invoice_sent_at = NOW() WHERE order_id = ?',
+      [orderId]
+    );
+
+    sendSuccessResponse(res, { success: true, message: 'Estimate marked as sent' });
+  } catch (error) {
+    console.error('Error marking estimate as sent:', error);
+    const message = error instanceof Error ? error.message : 'Failed to mark estimate as sent';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * POST /api/order-preparation/:orderNumber/qb-estimate/email-preview
+ * Get styled email preview for estimate
+ */
+export const getEstimateEmailPreview = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const { subject, beginning, end, summaryConfig, estimateData } = req.body;
+
+    const orderId = await validateOrderAndGetId(orderNumber, res);
+    if (!orderId) return;
+
+    // Get order data
+    const orderData = await orderPrepRepo.getOrderDataForQBEstimate(orderId);
+    if (!orderData) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    // Use estimate email service to generate preview
+    const { estimateEmailService } = await import('../services/estimate/estimateEmailService');
+    const preview = await estimateEmailService.generateEmailPreviewHtml(
+      {
+        customer_name: orderData.customer_name,
+        job_name: orderData.order_name,
+        customer_job_number: orderData.customer_job_number,
+        customer_po: orderData.customer_po,
+        order_number: orderData.order_number,
+        qb_doc_number: orderData.qb_estimate_doc_number,
+        subtotal: estimateData?.subtotal,
+        tax_amount: estimateData?.tax,
+        total_amount: estimateData?.total,
+        estimate_date: estimateData?.estimateDate,
+        cached_balance: orderData.cached_balance ?? undefined
+      },
+      { subject, beginning, end, summaryConfig, estimateData }
+    );
+
+    sendSuccessResponse(res, { subject: preview.subject, html: preview.html });
+  } catch (error) {
+    console.error('Error generating estimate email preview:', error);
+    const message = error instanceof Error ? error.message : 'Failed to generate email preview';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * GET /api/order-preparation/:orderNumber/qb-estimate/email-history
+ * Get estimate email history for this order
+ */
+export const getEstimateEmailHistory = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const orderId = await validateOrderAndGetId(orderNumber, res);
+    if (!orderId) return;
+
+    // Get email history from scheduled_emails table (type = 'estimate')
+    const { query } = await import('../config/database');
+    const rows = await query(
+      `SELECT
+        id, email_type, recipient_emails, cc_emails, subject, body,
+        scheduled_for, status, sent_at, error_message, created_at, created_by
+      FROM scheduled_emails
+      WHERE order_id = ? AND email_type IN ('estimate', 'cash_estimate')
+      ORDER BY created_at DESC`,
+      [orderId]
+    ) as any[];
+
+    sendSuccessResponse(res, rows);
+  } catch (error) {
+    console.error('Error getting estimate email history:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get email history';
     sendErrorResponse(res, message, 'INTERNAL_ERROR');
   }
 };

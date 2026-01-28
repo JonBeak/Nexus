@@ -21,6 +21,9 @@ export function getDefaultFaceMaterial(specsDisplayName: string): string | null 
     case '3D print':
       return '4.5mm Acrylic';
 
+    case 'Front Lit Acrylic Face':
+      return '12mm Acrylic';
+
     default:
       return null;
   }
@@ -28,9 +31,14 @@ export function getDefaultFaceMaterial(specsDisplayName: string): string | null 
 
 /**
  * Get default face color based on specs display name
- * Note: Removed auto-fill for all products - user should select manually
+ * Note: Most products have no auto-fill - user should select manually
  */
 export function getDefaultFaceColor(specsDisplayName: string): string | null {
-  // No auto-fill for face colour - let user select
-  return null;
+  switch (specsDisplayName) {
+    case 'Front Lit Acrylic Face':
+      return 'White 2447';
+
+    default:
+      return null;
+  }
 }

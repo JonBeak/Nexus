@@ -232,17 +232,39 @@ export async function selectPowerSupplies(
   // PATH 3: Standard power supply selection
   // (No optimization, no type override - use customer pref or default)
   // =====================================================
+  console.log(`[psSelector] PATH 3: hasUL=${hasUL}, customerPref=${customerPreferences?.pref_power_supply_type}`);
   let powerSupply = null;
 
   // Check customer preference first
   const customerPrefPSType = customerPreferences?.pref_power_supply_type;
   if (customerPrefPSType) {
-    powerSupply = await PricingDataResource.getPowerSupplyByType(customerPrefPSType);
+    const prefPS = await PricingDataResource.getPowerSupplyByType(customerPrefPSType);
+    // Only use customer preference if: no UL required OR the preferred PS is UL-listed
+    if (prefPS && (!hasUL || prefPS.ul_listed)) {
+      powerSupply = prefPS;
+      console.log(`[psSelector] PATH 3: Using customer pref PS:`, powerSupply?.transformer_type);
+    } else if (prefPS && hasUL && !prefPS.ul_listed) {
+      console.log(`[psSelector] PATH 3: Skipping non-UL customer pref (${prefPS.transformer_type}) because section has UL`);
+    }
   }
 
-  // Fall back to default non-UL power supply
+  // Fall back to default power supply based on UL requirement
   if (!powerSupply) {
-    powerSupply = await PricingDataResource.getDefaultNonULPowerSupply();
+    if (hasUL) {
+      // Section has UL - prefer UL power supply
+      powerSupply = await PricingDataResource.getDefaultULPowerSupply();
+      console.log(`[psSelector] PATH 3: UL default PS:`, powerSupply?.transformer_type);
+      // Fallback to Speedbox 150W (ID 3) if no default UL configured
+      if (!powerSupply) {
+        powerSupply = await PricingDataResource.getPowerSupplyById(3);
+        console.log(`[psSelector] PATH 3: Fallback to PS ID 3:`, powerSupply?.transformer_type);
+      }
+    }
+    if (!powerSupply) {
+      // No UL or UL PS not found - use default non-UL
+      powerSupply = await PricingDataResource.getDefaultNonULPowerSupply();
+      console.log(`[psSelector] PATH 3: Non-UL default PS:`, powerSupply?.transformer_type);
+    }
   }
 
   if (powerSupply) {

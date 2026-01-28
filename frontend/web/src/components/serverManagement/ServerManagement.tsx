@@ -336,25 +336,44 @@ export const ServerManagement: React.FC = () => {
             System Status
           </h2>
 
-          {/* PM2 Processes */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-            {backendProcesses.map((process) => (
-              <StatusCard
-                key={process.name}
-                process={process}
-                variant={process.name === 'signhouse-backend' ? 'prod' : 'dev'}
-                onRestart={() => {
-                  const key = process.name === 'signhouse-backend' ? 'restart-backend-prod' : 'restart-backend-dev';
-                  const api = process.name === 'signhouse-backend'
-                    ? serverManagementApi.restartBackendProd
-                    : serverManagementApi.restartBackendDev;
-                  executeOperation(key, api, `pm2 restart ${process.name}`);
-                }}
-                isRestarting={
-                  buttonStates[process.name === 'signhouse-backend' ? 'restart-backend-prod' : 'restart-backend-dev'] === 'running'
-                }
-              />
-            ))}
+          <div className="flex gap-4">
+            {/* PM2 Processes - stacked on left */}
+            <div className="flex flex-col gap-4 w-72 flex-shrink-0">
+              {backendProcesses.map((process) => (
+                <StatusCard
+                  key={process.name}
+                  process={process}
+                  variant={process.name === 'signhouse-backend' ? 'prod' : 'dev'}
+                  onRestart={() => {
+                    const key = process.name === 'signhouse-backend' ? 'restart-backend-prod' : 'restart-backend-dev';
+                    const api = process.name === 'signhouse-backend'
+                      ? serverManagementApi.restartBackendProd
+                      : serverManagementApi.restartBackendDev;
+                    executeOperation(key, api, `pm2 restart ${process.name}`);
+                  }}
+                  isRestarting={
+                    buttonStates[process.name === 'signhouse-backend' ? 'restart-backend-prod' : 'restart-backend-dev'] === 'running'
+                  }
+                />
+              ))}
+            </div>
+
+            {/* Console Output - fills remaining space on right */}
+            <div className="flex-1 bg-gray-900 rounded-xl p-4 min-h-[200px] flex flex-col">
+              <h3 className="text-gray-400 text-sm font-medium mb-2">Console Output</h3>
+              {lastOutput ? (
+                <>
+                  <div className="text-gray-400 text-sm mb-2 font-mono">$ {lastOutput.command}</div>
+                  <pre className="text-green-400 text-sm font-mono whitespace-pre-wrap flex-1 overflow-y-auto max-h-[300px]">
+                    {lastOutput.output}
+                  </pre>
+                </>
+              ) : (
+                <div className="text-gray-500 text-sm italic flex-1 flex items-center justify-center">
+                  No recent output
+                </div>
+              )}
+            </div>
           </div>
 
         </section>
@@ -646,18 +665,6 @@ export const ServerManagement: React.FC = () => {
           </section>
         )}
 
-        {/* Output Panel */}
-        {lastOutput && (
-          <section className="mb-8">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Last Output</h2>
-            <div className="bg-gray-900 rounded-xl p-4 overflow-x-auto">
-              <div className="text-gray-400 text-sm mb-2 font-mono">$ {lastOutput.command}</div>
-              <pre className="text-green-400 text-sm font-mono whitespace-pre-wrap max-h-64 overflow-y-auto">
-                {lastOutput.output}
-              </pre>
-            </div>
-          </section>
-        )}
       </div>
     </div>
   );

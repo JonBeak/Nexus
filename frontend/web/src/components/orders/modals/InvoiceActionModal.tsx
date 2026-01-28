@@ -1,4 +1,7 @@
 /**
+ * @deprecated Use DocumentActionModal from './document' instead.
+ * This component will be removed in a future release.
+ *
  * Invoice Action Modal
  * Phase 2.e: QuickBooks Invoice Automation
  *
@@ -9,16 +12,24 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { X, Loader2, Calendar, Send, FileText, RefreshCw, Clock, Mail, Eye, AlertTriangle, UserCircle, CheckCircle, Link } from 'lucide-react';
+import { X, Loader2, Calendar, Send, FileText, RefreshCw, Clock, Mail, Eye, AlertTriangle, UserCircle, CheckCircle, Link as LinkIcon, Plus } from 'lucide-react';
 import { Order, OrderPart } from '../../../types/orders';
 import { Address } from '../../../types';
-import { qbInvoiceApi, EmailPreview, InvoiceDetails, InvoiceSyncStatus, InvoiceDifference, InvoiceSyncResult, customerApi, settingsApi } from '../../../services/api';
+import { qbInvoiceApi, EmailPreview, InvoiceDetails, InvoiceSyncStatus, InvoiceDifference, InvoiceSyncResult, customerApi, settingsApi, CustomerInvoiceListItem } from '../../../services/api';
 import { InvoiceConflictModal } from './InvoiceConflictModal';
 import { InvoiceSentSuccessModal } from './InvoiceSentSuccessModal';
 import InvoiceEmailComposer, { InvoiceEmailConfig, InvoiceSummaryConfig, InvoiceEmailData, DEFAULT_INVOICE_SUMMARY_CONFIG, DEFAULT_INVOICE_BEGINNING, DEFAULT_INVOICE_END } from './InvoiceEmailComposer';
+import { InvoiceLinkingPanel } from './document';
 import { useIsMobile } from '../../../hooks/useMediaQuery';
 import { useBodyScrollLock } from '../../../hooks/useBodyScrollLock';
 import { useAlert } from '../../../contexts/AlertContext';
+
+interface TaxRule {
+  tax_rule_id: number;
+  tax_name: string;
+  tax_percent: number;
+  is_active: number;
+}
 
 interface InvoiceActionModalProps {
   isOpen: boolean;
@@ -27,8 +38,9 @@ interface InvoiceActionModalProps {
   mode: 'create' | 'update' | 'send' | 'view';
   onSuccess: () => void;
   onSkip?: () => void;  // For status change prompts - allows skipping
-  onReassign?: () => void;  // For reassigning to a different invoice
+  onReassign?: (isDeleted: boolean) => void;  // For reassigning to a different invoice, isDeleted indicates if invoice was deleted in QB
   onLinkExisting?: () => void;  // For linking to existing QB invoice instead of creating
+  taxRules?: TaxRule[];  // Optional tax rules for looking up actual tax rate
 }
 
 interface EmailHistoryItem {
@@ -67,7 +79,8 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   onSuccess,
   onSkip,
   onReassign,
-  onLinkExisting
+  onLinkExisting,
+  taxRules = []
 }) => {
   const { showConfirmation } = useAlert();
 
@@ -141,6 +154,13 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
   // Mobile tab navigation for update/send/view modes
   const [mobileTab, setMobileTab] = useState<'form' | 'preview'>('form');
 
+  // Create mode: Two-panel state (left=create, right=link)
+  const [selectedLinkInvoice, setSelectedLinkInvoice] = useState<CustomerInvoiceListItem | null>(null);
+  const [linking, setLinking] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  // Mobile: Tab to switch between Create and Link panels
+  const [mobileCreateTab, setMobileCreateTab] = useState<'create' | 'link'>('create');
+
   // Refs for backdrop click handling
   const modalContentRef = useRef<HTMLDivElement>(null);
   const mouseDownOutsideRef = useRef(false);
@@ -192,17 +212,32 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
       });
   }, [order.parts]);
 
+  // Parts for display (includes headers in original order)
+  const displayParts = useMemo(() => {
+    if (!order.parts) return [];
+    return order.parts.filter(p =>
+      p.is_header_row ||
+      (p.quantity && p.quantity > 0)
+    );
+  }, [order.parts]);
+
   // Calculate totals
   const totals = useMemo(() => {
     const subtotal = lineItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-    // TODO: Get actual tax rate from order.tax_name
-    const taxRate = order.cash ? 0 : 0.13; // 13% HST default, 0 if cash job
-    const tax = subtotal * taxRate;
-    const total = subtotal + tax;
+    // Look up actual tax rate from tax_rules based on order's tax_name
+    const isCashJob = !!order.cash;
+    const hasTaxName = !!order.tax_name;
+    const taxRule = hasTaxName ? taxRules.find(r => r.tax_name === order.tax_name) : null;
+
+    // Fail clearly if tax name exists but rule not found (and taxRules loaded)
+    const taxNotFound = hasTaxName && !isCashJob && taxRules.length > 0 && !taxRule;
+    const taxRate = isCashJob ? 0 : (taxRule ? parseFloat(taxRule.tax_percent.toString()) : 0);
+    const tax = taxNotFound ? 0 : subtotal * taxRate;
+    const total = taxNotFound ? subtotal : subtotal + tax;
     const deposit = order.deposit_required ? total * 0.5 : 0;
 
-    return { subtotal, tax, taxRate, total, deposit };
-  }, [lineItems, order.cash, order.deposit_required]);
+    return { subtotal, tax, taxRate, total, deposit, taxNotFound, taxName: order.tax_name };
+  }, [lineItems, order.cash, order.deposit_required, order.tax_name, taxRules]);
 
   // Build invoice data for email composer preview
   const invoiceEmailData: InvoiceEmailData = useMemo(() => ({
@@ -312,6 +347,11 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
       setCustomerBillingAddress(null);
       hasAutoAppliedPrefixRef.current = false;
       hasStartedInitRef.current = false;
+      // Reset create mode two-panel state
+      setSelectedLinkInvoice(null);
+      setLinking(false);
+      setLinkError(null);
+      setMobileCreateTab('create');
       return;
     }
 
@@ -825,6 +865,41 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     }
   };
 
+  // Handle marking invoice as sent without sending email
+  const handleMarkAsSent = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // If in create/update mode, create/update invoice first
+      if (mode === 'create' || mode === 'update') {
+        try {
+          const result = mode === 'create'
+            ? await qbInvoiceApi.createInvoice(order.order_number)
+            : await qbInvoiceApi.updateInvoice(order.order_number);
+          console.log(`Invoice ${mode}d:`, result);
+        } catch (invoiceErr) {
+          console.error(`Failed to ${mode} invoice:`, invoiceErr);
+          const errMsg = invoiceErr instanceof Error ? invoiceErr.message : `Failed to ${mode} invoice`;
+          setError(`Invoice ${mode} failed: ${errMsg}`);
+          return;
+        }
+      }
+
+      // Mark as sent
+      await qbInvoiceApi.markAsSent(order.order_number);
+      console.log('Invoice marked as sent');
+
+      onSuccess();
+      onClose();
+    } catch (err) {
+      console.error('Failed to mark invoice as sent:', err);
+      setError(err instanceof Error ? err.message : 'Failed to mark invoice as sent');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Handle scheduling invoice email
   const handleScheduleConfirm = async () => {
     if (!scheduledDate) {
@@ -913,6 +988,26 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     }
   };
 
+  // Handle linking existing invoice in create mode (two-panel)
+  const handleLinkInvoiceFromCreate = async () => {
+    if (!selectedLinkInvoice) return;
+
+    try {
+      setLinking(true);
+      setLinkError(null);
+
+      await qbInvoiceApi.linkInvoice(order.order_number, { qbInvoiceId: selectedLinkInvoice.invoiceId });
+
+      console.log('Invoice linked:', selectedLinkInvoice.docNumber);
+      onSuccess();
+    } catch (err) {
+      console.error('Failed to link invoice:', err);
+      setLinkError(err instanceof Error ? err.message : 'Failed to link invoice');
+    } finally {
+      setLinking(false);
+    }
+  };
+
   // Handle success modal close - call onSuccess to refresh parent
   const handleSuccessModalClose = () => {
     setShowSuccessModal(false);
@@ -957,8 +1052,17 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
     day: 'numeric'
   });
 
-  // CREATE mode: Simple single-panel modal
+  // CREATE mode: Two-panel modal (Create New | Link Existing)
   if (mode === 'create') {
+    // Order totals for link panel comparison
+    const orderTotalsForLink = {
+      subtotal: totals.subtotal,
+      taxName: totals.taxName || 'Tax',
+      taxPercent: totals.taxNotFound ? -1 : totals.taxRate * 100,
+      taxAmount: totals.tax,
+      total: totals.total
+    };
+
     return (
       <div
         className={`fixed inset-0 bg-black bg-opacity-50 z-50 ${
@@ -968,7 +1072,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
         onMouseUp={handleBackdropMouseUp}
       >
         <div ref={modalContentRef} className={`bg-white shadow-2xl w-full flex flex-col ${
-          isMobile ? 'min-h-full' : 'rounded-lg max-w-3xl max-h-[90vh]'
+          isMobile ? 'min-h-full' : 'rounded-lg max-w-[1100px] max-h-[90vh]'
         }`}>
           {/* Header */}
           <div className={`${isMobile ? 'px-4 py-3' : 'px-6 py-4'} border-b border-gray-200 flex-shrink-0`}>
@@ -976,7 +1080,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
               <div className="flex items-center space-x-3">
                 <FileText className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-green-600`} />
                 <div>
-                  <h2 className={`${isMobile ? 'text-lg' : 'text-xl'} font-semibold text-gray-900`}>Create QB Invoice</h2>
+                  <h2 className={`${isMobile ? 'text-lg' : 'text-xl'} font-semibold text-gray-900`}>Invoice Options</h2>
                   <p className="text-sm text-gray-600">#{order.order_number} - {order.order_name}</p>
                 </div>
               </div>
@@ -989,205 +1093,274 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
             </div>
           </div>
 
-          {/* Body - Invoice Preview */}
-          <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-4' : 'p-6'}`}>
+          {/* Mobile Tab Bar */}
+          {isMobile && (
+            <div className="flex border-b border-gray-200 flex-shrink-0">
+              <button
+                onClick={() => setMobileCreateTab('create')}
+                className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  mobileCreateTab === 'create'
+                    ? 'border-green-600 text-green-700 bg-green-50'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Plus className="w-4 h-4 inline-block mr-1.5" />
+                Create New
+              </button>
+              <button
+                onClick={() => setMobileCreateTab('link')}
+                className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  mobileCreateTab === 'link'
+                    ? 'border-blue-600 text-blue-700 bg-blue-50'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <LinkIcon className="w-4 h-4 inline-block mr-1.5" />
+                Link Existing
+              </button>
+            </div>
+          )}
+
+          {/* Body - Two Panel Layout (Desktop) / Tabbed (Mobile) */}
+          <div className={`flex-1 overflow-hidden flex ${isMobile ? 'flex-col' : ''}`}>
             {!isInitialized ? (
-              <div className="flex items-center justify-center py-12">
+              <div className="flex-1 flex items-center justify-center py-12">
                 <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                 <span className="ml-2 text-gray-500">Loading...</span>
               </div>
             ) : (
-              <div className={`bg-gray-50 rounded-lg border border-gray-200 ${isMobile ? 'p-4' : 'p-6'}`}>
-                {/* From/To/Date Header */}
-                <div className={`${isMobile ? 'flex flex-col gap-4' : 'grid grid-cols-2 gap-6'} mb-6`}>
-                  {/* From - Company */}
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">From</h4>
-                    <p className="text-sm font-medium text-gray-900">
-                      {companySettings?.company_name || 'Sign House'}
-                    </p>
-                    <p className="text-sm text-gray-600 whitespace-pre-line">
-                      {companySettings?.company_address || ''}
-                    </p>
-                  </div>
+              <>
+                {/* Left Panel - Create New Invoice */}
+                {(!isMobile || mobileCreateTab === 'create') && (
+                  <div className={`${isMobile ? 'flex-1' : 'w-1/2 border-r border-gray-200'} flex flex-col overflow-hidden`}>
+                    {/* Panel Header (Desktop only) */}
+                    {!isMobile && (
+                      <div className="px-4 py-3 bg-green-50 border-b border-green-100 flex-shrink-0">
+                        <div className="flex items-center gap-2">
+                          <Plus className="w-4 h-4 text-green-600" />
+                          <span className="font-medium text-green-800 text-sm">Create New Invoice</span>
+                        </div>
+                      </div>
+                    )}
 
-                  {/* To - Customer */}
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Bill To</h4>
-                    <p className="text-sm font-medium text-gray-900">{order.customer_name}</p>
-                    <p className="text-sm text-gray-600 whitespace-pre-line">
-                      {formatAddress(customerBillingAddress)}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Date */}
-                <div className="mb-6">
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Invoice Date</h4>
-                  <p className="text-sm text-gray-900">{formattedDate}</p>
-                </div>
-
-                {/* Line Items - Table on desktop, Cards on mobile */}
-                <div className="mb-6">
-                  {isMobile ? (
-                    /* Mobile: Card layout */
-                    <div className="space-y-3">
-                      {order.parts?.filter(p => !p.is_header_row && p.quantity && p.quantity > 0).map((part, idx) => (
-                        <div key={idx} className="bg-white border border-gray-300 rounded-lg p-3">
-                          {/* Item Name */}
-                          <div className="font-medium text-gray-900 text-sm">
-                            {part.qb_item_name || '-'}
+                    {/* Invoice Preview Content */}
+                    <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-4' : 'p-4'}`}>
+                      <div className={`bg-gray-50 rounded-lg border border-gray-200 ${isMobile ? 'p-4' : 'p-4'}`}>
+                        {/* From/To/Date Header */}
+                        <div className={`${isMobile ? 'flex flex-col gap-4' : 'grid grid-cols-2 gap-4'} mb-4`}>
+                          {/* From - Company */}
+                          <div>
+                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">From</h4>
+                            <p className="text-sm font-medium text-gray-900">
+                              {companySettings?.company_name || 'Sign House'}
+                            </p>
+                            <p className="text-xs text-gray-600 whitespace-pre-line">
+                              {companySettings?.company_address || ''}
+                            </p>
                           </div>
-                          {/* Qty, Unit Price, Ext Price */}
-                          <div className="flex items-center justify-between mt-2 text-sm">
-                            <span className="text-gray-600">
-                              Qty: <span className="font-medium">{part.quantity}</span>
-                            </span>
-                            <span className="text-gray-600">
-                              @ ${Number(part.unit_price || 0).toFixed(2)}
-                            </span>
-                            <span className="font-semibold text-gray-900">
-                              ${Number(part.extended_price || 0).toFixed(2)}
+
+                          {/* To - Customer */}
+                          <div>
+                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Bill To</h4>
+                            <p className="text-sm font-medium text-gray-900">{order.customer_name}</p>
+                            <p className="text-xs text-gray-600 whitespace-pre-line">
+                              {formatAddress(customerBillingAddress)}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Date */}
+                        <div className="mb-4">
+                          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Invoice Date</h4>
+                          <p className="text-sm text-gray-900">{formattedDate}</p>
+                        </div>
+
+                        {/* Line Items - Compact table */}
+                        <div className="mb-4">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="border-b border-gray-300">
+                                <th className="text-left py-1.5 font-medium text-gray-700">Item</th>
+                                <th className="text-right py-1.5 font-medium text-gray-700 w-12">Qty</th>
+                                <th className="text-right py-1.5 font-medium text-gray-700 w-16">Price</th>
+                                <th className="text-right py-1.5 font-medium text-gray-700 w-16">Amount</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {displayParts.map((part, idx) => (
+                                part.is_header_row ? (
+                                  <tr key={idx} className="bg-gray-100">
+                                    <td colSpan={4} className="py-1.5 px-1 font-semibold text-gray-900">
+                                      {part.qb_description || part.invoice_description || 'Section Header'}
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  <tr key={idx} className="border-b border-gray-200">
+                                    <td className="py-1.5 text-gray-900">{part.qb_item_name || '-'}</td>
+                                    <td className="py-1.5 text-right text-gray-600">{part.quantity}</td>
+                                    <td className="py-1.5 text-right text-gray-600">
+                                      ${Number(part.unit_price || 0).toFixed(2)}
+                                    </td>
+                                    <td className="py-1.5 text-right text-gray-900">
+                                      ${Number(part.extended_price || 0).toFixed(2)}
+                                    </td>
+                                  </tr>
+                                )
+                              ))}
+                              {displayParts.filter(p => !p.is_header_row).length === 0 && (
+                                <tr>
+                                  <td colSpan={4} className="py-3 text-center text-gray-500 italic">
+                                    No line items
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Totals */}
+                        <div className="border-t border-gray-300 pt-3 space-y-1 text-sm">
+                          <div className="flex justify-end">
+                            <span className="w-24 text-gray-600">Subtotal:</span>
+                            <span className="w-20 text-right font-medium">
+                              ${totals.subtotal.toFixed(2)}
                             </span>
                           </div>
-                          {/* QB Description */}
-                          {part.qb_description && (
-                            <div className="mt-2 pt-2 border-t border-gray-200 text-xs text-gray-600 whitespace-pre-wrap">
-                              {part.qb_description}
+                          {!order.cash && (
+                            <div className="flex justify-end">
+                              <span className={`w-24 ${totals.taxNotFound ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+                                {totals.taxNotFound ? `${totals.taxName}:` : `Tax (${(totals.taxRate * 100).toFixed(0)}%):`}
+                              </span>
+                              <span className={`w-20 text-right font-medium ${totals.taxNotFound ? 'text-red-600' : ''}`}>
+                                {totals.taxNotFound ? 'ERROR' : `$${totals.tax.toFixed(2)}`}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex justify-end border-t border-gray-200 pt-1">
+                            <span className="w-24 font-semibold text-gray-900">Total:</span>
+                            <span className="w-20 text-right font-bold text-gray-900">
+                              ${totals.total.toFixed(2)}
+                            </span>
+                          </div>
+                          {!!order.deposit_required && (
+                            <div className="flex justify-end bg-green-50 px-2 py-1 rounded">
+                              <span className="w-24 font-semibold text-green-700">Deposit (50%):</span>
+                              <span className="w-20 text-right font-bold text-green-700">
+                                ${totals.deposit.toFixed(2)}
+                              </span>
                             </div>
                           )}
                         </div>
-                      ))}
-                      {(!order.parts || order.parts.filter(p => !p.is_header_row && p.quantity).length === 0) && (
-                        <div className="py-4 text-center text-gray-500 italic text-sm">
-                          No line items
+                      </div>
+
+                      {/* Error Message */}
+                      {error && (
+                        <div className="mt-3 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">
+                          {error}
                         </div>
                       )}
                     </div>
-                  ) : (
-                    /* Desktop: Table layout */
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-gray-300">
-                          <th className="text-left py-2 font-medium text-gray-700">Item Name</th>
-                          <th className="text-left py-2 font-medium text-gray-700">QB Description</th>
-                          <th className="text-right py-2 font-medium text-gray-700 w-16">Qty</th>
-                          <th className="text-right py-2 font-medium text-gray-700 w-24">Price</th>
-                          <th className="text-right py-2 font-medium text-gray-700 w-24">Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {order.parts?.filter(p => !p.is_header_row && p.quantity && p.quantity > 0).map((part, idx) => (
-                          <tr key={idx} className="border-b border-gray-300">
-                            <td className="py-2 text-gray-900">{part.qb_item_name || '-'}</td>
-                            <td className="py-2 text-gray-600 whitespace-pre-wrap">{part.qb_description || '-'}</td>
-                            <td className="py-2 text-right text-gray-600">{part.quantity}</td>
-                            <td className="py-2 text-right text-gray-600">
-                              ${Number(part.unit_price || 0).toFixed(2)}
-                            </td>
-                            <td className="py-2 text-right text-gray-900">
-                              ${Number(part.extended_price || 0).toFixed(2)}
-                            </td>
-                          </tr>
-                        ))}
-                        {(!order.parts || order.parts.filter(p => !p.is_header_row && p.quantity).length === 0) && (
-                          <tr>
-                            <td colSpan={5} className="py-4 text-center text-gray-500 italic">
-                              No line items
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
 
-                {/* Totals */}
-                <div className="border-t border-gray-300 pt-4 space-y-2">
-                  <div className="flex justify-end">
-                    <span className="w-32 text-gray-600 text-sm">Subtotal:</span>
-                    <span className="w-28 text-right font-medium text-sm">
-                      ${totals.subtotal.toFixed(2)}
-                    </span>
-                  </div>
-                  {!order.cash && (
-                    <div className="flex justify-end">
-                      <span className="w-32 text-gray-600 text-sm">
-                        Tax ({(totals.taxRate * 100).toFixed(0)}%):
-                      </span>
-                      <span className="w-28 text-right font-medium text-sm">
-                        ${totals.tax.toFixed(2)}
-                      </span>
+                    {/* Left Panel Footer */}
+                    <div className={`${isMobile ? 'px-4 py-3' : 'px-4 py-3'} border-t border-gray-200 bg-gray-50 flex-shrink-0`}>
+                      <div className={`flex items-center ${isMobile ? 'flex-col-reverse gap-2' : 'justify-between'}`}>
+                        <button
+                          onClick={onSkip || onClose}
+                          className={`text-gray-600 hover:text-gray-800 active:text-gray-900 text-sm ${
+                            isMobile ? 'w-full py-2 min-h-[44px]' : 'px-3 py-2'
+                          }`}
+                        >
+                          {onSkip ? 'Skip' : 'Cancel'}
+                        </button>
+                        <button
+                          onClick={handleInvoiceOnly}
+                          disabled={loading}
+                          className={`rounded-lg bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-medium flex items-center justify-center gap-2 text-sm disabled:opacity-50 ${
+                            isMobile ? 'w-full py-3 min-h-[44px]' : 'px-4 py-2'
+                          }`}
+                        >
+                          {loading ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <>
+                              <FileText className="w-4 h-4" />
+                              Create QB Invoice
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
-                  )}
-                  <div className="flex justify-end border-t border-gray-200 pt-2">
-                    <span className="w-32 font-semibold text-gray-900">Total:</span>
-                    <span className="w-28 text-right font-bold text-gray-900">
-                      ${totals.total.toFixed(2)}
-                    </span>
                   </div>
-                  {!!order.deposit_required && (
-                    <div className="flex justify-end bg-green-50 px-3 py-2 rounded mt-2">
-                      <span className="w-32 font-semibold text-green-700">Deposit (50%):</span>
-                      <span className="w-28 text-right font-bold text-green-700">
-                        ${totals.deposit.toFixed(2)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Error Message */}
-            {error && (
-              <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
-          </div>
-
-          {/* Footer */}
-          <div className={`${isMobile ? 'px-4 py-3' : 'px-6 py-4'} border-t border-gray-200 bg-white flex-shrink-0`}>
-            <div className={`flex items-center ${isMobile ? 'flex-col-reverse gap-3' : 'justify-between'}`}>
-              <button
-                onClick={onSkip || onClose}
-                className={`text-gray-600 hover:text-gray-800 active:text-gray-900 text-sm ${
-                  isMobile ? 'w-full py-3 min-h-[44px]' : 'px-4 py-2'
-                }`}
-              >
-                {onSkip ? 'Skip' : 'Cancel'}
-              </button>
-              <div className={`flex items-center gap-3 ${isMobile ? 'w-full flex-col' : ''}`}>
-                {onLinkExisting && (
-                  <button
-                    onClick={onLinkExisting}
-                    disabled={loading}
-                    className={`rounded-lg border border-gray-300 bg-white hover:bg-gray-50 active:bg-gray-100 text-gray-700 font-medium flex items-center justify-center gap-2 text-sm disabled:opacity-50 ${
-                      isMobile ? 'w-full py-3 min-h-[44px]' : 'px-4 py-2'
-                    }`}
-                  >
-                    <Link className="w-4 h-4" />
-                    Link Existing
-                  </button>
                 )}
-                <button
-                  onClick={handleInvoiceOnly}
-                  disabled={loading}
-                  className={`rounded-lg bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-medium flex items-center justify-center gap-2 text-sm disabled:opacity-50 ${
-                    isMobile ? 'w-full py-3 min-h-[44px]' : 'px-4 py-2'
-                  }`}
-                >
-                  {loading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <>
-                      <FileText className="w-4 h-4" />
-                      Create QB Invoice
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
+
+                {/* Right Panel - Link Existing Invoice */}
+                {(!isMobile || mobileCreateTab === 'link') && (
+                  <div className={`${isMobile ? 'flex-1' : 'w-1/2'} flex flex-col overflow-hidden`}>
+                    {/* Panel Header (Desktop only) */}
+                    {!isMobile && (
+                      <div className="px-4 py-3 bg-blue-50 border-b border-blue-100 flex-shrink-0">
+                        <div className="flex items-center gap-2">
+                          <LinkIcon className="w-4 h-4 text-blue-600" />
+                          <span className="font-medium text-blue-800 text-sm">Link Existing Invoice</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Invoice Linking Panel */}
+                    <div className="flex-1 overflow-hidden">
+                      <InvoiceLinkingPanel
+                        orderNumber={order.order_number}
+                        orderTotals={orderTotalsForLink}
+                        onSelect={setSelectedLinkInvoice}
+                        selectedInvoice={selectedLinkInvoice}
+                        isMobile={isMobile}
+                        compact={false}
+                        isActive={isMobile ? mobileCreateTab === 'link' : true}
+                      />
+                    </div>
+
+                    {/* Link Error */}
+                    {linkError && (
+                      <div className="mx-4 mb-2 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">
+                        {linkError}
+                      </div>
+                    )}
+
+                    {/* Right Panel Footer */}
+                    <div className={`${isMobile ? 'px-4 py-3' : 'px-4 py-3'} border-t border-gray-200 bg-gray-50 flex-shrink-0`}>
+                      <div className={`flex items-center ${isMobile ? 'flex-col-reverse gap-2' : 'justify-between'}`}>
+                        <button
+                          onClick={onSkip || onClose}
+                          className={`text-gray-600 hover:text-gray-800 active:text-gray-900 text-sm ${
+                            isMobile ? 'w-full py-2 min-h-[44px]' : 'px-3 py-2'
+                          }`}
+                        >
+                          {onSkip ? 'Skip' : 'Cancel'}
+                        </button>
+                        <button
+                          onClick={handleLinkInvoiceFromCreate}
+                          disabled={linking || !selectedLinkInvoice}
+                          className={`rounded-lg font-medium flex items-center justify-center gap-2 text-sm ${
+                            linking || !selectedLinkInvoice
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+                          } ${isMobile ? 'w-full py-3 min-h-[44px]' : 'px-4 py-2'}`}
+                        >
+                          {linking ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <>
+                              <LinkIcon className="w-4 h-4" />
+                              {selectedLinkInvoice ? `Link Invoice #${selectedLinkInvoice.docNumber}` : 'Select Invoice'}
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
 
@@ -1275,6 +1448,16 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
           </div>
         )}
 
+        {/* Loading State - Show spinner during first initialization */}
+        {!isInitialized ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+              <span className="text-gray-500 text-sm">Loading invoice...</span>
+            </div>
+          </div>
+        ) : (
+        <>
         {/* Left Panel - Header + Form + Footer (37% on desktop, full width on mobile when form tab) */}
         {(!isMobile || mobileTab === 'form') && (
         <div className={`${isMobile ? 'flex-1 overflow-hidden' : 'w-[37%] border-r border-gray-200'} flex flex-col`}>
@@ -1313,7 +1496,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
               )}
               {onReassign && (
                 <button
-                  onClick={onReassign}
+                  onClick={() => onReassign(syncStatus === 'not_found')}
                   className="flex items-center space-x-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-sm font-medium transition-colors border border-gray-300"
                 >
                   <span>Reassign</span>
@@ -1339,7 +1522,7 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                 )}
                 {onReassign && (
                   <button
-                    onClick={onReassign}
+                    onClick={() => onReassign(syncStatus === 'not_found')}
                     className="flex items-center space-x-1.5 px-3 py-2 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-600 rounded-lg text-xs font-medium transition-colors border border-gray-300 min-h-[40px]"
                   >
                     <span>Reassign</span>
@@ -1670,6 +1853,23 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                       </>
                     )}
                   </button>
+
+                  {/* Mark as Sent Button - for invoices not yet sent */}
+                  {mode !== 'view' && (
+                    <button
+                      onClick={handleMarkAsSent}
+                      disabled={loading || (mode === 'update' && !updateCompleted)}
+                      className={`rounded-lg font-medium flex items-center justify-center gap-2 text-sm ${
+                        loading || (mode === 'update' && !updateCompleted)
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-gray-600 text-white hover:bg-gray-700 active:bg-gray-800'
+                      } ${isMobile ? 'flex-1 py-3 min-h-[44px]' : 'px-4 py-2'}`}
+                      title="Mark invoice as sent without sending an email"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      {!isMobile && 'Mark Sent'}
+                    </button>
+                  )}
                 </div>
 
                 {/* Cancel - Bottom on mobile, Left on desktop */}
@@ -1829,15 +2029,25 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                         </tr>
                       </thead>
                       <tbody>
-                        {lineItems.map((item, idx) => (
-                          <tr key={idx} className="border-b border-gray-300">
-                            <td className="py-2 text-gray-900">{item.description}</td>
-                            <td className="py-2 text-right text-gray-600">{item.quantity}</td>
-                            <td className="py-2 text-right text-gray-600">${item.unitPrice.toFixed(2)}</td>
-                            <td className="py-2 text-right text-gray-900">${item.amount.toFixed(2)}</td>
-                          </tr>
+                        {displayParts.map((part, idx) => (
+                          part.is_header_row ? (
+                            /* Header row - spans full width */
+                            <tr key={idx} className="bg-gray-100">
+                              <td colSpan={4} className="py-2 px-2 font-semibold text-gray-900">
+                                {part.qb_description || part.invoice_description || 'Section Header'}
+                              </td>
+                            </tr>
+                          ) : (
+                            /* Regular billable row */
+                            <tr key={idx} className="border-b border-gray-300">
+                              <td className="py-2 text-gray-900">{part.invoice_description || part.qb_description || part.product_type}</td>
+                              <td className="py-2 text-right text-gray-600">{part.quantity}</td>
+                              <td className="py-2 text-right text-gray-600">${Number(part.unit_price || 0).toFixed(2)}</td>
+                              <td className="py-2 text-right text-gray-900">${Number(part.extended_price || 0).toFixed(2)}</td>
+                            </tr>
+                          )
                         ))}
-                        {lineItems.length === 0 && (
+                        {displayParts.filter(p => !p.is_header_row).length === 0 && (
                           <tr>
                             <td colSpan={4} className="py-4 text-center text-gray-500 italic">
                               No line items
@@ -1855,8 +2065,12 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
                       </div>
                       {!order.cash && (
                         <div className="flex justify-end">
-                          <span className="w-32 text-gray-600">Tax ({(totals.taxRate * 100).toFixed(0)}%):</span>
-                          <span className="w-24 text-right font-medium">${totals.tax.toFixed(2)}</span>
+                          <span className={`w-32 ${totals.taxNotFound ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+                            {totals.taxNotFound ? `⚠️ ${totals.taxName} (NOT FOUND):` : `Tax (${totals.taxName || 'Tax'} ${(totals.taxRate * 100).toFixed(0)}%):`}
+                          </span>
+                          <span className={`w-24 text-right font-medium ${totals.taxNotFound ? 'text-red-600' : ''}`}>
+                            {totals.taxNotFound ? 'ERROR' : `$${totals.tax.toFixed(2)}`}
+                          </span>
                         </div>
                       )}
                       <div className="flex justify-end border-t pt-2 mt-2">
@@ -1875,6 +2089,8 @@ export const InvoiceActionModal: React.FC<InvoiceActionModalProps> = ({
               )}
             </div>
           </div>
+        )}
+        </>
         )}
       </div>
 

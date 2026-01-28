@@ -285,8 +285,8 @@ export async function checkFullSyncStatus(orderId: number): Promise<InvoiceSyncR
       qbSyncToken: qbSnapshot.syncToken
     };
 
-    // 9. If QB changed or conflict, calculate differences
-    if (qbChanged) {
+    // 9. If QB changed, local changed, or conflict, calculate differences
+    if (qbChanged || localChanged) {
       result.differences = await calculateDifferences(orderId, qbSnapshot.lineItems);
     }
 

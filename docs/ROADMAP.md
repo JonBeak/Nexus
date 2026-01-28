@@ -177,15 +177,17 @@ pricing_history (price changes over time)
 - ✅ Backend routes: `/api/product-types` and `/api/product-types/categories`
 - ⏸️ Vinyl system remains separate (working, production data)
 
-### 4.c Supplier Products + Pricing
-- ⬜ `supplier_products` table (archetype_id, supplier_id, brand, sku, specs)
-- ⬜ `pricing_history` table (supplier_product_id, unit_price, effective_start_date)
-- ⬜ Link supplier products to archetypes (many suppliers → one archetype)
-- ⬜ Preferred supplier flag per archetype
-- ⬜ Lead time and minimum order quantity per supplier product
-- ⬜ Price lookup: current price = most recent effective_date <= today
-- ⬜ Price comparison view across suppliers for same archetype
-- ⬜ Price change tracking with effective dates
+### 4.c Supplier Products + Pricing ✅ COMPLETE (2025-12-19)
+- ✅ `supplier_products` table with full CRUD (archetype_id, supplier_id, brand, sku, specs)
+- ✅ `pricing_history` table with time-series tracking (append-only for history preservation)
+- ✅ Link supplier products to archetypes (many suppliers → one archetype)
+- ✅ Preferred supplier flag per archetype
+- ✅ Lead time and minimum order quantity per supplier product
+- ✅ Price lookup: current price = most recent effective_date <= today
+- ✅ Price change tracking with effective dates
+- ✅ Backend: supplierProductController, Service, Repository (3-layer architecture)
+- ✅ Frontend: ArchetypeSupplierProducts, SupplierProductEditor components
+- ⏸️ Price comparison view across suppliers (UI enhancement - deferred)
 
 ### 4.d Purchase Orders
 - ⬜ `purchase_orders` table (supplier_id, status, order_date, expected_date)
@@ -241,6 +243,14 @@ pricing_history (price changes over time)
 
 ## Recent Releases
 
+### Phase 4.c (2025-12-19)
+- Supplier Products with full CRUD operations
+- Pricing History with time-series tracking (append-only)
+- Link products to archetypes and suppliers
+- Preferred supplier designation
+- Lead time and minimum order quantity tracking
+- Frontend components for product editing
+
 ### Phase 4.b (2025-12-19)
 - Product Types catalog (formerly "Materials/Archetypes")
 - Dynamic categories with CRUD management
@@ -290,4 +300,4 @@ pricing_history (price changes over time)
 
 ---
 
-**Last Updated**: 2025-12-19
+**Last Updated**: 2026-01-27

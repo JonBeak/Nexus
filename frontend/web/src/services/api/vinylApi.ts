@@ -44,7 +44,7 @@ export const vinylApi = {
   /**
    * Mark vinyl as used
    */
-  markVinylAsUsed: async (id: number, data: { usage_note?: string; job_ids?: number[] }) => {
+  markVinylAsUsed: async (id: number, data: { usage_note?: string; order_ids?: number[] }) => {
     const response = await api.put(`/vinyl/${id}/use`, data);
     return response.data;
   },
@@ -88,18 +88,18 @@ export const vinylApi = {
   },
 
   /**
-   * Update job links for a vinyl item (unified endpoint)
+   * Update order links for a vinyl item
    */
-  updateJobLinks: async (id: number, job_ids: number[]) => {
-    const response = await api.put(`/vinyl/${id}/job-links`, { job_ids });
+  updateOrderLinks: async (id: number, order_ids: number[]) => {
+    const response = await api.put(`/vinyl/${id}/order-links`, { order_ids });
     return response.data;
   },
 
   /**
-   * Get job links for a vinyl item (unified endpoint)
+   * Get order links for a vinyl item
    */
-  getJobLinks: async (id: number) => {
-    const response = await api.get(`/vinyl/${id}/job-links`);
+  getOrderLinks: async (id: number) => {
+    const response = await api.get(`/vinyl/${id}/order-links`);
     return response.data;
   },
 };

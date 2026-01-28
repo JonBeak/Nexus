@@ -26,11 +26,12 @@ import {
   Eye,
   RefreshCw,
   AlertTriangle,
-  AlertOctagon
+  AlertOctagon,
+  DollarSign
 } from 'lucide-react';
 import { CalendarOrder } from './types';
 import { Order, OrderPart, OrderStatus, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../../types/orders';
-import { ordersApi, orderStatusApi, orderTasksApi, qbInvoiceApi, InvoiceSyncStatus, InvoiceDifference } from '../../../services/api';
+import { ordersApi, orderStatusApi, orderTasksApi, qbInvoiceApi, provincesApi, InvoiceSyncStatus, InvoiceDifference, orderPreparationApi } from '../../../services/api';
 import { staffTasksApi } from '../../../services/api/staff/staffTasksApi';
 import { TaskTemplateDropdown } from '../progress/TaskTemplateDropdown';
 import { TaskMetadataResource } from '../../../services/taskMetadataResource';
@@ -41,9 +42,10 @@ import { useBodyScrollLock } from '../../../hooks/useBodyScrollLock';
 import { useAuth } from '../../../contexts/AuthContext';
 import PrepareOrderModal from '../preparation/PrepareOrderModal';
 import ConfirmationModal from '../details/components/ConfirmationModal';
-import InvoiceActionModal from '../modals/InvoiceActionModal';
-import InvoiceConflictModal from '../modals/InvoiceConflictModal';
-import LinkInvoiceModal, { OrderTotals } from '../modals/LinkInvoiceModal';
+// Unified document modals
+import { DocumentActionModal, LinkDocumentModal, DocumentConflictModal, OrderTotals } from '../modals/document';
+import { DocumentSyncStatus, DocumentDifference } from '../../../types/document';
+import { CashPaymentModal } from '../modals/CashPaymentModal';
 import PrintFormsModal from '../details/components/PrintFormsModal';
 import PDFViewerModal from '../modals/PDFViewerModal';
 import SessionsModal from '../../staff/SessionsModal';
@@ -83,6 +85,13 @@ const STATUS_GROUPS = [
 ];
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
+interface TaxRule {
+  tax_rule_id: number;
+  tax_name: string;
+  tax_percent: number;
+  is_active: number;
+}
 
 /**
  * Get image URL for order
@@ -128,6 +137,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   const [loading, setLoading] = useState(true);
   const [orderDetails, setOrderDetails] = useState<Order | null>(null);
   const [parts, setParts] = useState<OrderPart[]>([]);
+  const [taxRules, setTaxRules] = useState<TaxRule[]>([]);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -160,11 +170,30 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoiceModalMode, setInvoiceModalMode] = useState<'create' | 'update' | 'send' | 'view'>('create');
   const [showLinkInvoiceModal, setShowLinkInvoiceModal] = useState(false);
+  const [reassignInvoiceInfo, setReassignInvoiceInfo] = useState<{
+    invoiceId: string | null;
+    invoiceNumber: string | null;
+    isDeleted: boolean;
+  } | null>(null);
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [conflictStatus, setConflictStatus] = useState<InvoiceSyncStatus>('in_sync');
   const [conflictDifferences, setConflictDifferences] = useState<InvoiceDifference[]>([]);
   const [invoiceSyncStatus, setInvoiceSyncStatus] = useState<InvoiceSyncStatus>('in_sync');
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Estimate conflict state (for cash jobs)
+  const [showEstimateConflictModal, setShowEstimateConflictModal] = useState(false);
+  const [estimateSyncStatus, setEstimateSyncStatus] = useState<DocumentSyncStatus>('in_sync');
+  const [estimateDifferences, setEstimateDifferences] = useState<DocumentDifference[]>([]);
+  const [showLinkEstimateModal, setShowLinkEstimateModal] = useState(false);
+  const [estimateIsStale, setEstimateIsStale] = useState(false);
+  const [showEstimateDropdown, setShowEstimateDropdown] = useState(false);
+  const [showCreateEstimateModal, setShowCreateEstimateModal] = useState(false);
+  const [showEstimateActionModal, setShowEstimateActionModal] = useState(false);
+  const [estimateActionMode, setEstimateActionMode] = useState<'send' | 'view'>('send');
+
+  // Cash payment modal state
+  const [showCashPaymentModal, setShowCashPaymentModal] = useState(false);
 
   // Print modal state
   const [showPrintModal, setShowPrintModal] = useState(false);
@@ -191,16 +220,20 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   const hasChildModalOpen = useMemo(() => {
     return showPrepareModal || showCustomerApprovedModal || showFilesCreatedModal ||
            showInvoiceModal || showConflictModal || showLinkInvoiceModal ||
-           showPrintModal || showPdfViewerModal || sessionsModalTask !== null;
+           showEstimateConflictModal || showLinkEstimateModal || showCreateEstimateModal ||
+           showEstimateActionModal || showPrintModal || showPdfViewerModal ||
+           showCashPaymentModal || sessionsModalTask !== null || showAddTaskForPart !== null;
   }, [showPrepareModal, showCustomerApprovedModal, showFilesCreatedModal,
       showInvoiceModal, showConflictModal, showLinkInvoiceModal,
-      showPrintModal, showPdfViewerModal, sessionsModalTask]);
+      showEstimateConflictModal, showLinkEstimateModal, showCreateEstimateModal,
+      showEstimateActionModal, showPrintModal, showPdfViewerModal,
+      showCashPaymentModal, sessionsModalTask, showAddTaskForPart]);
 
   // Printing hook - requires orderData with order, parts, taxRules, customerDiscount
   const orderDataForPrinting = {
     order: orderDetails,
     parts: parts,
-    taxRules: [],
+    taxRules: taxRules,
     customerDiscount: 0
   };
 
@@ -227,30 +260,38 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
       return sum + parseFloat(part.extended_price?.toString() || '0');
     }, 0);
 
-    // Use order's tax info - default to 13% HST if cash job or no tax name
+    // Look up actual tax rate from tax_rules based on order's tax_name
     const isCashJob = !!orderDetails.cash;
-    const taxPercent = isCashJob ? 0 : 13; // Default to 13% HST
-    const taxAmount = subtotal * (taxPercent / 100);
+    const hasTaxName = !!orderDetails.tax_name;
+    const taxRule = hasTaxName ? taxRules.find(r => r.tax_name === orderDetails.tax_name) : null;
+
+    // Fail clearly if tax name exists but rule not found (and taxRules loaded)
+    const taxNotFound = hasTaxName && !isCashJob && taxRules.length > 0 && !taxRule;
+    const taxDecimal = isCashJob ? 0 : (taxRule ? parseFloat(taxRule.tax_percent.toString()) : 0);
+    const taxPercent = taxDecimal * 100;
+    const taxAmount = subtotal * taxDecimal;
 
     return {
       subtotal,
-      taxName: orderDetails.tax_name || (isCashJob ? 'No Tax' : 'HST'),
-      taxPercent,
-      taxAmount,
-      total: subtotal + taxAmount
+      taxName: taxNotFound ? `⚠️ ${orderDetails.tax_name} (NOT FOUND)` : (orderDetails.tax_name || (isCashJob ? 'No Tax' : 'No Tax Set')),
+      taxPercent: taxNotFound ? -1 : taxPercent,  // -1 signals error
+      taxAmount: taxNotFound ? 0 : taxAmount,
+      total: taxNotFound ? subtotal : subtotal + taxAmount
     };
-  }, [orderDetails, parts]);
+  }, [orderDetails, parts, taxRules]);
 
   // Fetch order details when modal opens
   const fetchOrderDetails = useCallback(async () => {
     try {
       setLoading(true);
-      const [result, orderFromMetadata] = await Promise.all([
+      const [result, orderFromMetadata, taxRulesData] = await Promise.all([
         ordersApi.getOrderWithParts(order.order_number),
-        TaskMetadataResource.getTaskOrder()
+        TaskMetadataResource.getTaskOrder(),
+        provincesApi.getTaxRules()
       ]);
       setOrderDetails(result.order);
       setParts(result.parts || []);
+      setTaxRules(taxRulesData || []);
       setImageError(false);
       setNewDueDate(result.order.due_date?.split('T')[0] || '');
       // Parse hard_due_date_time if exists (format: "HH:mm:ss")
@@ -279,6 +320,19 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
       } else {
         setInvoiceSyncStatus('in_sync');
       }
+
+      // Check estimate staleness for cash jobs with existing estimates
+      if (result.order.cash && result.order.qb_estimate_id) {
+        try {
+          const stalenessResult = await orderPreparationApi.checkQBEstimateStaleness(result.order.order_number);
+          setEstimateIsStale(stalenessResult.isStale || false);
+        } catch (stalenessErr) {
+          console.error('Error checking estimate staleness:', stalenessErr);
+          setEstimateIsStale(false);
+        }
+      } else {
+        setEstimateIsStale(false);
+      }
     } catch (err) {
       console.error('Error fetching order details:', err);
     } finally {
@@ -296,12 +350,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        // Check if any child modal is open - if so, let them handle ESC
-        const hasChildModalOpen = showPrepareModal || showCustomerApprovedModal ||
-          showFilesCreatedModal || showInvoiceModal || showConflictModal ||
-          showLinkInvoiceModal || showPrintModal || showPdfViewerModal ||
-          showAddTaskForPart !== null;
-
+        // Use the memoized hasChildModalOpen variable (includes all child modals)
         if (!hasChildModalOpen) {
           onClose();
         }
@@ -311,9 +360,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
       document.addEventListener('keydown', handleKeyDown);
     }
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, showPrepareModal, showCustomerApprovedModal, showFilesCreatedModal,
-      showInvoiceModal, showConflictModal, showLinkInvoiceModal, showPrintModal, showPdfViewerModal,
-      showAddTaskForPart]);
+  }, [isOpen, onClose, hasChildModalOpen]);
 
   // Handle status change
   const handleStatusChange = async (newStatus: OrderStatus) => {
@@ -536,12 +583,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   const handleBackdropMouseUp = (e: React.MouseEvent) => {
     // Only close if both mousedown AND mouseup are outside both panels
     if (mouseDownOutsideRef.current && !isInsideAnyPanel(e.target as Node)) {
-      // Don't close if any child modal is open
-      const hasChildModalOpen = showPrepareModal || showCustomerApprovedModal ||
-        showFilesCreatedModal || showInvoiceModal || showConflictModal ||
-        showLinkInvoiceModal || showPrintModal || showPdfViewerModal ||
-        showAddTaskForPart !== null || sessionsModalTask !== null;
-
+      // Use the memoized hasChildModalOpen variable (includes all child modals)
       if (!hasChildModalOpen) {
         onClose();
       }
@@ -649,9 +691,72 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
     setShowPrintModal(false);
   };
 
+  // Handle cash job estimate actions
+  const handleEstimateAction = async (action: 'create_estimate' | 'update_estimate' | 'send_estimate' | 'view_estimate' | 'review_changes') => {
+    if (!orderDetails) return;
+
+    if (action === 'create_estimate') {
+      // Open preview modal instead of direct API call
+      setShowCreateEstimateModal(true);
+      return;
+    } else if (action === 'update_estimate' || action === 'review_changes') {
+      // Recreate estimate or review changes - check for conflicts first
+      try {
+        setActionLoading(true);
+        const compareResult = await orderPreparationApi.compareQBEstimate(orderDetails.order_number);
+
+        // If there are differences or conflicts, show the conflict modal
+        if (compareResult.status !== 'in_sync' && compareResult.status !== 'not_found') {
+          setEstimateSyncStatus(compareResult.status);
+          setEstimateDifferences(compareResult.differences || []);
+          setShowEstimateConflictModal(true);
+        } else {
+          // No conflicts - just create new estimate
+          await orderPreparationApi.createQBEstimate(orderDetails.order_number);
+          fetchOrderDetails();
+          onOrderUpdated();
+        }
+      } catch (err) {
+        console.error('Error checking/updating estimate:', err);
+        showError('Failed to update QB estimate. Please try again.');
+      } finally {
+        setActionLoading(false);
+      }
+    } else if (action === 'send_estimate') {
+      // Open estimate action modal in 'send' mode
+      setEstimateActionMode('send');
+      setShowEstimateActionModal(true);
+    } else if (action === 'view_estimate') {
+      // Open estimate action modal in 'view' mode
+      setEstimateActionMode('view');
+      setShowEstimateActionModal(true);
+    }
+  };
+
+  // Handle estimate conflict resolution
+  const handleEstimateConflictResolved = () => {
+    setShowEstimateConflictModal(false);
+    setEstimateDifferences([]);
+    fetchOrderDetails();
+    onOrderUpdated();
+  };
+
+  // Handle link estimate success
+  const handleLinkEstimateSuccess = () => {
+    setShowLinkEstimateModal(false);
+    fetchOrderDetails();
+    onOrderUpdated();
+  };
+
   // Invoice Actions
   const handleInvoiceAction = async (action: string) => {
     if (!orderDetails) return;
+
+    // Handle cash job estimate actions
+    if (action === 'create_estimate' || action === 'update_estimate' || action === 'send_estimate' || action === 'view_estimate' || action === 'review_changes') {
+      await handleEstimateAction(action as 'create_estimate' | 'update_estimate' | 'send_estimate' | 'view_estimate' | 'review_changes');
+      return;
+    }
 
     // For conflict/qb_modified, show conflict modal
     if (action === 'qb_modified' || action === 'conflict') {
@@ -714,13 +819,76 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
 
   const handleLinkInvoiceSuccess = () => {
     setShowLinkInvoiceModal(false);
+    setReassignInvoiceInfo(null);
     fetchOrderDetails();
     onOrderUpdated();
+  };
+
+  // Get estimate button state for cash jobs
+  const getEstimateButtonState = () => {
+    if (!orderDetails) return null;
+
+    const hasEstimate = !!orderDetails.qb_estimate_id;
+    const sentAt = orderDetails.invoice_sent_at;
+
+    // No estimate exists yet - show Create button
+    if (!hasEstimate) {
+      return {
+        action: 'create_estimate',
+        label: 'Create Estimate',
+        icon: <FileText className="w-4 h-4" />,
+        colorClass: 'bg-green-600 hover:bg-green-700 text-white',
+        showLinkOption: true  // Show dropdown with "Link Existing Estimate"
+      };
+    }
+
+    // Check sync status for conflict/qb_modified
+    if (estimateSyncStatus === 'conflict' || estimateSyncStatus === 'qb_modified') {
+      return {
+        action: 'review_changes',
+        label: 'Review Changes',
+        icon: <AlertOctagon className="w-4 h-4" />,
+        colorClass: estimateSyncStatus === 'conflict' ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'
+      };
+    }
+
+    // Estimate exists and is stale (local_stale) - show Recreate button (orange)
+    if (estimateIsStale || estimateSyncStatus === 'local_stale') {
+      return {
+        action: 'update_estimate',
+        label: 'Recreate Estimate',
+        icon: <RefreshCw className="w-4 h-4" />,
+        colorClass: 'bg-orange-500 hover:bg-orange-600 text-white'
+      };
+    }
+
+    // Estimate exists, in sync + already sent - show View button (gray)
+    if (sentAt) {
+      return {
+        action: 'view_estimate',
+        label: 'View Estimate',
+        icon: <Eye className="w-4 h-4" />,
+        colorClass: 'bg-gray-600 hover:bg-gray-700 text-white'
+      };
+    }
+
+    // Estimate exists, in sync, not sent - show Send button (blue)
+    return {
+      action: 'send_estimate',
+      label: 'Send Estimate',
+      icon: <Send className="w-4 h-4" />,
+      colorClass: 'bg-blue-600 hover:bg-blue-700 text-white'
+    };
   };
 
   // Get invoice button state
   const getInvoiceButtonState = () => {
     if (!orderDetails) return null;
+
+    // Cash jobs use estimate buttons instead of invoice buttons
+    if (orderDetails.cash) {
+      return getEstimateButtonState();
+    }
 
     const hasInvoice = !!orderDetails.qb_invoice_id;
     const invoiceSent = !!orderDetails.invoice_sent_at;
@@ -1177,21 +1345,91 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                   </button>
                 )}
 
-                {/* Invoice Button - excludes setup/confirmation and final statuses */}
+                {/* Invoice/Estimate Button - excludes setup/confirmation and final statuses */}
                 {orderDetails && !['job_details_setup', 'pending_confirmation', 'completed', 'cancelled', 'on_hold'].includes(orderDetails.status) && (() => {
                   const invoiceState = getInvoiceButtonState();
                   if (!invoiceState) return null;
+
+                  // For cash jobs with "Create Estimate" - show button with dropdown
+                  if (orderDetails.cash && invoiceState.action === 'create_estimate') {
+                    return (
+                      <div className="relative inline-flex">
+                        <button
+                          onClick={() => handleInvoiceAction(invoiceState.action)}
+                          disabled={actionLoading}
+                          className={`flex items-center gap-1.5 px-3 py-2 ${invoiceState.colorClass} rounded-l text-sm font-medium transition-colors disabled:opacity-50`}
+                        >
+                          {invoiceState.icon}
+                          {invoiceState.label}
+                        </button>
+                        <button
+                          onClick={() => setShowEstimateDropdown(!showEstimateDropdown)}
+                          disabled={actionLoading}
+                          className={`flex items-center px-2 py-2 ${invoiceState.colorClass} rounded-r border-l border-green-700 text-sm font-medium transition-colors disabled:opacity-50`}
+                        >
+                          <ChevronDown className={`w-4 h-4 transition-transform ${showEstimateDropdown ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {/* Cash badge */}
+                        <span className="absolute -top-1 -right-1 px-1.5 py-0.5 text-[10px] font-bold bg-yellow-400 text-yellow-900 rounded">
+                          CASH
+                        </span>
+
+                        {/* Dropdown menu */}
+                        {showEstimateDropdown && (
+                          <>
+                            <div
+                              className="fixed inset-0 z-[60]"
+                              onClick={() => setShowEstimateDropdown(false)}
+                            />
+                            <div className={`absolute top-full left-0 mt-1 ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} rounded-lg shadow-lg z-[70] min-w-[180px]`}>
+                              <button
+                                onClick={() => {
+                                  setShowEstimateDropdown(false);
+                                  setShowLinkEstimateModal(true);
+                                }}
+                                className={`w-full px-3 py-2 text-left text-sm ${PAGE_STYLES.interactive.hover} rounded-lg`}
+                              >
+                                Link Existing Estimate
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  // Regular button for all other cases
                   return (
-                    <button
-                      onClick={() => handleInvoiceAction(invoiceState.action)}
-                      disabled={actionLoading}
-                      className={`flex items-center gap-1.5 px-3 py-2 ${invoiceState.colorClass} rounded text-sm font-medium transition-colors disabled:opacity-50`}
-                    >
-                      {invoiceState.icon}
-                      {invoiceState.label}
-                    </button>
+                    <div className="relative inline-flex">
+                      <button
+                        onClick={() => handleInvoiceAction(invoiceState.action)}
+                        disabled={actionLoading}
+                        className={`flex items-center gap-1.5 px-3 py-2 ${invoiceState.colorClass} rounded text-sm font-medium transition-colors disabled:opacity-50`}
+                      >
+                        {invoiceState.icon}
+                        {invoiceState.label}
+                      </button>
+                      {/* Cash badge for cash jobs */}
+                      {!!orderDetails.cash && (
+                        <span className="absolute -top-1 -right-1 px-1.5 py-0.5 text-[10px] font-bold bg-yellow-400 text-yellow-900 rounded">
+                          CASH
+                        </span>
+                      )}
+                    </div>
                   );
                 })()}
+
+                {/* Record Payment - Cash jobs only */}
+                {orderDetails && !!orderDetails.cash && !['job_details_setup', 'pending_confirmation'].includes(orderDetails.status) && (
+                  <button
+                    onClick={() => setShowCashPaymentModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-medium transition-colors"
+                  >
+                    <DollarSign className="w-4 h-4" />
+                    Record Payment
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1350,9 +1588,10 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
         />
       )}
 
-      {/* Invoice Action Modal */}
+      {/* Invoice Action Modal - Using unified DocumentActionModal */}
       {showInvoiceModal && orderDetails && (
-        <InvoiceActionModal
+        <DocumentActionModal
+          documentType="invoice"
           isOpen={showInvoiceModal}
           onClose={() => setShowInvoiceModal(false)}
           order={orderDetails}
@@ -1362,33 +1601,120 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
             setShowInvoiceModal(false);
             setShowLinkInvoiceModal(true);
           }}
-          onReassign={() => {
+          onReassign={(isDeleted) => {
             setShowInvoiceModal(false);
+            setReassignInvoiceInfo({
+              invoiceId: orderDetails.qb_invoice_id || null,
+              invoiceNumber: orderDetails.qb_invoice_doc_number || null,
+              isDeleted
+            });
             setShowLinkInvoiceModal(true);
           }}
+          taxRules={taxRules}
         />
       )}
 
-      {/* Invoice Conflict Modal */}
+      {/* Invoice Conflict Modal - Using unified DocumentConflictModal */}
       {showConflictModal && orderDetails && (
-        <InvoiceConflictModal
+        <DocumentConflictModal
+          documentType="invoice"
           isOpen={showConflictModal}
           onClose={() => setShowConflictModal(false)}
-          order={orderDetails}
-          conflictStatus={conflictStatus}
+          orderNumber={orderDetails.order_number}
+          orderName={orderDetails.order_name}
+          syncStatus={conflictStatus}
           differences={conflictDifferences}
           onResolved={handleConflictResolved}
         />
       )}
 
-      {/* Link Invoice Modal */}
+      {/* Link Invoice Modal - Using unified LinkDocumentModal */}
       {showLinkInvoiceModal && orderDetails && (
-        <LinkInvoiceModal
+        <LinkDocumentModal
+          documentType="invoice"
           isOpen={showLinkInvoiceModal}
-          onClose={() => setShowLinkInvoiceModal(false)}
+          onClose={() => {
+            setShowLinkInvoiceModal(false);
+            setReassignInvoiceInfo(null);
+          }}
           orderNumber={orderDetails.order_number}
           onSuccess={handleLinkInvoiceSuccess}
+          currentDocument={reassignInvoiceInfo ? {
+            documentId: reassignInvoiceInfo.invoiceId,
+            documentNumber: reassignInvoiceInfo.invoiceNumber
+          } : undefined}
+          documentStatus={reassignInvoiceInfo?.isDeleted ? 'not_found' : (reassignInvoiceInfo ? 'exists' : 'not_linked')}
           orderTotals={orderTotals}
+        />
+      )}
+
+      {/* Estimate Conflict Modal (Cash Jobs) - Using unified DocumentConflictModal */}
+      {showEstimateConflictModal && orderDetails && (
+        <DocumentConflictModal
+          documentType="estimate"
+          isOpen={showEstimateConflictModal}
+          onClose={() => setShowEstimateConflictModal(false)}
+          orderNumber={orderDetails.order_number}
+          orderName={orderDetails.order_name}
+          syncStatus={estimateSyncStatus}
+          differences={estimateDifferences}
+          onResolved={handleEstimateConflictResolved}
+        />
+      )}
+
+      {/* Link Estimate Modal (Cash Jobs) - Using unified LinkDocumentModal */}
+      {showLinkEstimateModal && orderDetails && (
+        <LinkDocumentModal
+          documentType="estimate"
+          isOpen={showLinkEstimateModal}
+          onClose={() => setShowLinkEstimateModal(false)}
+          orderNumber={orderDetails.order_number}
+          customerId={orderDetails.qb_customer_id || ''}
+          currentDocument={orderDetails.qb_estimate_id ? {
+            id: orderDetails.qb_estimate_id,
+            number: orderDetails.qb_estimate_number || ''
+          } : undefined}
+          onSuccess={handleLinkEstimateSuccess}
+        />
+      )}
+
+      {/* Create Estimate Modal (Cash Jobs) - Using unified DocumentActionModal */}
+      {showCreateEstimateModal && orderDetails && (
+        <DocumentActionModal
+          documentType="estimate"
+          mode="create"
+          isOpen={showCreateEstimateModal}
+          onClose={() => setShowCreateEstimateModal(false)}
+          order={orderDetails}
+          onSuccess={() => {
+            setShowCreateEstimateModal(false);
+            fetchOrderDetails();
+            onOrderUpdated();
+          }}
+          onLinkExisting={() => {
+            setShowCreateEstimateModal(false);
+            setShowLinkEstimateModal(true);
+          }}
+        />
+      )}
+
+      {/* Estimate Action Modal (Cash Jobs - Send/View) - Using unified DocumentActionModal */}
+      {showEstimateActionModal && orderDetails && (
+        <DocumentActionModal
+          documentType="estimate"
+          mode={estimateActionMode}
+          isOpen={showEstimateActionModal}
+          onClose={() => setShowEstimateActionModal(false)}
+          order={orderDetails}
+          onSuccess={() => {
+            setShowEstimateActionModal(false);
+            fetchOrderDetails();
+            onOrderUpdated();
+          }}
+          onLinkExisting={() => {
+            setShowEstimateActionModal(false);
+            setShowLinkEstimateModal(true);
+          }}
         />
       )}
 
@@ -1417,6 +1743,20 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
           isOpen={showPdfViewerModal}
           onClose={() => setShowPdfViewerModal(false)}
           order={orderDetails}
+        />
+      )}
+
+      {/* Cash Payment Modal (Cash Jobs) */}
+      {showCashPaymentModal && orderDetails && (
+        <CashPaymentModal
+          isOpen={showCashPaymentModal}
+          onClose={() => setShowCashPaymentModal(false)}
+          orderId={orderDetails.order_id}
+          orderNumber={orderDetails.order_number}
+          onSuccess={() => {
+            fetchOrderDetails();
+            onOrderUpdated();
+          }}
         />
       )}
 

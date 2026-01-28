@@ -1,8 +1,9 @@
 import React from 'react';
 import { Trash2, AlertTriangle, CheckCircle, XCircle, Loader } from 'lucide-react';
 import { BulkEntry } from '../../../hooks/useBulkEntries';
-import { JobSuggestion, VinylItem, VinylAutofillSuggestions } from '../types';
+import { VinylItem, VinylAutofillSuggestions } from '../types';
 import { AutofillComboBox } from '../../common/AutofillComboBox';
+import { OrderDropdown, OrderSuggestion } from '../../common/OrderDropdown';
 import { VinylProductSelector } from './VinylProductSelector';
 import { TypeButtonGroup } from './TypeButtonGroup';
 import {
@@ -18,7 +19,7 @@ interface BulkEntryRowProps {
   entry: BulkEntry;
   vinylItems: VinylItem[];
   bulkAutofillSuggestions: VinylAutofillSuggestions;
-  availableJobs: JobSuggestion[];
+  availableOrders: OrderSuggestion[];
   bulkLoadingSuggestions: boolean;
   widthSuggestions: string[];
   lengthSuggestions: string[];
@@ -46,7 +47,7 @@ export const BulkEntryRow: React.FC<BulkEntryRowProps> = ({
   entry,
   vinylItems,
   bulkAutofillSuggestions,
-  availableJobs,
+  availableOrders,
   bulkLoadingSuggestions,
   widthSuggestions,
   lengthSuggestions,
@@ -158,23 +159,19 @@ export const BulkEntryRow: React.FC<BulkEntryRowProps> = ({
         />
       </td>
 
-      {/* Jobs Field */}
+      {/* Orders Field */}
       <td className="px-2 py-1" style={{ minWidth: '120px' }}>
         <div className="space-y-1">
           {entry.job_ids.map((jobId, jobIndex) => (
             <div key={jobIndex} className="flex items-center gap-1">
-              <select
+              <OrderDropdown
                 value={jobId || ''}
-                onChange={(e) => onJobChange(jobIndex, e.target.value)}
-                className={`flex-1 min-w-0 max-w-[250px] truncate ${inputClass}`}
-              >
-                <option value="">Select job...</option>
-                {availableJobs.map(availableJob => (
-                  <option key={availableJob.job_id} value={availableJob.job_id}>
-                    {availableJob.customer_name} - {availableJob.job_name || availableJob.job_description}
-                  </option>
-                ))}
-              </select>
+                onChange={(newOrderId) => onJobChange(jobIndex, newOrderId)}
+                orders={availableOrders}
+                placeholder="Search orders..."
+                className="flex-1 min-w-0 max-w-[250px]"
+                inputClassName={typeInputBg}
+              />
               {entry.job_ids.length > 1 && (
                 <button
                   onClick={() => onRemoveJob(jobIndex)}

@@ -1,7 +1,7 @@
 // File Clean up Finished: Nov 13, 2025
 // File Clean up Finished: 2025-11-15 (Repository refactoring + status_change_date implementation)
 // Changes:
-// - Added imports for VinylInventoryJobLinksRepository and VinylInventoryStatsRepository
+// - Added imports for VinylInventoryOrderLinksRepository and VinylInventoryStatsRepository
 // - Updated all method calls to use appropriate specialized repositories
 // - Enhanced changeVinylStatus() to properly set status_change_date for ALL disposition changes
 // - Added usage_date and return_date setting for respective disposition changes
@@ -19,7 +19,7 @@
 
 import { User } from '../../types';
 import { VinylInventoryRepository } from '../../repositories/vinyl/vinylInventoryRepository';
-import { VinylInventoryJobLinksRepository } from '../../repositories/vinyl/vinylInventoryJobLinksRepository';
+import { VinylInventoryOrderLinksRepository } from '../../repositories/vinyl/vinylInventoryOrderLinksRepository';
 import { VinylInventoryStatsRepository } from '../../repositories/vinyl/vinylInventoryStatsRepository';
 import { getTrimmedString } from '../../utils/validation';
 import {
@@ -128,7 +128,7 @@ export class VinylInventoryService {
       }
 
       // Create inventory item and product atomically
-      const result = await VinylInventoryRepository.createVinylItemWithProduct(vinylData, data.job_ids);
+      const result = await VinylInventoryRepository.createVinylItemWithProduct(vinylData, data.order_ids);
 
       return {
         success: true,
@@ -256,7 +256,7 @@ export class VinylInventoryService {
       await VinylInventoryRepository.markVinylAsUsed(id, {
         usage_user: user.user_id,
         usage_note: data.usage_note,
-        job_ids: data.job_ids
+        order_ids: data.order_ids
       });
 
       return {
@@ -273,12 +273,12 @@ export class VinylInventoryService {
   }
 
   /**
-   * Update job associations for vinyl item
+   * Update order associations for vinyl item
    */
-  static async updateJobLinks(
+  static async updateOrderLinks(
     user: User,
     id: number,
-    jobIds: number[]
+    orderIds: number[]
   ): Promise<VinylResponse<{ updated: boolean }>> {
     try {
       // Check if item exists
@@ -291,7 +291,7 @@ export class VinylInventoryService {
         };
       }
 
-      await VinylInventoryJobLinksRepository.updateJobLinks(id, jobIds);
+      await VinylInventoryOrderLinksRepository.updateOrderLinks(id, orderIds);
 
       return {
         success: true,
@@ -300,8 +300,8 @@ export class VinylInventoryService {
     } catch (error: any) {
       return {
         success: false,
-        error: error.message || 'Failed to update job associations',
-        code: 'UPDATE_JOBS_ERROR'
+        error: error.message || 'Failed to update order associations',
+        code: 'UPDATE_ORDERS_ERROR'
       };
     }
   }

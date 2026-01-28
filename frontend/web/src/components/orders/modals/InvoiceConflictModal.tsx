@@ -1,4 +1,7 @@
 /**
+ * @deprecated Use DocumentConflictModal from './document' with documentType="invoice" instead.
+ * This component will be removed in a future release.
+ *
  * Invoice Conflict Modal
  * Phase 2: Bi-directional Invoice Sync
  *
@@ -7,7 +10,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Loader2, AlertOctagon, ArrowRight, ArrowLeft, Check, AlertTriangle } from 'lucide-react';
+import { X, Loader2, AlertOctagon, ArrowRight, ArrowLeft, Check, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Order } from '../../../types/orders';
 import { qbInvoiceApi, InvoiceDifference, ConflictResolution, InvoiceSyncStatus } from '../../../services/api';
 import { useIsMobile } from '../../../hooks/useMediaQuery';
@@ -86,6 +89,7 @@ export const InvoiceConflictModal: React.FC<InvoiceConflictModalProps> = ({
 
   const isConflict = status === 'conflict';
   const isQBModified = status === 'qb_modified';
+  const isLocalStale = status === 'local_stale';
 
   const handleResolve = async () => {
     setLoading(true);
@@ -129,19 +133,21 @@ export const InvoiceConflictModal: React.FC<InvoiceConflictModalProps> = ({
       }`}>
         {/* Header */}
         <div className={`px-6 py-4 border-b flex items-center justify-between ${
-          isConflict ? 'bg-red-50' : 'bg-purple-50'
+          isConflict ? 'bg-red-50' : isLocalStale ? 'bg-orange-50' : 'bg-purple-50'
         }`}>
           <div className="flex items-center space-x-3">
             {isConflict ? (
               <AlertOctagon className="w-6 h-6 text-red-600" />
+            ) : isLocalStale ? (
+              <RefreshCw className="w-6 h-6 text-orange-600" />
             ) : (
               <AlertTriangle className="w-6 h-6 text-purple-600" />
             )}
             <div>
               <h2 className={`text-lg font-semibold ${
-                isConflict ? 'text-red-900' : 'text-purple-900'
+                isConflict ? 'text-red-900' : isLocalStale ? 'text-orange-900' : 'text-purple-900'
               }`}>
-                {isConflict ? 'Invoice Sync Conflict' : 'Invoice Modified in QuickBooks'}
+                {isConflict ? 'Invoice Sync Conflict' : isLocalStale ? 'Review Changes Before Update' : 'Invoice Modified in QuickBooks'}
               </h2>
               <p className="text-sm text-gray-600">
                 Order #{order.order_number} - {order.order_name}
@@ -160,12 +166,17 @@ export const InvoiceConflictModal: React.FC<InvoiceConflictModalProps> = ({
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* Explanation */}
           <div className={`p-4 rounded-lg ${
-            isConflict ? 'bg-red-50 border border-red-200' : 'bg-purple-50 border border-purple-200'
+            isConflict ? 'bg-red-50 border border-red-200' : isLocalStale ? 'bg-orange-50 border border-orange-200' : 'bg-purple-50 border border-purple-200'
           }`}>
             {isConflict ? (
               <p className="text-sm text-red-800">
                 <strong>Conflict detected:</strong> The order data has changed locally AND the invoice was modified directly in QuickBooks.
                 You need to choose which version to keep.
+              </p>
+            ) : isLocalStale ? (
+              <p className="text-sm text-orange-800">
+                <strong>Local changes detected:</strong> Your order data has changed since the last sync.
+                Review the differences below before updating the QuickBooks invoice.
               </p>
             ) : (
               <p className="text-sm text-purple-800">
@@ -278,14 +289,16 @@ export const InvoiceConflictModal: React.FC<InvoiceConflictModalProps> = ({
 
           {/* Resolution Options */}
           <div>
-            <h3 className="text-sm font-medium text-gray-700 mb-3">Choose Resolution</h3>
+            <h3 className="text-sm font-medium text-gray-700 mb-3">
+              {isLocalStale ? 'Confirm Action' : 'Choose Resolution'}
+            </h3>
             <div className="space-y-3">
-              {/* Use Local */}
+              {/* Use Local / Push to QuickBooks */}
               <label className={`flex items-start p-4 border rounded-lg cursor-pointer transition-colors ${
                 isMobile ? 'min-h-[60px] active:bg-gray-100' : ''
               } ${
                 selectedResolution === 'use_local'
-                  ? 'border-blue-500 bg-blue-50'
+                  ? isLocalStale ? 'border-orange-500 bg-orange-50' : 'border-blue-500 bg-blue-50'
                   : 'border-gray-200 hover:bg-gray-50'
               }`}>
                 <input
@@ -298,73 +311,86 @@ export const InvoiceConflictModal: React.FC<InvoiceConflictModalProps> = ({
                 />
                 <div className="flex-1">
                   <div className="flex items-center space-x-2">
-                    <ArrowRight className="w-4 h-4 text-blue-600" />
-                    <span className="font-medium text-gray-900">Use Local Data</span>
-                    {isConflict && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Recommended</span>}
+                    <ArrowRight className={`w-4 h-4 ${isLocalStale ? 'text-orange-600' : 'text-blue-600'}`} />
+                    <span className="font-medium text-gray-900">
+                      {isLocalStale ? 'Push to QuickBooks' : 'Use Local Data'}
+                    </span>
+                    {(isConflict || isLocalStale) && (
+                      <span className={`text-xs px-2 py-0.5 rounded ${
+                        isLocalStale ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'
+                      }`}>Recommended</span>
+                    )}
                   </div>
                   <p className="text-sm text-gray-600 mt-1">
-                    Update the QuickBooks invoice with your current order data.
-                    {isConflict && ' Any changes made in QuickBooks will be overwritten.'}
+                    {isLocalStale
+                      ? 'Update the QuickBooks invoice with your current order data.'
+                      : <>Update the QuickBooks invoice with your current order data.
+                         {isConflict && ' Any changes made in QuickBooks will be overwritten.'}</>
+                    }
                   </p>
                 </div>
               </label>
 
-              {/* Use QB */}
-              <label className={`flex items-start p-4 border rounded-lg cursor-pointer transition-colors ${
-                isMobile ? 'min-h-[60px] active:bg-gray-100' : ''
-              } ${
-                selectedResolution === 'use_qb'
-                  ? 'border-purple-500 bg-purple-50'
-                  : 'border-gray-200 hover:bg-gray-50'
-              }`}>
-                <input
-                  type="radio"
-                  name="resolution"
-                  value="use_qb"
-                  checked={selectedResolution === 'use_qb'}
-                  onChange={() => setSelectedResolution('use_qb')}
-                  className="mt-1 mr-3"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2">
-                    <ArrowLeft className="w-4 h-4 text-purple-600" />
-                    <span className="font-medium text-gray-900">Accept QuickBooks Version</span>
-                    {isQBModified && <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded">Recommended</span>}
+              {/* Use QB - Hide for local_stale since QB hasn't changed */}
+              {!isLocalStale && (
+                <label className={`flex items-start p-4 border rounded-lg cursor-pointer transition-colors ${
+                  isMobile ? 'min-h-[60px] active:bg-gray-100' : ''
+                } ${
+                  selectedResolution === 'use_qb'
+                    ? 'border-purple-500 bg-purple-50'
+                    : 'border-gray-200 hover:bg-gray-50'
+                }`}>
+                  <input
+                    type="radio"
+                    name="resolution"
+                    value="use_qb"
+                    checked={selectedResolution === 'use_qb'}
+                    onChange={() => setSelectedResolution('use_qb')}
+                    className="mt-1 mr-3"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <ArrowLeft className="w-4 h-4 text-purple-600" />
+                      <span className="font-medium text-gray-900">Accept QuickBooks Version</span>
+                      {isQBModified && <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded">Recommended</span>}
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Keep the QuickBooks invoice as-is and mark as synced.
+                      {isConflict && ' Your local order data will remain unchanged but may differ from the invoice.'}
+                    </p>
                   </div>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Keep the QuickBooks invoice as-is and mark as synced.
-                    {isConflict && ' Your local order data will remain unchanged but may differ from the invoice.'}
-                  </p>
-                </div>
-              </label>
+                </label>
+              )}
 
-              {/* Keep Both */}
-              <label className={`flex items-start p-4 border rounded-lg cursor-pointer transition-colors ${
-                isMobile ? 'min-h-[60px] active:bg-gray-100' : ''
-              } ${
-                selectedResolution === 'keep_both'
-                  ? 'border-gray-500 bg-gray-50'
-                  : 'border-gray-200 hover:bg-gray-50'
-              }`}>
-                <input
-                  type="radio"
-                  name="resolution"
-                  value="keep_both"
-                  checked={selectedResolution === 'keep_both'}
-                  onChange={() => setSelectedResolution('keep_both')}
-                  className="mt-1 mr-3"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2">
-                    <Check className="w-4 h-4 text-gray-600" />
-                    <span className="font-medium text-gray-900">Acknowledge & Review Later</span>
+              {/* Keep Both / Cancel - Hide for local_stale, show Cancel button in footer instead */}
+              {!isLocalStale && (
+                <label className={`flex items-start p-4 border rounded-lg cursor-pointer transition-colors ${
+                  isMobile ? 'min-h-[60px] active:bg-gray-100' : ''
+                } ${
+                  selectedResolution === 'keep_both'
+                    ? 'border-gray-500 bg-gray-50'
+                    : 'border-gray-200 hover:bg-gray-50'
+                }`}>
+                  <input
+                    type="radio"
+                    name="resolution"
+                    value="keep_both"
+                    checked={selectedResolution === 'keep_both'}
+                    onChange={() => setSelectedResolution('keep_both')}
+                    className="mt-1 mr-3"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <Check className="w-4 h-4 text-gray-600" />
+                      <span className="font-medium text-gray-900">Acknowledge & Review Later</span>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Dismiss this alert without making changes. You can review both versions manually.
+                      The conflict warning will reappear on the next sync check.
+                    </p>
                   </div>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Dismiss this alert without making changes. You can review both versions manually.
-                    The conflict warning will reappear on the next sync check.
-                  </p>
-                </div>
-              </label>
+                </label>
+              )}
             </div>
           </div>
 
@@ -395,20 +421,24 @@ export const InvoiceConflictModal: React.FC<InvoiceConflictModalProps> = ({
             className={`flex items-center justify-center space-x-2 px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 ${
               isMobile ? 'min-h-[44px]' : ''
             } ${
-              selectedResolution === 'use_local' ? 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800' :
-              selectedResolution === 'use_qb' ? 'bg-purple-600 hover:bg-purple-700 active:bg-purple-800' :
-              'bg-gray-600 hover:bg-gray-700 active:bg-gray-800'
+              selectedResolution === 'use_local'
+                ? isLocalStale
+                  ? 'bg-orange-600 hover:bg-orange-700 active:bg-orange-800'
+                  : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
+                : selectedResolution === 'use_qb'
+                  ? 'bg-purple-600 hover:bg-purple-700 active:bg-purple-800'
+                  : 'bg-gray-600 hover:bg-gray-700 active:bg-gray-800'
             }`}
           >
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Resolving...</span>
+                <span>{isLocalStale ? 'Updating...' : 'Resolving...'}</span>
               </>
             ) : (
               <>
-                <Check className="w-4 h-4" />
-                <span>Apply Resolution</span>
+                {isLocalStale ? <RefreshCw className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                <span>{isLocalStale ? 'Push to QuickBooks' : 'Apply Resolution'}</span>
               </>
             )}
           </button>

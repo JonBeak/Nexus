@@ -1,9 +1,14 @@
 /**
  * KanbanView - Main Kanban board component
  * Displays orders as cards in status columns with drag-and-drop
+ *
+ * Performance optimized: 2025-01-28
+ * - Uses optimized /orders/kanban endpoint (backend does grouping/sorting)
+ * - Components wrapped with React.memo
+ * - Handlers memoized with useCallback
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -14,8 +19,8 @@ import {
   useSensor,
   useSensors
 } from '@dnd-kit/core';
-import { ordersApi, orderStatusApi, timeSchedulesApi } from '../../../services/api';
-import { Order, OrderStatus } from '../../../types/orders';
+import { ordersApi, orderStatusApi } from '../../../services/api';
+import { OrderStatus, KanbanOrder } from '../../../types/orders';
 import { useTasksSocket } from '../../../hooks/useTasksSocket';
 import { useIsMobile } from '../../../hooks/useMediaQuery';
 import { OrderQuickModal } from '../calendarView/OrderQuickModal';
@@ -24,74 +29,13 @@ import { KanbanColumn } from './KanbanColumn';
 import { KanbanCard } from './KanbanCard';
 import { MobileScrollbar } from './MobileScrollbar';
 import {
-  KanbanOrder,
   KANBAN_STATUS_ORDER,
   KANBAN_HIDDEN_STATUSES,
   KANBAN_STACKED_GROUPS,
   KANBAN_COLLAPSED_BY_DEFAULT,
   PAINTING_COLUMN_ID,
-  PAINTING_ELIGIBLE_STATUSES,
   PAINTING_COLUMN_COLORS
 } from './types';
-import { PAGE_STYLES } from '../../../constants/moduleColors';
-
-/**
- * Calculate work days between two dates (excludes weekends and holidays)
- * Returns positive for future dates, negative for past dates
- */
-const calculateWorkDaysBetween = (fromDate: Date, toDate: Date, holidays: Set<string>): number => {
-  const from = new Date(fromDate);
-  from.setHours(0, 0, 0, 0);
-  const to = new Date(toDate);
-  to.setHours(0, 0, 0, 0);
-
-  // Same day = 0
-  if (from.getTime() === to.getTime()) return 0;
-
-  const isPast = to < from;
-  const start = isPast ? to : from;
-  const end = isPast ? from : to;
-
-  let count = 0;
-  const current = new Date(start);
-  current.setDate(current.getDate() + 1); // Start counting from next day
-
-  while (current <= end) {
-    const dayOfWeek = current.getDay();
-    const dateStr = current.toISOString().split('T')[0];
-    if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidays.has(dateStr)) {
-      count++;
-    }
-    current.setDate(current.getDate() + 1);
-  }
-
-  return isPast ? -count : count;
-};
-
-/**
- * Transform Order to KanbanOrder with calculated fields
- */
-const transformToKanbanOrder = (order: Order, holidays: Set<string>): KanbanOrder => {
-  // Calculate work days left using simple day-based calculation
-  let workDaysLeft: number | null = null;
-  if (order.due_date) {
-    const today = new Date();
-    const dateOnly = order.due_date.split('T')[0];
-    const dueDate = new Date(dateOnly + 'T00:00:00');
-    workDaysLeft = calculateWorkDaysBetween(today, dueDate, holidays);
-  }
-
-  // Calculate progress
-  const totalTasks = order.total_tasks || 0;
-  const completedTasks = order.completed_tasks || 0;
-  const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
-  return {
-    ...order,
-    work_days_left: workDaysLeft,
-    progress_percent: progressPercent
-  };
-};
 
 /**
  * Organize statuses into layout groups (stacked or single columns)
@@ -117,14 +61,18 @@ const organizeColumnLayout = (): OrderStatus[][] => {
   return layout;
 };
 
+// Memoize column layout since it's static
+const COLUMN_LAYOUT = organizeColumnLayout();
+
 export const KanbanView: React.FC = () => {
-  // State
-  const [orders, setOrders] = useState<KanbanOrder[]>([]);
+  // State - optimized data structure from backend
+  const [ordersByStatus, setOrdersByStatus] = useState<Record<OrderStatus, KanbanOrder[]>>({} as Record<OrderStatus, KanbanOrder[]>);
+  const [paintingOrders, setPaintingOrders] = useState<KanbanOrder[]>([]);
+  const [totalCounts, setTotalCounts] = useState<{ completed: number; cancelled: number }>({ completed: 0, cancelled: 0 });
   const [error, setError] = useState<string | null>(null);
   const [expandedCards, setExpandedCards] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<CalendarOrder | null>(null);
-  const [holidays, setHolidays] = useState<Set<string>>(new Set());
   // Track which columns are showing all (for completed/cancelled)
   const [showAllColumns, setShowAllColumns] = useState<Set<OrderStatus>>(new Set());
   // Track which columns are collapsed (cards hidden)
@@ -175,25 +123,6 @@ export const KanbanView: React.FC = () => {
     })
   );
 
-  // Fetch holidays on mount
-  useEffect(() => {
-    const fetchHolidays = async () => {
-      try {
-        const response = await timeSchedulesApi.getHolidays();
-        const holidayDates = new Set<string>(
-          (response.data || []).map((h: { holiday_date: string }) =>
-            h.holiday_date.split('T')[0]
-          )
-        );
-        setHolidays(holidayDates);
-      } catch (err) {
-        console.error('Error fetching holidays:', err);
-        // Continue without holidays
-      }
-    };
-    fetchHolidays();
-  }, []);
-
   // Check awaiting payment orders on mount - auto-complete if fully paid
   useEffect(() => {
     ordersApi.checkAwaitingPayments().catch(error => {
@@ -201,19 +130,23 @@ export const KanbanView: React.FC = () => {
     });
   }, []);
 
-  // Fetch orders (silent - no loading spinner for smooth UX)
+  // Fetch orders using optimized Kanban endpoint
   const fetchOrders = useCallback(async () => {
     try {
       setError(null);
-      // Fetch all orders - API returns array directly
-      const fetchedOrders = await ordersApi.getOrders();
-      const kanbanOrders = (fetchedOrders || []).map(order => transformToKanbanOrder(order, holidays));
-      setOrders(kanbanOrders);
+      const data = await ordersApi.getKanbanOrders({
+        showAllCompleted: showAllColumns.has('completed'),
+        showAllCancelled: showAllColumns.has('cancelled')
+      });
+
+      setOrdersByStatus(data.columns);
+      setPaintingOrders(data.painting);
+      setTotalCounts(data.totalCounts);
     } catch (err) {
-      console.error('Error fetching orders:', err);
+      console.error('Error fetching Kanban orders:', err);
       setError('Failed to load orders');
     }
-  }, [holidays]);
+  }, [showAllColumns]);
 
   useEffect(() => {
     fetchOrders();
@@ -230,60 +163,8 @@ export const KanbanView: React.FC = () => {
     onReconnect: fetchOrders
   });
 
-  // Filter orders for completed/cancelled columns (due in last 2 weeks by default)
-  const filterHiddenStatusOrders = (statusOrders: KanbanOrder[], status: OrderStatus): KanbanOrder[] => {
-    if (!KANBAN_HIDDEN_STATUSES.includes(status)) return statusOrders;
-    if (showAllColumns.has(status)) return statusOrders;
-
-    // Filter to orders due in the last 2 weeks
-    const twoWeeksAgo = new Date();
-    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-    twoWeeksAgo.setHours(0, 0, 0, 0);
-
-    return statusOrders.filter(order => {
-      if (!order.due_date) return true; // Show orders without due date
-      const dateOnly = order.due_date.split('T')[0];
-      const dueDate = new Date(dateOnly + 'T00:00:00');
-      return dueDate >= twoWeeksAgo;
-    });
-  };
-
-  // Group orders by status, sorted by due date (earliest first)
-  const ordersByStatus = KANBAN_STATUS_ORDER.reduce((acc, status) => {
-    const statusOrders = orders.filter(o => o.status === status);
-    const filteredOrders = filterHiddenStatusOrders(statusOrders, status);
-    // Sort by due date (earliest first), orders without due date go to end
-    acc[status] = filteredOrders.sort((a, b) => {
-      if (!a.due_date && !b.due_date) return 0;
-      if (!a.due_date) return 1;
-      if (!b.due_date) return -1;
-      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
-    });
-    return acc;
-  }, {} as Record<OrderStatus, KanbanOrder[]>);
-
-  // Filter orders for Painting column - orders with incomplete painting tasks
-  // Only includes orders in eligible statuses (active production stages)
-  const paintingOrders = orders
-    .filter(o =>
-      PAINTING_ELIGIBLE_STATUSES.includes(o.status) &&
-      (o.incomplete_painting_tasks_count || 0) > 0
-    )
-    .sort((a, b) => {
-      // Sort by due date (earliest first), orders without due date go to end
-      if (!a.due_date && !b.due_date) return 0;
-      if (!a.due_date) return 1;
-      if (!b.due_date) return -1;
-      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
-    });
-
-  // Get total count for completed/cancelled (for "show all" button)
-  const getTotalCount = (status: OrderStatus): number => {
-    return orders.filter(o => o.status === status).length;
-  };
-
-  // Toggle show all for a column
-  const handleToggleShowAll = (status: OrderStatus) => {
+  // Memoized toggle handlers to prevent child re-renders
+  const handleToggleShowAll = useCallback((status: OrderStatus) => {
     setShowAllColumns(prev => {
       const next = new Set(prev);
       if (next.has(status)) {
@@ -293,10 +174,9 @@ export const KanbanView: React.FC = () => {
       }
       return next;
     });
-  };
+  }, []);
 
-  // Toggle collapsed state for a column
-  const handleToggleCollapsed = (status: OrderStatus) => {
+  const handleToggleCollapsed = useCallback((status: OrderStatus) => {
     setCollapsedColumns(prev => {
       const next = new Set(prev);
       if (next.has(status)) {
@@ -306,20 +186,36 @@ export const KanbanView: React.FC = () => {
       }
       return next;
     });
-  };
+  }, []);
 
   // Toggle expanded cards (called from progress bar click)
-  const handleToggleExpanded = () => {
+  const handleToggleExpanded = useCallback(() => {
     setExpandedCards(prev => !prev);
-  };
+  }, []);
 
   // Handle drag start
-  const handleDragStart = (event: DragStartEvent) => {
+  const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveId(event.active.id as string);
-  };
+  }, []);
 
-  // Handle drag end
-  const handleDragEnd = async (event: DragEndEvent) => {
+  // Handle card click - memoized
+  const handleCardClick = useCallback((order: KanbanOrder) => {
+    // Convert to CalendarOrder format for the modal
+    const calendarOrder: CalendarOrder = {
+      ...order,
+      work_days_left: order.work_days_left,
+      progress_percent: order.progress_percent
+    };
+    setSelectedOrder(calendarOrder);
+  }, []);
+
+  // Close modal handler - memoized
+  const handleCloseModal = useCallback(() => {
+    setSelectedOrder(null);
+  }, []);
+
+  // Handle drag end - needs access to current orders state
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
 
@@ -328,44 +224,56 @@ export const KanbanView: React.FC = () => {
     // Ignore drops onto the Painting column (it's a read-only view)
     if (over.id === PAINTING_COLUMN_ID) return;
 
-    const orderId = active.id as string;
+    const orderIdStr = active.id as string;
     const newStatus = over.id as OrderStatus;
 
-    // Find the order
-    const order = orders.find(o => `order-${o.order_id}` === orderId);
+    // Find the order across all columns
+    let order: KanbanOrder | undefined;
+    for (const status of KANBAN_STATUS_ORDER) {
+      order = ordersByStatus[status]?.find(o => `order-${o.order_id}` === orderIdStr);
+      if (order) break;
+    }
+
     if (!order || order.status === newStatus) return;
 
-    // Optimistic update
-    setOrders(prev => prev.map(o =>
-      o.order_id === order.order_id ? { ...o, status: newStatus } : o
-    ));
+    // Optimistic update - move order between columns
+    setOrdersByStatus(prev => {
+      const updated = { ...prev };
+      // Remove from old column
+      updated[order!.status] = (prev[order!.status] || []).filter(o => o.order_id !== order!.order_id);
+      // Add to new column
+      const updatedOrder = { ...order!, status: newStatus };
+      updated[newStatus] = [...(prev[newStatus] || []), updatedOrder];
+      return updated;
+    });
 
     try {
       await orderStatusApi.updateOrderStatus(order.order_number, newStatus);
+      // Refetch to get proper sorting
+      fetchOrders();
     } catch (err) {
       console.error('Error updating order status:', err);
-      // Revert on error
-      setOrders(prev => prev.map(o =>
-        o.order_id === order.order_id ? { ...o, status: order.status } : o
-      ));
+      // Revert on error - refetch from server
+      fetchOrders();
     }
-  };
+  }, [ordersByStatus, fetchOrders]);
 
-  // Handle card click
-  const handleCardClick = (order: KanbanOrder) => {
-    // Convert to CalendarOrder format for the modal
-    const calendarOrder: CalendarOrder = {
-      ...order,
-      work_days_left: order.work_days_left,
-      progress_percent: order.progress_percent
-    };
-    setSelectedOrder(calendarOrder);
-  };
+  // Get active order for drag overlay - search all columns
+  const activeOrder = useMemo(() => {
+    if (!activeId) return null;
+    for (const status of KANBAN_STATUS_ORDER) {
+      const order = ordersByStatus[status]?.find(o => `order-${o.order_id}` === activeId);
+      if (order) return order;
+    }
+    return null;
+  }, [activeId, ordersByStatus]);
 
-  // Get active order for drag overlay
-  const activeOrder = activeId
-    ? orders.find(o => `order-${o.order_id}` === activeId)
-    : null;
+  // Memoize getTotalCount function per status
+  const getTotalCount = useCallback((status: OrderStatus): number => {
+    if (status === 'completed') return totalCounts.completed;
+    if (status === 'cancelled') return totalCounts.cancelled;
+    return ordersByStatus[status]?.length || 0;
+  }, [ordersByStatus, totalCounts]);
 
   if (error) {
     return (
@@ -374,8 +282,6 @@ export const KanbanView: React.FC = () => {
       </div>
     );
   }
-
-  const columnLayout = organizeColumnLayout();
 
   return (
     <div className="h-full flex flex-col">
@@ -399,7 +305,7 @@ export const KanbanView: React.FC = () => {
           onDragEnd={handleDragEnd}
         >
           <div className="flex gap-4 h-full min-w-max">
-            {columnLayout.map((group, groupIdx) => {
+            {COLUMN_LAYOUT.map((group, groupIdx) => {
               // Single column
               if (group.length === 1) {
                 const status = group[0];
@@ -501,7 +407,7 @@ export const KanbanView: React.FC = () => {
         <OrderQuickModal
           isOpen={!!selectedOrder}
           order={selectedOrder}
-          onClose={() => setSelectedOrder(null)}
+          onClose={handleCloseModal}
           onOrderUpdated={fetchOrders}
         />
       )}

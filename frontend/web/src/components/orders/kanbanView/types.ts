@@ -3,25 +3,7 @@
  * Types for the Orders Kanban Board
  */
 
-import { Order, OrderStatus } from '../../../types/orders';
-
-/**
- * Order with calculated fields for kanban display
- */
-export interface KanbanOrder extends Order {
-  work_days_left: number | null;
-  progress_percent: number;
-}
-
-/**
- * Status column configuration
- */
-export interface StatusColumn {
-  status: OrderStatus;
-  label: string;
-  colorClass: string;
-  orders: KanbanOrder[];
-}
+import { OrderStatus, KanbanOrder } from '../../../types/orders';
 
 /**
  * Progress indicator color based on urgency
@@ -92,13 +74,6 @@ export const KANBAN_HIDDEN_STATUSES: OrderStatus[] = [
 ];
 
 /**
- * Active statuses (shown by default)
- */
-export const KANBAN_DEFAULT_STATUSES: OrderStatus[] = KANBAN_STATUS_ORDER.filter(
-  s => !KANBAN_HIDDEN_STATUSES.includes(s)
-);
-
-/**
  * Column header colors per status
  */
 export const KANBAN_COLUMN_COLORS: Record<OrderStatus, { header: string; border: string; background?: string }> = {
@@ -111,8 +86,8 @@ export const KANBAN_COLUMN_COLORS: Record<OrderStatus, { header: string; border:
   on_hold: { header: 'bg-red-100', border: 'border-red-300' },
   overdue: { header: 'bg-red-200', border: 'border-red-400' },
   qc_packing: { header: 'bg-purple-100', border: 'border-purple-300' },
-  shipping: { header: 'bg-blue-100', border: 'border-blue-300' },
-  pick_up: { header: 'bg-blue-100', border: 'border-blue-300' },
+  shipping: { header: 'bg-yellow-100', border: 'border-yellow-300', background: 'bg-yellow-100' },
+  pick_up: { header: 'bg-blue-100', border: 'border-blue-300', background: 'bg-blue-100' },
   awaiting_payment: { header: 'bg-green-100', border: 'border-green-300' },
   completed: { header: 'bg-green-200', border: 'border-green-400', background: 'bg-[var(--theme-header-bg)]' },
   cancelled: { header: 'bg-gray-300', border: 'border-gray-500', background: 'bg-[var(--theme-header-bg)]' }
@@ -190,3 +165,44 @@ export interface KanbanCardProps {
   showPaintingBadge?: boolean;
 }
 
+/**
+ * Compare KanbanOrder arrays for memoization
+ * Used by KanbanColumn to avoid unnecessary re-renders
+ */
+export const areKanbanOrdersEqual = (
+  prev: KanbanOrder[],
+  next: KanbanOrder[]
+): boolean => {
+  if (prev.length !== next.length) return false;
+  return prev.every((order, i) =>
+    order.order_id === next[i].order_id &&
+    order.progress_percent === next[i].progress_percent &&
+    order.work_days_left === next[i].work_days_left &&
+    order.invoice_sent_at === next[i].invoice_sent_at
+  );
+};
+
+/**
+ * Compare KanbanOrder objects for memoization
+ * Used by KanbanCard to avoid unnecessary re-renders
+ */
+export const areKanbanCardsEqual = (
+  prev: KanbanOrder,
+  next: KanbanOrder
+): boolean => {
+  return (
+    prev.order_id === next.order_id &&
+    prev.order_name === next.order_name &&
+    prev.customer_name === next.customer_name &&
+    prev.due_date === next.due_date &&
+    prev.status === next.status &&
+    prev.work_days_left === next.work_days_left &&
+    prev.progress_percent === next.progress_percent &&
+    prev.total_tasks === next.total_tasks &&
+    prev.completed_tasks === next.completed_tasks &&
+    prev.shipping_required === next.shipping_required &&
+    prev.invoice_sent_at === next.invoice_sent_at &&
+    prev.sign_image_path === next.sign_image_path &&
+    prev.incomplete_painting_tasks_count === next.incomplete_painting_tasks_count
+  );
+};

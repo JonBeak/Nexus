@@ -483,22 +483,29 @@ export const calculatePushThru = async (
       psCountOverride = psCountOverrideRaw;
     }
 
-    // Determine what to pass to powerSupplySelector
+    // Read section-level UL EARLY - needed to decide if PS calculation should happen
+    const sectionHasUL = input.calculatedValues?.sectionHasUL ?? false;
+    console.log(`[pushThru] Row PS selection: sectionHasUL=${sectionHasUL}, calculatedValues=`, input.calculatedValues);
+
+    // Determine if PS should be calculated:
+    // 1. User explicitly set Tfrs field (number or 'yes')
+    // 2. This row has LEDs AND customer prefers power supplies
+    // Note: sectionHasUL only affects PS TYPE selection (UL vs non-UL), not whether to calculate
     let psOverrideForSelector: number | null = null;
     let shouldCalculatePS = false;
 
     if (psCountOverrideRaw === 'yes') {
-      // User explicitly wants PSs - enable UL optimization
+      // User explicitly wants PSs
       shouldCalculatePS = true;
       psOverrideForSelector = null;
     } else if (psCountOverride !== null) {
       // User entered a specific number (including 0)
       shouldCalculatePS = true;
       psOverrideForSelector = psCountOverride;
-    } else {
-      // No user override - use ValidationContextBuilder's decision
-      shouldCalculatePS = calculatedPsCount > 0;
-      psOverrideForSelector = calculatedPsCount;
+    } else if (ledCount > 0 && input.customerPreferences?.pref_power_supply_required === true) {
+      // This row has LEDs and customer preference requires power supplies
+      shouldCalculatePS = true;
+      psOverrideForSelector = null;
     }
 
     if (shouldCalculatePS) {
@@ -521,10 +528,6 @@ export const calculatePushThru = async (
       // Ensure watts is a number (may come from DB as string)
       const wattsPerLed = typeof ledPricing.watts === 'string' ? parseFloat(ledPricing.watts) : ledPricing.watts;
       const totalWattage = ledCount * wattsPerLed;
-
-      // Use section-level UL for PS optimization (consistent PS types within section)
-      const sectionHasUL = input.calculatedValues?.sectionHasUL ?? false;
-      console.log(`[pushThru] Row PS selection: sectionHasUL=${sectionHasUL}, calculatedValues=`, input.calculatedValues);
 
       const psSelectionInput: PowerSupplySelectionInput = {
         totalWattage,

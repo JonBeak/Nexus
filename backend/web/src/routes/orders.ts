@@ -19,6 +19,7 @@ import * as orderConversionController from '../controllers/orderConversionContro
 import * as orderFormController from '../controllers/orderFormController';
 import * as orderImageController from '../controllers/orderImageController';
 import * as qbInvoiceController from '../controllers/qbInvoiceController';
+import * as cashPaymentController from '../controllers/cashPaymentController';
 
 const router = Router();
 
@@ -117,6 +118,19 @@ router.post(
   authenticateToken,
   requirePermission('orders.view'),
   orderController.checkAwaitingPaymentOrders
+);
+
+/**
+ * Get Kanban board data (optimized for performance)
+ * GET /api/orders/kanban
+ * Returns pre-grouped, pre-sorted orders with computed fields
+ * Query params: showAllCompleted, showAllCancelled (booleans)
+ */
+router.get(
+  '/kanban',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderController.getKanbanData
 );
 
 // =============================================
@@ -886,6 +900,56 @@ router.get(
   authenticateToken,
   requirePermission('orders.view'),
   qbInvoiceController.getEmailTemplateHandler
+);
+
+// =============================================
+// CASH PAYMENTS (Cash Job Workflow)
+// =============================================
+
+/**
+ * Record a cash payment for a cash job order (Manager+ only)
+ * POST /api/orders/:orderId/cash-payments
+ * Body: { amount, payment_method, payment_date, reference_number?, memo? }
+ */
+router.post(
+  '/:orderId/cash-payments',
+  authenticateToken,
+  requirePermission('orders.update'),
+  cashPaymentController.recordPayment
+);
+
+/**
+ * Get all payments for a cash job order
+ * GET /api/orders/:orderId/cash-payments
+ */
+router.get(
+  '/:orderId/cash-payments',
+  authenticateToken,
+  requirePermission('orders.view'),
+  cashPaymentController.getPayments
+);
+
+/**
+ * Delete a cash payment (Manager+ only)
+ * DELETE /api/orders/:orderId/cash-payments/:paymentId
+ */
+router.delete(
+  '/:orderId/cash-payments/:paymentId',
+  authenticateToken,
+  requirePermission('orders.update'),
+  cashPaymentController.deletePayment
+);
+
+/**
+ * Get cash balance info for a cash job order
+ * GET /api/orders/:orderId/cash-balance
+ * Returns: { total, totalPaid, balance, payments }
+ */
+router.get(
+  '/:orderId/cash-balance',
+  authenticateToken,
+  requirePermission('orders.view'),
+  cashPaymentController.getBalance
 );
 
 export default router;

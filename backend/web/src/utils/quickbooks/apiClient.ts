@@ -279,6 +279,23 @@ export async function getItemIdByName(itemName: string, realmId: string): Promis
 // ESTIMATE OPERATIONS
 // =============================================
 
+/**
+ * QB Estimate response type (from API)
+ */
+export interface QBEstimate {
+  Id: string;
+  DocNumber: string;
+  SyncToken: string;
+  TxnDate: string;
+  CustomerRef: { value: string; name?: string };
+  TotalAmt: number;
+  Line: QBEstimateLine[];
+  MetaData?: {
+    CreateTime?: string;
+    LastUpdatedTime?: string;
+  };
+}
+
 export interface QBEstimateLine {
   Description?: string;  // Optional, used for all line types
   DetailType: string;
@@ -470,6 +487,89 @@ export function getEstimateWebUrl(estimateId: string): string {
 export function getEstimatePdfApiUrl(estimateId: string, realmId: string): string {
   // QuickBooks API endpoint for PDF download
   return `${QB_API_BASE_URL}/${realmId}/estimate/${estimateId}/pdf`;
+}
+
+/**
+ * Get estimate details from QuickBooks
+ * Returns full estimate including line items and metadata
+ */
+export async function getQBEstimate(
+  estimateId: string,
+  realmId: string
+): Promise<QBEstimate> {
+  console.log(`📋 Fetching estimate ${estimateId} from QuickBooks...`);
+
+  const response = await makeQBApiCall('GET', `estimate/${estimateId}`, realmId, {
+    params: { minorversion: '65' }
+  });
+
+  const estimate = response.Estimate;
+  if (!estimate) {
+    throw new APIError(`Estimate ${estimateId} not found`);
+  }
+
+  console.log(`✅ Estimate fetched: Doc#=${estimate.DocNumber}`);
+
+  return estimate as QBEstimate;
+}
+
+/**
+ * Query estimate by document number
+ * Used for linking existing estimates
+ */
+export async function queryQBEstimateByDocNumber(
+  docNumber: string,
+  realmId: string
+): Promise<QBEstimate | null> {
+  if (!docNumber || !docNumber.trim()) {
+    console.error('❌ Document number cannot be empty');
+    return null;
+  }
+
+  try {
+    const safeDocNumber = docNumber.replace(/'/g, "\\'");
+    const query = `SELECT * FROM Estimate WHERE DocNumber = '${safeDocNumber}' MAXRESULTS 1`;
+
+    console.log(`🔍 Looking up QB estimate: "${docNumber}"`);
+    const response = await queryQB(query, realmId);
+
+    const estimates = response?.QueryResponse?.Estimate || [];
+    if (estimates.length > 0) {
+      const estimate = estimates[0];
+      console.log(`✅ Found QB Estimate: ID=${estimate.Id}, Doc#=${estimate.DocNumber}`);
+      return estimate as QBEstimate;
+    }
+
+    console.log(`⚠️  Estimate "${docNumber}" not found in QuickBooks`);
+    return null;
+  } catch (error) {
+    console.error('❌ Error looking up estimate:', error);
+    return null;
+  }
+}
+
+/**
+ * Query all estimates for a customer
+ * Returns estimates sorted by date descending
+ */
+export async function queryEstimatesByCustomer(
+  qbCustomerId: string,
+  realmId: string
+): Promise<QBEstimate[]> {
+  console.log(`🔍 Querying estimates for QB customer ${qbCustomerId}...`);
+
+  try {
+    const query = `SELECT * FROM Estimate WHERE CustomerRef = '${qbCustomerId}' ORDERBY TxnDate DESC MAXRESULTS 100`;
+    const response = await queryQB(query, realmId);
+
+    const estimates = response?.QueryResponse?.Estimate || [];
+    console.log(`✅ Found ${estimates.length} estimate(s) for customer ${qbCustomerId}`);
+
+    return estimates as QBEstimate[];
+  } catch (error) {
+    console.error('❌ Error querying estimates:', error);
+    throw error;
+  }
 }
 
 /**

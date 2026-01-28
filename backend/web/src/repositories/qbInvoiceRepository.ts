@@ -344,6 +344,46 @@ export async function getLinkedInvoiceIds(excludeOrderId?: number): Promise<stri
   return rows.map(row => row.qb_invoice_id);
 }
 
+/**
+ * Linked invoice info for display in listing
+ */
+export interface LinkedInvoiceInfo {
+  qbInvoiceId: string;
+  orderNumber: number;
+  orderName: string;
+}
+
+/**
+ * Get linked invoice details (invoice ID -> order number, order name)
+ * Used to show linked status in invoice listing
+ */
+export async function getLinkedInvoiceDetails(excludeOrderId?: number): Promise<Map<string, LinkedInvoiceInfo>> {
+  let sql = `
+    SELECT qb_invoice_id, order_number, order_name
+    FROM orders
+    WHERE qb_invoice_id IS NOT NULL
+  `;
+  const params: any[] = [];
+
+  if (excludeOrderId) {
+    sql += ' AND order_id != ?';
+    params.push(excludeOrderId);
+  }
+
+  const rows = await query(sql, params) as RowDataPacket[];
+  const map = new Map<string, LinkedInvoiceInfo>();
+
+  for (const row of rows) {
+    map.set(row.qb_invoice_id, {
+      qbInvoiceId: row.qb_invoice_id,
+      orderNumber: row.order_number,
+      orderName: row.order_name
+    });
+  }
+
+  return map;
+}
+
 // =============================================
 // SCHEDULED EMAILS
 // =============================================

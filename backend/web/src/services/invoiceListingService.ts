@@ -11,6 +11,7 @@ import { getQBInvoice } from '../utils/quickbooks/invoiceClient';
 import { quickbooksRepository } from '../repositories/quickbooksRepository';
 import { orderService } from './orderService';
 import { broadcastOrderStatus } from '../websocket/taskBroadcast';
+import { checkAndAutoCompleteCashJob } from './cashPaymentService';
 import {
   InvoiceFilters,
   InvoiceListingResponse,
@@ -169,9 +170,9 @@ export async function syncStaleBalances(
 // =============================================
 
 /**
- * Check all orders in awaiting_payment status with linked invoices
- * Syncs balance from QB and auto-completes if fully paid
- * Called on page load and every 5 minutes via server interval
+ * Check all orders in awaiting_payment status (QB invoices and cash jobs)
+ * Syncs balance from QB or internal payments and auto-completes if fully paid
+ * Called on page load and every hour via server interval
  */
 export async function checkAwaitingPaymentOrders(): Promise<{
   checked: number;
@@ -191,9 +192,18 @@ export async function checkAwaitingPaymentOrders(): Promise<{
 
   for (const order of orders) {
     try {
-      const result = await syncOrderBalance(order.order_id);
-      if (result.autoCompleted) {
-        autoCompleted++;
+      if (order.is_cash) {
+        // Cash job: check internal balance
+        const result = await checkAndAutoCompleteCashJob(order.order_id, order.order_number);
+        if (result.autoCompleted) {
+          autoCompleted++;
+        }
+      } else if (order.qb_invoice_id) {
+        // QB invoice: sync balance from QuickBooks
+        const result = await syncOrderBalance(order.order_id);
+        if (result.autoCompleted) {
+          autoCompleted++;
+        }
       }
     } catch (error) {
       console.error(`Error checking order #${order.order_number}:`, error);

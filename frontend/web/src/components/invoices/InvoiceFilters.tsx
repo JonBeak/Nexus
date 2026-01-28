@@ -56,7 +56,8 @@ export const InvoiceFilters: React.FC<Props> = ({ filters, onFiltersChange }) =>
           className={selectClass}
         >
           <option value="all">All Invoice Status</option>
-          <option value="invoiced">Invoiced</option>
+          <option value="invoiced">QB Invoiced</option>
+          <option value="cash">Cash Jobs</option>
           <option value="not_invoiced">Not Invoiced</option>
         </select>
 

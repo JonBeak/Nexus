@@ -222,8 +222,8 @@ export function generateComponentTasks(
   // 3DP Return spec → 3D Print task (for 3D Print products)
   if (hasSpec(group, '3DP Return')) {
     const depth = getSpecValue(group, '3DP Return', 'depth');
-    const faceMaterial = getSpecValue(group, '3DP Return', 'face_material');
-    const printNote = [depth, faceMaterial].filter(Boolean).join(' - ') || null;
+    const colour = getSpecValue(group, '3DP Return', 'colour');
+    const printNote = [depth, colour].filter(Boolean).join(' - ') || null;
 
     tasks.push({
       taskName: '3D Print',

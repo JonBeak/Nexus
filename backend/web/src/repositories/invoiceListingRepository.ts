@@ -35,9 +35,11 @@ export async function getOrdersForInvoiceListing(
 
   // Invoice status filter
   if (filters.invoiceStatus === 'invoiced') {
-    conditions.push('o.qb_invoice_id IS NOT NULL');
+    conditions.push('o.qb_invoice_id IS NOT NULL AND o.cash = 0');
   } else if (filters.invoiceStatus === 'not_invoiced') {
-    conditions.push('o.qb_invoice_id IS NULL');
+    conditions.push('o.qb_invoice_id IS NULL AND o.cash = 0');
+  } else if (filters.invoiceStatus === 'cash') {
+    conditions.push('o.cash = 1');
   }
 
   // Balance status filter
@@ -132,6 +134,7 @@ export async function getOrdersForInvoiceListing(
       o.cached_balance,
       o.cached_balance_at,
       o.deposit_required,
+      o.cash AS is_cash,
       COALESCE(parts.calculated_total, 0) AS calculated_total
     FROM orders o
     JOIN customers c ON o.customer_id = c.customer_id
@@ -169,6 +172,7 @@ export async function getOrdersForInvoiceListing(
       row.cached_balance !== null &&
       row.cached_invoice_total !== null &&
       parseFloat(row.cached_balance) < parseFloat(row.cached_invoice_total),
+    is_cash: row.is_cash === 1,
     calculated_total: parseFloat(row.calculated_total) || 0
   }));
 
@@ -371,26 +375,28 @@ export async function getOrderForBalanceSync(orderId: number): Promise<{
 }
 
 /**
- * Get all orders in awaiting_payment status with linked invoices
+ * Get all orders in awaiting_payment status (both QB invoices and cash jobs)
  * Used for automatic payment checking
  */
 export async function getAwaitingPaymentOrders(): Promise<Array<{
   order_id: number;
   order_number: number;
-  qb_invoice_id: string;
+  qb_invoice_id: string | null;
+  is_cash: boolean;
 }>> {
   const rows = await query(
-    `SELECT order_id, order_number, qb_invoice_id
+    `SELECT order_id, order_number, qb_invoice_id, cash
      FROM orders
      WHERE status = 'awaiting_payment'
-       AND qb_invoice_id IS NOT NULL`,
+       AND (qb_invoice_id IS NOT NULL OR cash = 1)`,
     []
   ) as RowDataPacket[];
 
   return rows.map(row => ({
     order_id: row.order_id,
     order_number: row.order_number,
-    qb_invoice_id: row.qb_invoice_id
+    qb_invoice_id: row.qb_invoice_id,
+    is_cash: row.cash === 1
   }));
 }
 

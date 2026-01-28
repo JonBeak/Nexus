@@ -1,4 +1,17 @@
 import { api } from '../../apiClient';
+import { KanbanOrder, OrderStatus } from '../../../types/orders';
+
+/**
+ * Response type for Kanban endpoint
+ */
+export interface KanbanDataResponse {
+  columns: Record<OrderStatus, KanbanOrder[]>;
+  painting: KanbanOrder[];
+  totalCounts: {
+    completed: number;
+    cancelled: number;
+  };
+}
 
 /**
  * Orders API - Core CRUD Operations
@@ -156,6 +169,25 @@ export const ordersApi = {
     errors: number;
   }> {
     const response = await api.post('/orders/check-awaiting-payments');
+    return response.data;
+  },
+
+  /**
+   * Get Kanban board data (optimized for performance)
+   * Returns pre-grouped, pre-sorted orders with computed fields
+   */
+  async getKanbanOrders(options?: {
+    showAllCompleted?: boolean;
+    showAllCancelled?: boolean;
+  }): Promise<KanbanDataResponse> {
+    const params: Record<string, string> = {};
+    if (options?.showAllCompleted) {
+      params.showAllCompleted = 'true';
+    }
+    if (options?.showAllCancelled) {
+      params.showAllCancelled = 'true';
+    }
+    const response = await api.get('/orders/kanban', { params });
     return response.data;
   },
 };

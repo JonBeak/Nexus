@@ -37,6 +37,7 @@ import {
 import { getQBInvoice } from '../utils/quickbooks/invoiceClient';
 import { quickbooksRepository } from '../repositories/quickbooksRepository';
 import * as invoiceListingRepo from '../repositories/invoiceListingRepository';
+import * as cashPaymentRepo from '../repositories/cashPaymentRepository';
 
 // QC task constants
 const QC_TASK_NAME = 'QC & Packing';
@@ -363,6 +364,27 @@ export class OrderService {
       } catch (invoiceError) {
         // Non-blocking: if balance check fails, proceed with awaiting_payment
         console.error('⚠️  Invoice balance check failed:', invoiceError);
+      }
+    }
+
+    // Check if moving to awaiting_payment with a fully-paid cash job
+    // If cash job is already paid, skip to completed instead
+    if (status === 'awaiting_payment' && order.cash) {
+      try {
+        const total = await cashPaymentRepo.calculateOrderTotal(orderId);
+        const totalPaid = await cashPaymentRepo.getTotalPaymentsForOrder(orderId);
+        const balance = Math.max(0, total - totalPaid);
+
+        // Update cached balance
+        await cashPaymentRepo.updateOrderCachedBalance(orderId, balance, total);
+
+        if (balance === 0) {
+          console.log(`✅ Cash job #${order.order_number}: Fully paid, moving to completed instead of awaiting_payment`);
+          status = 'completed';
+        }
+      } catch (cashError) {
+        // Non-blocking: if balance check fails, proceed with awaiting_payment
+        console.error('⚠️  Cash balance check failed:', cashError);
       }
     }
 
@@ -738,6 +760,121 @@ export class OrderService {
     await orderRepository.updateOrderAccountingEmails(orderId, orderAccountingEmails);
   }
 
+  // =====================================================
+  // KANBAN BOARD OPTIMIZED DATA
+  // =====================================================
+
+  /**
+   * Get orders grouped and sorted for Kanban board display
+   * Backend handles all grouping, sorting, and calculated fields
+   */
+  async getKanbanData(options: {
+    showAllCompleted?: boolean;
+    showAllCancelled?: boolean;
+  } = {}): Promise<{
+    columns: Record<string, any[]>;
+    painting: any[];
+    totalCounts: { completed: number; cancelled: number };
+  }> {
+    // Get orders and holidays from repository
+    const { orders, holidays } = await orderRepository.getOrdersForKanban(options);
+    const holidaySet = new Set(holidays);
+
+    // Calculate work days left for each order
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const ordersWithCalcs = orders.map(order => {
+      // Calculate work_days_left
+      let work_days_left: number | null = null;
+      if (order.due_date) {
+        const dueDate = new Date(order.due_date + 'T00:00:00');
+        work_days_left = this.calculateWorkDaysBetween(today, dueDate, holidaySet);
+      }
+
+      // Calculate progress_percent
+      const totalTasks = order.total_tasks || 0;
+      const completedTasks = order.completed_tasks || 0;
+      const progress_percent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+      return {
+        ...order,
+        work_days_left,
+        progress_percent
+      };
+    });
+
+    // Group orders by status
+    const columns: Record<string, any[]> = {};
+    const KANBAN_STATUSES = [
+      'job_details_setup',
+      'pending_confirmation',
+      'pending_production_files_creation',
+      'pending_production_files_approval',
+      'production_queue',
+      'in_production',
+      'overdue',
+      'qc_packing',
+      'shipping',
+      'pick_up',
+      'awaiting_payment',
+      'completed',
+      'cancelled'
+    ];
+
+    for (const status of KANBAN_STATUSES) {
+      columns[status] = ordersWithCalcs.filter(o => o.status === status);
+    }
+
+    // Filter painting orders - cross-status aggregation
+    const PAINTING_ELIGIBLE_STATUSES = ['production_queue', 'in_production', 'overdue', 'qc_packing'];
+    const painting = ordersWithCalcs.filter(o =>
+      PAINTING_ELIGIBLE_STATUSES.includes(o.status) &&
+      (o.incomplete_painting_tasks_count || 0) > 0
+    );
+
+    // Get total counts for show-all buttons
+    const totalCounts = await orderRepository.getKanbanStatusCounts();
+
+    return {
+      columns,
+      painting,
+      totalCounts
+    };
+  }
+
+  /**
+   * Calculate work days between two dates (excludes weekends and holidays)
+   * Returns positive for future dates, negative for past dates
+   */
+  private calculateWorkDaysBetween(fromDate: Date, toDate: Date, holidays: Set<string>): number {
+    const from = new Date(fromDate);
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(toDate);
+    to.setHours(0, 0, 0, 0);
+
+    // Same day = 0
+    if (from.getTime() === to.getTime()) return 0;
+
+    const isPast = to < from;
+    const start = isPast ? to : from;
+    const end = isPast ? from : to;
+
+    let count = 0;
+    const current = new Date(start);
+    current.setDate(current.getDate() + 1); // Start counting from next day
+
+    while (current <= end) {
+      const dayOfWeek = current.getDay();
+      const dateStr = current.toISOString().split('T')[0];
+      if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidays.has(dateStr)) {
+        count++;
+      }
+      current.setDate(current.getDate() + 1);
+    }
+
+    return isPast ? -count : count;
+  }
 }
 
 export const orderService = new OrderService();

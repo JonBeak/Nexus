@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { X, Trash2 } from 'lucide-react';
-import { jobsApi } from '../../services/api';
+import { ordersApi } from '../../services/api';
 import { AutofillComboBox } from '../common/AutofillComboBox';
-import { JobSuggestion, StatusChangePayload, VinylItem } from './types';
+import { StatusChangePayload, VinylItem } from './types';
 import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 
 interface StatusChangeFormState {
   disposition: StatusChangePayload['disposition'];
   status_change_date: string;
   notes: string;
-  jobs: string[];
-  job_ids: number[];
+  orders: string[];
+  order_ids: number[];
 }
 
 interface StatusChangeModalProps {
@@ -30,12 +30,12 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
     disposition: 'in_stock',
     status_change_date: new Date().toISOString().split('T')[0],
     notes: '',
-    jobs: [''],
-    job_ids: []
+    orders: [''],
+    order_ids: []
   });
 
   const [loading, setLoading] = useState(false);
-  const [jobSuggestions, setJobSuggestions] = useState<JobSuggestion[]>([]);
+  const [orderSuggestions, setOrderSuggestions] = useState<{ order_id: number; order_number: number; order_name?: string }[]>([]);
 
   useEffect(() => {
     if (isOpen && item) {
@@ -43,20 +43,20 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
         disposition: item.disposition || 'in_stock',
         status_change_date: new Date().toISOString().split('T')[0],
         notes: item.notes || '',
-        jobs: [''],
-        job_ids: []
+        orders: [''],
+        order_ids: []
       });
-      loadJobSuggestions();
+      loadOrderSuggestions();
     }
   }, [isOpen, item]);
 
-  const loadJobSuggestions = async () => {
+  const loadOrderSuggestions = async () => {
     try {
-      const jobs = await jobsApi.getJobs({ active_only: true }) as JobSuggestion[];
-      setJobSuggestions(jobs || []);
+      const orders = await ordersApi.getOrders({});
+      setOrderSuggestions(orders || []);
     } catch (error) {
-      console.error('Error loading jobs:', error);
-      setJobSuggestions([]);
+      console.error('Error loading orders:', error);
+      setOrderSuggestions([]);
     }
   };
 
@@ -68,7 +68,7 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
     try {
       const submitData: StatusChangePayload = {
         ...formData,
-        job_ids: formData.job_ids.filter(id => id > 0)
+        order_ids: formData.order_ids.filter(id => id > 0)
       };
 
       await onSubmit({
@@ -76,7 +76,7 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
         disposition: submitData.disposition,
         status_change_date: submitData.status_change_date,
         notes: submitData.notes,
-        job_ids: submitData.job_ids
+        order_ids: submitData.order_ids
       });
       onClose();
     } catch (error) {
@@ -94,55 +94,59 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
     }));
   };
 
-  const handleJobChange = (index: number, value: string) => {
-    const newJobs = [...formData.jobs];
-    newJobs[index] = value;
-    setFormData(prev => ({ ...prev, jobs: newJobs }));
+  const handleOrderChange = (index: number, value: string) => {
+    const newOrders = [...formData.orders];
+    newOrders[index] = value;
+    setFormData(prev => ({ ...prev, orders: newOrders }));
 
-    // If this is the last job field and it has content, add a new empty field
-    if (index === formData.jobs.length - 1 && value.trim()) {
+    // If this is the last order field and it has content, add a new empty field
+    if (index === formData.orders.length - 1 && value.trim()) {
       setFormData(prev => ({
         ...prev,
-        jobs: [...prev.jobs, '']
+        orders: [...prev.orders, '']
       }));
     }
   };
 
-  const handleJobSelect = (index: number, selectedValue: string) => {
-    // Parse job ID from the selected value (format: "123 - Job Title")
-    const jobIdMatch = selectedValue.match(/^(\d+)\s*-/);
-    const jobId = jobIdMatch ? parseInt(jobIdMatch[1], 10) : 0;
-    
-    if (jobId > 0) {
-      const newJobs = [...formData.jobs];
-      const newJobIds = [...formData.job_ids];
-      
-      newJobs[index] = selectedValue;
-      if (!newJobIds.includes(jobId)) {
-        newJobIds.push(jobId);
+  const handleOrderSelect = (index: number, selectedValue: string) => {
+    // Parse order ID from the selected value (format: "123 - Order Name")
+    const orderIdMatch = selectedValue.match(/^(\d+)\s*-/);
+    const orderNumber = orderIdMatch ? parseInt(orderIdMatch[1], 10) : 0;
+
+    // Find the order by order_number to get the order_id
+    const matchingOrder = orderSuggestions.find(o => o.order_number === orderNumber);
+    const orderId = matchingOrder?.order_id || 0;
+
+    if (orderId > 0) {
+      const newOrders = [...formData.orders];
+      const newOrderIds = [...formData.order_ids];
+
+      newOrders[index] = selectedValue;
+      if (!newOrderIds.includes(orderId)) {
+        newOrderIds.push(orderId);
       }
 
       setFormData(prev => ({
         ...prev,
-        jobs: newJobs,
-        job_ids: newJobIds
+        orders: newOrders,
+        order_ids: newOrderIds
       }));
 
       // Add new field if this was the last one
-      if (index === formData.jobs.length - 1) {
+      if (index === formData.orders.length - 1) {
         setFormData(prev => ({
           ...prev,
-          jobs: [...prev.jobs, '']
+          orders: [...prev.orders, '']
         }));
       }
     }
   };
 
-  const removeJobField = (index: number) => {
-    if (formData.jobs.length <= 1) return;
-    
-    const newJobs = formData.jobs.filter((_, i) => i !== index);
-    setFormData(prev => ({ ...prev, jobs: newJobs }));
+  const removeOrderField = (index: number) => {
+    if (formData.orders.length <= 1) return;
+
+    const newOrders = formData.orders.filter((_, i) => i !== index);
+    setFormData(prev => ({ ...prev, orders: newOrders }));
   };
 
   // Get note prefix suggestion based on disposition
@@ -253,37 +257,37 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
             />
           </div>
 
-          {/* Jobs */}
+          {/* Orders */}
           <div>
             <label className={`${labelClass} mb-2`}>
-              Associated Jobs
+              Associated Orders
             </label>
             <div className="space-y-2">
-              {formData.jobs.map((job, index) => (
+              {formData.orders.map((order, index) => (
                 <div key={index} className="flex items-center space-x-2">
                   <div className="flex-1">
                     <AutofillComboBox
                       label=""
-                      value={job}
+                      value={order}
                       onChange={(value) => {
-                        handleJobChange(index, value);
+                        handleOrderChange(index, value);
                         // Check if the value matches a suggestion and trigger selection
-                        const matchingSuggestion = jobSuggestions.find(j =>
-                          `${j.job_number} - ${j.job_title}` === value
+                        const matchingSuggestion = orderSuggestions.find(o =>
+                          `${o.order_number} - ${o.order_name || 'No Name'}` === value
                         );
                         if (matchingSuggestion) {
-                          handleJobSelect(index, value);
+                          handleOrderSelect(index, value);
                         }
                       }}
-                      suggestions={jobSuggestions.map(j => `${j.job_number} - ${j.job_title}`)}
-                      placeholder="Search jobs..."
+                      suggestions={orderSuggestions.map(o => `${o.order_number} - ${o.order_name || 'No Name'}`)}
+                      placeholder="Search orders..."
                       className="w-full"
                     />
                   </div>
-                  {formData.jobs.length > 1 && (
+                  {formData.orders.length > 1 && (
                     <button
                       type="button"
-                      onClick={() => removeJobField(index)}
+                      onClick={() => removeOrderField(index)}
                       className="p-2 text-red-600 hover:text-red-800"
                     >
                       <Trash2 className="h-4 w-4" />

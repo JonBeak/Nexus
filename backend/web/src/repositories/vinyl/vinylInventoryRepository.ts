@@ -1,7 +1,7 @@
 // File Clean up Finished: 2025-11-15
 // Changes:
 // - Split large file (579 lines → ~290 lines, 50% reduction)
-// - Extracted job links to vinylInventoryJobLinksRepository.ts
+// - Extracted order links to vinylInventoryOrderLinksRepository.ts
 // - Extracted statistics to vinylInventoryStatsRepository.ts
 // - Extracted label generation to vinylLabelGenerator.ts utility
 // - Modernized TypeScript patterns (proper generics instead of 'as any')
@@ -20,7 +20,7 @@
  * - Computed field population (display_colour, current_stock, etc.)
  *
  * Related Repositories:
- * - VinylInventoryJobLinksRepository: Job associations
+ * - VinylInventoryOrderLinksRepository: Order associations
  * - VinylInventoryStatsRepository: Statistics and helper queries
  *
  * Utilities:
@@ -37,7 +37,7 @@ import {
   VinylInventoryFilters
 } from '../../types/vinyl';
 import { generateVinylLabelId } from '../../utils/vinyl/vinylLabelGenerator';
-import { VinylInventoryJobLinksRepository } from './vinylInventoryJobLinksRepository';
+import { VinylInventoryOrderLinksRepository } from './vinylInventoryOrderLinksRepository';
 
 export class VinylInventoryRepository {
   /**
@@ -128,14 +128,14 @@ export class VinylInventoryRepository {
 
     const items = await query(sql, params) as VinylItem[];
 
-    // Get job associations for all items in one query (fix N+1 problem)
+    // Get order associations for all items in one query (fix N+1 problem)
     if (items.length > 0) {
       const vinylIds = items.map(item => item.id);
-      const jobLinksMap = await VinylInventoryJobLinksRepository.getJobLinksForItems(vinylIds);
+      const orderLinksMap = await VinylInventoryOrderLinksRepository.getOrderLinksForItems(vinylIds);
 
-      // Attach job associations and computed fields to items
+      // Attach order associations and computed fields to items
       items.forEach(item => {
-        item.job_associations = jobLinksMap[item.id] || [];
+        item.order_associations = orderLinksMap[item.id] || [];
 
         // Create display_colour (documented computed field)
         item.display_colour = item.colour_number && item.colour_name
@@ -183,9 +183,9 @@ export class VinylInventoryRepository {
 
     const item = items[0];
 
-    // Get job associations
-    const jobLinks = await VinylInventoryJobLinksRepository.getJobLinksForItems([item.id]);
-    item.job_associations = jobLinks[item.id] || [];
+    // Get order associations
+    const orderLinks = await VinylInventoryOrderLinksRepository.getOrderLinksForItems([item.id]);
+    item.order_associations = orderLinks[item.id] || [];
 
     // Create display_colour and computed fields
     item.display_colour = item.colour_number && item.colour_name
@@ -252,16 +252,16 @@ export class VinylInventoryRepository {
    *
    * Transaction ensures:
    * - Inventory item created
-   * - Job associations created (if provided)
+   * - Order associations created (if provided)
    * - Product found or created atomically
    *
    * @param inventoryData - Vinyl inventory data
-   * @param jobIds - Optional job IDs to associate
+   * @param orderIds - Optional order IDs to associate
    * @returns Promise<{inventoryId: number, productId?: number}> - Created IDs
    */
   static async createVinylItemWithProduct(
     inventoryData: VinylInventoryData,
-    jobIds?: number[]
+    orderIds?: number[]
   ): Promise<{ inventoryId: number; productId?: number }> {
     const connection = await pool.getConnection();
 
@@ -306,16 +306,16 @@ export class VinylInventoryRepository {
       const [inventoryResult] = await connection.execute<ResultSetHeader>(inventorySql, inventoryParams);
       const inventoryId = inventoryResult.insertId;
 
-      // Handle job associations if provided
-      if (jobIds && jobIds.length > 0) {
+      // Handle order associations if provided
+      if (orderIds && orderIds.length > 0) {
         // Delete existing associations (shouldn't be any for new item, but for consistency)
-        await connection.execute('DELETE FROM vinyl_job_links WHERE vinyl_id = ?', [inventoryId]);
+        await connection.execute('DELETE FROM vinyl_order_links WHERE vinyl_id = ?', [inventoryId]);
 
         // Insert new associations with sequence order
-        for (let i = 0; i < jobIds.length; i++) {
+        for (let i = 0; i < orderIds.length; i++) {
           await connection.execute(
-            'INSERT INTO vinyl_job_links (vinyl_id, job_id, sequence_order) VALUES (?, ?, ?)',
-            [inventoryId, jobIds[i], i + 1]
+            'INSERT INTO vinyl_order_links (vinyl_id, order_id, sequence_order) VALUES (?, ?, ?)',
+            [inventoryId, orderIds[i], i + 1]
           );
         }
       }
@@ -419,14 +419,14 @@ export class VinylInventoryRepository {
   /**
    * Delete vinyl inventory item
    *
-   * Also deletes associated job links
+   * Also deletes associated order links
    *
    * @param id - Vinyl inventory ID
    * @returns Promise<boolean> - True if deleted, false if not found
    */
   static async deleteVinylItem(id: number): Promise<boolean> {
-    // First, delete job associations
-    await VinylInventoryJobLinksRepository.deleteJobLinksForItem(id);
+    // First, delete order associations
+    await VinylInventoryOrderLinksRepository.deleteOrderLinksForItem(id);
 
     // Then delete the item
     const sql = 'DELETE FROM vinyl_inventory WHERE id = ?';
@@ -436,7 +436,7 @@ export class VinylInventoryRepository {
   }
 
   /**
-   * Mark vinyl as used with job associations
+   * Mark vinyl as used with order associations
    *
    * Updates:
    * - disposition → 'used'
@@ -444,15 +444,15 @@ export class VinylInventoryRepository {
    * - status_change_date → NOW() (NEW: proper audit trail)
    * - usage_user → provided user ID
    * - notes → usage note
-   * - job associations → provided job IDs
+   * - order associations → provided order IDs
    *
    * @param vinylId - Vinyl inventory ID
-   * @param usageData - Usage information (user, note, job IDs)
+   * @param usageData - Usage information (user, note, order IDs)
    */
   static async markVinylAsUsed(vinylId: number, usageData: {
     usage_user?: number;
     usage_note?: string;
-    job_ids?: number[];
+    order_ids?: number[];
   }): Promise<void> {
     // Update vinyl item status with proper status_change_date tracking
     const updateSql = `
@@ -472,9 +472,9 @@ export class VinylInventoryRepository {
       vinylId
     ]);
 
-    // Update job associations if provided
-    if (usageData.job_ids && usageData.job_ids.length > 0) {
-      await VinylInventoryJobLinksRepository.updateJobLinks(vinylId, usageData.job_ids);
+    // Update order associations if provided
+    if (usageData.order_ids && usageData.order_ids.length > 0) {
+      await VinylInventoryOrderLinksRepository.updateOrderLinks(vinylId, usageData.order_ids);
     }
   }
 }

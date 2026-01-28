@@ -9,8 +9,8 @@ interface InvoiceButtonProps {
   order: Order;
   onAction: (action: InvoiceAction, differences?: InvoiceDifference[]) => void;
   onLinkInvoice?: () => void;
-  /** Called when invoice needs reassignment (deleted in QB). Passes current invoice info */
-  onReassignInvoice?: (currentInvoice: { invoiceId: string | null; invoiceNumber: string | null }) => void;
+  /** Called when invoice needs reassignment (deleted in QB). Passes current invoice info and whether it was deleted */
+  onReassignInvoice?: (currentInvoice: { invoiceId: string | null; invoiceNumber: string | null; isDeleted: boolean }) => void;
   /** Called when user manually marks invoice as sent */
   onMarkAsSent?: () => void;
   disabled?: boolean;
@@ -207,7 +207,8 @@ const InvoiceButton: React.FC<InvoiceButtonProps> = ({
         // For deleted invoices, trigger reassignment flow with current invoice info
         onReassignInvoice({
           invoiceId: order.qb_invoice_id || null,
-          invoiceNumber: order.qb_invoice_doc_number || null
+          invoiceNumber: order.qb_invoice_doc_number || null,
+          isDeleted: true  // Main button click for 'reassign' action means invoice is deleted in QB
         });
       } else {
         onAction(buttonState.action, differences.length > 0 ? differences : undefined);
@@ -228,9 +229,11 @@ const InvoiceButton: React.FC<InvoiceButtonProps> = ({
   const handleReassignClick = () => {
     setDropdownOpen(false);
     if (onReassignInvoice) {
+      // User manually choosing to reassign via dropdown - invoice exists but user wants a different one
       onReassignInvoice({
         invoiceId: order.qb_invoice_id || null,
-        invoiceNumber: order.qb_invoice_doc_number || null
+        invoiceNumber: order.qb_invoice_doc_number || null,
+        isDeleted: false  // Dropdown click = user choice, not because invoice is deleted
       });
     }
   };

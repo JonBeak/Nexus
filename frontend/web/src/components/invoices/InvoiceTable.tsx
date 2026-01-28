@@ -257,7 +257,13 @@ export const InvoiceTable: React.FC<Props> = ({
                     {getStatusBadge(order.status)}
                   </td>
                   <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.textSecondary}`}>
-                    {order.qb_invoice_doc_number || (
+                    {order.is_cash ? (
+                      <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300">
+                        Cash
+                      </span>
+                    ) : order.qb_invoice_doc_number ? (
+                      order.qb_invoice_doc_number
+                    ) : (
                       <span className={PAGE_STYLES.panel.textMuted}>Not Invoiced</span>
                     )}
                   </td>
@@ -290,7 +296,8 @@ export const InvoiceTable: React.FC<Props> = ({
                     {getDepositBadge(order)}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    {order.qb_invoice_id && (
+                    {/* Only show sync for QB invoiced orders, not cash jobs */}
+                    {order.qb_invoice_id && !order.is_cash && (
                       <button
                         onClick={(e) => handleSyncBalance(order.order_id, e)}
                         disabled={isSyncing}

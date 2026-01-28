@@ -5,10 +5,10 @@
  * Updated: 2025-01-15 - Added manager session modal support
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { Calendar, Paintbrush } from 'lucide-react';
-import { KanbanCardProps, getProgressColor, PROGRESS_BAR_COLORS } from './types';
+import { KanbanCardProps, getProgressColor, PROGRESS_BAR_COLORS, areKanbanCardsEqual } from './types';
 import { KanbanCardTasks } from './KanbanCardTasks';
 import { ordersApi, orderTasksApi } from '../../../services/api';
 import { staffTasksApi } from '../../../services/api/staff/staffTasksApi';
@@ -18,6 +18,9 @@ import SessionsModal from '../../staff/SessionsModal';
 import { useAuth } from '../../../contexts/AuthContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
+// Image height ratio relative to width (maintains ~43% height)
+const IMAGE_HEIGHT_RATIO = 3 / 7;
 
 interface ExtendedKanbanCardProps extends KanbanCardProps {
   isDragOverlay?: boolean;
@@ -54,7 +57,7 @@ const getOrderImageUrl = (order: {
   }
 };
 
-export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
+const KanbanCardComponent: React.FC<ExtendedKanbanCardProps> = ({
   order,
   onClick,
   onOrderUpdated,
@@ -130,7 +133,7 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
     const updateMaxHeight = () => {
       const width = container.offsetWidth;
       if (width > 0) {
-        setImageMaxHeight(width * 3 / 7);
+        setImageMaxHeight(width * IMAGE_HEIGHT_RATIO);
       }
     };
 
@@ -185,52 +188,47 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
     onOrderUpdated();
   };
 
-  // Task action handlers
-  const handleTaskStart = async (taskId: number) => {
-    // For non-managers, use session-based start (via staffTasksApi)
-    updateTaskInParts(taskId, { started_at: new Date().toISOString() });
+  // Consolidated task action handler - reduces duplication across start/complete/uncomplete/unstart
+  const handleTaskAction = useCallback(async (
+    taskId: number,
+    action: 'start' | 'complete' | 'uncomplete' | 'unstart',
+    optimisticUpdate: Partial<OrderTask>
+  ) => {
+    updateTaskInParts(taskId, optimisticUpdate);
     try {
-      await staffTasksApi.startTask(taskId);
+      switch (action) {
+        case 'start':
+          await staffTasksApi.startTask(taskId);
+          break;
+        case 'complete':
+          await orderTasksApi.batchUpdateTasks([{ task_id: taskId, completed: true }]);
+          break;
+        case 'uncomplete':
+          await orderTasksApi.batchUpdateTasks([{ task_id: taskId, completed: false }]);
+          break;
+        case 'unstart':
+          await staffTasksApi.stopTask(taskId);
+          break;
+      }
       onOrderUpdated();
     } catch (err) {
-      console.error('Error starting task:', err);
+      console.error(`Error ${action} task:`, err);
       setTasksFetched(false);
     }
-  };
+  }, [onOrderUpdated]);
 
-  const handleTaskComplete = async (taskId: number) => {
-    updateTaskInParts(taskId, { completed: true, completed_at: new Date().toISOString() });
-    try {
-      await orderTasksApi.batchUpdateTasks([{ task_id: taskId, completed: true }]);
-      onOrderUpdated();
-    } catch (err) {
-      console.error('Error completing task:', err);
-      setTasksFetched(false);
-    }
-  };
+  // Task action handler wrappers for KanbanCardTasks component
+  const handleTaskStart = (taskId: number) =>
+    handleTaskAction(taskId, 'start', { started_at: new Date().toISOString() });
 
-  const handleTaskUncomplete = async (taskId: number) => {
-    updateTaskInParts(taskId, { completed: false, completed_at: undefined });
-    try {
-      await orderTasksApi.batchUpdateTasks([{ task_id: taskId, completed: false }]);
-      onOrderUpdated();
-    } catch (err) {
-      console.error('Error uncompleting task:', err);
-      setTasksFetched(false);
-    }
-  };
+  const handleTaskComplete = (taskId: number) =>
+    handleTaskAction(taskId, 'complete', { completed: true, completed_at: new Date().toISOString() });
 
-  const handleTaskUnstart = async (taskId: number) => {
-    // For non-managers, use session-based stop (via staffTasksApi)
-    updateTaskInParts(taskId, { started_at: undefined });
-    try {
-      await staffTasksApi.stopTask(taskId);
-      onOrderUpdated();
-    } catch (err) {
-      console.error('Error un-starting task:', err);
-      setTasksFetched(false);
-    }
-  };
+  const handleTaskUncomplete = (taskId: number) =>
+    handleTaskAction(taskId, 'uncomplete', { completed: false, completed_at: undefined });
+
+  const handleTaskUnstart = (taskId: number) =>
+    handleTaskAction(taskId, 'unstart', { started_at: undefined });
 
   const imageUrl = getOrderImageUrl(order);
   const hasImage = imageUrl && !imageError;
@@ -254,6 +252,7 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
         ${disableDrag ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} overflow-hidden touch-manipulation
         ${isDragging ? 'ring-2 ring-orange-400' : ''}
         ${isDragOverlay ? 'shadow-lg rotate-2' : ''}
+        ${order.status === 'completed' || order.status === 'awaiting_payment' ? 'opacity-60' : ''}
       `}
     >
       {/* Image at top - only if image exists */}
@@ -292,8 +291,8 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
           )}
           <span className={`text-[10px] font-medium px-1 py-0.5 rounded flex-shrink-0 ${
             order.shipping_required
-              ? 'bg-blue-100 text-blue-700'
-              : 'bg-yellow-100 text-yellow-700'
+              ? 'bg-yellow-100 text-yellow-700'
+              : 'bg-blue-100 text-blue-700'
           }`}>
             {order.shipping_required ? 'Ship' : 'Pickup'}
           </span>
@@ -369,5 +368,25 @@ export const KanbanCard: React.FC<ExtendedKanbanCardProps> = ({
     </div>
   );
 };
+
+/**
+ * Memoized KanbanCard - only re-renders when props change
+ * Custom comparison function checks only the props that affect rendering
+ */
+export const KanbanCard = React.memo(KanbanCardComponent, (prevProps, nextProps) => {
+  // Compare order object using shared helper
+  if (!areKanbanCardsEqual(prevProps.order, nextProps.order)) return false;
+
+  // Compare other props
+  if (prevProps.expanded !== nextProps.expanded) return false;
+  if (prevProps.disableDrag !== nextProps.disableDrag) return false;
+  if (prevProps.showPaintingBadge !== nextProps.showPaintingBadge) return false;
+  if (prevProps.isDragOverlay !== nextProps.isDragOverlay) return false;
+
+  // Props are equal, skip re-render
+  return true;
+});
+
+KanbanCard.displayName = 'KanbanCard';
 
 export default KanbanCard;

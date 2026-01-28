@@ -85,10 +85,12 @@ export function areRequiredStepsComplete(steps: PrepareStep[]): boolean {
 
 /**
  * Initialize steps with default configuration
- * @param options.isCashJob - If true, QB Estimate step is auto-skipped (cash jobs don't need QB estimates)
+ * Note: Cash jobs now CREATE QB Estimates (for PDF generation/email) but skip QB Invoice creation.
+ * The isCashJob parameter is no longer used to skip steps - all steps run for all jobs.
  */
-export function initializeSteps(options?: { isCashJob?: boolean }): PrepareStep[] {
-  const isCashJob = options?.isCashJob ?? false;
+export function initializeSteps(_options?: { isCashJob?: boolean }): PrepareStep[] {
+  // Note: isCashJob parameter kept for backwards compatibility but no longer affects step status
+  // Cash jobs still create QB Estimates for PDF generation, they just skip invoice creation later
 
   return [
     {
@@ -105,8 +107,7 @@ export function initializeSteps(options?: { isCashJob?: boolean }): PrepareStep[
       id: 'create_qb_estimate',
       name: 'Create QuickBooks Estimate',
       description: 'Create estimate in QuickBooks',
-      // Cash jobs auto-skip this step
-      status: isCashJob ? 'skipped' : 'pending',
+      status: 'pending',
       canRun: true,
       dependencies: ['validation'],
       canRunInParallel: false,

@@ -174,4 +174,122 @@ router.post(
   orderPrepController.finalizeOrder
 );
 
+// =============================================
+// CASH JOB ESTIMATE CONFLICT RESOLUTION
+// =============================================
+
+/**
+ * GET /api/order-preparation/:orderNumber/qb-estimate/compare
+ * Compare local order data with QB estimate for conflict detection
+ */
+router.get(
+  '/:orderNumber/qb-estimate/compare',
+  authenticateToken,
+  requirePermission('orders.prepare'),
+  orderPrepController.compareQBEstimate
+);
+
+/**
+ * POST /api/order-preparation/:orderNumber/qb-estimate/resolve-conflict
+ * Resolve estimate conflict by applying chosen resolution
+ */
+router.post(
+  '/:orderNumber/qb-estimate/resolve-conflict',
+  authenticateToken,
+  requirePermission('orders.prepare'),
+  orderPrepController.resolveEstimateConflict
+);
+
+/**
+ * POST /api/order-preparation/:orderNumber/qb-estimate/link
+ * Link an existing QB estimate to the order
+ */
+router.post(
+  '/:orderNumber/qb-estimate/link',
+  authenticateToken,
+  requirePermission('orders.prepare'),
+  orderPrepController.linkExistingEstimate
+);
+
+/**
+ * GET /api/order-preparation/:orderNumber/qb-estimate/customer-estimates
+ * Get QB estimates for the order's customer (for linking)
+ */
+router.get(
+  '/:orderNumber/qb-estimate/customer-estimates',
+  authenticateToken,
+  requirePermission('orders.prepare'),
+  orderPrepController.getCustomerEstimates
+);
+
+// =============================================
+// CASH JOB ESTIMATE EMAIL WORKFLOW
+// =============================================
+
+/**
+ * GET /api/order-preparation/:orderNumber/qb-estimate/pdf
+ * Get estimate PDF from QuickBooks (base64 encoded)
+ */
+router.get(
+  '/:orderNumber/qb-estimate/pdf',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderPrepController.getEstimatePdf
+);
+
+/**
+ * POST /api/order-preparation/:orderNumber/qb-estimate/send-email
+ * Send estimate email to customer
+ */
+router.post(
+  '/:orderNumber/qb-estimate/send-email',
+  authenticateToken,
+  requirePermission('orders.prepare'),
+  orderPrepController.sendEstimateEmail
+);
+
+/**
+ * POST /api/order-preparation/:orderNumber/qb-estimate/schedule-email
+ * Schedule estimate email for later delivery
+ */
+router.post(
+  '/:orderNumber/qb-estimate/schedule-email',
+  authenticateToken,
+  requirePermission('orders.prepare'),
+  orderPrepController.scheduleEstimateEmail
+);
+
+/**
+ * POST /api/order-preparation/:orderNumber/qb-estimate/mark-sent
+ * Mark estimate as sent manually (without sending email)
+ */
+router.post(
+  '/:orderNumber/qb-estimate/mark-sent',
+  authenticateToken,
+  requirePermission('orders.prepare'),
+  orderPrepController.markEstimateAsSent
+);
+
+/**
+ * POST /api/order-preparation/:orderNumber/qb-estimate/email-preview
+ * Get styled email preview for estimate
+ */
+router.post(
+  '/:orderNumber/qb-estimate/email-preview',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderPrepController.getEstimateEmailPreview
+);
+
+/**
+ * GET /api/order-preparation/:orderNumber/qb-estimate/email-history
+ * Get estimate email history for this order
+ */
+router.get(
+  '/:orderNumber/qb-estimate/email-history',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderPrepController.getEstimateEmailHistory
+);
+
 export default router;

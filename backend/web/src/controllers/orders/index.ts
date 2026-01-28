@@ -86,3 +86,6 @@ export { getPartsWithTasks } from './OrderPartsTasksController';
 
 // Task Metadata (Single Source of Truth)
 export { getTaskMetadata } from './TaskMetadataController';
+
+// Kanban Board Optimized Endpoint
+export { getKanbanData } from './KanbanController';

@@ -117,8 +117,18 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, showDaysLate = fals
       {/* Card Content */}
       <div className="p-2 md:p-1.5">
       {/* Order Name - Primary */}
-      <div className={`text-sm font-bold ${PAGE_STYLES.panel.text} break-words`}>
+      <div className={`text-sm font-bold ${PAGE_STYLES.panel.text} break-words flex items-center gap-1`}>
         {order.order_name}
+        {hasHardDueTime && order.hard_due_date_time && (
+          <span className="text-xs font-semibold text-red-700 bg-red-100 px-1 rounded">
+            {(() => {
+              const [h, m] = order.hard_due_date_time!.split(':').map(Number);
+              const ampm = h >= 12 ? 'PM' : 'AM';
+              const hour12 = h % 12 || 12;
+              return `${hour12}:${m.toString().padStart(2, '0')} ${ampm}`;
+            })()}
+          </span>
+        )}
       </div>
 
       {/* Customer Name + Icons */}

@@ -6,8 +6,9 @@ import api from '../../services/api';
 import { ProductCatalog } from './ProductCatalog';
 import { UnifiedInventory } from './UnifiedInventory';
 import { LowStockDashboard } from './LowStockDashboard';
-import { JobMaterialRequirements } from './JobMaterialRequirements';
+import { OrderMaterialRequirements } from './OrderMaterialRequirements';
 import { LowStockAlerts } from './LowStockAlerts';
+import { AllOrdersMaterialRequirements } from './AllOrdersMaterialRequirements';
 import { ShoppingCartComponent } from './ShoppingCart';
 import { SuppliersManager } from './SuppliersManager';
 import { ProductArchetypesManager } from './ProductArchetypesManager';
@@ -20,7 +21,7 @@ interface SupplyChainDashboardProps {
   user: AccountUser | null;
 }
 
-type TabType = 'overview' | 'shopping-cart' | 'vinyl-inventory' | 'inventory' | 'suppliers' | 'product-types' | 'products' | 'low-stock';
+type TabType = 'overview' | 'all-orders' | 'shopping-cart' | 'vinyl-inventory' | 'inventory' | 'suppliers' | 'product-types' | 'products' | 'low-stock';
 
 export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user }) => {
   const navigate = useNavigate();
@@ -96,23 +97,22 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
   const renderOverview = () => (
     <div className="space-y-6">
 
-      {/* Jobs and Low Stock Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <JobMaterialRequirements
-            user={user || undefined}
-            showNotification={showNotification}
-            onAddToCart={(items) => showNotification(`Added ${items.length} items to cart`)}
-          />
-        </div>
+      {/* Orders Needing Materials - Full Width */}
+      <div className={`${PAGE_STYLES.composites.panelContainer} overflow-hidden`}>
+        <OrderMaterialRequirements
+          user={user || undefined}
+          showNotification={showNotification}
+          onAddToCart={(items) => showNotification(`Added ${items.length} items to cart`)}
+        />
+      </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <LowStockAlerts
-            user={user || undefined}
-            showNotification={showNotification}
-            onAddToCart={(item) => showNotification(`Added ${item.name} to cart`)}
-          />
-        </div>
+      {/* Low Stock Alerts - Full Width */}
+      <div className={`${PAGE_STYLES.composites.panelContainer} overflow-hidden`}>
+        <LowStockAlerts
+          user={user || undefined}
+          showNotification={showNotification}
+          onAddToCart={(items) => showNotification(`Added ${items.length} items to cart`)}
+        />
       </div>
 
     </div>
@@ -122,8 +122,8 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
     return (
       <div className={`${PAGE_STYLES.fullPage} flex items-center justify-center`}>
         <div className="text-center">
-          <div className="text-red-600 text-xl font-semibold mb-2">Access Denied</div>
-          <p className="text-gray-500 mb-4">Supply Chain Management is available to managers and owners only.</p>
+          <div className="text-red-400 text-xl font-semibold mb-2">Access Denied</div>
+          <p className={`${PAGE_STYLES.page.text} mb-4`}>Supply Chain Management is available to managers and owners only.</p>
           <button
             onClick={() => navigate('/dashboard')}
             className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
@@ -138,35 +138,46 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
   return (
     <div className={PAGE_STYLES.fullPage}>
       {/* Header */}
-      <div className="bg-white shadow">
+      <div className={`${PAGE_STYLES.panel.background} shadow`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center space-x-4">
               <HomeButton />
-              <h1 className="text-3xl font-bold text-gray-900">Supply Chain Management</h1>
+              <h1 className={`text-3xl font-bold ${PAGE_STYLES.panel.text}`}>Supply Chain Management</h1>
             </div>
           </div>
 
           {/* Tab Navigation */}
-          <div className="border-b border-gray-200">
+          <div className={`border-b ${PAGE_STYLES.panel.border}`}>
             <nav className="-mb-px flex space-x-8">
               <button
                 onClick={() => setActiveTab('overview')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'overview'
                     ? 'border-purple-500 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
                 Overview
               </button>
               
               <button
+                onClick={() => setActiveTab('all-orders')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'all-orders'
+                    ? 'border-purple-500 text-purple-600'
+                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
+                }`}
+              >
+                All Orders
+              </button>
+
+              <button
                 onClick={() => setActiveTab('shopping-cart')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'shopping-cart'
                     ? 'border-purple-500 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
                 Shopping Cart
@@ -180,7 +191,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'vinyl-inventory'
                     ? 'border-purple-500 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
                 Vinyl Inventory
@@ -191,7 +202,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'inventory'
                     ? 'border-purple-500 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
                 Inventory
@@ -202,7 +213,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'suppliers'
                     ? 'border-purple-500 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
                 Suppliers
@@ -213,7 +224,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'product-types'
                     ? 'border-purple-500 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
                 Product Types
@@ -224,7 +235,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'products'
                     ? 'border-purple-500 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
                 Product Catalog
@@ -235,7 +246,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'low-stock'
                     ? 'border-purple-500 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
                 Low Stock ({(stats?.critical_items || 0) + (stats?.low_items || 0)})
@@ -251,12 +262,12 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
           {loading ? (
           <div className="text-center py-12">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-            <p className="mt-2 text-gray-600">Loading...</p>
+            <p className={`mt-2 ${PAGE_STYLES.page.text}`}>Loading...</p>
           </div>
         ) : error ? (
           <div className="text-center py-12">
             <div className="text-red-600 text-lg font-medium mb-2">Error</div>
-            <p className="text-gray-500 mb-4">{error}</p>
+            <p className={`${PAGE_STYLES.page.text} mb-4`}>{error}</p>
             <button
               onClick={loadStats}
               className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
@@ -267,6 +278,12 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
         ) : (
           <>
             {activeTab === 'overview' && renderOverview()}
+            {activeTab === 'all-orders' && (
+              <AllOrdersMaterialRequirements
+                user={user || undefined}
+                showNotification={showNotification}
+              />
+            )}
             {activeTab === 'shopping-cart' && (
               <ShoppingCartComponent
                 user={user}

@@ -50,7 +50,8 @@ export {
   orderFormsApi,
   orderBusinessLogicApi,
   orderPreparationApi,
-  qbInvoiceApi
+  qbInvoiceApi,
+  cashPaymentApi
 } from './orders';
 
 export type {
@@ -72,6 +73,14 @@ export type {
   InvoiceLineItem,
   InvoiceDetailsResult
 } from './orders/qbInvoiceApi';
+
+export type {
+  CashPayment,
+  CashBalanceInfo,
+  CashPaymentMethod,
+  RecordPaymentInput,
+  RecordPaymentResult
+} from './orders';
 
 export {
   timeEntriesApi,
@@ -173,3 +182,19 @@ export type {
   UploadResult,
   UploadResponse
 } from './fileBrowserApi';
+
+// Material Requirements (Jan 2026)
+export { materialRequirementsApi } from './materialRequirementsApi';
+export type {
+  MaterialRequirement,
+  MaterialRequirementStatus,
+  DeliveryMethod,
+  ActionableMaterialRequirement,
+  CreateMaterialRequirementRequest,
+  UpdateMaterialRequirementRequest,
+  MaterialRequirementSearchParams,
+  ReceiveQuantityResponse,
+  ActionableRequirementsResponse,
+  StatusCountsResponse,
+  OrderDropdownOption
+} from '../../types/materialRequirements';

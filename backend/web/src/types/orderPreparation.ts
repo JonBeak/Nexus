@@ -90,8 +90,10 @@ export interface OrderDataForQBEstimate {
   folder_location: string;
   customer_po: string | null;
   customer_job_number: string | null;
+  cached_balance: number | null;
   customer_name: string;
   quickbooks_name: string | null;
+  qb_estimate_doc_number?: string | null;
 }
 
 export interface OrderPartForQBEstimate {
@@ -180,4 +182,6 @@ export interface BasicOrderInfo {
   status: string;
   folder_name: string | null;
   folder_location: string;
+  qb_estimate_id?: string | null;
+  qb_estimate_doc_number?: string | null;
 }

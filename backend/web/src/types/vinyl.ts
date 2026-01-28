@@ -50,7 +50,7 @@ export interface VinylItem {
   usage_user_name?: string;
   supplier?: Supplier | null;
   supplier_name?: string | null;
-  job_associations?: JobLink[];
+  order_associations?: OrderLink[];
   display_colour?: string;
   current_stock?: number;
   minimum_stock?: number;
@@ -78,15 +78,15 @@ export interface VinylProduct {
   suppliers?: ProductSupplier[];
 }
 
-export interface JobLink {
-  id: number;
+export interface OrderLink {
+  link_id: number;
   vinyl_id: number;
-  job_id: number;
+  order_id: number;
   sequence_order?: number;
 
   // Joined fields
-  job_number?: string;
-  job_name?: string;
+  order_number?: number;
+  order_name?: string;
   customer_name?: string;
 }
 
@@ -129,7 +129,7 @@ export interface CreateVinylItemRequest {
   expiration_date?: string | Date;
   storage_user?: number;
   notes?: string;
-  job_ids?: number[];
+  order_ids?: number[];
 }
 
 export interface UpdateVinylItemRequest {
@@ -156,7 +156,7 @@ export interface UpdateVinylItemRequest {
 
 export interface MarkVinylAsUsedRequest {
   usage_note?: string;
-  job_ids?: number[];
+  order_ids?: number[];
 }
 
 export interface CreateVinylProductRequest {
@@ -272,14 +272,14 @@ export interface BulkUpdateVinylRequest {
   updates: { id: number; data: UpdateVinylItemRequest }[];
 }
 
-// Job association types
-export interface UpdateJobLinksRequest {
-  job_ids: number[];
+// Order association types
+export interface UpdateOrderLinksRequest {
+  order_ids: number[];
 }
 
-export interface JobLinksResponse {
+export interface OrderLinksResponse {
   success: boolean;
-  data: JobLink[];
+  data: OrderLink[];
 }
 
 // Status change types
@@ -288,7 +288,7 @@ export interface StatusChangeRequest {
   disposition: 'in_stock' | 'used' | 'waste' | 'returned' | 'damaged';
   status_change_date?: string | Date;
   notes?: string;
-  job_ids?: number[];
+  order_ids?: number[];
   waste_reason?: string;
 }
 
@@ -296,7 +296,7 @@ export interface StatusChangeRequest {
 // Omit computed/joined fields that are not in the database
 export type VinylInventoryData = Omit<VinylItem,
   'storage_user_name' | 'usage_user_name' | 'supplier' | 'supplier_name' |
-  'job_associations' | 'display_colour' | 'current_stock' | 'minimum_stock' |
+  'order_associations' | 'display_colour' | 'current_stock' | 'minimum_stock' |
   'unit' | 'last_updated' | 'id' | 'created_at' | 'updated_at'
 >;
 
@@ -326,7 +326,7 @@ export type VinylResponse<T> =
 
 // Service layer types
 export interface VinylInventoryServiceOptions {
-  includeJobLinks?: boolean;
+  includeOrderLinks?: boolean;
   includeSupplier?: boolean;
   validatePermissions?: boolean;
 }

@@ -445,6 +445,10 @@ export interface CustomerInvoiceListItem {
   balance: number;
   txnDate: string | null;
   isOpen: boolean;
+  /** If linked to another order, the order number */
+  linkedToOrderNumber?: number;
+  /** If linked to another order, the order name */
+  linkedToOrderName?: string;
 }
 
 // Invoice line item detail

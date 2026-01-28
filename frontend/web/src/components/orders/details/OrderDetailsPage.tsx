@@ -13,7 +13,7 @@ import { useOrderPrinting } from './hooks/useOrderPrinting';
 import { useOrderCalculations } from './hooks/useOrderCalculations';
 
 // Import API
-import { ordersApi, orderStatusApi, qbInvoiceApi, InvoiceSyncStatus, InvoiceDifference } from '../../../services/api';
+import { ordersApi, orderStatusApi, qbInvoiceApi, orderPreparationApi, InvoiceSyncStatus, InvoiceDifference } from '../../../services/api';
 
 // Import field configuration
 import { FIELD_CONFIGS, getFieldConfig } from './constants/orderFieldConfigs';
@@ -30,12 +30,14 @@ import AccountingEmailsEditor from './components/AccountingEmailsEditor';
 import PrepareOrderModal from '../preparation/PrepareOrderModal';
 import ConfirmationModal from './components/ConfirmationModal';
 import { InvoiceAction } from './components/InvoiceButton';
-import InvoiceActionModal from '../modals/InvoiceActionModal';
+import { CashEstimateAction } from './components/OrderHeader';
 import RecordPaymentModal from '../modals/RecordPaymentModal';
-import LinkInvoiceModal, { OrderTotals } from '../modals/LinkInvoiceModal';
-import InvoiceConflictModal from '../modals/InvoiceConflictModal';
+// Unified document modals
+import { DocumentActionModal, LinkDocumentModal, DocumentConflictModal, OrderTotals } from '../modals/document';
+import { DocumentSyncStatus, DocumentDifference } from '../../../types/document';
 import PrintApprovalSuccessModal from '../modals/PrintApprovalSuccessModal';
 import PrintApprovalErrorModal from '../modals/PrintApprovalErrorModal';
+import { CashPaymentModal } from '../modals/CashPaymentModal';
 
 export const OrderDetailsPage: React.FC = () => {
   const { orderNumber } = useParams<{ orderNumber: string }>();
@@ -60,10 +62,14 @@ export const OrderDetailsPage: React.FC = () => {
   const [invoicePromptType, setInvoicePromptType] = useState<'deposit' | 'full' | 'send' | null>(null);
   const [pendingStatusChange, setPendingStatusChange] = useState<string | null>(null);
 
-  // State for reassign invoice modal (when invoice is deleted in QB)
+  // Cash job payment modal
+  const [showCashPaymentModal, setShowCashPaymentModal] = useState(false);
+
+  // State for reassign invoice modal (when invoice is deleted in QB or user chooses to reassign)
   const [reassignInvoiceInfo, setReassignInvoiceInfo] = useState<{
     invoiceId: string | null;
     invoiceNumber: string | null;
+    isDeleted: boolean;
   } | null>(null);
 
   // Phase 2: Bi-directional sync - Conflict Modal States
@@ -71,6 +77,16 @@ export const OrderDetailsPage: React.FC = () => {
   const [conflictStatus, setConflictStatus] = useState<InvoiceSyncStatus>('in_sync');
   const [conflictDifferences, setConflictDifferences] = useState<InvoiceDifference[]>([]);
   const [deepCheckLoading, setDeepCheckLoading] = useState(false);
+
+  // Estimate Conflict Modal States (Cash Jobs)
+  const [showEstimateConflictModal, setShowEstimateConflictModal] = useState(false);
+  const [estimateSyncStatus, setEstimateSyncStatus] = useState<DocumentSyncStatus>('in_sync');
+  const [estimateDifferences, setEstimateDifferences] = useState<DocumentDifference[]>([]);
+  const [showLinkEstimateModal, setShowLinkEstimateModal] = useState(false);
+  const [estimateIsStale, setEstimateIsStale] = useState(false);
+  const [showCreateEstimateModal, setShowCreateEstimateModal] = useState(false);
+  const [showEstimateActionModal, setShowEstimateActionModal] = useState(false);
+  const [estimateActionMode, setEstimateActionMode] = useState<'send' | 'view'>('send');
 
   // Order Name Editing State
   const [orderNameEditState, setOrderNameEditState] = useState({
@@ -138,6 +154,32 @@ export const OrderDetailsPage: React.FC = () => {
 
   // Get scroll preservation refs from editableFields hook
   const { savedScrollPosition, isSavingRef } = getScrollPreservationRefs();
+
+  // Check estimate staleness and sync status when cash job loads
+  useEffect(() => {
+    const checkEstimateStaleness = async () => {
+      if (orderData.order?.cash && orderData.order?.qb_estimate_id) {
+        try {
+          // Use full comparison to get sync status (in_sync, local_stale, qb_modified, conflict)
+          const result = await orderPreparationApi.compareQBEstimate(orderData.order.order_number);
+          const syncStatus = result.syncStatus?.status || result.status || 'in_sync';
+          setEstimateSyncStatus(syncStatus as EstimateSyncStatus);
+          setEstimateIsStale(syncStatus === 'local_stale');
+          if (result.syncStatus?.differences || result.differences) {
+            setEstimateDifferences(result.syncStatus?.differences || result.differences || []);
+          }
+        } catch (err) {
+          console.error('Error checking estimate staleness:', err);
+          setEstimateIsStale(false);
+          setEstimateSyncStatus('in_sync');
+        }
+      } else {
+        setEstimateIsStale(false);
+        setEstimateSyncStatus('in_sync');
+      }
+    };
+    checkEstimateStaleness();
+  }, [orderData.order?.cash, orderData.order?.qb_estimate_id, orderData.order?.order_number]);
 
   // Memoized callback for parts updates to prevent unnecessary re-renders
   const handlePartsChange = useCallback((updatedParts: typeof orderData.parts) => {
@@ -293,10 +335,11 @@ export const OrderDetailsPage: React.FC = () => {
             return;
           }
 
-          // If local is stale, switch to update mode
+          // If local is stale, show comparison modal before updating
           if (result.status === 'local_stale') {
-            setInvoiceModalMode('update');
-            setShowInvoiceModal(true);
+            setConflictStatus(result.status);
+            setConflictDifferences(result.differences || []);
+            setShowConflictModal(true);
             return;
           }
         }
@@ -318,6 +361,58 @@ export const OrderDetailsPage: React.FC = () => {
     refetch();
   };
 
+  // Handle cash job estimate actions (Create / Update / Send / View Estimate)
+  const handleCashEstimateAction = async (action: CashEstimateAction) => {
+    if (!orderData.order) return;
+
+    if (action === 'create_estimate') {
+      // Open preview modal instead of direct API call
+      setShowCreateEstimateModal(true);
+      return;
+    } else if (action === 'update_estimate' || action === 'review_changes') {
+      // Recreate estimate or review changes - check for conflicts first
+      try {
+        const compareResult = await orderPreparationApi.compareQBEstimate(orderData.order.order_number);
+
+        // If there are differences or conflicts, show the conflict modal
+        if (compareResult.status !== 'in_sync' && compareResult.status !== 'not_found') {
+          setEstimateSyncStatus(compareResult.status);
+          setEstimateDifferences(compareResult.differences || []);
+          setShowEstimateConflictModal(true);
+        } else {
+          // No conflicts - just create new estimate
+          await orderPreparationApi.createQBEstimate(orderData.order.order_number);
+          showSuccess('QB estimate updated successfully');
+          refetch();
+        }
+      } catch (err) {
+        console.error('Error checking/updating estimate:', err);
+        showError('Failed to update QB estimate. Please try again.');
+      }
+    } else if (action === 'send_estimate') {
+      // Open estimate action modal in 'send' mode
+      setEstimateActionMode('send');
+      setShowEstimateActionModal(true);
+    } else if (action === 'view_estimate') {
+      // Open estimate action modal in 'view' mode
+      setEstimateActionMode('view');
+      setShowEstimateActionModal(true);
+    }
+  };
+
+  // Handle estimate conflict resolution (Cash Jobs)
+  const handleEstimateConflictResolved = () => {
+    setShowEstimateConflictModal(false);
+    setEstimateDifferences([]);
+    refetch();
+  };
+
+  // Handle link estimate success (Cash Jobs)
+  const handleLinkEstimateSuccess = () => {
+    setShowLinkEstimateModal(false);
+    refetch();
+  };
+
   const handlePaymentSuccess = (newBalance: number) => {
     setShowPaymentModal(false);
     refetch();
@@ -329,8 +424,8 @@ export const OrderDetailsPage: React.FC = () => {
     refetch();
   };
 
-  // Handler for invoice reassignment (when invoice is deleted in QB)
-  const handleReassignInvoice = (currentInvoice: { invoiceId: string | null; invoiceNumber: string | null }) => {
+  // Handler for invoice reassignment (when invoice is deleted in QB or user chooses to reassign)
+  const handleReassignInvoice = (currentInvoice: { invoiceId: string | null; invoiceNumber: string | null; isDeleted: boolean }) => {
     setReassignInvoiceInfo(currentInvoice);
     setShowLinkInvoiceModal(true);
   };
@@ -641,16 +736,22 @@ export const OrderDetailsPage: React.FC = () => {
       return sum + parseFloat(part.extended_price?.toString() || '0');
     }, 0);
 
-    const taxRule = orderData.taxRules.find(r => r.tax_name === orderData.order?.tax_name);
-    const taxDecimal = taxRule ? parseFloat(taxRule.tax_percent.toString()) : 0;
+    const isCashJob = !!orderData.order.cash;
+    const hasTaxName = !!orderData.order.tax_name;
+    const taxRule = hasTaxName ? orderData.taxRules.find(r => r.tax_name === orderData.order?.tax_name) : null;
+
+    // Fail clearly if tax name exists but rule not found (and taxRules loaded)
+    const taxNotFound = hasTaxName && !isCashJob && orderData.taxRules.length > 0 && !taxRule;
+    const taxDecimal = isCashJob ? 0 : (taxRule ? parseFloat(taxRule.tax_percent.toString()) : 0);
+    const taxPercent = taxDecimal * 100;
     const taxAmount = subtotal * taxDecimal;
 
     return {
       subtotal,
-      taxName: orderData.order.tax_name || '',
-      taxPercent: taxDecimal * 100,
-      taxAmount,
-      total: subtotal + taxAmount
+      taxName: taxNotFound ? `⚠️ ${orderData.order.tax_name} (NOT FOUND)` : (orderData.order.tax_name || (isCashJob ? 'No Tax' : 'No Tax Set')),
+      taxPercent: taxNotFound ? -1 : taxPercent,  // -1 signals error
+      taxAmount: taxNotFound ? 0 : taxAmount,
+      total: taxNotFound ? subtotal : subtotal + taxAmount
     };
   }, [orderData.parts, orderData.taxRules, orderData.order?.tax_name, orderData.order]);
 
@@ -681,6 +782,13 @@ export const OrderDetailsPage: React.FC = () => {
         onLinkInvoice={() => setShowLinkInvoiceModal(true)}
         onReassignInvoice={handleReassignInvoice}
         onMarkAsSent={handleMarkAsSent}
+        // Cash job estimate actions
+        onCashEstimateAction={handleCashEstimateAction}
+        onLinkEstimate={() => setShowLinkEstimateModal(true)}
+        onRecordPayment={() => setShowCashPaymentModal(true)}
+        estimateIsStale={estimateIsStale}
+        estimateSyncStatus={estimateSyncStatus}
+        estimateSent={!!orderData.order.invoice_sent_at}
         generatingForms={uiState.generatingForms}
         printingForm={uiState.printingForm}
         // Order name editing props
@@ -1109,8 +1217,9 @@ export const OrderDetailsPage: React.FC = () => {
         warningNote="TODO: Add validation to check if expected files exist based on specs (AI files, vector files, etc.)"
       />
 
-      {/* Phase 2.e: Invoice Modals */}
-      <InvoiceActionModal
+      {/* Phase 2.e: Invoice Modals - Using unified DocumentActionModal */}
+      <DocumentActionModal
+        documentType="invoice"
         isOpen={showInvoiceModal}
         onClose={() => {
           setShowInvoiceModal(false);
@@ -1122,17 +1231,15 @@ export const OrderDetailsPage: React.FC = () => {
         mode={invoiceModalMode}
         onSuccess={pendingStatusChange ? handleInvoiceSuccessWithStatusChange : handleInvoiceSuccess}
         onSkip={pendingStatusChange ? handleSkipInvoiceAndProceed : undefined}
-        onReassign={() => {
+        onReassign={(isDeleted) => {
           setShowInvoiceModal(false);
           handleReassignInvoice({
             invoiceId: orderData.order.qb_invoice_id || null,
-            invoiceNumber: orderData.order.qb_invoice_doc_number || null
+            invoiceNumber: orderData.order.qb_invoice_doc_number || null,
+            isDeleted
           });
         }}
-        onLinkExisting={() => {
-          setShowInvoiceModal(false);
-          setShowLinkInvoiceModal(true);
-        }}
+        taxRules={orderData.taxRules}
       />
 
       <RecordPaymentModal
@@ -1142,7 +1249,8 @@ export const OrderDetailsPage: React.FC = () => {
         onSuccess={handlePaymentSuccess}
       />
 
-      <LinkInvoiceModal
+      <LinkDocumentModal
+        documentType="invoice"
         isOpen={showLinkInvoiceModal}
         onClose={() => {
           setShowLinkInvoiceModal(false);
@@ -1150,23 +1258,112 @@ export const OrderDetailsPage: React.FC = () => {
         }}
         orderNumber={orderData.order.order_number}
         onSuccess={handleLinkInvoiceSuccess}
-        currentInvoice={reassignInvoiceInfo || undefined}
-        invoiceStatus={reassignInvoiceInfo ? 'not_found' : 'not_linked'}
+        currentDocument={reassignInvoiceInfo ? {
+          documentId: reassignInvoiceInfo.invoiceId,
+          documentNumber: reassignInvoiceInfo.invoiceNumber
+        } : undefined}
+        documentStatus={reassignInvoiceInfo?.isDeleted ? 'not_found' : (reassignInvoiceInfo ? 'exists' : 'not_linked')}
         orderTotals={orderTotals}
       />
 
-      {/* Phase 2: Invoice Conflict Modal for bi-directional sync */}
-      <InvoiceConflictModal
+      {/* Phase 2: Invoice Conflict Modal for bi-directional sync - Using unified DocumentConflictModal */}
+      <DocumentConflictModal
+        documentType="invoice"
         isOpen={showConflictModal}
         onClose={() => {
           setShowConflictModal(false);
           setConflictDifferences([]);
         }}
-        order={orderData.order}
-        status={conflictStatus}
+        orderNumber={orderData.order.order_number}
+        orderName={orderData.order.order_name}
+        syncStatus={conflictStatus}
         differences={conflictDifferences}
         onResolved={handleConflictResolved}
       />
+
+      {/* Estimate Conflict Modal for Cash Jobs - Using unified DocumentConflictModal */}
+      {showEstimateConflictModal && orderData.order && (
+        <DocumentConflictModal
+          documentType="estimate"
+          isOpen={showEstimateConflictModal}
+          onClose={() => {
+            setShowEstimateConflictModal(false);
+            setEstimateDifferences([]);
+          }}
+          orderNumber={orderData.order.order_number}
+          orderName={orderData.order.order_name}
+          syncStatus={estimateSyncStatus}
+          differences={estimateDifferences}
+          onResolved={handleEstimateConflictResolved}
+        />
+      )}
+
+      {/* Link Estimate Modal for Cash Jobs - Using unified LinkDocumentModal */}
+      {showLinkEstimateModal && orderData.order && (
+        <LinkDocumentModal
+          documentType="estimate"
+          isOpen={showLinkEstimateModal}
+          onClose={() => setShowLinkEstimateModal(false)}
+          orderNumber={orderData.order.order_number}
+          onSuccess={handleLinkEstimateSuccess}
+        />
+      )}
+
+      {/* Create Estimate Modal for Cash Jobs - Using unified DocumentActionModal */}
+      {/* Always mounted, visibility controlled by isOpen to prevent ref instability bugs */}
+      {orderData.order && (
+        <DocumentActionModal
+          documentType="estimate"
+          mode="create"
+          isOpen={showCreateEstimateModal}
+          onClose={() => setShowCreateEstimateModal(false)}
+          order={orderData.order}
+          onSuccess={() => {
+            setShowCreateEstimateModal(false);
+            showSuccess('QB estimate created successfully');
+            refetch();
+          }}
+          onLinkExisting={() => {
+            setShowCreateEstimateModal(false);
+            setShowLinkEstimateModal(true);
+          }}
+          taxRules={orderData.taxRules}
+        />
+      )}
+
+      {/* Estimate Action Modal for Cash Jobs (Send/View) - Using unified DocumentActionModal */}
+      {/* Always mounted, visibility controlled by isOpen to prevent ref instability bugs */}
+      {orderData.order && (
+        <DocumentActionModal
+          documentType="estimate"
+          mode={estimateActionMode}
+          isOpen={showEstimateActionModal}
+          onClose={() => setShowEstimateActionModal(false)}
+          order={orderData.order}
+          onSuccess={() => {
+            setShowEstimateActionModal(false);
+            refetch();
+          }}
+          onReassign={() => {
+            setShowEstimateActionModal(false);
+            setShowLinkEstimateModal(true);
+          }}
+          taxRules={orderData.taxRules}
+        />
+      )}
+
+      {/* Cash Job Payment Modal */}
+      {showCashPaymentModal && orderData.order && (
+        <CashPaymentModal
+          isOpen={showCashPaymentModal}
+          onClose={() => setShowCashPaymentModal(false)}
+          orderId={orderData.order.order_id}
+          orderNumber={orderData.order.order_number}
+          onSuccess={() => {
+            refetch();
+          }}
+        />
+      )}
     </div>
   );
 };

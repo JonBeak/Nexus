@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { authApi, jobsApi } from '../services/api';
-import { JobSuggestion } from '../components/inventory/types';
+import { authApi, ordersApi } from '../services/api';
+import { OrderSuggestion } from '../components/common/OrderDropdown';
 import { TIMING, DEFAULTS } from '../constants/bulkEntryConstants';
 
 export interface BulkEntry {
@@ -24,7 +24,7 @@ export interface BulkEntry {
 
 export const useBulkEntries = () => {
   const [bulkEntries, setBulkEntries] = useState<BulkEntry[]>([]);
-  const [availableJobs, setAvailableJobs] = useState<JobSuggestion[]>([]);
+  const [availableOrders, setAvailableOrders] = useState<OrderSuggestion[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -128,19 +128,19 @@ export const useBulkEntries = () => {
     initializeUser();
   }, []);
 
-  // Load available jobs
+  // Load available orders
   useEffect(() => {
-    const loadJobs = async () => {
+    const loadOrders = async () => {
       try {
-        const jobs = await jobsApi.getRecentJobs(DEFAULTS.RECENT_JOBS_LIMIT) as JobSuggestion[];
-        setAvailableJobs(jobs || []);
+        const orders = await ordersApi.getOrders({ limit: DEFAULTS.RECENT_JOBS_LIMIT }) as OrderSuggestion[];
+        setAvailableOrders(orders || []);
       } catch (error) {
-        console.error('Failed to load jobs:', error);
-        setAvailableJobs([]);
+        console.error('Failed to load orders:', error);
+        setAvailableOrders([]);
       }
     };
 
-    loadJobs();
+    loadOrders();
   }, []);
 
   // Auto-save entries when they change (only after initialization)
@@ -271,7 +271,7 @@ export const useBulkEntries = () => {
   return {
     bulkEntries,
     setBulkEntries,
-    availableJobs,
+    availableOrders,
     currentUserId,
     isSaving,
     addNewBulkEntry,

@@ -220,8 +220,7 @@ export function calculateWorkDaysLeft(
 
 /**
  * Get progress color based on work days left and completion status
- * Blue (green) = completed OR no urgency
- * Orange (yellow) = late (incomplete, < 3 days left)
+ * Blue (green) = completed OR not overdue
  * Red = overdue (incomplete, past due)
  * Darkred = has hard due time (highest visual priority)
  */
@@ -240,8 +239,7 @@ export function getProgressColor(
   // Only show urgency colors for incomplete jobs
   if (workDaysLeft === null) return 'green';
   if (workDaysLeft < 0) return 'red';      // Overdue
-  if (workDaysLeft < 3) return 'yellow';   // Less than 3 days
-  return 'green';                           // 3+ days remaining
+  return 'green';                           // Not overdue
 }
 
 /**

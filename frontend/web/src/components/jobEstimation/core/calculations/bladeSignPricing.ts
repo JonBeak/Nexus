@@ -258,7 +258,6 @@ export const calculateBladeSign = async (input: ValidatedPricingInput): Promise<
     }
 
     // ========== Power Supplies - Use powerSupplySelector for smart selection ==========
-    const calculatedPsCount = input.calculatedValues.psCount || 0;
 
     // Normalize psCountOverride from field5
     let normalizedPsCountOverride: number | null = null;
@@ -268,27 +267,30 @@ export const calculateBladeSign = async (input: ValidatedPricingInput): Promise<
       normalizedPsCountOverride = psCountOverride;
     }
 
-    // Determine what to pass to powerSupplySelector
+    // sectionHasUL only affects PS TYPE selection (UL vs non-UL), not whether PS should be calculated
+    const sectionHasUL = input.calculatedValues?.sectionHasUL ?? false;
+
+    // Determine if PS should be calculated:
+    // 1. User explicitly set PS # field (number or 'yes')
+    // 2. This row has LEDs AND customer prefers power supplies
     let psOverrideForSelector: number | null = null;
     let shouldCalculatePS = false;
 
     if (psCountOverride === 'yes') {
-      // User explicitly wants PSs - enable UL optimization
+      // User explicitly wants PSs
       shouldCalculatePS = true;
       psOverrideForSelector = null;
     } else if (normalizedPsCountOverride !== null) {
       // User entered a specific number (including 0)
       shouldCalculatePS = true;
       psOverrideForSelector = normalizedPsCountOverride;
-    } else {
-      // No user override - use ValidationContextBuilder's decision
-      shouldCalculatePS = calculatedPsCount > 0;
-      psOverrideForSelector = calculatedPsCount;
+    } else if (ledCount > 0 && input.customerPreferences?.pref_power_supply_required === true) {
+      // This row has LEDs and customer preference requires power supplies
+      shouldCalculatePS = true;
+      psOverrideForSelector = null; // Let optimizer choose count based on wattage
     }
 
     if (shouldCalculatePS) {
-      // Use section-level UL for PS optimization (consistent PS types within section)
-      const sectionHasUL = input.calculatedValues?.sectionHasUL ?? false;
 
       // Use totalWattage if available, otherwise use a minimal value for standalone PS
       const wattageForCalculation = totalWattage > 0 ? totalWattage : 1;

@@ -13,9 +13,15 @@ export interface InvoiceSummaryConfig {
   includeJobName: boolean;
   includeJobNumber: boolean;  // Customer Job # (auto-included if exists)
   includePO: boolean;         // PO # (auto-included if exists)
+  includeOrderNumber: boolean; // Internal order # (estimate mode)
   includeInvoiceNumber: boolean;
   includeInvoiceDate: boolean;
   includeDueDate: boolean;
+  // Estimate-specific fields
+  includeEstimateNumber: boolean;
+  includeEstimateDate: boolean;
+  includeValidUntil: boolean;
+  // Common fields
   includeSubtotal: boolean;
   includeTax: boolean;
   includeTotal: boolean;
@@ -26,13 +32,35 @@ export const DEFAULT_INVOICE_SUMMARY_CONFIG: InvoiceSummaryConfig = {
   includeJobName: true,
   includeJobNumber: true,   // Auto-include if exists
   includePO: true,          // Auto-include if exists
+  includeOrderNumber: false,
   includeInvoiceNumber: true,
   includeInvoiceDate: false,
   includeDueDate: true,
+  includeEstimateNumber: false,
+  includeEstimateDate: false,
+  includeValidUntil: false,
   includeSubtotal: false,
   includeTax: false,
   includeTotal: true,
   includeBalanceDue: false
+};
+
+// Default config for estimate emails
+export const DEFAULT_ESTIMATE_SUMMARY_CONFIG: InvoiceSummaryConfig = {
+  includeJobName: true,
+  includeJobNumber: true,   // Customer Ref # (auto-include if exists)
+  includePO: true,          // PO # (auto-include if exists)
+  includeOrderNumber: true, // Internal order #
+  includeInvoiceNumber: false,
+  includeInvoiceDate: false,
+  includeDueDate: false,
+  includeEstimateNumber: true,  // QB Estimate #
+  includeEstimateDate: true,
+  includeValidUntil: false,     // Off by default
+  includeSubtotal: false,
+  includeTax: false,
+  includeTotal: true,
+  includeBalanceDue: true       // Balance Due if > 0
 };
 
 export interface InvoiceEmailData {
@@ -40,9 +68,15 @@ export interface InvoiceEmailData {
   jobNumber?: string;       // Customer Job #
   customerPO?: string;      // PO #
   customerJobNumber?: string; // Legacy alias for jobNumber
+  orderNumber?: number;     // Internal order number
   invoiceNumber?: string;
   invoiceDate?: string;
   dueDate?: string;
+  // Estimate-specific fields
+  estimateNumber?: string;  // QB Estimate #
+  estimateDate?: string;
+  validUntil?: string;
+  // Common fields
   subtotal?: number;
   tax?: number;
   total?: number;
@@ -58,6 +92,8 @@ export interface InvoiceEmailConfig {
 }
 
 interface InvoiceEmailComposerProps {
+  // Document type determines which fields are shown
+  documentType?: 'invoice' | 'estimate';
   // Config-based initialization (preferred)
   config?: InvoiceEmailConfig;
   // OR individual initial values (backwards compatible)
@@ -104,6 +140,7 @@ const formatCurrency = (value?: number): string => {
 
 
 const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
+  documentType = 'invoice',
   config,
   initialSubject = '',
   initialBeginning = '',
@@ -121,6 +158,7 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
   onCompletedChange,
   orderStatus
 }) => {
+  const isEstimate = documentType === 'estimate';
   // Use config prop if provided, otherwise fall back to individual initial props
   const [subject, setSubject] = useState(config?.subject || initialSubject);
   const [beginning, setBeginning] = useState(config?.beginning || initialBeginning || DEFAULT_BEGINNING);
@@ -284,9 +322,13 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
       includeJobName: enabled,
       includeJobNumber: enabled,
       includePO: enabled,
+      includeOrderNumber: enabled,
       includeInvoiceNumber: enabled,
       includeInvoiceDate: enabled,
       includeDueDate: enabled,
+      includeEstimateNumber: enabled,
+      includeEstimateDate: enabled,
+      includeValidUntil: enabled,
       includeSubtotal: enabled,
       includeTax: enabled,
       includeTotal: enabled,
@@ -378,7 +420,7 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
         />
       </div>
 
-      {/* Invoice Summary Section */}
+      {/* Summary Section */}
       <div className="border border-gray-200 rounded-lg overflow-hidden">
         {/* Summary Header */}
         <div
@@ -396,7 +438,9 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
               disabled={disabled}
               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             />
-            <span className="text-xs font-medium text-gray-700">Include Invoice Summary</span>
+            <span className="text-xs font-medium text-gray-700">
+              Include {isEstimate ? 'Estimate' : 'Invoice'} Summary
+            </span>
           </div>
           {summaryExpanded ? (
             <ChevronUp className="w-4 h-4 text-gray-500" />
@@ -411,6 +455,7 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
             <div className={`${isMobile ? 'flex flex-col gap-4' : 'flex gap-4'}`}>
               {/* Checkboxes - Left Side (Top on mobile) */}
               <div className={`flex flex-col ${isMobile ? 'gap-2' : 'gap-1.5'}`}>
+                {/* Common: Job Name */}
                 <label className="flex items-center gap-1.5 text-xs text-gray-700">
                   <input
                     type="checkbox"
@@ -421,6 +466,7 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
                   />
                   <span>Job Name</span>
                 </label>
+                {/* Common: Customer Ref # (Job #) */}
                 <label className="flex items-center gap-1.5 text-xs text-gray-700">
                   <input
                     type="checkbox"
@@ -430,9 +476,10 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span className={!invoiceData?.jobNumber ? 'text-gray-400' : ''}>
-                    Job # {!invoiceData?.jobNumber && '(none)'}
+                    {isEstimate ? 'Customer Ref #' : 'Job #'} {!invoiceData?.jobNumber && '(none)'}
                   </span>
                 </label>
+                {/* Common: PO # */}
                 <label className="flex items-center gap-1.5 text-xs text-gray-700">
                   <input
                     type="checkbox"
@@ -445,36 +492,100 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
                     PO # {!invoiceData?.customerPO && '(none)'}
                   </span>
                 </label>
-                <label className="flex items-center gap-1.5 text-xs text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={summaryConfig.includeInvoiceNumber}
-                    onChange={(e) => handleConfigChange('includeInvoiceNumber', e.target.checked)}
-                    disabled={disabled}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span>Invoice #</span>
-                </label>
-                <label className="flex items-center gap-1.5 text-xs text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={summaryConfig.includeInvoiceDate}
-                    onChange={(e) => handleConfigChange('includeInvoiceDate', e.target.checked)}
-                    disabled={disabled}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span>Invoice Date</span>
-                </label>
-                <label className="flex items-center gap-1.5 text-xs text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={summaryConfig.includeDueDate}
-                    onChange={(e) => handleConfigChange('includeDueDate', e.target.checked)}
-                    disabled={disabled}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span>Due Date</span>
-                </label>
+                {/* Estimate only: Order # */}
+                {isEstimate && (
+                  <label className="flex items-center gap-1.5 text-xs text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={summaryConfig.includeOrderNumber}
+                      onChange={(e) => handleConfigChange('includeOrderNumber', e.target.checked)}
+                      disabled={disabled}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Order #</span>
+                  </label>
+                )}
+                {/* Invoice only: Invoice # */}
+                {!isEstimate && (
+                  <label className="flex items-center gap-1.5 text-xs text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={summaryConfig.includeInvoiceNumber}
+                      onChange={(e) => handleConfigChange('includeInvoiceNumber', e.target.checked)}
+                      disabled={disabled}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Invoice #</span>
+                  </label>
+                )}
+                {/* Invoice only: Invoice Date */}
+                {!isEstimate && (
+                  <label className="flex items-center gap-1.5 text-xs text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={summaryConfig.includeInvoiceDate}
+                      onChange={(e) => handleConfigChange('includeInvoiceDate', e.target.checked)}
+                      disabled={disabled}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Invoice Date</span>
+                  </label>
+                )}
+                {/* Invoice only: Due Date */}
+                {!isEstimate && (
+                  <label className="flex items-center gap-1.5 text-xs text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={summaryConfig.includeDueDate}
+                      onChange={(e) => handleConfigChange('includeDueDate', e.target.checked)}
+                      disabled={disabled}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Due Date</span>
+                  </label>
+                )}
+                {/* Estimate only: QB Estimate # */}
+                {isEstimate && (
+                  <label className="flex items-center gap-1.5 text-xs text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={summaryConfig.includeEstimateNumber && !!invoiceData?.estimateNumber}
+                      onChange={(e) => handleConfigChange('includeEstimateNumber', e.target.checked)}
+                      disabled={disabled || !invoiceData?.estimateNumber}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className={!invoiceData?.estimateNumber ? 'text-gray-400' : ''}>
+                      QB Estimate # {!invoiceData?.estimateNumber && '(none)'}
+                    </span>
+                  </label>
+                )}
+                {/* Estimate only: Estimate Date */}
+                {isEstimate && (
+                  <label className="flex items-center gap-1.5 text-xs text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={summaryConfig.includeEstimateDate}
+                      onChange={(e) => handleConfigChange('includeEstimateDate', e.target.checked)}
+                      disabled={disabled}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Estimate Date</span>
+                  </label>
+                )}
+                {/* Estimate only: Valid Until */}
+                {isEstimate && (
+                  <label className="flex items-center gap-1.5 text-xs text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={summaryConfig.includeValidUntil}
+                      onChange={(e) => handleConfigChange('includeValidUntil', e.target.checked)}
+                      disabled={disabled}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Valid Until</span>
+                  </label>
+                )}
+                {/* Common: Subtotal */}
                 <label className="flex items-center gap-1.5 text-xs text-gray-700">
                   <input
                     type="checkbox"
@@ -485,6 +596,7 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
                   />
                   <span>Subtotal</span>
                 </label>
+                {/* Common: Tax */}
                 <label className="flex items-center gap-1.5 text-xs text-gray-700">
                   <input
                     type="checkbox"
@@ -495,6 +607,7 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
                   />
                   <span>Tax</span>
                 </label>
+                {/* Common: Total */}
                 <label className="flex items-center gap-1.5 text-xs text-gray-700">
                   <input
                     type="checkbox"
@@ -505,15 +618,18 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
                   />
                   <span>Total</span>
                 </label>
+                {/* Common: Balance Due */}
                 <label className="flex items-center gap-1.5 text-xs text-gray-700">
                   <input
                     type="checkbox"
-                    checked={summaryConfig.includeBalanceDue}
+                    checked={summaryConfig.includeBalanceDue && (invoiceData?.balanceDue === undefined || invoiceData.balanceDue > 0)}
                     onChange={(e) => handleConfigChange('includeBalanceDue', e.target.checked)}
-                    disabled={disabled}
+                    disabled={disabled || (invoiceData?.balanceDue !== undefined && invoiceData.balanceDue <= 0)}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
-                  <span>Balance Due</span>
+                  <span className={(invoiceData?.balanceDue !== undefined && invoiceData.balanceDue <= 0) ? 'text-gray-400' : ''}>
+                    Balance Due {(invoiceData?.balanceDue !== undefined && invoiceData.balanceDue <= 0) && '(none)'}
+                  </span>
                 </label>
               </div>
 
@@ -530,7 +646,7 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
                     )}
                     {summaryConfig.includeJobNumber && invoiceData.jobNumber && (
                       <div className="flex justify-between">
-                        <span className="text-gray-500">Job #:</span>
+                        <span className="text-gray-500">{isEstimate ? 'Customer Ref #:' : 'Job #:'}</span>
                         <span className="font-medium text-gray-800">{invoiceData.jobNumber}</span>
                       </div>
                     )}
@@ -540,24 +656,52 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
                         <span className="font-medium text-gray-800">{invoiceData.customerPO}</span>
                       </div>
                     )}
-                    {summaryConfig.includeInvoiceNumber && (
+                    {/* Estimate only: Order # */}
+                    {isEstimate && summaryConfig.includeOrderNumber && invoiceData.orderNumber && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Order #:</span>
+                        <span className="font-medium text-gray-800">{invoiceData.orderNumber}</span>
+                      </div>
+                    )}
+                    {/* Invoice only fields */}
+                    {!isEstimate && summaryConfig.includeInvoiceNumber && (
                       <div className="flex justify-between">
                         <span className="text-gray-500">Invoice #:</span>
                         <span className="font-medium text-gray-800">{invoiceData.invoiceNumber || '-'}</span>
                       </div>
                     )}
-                    {summaryConfig.includeInvoiceDate && (
+                    {!isEstimate && summaryConfig.includeInvoiceDate && (
                       <div className="flex justify-between">
                         <span className="text-gray-500">Invoice Date:</span>
                         <span className="font-medium text-gray-800">{formatDateLong(invoiceData.invoiceDate)}</span>
                       </div>
                     )}
-                    {summaryConfig.includeDueDate && (
+                    {!isEstimate && summaryConfig.includeDueDate && (
                       <div className="flex justify-between">
                         <span className="text-gray-500">Due Date:</span>
                         <span className="font-medium text-gray-800">{formatDateLong(invoiceData.dueDate)}</span>
                       </div>
                     )}
+                    {/* Estimate only fields */}
+                    {isEstimate && summaryConfig.includeEstimateNumber && invoiceData.estimateNumber && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">QB Estimate #:</span>
+                        <span className="font-medium text-gray-800">{invoiceData.estimateNumber}</span>
+                      </div>
+                    )}
+                    {isEstimate && summaryConfig.includeEstimateDate && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Estimate Date:</span>
+                        <span className="font-medium text-gray-800">{formatDateLong(invoiceData.estimateDate)}</span>
+                      </div>
+                    )}
+                    {isEstimate && summaryConfig.includeValidUntil && invoiceData.validUntil && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Valid Until:</span>
+                        <span className="font-medium text-gray-800">{formatDateLong(invoiceData.validUntil)}</span>
+                      </div>
+                    )}
+                    {/* Common financial fields */}
                     {summaryConfig.includeSubtotal && (
                       <div className="flex justify-between">
                         <span className="text-gray-500">Subtotal:</span>
@@ -576,7 +720,7 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
                         <span className="font-bold text-gray-900">{formatCurrency(invoiceData.total)}</span>
                       </div>
                     )}
-                    {summaryConfig.includeBalanceDue && invoiceData.balanceDue !== undefined && (
+                    {summaryConfig.includeBalanceDue && invoiceData.balanceDue !== undefined && invoiceData.balanceDue > 0 && (
                       <div className="flex justify-between text-red-600">
                         <span className="font-medium">Balance Due:</span>
                         <span className="font-bold">{formatCurrency(invoiceData.balanceDue)}</span>
@@ -590,19 +734,21 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
         )}
       </div>
 
-      {/* Include Pay Button Checkbox */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
-        <input
-          type="checkbox"
-          checked={includePayButton}
-          onChange={(e) => handleIncludePayButtonChange(e.target.checked)}
-          disabled={disabled}
-          className="rounded border-green-300 text-green-600 focus:ring-green-500"
-        />
-        <span className="text-xs font-medium text-green-800">
-          Include "View & Pay Invoice" button
-        </span>
-      </div>
+      {/* Include Pay Button Checkbox - Invoice only */}
+      {!isEstimate && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+          <input
+            type="checkbox"
+            checked={includePayButton}
+            onChange={(e) => handleIncludePayButtonChange(e.target.checked)}
+            disabled={disabled}
+            className="rounded border-green-300 text-green-600 focus:ring-green-500"
+          />
+          <span className="text-xs font-medium text-green-800">
+            Include "View & Pay Invoice" button
+          </span>
+        </div>
+      )}
 
       {/* End (Closing Message) */}
       <div>

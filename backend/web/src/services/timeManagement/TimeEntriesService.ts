@@ -44,6 +44,14 @@ export class TimeEntriesService {
   private static cache = new Map<string, CacheEntry<any>>();
 
   /**
+   * Clear the active users cache
+   * Call this when users are created, updated, or deactivated
+   */
+  static clearUserCache(): void {
+    this.cache.delete('active_users');
+  }
+
+  /**
    * Get time entries with filters
    * @param user - Authenticated user
    * @param filters - Query filters

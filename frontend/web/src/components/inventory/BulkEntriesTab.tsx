@@ -25,7 +25,7 @@ export const BulkEntriesTab: React.FC<BulkEntriesTabProps> = ({
 }) => {
   const {
     bulkEntries,
-    availableJobs,
+    availableOrders,
     isSaving,
     addNewBulkEntry,
     updateBulkEntry,
@@ -111,7 +111,7 @@ export const BulkEntriesTab: React.FC<BulkEntriesTabProps> = ({
         const result = await submitBulkEntries(
           bulkEntries,
           vinylItems,
-          availableJobs,
+          availableOrders,
           showNotification
         );
 
@@ -182,7 +182,7 @@ export const BulkEntriesTab: React.FC<BulkEntriesTabProps> = ({
         bulkEntries={bulkEntries}
         vinylItems={vinylItems}
         bulkAutofillSuggestions={bulkAutofillSuggestions}
-        availableJobs={availableJobs}
+        availableOrders={availableOrders}
         isSaving={isSaving}
         bulkLoadingSuggestions={bulkLoadingSuggestions}
         updateBulkEntry={updateBulkEntry}

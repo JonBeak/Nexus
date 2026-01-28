@@ -54,6 +54,7 @@ import serverManagementRoutes from './routes/serverManagement';  // Server Manag
 import staffTasksRoutes from './routes/staffTasks';  // Staff task sessions (Jan 7, 2026)
 import feedbackRoutes from './routes/feedback';  // Feedback/error reporting system (Jan 16, 2026)
 import fileBrowserRoutes from './routes/fileBrowser';  // File Browser (Jan 2026)
+import materialRequirementsRoutes from './routes/materialRequirements';  // Material Requirements tracking (Jan 27, 2026)
 
 // QuickBooks utilities for startup
 import { quickbooksOAuthRepository } from './repositories/quickbooksOAuthRepository';
@@ -168,6 +169,7 @@ app.use('/api/server-management', serverManagementRoutes);  // Server Management
 app.use('/api/staff', staffTasksRoutes);  // Staff task sessions (Jan 7, 2026)
 app.use('/api/feedback', feedbackRoutes);  // Feedback/error reporting system (Jan 16, 2026)
 app.use('/api/file-browser', fileBrowserRoutes);  // File Browser (Jan 2026)
+app.use('/api/material-requirements', materialRequirementsRoutes);  // Material Requirements tracking (Jan 27, 2026)
 
 // =============================================
 // STATIC FILE SERVING (Phase 1.5.g)

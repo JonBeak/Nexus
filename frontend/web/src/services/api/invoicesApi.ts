@@ -27,11 +27,12 @@ export interface InvoiceListingOrder {
   cached_balance_at: string | null;
   deposit_required: boolean;
   deposit_paid: boolean;
+  is_cash: boolean;
   calculated_total: number;
 }
 
 export interface InvoiceFilters {
-  invoiceStatus?: 'all' | 'invoiced' | 'not_invoiced';
+  invoiceStatus?: 'all' | 'invoiced' | 'not_invoiced' | 'cash';
   balanceStatus?: 'all' | 'open' | 'paid';
   sentStatus?: 'all' | 'sent' | 'not_sent';
   depositStatus?: 'all' | 'required' | 'paid' | 'not_required';

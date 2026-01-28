@@ -1,4 +1,7 @@
 /**
+ * @deprecated Use LinkDocumentModal from './document' with documentType="invoice" instead.
+ * This component will be removed in a future release.
+ *
  * Link Invoice Modal
  * Phase 2.e: QuickBooks Invoice Automation
  *
@@ -374,7 +377,9 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
             <>
               {/* Order Totals Reference */}
               {orderTotals && (
-                <div className="mb-3 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between">
+                <div className={`mb-3 px-3 py-2 border rounded-lg flex items-center justify-between ${
+                  orderTotals.taxPercent < 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'
+                }`}>
                   <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                     Order #{orderNumber} Totals
                   </div>
@@ -384,8 +389,12 @@ export const LinkInvoiceModal: React.FC<LinkInvoiceModalProps> = ({
                       <div className="text-sm font-medium text-gray-700">${orderTotals.subtotal.toFixed(2)}</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-xs text-gray-500">{orderTotals.taxName || 'Tax'} ({orderTotals.taxPercent.toFixed(0)}%)</div>
-                      <div className="text-sm font-medium text-gray-700">${orderTotals.taxAmount.toFixed(2)}</div>
+                      <div className={`text-xs ${orderTotals.taxPercent < 0 ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                        {orderTotals.taxPercent < 0 ? orderTotals.taxName : `${orderTotals.taxName || 'Tax'} (${orderTotals.taxPercent.toFixed(0)}%)`}
+                      </div>
+                      <div className={`text-sm font-medium ${orderTotals.taxPercent < 0 ? 'text-red-600' : 'text-gray-700'}`}>
+                        {orderTotals.taxPercent < 0 ? 'ERROR' : `$${orderTotals.taxAmount.toFixed(2)}`}
+                      </div>
                     </div>
                     <div className="text-center">
                       <div className="text-xs text-gray-500">Total</div>

@@ -59,10 +59,10 @@ export interface VinylProductStats {
   supplier_count?: number;
 }
 
-export interface VinylItemJobAssociation {
-  job_id: number;
-  job_number: string;
-  job_name: string;
+export interface VinylItemOrderAssociation {
+  order_id: number;
+  order_number: number;
+  order_name: string;
   customer_name: string;
   sequence_order: number;
 }
@@ -98,7 +98,7 @@ export interface VinylItem {
   usage_note?: string;
   supplier_id?: number;
   supplier_name?: string;
-  job_associations?: VinylItemJobAssociation[];
+  order_associations?: VinylItemOrderAssociation[];
   created_at?: string;
   updated_at?: string;
 }
@@ -129,14 +129,6 @@ export interface VinylAutofillSuggestions {
   combinations?: VinylAutofillCombination[];
 }
 
-export interface JobSuggestion {
-  job_id: number;
-  job_number: string;
-  job_name?: string;
-  job_title?: string;
-  customer_name?: string;
-}
-
 export interface VinylFormSubmission {
   brand: string;
   series: string;
@@ -150,7 +142,7 @@ export interface VinylFormSubmission {
   purchase_date?: string;
   storage_date?: string;
   notes?: string;
-  job_ids: number[];
+  order_ids: number[];
 }
 
 export interface VinylProductFormSubmission {
@@ -167,5 +159,5 @@ export interface StatusChangePayload {
   disposition: InventoryDisposition;
   status_change_date: string;
   notes: string;
-  job_ids: number[];
+  order_ids: number[];
 }

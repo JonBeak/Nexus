@@ -10,7 +10,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Loader2, DollarSign, CreditCard, Check, AlertCircle } from 'lucide-react';
-import { qbInvoiceApi, InvoiceDetails, PaymentResult } from '../../../services/api';
+import { qbInvoiceApi, InvoiceDetails } from '../../../services/api';
+import { useModalBackdrop } from '../../../hooks/useModalBackdrop';
 
 interface RecordPaymentModalProps {
   isOpen: boolean;
@@ -49,6 +50,13 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ newBalance: number } | null>(null);
+
+  // Modal backdrop handling (ESC key, click-outside, scroll lock)
+  const {
+    modalContentRef,
+    handleBackdropMouseDown,
+    handleBackdropMouseUp
+  } = useModalBackdrop({ isOpen, onClose });
 
   // Fetch invoice details on open
   useEffect(() => {
@@ -150,8 +158,15 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
+    >
+      <div
+        ref={modalContentRef}
+        className="bg-white rounded-lg shadow-2xl w-full max-w-lg"
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200">
           <div className="flex items-start justify-between">

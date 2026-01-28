@@ -71,10 +71,10 @@ export const VinylSpecificSelector: React.FC<VinylSpecificSelectorProps> = ({
         }
         // Remove the < 1 yard = partial logic since small pieces are still usable
 
-        // Format job details using unified job_associations
+        // Format order details using unified order_associations
         const jobDetails: string[] = [];
-        if (item.job_associations?.length) {
-          jobDetails.push(`Associated with: ${item.job_associations.map(j => `${j.job_number} - ${j.customer_name}`).join(', ')}`);
+        if (item.order_associations?.length) {
+          jobDetails.push(`Associated with: ${item.order_associations.map(o => `${o.order_number} - ${o.customer_name}`).join(', ')}`);
         }
 
         return {
@@ -303,21 +303,21 @@ export const VinylSpecificSelector: React.FC<VinylSpecificSelectorProps> = ({
                     </div>
                   </div>
 
-                  {/* Job Associations - ~33% */}
+                  {/* Order Associations - ~33% */}
                   <div className="lg:col-span-4 text-xs text-gray-600">
                     {item.jobDetails && item.jobDetails.length > 0 ? (
                       <div>
-                        <div className="font-medium text-gray-700 mb-1">Associated Jobs:</div>
+                        <div className="font-medium text-gray-700 mb-1">Associated Orders:</div>
                         <div className="space-y-0.5">
-                          {item.job_associations?.map((job, index) => (
+                          {item.order_associations?.map((order, index) => (
                             <div key={index} className="text-xs text-blue-600">
-                              {job.job_number} - {job.customer_name} - {job.job_name || job.job_description}
+                              {order.order_number} - {order.customer_name} - {order.order_name}
                             </div>
                           ))}
                         </div>
                       </div>
                     ) : (
-                      <span className="text-gray-400">No job associations</span>
+                      <span className="text-gray-400">No order associations</span>
                     )}
                   </div>
                 </div>

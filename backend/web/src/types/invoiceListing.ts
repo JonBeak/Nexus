@@ -36,6 +36,9 @@ export interface InvoiceListingOrder {
   deposit_required: boolean;
   deposit_paid: boolean; // Derived: deposit_required && cached_balance < cached_invoice_total
 
+  // Cash job flag
+  is_cash: boolean;
+
   // Calculated totals (from order_parts if no cached values)
   calculated_total: number;
 }
@@ -49,7 +52,7 @@ export interface InvoiceListingOrder {
  */
 export interface InvoiceFilters {
   // Invoice status filters
-  invoiceStatus?: 'all' | 'invoiced' | 'not_invoiced';
+  invoiceStatus?: 'all' | 'invoiced' | 'not_invoiced' | 'cash';
   balanceStatus?: 'all' | 'open' | 'paid';
   sentStatus?: 'all' | 'sent' | 'not_sent';
   depositStatus?: 'all' | 'required' | 'paid' | 'not_required';

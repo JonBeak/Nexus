@@ -41,17 +41,20 @@ export interface SummaryFieldDefinition {
 /**
  * Ordered list of summary fields
  * This defines the order and labels for email summary rendering
- * MUST be kept in sync with frontend EstimateEmailComposer.tsx
+ * MUST be kept in sync with frontend InvoiceEmailComposer.tsx (estimate mode)
  */
 export const SUMMARY_FIELDS: SummaryFieldDefinition[] = [
   { key: 'includeJobName', label: 'Job Name:', dataKey: 'jobName' },
-  { key: 'includeCustomerRef', label: 'Customer Ref #:', dataKey: 'customerJobNumber' },
+  { key: 'includeCustomerRef', label: 'Customer Ref #:', dataKey: 'customerJobNumber', requiresValue: true },
+  { key: 'includePO', label: 'PO #:', dataKey: 'customerPO', requiresValue: true },
+  { key: 'includeOrderNumber', label: 'Order #:', dataKey: 'orderNumber', requiresValue: true },
   { key: 'includeQbEstimateNumber', label: 'QB Estimate #:', dataKey: 'qbEstimateNumber', requiresValue: true },
   { key: 'includeEstimateDate', label: 'Estimate Date:', dataKey: 'estimateDate' },
   { key: 'includeValidUntilDate', label: 'Valid Until:', dataKey: 'validUntilDate' },
   { key: 'includeSubtotal', label: 'Subtotal:', dataKey: 'subtotal' },
   { key: 'includeTax', label: 'Tax:', dataKey: 'tax' },
-  { key: 'includeTotal', label: 'Total:', dataKey: 'total', isTotal: true }
+  { key: 'includeTotal', label: 'Total:', dataKey: 'total', isTotal: true },
+  { key: 'includeBalance', label: 'Balance Due:', dataKey: 'balance', requiresValue: true }
 ];
 
 // =============================================
@@ -90,12 +93,15 @@ export interface EmailVariables {
 export interface SummaryData {
   jobName?: string;
   customerJobNumber?: string;
+  customerPO?: string;
+  orderNumber?: string;
   qbEstimateNumber?: string;
   subtotal?: string;
   tax?: string;
   total?: string;
   estimateDate?: string;
   validUntilDate?: string;
+  balance?: string;
 }
 
 /**
@@ -104,12 +110,15 @@ export interface SummaryData {
 export interface SummaryDataNumeric {
   jobName?: string;
   customerJobNumber?: string;
+  customerPO?: string;
+  orderNumber?: number;
   qbEstimateNumber?: string;
   subtotal?: number;
   tax?: number;
   total?: number;
   estimateDate?: string;
   validUntilDate?: string;
+  balance?: number;
 }
 
 /**
@@ -120,6 +129,8 @@ export interface EmailPreviewEstimateData {
   job_name?: string;
   job_code?: string;
   customer_job_number?: string;
+  customer_po?: string;
+  order_number?: number;
   version_description?: string;
   notes?: string;
   qb_doc_number?: string;
@@ -127,6 +138,7 @@ export interface EmailPreviewEstimateData {
   tax_amount?: number;
   total_amount?: number;
   estimate_date?: string;
+  cached_balance?: number;
 }
 
 /**
@@ -140,11 +152,14 @@ export interface EmailPreviewContent {
   estimateData?: {
     jobName?: string;
     customerJobNumber?: string;
+    customerPO?: string;
+    orderNumber?: number;
     qbEstimateNumber?: string;
     subtotal?: number;
     tax?: number;
     total?: number;
     estimateDate?: string;
+    balance?: number;
   };
 }
 
@@ -283,12 +298,16 @@ export class EstimateEmailService {
     const formattedData: SummaryData = {
       jobName: data.jobName,
       customerJobNumber: data.customerJobNumber,
+      customerPO: data.customerPO,
+      orderNumber: data.orderNumber !== undefined ? String(data.orderNumber) : undefined,
       qbEstimateNumber: data.qbEstimateNumber,
       subtotal: data.subtotal !== undefined ? this.formatCurrency(data.subtotal) : undefined,
       tax: data.tax !== undefined ? this.formatCurrency(data.tax) : undefined,
       total: data.total !== undefined ? this.formatCurrency(data.total) : undefined,
       estimateDate: data.estimateDate ? this.formatDate(data.estimateDate) : undefined,
-      validUntilDate
+      validUntilDate,
+      // Only include balance if > 0
+      balance: data.balance !== undefined && data.balance > 0 ? this.formatCurrency(data.balance) : undefined
     };
 
     return this.buildSummaryBoxHtml(config, formattedData);
@@ -406,7 +425,8 @@ export class EstimateEmailService {
     };
 
     // Process subject with variable substitution
-    const rawSubject = emailContent?.subject || `Estimate #${estimate.job_code} - ${estimate.job_name}`;
+    // Use qb_doc_number first (order-based estimates), fallback to job_code (job estimation estimates)
+    const rawSubject = emailContent?.subject || `Estimate #${estimate.qb_doc_number || estimate.job_code || ''} - ${estimate.job_name}`;
     const subject = this.substituteTemplateVariables(rawSubject, templateVars);
 
     // Process beginning/end text with variable substitution
@@ -417,11 +437,14 @@ export class EstimateEmailService {
     const summaryData: SummaryDataNumeric = {
       jobName: emailContent?.estimateData?.jobName || estimate.job_name,
       customerJobNumber: emailContent?.estimateData?.customerJobNumber || estimate.customer_job_number,
+      customerPO: emailContent?.estimateData?.customerPO || estimate.customer_po,
+      orderNumber: emailContent?.estimateData?.orderNumber || estimate.order_number,
       qbEstimateNumber: emailContent?.estimateData?.qbEstimateNumber || estimate.qb_doc_number,
       subtotal: Number(estimate.subtotal) || 0,
       tax: Number(estimate.tax_amount) || 0,
       total: Number(estimate.total_amount) || 0,
-      estimateDate: emailContent?.estimateData?.estimateDate || estimate.estimate_date
+      estimateDate: emailContent?.estimateData?.estimateDate || estimate.estimate_date,
+      balance: Number(estimate.cached_balance) || 0
     };
 
     // Build summary HTML

@@ -24,7 +24,7 @@ router.get('/', requirePermission('vinyl.read'), vinylInventoryController.getVin
 router.get('/stats/summary', requirePermission('vinyl.read'), vinylInventoryController.getVinylStats);
 router.get('/recent/for-copying', requirePermission('vinyl.read'), vinylInventoryController.getRecentVinylForCopying);
 router.get('/:id', requirePermission('vinyl.read'), vinylInventoryController.getVinylItemById);
-router.get('/:id/job-links', requirePermission('vinyl.read'), vinylInventoryController.getJobLinks);
+router.get('/:id/order-links', requirePermission('vinyl.read'), vinylInventoryController.getOrderLinks);
 
 // POST routes - require vinyl.create permission
 router.post('/', requirePermission('vinyl.create'), vinylInventoryController.createVinylItem);
@@ -33,7 +33,7 @@ router.post('/status-change', requirePermission('vinyl.update'), vinylInventoryC
 // PUT routes - require vinyl.update permission
 router.put('/:id', requirePermission('vinyl.update'), vinylInventoryController.updateVinylItem);
 router.put('/:id/use', requirePermission('vinyl.update'), vinylInventoryController.markVinylAsUsed);
-router.put('/:id/job-links', requirePermission('vinyl.update'), vinylInventoryController.updateJobLinks);
+router.put('/:id/order-links', requirePermission('vinyl.update'), vinylInventoryController.updateOrderLinks);
 
 // DELETE routes - require vinyl.delete permission
 router.delete('/:id', requirePermission('vinyl.delete'), vinylInventoryController.deleteVinylItem);

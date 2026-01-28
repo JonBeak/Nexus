@@ -294,28 +294,32 @@ export const calculateLedNeon = async (input: ValidatedPricingInput): Promise<Ro
       normalizedPsCountOverride = fields.psCountOverride;
     }
 
-    // Determine what to pass to powerSupplySelector
+    // Read section-level UL EARLY - needed to decide if PS calculation should happen
+    const sectionHasUL = input.calculatedValues?.sectionHasUL ?? false;
+    console.log(`[ledNeon] Row PS selection: sectionHasUL=${sectionHasUL}, calculatedValues=`, input.calculatedValues);
+
+    // Determine if PS should be calculated:
+    // 1. User explicitly set PS # field (number or 'yes')
+    // 2. This row has LED Neon AND customer prefers power supplies
+    // Note: sectionHasUL only affects PS TYPE selection (UL vs non-UL), not whether to calculate
     let psOverrideForSelector: number | null = null;
     let shouldCalculatePS = false;
 
     if (fields.psCountOverride === 'yes') {
-      // User explicitly wants PSs - enable UL optimization
+      // User explicitly wants PSs
       shouldCalculatePS = true;
       psOverrideForSelector = null;
     } else if (normalizedPsCountOverride !== null) {
       // User entered a specific number (including 0)
       shouldCalculatePS = true;
       psOverrideForSelector = normalizedPsCountOverride;
-    } else {
-      // No user override - use ValidationContextBuilder's decision
-      shouldCalculatePS = calculatedPsCount > 0;
-      psOverrideForSelector = calculatedPsCount;
+    } else if (hasLedNeon && input.customerPreferences?.pref_power_supply_required === true) {
+      // This row has LED Neon and customer preference requires power supplies
+      shouldCalculatePS = true;
+      psOverrideForSelector = null;
     }
 
     if (shouldCalculatePS) {
-      // Use section-level UL for PS optimization (consistent PS types within section)
-      const sectionHasUL = input.calculatedValues?.sectionHasUL ?? false;
-      console.log(`[ledNeon] Row PS selection: sectionHasUL=${sectionHasUL}, calculatedValues=`, input.calculatedValues);
 
       const psResult = await selectPowerSupplies({
         totalWattage,

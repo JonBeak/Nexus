@@ -89,6 +89,37 @@ export async function autoFillSpecifications(input: AutoFillInput): Promise<Auto
           }
         }
       }
+
+      // Front Lit Acrylic Face specific adjustments
+      if (input.specsDisplayName === 'Front Lit Acrylic Face') {
+        for (let i = 1; i <= 10; i++) {
+          const templateName = specs[`_template_${i}`];
+          if (!templateName) break;
+
+          // Adjust depth: subtract 0.1" from estimate depth (e.g., 3" -> 2.9")
+          if (templateName === 'Return') {
+            const depthField = `row${i}_depth`;
+            const currentDepth = specs[depthField];
+            if (currentDepth && typeof currentDepth === 'string') {
+              const depthMatch = currentDepth.match(/^(\d+(?:\.\d+)?)(["']?)$/);
+              if (depthMatch) {
+                const numericDepth = parseFloat(depthMatch[1]);
+                const adjustedDepth = (numericDepth - 0.1).toFixed(1).replace(/\.0$/, '') + '"';
+                specs[depthField] = adjustedDepth;
+                console.log(`[Specs Auto-Fill] ✓ Adjusted ${depthField} from "${currentDepth}" to "${adjustedDepth}" for Front Lit Acrylic Face`);
+              }
+            }
+          }
+
+          // Auto-fill Additional Notes
+          if (templateName === 'Notes') {
+            const notesField = `row${i}_additional_notes`;
+            specs[notesField] = 'USE SMALLER PIECES FOR GLUING RETURNS';
+            filledFields.push(notesField);
+            console.log(`[Specs Auto-Fill] ✓ Filled ${notesField} = "USE SMALLER PIECES FOR GLUING RETURNS" for Front Lit Acrylic Face`);
+          }
+        }
+      }
       break;
 
     // Trim Cap - uses channel letters handler for Face defaults

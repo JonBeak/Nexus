@@ -35,6 +35,10 @@ export interface Order {
   qb_invoice_data_hash?: string | null;
   invoice_sent_at?: string | null;
 
+  // QB Estimate Fields (Cash Jobs)
+  qb_estimate_id?: string | null;
+  qb_estimate_doc_number?: string | null;
+
   // Invoice balance cache (Phase 2.f)
   cached_balance?: number | null;
   cached_balance_at?: string | null;
@@ -89,6 +93,15 @@ export type OrderStatus =
   | 'awaiting_payment'
   | 'completed'
   | 'cancelled';
+
+/**
+ * Order with calculated fields for Kanban display
+ * Returned by the optimized /orders/kanban endpoint
+ */
+export interface KanbanOrder extends Order {
+  work_days_left: number | null;
+  progress_percent: number;
+}
 
 export interface OrderFilters {
   statuses: OrderStatus[];  // Multi-select: empty array means use defaults (all except completed/cancelled)

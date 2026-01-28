@@ -14,6 +14,14 @@ export { orderFormsApi } from './orderFormsApi';
 export { orderBusinessLogicApi } from './orderBusinessLogicApi';
 export { orderPreparationApi } from './orderPreparationApi';
 export { qbInvoiceApi } from './qbInvoiceApi';
+export * as cashPaymentApi from './cashPaymentApi';
+export type {
+  CashPayment,
+  CashBalanceInfo,
+  CashPaymentMethod,
+  RecordPaymentInput,
+  RecordPaymentResult
+} from './cashPaymentApi';
 
 // Re-export all methods as a single consolidated ordersApi object for backward compatibility
 import { ordersApi as coreOrders } from './ordersApi';

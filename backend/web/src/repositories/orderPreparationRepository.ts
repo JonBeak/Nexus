@@ -307,15 +307,18 @@ export async function getOrderPointPersons(orderNumber: number): Promise<OrderPo
 export async function getOrderByOrderNumber(orderNumber: number): Promise<BasicOrderInfo | null> {
   const rows = await query(
     `SELECT
-      order_id,
-      order_number,
-      customer_id,
-      order_name,
-      status,
-      folder_name,
-      folder_location
-    FROM orders
-    WHERE order_number = ?`,
+      o.order_id,
+      o.order_number,
+      o.customer_id,
+      o.order_name,
+      o.status,
+      o.folder_name,
+      o.folder_location,
+      e.qb_estimate_id,
+      e.qb_estimate_number AS qb_estimate_doc_number
+    FROM orders o
+    LEFT JOIN order_qb_estimates e ON o.order_id = e.order_id AND e.is_current = 1
+    WHERE o.order_number = ?`,
     [orderNumber]
   ) as RowDataPacket[];
 
@@ -324,7 +327,7 @@ export async function getOrderByOrderNumber(orderNumber: number): Promise<BasicO
 
 /**
  * Get order data for QB estimate creation
- * Includes customer info needed for QB API
+ * Includes customer info needed for QB API and email summary fields
  */
 export async function getOrderDataForQBEstimate(orderId: number): Promise<OrderDataForQBEstimate | null> {
   const rows = await query(
@@ -337,10 +340,13 @@ export async function getOrderDataForQBEstimate(orderId: number): Promise<OrderD
       o.folder_location,
       o.customer_po,
       o.customer_job_number,
+      o.cached_balance,
       c.company_name as customer_name,
-      c.quickbooks_name
+      c.quickbooks_name,
+      e.qb_estimate_number AS qb_estimate_doc_number
     FROM orders o
     JOIN customers c ON c.customer_id = o.customer_id
+    LEFT JOIN order_qb_estimates e ON o.order_id = e.order_id AND e.is_current = 1
     WHERE o.order_id = ?`,
     [orderId]
   ) as RowDataPacket[];

@@ -1,6 +1,7 @@
 // File Clean up Finished: 2025-11-25
 import { BulkEntry } from '../hooks/useBulkEntries';
-import { JobSuggestion, VinylItem } from '../components/inventory/types';
+import { VinylItem } from '../components/inventory/types';
+import { OrderSuggestion } from '../components/common/OrderDropdown';
 import { vinylApi } from './api';
 import { validateBulkEntries } from './bulkEntry/bulkEntryValidation';
 
@@ -13,7 +14,7 @@ interface SubmissionResult {
 export const submitBulkEntries = async (
   bulkEntries: BulkEntry[],
   vinylItems: VinylItem[],
-  availableJobs: JobSuggestion[],
+  _availableOrders: OrderSuggestion[],  // Currently unused but kept for API consistency
   showNotification: (message: string, type?: 'success' | 'error') => void
 ): Promise<{
   success: boolean;
@@ -52,11 +53,8 @@ export const submitBulkEntries = async (
     // Process each entry
     for (const entry of validEntries) {
       try {
-        // Use job_ids directly from the entry
-        const processedEntry = {
-          ...entry,
-          job_ids: (entry.job_ids || []).filter((id): id is number => id !== null && id > 0)
-        };
+        // Use job_ids from entry but pass as order_ids to API
+        const processedOrderIds = (entry.job_ids || []).filter((id): id is number => id !== null && id > 0);
 
         if (entry.type === 'use') {
           // If a specific vinyl ID is selected, use that directly
@@ -117,7 +115,7 @@ export const submitBulkEntries = async (
           // Use the specialized endpoint for marking as used
           const result = await vinylApi.markVinylAsUsed(matchingVinyl.id, {
             usage_note: entry.notes || '',
-            job_ids: processedEntry.job_ids
+            order_ids: processedOrderIds
           });
 
           // API client unwraps { success: true, data: T } to just T
@@ -142,7 +140,7 @@ export const submitBulkEntries = async (
             purchase_date: transactionDate,
             storage_date: transactionDate,
             notes: entry.notes || '',
-            job_ids: processedEntry.job_ids
+            order_ids: processedOrderIds
           };
 
           const result = await vinylApi.createVinylItem(createData);

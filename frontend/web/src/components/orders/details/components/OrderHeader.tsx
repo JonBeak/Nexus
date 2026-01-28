@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, Printer, FolderOpen, Settings, CheckCircle, FileCheck } from 'lucide-react';
+import { ArrowLeft, FileText, Printer, FolderOpen, Settings, CheckCircle, FileCheck, RefreshCw, Send, ChevronDown, Eye, AlertTriangle, AlertOctagon, Link, DollarSign } from 'lucide-react';
 import { Order, DEPOSIT_TRACKING_STATUSES } from '../../../../types/orders';
 import StatusBadge from '../../common/StatusBadge';
 import InvoiceButton, { InvoiceAction } from './InvoiceButton';
 import EditableOrderName from './EditableOrderName';
 import { PAGE_STYLES, MODULE_COLORS } from '../../../../constants/moduleColors';
+
+export type CashEstimateAction = 'create_estimate' | 'update_estimate' | 'send_estimate' | 'view_estimate' | 'review_changes';
+export type EstimateSyncStatus = 'in_sync' | 'local_stale' | 'qb_modified' | 'conflict' | 'not_found' | 'error';
 
 interface OrderHeaderProps {
   order: Order;
@@ -21,8 +24,16 @@ interface OrderHeaderProps {
   onApproveFilesAndPrint: () => void;  // NEW: Approve files and print
   onInvoiceAction: (action: InvoiceAction) => void;  // Phase 2.e: Invoice actions
   onLinkInvoice?: () => void;  // Phase 2.e: Link existing invoice
-  onReassignInvoice?: (currentInvoice: { invoiceId: string | null; invoiceNumber: string | null }) => void;  // Reassign deleted invoice
+  onReassignInvoice?: (currentInvoice: { invoiceId: string | null; invoiceNumber: string | null; isDeleted: boolean }) => void;  // Reassign invoice (deleted or user choice)
   onMarkAsSent?: () => void;  // Mark invoice as sent manually
+  // Cash job estimate actions
+  onCashEstimateAction?: (action: CashEstimateAction) => void;
+  onLinkEstimate?: () => void;  // Open Link Existing Estimate modal
+  onSyncFromQB?: () => void;  // Sync QB estimate lines to order
+  onRecordPayment?: () => void;  // Open Cash Payment modal
+  estimateIsStale?: boolean;  // Whether the QB estimate is stale (local_stale)
+  estimateSyncStatus?: EstimateSyncStatus;  // Full sync status
+  estimateSent?: boolean;  // Whether estimate has been sent
   generatingForms: boolean;
   printingForm: boolean;
   // Order name editing props
@@ -35,6 +46,193 @@ interface OrderHeaderProps {
   onSaveOrderName?: () => void;
   onOrderNameChange?: (value: string) => void;
 }
+
+// Cash Estimate Button Component (for cash jobs)
+interface CashEstimateButtonProps {
+  order: Order;
+  onCashEstimateAction: (action: CashEstimateAction) => void;
+  onLinkEstimate?: () => void;
+  onSyncFromQB?: () => void;
+  estimateIsStale: boolean;
+  estimateSyncStatus?: EstimateSyncStatus;
+  estimateSent?: boolean;
+  disabled?: boolean;
+}
+
+const CashEstimateButton: React.FC<CashEstimateButtonProps> = ({
+  order,
+  onCashEstimateAction,
+  onLinkEstimate,
+  onSyncFromQB,
+  estimateIsStale,
+  estimateSyncStatus,
+  estimateSent = false,
+  disabled = false
+}) => {
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  const hasEstimate = !!order.qb_estimate_id;
+
+  // Determine button state based on sync status and sent status
+  const getButtonState = () => {
+    // No estimate exists yet - show Create button (green)
+    if (!hasEstimate) {
+      return {
+        action: 'create_estimate' as CashEstimateAction,
+        label: 'Create Estimate',
+        icon: <FileText className="w-4 h-4" />,
+        colorClass: 'bg-green-600 hover:bg-green-700',
+        borderClass: 'border-green-700',
+        showDropdown: true
+      };
+    }
+
+    // Estimate exists - check sync status
+    const status = estimateSyncStatus || (estimateIsStale ? 'local_stale' : 'in_sync');
+
+    // Conflict or QB modified - show Review Changes (purple/red)
+    if (status === 'conflict' || status === 'qb_modified') {
+      return {
+        action: 'review_changes' as CashEstimateAction,
+        label: 'Review Changes',
+        icon: <AlertOctagon className="w-4 h-4" />,
+        colorClass: status === 'conflict' ? 'bg-red-600 hover:bg-red-700' : 'bg-purple-600 hover:bg-purple-700',
+        borderClass: status === 'conflict' ? 'border-red-700' : 'border-purple-700',
+        showDropdown: true
+      };
+    }
+
+    // Local stale - show Recreate Estimate (orange)
+    if (status === 'local_stale' || estimateIsStale) {
+      return {
+        action: 'update_estimate' as CashEstimateAction,
+        label: 'Recreate Estimate',
+        icon: <RefreshCw className="w-4 h-4" />,
+        colorClass: 'bg-orange-500 hover:bg-orange-600',
+        borderClass: 'border-orange-600',
+        showDropdown: true
+      };
+    }
+
+    // In sync + already sent - show View Estimate (gray)
+    if (estimateSent) {
+      return {
+        action: 'view_estimate' as CashEstimateAction,
+        label: 'View Estimate',
+        icon: <Eye className="w-4 h-4" />,
+        colorClass: 'bg-gray-600 hover:bg-gray-700',
+        borderClass: 'border-gray-700',
+        showDropdown: true
+      };
+    }
+
+    // In sync + not sent - show Send Estimate (blue)
+    return {
+      action: 'send_estimate' as CashEstimateAction,
+      label: 'Send Estimate',
+      icon: <Send className="w-4 h-4" />,
+      colorClass: 'bg-blue-600 hover:bg-blue-700',
+      borderClass: 'border-blue-700',
+      showDropdown: true
+    };
+  };
+
+  const buttonState = getButtonState();
+
+  // Dropdown options depend on state
+  const getDropdownOptions = () => {
+    const options: Array<{ label: string; icon: React.ReactNode; onClick: () => void }> = [];
+
+    if (!hasEstimate) {
+      // No estimate - only link option
+      if (onLinkEstimate) {
+        options.push({
+          label: 'Link Existing Estimate',
+          icon: <Link className="w-4 h-4" />,
+          onClick: onLinkEstimate
+        });
+      }
+    } else {
+      // Has estimate - show reassign and sync options
+      if (onLinkEstimate) {
+        options.push({
+          label: 'Reassign Estimate',
+          icon: <Link className="w-4 h-4" />,
+          onClick: onLinkEstimate
+        });
+      }
+      if (onSyncFromQB && (estimateSyncStatus === 'qb_modified' || estimateSyncStatus === 'conflict')) {
+        options.push({
+          label: 'Sync from QuickBooks',
+          icon: <RefreshCw className="w-4 h-4" />,
+          onClick: onSyncFromQB
+        });
+      }
+    }
+
+    return options;
+  };
+
+  const dropdownOptions = getDropdownOptions();
+
+  return (
+    <div className="relative">
+      <div className="inline-flex">
+        <button
+          onClick={() => onCashEstimateAction(buttonState.action)}
+          disabled={disabled}
+          className={`flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white ${buttonState.colorClass} transition-colors ${
+            buttonState.showDropdown && dropdownOptions.length > 0 ? 'rounded-l-lg' : 'rounded-lg'
+          } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          {buttonState.icon}
+          <span>{buttonState.label}</span>
+        </button>
+        {buttonState.showDropdown && dropdownOptions.length > 0 && (
+          <button
+            onClick={() => setShowDropdown(!showDropdown)}
+            disabled={disabled}
+            className={`flex items-center px-2 py-2 text-white ${buttonState.colorClass} rounded-r-lg border-l ${buttonState.borderClass} transition-colors ${
+              disabled ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            <ChevronDown className={`w-4 h-4 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
+          </button>
+        )}
+      </div>
+
+      {/* Cash Job Badge */}
+      <div className="absolute -top-2 -left-2 px-1.5 py-0.5 bg-yellow-100 border border-yellow-300 rounded text-xs font-medium text-yellow-800">
+        Cash
+      </div>
+
+      {/* Dropdown */}
+      {showDropdown && dropdownOptions.length > 0 && (
+        <>
+          <div
+            className="fixed inset-0 z-[60]"
+            onClick={() => setShowDropdown(false)}
+          />
+          <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-[70] min-w-[200px]">
+            {dropdownOptions.map((option, idx) => (
+              <button
+                key={idx}
+                onClick={() => {
+                  setShowDropdown(false);
+                  option.onClick();
+                }}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 first:rounded-t-lg last:rounded-b-lg"
+              >
+                {option.icon}
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 const OrderHeader: React.FC<OrderHeaderProps> = ({
   order,
@@ -52,6 +250,14 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
   onLinkInvoice,
   onReassignInvoice,
   onMarkAsSent,
+  // Cash job estimate actions
+  onCashEstimateAction,
+  onLinkEstimate,
+  onSyncFromQB,
+  onRecordPayment,
+  estimateIsStale = false,
+  estimateSyncStatus,
+  estimateSent = false,
   generatingForms,
   printingForm,
   // Order name editing props
@@ -238,16 +444,42 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
               </button>
             )}
 
-            {/* Invoice Button - Show after customer approval (Phase 2.e) */}
+            {/* Invoice/Estimate Button - Show after customer approval (Phase 2.e) */}
             {!['job_details_setup', 'pending_confirmation'].includes(order.status) && (
-              <InvoiceButton
-                order={order}
-                onAction={onInvoiceAction}
-                onLinkInvoice={onLinkInvoice}
-                onReassignInvoice={onReassignInvoice}
-                onMarkAsSent={onMarkAsSent}
-                disabled={generatingForms || printingForm}
-              />
+              order.cash && onCashEstimateAction ? (
+                // Cash job: Show estimate button + record payment button
+                <>
+                  <CashEstimateButton
+                    order={order}
+                    onCashEstimateAction={onCashEstimateAction}
+                    onLinkEstimate={onLinkEstimate}
+                    onSyncFromQB={onSyncFromQB}
+                    estimateIsStale={estimateIsStale}
+                    estimateSyncStatus={estimateSyncStatus}
+                    estimateSent={estimateSent}
+                    disabled={generatingForms || printingForm}
+                  />
+                  {onRecordPayment && (
+                    <button
+                      onClick={onRecordPayment}
+                      className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium"
+                    >
+                      <DollarSign className="w-4 h-4" />
+                      <span>Record Payment</span>
+                    </button>
+                  )}
+                </>
+              ) : !order.cash ? (
+                // Regular job: Show invoice button
+                <InvoiceButton
+                  order={order}
+                  onAction={onInvoiceAction}
+                  onLinkInvoice={onLinkInvoice}
+                  onReassignInvoice={onReassignInvoice}
+                  onMarkAsSent={onMarkAsSent}
+                  disabled={generatingForms || printingForm}
+                />
+              ) : null
             )}
           </div>
         </div>

@@ -233,9 +233,12 @@ export class OrderRepository {
       `SELECT
         o.*,
         TIME_FORMAT(o.hard_due_date_time, '%H:%i') as hard_due_date_time,
-        c.company_name as customer_name
+        c.company_name as customer_name,
+        e.qb_estimate_id,
+        e.qb_estimate_number AS qb_estimate_doc_number
       FROM orders o
       LEFT JOIN customers c ON o.customer_id = c.customer_id
+      LEFT JOIN order_qb_estimates e ON o.order_id = e.order_id AND e.is_current = 1
       WHERE o.order_id = ?`,
       [orderId]
     ) as RowDataPacket[];
@@ -469,6 +472,111 @@ export class OrderRepository {
     );
   }
 
+  // =============================================
+  // KANBAN BOARD OPTIMIZED QUERY
+  // =============================================
+
+  /**
+   * Get orders optimized for Kanban board display
+   * Returns orders with pre-computed fields for all statuses
+   * Handles filtering for completed/cancelled columns
+   */
+  async getOrdersForKanban(options: {
+    showAllCompleted?: boolean;
+    showAllCancelled?: boolean;
+  } = {}): Promise<{
+    orders: any[];
+    holidays: string[];
+  }> {
+    // Get holidays for work day calculation
+    const holidayRows = await query(
+      `SELECT DATE_FORMAT(holiday_date, '%Y-%m-%d') as holiday_date
+       FROM company_holidays
+       WHERE is_active = 1
+         AND holiday_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+         AND holiday_date <= DATE_ADD(CURDATE(), INTERVAL 365 DAY)`
+    ) as RowDataPacket[];
+
+    const holidays = holidayRows.map(h => h.holiday_date);
+
+    // Build dynamic WHERE for completed/cancelled filtering
+    let completedFilter = '';
+    let cancelledFilter = '';
+
+    if (!options.showAllCompleted) {
+      // Only show completed orders with due_date in last 2 weeks
+      completedFilter = `AND (o.status != 'completed' OR o.due_date >= DATE_SUB(CURDATE(), INTERVAL 14 DAY) OR o.due_date IS NULL)`;
+    }
+
+    if (!options.showAllCancelled) {
+      // Only show cancelled orders with due_date in last 2 weeks
+      cancelledFilter = `AND (o.status != 'cancelled' OR o.due_date >= DATE_SUB(CURDATE(), INTERVAL 14 DAY) OR o.due_date IS NULL)`;
+    }
+
+    const sql = `
+      SELECT
+        o.order_id,
+        o.order_number,
+        o.order_name,
+        o.status,
+        DATE_FORMAT(o.due_date, '%Y-%m-%d') as due_date,
+        o.customer_id,
+        c.company_name as customer_name,
+        o.shipping_required,
+        o.invoice_sent_at,
+        o.sign_image_path,
+        o.folder_name,
+        o.folder_location,
+        o.is_migrated,
+        (SELECT COUNT(*) FROM order_tasks ot
+         INNER JOIN order_parts op ON ot.part_id = op.part_id
+         WHERE ot.order_id = o.order_id
+         AND (op.is_parent = 1 OR op.is_order_wide = 1)) as total_tasks,
+        (SELECT COUNT(*) FROM order_tasks ot
+         INNER JOIN order_parts op ON ot.part_id = op.part_id
+         WHERE ot.order_id = o.order_id AND ot.completed = 1
+         AND (op.is_parent = 1 OR op.is_order_wide = 1)) as completed_tasks,
+        (SELECT COUNT(*) FROM order_tasks
+         WHERE order_tasks.order_id = o.order_id
+         AND assigned_role = 'painter'
+         AND completed = 0) as incomplete_painting_tasks_count
+      FROM orders o
+      LEFT JOIN customers c ON o.customer_id = c.customer_id
+      WHERE 1=1
+        AND (o.is_migrated = 0 OR o.is_migrated IS NULL)
+        ${completedFilter}
+        ${cancelledFilter}
+      ORDER BY
+        CASE WHEN o.due_date IS NULL THEN 1 ELSE 0 END,
+        o.due_date ASC
+    `;
+
+    const orders = await query(sql) as RowDataPacket[];
+
+    return {
+      orders: orders as any[],
+      holidays
+    };
+  }
+
+  /**
+   * Get total counts for completed and cancelled orders
+   * Used for "show all" button counts
+   */
+  async getKanbanStatusCounts(): Promise<{ completed: number; cancelled: number }> {
+    const rows = await query(`
+      SELECT
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled
+      FROM orders
+      WHERE (is_migrated = 0 OR is_migrated IS NULL)
+    `) as RowDataPacket[];
+
+    return {
+      completed: rows[0]?.completed || 0,
+      cancelled: rows[0]?.cancelled || 0
+    };
+  }
 }
 
 export const orderRepository = new OrderRepository();

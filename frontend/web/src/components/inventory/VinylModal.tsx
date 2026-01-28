@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { vinylApi, suppliersApi, jobsApi } from '../../services/api';
+import { vinylApi, suppliersApi, ordersApi } from '../../services/api';
 import { useAlert } from '../../contexts/AlertContext';
 import { AutofillComboBox } from '../common/AutofillComboBox';
 import {
-  JobSuggestion,
   SupplierSummary,
   VinylAutofillCombination,
   VinylAutofillSuggestions,
@@ -65,15 +64,15 @@ export const VinylModal: React.FC<VinylModalProps> = ({
   });
 
   const [availableSuppliers, setAvailableSuppliers] = useState<SupplierSummary[]>([]);
-  const [availableJobs, setAvailableJobs] = useState<JobSuggestion[]>([]);
-  const [selectedJobs, setSelectedJobs] = useState<number[]>([]);
+  const [availableOrders, setAvailableOrders] = useState<{ order_id: number; order_number: number; order_name?: string; customer_name?: string }[]>([]);
+  const [selectedOrders, setSelectedOrders] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       loadSuppliers();
-      loadJobs();
-      
+      loadOrders();
+
       if (initialData) {
         setFormData({
           brand: initialData.brand || '',
@@ -89,10 +88,10 @@ export const VinylModal: React.FC<VinylModalProps> = ({
           storage_date: initialData.storage_date ? new Date(initialData.storage_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           notes: initialData.notes || ''
         });
-        
-        // Load existing job associations for editing
+
+        // Load existing order associations for editing
         if (initialData.id) {
-          loadExistingJobAssociations(initialData.id);
+          loadExistingOrderAssociations(initialData.id);
         }
       } else {
         // Reset form for new item
@@ -110,7 +109,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
           storage_date: new Date().toISOString().split('T')[0],
           notes: ''
         });
-        setSelectedJobs([]);
+        setSelectedOrders([]);
       }
     }
   }, [isOpen, initialData]);
@@ -125,25 +124,25 @@ export const VinylModal: React.FC<VinylModalProps> = ({
     }
   };
 
-  const loadJobs = async () => {
+  const loadOrders = async () => {
     try {
-      const jobs = await jobsApi.getJobs({}) as JobSuggestion[];
-      setAvailableJobs(jobs || []);
+      const orders = await ordersApi.getOrders({});
+      setAvailableOrders(orders || []);
     } catch (error) {
-      console.error('Error loading jobs:', error);
-      setAvailableJobs([]);
+      console.error('Error loading orders:', error);
+      setAvailableOrders([]);
     }
   };
 
-  const loadExistingJobAssociations = async (vinylId: number) => {
+  const loadExistingOrderAssociations = async (vinylId: number) => {
     try {
-      // Use the main vinyl endpoint which now returns unified job_associations
+      // Use the main vinyl endpoint which now returns unified order_associations
       const vinylData = await vinylApi.getVinylItem(vinylId);
-      const jobIds = vinylData.job_associations?.map((link: { job_id: number }) => link.job_id) || [];
-      setSelectedJobs(jobIds);
+      const orderIds = vinylData.order_associations?.map((link: { order_id: number }) => link.order_id) || [];
+      setSelectedOrders(orderIds);
     } catch (error) {
-      console.error('Error loading job associations:', error);
-      setSelectedJobs([]);
+      console.error('Error loading order associations:', error);
+      setSelectedOrders([]);
     }
   };
 
@@ -164,7 +163,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
         width: parseFloat(formData.width) || 0,
         length_yards: parseFloat(formData.length_yards) || 0,
         supplier_id: formData.supplier_id ? parseInt(formData.supplier_id) : null,
-        job_ids: selectedJobs
+        order_ids: selectedOrders
       };
 
       await onSubmit(submitData);
@@ -255,16 +254,16 @@ export const VinylModal: React.FC<VinylModalProps> = ({
     });
   };
 
-  const handleJobSelection = (jobId: number) => {
-    setSelectedJobs(prev => 
-      prev.includes(jobId) 
-        ? prev.filter(id => id !== jobId)
-        : [...prev, jobId]
+  const handleOrderSelection = (orderId: number) => {
+    setSelectedOrders(prev =>
+      prev.includes(orderId)
+        ? prev.filter(id => id !== orderId)
+        : [...prev, orderId]
     );
   };
 
-  const removeJob = (jobId: number) => {
-    setSelectedJobs(prev => prev.filter(id => id !== jobId));
+  const removeOrder = (orderId: number) => {
+    setSelectedOrders(prev => prev.filter(id => id !== orderId));
   };
 
   const getSuggestions = (field: 'brand' | 'series' | 'colour_number' | 'colour_name') => {
@@ -485,24 +484,24 @@ export const VinylModal: React.FC<VinylModalProps> = ({
             </div>
           </div>
 
-          {/* Job Associations */}
+          {/* Order Associations */}
           <div>
             <label className={`${labelClass} mb-2`}>
-              Associated Jobs
+              Associated Orders
             </label>
 
-            {/* Selected Jobs */}
-            {selectedJobs.length > 0 && (
+            {/* Selected Orders */}
+            {selectedOrders.length > 0 && (
               <div className="mb-3">
                 <div className="flex flex-wrap gap-2">
-                  {selectedJobs.map(jobId => {
-                    const job = availableJobs.find(j => j.job_id === jobId);
-                    return job ? (
-                      <div key={jobId} className={`${MODULE_COLORS.vinyls.light} ${MODULE_COLORS.vinyls.text} px-3 py-1 rounded-md text-sm flex items-center gap-2`}>
-                        <span>{job.job_number} - {job.job_name || 'No Name'}</span>
+                  {selectedOrders.map(orderId => {
+                    const order = availableOrders.find(o => o.order_id === orderId);
+                    return order ? (
+                      <div key={orderId} className={`${MODULE_COLORS.vinyls.light} ${MODULE_COLORS.vinyls.text} px-3 py-1 rounded-md text-sm flex items-center gap-2`}>
+                        <span>{order.order_number} - {order.order_name || 'No Name'}</span>
                         <button
                           type="button"
-                          onClick={() => removeJob(jobId)}
+                          onClick={() => removeOrder(orderId)}
                           className={`${MODULE_COLORS.vinyls.text} hover:text-purple-800 ml-1`}
                         >
                           ×
@@ -514,24 +513,24 @@ export const VinylModal: React.FC<VinylModalProps> = ({
               </div>
             )}
 
-            {/* Job Selection Dropdown */}
+            {/* Order Selection Dropdown */}
             <select
               onChange={(e) => {
-                const jobId = parseInt(e.target.value);
-                if (jobId && !selectedJobs.includes(jobId)) {
-                  handleJobSelection(jobId);
+                const orderId = parseInt(e.target.value);
+                if (orderId && !selectedOrders.includes(orderId)) {
+                  handleOrderSelection(orderId);
                 }
                 e.target.value = '';
               }}
               className={inputClass}
             >
-              <option value="">Select job to associate...</option>
-              {availableJobs
-                .filter(job => !selectedJobs.includes(job.job_id))
-                .map(job => (
-                  <option key={job.job_id} value={job.job_id}>
-                    {job.job_number} - {job.job_name || 'No Name'}
-                    {job.customer_name && ` (${job.customer_name})`}
+              <option value="">Select order to associate...</option>
+              {availableOrders
+                .filter(order => !selectedOrders.includes(order.order_id))
+                .map(order => (
+                  <option key={order.order_id} value={order.order_id}>
+                    {order.order_number} - {order.order_name || 'No Name'}
+                    {order.customer_name && ` (${order.customer_name})`}
                   </option>
                 ))
               }

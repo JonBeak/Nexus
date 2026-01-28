@@ -19,6 +19,7 @@ import { updateStepStatus, canRunStep } from '@/utils/stepOrchestration';
 import { ordersApi } from '@/services/api';
 import { UnknownApplicationModal, UnknownApplication, ApplicationResolution } from '../../modals/UnknownApplicationModal';
 import { PaintingConfigurationModal, PaintingConfiguration, PaintingResolution } from '../../modals/PaintingConfigurationModal';
+import { SpecificationOptionsCache } from '@/services/specificationOptionsCache';
 
 interface GenerateTasksStepProps {
   step: PrepareStep;
@@ -203,6 +204,11 @@ export const GenerateTasksStep: React.FC<GenerateTasksStepProps> = ({
 
       // Call API to create tasks and optionally save to matrix
       await ordersApi.resolvePaintingConfigurations(orderNumber, resolutions);
+
+      // Invalidate cache if any components were saved
+      if (resolutions.some(r => r.saveComponent)) {
+        SpecificationOptionsCache.invalidateCache();
+      }
 
       // Close modal and complete step
       setShowPaintingModal(false);

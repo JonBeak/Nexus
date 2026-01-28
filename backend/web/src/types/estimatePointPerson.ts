@@ -47,24 +47,30 @@ export interface EstimatePointPersonInput {
 export interface EmailSummaryConfig {
   includeJobName: boolean;
   includeCustomerRef: boolean;
+  includePO: boolean;              // PO # (auto-included if exists)
+  includeOrderNumber: boolean;     // Internal order number
   includeQbEstimateNumber: boolean;
+  includeEstimateDate: boolean;
+  includeValidUntilDate: boolean;
   includeSubtotal: boolean;
   includeTax: boolean;
   includeTotal: boolean;
-  includeEstimateDate: boolean;
-  includeValidUntilDate: boolean;
+  includeBalance: boolean;         // Balance Due (from cached_balance)
 }
 
-// Default config - all checked except Valid Until Date
+// Default config - most checked except Valid Until Date
 export const DEFAULT_EMAIL_SUMMARY_CONFIG: EmailSummaryConfig = {
   includeJobName: true,
   includeCustomerRef: true,
+  includePO: true,              // Auto-include if exists
+  includeOrderNumber: true,     // Include order number
   includeQbEstimateNumber: true,
-  includeSubtotal: true,
-  includeTax: true,
-  includeTotal: true,
   includeEstimateDate: true,
-  includeValidUntilDate: false  // Unchecked by default
+  includeValidUntilDate: false, // Unchecked by default
+  includeSubtotal: false,       // Off by default (like invoice)
+  includeTax: false,            // Off by default (like invoice)
+  includeTotal: true,
+  includeBalance: true          // Include balance due if > 0
 };
 
 // =============================================
