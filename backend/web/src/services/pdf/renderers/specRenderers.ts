@@ -80,9 +80,10 @@ function shouldSkipCuttingSpec(specsDisplayName: string | null): boolean {
 
 /**
  * Specs that should be hidden from all PDF order forms
- * These specs are used internally for task generation but shouldn't appear on printed forms
+ * Currently empty - Assembly specs now display on Master, Customer, and Shop forms
+ * (Packing List uses a separate renderer and doesn't show specs)
  */
-const HIDDEN_SPECS_FROM_PDF = ['Assembly', 'Face Assembly'];
+const HIDDEN_SPECS_FROM_PDF: string[] = [];
 
 // ============================================
 // SPEEDBOX CONSOLIDATION (Customer Forms Only)

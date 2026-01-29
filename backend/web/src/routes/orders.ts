@@ -682,6 +682,18 @@ router.get(
 );
 
 /**
+ * Get invoice line items preview (for create/update modal)
+ * GET /api/orders/:orderNumber/invoice-preview
+ * Returns exact line items that will be created in QuickBooks
+ */
+router.get(
+  '/:orderNumber/invoice-preview',
+  authenticateToken,
+  requirePermission('orders.view'),
+  qbInvoiceController.getInvoicePreview
+);
+
+/**
  * Link existing QB invoice to order (Manager+ only)
  * POST /api/orders/:orderNumber/qb-invoice/link
  */

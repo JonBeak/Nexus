@@ -846,6 +846,35 @@ export const getInvoiceDetails = async (req: Request, res: Response) => {
 };
 
 /**
+ * Get invoice line items preview (for create/update modal)
+ * GET /api/orders/:orderNumber/invoice-preview
+ *
+ * Returns the exact line items that will be created in QuickBooks.
+ * Single source of truth for frontend preview - ensures preview matches actual invoice.
+ */
+export const getInvoicePreview = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+
+    const orderId = await getOrderIdFromNumber(orderNumber);
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    const lineItems = await qbInvoiceService.buildInvoiceLineItems(orderId);
+
+    res.json({
+      success: true,
+      data: { lineItems }
+    });
+  } catch (error) {
+    console.error('Error getting invoice preview:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get invoice preview';
+    return sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
+/**
  * Mark order as invoice sent (manual marking)
  * POST /api/orders/:orderNumber/qb-invoice/mark-sent
  *

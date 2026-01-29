@@ -608,6 +608,64 @@ export async function recordPayment(
 }
 
 // =============================================
+// INVOICE LINE ITEMS PREVIEW
+// =============================================
+
+/**
+ * Invoice line item for preview
+ * Single source of truth for line item formatting (used by both preview and creation)
+ */
+export interface InvoicePreviewLineItem {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  isHeaderRow: boolean;
+  qbItemName: string | null;
+  isDescriptionOnly: boolean;
+}
+
+/**
+ * Build invoice line items for preview or creation
+ * Single source of truth for line item formatting - ensures preview matches actual QB invoice
+ */
+export async function buildInvoiceLineItems(orderId: number): Promise<InvoicePreviewLineItem[]> {
+  const orderParts = await orderPrepRepo.getOrderPartsForQBEstimate(orderId);
+
+  return orderParts
+    .filter(part => {
+      // Description-only lines are included even without quantity
+      const hasDescription = part.qb_description?.trim();
+      const hasNoQBItem = !part.qb_item_name?.trim();
+      const hasNoPrice = !part.unit_price || part.unit_price === 0;
+      const isDescriptionOnly = hasDescription && hasNoQBItem && hasNoPrice;
+
+      // Include description-only lines OR lines with quantity
+      return isDescriptionOnly || (part.quantity && part.quantity > 0);
+    })
+    .map(part => {
+      const hasDescription = part.qb_description?.trim();
+      const hasNoQBItem = !part.qb_item_name?.trim();
+      const hasNoPrice = !part.unit_price || part.unit_price === 0;
+      const isDescriptionOnly = !!(hasDescription && hasNoQBItem && hasNoPrice);
+
+      const qty = parseFloat(String(part.quantity || 1));
+      const unitPrice = parseFloat(String(part.unit_price || 0));
+      const calculatedAmount = Math.round(qty * unitPrice * 100) / 100;
+
+      return {
+        description: part.qb_description || '',  // Same logic as buildInvoicePayload - NO fallback!
+        quantity: qty,
+        unitPrice: unitPrice,
+        amount: calculatedAmount,
+        isHeaderRow: false, // Header rows are filtered by the query (no invoice_description, qb_description, or unit_price)
+        qbItemName: part.qb_item_name || null,
+        isDescriptionOnly
+      };
+    });
+}
+
+// =============================================
 // HELPER FUNCTIONS
 // =============================================
 

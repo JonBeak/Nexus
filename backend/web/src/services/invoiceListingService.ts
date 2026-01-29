@@ -7,7 +7,10 @@
  */
 
 import * as invoiceListingRepo from '../repositories/invoiceListingRepository';
-import { getQBInvoice } from '../utils/quickbooks/invoiceClient';
+import { getQBInvoice, getQBUnpaidInvoices } from '../utils/quickbooks/invoiceClient';
+import { query } from '../config/database';
+import { RowDataPacket } from 'mysql2';
+import * as cashPaymentRepo from '../repositories/cashPaymentRepository';
 import { quickbooksRepository } from '../repositories/quickbooksRepository';
 import { orderService } from './orderService';
 import { broadcastOrderStatus } from '../websocket/taskBroadcast';
@@ -170,52 +173,148 @@ export async function syncStaleBalances(
 // =============================================
 
 /**
- * Check all orders in awaiting_payment status (QB invoices and cash jobs)
- * Syncs balance from QB or internal payments and auto-completes if fully paid
- * Called on page load and every hour via server interval
+ * Optimized payment status check using single QB API call
+ *
+ * Strategy:
+ * 1. Fetch ALL unpaid invoices from QB in one query (1 API call)
+ * 2. Check awaiting_payment orders:
+ *    - QB orders: if NOT in unpaid list → invoice paid → auto-complete
+ *    - Cash orders: check local payment records
+ * 3. Check completed orders for refunds:
+ *    - QB orders: if IN unpaid list → balance reappeared → move to awaiting_payment
+ *    - Cash orders: if balance > 0 → move to awaiting_payment
+ *
+ * Result: Replace N API calls with 1 total, plus catch refunds
  */
 export async function checkAwaitingPaymentOrders(): Promise<{
   checked: number;
   autoCompleted: number;
+  movedToAwaiting: number;
   errors: number;
 }> {
-  const orders = await invoiceListingRepo.getAwaitingPaymentOrders();
-
-  if (orders.length === 0) {
-    return { checked: 0, autoCompleted: 0, errors: 0 };
-  }
-
-  console.log(`🔍 Checking ${orders.length} awaiting_payment order(s) for payment...`);
-
   let autoCompleted = 0;
+  let movedToAwaiting = 0;
   let errors = 0;
+  let awaitingOrders: Array<{ order_id: number; order_number: number; qb_invoice_id: string | null; is_cash: boolean }> = [];
 
-  for (const order of orders) {
-    try {
-      if (order.is_cash) {
-        // Cash job: check internal balance
-        const result = await checkAndAutoCompleteCashJob(order.order_id, order.order_number);
-        if (result.autoCompleted) {
-          autoCompleted++;
+  try {
+    const realmId = await quickbooksRepository.getDefaultRealmId();
+
+    // === SINGLE QB API CALL: Get all unpaid invoices ===
+    const unpaidInvoiceMap = new Map<string, { balance: number; total: number }>();
+    if (realmId) {
+      const unpaidInvoices = await getQBUnpaidInvoices(realmId);
+      unpaidInvoices.forEach(inv => {
+        unpaidInvoiceMap.set(inv.id, { balance: inv.balance, total: inv.total });
+      });
+      console.log(`📊 Loaded ${unpaidInvoiceMap.size} unpaid invoice(s) from QuickBooks`);
+    }
+
+    // === Check awaiting_payment orders ===
+    awaitingOrders = await invoiceListingRepo.getAwaitingPaymentOrders();
+
+    if (awaitingOrders.length > 0) {
+      console.log(`🔍 Checking ${awaitingOrders.length} awaiting_payment order(s)...`);
+    }
+
+    for (const order of awaitingOrders) {
+      try {
+        if (order.is_cash) {
+          // Cash jobs: check locally (no QB)
+          const result = await checkAndAutoCompleteCashJob(order.order_id, order.order_number);
+          if (result.autoCompleted) autoCompleted++;
+        } else if (order.qb_invoice_id) {
+          // QB invoice: check against unpaid list
+          const unpaidData = unpaidInvoiceMap.get(order.qb_invoice_id);
+
+          if (unpaidData) {
+            // Still unpaid - update cached balance
+            await invoiceListingRepo.updateCachedBalance(order.order_id, unpaidData.balance, unpaidData.total);
+          } else {
+            // NOT in unpaid list = paid! Auto-complete
+            await invoiceListingRepo.updateCachedBalance(order.order_id, 0, null);
+            await query(
+              `UPDATE orders SET status = 'completed', updated_at = NOW() WHERE order_id = ?`,
+              [order.order_id]
+            );
+            // Broadcast status change
+            broadcastOrderStatus(order.order_id, order.order_number, 'completed', 'awaiting_payment', 0);
+            console.log(`✅ Order #${order.order_number}: Invoice fully paid, moved to completed`);
+            autoCompleted++;
+          }
         }
-      } else if (order.qb_invoice_id) {
-        // QB invoice: sync balance from QuickBooks
-        const result = await syncOrderBalance(order.order_id);
-        if (result.autoCompleted) {
-          autoCompleted++;
+      } catch (error) {
+        console.error(`Error checking order #${order.order_number}:`, error);
+        errors++;
+      }
+    }
+
+    // === Check completed orders for refunds ===
+    if (realmId) {
+      const completedOrders = await invoiceListingRepo.getCompletedOrdersWithQBInvoice();
+
+      for (const order of completedOrders) {
+        try {
+          const unpaidData = unpaidInvoiceMap.get(order.qb_invoice_id);
+          if (unpaidData) {
+            // Invoice is in unpaid list = refund happened!
+            await invoiceListingRepo.updateCachedBalance(order.order_id, unpaidData.balance, unpaidData.total);
+            await query(
+              `UPDATE orders SET status = 'awaiting_payment', updated_at = NOW() WHERE order_id = ?`,
+              [order.order_id]
+            );
+            // Broadcast status change
+            broadcastOrderStatus(order.order_id, order.order_number, 'awaiting_payment', 'completed', 0);
+            console.log(`⚠️  Order #${order.order_number}: Invoice has balance $${unpaidData.balance}, moved to awaiting_payment`);
+            movedToAwaiting++;
+          }
+        } catch (error) {
+          console.error(`Error checking completed order #${order.order_number}:`, error);
+          errors++;
         }
       }
-    } catch (error) {
-      console.error(`Error checking order #${order.order_number}:`, error);
-      errors++;
     }
+
+    // === Check completed cash jobs with balance ===
+    const cashOrdersWithBalance = await query(
+      `SELECT order_id, order_number FROM orders
+       WHERE status = 'completed' AND cash = 1
+       AND COALESCE(cached_balance, 0) > 0`,
+      []
+    ) as RowDataPacket[];
+
+    for (const order of cashOrdersWithBalance) {
+      try {
+        const total = await cashPaymentRepo.calculateOrderTotal(order.order_id);
+        const totalPaid = await cashPaymentRepo.getTotalPaymentsForOrder(order.order_id);
+        const balance = Math.max(0, total - totalPaid);
+
+        if (balance > 0) {
+          await cashPaymentRepo.updateOrderCachedBalance(order.order_id, balance, total);
+          await query(
+            `UPDATE orders SET status = 'awaiting_payment', updated_at = NOW() WHERE order_id = ?`,
+            [order.order_id]
+          );
+          // Broadcast status change
+          broadcastOrderStatus(order.order_id, order.order_number, 'awaiting_payment', 'completed', 0);
+          console.log(`⚠️  Cash order #${order.order_number}: Has balance $${balance}, moved to awaiting_payment`);
+          movedToAwaiting++;
+        }
+      } catch (error) {
+        console.error(`Error checking cash order #${order.order_number}:`, error);
+        errors++;
+      }
+    }
+
+  } catch (error) {
+    console.error('Error in payment check:', error);
+    errors++;
   }
 
-  console.log(`✅ Payment check complete: ${orders.length} checked, ${autoCompleted} auto-completed, ${errors} errors`);
+  const totalChecked = awaitingOrders.length;
+  if (autoCompleted > 0 || movedToAwaiting > 0) {
+    console.log(`✅ Payment check: ${autoCompleted} completed, ${movedToAwaiting} moved to awaiting, ${errors} errors`);
+  }
 
-  return {
-    checked: orders.length,
-    autoCompleted,
-    errors
-  };
+  return { checked: totalChecked, autoCompleted, movedToAwaiting, errors };
 }

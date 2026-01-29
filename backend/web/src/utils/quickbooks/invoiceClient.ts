@@ -532,6 +532,34 @@ export async function queryOpenInvoicesByCustomer(
  * Build payment payload for recording a payment against multiple invoices
  * Each invoice gets its own Line entry with the amount to apply
  */
+/**
+ * Get all invoices with outstanding balance from QuickBooks
+ * Used for efficient batch payment status checking (1 API call instead of N)
+ */
+export async function getQBUnpaidInvoices(
+  realmId: string
+): Promise<Array<{ id: string; docNumber: string; balance: number; total: number }>> {
+  console.log('📋 Fetching all unpaid invoices from QuickBooks...');
+
+  try {
+    const query = `SELECT Id, DocNumber, Balance, TotalAmt FROM Invoice WHERE Balance > '0'`;
+    const response = await queryQB(query, realmId);
+
+    const invoices = response?.QueryResponse?.Invoice || [];
+    console.log(`✅ Found ${invoices.length} unpaid invoice(s) in QuickBooks`);
+
+    return invoices.map((inv: any) => ({
+      id: inv.Id,
+      docNumber: inv.DocNumber,
+      balance: parseFloat(inv.Balance) || 0,
+      total: parseFloat(inv.TotalAmt) || 0
+    }));
+  } catch (error) {
+    console.error('❌ Error fetching unpaid invoices:', error);
+    return [];
+  }
+}
+
 export function buildMultiInvoicePaymentPayload(
   qbCustomerId: string,
   allocations: Array<{ invoiceId: string; amount: number }>,

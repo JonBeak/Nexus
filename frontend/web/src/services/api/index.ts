@@ -71,7 +71,8 @@ export type {
   CustomerInvoiceListItem,
   CustomerInvoiceListResult,
   InvoiceLineItem,
-  InvoiceDetailsResult
+  InvoiceDetailsResult,
+  InvoicePreviewLineItem
 } from './orders/qbInvoiceApi';
 
 export type {

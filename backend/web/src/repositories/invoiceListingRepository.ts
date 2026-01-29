@@ -305,7 +305,7 @@ export async function getInvoiceAnalytics(): Promise<InvoiceAnalytics> {
 export async function updateCachedBalance(
   orderId: number,
   balance: number,
-  total: number
+  total: number | null
 ): Promise<void> {
   await query(
     `UPDATE orders
@@ -411,6 +411,30 @@ export async function getOrderIdByQBInvoiceId(qbInvoiceId: string): Promise<numb
 
   if (rows.length === 0) return null;
   return rows[0].order_id;
+}
+
+/**
+ * Get all completed orders that have a linked QB invoice
+ * Used for detecting refunds (balance reappearing on paid invoices)
+ */
+export async function getCompletedOrdersWithQBInvoice(): Promise<Array<{
+  order_id: number;
+  order_number: number;
+  qb_invoice_id: string;
+}>> {
+  const rows = await query(
+    `SELECT order_id, order_number, qb_invoice_id
+     FROM orders
+     WHERE status = 'completed'
+       AND qb_invoice_id IS NOT NULL`,
+    []
+  ) as RowDataPacket[];
+
+  return rows.map(row => ({
+    order_id: row.order_id,
+    order_number: row.order_number,
+    qb_invoice_id: row.qb_invoice_id
+  }));
 }
 
 // =============================================

@@ -30,9 +30,8 @@ import {
   broadcastTaskCreated
 } from '../websocket';
 
-// QC task constants (must match orderService.ts)
+// QC task constant (must match orderService.ts)
 const QC_TASK_NAME = 'QC & Packing';
-const QC_TASK_ROLE = 'qc_packer';
 
 /**
  * Interface for batch task update operations
@@ -75,7 +74,7 @@ export class OrderTaskService {
     isQcTask: boolean;
   } | null> {
     const rows = await query(
-      `SELECT order_id, part_id, task_name, assigned_role
+      `SELECT order_id, part_id, task_name
        FROM order_tasks WHERE task_id = ?`,
       [taskId]
     ) as RowDataPacket[];
@@ -85,9 +84,10 @@ export class OrderTaskService {
     }
 
     const task = rows[0];
+    // QC task is identified by being a job-level task (null part_id) with the QC task name
+    // The assigned_role doesn't matter - it could be assigned to any role
     const isQcTask = task.part_id === null &&
-                     task.task_name === QC_TASK_NAME &&
-                     task.assigned_role === QC_TASK_ROLE;
+                     task.task_name === QC_TASK_NAME;
 
     return {
       order_id: task.order_id,

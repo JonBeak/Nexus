@@ -346,6 +346,45 @@ export class OrderService {
       return;
     }
 
+    // Check if moving to "completed" with unpaid balance → redirect to "awaiting_payment"
+    if (status === 'completed') {
+      if (order.qb_invoice_id) {
+        try {
+          const realmId = await quickbooksRepository.getDefaultRealmId();
+          if (realmId) {
+            const qbInvoice = await getQBInvoice(order.qb_invoice_id, realmId);
+            // Update cached balance regardless
+            await invoiceListingRepo.updateCachedBalance(orderId, qbInvoice.Balance, qbInvoice.TotalAmt);
+
+            if (qbInvoice.Balance > 0) {
+              console.log(`⚠️  Order #${order.order_number}: Invoice has unpaid balance $${qbInvoice.Balance}, redirecting to awaiting_payment`);
+              status = 'awaiting_payment';
+            }
+          }
+        } catch (invoiceError) {
+          // Non-blocking: if balance check fails, proceed with completed
+          console.error('⚠️  Invoice balance check failed:', invoiceError);
+        }
+      } else if (order.cash) {
+        try {
+          const total = await cashPaymentRepo.calculateOrderTotal(orderId);
+          const totalPaid = await cashPaymentRepo.getTotalPaymentsForOrder(orderId);
+          const balance = Math.max(0, total - totalPaid);
+
+          // Update cached balance
+          await cashPaymentRepo.updateOrderCachedBalance(orderId, balance, total);
+
+          if (balance > 0) {
+            console.log(`⚠️  Cash job #${order.order_number}: Has unpaid balance $${balance}, redirecting to awaiting_payment`);
+            status = 'awaiting_payment';
+          }
+        } catch (cashError) {
+          // Non-blocking: if balance check fails, proceed with completed
+          console.error('⚠️  Cash balance check failed:', cashError);
+        }
+      }
+    }
+
     // Check if moving to awaiting_payment with a fully-paid invoice
     // If invoice is already paid, skip to completed instead
     if (status === 'awaiting_payment' && order.qb_invoice_id) {
@@ -824,6 +863,21 @@ export class OrderService {
 
     for (const status of KANBAN_STATUSES) {
       columns[status] = ordersWithCalcs.filter(o => o.status === status);
+    }
+
+    // Sort shipping and pick_up columns: uninvoiced/unsent first, then invoice sent
+    // Within each group, maintain due_date sorting (already applied from SQL)
+    const sortByInvoiceStatus = (a: any, b: any) => {
+      const aInvoiceSent = a.invoice_sent_at ? 1 : 0;
+      const bInvoiceSent = b.invoice_sent_at ? 1 : 0;
+      return aInvoiceSent - bInvoiceSent;
+    };
+
+    if (columns['shipping']) {
+      columns['shipping'].sort(sortByInvoiceStatus);
+    }
+    if (columns['pick_up']) {
+      columns['pick_up'].sort(sortByInvoiceStatus);
     }
 
     // Filter painting orders - cross-status aggregation

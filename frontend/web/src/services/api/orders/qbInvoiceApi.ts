@@ -18,6 +18,20 @@ export interface InvoiceDetails {
   syncedAt: string;
 }
 
+/**
+ * Invoice line item for preview
+ * Matches backend InvoicePreviewLineItem - single source of truth
+ */
+export interface InvoicePreviewLineItem {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  isHeaderRow: boolean;
+  qbItemName: string | null;
+  isDescriptionOnly: boolean;
+}
+
 export interface InvoiceStalenessResult {
   exists: boolean;
   isStale: boolean;
@@ -115,6 +129,16 @@ export const qbInvoiceApi = {
   // ========================================
   // Invoice Operations
   // ========================================
+
+  /**
+   * Get invoice line items preview for create/update modal
+   * Returns the exact line items that will be created in QuickBooks
+   * Single source of truth - ensures preview matches actual invoice
+   */
+  async getInvoicePreview(orderNumber: number): Promise<InvoicePreviewLineItem[]> {
+    const response = await api.get(`/orders/${orderNumber}/invoice-preview`);
+    return response.data.lineItems;
+  },
 
   /**
    * Create a new invoice in QuickBooks from order data

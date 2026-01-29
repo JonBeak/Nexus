@@ -131,6 +131,16 @@ export function flattenCombinedSpecs(templateRowsMap: Map<string, string[]>): an
         }
         break;
 
+      case 'LEDs':
+        // LEDs template: first numeric value is the count
+        for (const val of values) {
+          if (/^\d+$/.test(val)) {
+            flatSpecs[`row${rowIndex}_count`] = val;
+            break;
+          }
+        }
+        break;
+
       case 'Mounting':
       case 'Pins': // Legacy - renamed to Mounting
         // Mounting template fields: count, pins, spacers

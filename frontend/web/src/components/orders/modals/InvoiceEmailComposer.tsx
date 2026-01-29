@@ -121,7 +121,13 @@ export const DEFAULT_INVOICE_BEGINNING = `Dear {{customerName}},
 
 Please find attached the invoice for your order.`;
 
-export const DEFAULT_INVOICE_END = `If you have any questions, please don't hesitate to reach out.
+export const DEFAULT_INVOICE_END = `Payment Options:
+• Interac e-Transfer to info@signhouse.ca
+• Credit Card (please call our office)
+• Cheque
+• QuickBooks Online payment portal
+
+If you have any questions, please don't hesitate to reach out.
 
 Thank you for your business!
 
@@ -167,7 +173,7 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
     config?.summaryConfig || initialSummaryConfig || DEFAULT_INVOICE_SUMMARY_CONFIG
   );
   const [includePayButton, setIncludePayButton] = useState(config?.includePayButton ?? initialIncludePayButton);
-  const [summaryExpanded, setSummaryExpanded] = useState(true);
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
   const isMobile = useIsMobile();
 
   // Refs for auto-resizing textareas

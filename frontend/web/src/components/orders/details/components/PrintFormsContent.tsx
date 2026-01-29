@@ -207,36 +207,36 @@ const PrintFormsContent: React.FC<PrintFormsContentProps> = ({
           <button
             onClick={onPrintShopPacking}
             disabled={printing || (printConfig.shop === 0 && printConfig.packing === 0)}
-            className="w-full px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5"
+            className="w-full px-3 py-2 text-sm font-medium text-green-700 bg-green-100 border border-green-300 rounded-lg hover:bg-green-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-300 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5"
           >
             <Printer className="w-4 h-4" />
-            <span>{printing ? 'Printing...' : 'Print Shop & Packing'}</span>
+            <span>{printing ? 'Printing...' : 'Print Only - Shop & Packing'}</span>
           </button>
-
-          {/* Production action buttons - only in shop_packing_production mode */}
-          {mode === 'shop_packing_production' && (
-            <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
-              <button
-                onClick={onPrintAndMoveToProduction}
-                disabled={printing || (printConfig.shop === 0 && printConfig.packing === 0)}
-                className="w-full px-3 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5"
-              >
-                <Printer className="w-4 h-4" />
-                <span>{printing ? 'Printing...' : 'Print & Move to Production'}</span>
-              </button>
-              <button
-                onClick={onMoveToProductionWithoutPrinting}
-                disabled={printing}
-                className="w-full px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5"
-              >
-                <CheckCircle className="w-4 h-4" />
-                <span>Approve without Printing</span>
-              </button>
-            </div>
-          )}
         </div>
         )}
       </div>
+
+      {/* Footer section for approval actions - only in shop_packing_production mode */}
+      {mode === 'shop_packing_production' && (
+        <div className="mt-auto pt-4 border-t border-gray-300 bg-gray-50 -mx-6 -mb-6 px-6 pb-6 space-y-2">
+          <button
+            onClick={onPrintAndMoveToProduction}
+            disabled={printing || (printConfig.shop === 0 && printConfig.packing === 0)}
+            className="w-full px-3 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5"
+          >
+            <Printer className="w-4 h-4" />
+            <span>{printing ? 'Printing...' : 'Print & Move to Production'}</span>
+          </button>
+          <button
+            onClick={onMoveToProductionWithoutPrinting}
+            disabled={printing}
+            className="w-full px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5"
+          >
+            <CheckCircle className="w-4 h-4" />
+            <span>Approve without Printing</span>
+          </button>
+        </div>
+      )}
 
     </div>
   );

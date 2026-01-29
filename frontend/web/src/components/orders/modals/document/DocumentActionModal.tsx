@@ -33,7 +33,7 @@ import { DocumentConflictModal } from './DocumentConflictModal';
 import { InvoiceLinkingPanel } from './InvoiceLinkingPanel';
 import { useModalBackdrop } from '../../../../hooks/useModalBackdrop';
 import { useAlert } from '../../../../contexts/AlertContext';
-import { qbInvoiceApi, orderPreparationApi, customerApi, settingsApi, CustomerInvoiceListItem, InvoiceLineItem } from '../../../../services/api';
+import { qbInvoiceApi, orderPreparationApi, customerApi, settingsApi, CustomerInvoiceListItem, InvoiceLineItem, InvoicePreviewLineItem } from '../../../../services/api';
 // Unified email composer for both invoices and estimates
 import InvoiceEmailComposer, {
   InvoiceEmailConfig,
@@ -176,6 +176,10 @@ export const DocumentActionModal: React.FC<DocumentActionModalProps> = ({
   const [invoiceDetails, setInvoiceDetails] = useState<Record<string, InvoiceLineItem[]>>({});
   const [loadingDetails, setLoadingDetails] = useState<Set<string>>(new Set());
 
+  // Backend-provided invoice line items preview (single source of truth for QB invoice creation)
+  const [invoicePreviewLines, setInvoicePreviewLines] = useState<InvoicePreviewLineItem[]>([]);
+  const [loadingInvoicePreview, setLoadingInvoicePreview] = useState(false);
+
   // Refs for backdrop click handling
   const scheduleModalRef = useRef<HTMLDivElement>(null);
   const scheduleMouseDownOutsideRef = useRef(false);
@@ -230,6 +234,35 @@ export const DocumentActionModal: React.FC<DocumentActionModalProps> = ({
     if (!order.parts) return [];
     return order.parts.filter(p => p.is_header_row || (p.quantity && p.quantity > 0));
   }, [order.parts]);
+
+  // Invoice preview parts from backend (single source of truth for QB invoice line items)
+  // This shows exactly what will be created in QuickBooks
+  const invoiceDisplayParts = useMemo(() => {
+    // Use backend preview data when available (for invoice create/update modes)
+    if (documentType === 'invoice' && invoicePreviewLines.length > 0) {
+      return invoicePreviewLines.map((line, idx) => ({
+        key: idx,
+        qb_item_name: line.qbItemName,
+        qb_description: line.description,  // Already matches backend logic - no fallback
+        quantity: line.quantity,
+        unit_price: line.unitPrice,
+        extended_price: line.amount,
+        is_header_row: line.isHeaderRow,
+        is_description_only: line.isDescriptionOnly
+      }));
+    }
+    // Fallback to order.parts if backend preview not loaded yet
+    return displayParts.map((part, idx) => ({
+      key: idx,
+      qb_item_name: part.qb_item_name,
+      qb_description: part.qb_description || '',  // Match backend logic - no fallback to invoice_description
+      quantity: part.quantity,
+      unit_price: part.unit_price,
+      extended_price: part.extended_price,
+      is_header_row: part.is_header_row,
+      is_description_only: false
+    }));
+  }, [documentType, invoicePreviewLines, displayParts]);
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -330,6 +363,9 @@ export const DocumentActionModal: React.FC<DocumentActionModalProps> = ({
       setLinking(false);
       setLinkError(null);
       setMobileCreateTab('create');
+      // Reset invoice preview lines
+      setInvoicePreviewLines([]);
+      setLoadingInvoicePreview(false);
       return;
     }
 
@@ -382,6 +418,14 @@ export const DocumentActionModal: React.FC<DocumentActionModalProps> = ({
           promises.push(createDataPromise);
         }
 
+        // Invoice line items preview (for invoice create/update modes - single source of truth)
+        let invoicePreviewPromise: Promise<InvoicePreviewLineItem[]> | null = null;
+        if (documentType === 'invoice' && (mode === 'create' || mode === 'update')) {
+          setLoadingInvoicePreview(true);
+          invoicePreviewPromise = qbInvoiceApi.getInvoicePreview(order.order_number);
+          promises.push(invoicePreviewPromise);
+        }
+
         // Email history (view mode only)
         let emailHistoryPromise: Promise<any> | null = null;
         if (mode === 'view') {
@@ -404,6 +448,7 @@ export const DocumentActionModal: React.FC<DocumentActionModalProps> = ({
         const createData = createDataPromise ? await createDataPromise : null;
         const historyData = emailHistoryPromise ? await emailHistoryPromise : null;
         const pdfData = pdfPromise ? await pdfPromise : null;
+        const invoicePreviewData = invoicePreviewPromise ? await invoicePreviewPromise : null;
 
         // Compute final subject with prefix
         let finalSubject = emailPreview?.subject || `${order.order_name} | ${config.labels.documentName} #${qbDocumentNumber || 'New'}`;
@@ -501,6 +546,10 @@ export const DocumentActionModal: React.FC<DocumentActionModalProps> = ({
         }
         if (historyData) setEmailHistory(historyData);
         if (pdfData?.pdf) setDocumentPdf(pdfData.pdf);
+        if (invoicePreviewData) {
+          setInvoicePreviewLines(invoicePreviewData);
+          setLoadingInvoicePreview(false);
+        }
 
         setIsInitialized(true);
       } catch (err) {
@@ -1141,15 +1190,20 @@ export const DocumentActionModal: React.FC<DocumentActionModalProps> = ({
                           <p className="text-sm text-gray-900">{formattedDate}</p>
                         </div>
                         <div className="mb-4 space-y-3">
-                          {displayParts.map((part, idx) => (
+                          {loadingInvoicePreview ? (
+                            <div className="flex items-center justify-center py-4">
+                              <Loader2 className="w-4 h-4 animate-spin text-gray-400 mr-2" />
+                              <span className="text-sm text-gray-500">Loading preview...</span>
+                            </div>
+                          ) : invoiceDisplayParts.map((part) => (
                             part.is_header_row ? (
-                              <div key={idx} className="bg-gray-100 border border-gray-300 rounded-lg p-3">
+                              <div key={part.key} className="bg-gray-100 border border-gray-300 rounded-lg p-3">
                                 <div className="font-semibold text-gray-900 text-sm">
-                                  {part.qb_description || part.invoice_description || 'Section Header'}
+                                  {part.qb_description || 'Section Header'}
                                 </div>
                               </div>
                             ) : (
-                              <div key={idx} className="bg-white border border-gray-300 rounded-lg p-3">
+                              <div key={part.key} className="bg-white border border-gray-300 rounded-lg p-3">
                                 <div className="font-medium text-gray-900 text-sm">{part.qb_item_name || '-'}</div>
                                 <div className="flex items-center justify-between mt-2 text-sm">
                                   <span className="text-gray-600">Qty: <span className="font-medium">{part.quantity}</span></span>
@@ -1300,45 +1354,52 @@ export const DocumentActionModal: React.FC<DocumentActionModalProps> = ({
 
                       {/* Line Items */}
                       <div className="mb-5">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="border-b border-gray-300">
-                              <th className="text-left py-2 font-medium text-gray-700 w-24">Item</th>
-                              <th className="text-left py-2 font-medium text-gray-700">QB Description</th>
-                              <th className="text-right py-2 font-medium text-gray-700 w-12">Qty</th>
-                              <th className="text-right py-2 font-medium text-gray-700 w-16">Price</th>
-                              <th className="text-right py-2 font-medium text-gray-700 w-16">Amount</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {displayParts.map((part, idx) => (
-                              part.is_header_row ? (
-                                <tr key={idx} className="bg-gray-100">
-                                  <td className="py-2"></td>
-                                  <td className="py-2 font-semibold text-gray-900 whitespace-pre-wrap">
-                                    {part.qb_description || part.invoice_description || 'Section Header'}
-                                  </td>
-                                  <td className="py-2"></td>
-                                  <td className="py-2"></td>
-                                  <td className="py-2"></td>
-                                </tr>
-                              ) : (
-                                <tr key={idx} className="border-b border-gray-200 align-top">
-                                  <td className="py-2 text-gray-900">{part.qb_item_name || '-'}</td>
-                                  <td className="py-2 text-gray-600 whitespace-pre-wrap">
-                                    {part.qb_description || part.invoice_description || '-'}
-                                  </td>
-                                  <td className="py-2 text-right text-gray-600">{part.quantity}</td>
-                                  <td className="py-2 text-right text-gray-600">${Number(part.unit_price || 0).toFixed(2)}</td>
-                                  <td className="py-2 text-right text-gray-900">${Number(part.extended_price || 0).toFixed(2)}</td>
-                                </tr>
-                              )
-                            ))}
-                            {displayParts.filter(p => !p.is_header_row).length === 0 && (
-                              <tr><td colSpan={5} className="py-4 text-center text-gray-500 italic">No line items</td></tr>
-                            )}
-                          </tbody>
-                        </table>
+                        {loadingInvoicePreview ? (
+                          <div className="flex items-center justify-center py-6">
+                            <Loader2 className="w-4 h-4 animate-spin text-gray-400 mr-2" />
+                            <span className="text-sm text-gray-500">Loading preview...</span>
+                          </div>
+                        ) : (
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="border-b border-gray-300">
+                                <th className="text-left py-2 font-medium text-gray-700 w-24">Item</th>
+                                <th className="text-left py-2 font-medium text-gray-700">QB Description</th>
+                                <th className="text-right py-2 font-medium text-gray-700 w-12">Qty</th>
+                                <th className="text-right py-2 font-medium text-gray-700 w-16">Price</th>
+                                <th className="text-right py-2 font-medium text-gray-700 w-16">Amount</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {invoiceDisplayParts.map((part) => (
+                                part.is_header_row ? (
+                                  <tr key={part.key} className="bg-gray-100">
+                                    <td className="py-2"></td>
+                                    <td className="py-2 font-semibold text-gray-900 whitespace-pre-wrap">
+                                      {part.qb_description || 'Section Header'}
+                                    </td>
+                                    <td className="py-2"></td>
+                                    <td className="py-2"></td>
+                                    <td className="py-2"></td>
+                                  </tr>
+                                ) : (
+                                  <tr key={part.key} className="border-b border-gray-200 align-top">
+                                    <td className="py-2 text-gray-900">{part.qb_item_name || '-'}</td>
+                                    <td className="py-2 text-gray-600 whitespace-pre-wrap">
+                                      {part.qb_description || '-'}
+                                    </td>
+                                    <td className="py-2 text-right text-gray-600">{part.quantity}</td>
+                                    <td className="py-2 text-right text-gray-600">${Number(part.unit_price || 0).toFixed(2)}</td>
+                                    <td className="py-2 text-right text-gray-900">${Number(part.extended_price || 0).toFixed(2)}</td>
+                                  </tr>
+                                )
+                              ))}
+                              {invoiceDisplayParts.filter(p => !p.is_header_row).length === 0 && (
+                                <tr><td colSpan={5} className="py-4 text-center text-gray-500 italic">No line items</td></tr>
+                              )}
+                            </tbody>
+                          </table>
+                        )}
                       </div>
 
                       {/* Totals */}

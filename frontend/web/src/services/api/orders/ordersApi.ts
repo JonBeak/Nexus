@@ -162,10 +162,12 @@ export const ordersApi = {
   /**
    * Check awaiting payment orders for auto-completion
    * Called on page load to sync balance and auto-complete paid orders
+   * Also detects refunds on completed orders and moves them back to awaiting_payment
    */
   async checkAwaitingPayments(): Promise<{
     checked: number;
     autoCompleted: number;
+    movedToAwaiting: number;
     errors: number;
   }> {
     const response = await api.post('/orders/check-awaiting-payments');
