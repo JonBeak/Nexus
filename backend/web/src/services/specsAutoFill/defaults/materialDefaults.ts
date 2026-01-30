@@ -31,10 +31,16 @@ export function getDefaultFaceMaterial(specsDisplayName: string): string | null 
 
 /**
  * Get default face color based on specs display name
- * Note: Most products have no auto-fill - user should select manually
+ * Returns "White" for products with 2mm PC face material
  */
 export function getDefaultFaceColor(specsDisplayName: string): string | null {
   switch (specsDisplayName) {
+    case 'Front Lit':
+    case 'Dual Lit - Single Layer':
+    case 'Dual Lit - Double Layer':
+    case 'Trim Cap':
+      return 'White';
+
     case 'Front Lit Acrylic Face':
       return 'White 2447';
 

@@ -525,7 +525,8 @@ export async function generateConditionalTasks(
     const isBacker = itemName.includes('backer') ||
                      itemName.includes('raceway') ||
                      itemName.includes('push thru') ||
-                     itemName.includes('knockout box');
+                     itemName.includes('knockout box') ||
+                     itemName.includes('frame');
     const taskName = isBacker ? 'Assembly' : 'Face Assembly';
 
     tasks.push({

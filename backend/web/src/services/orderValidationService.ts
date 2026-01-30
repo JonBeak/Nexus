@@ -24,6 +24,7 @@
 import { orderPartRepository } from '../repositories/orderPartRepository';
 import { standardizeOrderSpecifications, StandardizedOrderSpecs } from './orderSpecificationStandardizationService';
 import { SPEC_VALIDATION_RULES, SpecValidationRule } from './orderValidationRules';
+import { OrderPart } from '../types/orders';
 
 /**
  * Validation error details
@@ -74,6 +75,19 @@ export class OrderValidationService {
       });
       return { isValid: false, errors };
     }
+
+    // NEW: Merge orphaned specs (parts without Item Name) to parent BEFORE cleanup
+    const mergeResult = await this.mergeOrphanedSpecsToParent(parts);
+    if (mergeResult.mergedCount > 0) {
+      console.log(`[VALIDATION] Merged specs from ${mergeResult.mergedCount} part(s) without Item Name to parent parts`);
+      // Re-fetch parts after merge
+      const mergedParts = await orderPartRepository.getOrderParts(orderId);
+      parts.length = 0;
+      parts.push(...mergedParts);
+    }
+
+    // Add any merge errors (orphaned specs with no parent)
+    errors.push(...mergeResult.errors);
 
     // Clean up empty spec rows BEFORE validation
     // This removes spec templates that have no filled-in values
@@ -303,6 +317,188 @@ export class OrderValidationService {
     }
 
     return errors;
+  }
+
+  // =============================================
+  // ORPHANED SPECS MERGE OPERATIONS
+  // =============================================
+
+  /**
+   * Merge specs from parts without Item Name to the first part above with Item Name
+   * Called BEFORE cleanEmptySpecRows to preserve orphaned specs
+   *
+   * When a part has no specs_display_name (Item Name not selected) but has spec data,
+   * those specs would otherwise be deleted by cleanEmptySpecRows. This method
+   * preserves them by merging into the nearest parent part that has an Item Name.
+   */
+  private async mergeOrphanedSpecsToParent(parts: OrderPart[]): Promise<{
+    mergedCount: number;
+    errors: ValidationError[];
+  }> {
+    let mergedCount = 0;
+    const errors: ValidationError[] = [];
+
+    // Parts are already ordered by part_number
+    // Track the last part that had an Item Name selection
+    let lastParentWithItemName: OrderPart | null = null;
+
+    for (const part of parts) {
+      // Skip header rows
+      if (part.is_header_row) {
+        continue;
+      }
+
+      if (part.specs_display_name) {
+        // This part has an Item Name - it can receive orphaned specs
+        lastParentWithItemName = part;
+      } else {
+        // This part has NO Item Name
+        // Check if it has any specs that need merging
+        const specs = typeof part.specifications === 'string'
+          ? JSON.parse(part.specifications)
+          : part.specifications;
+
+        if (specs && this.hasAnySpecs(specs)) {
+          if (lastParentWithItemName) {
+            // Merge these specs into the parent
+            await this.mergeSpecsIntoParent(part, lastParentWithItemName);
+            mergedCount++;
+            console.log(`[VALIDATION] Merged specs from part ${part.part_number} (no Item Name) into part ${lastParentWithItemName.part_number}`);
+          } else {
+            // No valid parent found - add validation error
+            errors.push({
+              field: 'specifications',
+              message: `Part ${part.part_number} has specifications but no Item Name selected, and no parent part above to merge into`,
+              partNumber: part.part_number
+            });
+          }
+        }
+      }
+    }
+
+    return { mergedCount, errors };
+  }
+
+  /**
+   * Check if a specifications object has any template rows with values
+   */
+  private hasAnySpecs(specs: Record<string, any>): boolean {
+    if (!specs || typeof specs !== 'object') {
+      return false;
+    }
+
+    // Find all template keys
+    const templateKeys = Object.keys(specs).filter(key => key.match(/^_template(_\d+)?$/));
+
+    for (const templateKey of templateKeys) {
+      const templateName = specs[templateKey];
+      if (!templateName || templateName.trim() === '') {
+        continue;
+      }
+
+      // Get row number from template key
+      const rowNum = templateKey === '_template' ? '' : templateKey.replace('_template_', '');
+      const rowPrefix = rowNum ? `row${rowNum}_` : 'row_';
+
+      // Check if any field for this row has a value
+      for (const key of Object.keys(specs)) {
+        if (key.startsWith(rowPrefix)) {
+          const value = specs[key];
+          if (value !== null && value !== undefined && value !== '') {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Merge spec rows from source part into target parent part
+   * Copies each template row from source to parent with new sequential row numbers
+   */
+  private async mergeSpecsIntoParent(sourcePart: OrderPart, parentPart: OrderPart): Promise<void> {
+    // Parse source specs
+    const sourceSpecs = typeof sourcePart.specifications === 'string'
+      ? JSON.parse(sourcePart.specifications)
+      : sourcePart.specifications || {};
+
+    // Parse parent specs
+    const parentSpecs = typeof parentPart.specifications === 'string'
+      ? JSON.parse(parentPart.specifications)
+      : parentPart.specifications || {};
+
+    // Find the next available row number in parent
+    const parentTemplateKeys = Object.keys(parentSpecs).filter(key => key.match(/^_template(_\d+)?$/));
+    let nextRowNum = 1;
+    for (const key of parentTemplateKeys) {
+      const num = key === '_template' ? 0 : parseInt(key.replace('_template_', ''), 10);
+      if (num >= nextRowNum) {
+        nextRowNum = num + 1;
+      }
+    }
+
+    // Extract valid template rows from source
+    const sourceTemplateKeys = Object.keys(sourceSpecs)
+      .filter(key => key.match(/^_template(_\d+)?$/))
+      .sort((a, b) => {
+        const numA = a === '_template' ? 0 : parseInt(a.replace('_template_', ''), 10);
+        const numB = b === '_template' ? 0 : parseInt(b.replace('_template_', ''), 10);
+        return numA - numB;
+      });
+
+    // Copy each template row from source to parent with new row numbers
+    for (const sourceTemplateKey of sourceTemplateKeys) {
+      const templateName = sourceSpecs[sourceTemplateKey];
+      if (!templateName || templateName.trim() === '') {
+        continue;
+      }
+
+      const sourceRowNum = sourceTemplateKey === '_template' ? '' : sourceTemplateKey.replace('_template_', '');
+      const sourceRowPrefix = sourceRowNum ? `row${sourceRowNum}_` : 'row_';
+
+      // Check if this row has any values
+      let hasValues = false;
+      const fields: Record<string, any> = {};
+
+      for (const key of Object.keys(sourceSpecs)) {
+        if (key.startsWith(sourceRowPrefix)) {
+          const fieldName = key.replace(sourceRowPrefix, '');
+          const value = sourceSpecs[key];
+          fields[fieldName] = value;
+          if (value !== null && value !== undefined && value !== '') {
+            hasValues = true;
+          }
+        }
+      }
+
+      // Only copy if row has values
+      if (hasValues) {
+        // Add template to parent with new row number
+        parentSpecs[`_template_${nextRowNum}`] = templateName;
+
+        // Add all fields with new row prefix
+        for (const [fieldName, value] of Object.entries(fields)) {
+          parentSpecs[`row${nextRowNum}_${fieldName}`] = value;
+        }
+
+        nextRowNum++;
+      }
+    }
+
+    // Update parent's _row_count
+    parentSpecs._row_count = nextRowNum - 1;
+
+    // Save parent specs to database
+    await orderPartRepository.updateOrderPart(parentPart.part_id, {
+      specifications: parentSpecs
+    });
+
+    // Clear source part's specs (set to minimal object)
+    await orderPartRepository.updateOrderPart(sourcePart.part_id, {
+      specifications: { _row_count: 1 }
+    });
   }
 }
 

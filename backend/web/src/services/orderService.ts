@@ -858,7 +858,8 @@ export class OrderService {
       'pick_up',
       'awaiting_payment',
       'completed',
-      'cancelled'
+      'cancelled',
+      'on_hold'
     ];
 
     for (const status of KANBAN_STATUSES) {
@@ -878,6 +879,9 @@ export class OrderService {
     }
     if (columns['pick_up']) {
       columns['pick_up'].sort(sortByInvoiceStatus);
+    }
+    if (columns['awaiting_payment']) {
+      columns['awaiting_payment'].sort(sortByInvoiceStatus);
     }
 
     // Filter painting orders - cross-status aggregation

@@ -217,7 +217,9 @@ export class EstimateWorkflowService {
           qb_item_id: qbItemId,
           qb_item_name: qbItemName,
           source_row_id: item.rowId || null,
-          source_product_type_id: item.productTypeId || null
+          source_product_type_id: item.productTypeId || null,
+          is_parent: item.isParent ?? null,
+          estimate_preview_display_number: item.estimatePreviewDisplayNumber || null
         });
       }
 

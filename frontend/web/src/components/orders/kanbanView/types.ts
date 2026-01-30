@@ -53,7 +53,8 @@ export const KANBAN_STATUS_ORDER: OrderStatus[] = [
   'pick_up',
   'awaiting_payment',
   'completed',
-  'cancelled'
+  'cancelled',
+  'on_hold'
 ];
 
 /**
@@ -98,6 +99,25 @@ export const KANBAN_COLUMN_COLORS: Record<OrderStatus, { header: string; border:
  */
 export const KANBAN_COLLAPSED_BY_DEFAULT: OrderStatus[] = [
   'cancelled'
+];
+
+/**
+ * Divider configuration for visual separation between workflow phases
+ */
+export interface KanbanDivider {
+  afterStatus: OrderStatus;
+  afterStackedGroup?: boolean; // true if divider appears after a stacked group containing this status
+  label: string;
+}
+
+/**
+ * Dividers between column groups with workflow phase labels
+ */
+export const KANBAN_DIVIDERS: KanbanDivider[] = [
+  { afterStatus: 'pending_production_files_approval', afterStackedGroup: true, label: 'Production' },
+  { afterStatus: 'qc_packing', label: 'Production Complete' },
+  { afterStatus: 'pick_up', label: 'Shipped' },
+  { afterStatus: 'completed', label: 'Inactive' }
 ];
 
 /**

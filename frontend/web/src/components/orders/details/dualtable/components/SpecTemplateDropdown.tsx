@@ -7,7 +7,7 @@
  */
 
 import React, { useState } from 'react';
-import { getValidSpecTemplateClass } from '@/utils/highlightStyles';
+import { getValidSpecTemplateClass, getNonDefaultFaceTemplateClass } from '@/utils/highlightStyles';
 import { INPUT_STYLES } from '@/utils/inputStyles';
 import { handleSpecTabNavigation } from './specTabNavigation';
 
@@ -19,6 +19,7 @@ interface SpecTemplateDropdownProps {
   availableTemplates: string[];
   hasValue: boolean;
   isEmpty?: boolean;
+  isNonDefaultFace?: boolean;
 }
 
 export const SpecTemplateDropdown = React.memo<SpecTemplateDropdownProps>(({
@@ -28,7 +29,8 @@ export const SpecTemplateDropdown = React.memo<SpecTemplateDropdownProps>(({
   onSave,
   availableTemplates,
   hasValue,
-  isEmpty = false
+  isEmpty = false,
+  isNonDefaultFace = false
 }) => {
   const [isSaving, setIsSaving] = useState(false);
 
@@ -48,13 +50,18 @@ export const SpecTemplateDropdown = React.memo<SpecTemplateDropdownProps>(({
     isEmpty,
   });
 
+  // Apply non-default Face styling if applicable, otherwise use standard valid template class
+  const finalClass = isNonDefaultFace
+    ? getNonDefaultFaceTemplateClass(true, baseClass)
+    : getValidSpecTemplateClass(hasValue, baseClass);
+
   return (
     <div className="h-[26px] flex items-center">
       <select
         value={currentValue}
         onChange={(e) => handleChange(e.target.value)}
         onKeyDown={(e) => handleSpecTabNavigation(e, partId, rowNum, 0)}
-        className={getValidSpecTemplateClass(hasValue, baseClass)}
+        className={finalClass}
         disabled={isSaving}
         data-spec-part={partId}
         data-spec-row={rowNum}
@@ -74,7 +81,8 @@ export const SpecTemplateDropdown = React.memo<SpecTemplateDropdownProps>(({
          prevProps.hasValue === nextProps.hasValue &&
          prevProps.partId === nextProps.partId &&
          prevProps.rowNum === nextProps.rowNum &&
-         prevProps.isEmpty === nextProps.isEmpty;
+         prevProps.isEmpty === nextProps.isEmpty &&
+         prevProps.isNonDefaultFace === nextProps.isNonDefaultFace;
 });
 
 SpecTemplateDropdown.displayName = 'SpecTemplateDropdown';

@@ -27,12 +27,14 @@ import { OrderQuickModal } from '../calendarView/OrderQuickModal';
 import { CalendarOrder } from '../calendarView/types';
 import { KanbanColumn } from './KanbanColumn';
 import { KanbanCard } from './KanbanCard';
+import { KanbanDivider } from './KanbanDivider';
 import { MobileScrollbar } from './MobileScrollbar';
 import {
   KANBAN_STATUS_ORDER,
   KANBAN_HIDDEN_STATUSES,
   KANBAN_STACKED_GROUPS,
   KANBAN_COLLAPSED_BY_DEFAULT,
+  KANBAN_DIVIDERS,
   PAINTING_COLUMN_ID,
   PAINTING_COLUMN_COLORS
 } from './types';
@@ -79,6 +81,8 @@ export const KanbanView: React.FC = () => {
   const [collapsedColumns, setCollapsedColumns] = useState<Set<OrderStatus>>(
     () => new Set(KANBAN_COLLAPSED_BY_DEFAULT)
   );
+  // Track just-dropped order to scroll into view after refetch
+  const [justDroppedOrderId, setJustDroppedOrderId] = useState<number | null>(null);
 
   // Mobile detection and scroll container ref
   const isMobile = useIsMobile();
@@ -162,6 +166,20 @@ export const KanbanView: React.FC = () => {
     onInvoiceUpdated: fetchOrders,
     onReconnect: fetchOrders
   });
+
+  // Scroll to just-dropped card after data refreshes
+  useEffect(() => {
+    if (justDroppedOrderId !== null) {
+      const timer = setTimeout(() => {
+        const cardElement = document.querySelector(`[data-order-id="${justDroppedOrderId}"]`);
+        if (cardElement) {
+          cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        setJustDroppedOrderId(null);
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [ordersByStatus, justDroppedOrderId]);
 
   // Memoized toggle handlers to prevent child re-renders
   const handleToggleShowAll = useCallback((status: OrderStatus) => {
@@ -249,6 +267,8 @@ export const KanbanView: React.FC = () => {
 
     try {
       await orderStatusApi.updateOrderStatus(order.order_number, newStatus);
+      // Track dropped order for scroll-into-view after refetch
+      setJustDroppedOrderId(order.order_id);
       // Refetch to get proper sorting
       fetchOrders();
     } catch (err) {
@@ -305,63 +325,81 @@ export const KanbanView: React.FC = () => {
           onDragEnd={handleDragEnd}
         >
           <div className="flex gap-4 h-full min-w-max">
+            {/* Leading divider for first section */}
+            <KanbanDivider label="Setup & Approval" isMobile={isMobile} />
             {COLUMN_LAYOUT.map((group, groupIdx) => {
+              // Check if a divider should follow this group
+              const divider = KANBAN_DIVIDERS.find(d =>
+                d.afterStackedGroup
+                  ? group.includes(d.afterStatus)
+                  : group.length === 1 && group[0] === d.afterStatus
+              );
+
+              // Wrapper for desktop top margin (aligns columns below divider labels)
+              const columnTopClass = isMobile ? 'h-full' : 'mt-5 h-[calc(100%-1.25rem)]';
+
               // Single column
               if (group.length === 1) {
                 const status = group[0];
                 const isCollapsible = KANBAN_COLLAPSED_BY_DEFAULT.includes(status);
-                const elements = [
-                  <KanbanColumn
-                    key={status}
-                    status={status}
-                    orders={ordersByStatus[status] || []}
-                    onCardClick={handleCardClick}
-                    onOrderUpdated={fetchOrders}
-                    expanded={expandedCards}
-                    onToggleExpanded={handleToggleExpanded}
-                    isHiddenStatus={KANBAN_HIDDEN_STATUSES.includes(status)}
-                    showingAll={showAllColumns.has(status)}
-                    totalCount={getTotalCount(status)}
-                    onToggleShowAll={() => handleToggleShowAll(status)}
-                    isCollapsible={isCollapsible}
-                    isCollapsed={collapsedColumns.has(status)}
-                    onToggleCollapsed={() => handleToggleCollapsed(status)}
-                  />
+                const elements: React.ReactNode[] = [
+                  <div key={status} className={columnTopClass}>
+                    <KanbanColumn
+                      status={status}
+                      orders={ordersByStatus[status] || []}
+                      onCardClick={handleCardClick}
+                      onOrderUpdated={fetchOrders}
+                      expanded={expandedCards}
+                      onToggleExpanded={handleToggleExpanded}
+                      isHiddenStatus={KANBAN_HIDDEN_STATUSES.includes(status)}
+                      showingAll={showAllColumns.has(status)}
+                      totalCount={getTotalCount(status)}
+                      onToggleShowAll={() => handleToggleShowAll(status)}
+                      isCollapsible={isCollapsible}
+                      isCollapsed={collapsedColumns.has(status)}
+                      onToggleCollapsed={() => handleToggleCollapsed(status)}
+                    />
+                  </div>
                 ];
 
                 // Insert Painting column after 'in_production' if there are painting orders
                 if (status === 'in_production' && paintingOrders.length > 0) {
                   elements.push(
-                    <KanbanColumn
-                      key={PAINTING_COLUMN_ID}
-                      status={'in_production' as OrderStatus}
-                      columnId={PAINTING_COLUMN_ID}
-                      columnLabel="Painting"
-                      columnColors={PAINTING_COLUMN_COLORS}
-                      orders={paintingOrders}
-                      onCardClick={handleCardClick}
-                      onOrderUpdated={fetchOrders}
-                      expanded={expandedCards}
-                      onToggleExpanded={handleToggleExpanded}
-                      disableDrop={true}
-                      cardsDisableDrag={true}
-                      cardsShowPaintingBadge={true}
-                    />
+                    <div key={PAINTING_COLUMN_ID} className={columnTopClass}>
+                      <KanbanColumn
+                        status={'in_production' as OrderStatus}
+                        columnId={PAINTING_COLUMN_ID}
+                        columnLabel="Painting"
+                        columnColors={PAINTING_COLUMN_COLORS}
+                        orders={paintingOrders}
+                        onCardClick={handleCardClick}
+                        onOrderUpdated={fetchOrders}
+                        expanded={expandedCards}
+                        onToggleExpanded={handleToggleExpanded}
+                        disableDrop={true}
+                        cardsDisableDrag={true}
+                        cardsShowPaintingBadge={true}
+                      />
+                    </div>
                   );
+                }
+
+                // Add divider after this column if configured
+                if (divider) {
+                  elements.push(<KanbanDivider key={`divider-${divider.label}`} label={divider.label} isMobile={isMobile} />);
                 }
 
                 return elements;
               }
 
               // Stacked columns
-              return (
-                <div key={`group-${groupIdx}`} className="flex flex-col gap-4 h-full">
+              const stackedElements: React.ReactNode[] = [
+                <div key={`group-${groupIdx}`} className={`flex flex-col gap-4 ${columnTopClass}`}>
                   {group.map(status => {
                     const isCollapsible = KANBAN_COLLAPSED_BY_DEFAULT.includes(status);
                     return (
                       <div key={status} className="flex-1 min-h-0">
                         <KanbanColumn
-                          key={status}
                           status={status}
                           orders={ordersByStatus[status] || []}
                           onCardClick={handleCardClick}
@@ -380,7 +418,14 @@ export const KanbanView: React.FC = () => {
                     );
                   })}
                 </div>
-              );
+              ];
+
+              // Add divider after stacked group if configured
+              if (divider) {
+                stackedElements.push(<KanbanDivider key={`divider-${divider.label}`} label={divider.label} isMobile={isMobile} />);
+              }
+
+              return stackedElements;
             })}
           </div>
 

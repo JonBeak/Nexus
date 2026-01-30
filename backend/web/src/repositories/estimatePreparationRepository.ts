@@ -26,6 +26,8 @@ export interface EstimatePreparationItem {
   qb_item_name: string | null;
   source_row_id: string | null;
   source_product_type_id: number | null;
+  is_parent: boolean | null;
+  estimate_preview_display_number: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -42,6 +44,8 @@ export interface CreatePreparationItemData {
   qb_item_name?: string | null;
   source_row_id?: string | null;
   source_product_type_id?: number | null;
+  is_parent?: boolean | null;
+  estimate_preview_display_number?: string | null;
 }
 
 export interface UpdatePreparationItemData {
@@ -97,6 +101,7 @@ class EstimatePreparationRepository {
         `SELECT id, estimate_id, display_order, item_name, qb_description,
                 calculation_display, quantity, unit_price, extended_price, is_description_only,
                 qb_item_id, qb_item_name, source_row_id, source_product_type_id,
+                is_parent, estimate_preview_display_number,
                 created_at, updated_at
          FROM estimate_preparation_items
          WHERE estimate_id = ?
@@ -109,6 +114,7 @@ class EstimatePreparationRepository {
         `SELECT id, estimate_id, display_order, item_name, qb_description,
                 calculation_display, quantity, unit_price, extended_price, is_description_only,
                 qb_item_id, qb_item_name, source_row_id, source_product_type_id,
+                is_parent, estimate_preview_display_number,
                 created_at, updated_at
          FROM estimate_preparation_items
          WHERE estimate_id = ?
@@ -127,6 +133,7 @@ class EstimatePreparationRepository {
       `SELECT id, estimate_id, display_order, item_name, qb_description,
               calculation_display, quantity, unit_price, extended_price, is_description_only,
               qb_item_id, qb_item_name, source_row_id, source_product_type_id,
+              is_parent, estimate_preview_display_number,
               created_at, updated_at
        FROM estimate_preparation_items
        WHERE id = ?`,
@@ -160,11 +167,13 @@ class EstimatePreparationRepository {
       item.qb_item_id || null,
       item.qb_item_name || null,
       item.source_row_id || null,
-      item.source_product_type_id || null
+      item.source_product_type_id || null,
+      item.is_parent !== undefined ? (item.is_parent ? 1 : 0) : null,
+      item.estimate_preview_display_number || null
     ]);
 
     const placeholders = items.map(() =>
-      '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).join(', ');
     const flatValues = values.flat();
 
@@ -172,7 +181,8 @@ class EstimatePreparationRepository {
       `INSERT INTO estimate_preparation_items
          (estimate_id, display_order, item_name, qb_description, calculation_display,
           quantity, unit_price, extended_price, is_description_only,
-          qb_item_id, qb_item_name, source_row_id, source_product_type_id)
+          qb_item_id, qb_item_name, source_row_id, source_product_type_id,
+          is_parent, estimate_preview_display_number)
        VALUES ${placeholders}`,
       flatValues
     );

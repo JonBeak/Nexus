@@ -224,17 +224,13 @@ export class OrderPartCreationService {
       // Parent rows: displayNumber is numeric only ("1", "2", "3") - first row is always parent
       // Sub-items: displayNumber has letters ("1a", "1b", "2a") - grouped under preceding parent
       // The frontend may also explicitly set isParent=true to force parent status
-      // IMPORTANT: Items without a valid spec mapping are treated as sub-parts
+      // NOTE: Parent/sub-part status is determined by display number, NOT by spec mapping
       const displayNumber = item.estimatePreviewDisplayNumber || `${i + 1}`;
       const isSubItem = /[a-zA-Z]/.test(displayNumber);
-      const preliminaryIsParent = specsDisplayName ? (item.isParent || !isSubItem) : false;
+      const isParentOrRegular = item.isParent || !isSubItem;
 
-      // Generate spec types from specs display name
-      const specTypes = mapSpecsDisplayNameToTypes(specsDisplayName, preliminaryIsParent);
-
-      // CRITICAL: If no valid spec mapping found (empty specTypes), treat as sub-part
-      // This handles "Select Item Name..." and other unmapped QB items correctly
-      const isParentOrRegular = specTypes.length > 0 ? preliminaryIsParent : false;
+      // Generate spec types from specs display name (for specification templates only)
+      const specTypes = mapSpecsDisplayNameToTypes(specsDisplayName, isParentOrRegular);
 
       // Build specifications object with spec templates (no longer storing _qb_description in JSON)
       const specificationsData: any = {};

@@ -673,6 +673,30 @@ export const BACK_TEMPLATE: SpecificationTemplate = {
 };
 
 /**
+ * Template: Frame
+ * Spec 1: Material (combobox: frame materials - angle sizes and tube)
+ * Spec 2: Colour (combobox: frame colours) - Default: Mill Finish
+ * Spec 3: -
+ */
+export const FRAME_TEMPLATE: SpecificationTemplate = {
+  templateName: 'Frame',
+  spec1: {
+    key: 'material',
+    label: 'Material',
+    type: 'combobox',
+    options: [], // Populated from DB: frame_materials
+    placeholder: 'Material'
+  },
+  spec2: {
+    key: 'colour',
+    label: 'Colour',
+    type: 'combobox',
+    options: [], // Populated from DB: frame_colours
+    placeholder: 'Colour'
+  }
+};
+
+/**
  * Template: 3DP Return
  * Spec 1: Depth (combobox: 1", 1.25", 1.5", 2", Custom)
  * Spec 2: Colour (combobox: 3D print colours - Translucent White, Opaque White, etc.)
@@ -762,6 +786,7 @@ const TEMPLATE_REGISTRY: Record<string, SpecificationTemplate> = {
   'Mask': MASK_TEMPLATE,
   'Extr. Colour': EXTR_COLOUR_TEMPLATE,
   'Back': BACK_TEMPLATE,
+  'Frame': FRAME_TEMPLATE,
   '3DP Return': THREE_DP_RETURN_TEMPLATE,
   'Illumination': ILLUMINATION_TEMPLATE
 };
@@ -1090,6 +1115,14 @@ export function populateSpecificationOptions(optionsMap: Record<string, string[]
   // BACK_TEMPLATE
   if (BACK_TEMPLATE.spec1) {
     BACK_TEMPLATE.spec1.options = getOptions('back_materials');
+  }
+
+  // FRAME_TEMPLATE
+  if (FRAME_TEMPLATE.spec1) {
+    FRAME_TEMPLATE.spec1.options = getOptions('frame_materials');
+  }
+  if (FRAME_TEMPLATE.spec2) {
+    FRAME_TEMPLATE.spec2.options = getOptions('frame_colours');
   }
 
   // THREE_DP_RETURN_TEMPLATE

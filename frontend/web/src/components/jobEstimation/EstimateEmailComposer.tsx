@@ -176,7 +176,7 @@ const EstimateEmailComposer: React.FC<EstimateEmailComposerProps> = ({
   );
   const [loadingTemplate, setLoadingTemplate] = useState(false);
   const [showVariables, setShowVariables] = useState(false);
-  const [summaryExpanded, setSummaryExpanded] = useState(true);
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
 
   // Refs for auto-resizing textareas
   const beginningRef = useRef<HTMLTextAreaElement>(null);

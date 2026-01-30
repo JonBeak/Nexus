@@ -361,6 +361,22 @@ export const OrderDetailsPage: React.FC = () => {
     refetch();
   };
 
+  // Auto-open send modal after invoice creation
+  const handleInvoiceCreated = async () => {
+    setShowInvoiceModal(false);
+    await refetch();
+    setInvoiceModalMode('send');
+    setShowInvoiceModal(true);
+  };
+
+  // Auto-open send modal after estimate creation (cash jobs)
+  const handleEstimateCreated = async () => {
+    setShowCreateEstimateModal(false);
+    await refetch();
+    setEstimateActionMode('send');
+    setShowEstimateActionModal(true);
+  };
+
   // Handle cash job estimate actions (Create / Update / Send / View Estimate)
   const handleCashEstimateAction = async (action: CashEstimateAction) => {
     if (!orderData.order) return;
@@ -1230,6 +1246,7 @@ export const OrderDetailsPage: React.FC = () => {
         order={orderData.order}
         mode={invoiceModalMode}
         onSuccess={pendingStatusChange ? handleInvoiceSuccessWithStatusChange : handleInvoiceSuccess}
+        onCreated={invoiceModalMode === 'create' && !pendingStatusChange ? handleInvoiceCreated : undefined}
         onSkip={pendingStatusChange ? handleSkipInvoiceAndProceed : undefined}
         onReassign={(isDeleted) => {
           setShowInvoiceModal(false);
@@ -1323,6 +1340,7 @@ export const OrderDetailsPage: React.FC = () => {
             showSuccess('QB estimate created successfully');
             refetch();
           }}
+          onCreated={handleEstimateCreated}
           onLinkExisting={() => {
             setShowCreateEstimateModal(false);
             setShowLinkEstimateModal(true);

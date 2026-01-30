@@ -81,7 +81,8 @@ if [ -d "$TARGET_DIR/dist-$BUILD_TYPE" ]; then
         if [ "$BUILD_TYPE" = "production" ]; then
             echo "   Nginx automatically serves the restored build"
         else
-            echo "   Activate: stop-servers.sh && start-dev.sh"
+            echo "   ⚠️  Note: Frontend dev uses Vite which serves from source, not dist-dev."
+            echo "   This restore has no effect on the running dev server."
         fi
     fi
 else

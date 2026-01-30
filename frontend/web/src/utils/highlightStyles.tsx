@@ -248,3 +248,71 @@ export function getValidSpecFieldClass(
   }
   return baseClass;
 }
+
+// ============================================================================
+// Non-Default Face Spec Styling
+// ============================================================================
+
+/**
+ * Products with default Face spec (2mm PC + White)
+ */
+export const PRODUCTS_WITH_DEFAULT_FACE = [
+  'Front Lit',
+  'Dual Lit - Single Layer',
+  'Dual Lit - Double Layer',
+  'Front Lit Push Thru',
+  'Channel Letter'
+];
+
+/**
+ * Default Face specification values
+ */
+export const DEFAULT_FACE_SPEC = {
+  material: '2mm PC',
+  colour: 'White'
+};
+
+/**
+ * Check if Face spec differs from the default (2mm PC + White)
+ * Returns true if the product should show default Face and either material or colour differs
+ *
+ * @param specsDisplayName - The product type name
+ * @param faceMaterial - Current Face material value
+ * @param faceColour - Current Face colour value
+ * @returns true if Face spec is non-default
+ */
+export function isFaceSpecNonDefault(
+  specsDisplayName: string | null | undefined,
+  faceMaterial: string | null | undefined,
+  faceColour: string | null | undefined
+): boolean {
+  // Only applies to products with default Face spec
+  if (!specsDisplayName || !PRODUCTS_WITH_DEFAULT_FACE.includes(specsDisplayName)) {
+    return false;
+  }
+  // Empty = not yet filled, not "non-default"
+  if (!faceMaterial && !faceColour) {
+    return false;
+  }
+  // Check if either differs from default
+  return faceMaterial !== DEFAULT_FACE_SPEC.material ||
+         faceColour !== DEFAULT_FACE_SPEC.colour;
+}
+
+/**
+ * Get className for non-default Face template dropdown
+ * Applies darker gray styling when Face spec differs from default
+ *
+ * @param isNonDefault - Whether the Face spec is non-default
+ * @param baseClass - Base CSS classes to apply
+ * @returns Combined className string with darker gray if non-default
+ */
+export function getNonDefaultFaceTemplateClass(
+  isNonDefault: boolean,
+  baseClass: string = ''
+): string {
+  if (isNonDefault) {
+    return `${baseClass} !text-gray-600 !border-gray-500 !bg-gray-300`;
+  }
+  return baseClass;
+}

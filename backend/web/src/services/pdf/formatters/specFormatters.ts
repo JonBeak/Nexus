@@ -271,15 +271,22 @@ export function formatSpecValues(
 
     case 'Face': {
       // Format as {material} [{colour}] (swap order)
-      // With painting: adds " Painted {colour}" suffix
+      // With painting: adds " - Painted {colour}" suffix
       const faceMaterial = specs.material || '';
       const faceColour = getColourValue(specs);
       let faceResult: string;
-      if (faceMaterial && faceColour) {
+
+      // When Face is the default (2mm PC + White), show just the colour
+      const isDefaultFace = faceMaterial === '2mm PC' && faceColour === 'White';
+
+      if (isDefaultFace) {
+        faceResult = faceColour; // Just "White"
+      } else if (faceMaterial && faceColour) {
         faceResult = `${faceMaterial} [${faceColour}]`;
       } else {
         faceResult = [faceMaterial, faceColour].filter(v => v).join(' ');
       }
+
       if (transformContext?.paintingColour && faceResult) {
         faceResult += ` - Painted ${transformContext.paintingColour}`;
       }

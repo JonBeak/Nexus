@@ -114,16 +114,16 @@ export const CombinedVinylDropdown: React.FC<CombinedVinylDropdownProps> = ({
   }, [searchTerm, combinations, formatCombination]);
 
   // Calculate dropdown position relative to viewport
+  // Note: getBoundingClientRect() returns viewport-relative coordinates,
+  // and position: fixed uses viewport-relative positioning, so no scroll offset needed
   const updateDropdownPosition = () => {
     if (!containerRef.current) return;
-    
+
     const rect = containerRef.current.getBoundingClientRect();
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-    
+
     setDropdownPosition({
-      top: rect.bottom + scrollTop + 4,
-      left: rect.left + scrollLeft,
+      top: rect.bottom + 4,
+      left: rect.left,
       width: rect.width
     });
   };

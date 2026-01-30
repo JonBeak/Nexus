@@ -44,17 +44,6 @@ else
     echo "   ⚠️  Frontend production not found"
 fi
 
-# Frontend Dev
-if [ -d "/home/jon/Nexus/frontend/web/dist-dev" ]; then
-    echo "📦 Backing up frontend dev..."
-    cd /home/jon/Nexus/frontend/web
-    tar -czf "/home/jon/Nexus/infrastructure/backups/frontend-builds/dist-dev-$TIMESTAMP-commit-$COMMIT.tar.gz" dist-dev/
-    FRONTEND_DEV_SIZE=$(du -sh "/home/jon/Nexus/infrastructure/backups/frontend-builds/dist-dev-$TIMESTAMP-commit-$COMMIT.tar.gz" | cut -f1)
-    echo "   ✅ Frontend dev: $FRONTEND_DEV_SIZE"
-else
-    echo "   ⚠️  Frontend dev not found"
-fi
-
 echo ""
 echo "✅ Backup complete!"
 echo ""

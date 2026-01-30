@@ -810,6 +810,22 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
     onOrderUpdated();
   };
 
+  // Auto-open send modal after invoice/estimate creation
+  const handleInvoiceCreated = async () => {
+    setShowInvoiceModal(false);
+    await fetchOrderDetails();
+    setInvoiceModalMode('send');
+    setShowInvoiceModal(true);
+  };
+
+  // Auto-open send modal after estimate creation (cash jobs)
+  const handleEstimateCreated = async () => {
+    setShowCreateEstimateModal(false);
+    await fetchOrderDetails();
+    setEstimateActionMode('send');
+    setShowEstimateActionModal(true);
+  };
+
   const handleConflictResolved = () => {
     setShowConflictModal(false);
     setConflictDifferences([]);
@@ -1597,6 +1613,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
           order={orderDetails}
           mode={invoiceModalMode}
           onSuccess={handleInvoiceSuccess}
+          onCreated={invoiceModalMode === 'create' ? handleInvoiceCreated : undefined}
           onLinkExisting={() => {
             setShowInvoiceModal(false);
             setShowLinkInvoiceModal(true);
@@ -1691,6 +1708,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
             fetchOrderDetails();
             onOrderUpdated();
           }}
+          onCreated={handleEstimateCreated}
           onLinkExisting={() => {
             setShowCreateEstimateModal(false);
             setShowLinkEstimateModal(true);

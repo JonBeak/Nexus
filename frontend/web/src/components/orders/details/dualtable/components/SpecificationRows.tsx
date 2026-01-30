@@ -10,12 +10,13 @@
  * Updated: Phase 1.5.e - Per-row actions with hover highlighting
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { OrderPart } from '@/types/orders';
 import { getSpecificationTemplate } from '@/config/orderProductTemplates';
 import { SpecTemplateDropdown } from './SpecTemplateDropdown';
 import { SpecFieldInput } from './SpecFieldInput';
 import { SpecRowActions } from './SpecRowActions';
+import { isFaceSpecNonDefault } from '@/utils/highlightStyles';
 
 interface SpecificationRowsProps {
   part: OrderPart;
@@ -48,6 +49,29 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
     return `transition-colors -my-[0.5px] `;
   };
 
+  // Find Face spec values to detect non-default styling
+  const faceSpecInfo = useMemo(() => {
+    for (let i = 1; i <= rowCount; i++) {
+      if (part.specifications?.[`_template_${i}`] === 'Face') {
+        return {
+          rowNum: i,
+          material: part.specifications?.[`row${i}_material`] as string || '',
+          colour: part.specifications?.[`row${i}_colour`] as string || ''
+        };
+      }
+    }
+    return null;
+  }, [part.specifications, rowCount]);
+
+  const isNonDefaultFace = useMemo(() => {
+    if (!faceSpecInfo) return false;
+    return isFaceSpecNonDefault(
+      part.specs_display_name,
+      faceSpecInfo.material,
+      faceSpecInfo.colour
+    );
+  }, [part.specs_display_name, faceSpecInfo]);
+
   return (
     <>
       {/* Specifications column - template dropdowns */}
@@ -72,6 +96,7 @@ export const SpecificationRows: React.FC<SpecificationRowsProps> = ({
                 availableTemplates={availableTemplates}
                 hasValue={hasValue}
                 isEmpty={isEmpty}
+                isNonDefaultFace={currentValue === 'Face' && isNonDefaultFace}
               />
             </div>
           );

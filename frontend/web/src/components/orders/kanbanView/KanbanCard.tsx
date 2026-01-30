@@ -240,6 +240,7 @@ const KanbanCardComponent: React.FC<ExtendedKanbanCardProps> = ({
       {...listeners}
       {...attributes}
       data-kanban-card
+      data-order-id={order.order_id}
       onClick={(e) => {
         if (!isDragging && !(e.target as HTMLElement).closest('.task-controls')) {
           onClick();
@@ -252,7 +253,7 @@ const KanbanCardComponent: React.FC<ExtendedKanbanCardProps> = ({
         ${disableDrag ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} overflow-hidden touch-manipulation
         ${isDragging ? 'ring-2 ring-orange-400' : ''}
         ${isDragOverlay ? 'shadow-lg rotate-2' : ''}
-        ${order.status === 'completed' || order.status === 'awaiting_payment' ? 'opacity-60' : ''}
+        ${order.status === 'completed' ? 'grayscale-[60%] opacity-80' : order.status === 'awaiting_payment' ? 'opacity-60' : ''}
       `}
     >
       {/* Image at top - only if image exists */}

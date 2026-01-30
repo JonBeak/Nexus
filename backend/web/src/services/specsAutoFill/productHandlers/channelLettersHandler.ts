@@ -9,7 +9,8 @@ import {
   getDefaultFaceMaterial,
   getDefaultFaceColor,
   getDefaultDrainHoles,
-  getDefaultBackMaterial
+  getDefaultBackMaterial,
+  getDefaultFrameColour
 } from '../defaults';
 
 /**
@@ -28,6 +29,7 @@ export function autoFillChannelLetters(
   let returnRow: number | null = null;
   let faceRow: number | null = null;
   let backRow: number | null = null;
+  let frameRow: number | null = null;
   let mountingRow: number | null = null;
   let drainHolesRow: number | null = null;
 
@@ -38,6 +40,7 @@ export function autoFillChannelLetters(
     if (templateName === 'Return') returnRow = i;
     if (templateName === 'Face') faceRow = i;
     if (templateName === 'Back') backRow = i;
+    if (templateName === 'Frame') frameRow = i;
     if (templateName === 'Mounting') mountingRow = i;
     if (templateName === 'Drain Holes') drainHolesRow = i;
   }
@@ -83,6 +86,15 @@ export function autoFillChannelLetters(
       filledFields.push(backMaterialField);
       console.log(`[Specs Auto-Fill] ✓ Filled ${backMaterialField} = "${backMaterial}"`);
     }
+  }
+
+  // Auto-fill Frame colour
+  if (frameRow) {
+    const frameColour = getDefaultFrameColour();
+    const frameColourField = `row${frameRow}_colour`;
+    specs[frameColourField] = frameColour;
+    filledFields.push(frameColourField);
+    console.log(`[Specs Auto-Fill] ✓ Filled ${frameColourField} = "${frameColour}"`);
   }
 
   // Auto-fill Mounting count only (Pin Type and Spacer Type left for manual selection)

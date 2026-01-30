@@ -63,6 +63,8 @@ interface DocumentActionModalProps {
   onClose: () => void;
   order: Order;
   onSuccess: () => void;
+  /** Called after successful document creation - use to auto-open send modal */
+  onCreated?: () => void;
   /** For status change prompts - allows skipping */
   onSkip?: () => void;
   /** For reassigning to a different document */
@@ -87,6 +89,7 @@ export const DocumentActionModal: React.FC<DocumentActionModalProps> = ({
   onClose,
   order,
   onSuccess,
+  onCreated,
   onSkip,
   onReassign,
   onLinkExisting,
@@ -770,6 +773,9 @@ export const DocumentActionModal: React.FC<DocumentActionModalProps> = ({
         setPdfError(null);
         setQbDocumentData(null);
         await loadDocumentPdf();
+      } else if (mode === 'create' && onCreated) {
+        // Call onCreated to allow parent to auto-open send modal
+        onCreated();
       } else {
         onSuccess();
       }
