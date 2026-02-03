@@ -645,6 +645,55 @@ router.patch(
 );
 
 // =============================================
+// AI FILE VALIDATION (simplified - no database)
+// =============================================
+
+/**
+ * List AI files in order folder
+ * GET /api/orders/:orderNumber/ai-files
+ */
+router.get(
+  '/:orderNumber/ai-files',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderController.listAiFiles
+);
+
+/**
+ * Run validation on AI files
+ * POST /api/orders/:orderNumber/ai-files/validate
+ */
+router.post(
+  '/:orderNumber/ai-files/validate',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.validateAiFiles
+);
+
+/**
+ * Approve AI files
+ * POST /api/orders/:orderNumber/ai-files/approve
+ */
+router.post(
+  '/:orderNumber/ai-files/approve',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.approveAiFiles
+);
+
+/**
+ * Get expected files comparison (rule-based)
+ * Compares expected files (from rules) against actual files in order folder
+ * GET /api/orders/:orderNumber/expected-files/compare
+ */
+router.get(
+  '/:orderNumber/expected-files/compare',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderController.getExpectedFilesComparison
+);
+
+// =============================================
 // QB INVOICE AUTOMATION (Phase 2.e)
 // =============================================
 

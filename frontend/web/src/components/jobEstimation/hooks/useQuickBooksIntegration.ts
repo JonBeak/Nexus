@@ -6,6 +6,7 @@ import { EstimatePreviewData } from '../core/layers/CalculationLayer';
 import { PointPersonEntry } from '../EstimatePointPersonsEditor';
 import { EmailRecipients } from '../components/EstimateEmailPreviewModal';
 import { useAlert } from '../../../contexts/AlertContext';
+import { getTodayString } from '../../../utils/dateUtils';
 
 interface UseQuickBooksIntegrationParams {
   currentEstimate: EstimateVersion | null;
@@ -142,7 +143,7 @@ export const useQuickBooksIntegration = ({
           qb_estimate_id: result.qbEstimateId,
           qb_estimate_url: result.qbEstimateUrl,
           qb_doc_number: result.qbDocNumber,  // Include QB doc number for email template
-          estimate_date: result.estimateDate || new Date().toISOString().split('T')[0],  // Use QB TxnDate, fallback to today
+          estimate_date: result.estimateDate || getTodayString(),  // Use QB TxnDate, fallback to today
         });
 
         // Show success modal with options
@@ -249,7 +250,7 @@ export const useQuickBooksIntegration = ({
           ...currentEstimate,
           qb_estimate_id: result.qbEstimateId,
           status: 'sent',
-          estimate_date: result.estimateDate || new Date().toISOString().split('T')[0]
+          estimate_date: result.estimateDate || getTodayString()
         });
 
         // Show success modal with sent details

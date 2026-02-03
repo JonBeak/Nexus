@@ -11,6 +11,7 @@ import {
 } from '../../../../services/api';
 import { PricingDataResource } from '../../../../services/pricingDataResource';
 import { SpecificationOptionsCache } from '../../../../services/specificationOptionsCache';
+import { getTodayString } from '../../../../utils/dateUtils';
 import {
   populateLEDOptions,
   populatePowerSupplyOptions,
@@ -198,7 +199,7 @@ export function useOrderDetails(orderNumber: string | undefined) {
     if (!orderData.order || !orderData.order.due_date) return;
 
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getTodayString();
       const result = await ordersApi.calculateBusinessDays(
         today,
         orderData.order.due_date.split('T')[0]

@@ -178,13 +178,13 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
             itemDisplayName = '5" Channel Letters';
             break;
           case '3" Halo Lit':
-            itemDisplayName = '3" Reverse Channel Letter';
+            itemDisplayName = '3" Reverse Channel Letters';
             break;
           case '4" Halo Lit':
-            itemDisplayName = '4" Reverse Channel Letter';
+            itemDisplayName = '4" Reverse Channel Letters';
             break;
           case '5" Halo Lit':
-            itemDisplayName = '5" Reverse Channel Letter';
+            itemDisplayName = '5" Reverse Channel Letters';
             break;
           default:
             // Other types - use the type name directly
@@ -262,7 +262,7 @@ export const calculateChannelLetters = async (input: ValidatedPricingInput): Pro
       const pinsPrice = pinsCount * pinTypeData.base_cost;
 
       components.push({
-        name: `Pins`,
+        name: `Pin`,
         price: pinsPrice,
         type: 'pins',
         calculationDisplay: `${pinsCount} ${pinsType} @ $${formatPrice(pinTypeData.base_cost)}`

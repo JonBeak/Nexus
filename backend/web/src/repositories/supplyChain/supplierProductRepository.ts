@@ -27,7 +27,6 @@ export interface SupplierProductRow extends RowDataPacket {
   archetype_name?: string;
   archetype_category?: string;
   archetype_unit_of_measure?: string;
-  archetype_specification_template?: string[] | null;
   supplier_name?: string;
   supplier_default_lead_days?: number | null;
   created_by_name?: string;
@@ -64,9 +63,8 @@ export class SupplierProductRepository {
       SELECT
         sp.*,
         pa.name as archetype_name,
-        pa.category as archetype_category,
+        mc.name as archetype_category,
         pa.unit_of_measure as archetype_unit_of_measure,
-        pa.specifications_v2 as archetype_specification_template,
         s.name as supplier_name,
         s.default_lead_days as supplier_default_lead_days,
         COALESCE(sp.lead_time_days, s.default_lead_days) as effective_lead_time,
@@ -77,6 +75,7 @@ export class SupplierProductRepository {
         CONCAT(uu.first_name, ' ', uu.last_name) as updated_by_name
       FROM supplier_products sp
       INNER JOIN product_archetypes pa ON sp.archetype_id = pa.archetype_id
+      INNER JOIN material_categories mc ON pa.category_id = mc.id
       INNER JOIN suppliers s ON sp.supplier_id = s.supplier_id
       LEFT JOIN supplier_product_pricing_history ph
         ON sp.supplier_product_id = ph.supplier_product_id
@@ -201,6 +200,7 @@ export class SupplierProductRepository {
    * Update supplier product
    */
   async update(id: number, updates: {
+    supplier_id?: number;
     brand_name?: string | null;
     sku?: string | null;
     product_name?: string | null;
@@ -215,6 +215,10 @@ export class SupplierProductRepository {
     const setClauses: string[] = [];
     const values: any[] = [];
 
+    if (updates.supplier_id !== undefined) {
+      setClauses.push('supplier_id = ?');
+      values.push(updates.supplier_id);
+    }
     if (updates.brand_name !== undefined) {
       setClauses.push('brand_name = ?');
       values.push(updates.brand_name);
@@ -361,5 +365,280 @@ export class SupplierProductRepository {
     const sql = `SELECT COUNT(*) as count FROM supplier_products WHERE ${conditions.join(' AND ')}`;
     const rows = await query(sql, params) as RowDataPacket[];
     return rows[0]?.count > 0;
+  }
+
+  // ==========================================
+  // INVENTORY METHODS (Added 2026-02-02)
+  // ==========================================
+
+  /**
+   * Get stock levels from v_supplier_product_stock view
+   */
+  async getStockLevels(params: {
+    archetype_id?: number;
+    supplier_id?: number;
+    category?: string;
+    stock_status?: 'out_of_stock' | 'critical' | 'low' | 'ok';
+    search?: string;
+  } = {}): Promise<RowDataPacket[]> {
+    const conditions: string[] = ['1=1'];
+    const queryParams: any[] = [];
+
+    if (params.archetype_id) {
+      conditions.push('archetype_id = ?');
+      queryParams.push(params.archetype_id);
+    }
+    if (params.supplier_id) {
+      conditions.push('supplier_id = ?');
+      queryParams.push(params.supplier_id);
+    }
+    if (params.category) {
+      conditions.push('category = ?');
+      queryParams.push(params.category);
+    }
+    if (params.stock_status) {
+      conditions.push('stock_status = ?');
+      queryParams.push(params.stock_status);
+    }
+    if (params.search) {
+      conditions.push('(product_name LIKE ? OR sku LIKE ? OR archetype_name LIKE ?)');
+      const term = `%${params.search}%`;
+      queryParams.push(term, term, term);
+    }
+
+    const sql = `
+      SELECT * FROM v_supplier_product_stock
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY
+        CASE stock_status
+          WHEN 'out_of_stock' THEN 0
+          WHEN 'critical' THEN 1
+          WHEN 'low' THEN 2
+          ELSE 3
+        END,
+        category, archetype_name, supplier_name
+    `;
+
+    return await query(sql, queryParams) as RowDataPacket[];
+  }
+
+  /**
+   * Get aggregated archetype stock levels
+   */
+  async getArchetypeStockLevels(params: {
+    category?: string;
+    stock_status?: 'out_of_stock' | 'critical' | 'low' | 'ok';
+    search?: string;
+  } = {}): Promise<RowDataPacket[]> {
+    const conditions: string[] = ['1=1'];
+    const queryParams: any[] = [];
+
+    if (params.category) {
+      conditions.push('category = ?');
+      queryParams.push(params.category);
+    }
+    if (params.stock_status) {
+      conditions.push('stock_status = ?');
+      queryParams.push(params.stock_status);
+    }
+    if (params.search) {
+      conditions.push('archetype_name LIKE ?');
+      queryParams.push(`%${params.search}%`);
+    }
+
+    const sql = `
+      SELECT * FROM v_archetype_stock_levels
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY
+        CASE stock_status
+          WHEN 'out_of_stock' THEN 0
+          WHEN 'critical' THEN 1
+          WHEN 'low' THEN 2
+          ELSE 3
+        END,
+        category, archetype_name
+    `;
+
+    return await query(sql, queryParams) as RowDataPacket[];
+  }
+
+  /**
+   * Get low stock alerts
+   */
+  async getLowStockAlerts(params: {
+    category?: string;
+    supplier_id?: number;
+    alert_level?: 'out_of_stock' | 'critical' | 'low';
+  } = {}): Promise<RowDataPacket[]> {
+    const conditions: string[] = ['1=1'];
+    const queryParams: any[] = [];
+
+    if (params.category) {
+      conditions.push('category = ?');
+      queryParams.push(params.category);
+    }
+    if (params.supplier_id) {
+      conditions.push('supplier_id = ?');
+      queryParams.push(params.supplier_id);
+    }
+    if (params.alert_level) {
+      conditions.push('alert_level = ?');
+      queryParams.push(params.alert_level);
+    }
+
+    const sql = `
+      SELECT * FROM v_low_stock_alerts
+      WHERE ${conditions.join(' AND ')}
+    `;
+
+    return await query(sql, queryParams) as RowDataPacket[];
+  }
+
+  /**
+   * Update stock quantity for a supplier product
+   */
+  async updateStock(
+    supplierProductId: number,
+    updates: {
+      quantity_on_hand?: number;
+      quantity_reserved?: number;
+      location?: string;
+      unit_cost?: number;
+      last_count_date?: string;
+      reorder_point?: number;
+    }
+  ): Promise<void> {
+    const setClauses: string[] = [];
+    const values: any[] = [];
+
+    if (updates.quantity_on_hand !== undefined) {
+      setClauses.push('quantity_on_hand = ?');
+      values.push(updates.quantity_on_hand);
+    }
+    if (updates.quantity_reserved !== undefined) {
+      setClauses.push('quantity_reserved = ?');
+      values.push(updates.quantity_reserved);
+    }
+    if (updates.location !== undefined) {
+      setClauses.push('location = ?');
+      values.push(updates.location);
+    }
+    if (updates.unit_cost !== undefined) {
+      setClauses.push('unit_cost = ?');
+      values.push(updates.unit_cost);
+    }
+    if (updates.last_count_date !== undefined) {
+      setClauses.push('last_count_date = ?');
+      values.push(updates.last_count_date);
+    }
+    if (updates.reorder_point !== undefined) {
+      setClauses.push('reorder_point = ?');
+      values.push(updates.reorder_point);
+    }
+
+    if (setClauses.length === 0) return;
+
+    values.push(supplierProductId);
+    const sql = `UPDATE supplier_products SET ${setClauses.join(', ')} WHERE supplier_product_id = ?`;
+    await query(sql, values);
+  }
+
+  /**
+   * Adjust stock quantity (add or subtract)
+   * Returns the new quantity_on_hand
+   */
+  async adjustStock(
+    supplierProductId: number,
+    adjustment: number
+  ): Promise<{ quantity_before: number; quantity_after: number }> {
+    // Get current quantity
+    const currentSql = 'SELECT quantity_on_hand FROM supplier_products WHERE supplier_product_id = ?';
+    const currentRows = await query(currentSql, [supplierProductId]) as RowDataPacket[];
+
+    if (currentRows.length === 0) {
+      throw new Error(`Supplier product ${supplierProductId} not found`);
+    }
+
+    const quantity_before = Number(currentRows[0].quantity_on_hand);
+    const quantity_after = quantity_before + adjustment;
+
+    if (quantity_after < 0) {
+      throw new Error(`Insufficient stock. Current: ${quantity_before}, Requested adjustment: ${adjustment}`);
+    }
+
+    // Update quantity
+    const updateSql = 'UPDATE supplier_products SET quantity_on_hand = ? WHERE supplier_product_id = ?';
+    await query(updateSql, [quantity_after, supplierProductId]);
+
+    return { quantity_before, quantity_after };
+  }
+
+  /**
+   * Reserve stock for an order
+   */
+  async reserveStock(
+    supplierProductId: number,
+    quantity: number
+  ): Promise<void> {
+    // Check available quantity
+    const checkSql = `
+      SELECT quantity_on_hand, quantity_reserved,
+             (quantity_on_hand - quantity_reserved) as available
+      FROM supplier_products WHERE supplier_product_id = ?
+    `;
+    const rows = await query(checkSql, [supplierProductId]) as RowDataPacket[];
+
+    if (rows.length === 0) {
+      throw new Error(`Supplier product ${supplierProductId} not found`);
+    }
+
+    const available = Number(rows[0].available);
+    if (quantity > available) {
+      throw new Error(`Insufficient stock. Available: ${available}, Requested: ${quantity}`);
+    }
+
+    // Update reserved quantity
+    const updateSql = `
+      UPDATE supplier_products
+      SET quantity_reserved = quantity_reserved + ?
+      WHERE supplier_product_id = ?
+    `;
+    await query(updateSql, [quantity, supplierProductId]);
+  }
+
+  /**
+   * Release reserved stock
+   */
+  async releaseReservation(
+    supplierProductId: number,
+    quantity: number
+  ): Promise<void> {
+    const updateSql = `
+      UPDATE supplier_products
+      SET quantity_reserved = GREATEST(0, quantity_reserved - ?)
+      WHERE supplier_product_id = ?
+    `;
+    await query(updateSql, [quantity, supplierProductId]);
+  }
+
+  /**
+   * Get stock summary by category
+   */
+  async getStockSummaryByCategory(): Promise<RowDataPacket[]> {
+    const sql = `
+      SELECT
+        category,
+        COUNT(DISTINCT archetype_id) as archetype_count,
+        SUM(total_on_hand) as total_on_hand,
+        SUM(total_reserved) as total_reserved,
+        SUM(total_available) as total_available,
+        SUM(CASE WHEN stock_status = 'out_of_stock' THEN 1 ELSE 0 END) as out_of_stock_count,
+        SUM(CASE WHEN stock_status = 'critical' THEN 1 ELSE 0 END) as critical_count,
+        SUM(CASE WHEN stock_status = 'low' THEN 1 ELSE 0 END) as low_count
+      FROM v_archetype_stock_levels
+      GROUP BY category
+      ORDER BY category
+    `;
+    return await query(sql) as RowDataPacket[];
   }
 }

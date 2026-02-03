@@ -38,6 +38,7 @@ import { DocumentSyncStatus, DocumentDifference } from '../../../types/document'
 import PrintApprovalSuccessModal from '../modals/PrintApprovalSuccessModal';
 import PrintApprovalErrorModal from '../modals/PrintApprovalErrorModal';
 import { CashPaymentModal } from '../modals/CashPaymentModal';
+import AiFileValidationModal from './components/AiFileValidationModal';
 
 export const OrderDetailsPage: React.FC = () => {
   const { orderNumber } = useParams<{ orderNumber: string }>();
@@ -64,6 +65,9 @@ export const OrderDetailsPage: React.FC = () => {
 
   // Cash job payment modal
   const [showCashPaymentModal, setShowCashPaymentModal] = useState(false);
+
+  // AI file validation modal (for "Files Created" flow)
+  const [showAiValidationModal, setShowAiValidationModal] = useState(false);
 
   // State for reassign invoice modal (when invoice is deleted in QB or user chooses to reassign)
   const [reassignInvoiceInfo, setReassignInvoiceInfo] = useState<{
@@ -145,7 +149,8 @@ export const OrderDetailsPage: React.FC = () => {
     successModalData,
     handleCloseSuccessModal,
     errorModalData,
-    handleCloseErrorModal
+    handleCloseErrorModal,
+    shopRoles
   } = useOrderPrinting(orderData, setUiState, refetch);
 
   const {
@@ -276,7 +281,8 @@ export const OrderDetailsPage: React.FC = () => {
   };
 
   const handleFilesCreated = () => {
-    setShowFilesCreatedModal(true);
+    // Show AI validation modal first, then proceed to confirmation after approval
+    setShowAiValidationModal(true);
   };
 
   const handleConfirmFilesCreated = async () => {
@@ -306,7 +312,20 @@ export const OrderDetailsPage: React.FC = () => {
   };
 
   const handleApproveFilesAndPrint = () => {
+    // Go directly to print modal - validation already done during "Files Created" step
     handleOpenPrintModal('shop_packing_production');
+  };
+
+  const handleAiValidationComplete = () => {
+    setShowAiValidationModal(false);
+    // After validation, show the Files Created confirmation modal
+    setShowFilesCreatedModal(true);
+  };
+
+  const handleSkipAiValidation = () => {
+    setShowAiValidationModal(false);
+    // Skip validation also goes to Files Created confirmation modal
+    setShowFilesCreatedModal(true);
   };
 
   // Phase 2.e: Invoice Action Handlers
@@ -1186,6 +1205,7 @@ export const OrderDetailsPage: React.FC = () => {
         mode={printMode}
         onPrintAndMoveToProduction={handlePrintAndMoveToProduction}
         onMoveToProductionWithoutPrinting={handleMoveToProductionWithoutPrinting}
+        shopRoles={shopRoles}
       />
 
       {/* Print Approval Success Modal */}
@@ -1230,7 +1250,6 @@ export const OrderDetailsPage: React.FC = () => {
         message="Have all production files been created for this order? This will move the order to Pending Files Approval status."
         confirmText="Confirm Files Created"
         confirmColor="purple"
-        warningNote="TODO: Add validation to check if expected files exist based on specs (AI files, vector files, etc.)"
       />
 
       {/* Phase 2.e: Invoice Modals - Using unified DocumentActionModal */}
@@ -1380,6 +1399,17 @@ export const OrderDetailsPage: React.FC = () => {
           onSuccess={() => {
             refetch();
           }}
+        />
+      )}
+
+      {/* AI File Validation Modal - shown when "Files Created" is clicked */}
+      {orderData.order && (
+        <AiFileValidationModal
+          isOpen={showAiValidationModal}
+          onClose={() => setShowAiValidationModal(false)}
+          orderNumber={orderData.order.order_number}
+          onApproveComplete={handleAiValidationComplete}
+          onSkipValidation={handleSkipAiValidation}
         />
       )}
     </div>

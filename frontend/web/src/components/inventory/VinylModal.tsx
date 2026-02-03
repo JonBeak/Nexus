@@ -12,6 +12,7 @@ import {
   VinylProduct
 } from './types';
 import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
+import { getTodayString } from '../../utils/dateUtils';
 
 interface VinylFormState {
   brand: string;
@@ -59,7 +60,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
     disposition: 'in_stock',
     supplier_id: '',
     purchase_date: '',
-    storage_date: new Date().toISOString().split('T')[0],
+    storage_date: getTodayString(),
     notes: ''
   });
 
@@ -85,7 +86,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
           disposition: initialData.disposition || 'in_stock',
           supplier_id: initialData.supplier_id?.toString() || '',
           purchase_date: initialData.purchase_date ? new Date(initialData.purchase_date).toISOString().split('T')[0] : '',
-          storage_date: initialData.storage_date ? new Date(initialData.storage_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          storage_date: initialData.storage_date ? new Date(initialData.storage_date).toISOString().split('T')[0] : getTodayString(),
           notes: initialData.notes || ''
         });
 
@@ -106,7 +107,7 @@ export const VinylModal: React.FC<VinylModalProps> = ({
           disposition: 'in_stock',
           supplier_id: '',
           purchase_date: '',
-          storage_date: new Date().toISOString().split('T')[0],
+          storage_date: getTodayString(),
           notes: ''
         });
         setSelectedOrders([]);

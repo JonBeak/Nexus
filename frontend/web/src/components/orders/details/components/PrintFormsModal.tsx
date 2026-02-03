@@ -38,6 +38,7 @@ interface PrintFormsModalProps {
   onMoveToProductionWithoutPrinting?: () => void;
   order?: Order | null;
   defaultConfig?: PrintConfig;
+  shopRoles?: string[];
 }
 
 interface PDFPreviewProps {
@@ -179,7 +180,8 @@ const PrintFormsModal: React.FC<PrintFormsModalProps> = ({
   onPrintAndMoveToProduction,
   onMoveToProductionWithoutPrinting,
   order,
-  defaultConfig
+  defaultConfig,
+  shopRoles
 }) => {
   const modalContentRef = useRef<HTMLDivElement>(null);
   const mouseDownOutsideRef = useRef(false);
@@ -279,6 +281,7 @@ const PrintFormsModal: React.FC<PrintFormsModalProps> = ({
               onPrintAndMoveToProduction={onPrintAndMoveToProduction}
               onMoveToProductionWithoutPrinting={onMoveToProductionWithoutPrinting}
               defaultConfig={defaultConfig}
+              shopRoles={shopRoles}
             />
           </div>
         </div>

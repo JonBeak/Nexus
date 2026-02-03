@@ -1,0 +1,159 @@
+"""
+AI File Validation Package
+
+Provides modular validation for AI files used in sign manufacturing.
+
+Structure:
+- core.py: Data structures (PathInfo, ValidationIssue, ValidationResult)
+- svg_parser.py: AI to SVG conversion and path extraction
+- transforms.py: SVG transform utilities
+- geometry.py: Geometric utilities (bbox, containment, circles)
+- base_rules.py: Common validation rules (overlaps, strokes, etc.)
+- rules/: Spec-type specific validation rules
+  - front_lit.py: Front Lit channel letter rules
+  - (future: halo_lit.py, non_lit.py, etc.)
+
+Usage:
+    from validation import validate_file
+
+    result = validate_file('/path/to/file.ai', {
+        'no_duplicate_overlapping': {'tolerance': 0.01},
+        'front_lit_structure': {'check_wire_holes': True}
+    })
+"""
+
+import os
+from typing import Dict, List, Any
+
+from .core import ValidationIssue, ValidationResult, PathInfo
+from .svg_parser import convert_ai_to_svg, extract_paths_from_svg
+from .base_rules import (
+    check_overlapping_paths,
+    check_stroke_requirements,
+    check_mounting_holes,
+    check_path_closure
+)
+from .rules import check_front_lit_structure
+
+
+def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
+    """
+    Main validation function.
+
+    Args:
+        ai_path: Path to the AI file
+        rules: Dictionary of rule configurations keyed by rule name.
+               Available rules:
+               - no_duplicate_overlapping: Check for duplicate paths
+               - stroke_requirements: Validate stroke color/width/fill
+               - structural_mounting_holes: Check hole count based on size
+               - path_closure: Check paths are closed
+               - front_lit_structure: Front Lit channel letter validation
+
+    Returns:
+        ValidationResult with issues and stats
+    """
+    file_name = os.path.basename(ai_path)
+    all_issues: List[ValidationIssue] = []
+    stats: Dict[str, Any] = {}
+    temp_svg = None
+
+    try:
+        # Convert AI to SVG
+        success, result, temp_svg = convert_ai_to_svg(ai_path)
+
+        if not success:
+            return ValidationResult(
+                success=False,
+                file_path=ai_path,
+                file_name=file_name,
+                status='error',
+                issues=[],
+                stats={},
+                error=result
+            )
+
+        svg_path = result
+
+        # Parse paths from SVG
+        paths_info = extract_paths_from_svg(svg_path, ai_path)
+
+        # Collect stats
+        layers_found = set(p.layer_name for p in paths_info if p.layer_name)
+        paths_per_layer = {}
+        for p in paths_info:
+            layer = p.layer_name or '_unknown_'
+            paths_per_layer[layer] = paths_per_layer.get(layer, 0) + 1
+
+        stats = {
+            'total_paths': len(paths_info),
+            'closed_paths': sum(1 for p in paths_info if p.is_closed),
+            'paths_with_stroke': sum(1 for p in paths_info if p.stroke),
+            'paths_with_fill': sum(1 for p in paths_info if p.fill and p.fill != 'none'),
+            'total_holes': sum(p.num_holes for p in paths_info),
+            'total_area': sum(p.area or 0 for p in paths_info),
+            'total_perimeter': sum(p.length for p in paths_info),
+            'layers': list(layers_found),
+            'paths_per_layer': paths_per_layer
+        }
+
+        # Run validations based on active rules
+        if 'no_duplicate_overlapping' in rules:
+            all_issues.extend(check_overlapping_paths(paths_info, rules['no_duplicate_overlapping']))
+
+        if 'stroke_requirements' in rules:
+            all_issues.extend(check_stroke_requirements(paths_info, rules['stroke_requirements']))
+
+        if 'structural_mounting_holes' in rules:
+            all_issues.extend(check_mounting_holes(paths_info, rules['structural_mounting_holes']))
+
+        if 'path_closure' in rules:
+            all_issues.extend(check_path_closure(paths_info, rules['path_closure']))
+
+        if 'front_lit_structure' in rules:
+            all_issues.extend(check_front_lit_structure(paths_info, rules['front_lit_structure']))
+
+        # Determine overall status
+        has_errors = any(i.severity == 'error' for i in all_issues)
+        has_warnings = any(i.severity == 'warning' for i in all_issues)
+
+        if has_errors:
+            status = 'failed'
+        elif has_warnings:
+            status = 'warning'
+        else:
+            status = 'passed'
+
+        return ValidationResult(
+            success=True,
+            file_path=ai_path,
+            file_name=file_name,
+            status=status,
+            issues=all_issues,
+            stats=stats
+        )
+
+    except Exception as e:
+        return ValidationResult(
+            success=False,
+            file_path=ai_path,
+            file_name=file_name,
+            status='error',
+            issues=[],
+            stats=stats,
+            error=str(e)
+        )
+    finally:
+        if temp_svg and os.path.exists(temp_svg):
+            try:
+                os.unlink(temp_svg)
+            except Exception:
+                pass
+
+
+__all__ = [
+    'validate_file',
+    'ValidationIssue',
+    'ValidationResult',
+    'PathInfo',
+]

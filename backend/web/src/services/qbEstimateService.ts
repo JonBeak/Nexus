@@ -349,11 +349,18 @@ async function mapOrderToQBEstimate(
 
   // Build QB estimate payload (no CustomerMemo - moved to line #1)
   // NOTE: Do NOT include DocNumber - QuickBooks will auto-generate the estimate number
+  // Get today's date in local timezone
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const todayStr = `${year}-${month}-${day}`;
+
   const estimatePayload: any = {
     CustomerRef: {
       value: qbCustomerId
     },
-    TxnDate: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
+    TxnDate: todayStr, // YYYY-MM-DD format in local timezone
     Line: lineItems
   };
 

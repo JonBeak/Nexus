@@ -233,10 +233,19 @@ const KanbanCardComponent: React.FC<ExtendedKanbanCardProps> = ({
   const imageUrl = getOrderImageUrl(order);
   const hasImage = imageUrl && !imageError;
 
+  // Merged style: transform from dnd-kit + touch-action for scroll behavior
+  const mergedStyle: React.CSSProperties = {
+    ...style,
+    // touch-action: auto allows all scrolling (horizontal + vertical)
+    // The 150ms drag delay handles distinguishing scroll from intentional drag
+    // Once dragging starts, set to 'none' to prevent scroll interference
+    touchAction: isDragging ? 'none' : 'auto'
+  };
+
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={mergedStyle}
       {...listeners}
       {...attributes}
       data-kanban-card
@@ -250,7 +259,7 @@ const KanbanCardComponent: React.FC<ExtendedKanbanCardProps> = ({
         ${order.invoice_sent_at ? 'bg-emerald-300' : PAGE_STYLES.input.background}
         rounded-lg border ${order.invoice_sent_at ? 'border-emerald-500' : PAGE_STYLES.panel.border}
         shadow-sm hover:shadow-md transition-shadow select-none
-        ${disableDrag ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} overflow-hidden touch-manipulation
+        ${disableDrag ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} overflow-hidden
         ${isDragging ? 'ring-2 ring-orange-400' : ''}
         ${isDragOverlay ? 'shadow-lg rotate-2' : ''}
         ${order.status === 'completed' ? 'grayscale-[60%] opacity-80' : order.status === 'awaiting_payment' ? 'opacity-60' : ''}

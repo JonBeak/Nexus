@@ -244,7 +244,7 @@ export const calculateSubstrateCut = async (input: ValidatedPricingInput): Promi
 
       if (pinsComponent) {
         components.push({
-          name: 'Pins',
+          name: 'Pin',
           price: pinsComponent.cost,
           type: 'pins',
           calculationDisplay: pinsComponent.detailDisplay

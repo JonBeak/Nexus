@@ -27,6 +27,7 @@ export const ordersApi = {
     search?: string;
     limit?: number;
     offset?: number;
+    excludeStatuses?: string[];
   }): Promise<any[]> {
     const params: any = {};
 
@@ -44,6 +45,9 @@ export const ordersApi = {
     }
     if (filters?.offset) {
       params.offset = filters.offset;
+    }
+    if (filters?.excludeStatuses && filters.excludeStatuses.length > 0) {
+      params.excludeStatuses = filters.excludeStatuses.join(',');
     }
 
     const response = await api.get('/orders', { params });

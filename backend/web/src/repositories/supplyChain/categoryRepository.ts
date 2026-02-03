@@ -25,7 +25,7 @@ export class CategoryRepository {
       SELECT
         c.*,
         (SELECT COUNT(*) FROM product_archetypes pa
-         WHERE pa.category = c.name AND pa.is_active = TRUE) as material_count
+         WHERE pa.category_id = c.id AND pa.is_active = TRUE) as material_count
       FROM material_categories c
     `;
 
@@ -45,7 +45,7 @@ export class CategoryRepository {
     const rows = await query(
       `SELECT c.*,
         (SELECT COUNT(*) FROM product_archetypes pa
-         WHERE pa.category = c.name AND pa.is_active = TRUE) as material_count
+         WHERE pa.category_id = c.id AND pa.is_active = TRUE) as material_count
        FROM material_categories c WHERE c.id = ?`,
       [id]
     ) as CategoryRow[];
@@ -138,13 +138,8 @@ export class CategoryRepository {
       updateValues
     );
 
-    // If name changed, update product_archetypes
-    if (updates.name && updates.name !== oldCategory.name) {
-      await query(
-        'UPDATE product_archetypes SET category = ? WHERE category = ?',
-        [updates.name, oldCategory.name]
-      );
-    }
+    // Note: With FK relationship, product_archetypes.category_id stays linked automatically
+    // No need to update product_archetypes when category name changes
 
     return oldCategory.name;
   }
@@ -157,11 +152,25 @@ export class CategoryRepository {
   }
 
   /**
-   * Get material count for category
+   * Get material count for category by ID
    */
-  async getMaterialCount(categoryName: string): Promise<number> {
+  async getMaterialCount(categoryId: number): Promise<number> {
     const rows = await query(
-      'SELECT COUNT(*) as count FROM product_archetypes WHERE category = ? AND is_active = TRUE',
+      'SELECT COUNT(*) as count FROM product_archetypes WHERE category_id = ? AND is_active = TRUE',
+      [categoryId]
+    ) as RowDataPacket[];
+    return rows[0].count;
+  }
+
+  /**
+   * Get material count for category by name (legacy support)
+   */
+  async getMaterialCountByName(categoryName: string): Promise<number> {
+    const rows = await query(
+      `SELECT COUNT(*) as count
+       FROM product_archetypes pa
+       JOIN material_categories mc ON pa.category_id = mc.id
+       WHERE mc.name = ? AND pa.is_active = TRUE`,
       [categoryName]
     ) as RowDataPacket[];
     return rows[0].count;

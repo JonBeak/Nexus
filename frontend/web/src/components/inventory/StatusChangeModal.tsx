@@ -4,6 +4,7 @@ import { ordersApi } from '../../services/api';
 import { AutofillComboBox } from '../common/AutofillComboBox';
 import { StatusChangePayload, VinylItem } from './types';
 import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
+import { getTodayString } from '../../utils/dateUtils';
 
 interface StatusChangeFormState {
   disposition: StatusChangePayload['disposition'];
@@ -28,7 +29,7 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<StatusChangeFormState>({
     disposition: 'in_stock',
-    status_change_date: new Date().toISOString().split('T')[0],
+    status_change_date: getTodayString(),
     notes: '',
     orders: [''],
     order_ids: []
@@ -41,7 +42,7 @@ export const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
     if (isOpen && item) {
       setFormData({
         disposition: item.disposition || 'in_stock',
-        status_change_date: new Date().toISOString().split('T')[0],
+        status_change_date: getTodayString(),
         notes: item.notes || '',
         orders: [''],
         order_ids: []

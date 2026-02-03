@@ -12,6 +12,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Loader2, DollarSign, CreditCard, Check, AlertCircle } from 'lucide-react';
 import { qbInvoiceApi, InvoiceDetails } from '../../../services/api';
 import { useModalBackdrop } from '../../../hooks/useModalBackdrop';
+import { getTodayString } from '../../../utils/dateUtils';
 
 interface RecordPaymentModalProps {
   isOpen: boolean;
@@ -41,7 +42,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 
   // Form state
   const [amount, setAmount] = useState('');
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentDate, setPaymentDate] = useState(getTodayString());
   const [paymentMethod, setPaymentMethod] = useState('Check');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [memo, setMemo] = useState('');
@@ -84,7 +85,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 
   const resetForm = () => {
     setAmount('');
-    setPaymentDate(new Date().toISOString().split('T')[0]);
+    setPaymentDate(getTodayString());
     setPaymentMethod('Check');
     setReferenceNumber('');
     setMemo('');

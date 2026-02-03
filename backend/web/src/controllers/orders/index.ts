@@ -89,3 +89,11 @@ export { getTaskMetadata } from './TaskMetadataController';
 
 // Kanban Board Optimized Endpoint
 export { getKanbanData } from './KanbanController';
+
+// AI File Validation
+export {
+  listAiFiles,
+  validateAiFiles,
+  approveAiFiles,
+  getExpectedFilesComparison,
+} from './AiFileValidationController';

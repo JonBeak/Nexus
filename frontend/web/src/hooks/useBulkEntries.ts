@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { authApi, ordersApi } from '../services/api';
 import { OrderSuggestion } from '../components/common/OrderDropdown';
 import { TIMING, DEFAULTS } from '../constants/bulkEntryConstants';
+import { getTodayString } from '../utils/dateUtils';
 
 export interface BulkEntry {
   id: string;
@@ -48,7 +49,7 @@ export const useBulkEntries = () => {
       width: '',
       length_yards: '',
       location: '',
-      transaction_date: new Date().toISOString().split('T')[0],
+      transaction_date: getTodayString(),
       notes: '',
       job_ids: [DEFAULTS.EMPTY_JOB_ID]
     };
@@ -95,7 +96,7 @@ export const useBulkEntries = () => {
                 width: entry.width || '',
                 length_yards: entry.length_yards || '',
                 location: entry.location || '',
-                transaction_date: entry.transaction_date || entry.purchase_date || entry.storage_date || entry.usage_date || new Date().toISOString().split('T')[0],
+                transaction_date: entry.transaction_date || entry.purchase_date || entry.storage_date || entry.usage_date || getTodayString(),
                 notes: entry.notes || '',
                 job_ids: entry.job_ids || [DEFAULTS.EMPTY_JOB_ID],
                 specific_vinyl_id: entry.specific_vinyl_id,

@@ -17,7 +17,8 @@ const VALID_UNITS = [
 
 export interface CreateArchetypeData {
   name: string;
-  category: string;
+  category_id: number;
+  category?: string;  // Legacy: will be looked up to get category_id
   subcategory?: string;
   unit_of_measure: string;
   specifications?: Record<string, any>;
@@ -27,7 +28,8 @@ export interface CreateArchetypeData {
 
 export interface UpdateArchetypeData {
   name?: string;
-  category?: string;
+  category_id?: number;
+  category?: string;  // Legacy: will be looked up to get category_id
   subcategory?: string;
   unit_of_measure?: string;
   specifications?: Record<string, any>;
@@ -110,12 +112,26 @@ export class ArchetypeService {
         };
       }
 
-      // Validate category against database
-      const validCategories = await this.getValidCategories();
-      if (!data.category || !validCategories.includes(data.category)) {
+      // Resolve category_id
+      let categoryId = data.category_id;
+
+      // Legacy support: if category name provided but not category_id, look it up
+      if (!categoryId && data.category) {
+        const foundId = await this.repository.findCategoryIdByName(data.category);
+        if (!foundId) {
+          return {
+            success: false,
+            error: `Invalid category: ${data.category}`,
+            code: 'VALIDATION_ERROR'
+          };
+        }
+        categoryId = foundId;
+      }
+
+      if (!categoryId) {
         return {
           success: false,
-          error: `Invalid category. Must be one of: ${validCategories.join(', ')}`,
+          error: 'Category is required (provide category_id or category name)',
           code: 'VALIDATION_ERROR'
         };
       }
@@ -150,7 +166,7 @@ export class ArchetypeService {
 
       const archetypeId = await this.repository.create({
         name: data.name.trim(),
-        category: data.category,
+        category_id: categoryId,
         subcategory: data.subcategory?.trim(),
         unit_of_measure: data.unit_of_measure.trim(),
         specifications: data.specifications,
@@ -202,16 +218,18 @@ export class ArchetypeService {
         }
       }
 
-      // Validate category if provided
-      if (updates.category) {
-        const validCategories = await this.getValidCategories();
-        if (!validCategories.includes(updates.category)) {
+      // Resolve category_id if category name provided
+      let categoryId = updates.category_id;
+      if (!categoryId && updates.category) {
+        const foundId = await this.repository.findCategoryIdByName(updates.category);
+        if (!foundId) {
           return {
             success: false,
-            error: `Invalid category. Must be one of: ${validCategories.join(', ')}`,
+            error: `Invalid category: ${updates.category}`,
             code: 'VALIDATION_ERROR'
           };
         }
+        categoryId = foundId;
       }
 
       // Validate unit of measure if provided
@@ -243,9 +261,9 @@ export class ArchetypeService {
         }
       }
 
-      // Handle non-string fields
-      if (updates.category !== undefined) {
-        cleanedUpdates.category = updates.category;
+      // Handle category_id (resolved above)
+      if (categoryId !== undefined) {
+        cleanedUpdates.category_id = categoryId;
       }
       if (updates.specifications !== undefined) {
         cleanedUpdates.specifications = updates.specifications;

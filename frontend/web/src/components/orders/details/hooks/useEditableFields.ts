@@ -3,6 +3,7 @@ import { ordersApi } from '../../../../services/api';
 import { Order } from '../../../../types/orders';
 import { orderFieldConfigs } from '../constants/orderFieldConfigs';
 import { useAlert } from '../../../../contexts/AlertContext';
+import { getTodayString } from '../../../../utils/dateUtils';
 
 interface EditState {
   editingField: string | null;
@@ -105,7 +106,7 @@ export function useEditableFields(
           );
           setCalculatedValues((prev: any) => ({ ...prev, turnaroundDays: turnaroundResult.businessDays }));
 
-          const today = new Date().toISOString().split('T')[0];
+          const today = getTodayString();
           const daysUntilResult = await ordersApi.calculateBusinessDays(
             today,
             rawValue

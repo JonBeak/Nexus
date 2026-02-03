@@ -3,9 +3,21 @@
 
 export type ViewMode = 'single' | 'weekly' | 'bi-weekly' | 'monthly' | 'quarterly' | 'semi-yearly' | 'yearly' | 'analytics' | 'missing';
 
-// Get today's date as YYYY-MM-DD string
+// Get today's date as YYYY-MM-DD string in local timezone
 export const getTodayString = (): string => {
-  return new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Helper: Convert Date object to YYYY-MM-DD using local timezone
+const dateToLocalString = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 // Format time from datetime string to display format
@@ -98,7 +110,7 @@ export const getSaturdayOfWeek = (dateStr: string): string => {
   
   const saturday = new Date(date);
   saturday.setDate(date.getDate() - daysBack);
-  return saturday.toISOString().split('T')[0];
+  return dateToLocalString(saturday);
 };
 
 // Get the Friday of the week containing the given date
@@ -106,7 +118,7 @@ export const getFridayOfWeek = (dateStr: string): string => {
   const saturday = getSaturdayOfWeek(dateStr);
   const fridayDate = new Date(saturday + 'T12:00:00');
   fridayDate.setDate(fridayDate.getDate() + 6); // Saturday + 6 days = Friday
-  return fridayDate.toISOString().split('T')[0];
+  return dateToLocalString(fridayDate);
 };
 
 // Navigate date based on view mode
@@ -135,8 +147,8 @@ export const navigateDate = (selectedDate: string, viewMode: ViewMode, direction
     // Yearly navigation
     currentDate.setFullYear(currentDate.getFullYear() + (direction === 'next' ? 1 : -1));
   }
-  
-  return currentDate.toISOString().split('T')[0];
+
+  return dateToLocalString(currentDate);
 };
 
 // Get date range for different view modes
@@ -168,50 +180,50 @@ export const getDateRangeForViewMode = (selectedDate: string, viewMode: ViewMode
       const biWeekStart = new Date(weekStartSat + 'T12:00:00');
       biWeekStart.setDate(biWeekStart.getDate() - 7);
       return {
-        startDate: biWeekStart.toISOString().split('T')[0],
+        startDate: dateToLocalString(biWeekStart),
         endDate: getFridayOfWeek(selectedDate)
       };
     }
-    
+
     case 'monthly': {
       // First day of the month
       const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
       return {
-        startDate: monthStart.toISOString().split('T')[0],
-        endDate: monthEnd.toISOString().split('T')[0]
+        startDate: dateToLocalString(monthStart),
+        endDate: dateToLocalString(monthEnd)
       };
     }
-    
+
     case 'quarterly': {
       // First day of the quarter
       const quarter = Math.floor(currentDate.getMonth() / 3);
       const quarterStart = new Date(currentDate.getFullYear(), quarter * 3, 1);
       const quarterEnd = new Date(currentDate.getFullYear(), quarter * 3 + 3, 0);
       return {
-        startDate: quarterStart.toISOString().split('T')[0],
-        endDate: quarterEnd.toISOString().split('T')[0]
+        startDate: dateToLocalString(quarterStart),
+        endDate: dateToLocalString(quarterEnd)
       };
     }
-    
+
     case 'semi-yearly': {
       // First day of the half-year
       const half = currentDate.getMonth() < 6 ? 0 : 6;
       const halfStart = new Date(currentDate.getFullYear(), half, 1);
       const halfEnd = new Date(currentDate.getFullYear(), half + 6, 0);
       return {
-        startDate: halfStart.toISOString().split('T')[0],
-        endDate: halfEnd.toISOString().split('T')[0]
+        startDate: dateToLocalString(halfStart),
+        endDate: dateToLocalString(halfEnd)
       };
     }
-    
+
     case 'yearly': {
       // First day of the year
       const yearStart = new Date(currentDate.getFullYear(), 0, 1);
       const yearEnd = new Date(currentDate.getFullYear() + 1, 0, 0);
       return {
-        startDate: yearStart.toISOString().split('T')[0],
-        endDate: yearEnd.toISOString().split('T')[0]
+        startDate: dateToLocalString(yearStart),
+        endDate: dateToLocalString(yearEnd)
       };
     }
     
@@ -266,9 +278,9 @@ export const formatDateTime = (dateString: string | null): string => {
 export const isValidDateString = (dateString: string): boolean => {
   const regex = /^\d{4}-\d{2}-\d{2}$/;
   if (!regex.test(dateString)) return false;
-  
+
   const date = new Date(dateString + 'T12:00:00');
-  return date.toISOString().split('T')[0] === dateString;
+  return dateToLocalString(date) === dateString;
 };
 
 // Get date label for filters based on view mode

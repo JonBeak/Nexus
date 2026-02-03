@@ -48,8 +48,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [editedCells, setEditedCells] = useState<Set<string>>(new Set());
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
 
-  // Today's date for active entry detection
-  const today = useMemo(() => toDateString(new Date()), []);
+  // Today's date for active entry detection (local timezone)
+  const today = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
   const [focusedBreakCell, setFocusedBreakCell] = useState<string | null>(null);
   const [bulkEditValues, setBulkEditValues] = useState<{ [date: string]: { in: string; out: string; break: string } }>({});
   const [bulkEditOpen, setBulkEditOpen] = useState<Set<string>>(new Set());

@@ -4,6 +4,7 @@ import { VinylItem } from '../components/inventory/types';
 import { OrderSuggestion } from '../components/common/OrderDropdown';
 import { vinylApi } from './api';
 import { validateBulkEntries } from './bulkEntry/bulkEntryValidation';
+import { getTodayString } from '../utils/dateUtils';
 
 interface SubmissionResult {
   success: boolean;
@@ -128,7 +129,7 @@ export const submitBulkEntries = async (
           });
         } else {
           // Handle store/waste/returned/damaged entries - create new vinyl items
-          const transactionDate = entry.transaction_date || new Date().toISOString().split('T')[0];
+          const transactionDate = entry.transaction_date || getTodayString();
           const createData = {
             brand: entry.brand,
             series: entry.series,

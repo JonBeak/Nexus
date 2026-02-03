@@ -186,6 +186,10 @@ export type {
 
 // Material Requirements (Jan 2026)
 export { materialRequirementsApi } from './materialRequirementsApi';
+
+// Archetypes (Product Types) for Material Requirements dropdowns
+export { archetypesApi } from './archetypesApi';
+export type { ProductArchetype, VinylProductOption, SupplierProductOption } from '../../types/materialRequirements';
 export type {
   MaterialRequirement,
   MaterialRequirementStatus,
@@ -199,3 +203,50 @@ export type {
   StatusCountsResponse,
   OrderDropdownOption
 } from '../../types/materialRequirements';
+
+// Supplier Orders (Feb 2026)
+export { supplierOrdersApi } from './supplierOrdersApi';
+export type {
+  SupplierOrder,
+  SupplierOrderItem,
+  SupplierOrderWithItems,
+  SupplierOrderStatus,
+  SupplierOrderStatusHistory,
+  CreateSupplierOrderRequest,
+  UpdateSupplierOrderRequest,
+  GenerateOrderRequest,
+  GenerateOrderResponse,
+  ReceiveItemsRequest,
+  ReceiveItemsResponse,
+  SupplierOrderSearchParams,
+  SupplierOrderStatusCounts,
+  GroupedRequirement,
+  SupplierRequirementGroup,
+  GroupedBySupplierResponse
+} from '../../types/supplierOrders';
+
+// AI File Validation (Feb 2026)
+export { aiFileValidationApi } from './aiFileValidationApi';
+export type {
+  AiFileInfo,
+  AiFileValidationRecord,
+  AiValidationRule,
+  ValidateFilesResponse,
+  ApproveFilesResponse,
+  ValidationIssue,
+  ValidationStats,
+  ValidationStatus,
+  IssueSeverity
+} from '../../types/aiFileValidation';
+
+// Inventory Management (Feb 2026)
+export { default as inventoryApi } from './inventoryApi';
+export type {
+  SupplierProductStock,
+  ArchetypeStockLevel,
+  LowStockAlert,
+  StockSummaryByCategory,
+  InventoryTransaction,
+  StockAdjustmentResult,
+  TransactionSummary
+} from './inventoryApi';

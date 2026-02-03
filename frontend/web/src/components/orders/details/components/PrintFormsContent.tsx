@@ -23,6 +23,7 @@ interface PrintFormsContentProps {
   onPrintAndMoveToProduction?: () => void;
   onMoveToProductionWithoutPrinting?: () => void;
   defaultConfig?: PrintConfig;
+  shopRoles?: string[];
 }
 
 const PrintFormsContent: React.FC<PrintFormsContentProps> = ({
@@ -34,7 +35,8 @@ const PrintFormsContent: React.FC<PrintFormsContentProps> = ({
   mode = 'full',
   defaultConfig,
   onPrintAndMoveToProduction,
-  onMoveToProductionWithoutPrinting
+  onMoveToProductionWithoutPrinting,
+  shopRoles
 }) => {
   // Default values if no defaultConfig provided
   const defaults = defaultConfig || { master: 1, estimate: 1, shop: 2, packing: 2 };
@@ -148,6 +150,18 @@ const PrintFormsContent: React.FC<PrintFormsContentProps> = ({
               <div>
                 <span className="text-base font-medium text-gray-700">Shop Form</span>
                 <p className="text-xs text-gray-500 mt-0.5">Auto-calculated from specs</p>
+                {shopRoles && shopRoles.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {shopRoles.map((role) => (
+                      <span
+                        key={role}
+                        className="inline-block px-1.5 py-0.5 text-xs font-medium text-blue-700 bg-blue-100 border border-blue-200 rounded"
+                      >
+                        {role}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="flex items-center space-x-3">
                 <button

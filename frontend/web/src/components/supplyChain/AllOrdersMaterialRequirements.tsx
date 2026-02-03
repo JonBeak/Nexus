@@ -1,7 +1,9 @@
 /**
  * All Orders Material Requirements
- * Unified table tracking all material requirements across orders and stock
+ * Inline-editable table tracking all material requirements across orders and stock
  * Created: 2025-01-27
+ * Updated: 2026-02-02 - Redesign with Product Type, cascading Product, Ordered date,
+ *          Receiving Status dropdown, and computed Auto Status badge
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -10,28 +12,46 @@ import {
   Package,
   Truck,
   CheckCircle,
-  AlertTriangle,
   Clock,
-  XCircle,
   RefreshCw,
   Search,
   Filter,
   ChevronDown,
+  Trash2,
+  ShoppingCart,
+  HandMetal,
 } from 'lucide-react';
 import { PAGE_STYLES } from '../../constants/moduleColors';
-import { materialRequirementsApi } from '../../services/api';
+import { materialRequirementsApi, ordersApi, supplierProductsApi, archetypesApi, vinylProductsApi, suppliersApi } from '../../services/api';
+import { InlineEditableCell } from './components/InlineEditableCell';
+import { SupplierDropdown, SUPPLIER_IN_STOCK } from './components/SupplierDropdown';
+import { OrderDropdown } from './components/OrderDropdown';
+import { ProductTypeDropdown } from './components/ProductTypeDropdown';
+import { ProductDropdown } from './components/ProductDropdown';
+import { getTodayString } from '../../utils/dateUtils';
 import type {
   MaterialRequirement,
   MaterialRequirementStatus,
   MaterialRequirementFilters,
   CreateMaterialRequirementRequest,
+  OrderDropdownOption,
+  ComputedRequirementStatus,
 } from '../../types/materialRequirements';
 import type { User as AccountUser } from '../accounts/hooks/useAccountAPI';
+
+interface SupplierProduct {
+  supplier_product_id: number;
+  product_name: string | null;
+  sku: string | null;
+  supplier_id: number;
+  supplier_name?: string;
+}
 
 interface AllOrdersMaterialRequirementsProps {
   user?: AccountUser;
   showNotification: (message: string, type?: 'success' | 'error') => void;
 }
+
 
 const STATUS_OPTIONS: { value: MaterialRequirementStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All Statuses' },
@@ -44,9 +64,114 @@ const STATUS_OPTIONS: { value: MaterialRequirementStatus | 'all'; label: string 
 ];
 
 const DELIVERY_OPTIONS = [
-  { value: 'shipping', label: 'Shipping' },
+  { value: 'shipping', label: 'Ship' },
   { value: 'pickup', label: 'Pickup' },
 ];
+
+// Receiving Status dropdown options (replaces old status editing)
+// When "Select..." (empty) is chosen, it maps to 'pending' status
+const RECEIVING_STATUS_OPTIONS = [
+  { value: 'received', label: 'Received' },
+  { value: 'backordered', label: 'Backordered' },
+  { value: 'partial_received', label: 'Partial' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
+
+
+/**
+ * Compute auto status based on ORDERED (ordered_date) x RECEIVING (status)
+ *
+ * | Ordered Date | Receiving     | Auto Status           |
+ * |--------------|---------------|-----------------------|
+ * | No           | Select...     | Pending               |
+ * | Yes          | Select...     | Ordered (Pickup/Ship) |
+ * | Yes          | Backordered   | Backordered           |
+ * | Yes          | Partial       | Partial               |
+ * | Any          | Received      | Fulfilled             |
+ * | Any          | Cancelled     | Cancelled             |
+ * | In Stock     | Select...     | To Pick               |
+ */
+const computeAutoStatus = (req: MaterialRequirement): ComputedRequirementStatus => {
+  // Fulfilled: received
+  if (req.status === 'received') {
+    return 'fulfilled';
+  }
+
+  // Cancelled
+  if (req.status === 'cancelled') {
+    return 'pending'; // Or could add 'cancelled' to ComputedRequirementStatus
+  }
+
+  // Backordered
+  if (req.status === 'backordered') {
+    return 'pending'; // Could add 'backordered' badge if needed
+  }
+
+  // Partial received
+  if (req.status === 'partial_received') {
+    return 'pending'; // Could add 'partial' badge if needed
+  }
+
+  // Not received yet (pending/ordered status) - check ordered_date and supplier
+  // In Stock items → To Pick
+  if (req.supplier_id === SUPPLIER_IN_STOCK) {
+    return 'to_be_picked';
+  }
+
+  // Has ordered_date → Ordered for pickup/shipping
+  if (req.ordered_date) {
+    return req.delivery_method === 'pickup' ? 'ordered_pickup' : 'ordered_shipping';
+  }
+
+  // Default: pending (not ordered yet)
+  return 'pending';
+};
+
+/**
+ * Get badge for computed auto status
+ */
+const getAutoStatusBadge = (status: ComputedRequirementStatus) => {
+  switch (status) {
+    case 'pending':
+      return (
+        <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-yellow-100 text-yellow-800 flex items-center gap-1 whitespace-nowrap">
+          <Clock className="w-3 h-3" />
+          Pending
+        </span>
+      );
+    case 'ordered_pickup':
+      return (
+        <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-blue-100 text-blue-800 flex items-center gap-1 whitespace-nowrap">
+          <ShoppingCart className="w-3 h-3" />
+          Pickup
+        </span>
+      );
+    case 'ordered_shipping':
+      return (
+        <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-indigo-100 text-indigo-800 flex items-center gap-1 whitespace-nowrap">
+          <Truck className="w-3 h-3" />
+          Shipping
+        </span>
+      );
+    case 'to_be_picked':
+      return (
+        <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-purple-100 text-purple-800 flex items-center gap-1 whitespace-nowrap">
+          <HandMetal className="w-3 h-3" />
+          To Pick
+        </span>
+      );
+    case 'fulfilled':
+      return (
+        <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-green-100 text-green-800 flex items-center gap-1 whitespace-nowrap">
+          <CheckCircle className="w-3 h-3" />
+          Fulfilled
+        </span>
+      );
+    default:
+      return null;
+  }
+};
+
 
 export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequirementsProps> = ({
   user,
@@ -63,16 +188,20 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
     dateRange: { from: null, to: null },
   });
   const [showFilters, setShowFilters] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [receiveModalId, setReceiveModalId] = useState<number | null>(null);
-  const [receiveQuantity, setReceiveQuantity] = useState<number>(0);
 
-  // New requirement form state
-  const [newRequirement, setNewRequirement] = useState<CreateMaterialRequirementRequest>({
-    quantity_ordered: 0,
-    delivery_method: 'shipping',
-  });
+
+  // Orders for dropdown
+  const [availableOrders, setAvailableOrders] = useState<OrderDropdownOption[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+
+  // Supplier products for vendor filtering
+  const [supplierProducts, setSupplierProducts] = useState<SupplierProduct[]>([]);
+
+  // Load all dropdown data ONCE in parent (prevents API spam)
+  // Initialize as undefined so dropdowns know data hasn't loaded yet
+  const [archetypes, setArchetypes] = useState<any[] | undefined>(undefined);
+  const [vinylProducts, setVinylProducts] = useState<any[] | undefined>(undefined);
+  const [suppliers, setSuppliers] = useState<any[] | undefined>(undefined);
 
   const loadRequirements = useCallback(async () => {
     try {
@@ -112,106 +241,80 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
     void loadRequirements();
   }, [loadRequirements]);
 
-  const getStatusBadge = (status: MaterialRequirementStatus) => {
-    switch (status) {
-      case 'pending':
-        return (
-          <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            Pending
-          </span>
-        );
-      case 'ordered':
-        return (
-          <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 flex items-center gap-1">
-            <Truck className="w-3 h-3" />
-            Ordered
-          </span>
-        );
-      case 'backordered':
-        return (
-          <span className="px-2 py-1 text-xs font-medium rounded-full bg-orange-100 text-orange-800 flex items-center gap-1">
-            <AlertTriangle className="w-3 h-3" />
-            Backordered
-          </span>
-        );
-      case 'partial_received':
-        return (
-          <span className="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800 flex items-center gap-1">
-            <Package className="w-3 h-3" />
-            Partial
-          </span>
-        );
-      case 'received':
-        return (
-          <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 flex items-center gap-1">
-            <CheckCircle className="w-3 h-3" />
-            Received
-          </span>
-        );
-      case 'cancelled':
-        return (
-          <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600 flex items-center gap-1">
-            <XCircle className="w-3 h-3" />
-            Cancelled
-          </span>
-        );
-      default:
-        return <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">{status}</span>;
-    }
-  };
-
-  const formatDate = (dateStr: string | null | undefined) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  const handleReceive = async () => {
-    if (!receiveModalId || receiveQuantity <= 0) return;
-
-    try {
-      await materialRequirementsApi.receiveQuantity(receiveModalId, {
-        quantity: receiveQuantity,
-        received_date: new Date().toISOString().split('T')[0],
-      });
-      showNotification('Quantity received successfully', 'success');
-      setReceiveModalId(null);
-      setReceiveQuantity(0);
-      void loadRequirements();
-    } catch (error) {
-      console.error('Error receiving quantity:', error);
-      showNotification('Failed to receive quantity', 'error');
-    }
-  };
-
-  const handleCreate = async () => {
-    try {
-      if (!newRequirement.order_id && !newRequirement.is_stock_item) {
-        showNotification('Please select an order or mark as stock item', 'error');
-        return;
+  // Load all orders for dropdown
+  useEffect(() => {
+    const loadOrders = async () => {
+      try {
+        setLoadingOrders(true);
+        const orders = await ordersApi.getOrders({}); // Load all orders
+        setAvailableOrders(orders.map((o: any) => ({
+          order_id: o.order_id,
+          order_number: String(o.order_number),
+          order_name: o.order_name || '',
+          customer_name: o.customer_name || ''
+        })));
+      } catch (error) {
+        console.error('Failed to load orders:', error);
+      } finally {
+        setLoadingOrders(false);
       }
-      if (newRequirement.quantity_ordered <= 0) {
-        showNotification('Quantity must be greater than 0', 'error');
-        return;
-      }
+    };
+    void loadOrders();
+  }, []);
 
-      await materialRequirementsApi.createRequirement({
-        ...newRequirement,
-        entry_date: new Date().toISOString().split('T')[0],
-      });
-      showNotification('Material requirement created', 'success');
-      setShowAddModal(false);
-      setNewRequirement({ quantity_ordered: 0, delivery_method: 'shipping' });
-      void loadRequirements();
-    } catch (error) {
-      console.error('Error creating requirement:', error);
-      showNotification('Failed to create requirement', 'error');
-    }
-  };
+  // Load supplier products for vendor filtering
+  useEffect(() => {
+    const loadSupplierProducts = async () => {
+      try {
+        const products = await supplierProductsApi.getSupplierProducts({ active_only: true });
+        setSupplierProducts(products);
+      } catch (error) {
+        console.error('Failed to load supplier products:', error);
+      }
+    };
+    void loadSupplierProducts();
+  }, []);
+
+  // Load archetypes ONCE for all ProductTypeDropdowns
+  useEffect(() => {
+    const loadArchetypes = async () => {
+      try {
+        const data = await archetypesApi.getArchetypes({ active_only: true });
+        setArchetypes(data);
+      } catch (error) {
+        console.error('Failed to load archetypes:', error);
+      }
+    };
+    void loadArchetypes();
+  }, []);
+
+  // Load vinyl products ONCE for all ProductDropdowns
+  useEffect(() => {
+    const loadVinylProducts = async () => {
+      try {
+        const data = await vinylProductsApi.getVinylProducts({ active_only: true });
+        setVinylProducts(data);
+      } catch (error) {
+        console.error('Failed to load vinyl products:', error);
+      }
+    };
+    void loadVinylProducts();
+  }, []);
+
+  // Load suppliers ONCE for all SupplierDropdowns
+  useEffect(() => {
+    const loadSuppliers = async () => {
+      try {
+        const data = await suppliersApi.getSuppliers({ active_only: true });
+        setSuppliers(data);
+      } catch (error) {
+        console.error('Failed to load suppliers:', error);
+      }
+    };
+    void loadSuppliers();
+  }, []);
+
+
 
   const handleDelete = async (id: number) => {
     if (!confirm('Are you sure you want to delete this requirement?')) return;
@@ -227,16 +330,95 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
   };
 
   const handleInlineEdit = async (id: number, field: string, value: any) => {
+    console.log('handleInlineEdit called:', { id, field, value });
     try {
       await materialRequirementsApi.updateRequirement(id, { [field]: value });
-      void loadRequirements();
+      console.log('API call succeeded, updating local state');
+      // Update local state without full reload for smoother UX
+      setRequirements(prev => prev.map(req =>
+        req.requirement_id === id ? { ...req, [field]: value } : req
+      ));
     } catch (error) {
       console.error('Error updating requirement:', error);
       showNotification('Failed to update', 'error');
+      void loadRequirements();
     }
   };
 
-  const thClass = `px-4 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider`;
+  // Handle multiple field updates at once (for cascading dropdowns)
+  const handleMultiFieldEdit = async (id: number, updates: Record<string, any>) => {
+    try {
+      await materialRequirementsApi.updateRequirement(id, updates);
+      setRequirements(prev => prev.map(req =>
+        req.requirement_id === id ? { ...req, ...updates } : req
+      ));
+    } catch (error) {
+      console.error('Error updating requirement:', error);
+      showNotification('Failed to update', 'error');
+      void loadRequirements();
+    }
+  };
+
+  /**
+   * Vinyl product selection - no auto-assignment, no clearing
+   * Just update vinyl product field independently
+   */
+  const handleVinylProductSelect = async (requirementId: number, productId: number | null) => {
+    // Just update vinyl product - don't auto-assign vendor, don't clear supplier product
+    await handleInlineEdit(requirementId, 'vinyl_product_id', productId);
+  };
+
+  /**
+   * Supplier product selection with auto-vendor assignment
+   * Keeps auto-assignment for convenience, but doesn't clear vinyl product
+   */
+  const handleSupplierProductSelect = async (requirementId: number, productId: number | null) => {
+    if (productId === null) {
+      // Just clear supplier product - don't auto-clear vendor
+      await handleInlineEdit(requirementId, 'supplier_product_id', null);
+      return;
+    }
+
+    const selectedProduct = supplierProducts.find(p => p.supplier_product_id === productId);
+    const autoSupplierId = selectedProduct?.supplier_id ?? null;
+
+    // Update supplier product AND auto-assign vendor (but don't clear vinyl product)
+    await handleMultiFieldEdit(requirementId, {
+      supplier_product_id: productId,
+      supplier_id: autoSupplierId,  // ✓ Keep auto-assignment for convenience
+    });
+  };
+
+  // Add new requirement handler
+  const handleAddNewRequirement = async () => {
+    try {
+      const createData: CreateMaterialRequirementRequest = {
+        is_stock_item: true,  // Default to Stock
+        order_id: null,
+        archetype_id: null,
+        vinyl_product_id: null,
+        supplier_product_id: null,
+        custom_product_type: undefined,
+        size_description: undefined,
+        quantity_ordered: 0,  // Start with 0 to bypass validation until product type is selected
+        supplier_id: null,
+        delivery_method: 'shipping',
+        notes: undefined,
+        entry_date: getTodayString(),
+      };
+
+      const newRequirement = await materialRequirementsApi.createRequirement(createData);
+      showNotification('Requirement added', 'success');
+      // Add new row to local state instead of full reload
+      setRequirements(prev => [...prev, newRequirement]);
+    } catch (error) {
+      console.error('Error creating requirement:', error);
+      showNotification('Failed to add requirement', 'error');
+    }
+  };
+
+
+  const thClass = `px-1 py-1 text-left text-[10px] font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider`;
 
   if (loading && requirements.length === 0) {
     return (
@@ -292,11 +474,11 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
 
           {/* Add Button */}
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={handleAddNewRequirement}
             className="px-3 py-1.5 text-sm font-medium rounded-md bg-purple-600 text-white hover:bg-purple-700 flex items-center gap-1"
           >
             <Plus className="w-4 h-4" />
-            Add Requirement
+            Add
           </button>
         </div>
       </div>
@@ -354,88 +536,197 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full text-xs">
           <thead className={`${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.border} border-b`}>
             <tr>
-              <th className={thClass}>Date</th>
-              <th className={thClass}>Job/Stock</th>
-              <th className={thClass}>Product Type</th>
-              <th className={thClass}>Size</th>
-              <th className={`${thClass} text-right`}>Qty</th>
-              <th className={thClass}>Vendor</th>
-              <th className={thClass}>Ordered</th>
-              <th className={thClass}>Delivery</th>
-              <th className={`${thClass} text-right`}>Received</th>
-              <th className={thClass}>Status</th>
-              <th className={thClass}>Notes</th>
-              <th className={`${thClass} text-right`}>Actions</th>
+              <th className={thClass} style={{ width: '95px' }}>Date</th>
+              <th className={thClass} style={{ width: '120px' }}>Order Ref</th>
+              <th className={thClass} style={{ width: '130px' }}>Product Type</th>
+              <th className={thClass} style={{ width: '160px' }}>Product</th>
+              <th className={thClass} style={{ width: '90px' }}>Size</th>
+              <th className={`${thClass} text-right`} style={{ width: '65px' }}>Qty</th>
+              <th className={thClass} style={{ width: '130px' }}>Vendor</th>
+              <th className={thClass} style={{ width: '70px' }}>Delivery</th>
+              <th className={thClass} style={{ width: '95px' }}>Ordered</th>
+              <th className={thClass} style={{ width: '100px' }}>Receiving</th>
+              <th className={thClass} style={{ width: '180px' }}>Notes</th>
+              <th className={`${thClass} text-center`} style={{ width: '60px' }}>Actions</th>
+              <th className={thClass} style={{ width: '80px' }}>Status</th>
             </tr>
           </thead>
           <tbody className={PAGE_STYLES.panel.divider}>
-            {requirements.map((req) => (
-              <tr key={req.requirement_id} className="hover:bg-[var(--theme-hover-bg)]">
-                <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.textSecondary}`}>
-                  {formatDate(req.entry_date)}
-                </td>
-                <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.text}`}>
-                  {req.is_stock_item ? (
-                    <span className="text-purple-600 font-medium">Stock</span>
-                  ) : (
-                    <span className="text-blue-600">{req.order_number || '-'}</span>
-                  )}
-                </td>
-                <td className={`px-4 py-3 text-sm font-medium ${PAGE_STYLES.panel.text}`}>
-                  {req.archetype_name || req.custom_product_type || '-'}
-                </td>
-                <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.textSecondary}`}>
-                  {req.size_description || '-'}
-                </td>
-                <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.text} text-right`}>
-                  {req.quantity_ordered} {req.unit_of_measure || ''}
-                </td>
-                <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.textSecondary}`}>
-                  {req.supplier_name || '-'}
-                </td>
-                <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.textSecondary}`}>
-                  {formatDate(req.ordered_date)}
-                </td>
-                <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.textSecondary}`}>
-                  {req.delivery_method === 'pickup' ? 'Pickup' : 'Ship'}
-                </td>
-                <td className={`px-4 py-3 text-sm text-right ${req.quantity_received > 0 ? 'text-green-600 font-medium' : PAGE_STYLES.panel.textMuted}`}>
-                  {req.quantity_received || 0}
-                </td>
-                <td className="px-4 py-3">
-                  {getStatusBadge(req.status)}
-                </td>
-                <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.textMuted} max-w-[200px] truncate`}>
-                  {req.notes || '-'}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    {['pending', 'ordered', 'backordered', 'partial_received'].includes(req.status) && (
-                      <button
-                        onClick={() => {
-                          setReceiveModalId(req.requirement_id);
-                          setReceiveQuantity(Number(req.quantity_ordered) - Number(req.quantity_received));
-                        }}
-                        className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
-                      >
-                        Receive
-                      </button>
+            {/* All Rows */}
+            {requirements.map((req) => {
+              const autoStatus = computeAutoStatus(req);
+              return (
+                <tr key={req.requirement_id} className="hover:bg-[var(--theme-hover-bg)] border-b border-gray-100">
+                  {/* Date */}
+                  <td className="px-1 py-0.5">
+                    <InlineEditableCell
+                      value={req.entry_date}
+                      onChange={(val) => handleInlineEdit(req.requirement_id, 'entry_date', val)}
+                      type="date"
+                    />
+                  </td>
+
+                  {/* Order Ref */}
+                  <td className="px-1 py-0.5">
+                    <OrderDropdown
+                      value={req.order_id}
+                      onChange={(orderId) => {
+                        handleMultiFieldEdit(req.requirement_id, {
+                          is_stock_item: false,
+                          order_id: orderId
+                        });
+                      }}
+                      orders={availableOrders}
+                      loading={loadingOrders}
+                      placeholder="Select..."
+                      showClear={false}
+                      includeStockOption={true}
+                      isStockSelected={req.is_stock_item}
+                      onStockSelect={() => {
+                        handleMultiFieldEdit(req.requirement_id, {
+                          is_stock_item: true,
+                          order_id: null
+                        });
+                      }}
+                    />
+                  </td>
+
+                  {/* Product Type */}
+                  <td className="px-1 py-0.5">
+                    <ProductTypeDropdown
+                      value={req.archetype_id}
+                      onChange={(val) => handleMultiFieldEdit(req.requirement_id, {
+                        archetype_id: val,
+                        vinyl_product_id: null,
+                        supplier_product_id: null,
+                        supplier_id: null,
+                      })}
+                      archetypes={archetypes}
+                      placeholder="Type..."
+                    />
+                  </td>
+
+                  {/* Product */}
+                  <td className="px-1 py-0.5">
+                    {req.archetype_id !== null ? (
+                      <ProductDropdown
+                        archetypeId={req.archetype_id}
+                        vinylProductId={req.vinyl_product_id}
+                        supplierProductId={req.supplier_product_id}
+                        supplierId={req.supplier_id}
+                        supplierProducts={supplierProducts}
+                        vinylProducts={vinylProducts}
+                        onVinylProductChange={(val) => handleVinylProductSelect(req.requirement_id, val)}
+                        onSupplierProductChange={(val) => handleSupplierProductSelect(req.requirement_id, val)}
+                        placeholder="Product..."
+                      />
+                    ) : (
+                      <InlineEditableCell
+                        value={req.custom_product_type || ''}
+                        onChange={(val) => handleInlineEdit(req.requirement_id, 'custom_product_type', val)}
+                        type="text"
+                        placeholder="Custom..."
+                      />
                     )}
-                    {req.status !== 'received' && (
-                      <button
-                        onClick={() => handleDelete(req.requirement_id)}
-                        className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+
+                  {/* Size */}
+                  <td className="px-1 py-0.5">
+                    <InlineEditableCell
+                      value={req.size_description || ''}
+                      onChange={(val) => handleInlineEdit(req.requirement_id, 'size_description', val)}
+                      type="text"
+                      placeholder="Size"
+                    />
+                  </td>
+
+                  {/* Qty */}
+                  <td className="px-1 py-0.5 text-right font-medium">
+                    <InlineEditableCell
+                      value={req.quantity_ordered}
+                      onChange={(val) => handleInlineEdit(req.requirement_id, 'quantity_ordered', Number(val))}
+                      type="number"
+                      min={0}
+                      step={1}
+                      className="text-right"
+                    />
+                  </td>
+
+                  {/* Vendor */}
+                  <td className="px-1 py-0.5">
+                    <SupplierDropdown
+                      value={req.supplier_id}
+                      onChange={(val) => handleInlineEdit(req.requirement_id, 'supplier_id', val)}
+                      suppliers={suppliers}
+                      placeholder="Vendor..."
+                    />
+                  </td>
+
+                  {/* Delivery */}
+                  <td className="px-1 py-0.5">
+                    <InlineEditableCell
+                      value={req.delivery_method}
+                      onChange={(val) => handleInlineEdit(req.requirement_id, 'delivery_method', val)}
+                      type="select"
+                      options={DELIVERY_OPTIONS}
+                    />
+                  </td>
+
+                  {/* Ordered Date */}
+                  <td className="px-1 py-0.5">
+                    <InlineEditableCell
+                      value={req.ordered_date || ''}
+                      onChange={(val) => handleInlineEdit(req.requirement_id, 'ordered_date', val || null)}
+                      type="date"
+                      placeholder="-"
+                    />
+                  </td>
+
+                  {/* Receiving Status */}
+                  <td className="px-1 py-0.5">
+                    <InlineEditableCell
+                      value={req.status === 'pending' || req.status === 'ordered' ? '' : req.status}
+                      onChange={(val) => handleInlineEdit(req.requirement_id, 'status', val || 'pending')}
+                      type="select"
+                      options={RECEIVING_STATUS_OPTIONS}
+                    />
+                  </td>
+
+                  {/* Notes */}
+                  <td className="px-1 py-0.5">
+                    <InlineEditableCell
+                      value={req.notes || ''}
+                      onChange={(val) => handleInlineEdit(req.requirement_id, 'notes', val)}
+                      type="textarea"
+                      placeholder="Notes"
+                    />
+                  </td>
+
+                  {/* Actions */}
+                  <td className="px-1 py-0.5">
+                    <div className="flex items-center justify-center">
+                      {req.status !== 'received' && (
+                        <button
+                          onClick={() => handleDelete(req.requirement_id)}
+                          className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Auto Status Badge */}
+                  <td className="px-1 py-0.5">
+                    {getAutoStatusBadge(autoStatus)}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -444,174 +735,7 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
         <div className={`text-center py-12 ${PAGE_STYLES.panel.textMuted}`}>
           <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
           <p className="text-lg font-medium mb-1">No material requirements found</p>
-          <p className="text-sm">Click "Add Requirement" to create one</p>
-        </div>
-      )}
-
-      {/* Receive Modal */}
-      {receiveModalId && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow-xl max-w-md w-full mx-4`}>
-            <div className="p-6">
-              <h2 className={`text-xl font-semibold ${PAGE_STYLES.panel.text} mb-4`}>Receive Quantity</h2>
-              <div className="mb-4">
-                <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-2`}>
-                  Quantity Received
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={receiveQuantity}
-                  onChange={(e) => setReceiveQuantity(Number(e.target.value))}
-                  className={`w-full px-3 py-2 ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-md`}
-                />
-              </div>
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => { setReceiveModalId(null); setReceiveQuantity(0); }}
-                  className={`px-4 py-2 ${PAGE_STYLES.panel.textSecondary} ${PAGE_STYLES.header.background} rounded hover:opacity-80`}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleReceive}
-                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-                >
-                  Receive
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className={`${PAGE_STYLES.panel.background} rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto`}>
-            <div className="p-6">
-              <h2 className={`text-xl font-semibold ${PAGE_STYLES.panel.text} mb-4`}>Add Material Requirement</h2>
-
-              <div className="space-y-4">
-                {/* Type Selection */}
-                <div>
-                  <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-2`}>Type</label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        checked={!newRequirement.is_stock_item}
-                        onChange={() => setNewRequirement({ ...newRequirement, is_stock_item: false })}
-                      />
-                      <span className={`text-sm ${PAGE_STYLES.panel.text}`}>Order</span>
-                    </label>
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        checked={!!newRequirement.is_stock_item}
-                        onChange={() => setNewRequirement({ ...newRequirement, is_stock_item: true, order_id: undefined })}
-                      />
-                      <span className={`text-sm ${PAGE_STYLES.panel.text}`}>Stock</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Order ID (if not stock) */}
-                {!newRequirement.is_stock_item && (
-                  <div>
-                    <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-2`}>Order ID</label>
-                    <input
-                      type="number"
-                      value={newRequirement.order_id || ''}
-                      onChange={(e) => setNewRequirement({ ...newRequirement, order_id: Number(e.target.value) || undefined })}
-                      className={`w-full px-3 py-2 ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-md`}
-                      placeholder="Enter order ID"
-                    />
-                  </div>
-                )}
-
-                {/* Custom Product Type */}
-                <div>
-                  <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-2`}>Product Type</label>
-                  <input
-                    type="text"
-                    value={newRequirement.custom_product_type || ''}
-                    onChange={(e) => setNewRequirement({ ...newRequirement, custom_product_type: e.target.value })}
-                    className={`w-full px-3 py-2 ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-md`}
-                    placeholder="e.g., LED Strip, Vinyl, Power Supply"
-                  />
-                </div>
-
-                {/* Size Description */}
-                <div>
-                  <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-2`}>Size/Description</label>
-                  <input
-                    type="text"
-                    value={newRequirement.size_description || ''}
-                    onChange={(e) => setNewRequirement({ ...newRequirement, size_description: e.target.value })}
-                    className={`w-full px-3 py-2 ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-md`}
-                    placeholder="e.g., 24 inch width, 5m roll"
-                  />
-                </div>
-
-                {/* Quantity */}
-                <div>
-                  <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-2`}>Quantity</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={newRequirement.quantity_ordered || ''}
-                    onChange={(e) => setNewRequirement({ ...newRequirement, quantity_ordered: Number(e.target.value) })}
-                    className={`w-full px-3 py-2 ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-md`}
-                    placeholder="Enter quantity"
-                  />
-                </div>
-
-                {/* Delivery Method */}
-                <div>
-                  <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-2`}>Delivery Method</label>
-                  <select
-                    value={newRequirement.delivery_method || 'shipping'}
-                    onChange={(e) => setNewRequirement({ ...newRequirement, delivery_method: e.target.value as any })}
-                    className={`w-full px-3 py-2 ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-md`}
-                  >
-                    {DELIVERY_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Notes */}
-                <div>
-                  <label className={`block text-sm font-medium ${PAGE_STYLES.panel.textSecondary} mb-2`}>Notes</label>
-                  <textarea
-                    value={newRequirement.notes || ''}
-                    onChange={(e) => setNewRequirement({ ...newRequirement, notes: e.target.value })}
-                    className={`w-full px-3 py-2 ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-md`}
-                    rows={2}
-                    placeholder="Optional notes"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button
-                  onClick={() => { setShowAddModal(false); setNewRequirement({ quantity_ordered: 0, delivery_method: 'shipping' }); }}
-                  className={`px-4 py-2 ${PAGE_STYLES.panel.textSecondary} ${PAGE_STYLES.header.background} rounded hover:opacity-80`}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreate}
-                  className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
-                >
-                  Create
-                </button>
-              </div>
-            </div>
-          </div>
+          <p className="text-sm">Click "Add" to create one</p>
         </div>
       )}
     </div>

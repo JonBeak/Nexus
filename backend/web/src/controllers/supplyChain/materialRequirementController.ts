@@ -245,3 +245,12 @@ export const getStatusCounts = async (req: Request, res: Response): Promise<void
   const result = await service.getStatusCounts();
   handleServiceResult(res, result);
 };
+
+/**
+ * Get pending/backordered requirements grouped by supplier
+ * Used for supplier order generation
+ */
+export const getGroupedBySupplier = async (req: Request, res: Response): Promise<void> => {
+  const result = await service.getGroupedBySupplier();
+  handleServiceResult(res, result);
+};

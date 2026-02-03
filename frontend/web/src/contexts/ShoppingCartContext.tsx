@@ -1,5 +1,52 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import type { CartItem, ShoppingCart } from '../services/shoppingCartApi';
+
+// Cart types - defined locally (moved from deprecated shoppingCartApi.ts)
+export interface CartItem {
+  id: string;
+  product_standard_id?: number;
+  archetype_id?: number;
+  name: string;
+  category: string;
+  supplier_id?: number;
+  supplier_name: string;
+  quantity: number;
+  unit: string;
+  estimated_price?: number;
+  total_estimated_cost?: number;
+  job_id?: number;
+  job_number?: string;
+  order_id?: number;
+  order_number?: string;
+  material_specification?: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface SupplierCart {
+  supplier_id: number;
+  supplier_name: string;
+  items: CartItem[];
+  total_items: number;
+  total_estimated_cost: number;
+  contact_email?: string;
+  preferred_payment_terms?: string;
+  minimum_order_amount?: number;
+  estimated_shipping?: number;
+}
+
+export interface ShoppingCart {
+  id: string;
+  user_id: number;
+  name: string;
+  status: 'draft' | 'sent' | 'approved' | 'ordered' | 'received';
+  supplier_carts: SupplierCart[];
+  total_suppliers: number;
+  total_items: number;
+  total_estimated_cost: number;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 interface ShoppingCartContextType {
   currentCart: ShoppingCart | null;

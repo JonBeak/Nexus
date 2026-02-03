@@ -47,6 +47,7 @@ import { DocumentActionModal, LinkDocumentModal, DocumentConflictModal, OrderTot
 import { DocumentSyncStatus, DocumentDifference } from '../../../types/document';
 import { CashPaymentModal } from '../modals/CashPaymentModal';
 import PrintFormsModal from '../details/components/PrintFormsModal';
+import AiFileValidationModal from '../details/components/AiFileValidationModal';
 import PDFViewerModal from '../modals/PDFViewerModal';
 import SessionsModal from '../../staff/SessionsModal';
 import { useOrderPrinting, PrintMode } from '../details/hooks/useOrderPrinting';
@@ -165,6 +166,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   const [showPrepareModal, setShowPrepareModal] = useState(false);
   const [showCustomerApprovedModal, setShowCustomerApprovedModal] = useState(false);
   const [showFilesCreatedModal, setShowFilesCreatedModal] = useState(false);
+  const [showAiValidationModal, setShowAiValidationModal] = useState(false);
 
   // Invoice state
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -219,12 +221,12 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   // Check if any child modal is open (for hiding parent content on mobile)
   const hasChildModalOpen = useMemo(() => {
     return showPrepareModal || showCustomerApprovedModal || showFilesCreatedModal ||
-           showInvoiceModal || showConflictModal || showLinkInvoiceModal ||
+           showAiValidationModal || showInvoiceModal || showConflictModal || showLinkInvoiceModal ||
            showEstimateConflictModal || showLinkEstimateModal || showCreateEstimateModal ||
            showEstimateActionModal || showPrintModal || showPdfViewerModal ||
            showCashPaymentModal || sessionsModalTask !== null || showAddTaskForPart !== null;
   }, [showPrepareModal, showCustomerApprovedModal, showFilesCreatedModal,
-      showInvoiceModal, showConflictModal, showLinkInvoiceModal,
+      showAiValidationModal, showInvoiceModal, showConflictModal, showLinkInvoiceModal,
       showEstimateConflictModal, showLinkEstimateModal, showCreateEstimateModal,
       showEstimateActionModal, showPrintModal, showPdfViewerModal,
       showCashPaymentModal, sessionsModalTask, showAddTaskForPart]);
@@ -245,7 +247,8 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
     handlePrintShopPacking,
     handlePrintAndMoveToProduction,
     handleMoveToProductionWithoutPrinting,
-    handleOpenPrintModal
+    handleOpenPrintModal,
+    shopRoles
   } = useOrderPrinting(orderDataForPrinting, setUiState, () => {
     fetchOrderDetails();
     onOrderUpdated();
@@ -629,8 +632,18 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
     }
   };
 
-  // Files Created
+  // Files Created - show AI validation modal first
   const handleFilesCreated = () => {
+    setShowAiValidationModal(true);
+  };
+
+  const handleAiValidationComplete = () => {
+    setShowAiValidationModal(false);
+    setShowFilesCreatedModal(true);
+  };
+
+  const handleSkipAiValidation = () => {
+    setShowAiValidationModal(false);
     setShowFilesCreatedModal(true);
   };
 
@@ -657,15 +670,15 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   // Print Forms - open print modal
   const openPrintModal = (mode: PrintMode = 'full') => {
     // Calculate default config based on mode (matches useOrderPrinting logic)
-    const shopCount = calculateShopCount(parts);
+    const shopResult = calculateShopCount(parts);
     let defaults: { master: number; estimate: number; shop: number; packing: number };
 
     if (mode === 'master_estimate') {
       defaults = { master: 1, estimate: 1, shop: 0, packing: 0 };
     } else if (mode === 'shop_packing_production') {
-      defaults = { master: 0, estimate: 0, shop: shopCount, packing: 2 };
+      defaults = { master: 0, estimate: 0, shop: shopResult.count, packing: 2 };
     } else {
-      defaults = { master: 1, estimate: 1, shop: shopCount, packing: 2 };
+      defaults = { master: 1, estimate: 1, shop: shopResult.count, packing: 2 };
     }
 
     setDefaultPrintConfig(defaults);
@@ -1604,6 +1617,17 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
         />
       )}
 
+      {/* AI File Validation Modal */}
+      {orderDetails && (
+        <AiFileValidationModal
+          isOpen={showAiValidationModal}
+          onClose={() => setShowAiValidationModal(false)}
+          orderNumber={orderDetails.order_number}
+          onApproveComplete={handleAiValidationComplete}
+          onSkipValidation={handleSkipAiValidation}
+        />
+      )}
+
       {/* Invoice Action Modal - Using unified DocumentActionModal */}
       {showInvoiceModal && orderDetails && (
         <DocumentActionModal
@@ -1752,6 +1776,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
           onMoveToProductionWithoutPrinting={handleMoveToProductionWithoutPrintingWithClose}
           order={orderDetails}
           defaultConfig={defaultPrintConfig}
+          shopRoles={shopRoles}
         />
       )}
 

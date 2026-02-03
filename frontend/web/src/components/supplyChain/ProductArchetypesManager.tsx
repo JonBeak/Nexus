@@ -17,6 +17,7 @@ import {
 import api, { suppliersApi } from '../../services/api';
 import { useAlert } from '../../contexts/AlertContext';
 import { ArchetypeSupplierProducts } from './ArchetypeSupplierProducts';
+import { SpecificationEditor } from './SpecificationEditor';
 
 interface Category {
   id: number;
@@ -32,10 +33,13 @@ interface Category {
 interface Archetype {
   archetype_id: number;
   name: string;
-  category: string;
+  category_id: number;
+  category_name: string;
+  category_color?: string | null;
+  category_icon?: string | null;
   subcategory: string | null;
   unit_of_measure: string;
-  specifications: string[] | null;
+  specifications: Record<string, any> | null;
   description: string | null;
   reorder_point: number;
   is_active: boolean;
@@ -43,6 +47,7 @@ interface Archetype {
 
 interface SpecRow {
   key: string;
+  value: string;
 }
 
 interface ProductArchetypesManagerProps {
@@ -84,13 +89,13 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
   // Product type form state
   const [formData, setFormData] = useState({
     name: '',
-    category: '',
+    category_id: 0,  // Use category_id instead of category name
     subcategory: '',
     unit_of_measure: 'each',
     description: '',
     reorder_point: ''
   });
-  const [specRows, setSpecRows] = useState<SpecRow[]>([{ key: '' }]);
+  const [specRows, setSpecRows] = useState<SpecRow[]>([{ key: '', value: '' }]);
 
   // Category form state
   const [categoryForm, setCategoryForm] = useState({
@@ -104,6 +109,7 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
     try {
       setLoading(true);
       const params: Record<string, string> = {};
+      // selectedCategory stores category name for display, filter by it
       if (selectedCategory !== 'all') params.category = selectedCategory;
       if (searchTerm) params.search = searchTerm;
 
@@ -118,8 +124,8 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
       setSuppliers(suppliersRes);
 
       // Set default category for new product types
-      if (categoriesRes.data.length > 0 && !formData.category) {
-        setFormData(prev => ({ ...prev, category: categoriesRes.data[0].name }));
+      if (categoriesRes.data.length > 0 && !formData.category_id) {
+        setFormData(prev => ({ ...prev, category_id: categoriesRes.data[0].id }));
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -134,19 +140,29 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
   }, [loadData]);
 
   // Convert specs object to rows
-  const specsToRows = (specs: string[] | null): SpecRow[] => {
-    if (!specs || specs.length === 0) {
-      return [{ key: '' }];
+  const specsToRows = (specs: Record<string, any> | null): SpecRow[] => {
+    if (!specs || Object.keys(specs).length === 0) {
+      return [{ key: '', value: '' }];
     }
-    return specs.map(key => ({ key }));
+    return Object.entries(specs).map(([key, value]) => ({
+      key,
+      value: String(value)
+    }));
   };
 
   // Convert rows to specs object
-  const rowsToSpecs = (rows: SpecRow[]): string[] | null => {
-    const keys = rows
-      .map(row => row.key.trim())
-      .filter(key => key.length > 0);
-    return keys.length > 0 ? keys : null;
+  const rowsToSpecs = (rows: SpecRow[]): Record<string, any> | null => {
+    const specs: Record<string, any> = {};
+    for (const row of rows) {
+      if (row.key.trim()) {
+        // Try to parse as number if it looks like one
+        const numValue = parseFloat(row.value);
+        specs[row.key.trim()] = !isNaN(numValue) && row.value.trim() === String(numValue)
+          ? numValue
+          : row.value.trim();
+      }
+    }
+    return Object.keys(specs).length > 0 ? specs : null;
   };
 
   const handleSaveProductType = async () => {
@@ -154,7 +170,7 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
       showNotification('Name is required', 'error');
       return;
     }
-    if (!formData.category) {
+    if (!formData.category_id) {
       showNotification('Category is required', 'error');
       return;
     }
@@ -162,7 +178,7 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
     try {
       const payload = {
         name: formData.name,
-        category: formData.category,
+        category_id: formData.category_id,
         subcategory: formData.subcategory || null,
         unit_of_measure: formData.unit_of_measure,
         specifications: rowsToSpecs(specRows),
@@ -190,7 +206,7 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
     setEditingArchetype(archetype);
     setFormData({
       name: archetype.name,
-      category: archetype.category,
+      category_id: archetype.category_id,
       subcategory: archetype.subcategory || '',
       unit_of_measure: archetype.unit_of_measure,
       description: archetype.description || '',
@@ -218,18 +234,43 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
     }
   };
 
-  const resetProductTypeForm = () => {
+  const resetProductTypeForm = (defaultCategoryId?: number) => {
+    const categoryId = defaultCategoryId || categories[0]?.id || 0;
     setFormData({
       name: '',
-      category: categories[0]?.name || '',
+      category_id: categoryId,
       subcategory: '',
       unit_of_measure: 'each',
       description: '',
       reorder_point: ''
     });
-    setSpecRows([{ key: '' }]);
+    setSpecRows([{ key: '', value: '' }]);
     setEditingArchetype(null);
     setShowModal(false);
+  };
+
+  const handleAddProductType = () => {
+    // If a specific category is selected, use it as the default
+    if (selectedCategory !== 'all') {
+      const selectedCat = categories.find(c => c.name === selectedCategory);
+      if (selectedCat) {
+        setFormData({
+          name: '',
+          category_id: selectedCat.id,
+          subcategory: '',
+          unit_of_measure: 'each',
+          description: '',
+          reorder_point: ''
+        });
+        setSpecRows([{ key: '', value: '' }]);
+        setEditingArchetype(null);
+        setShowModal(true);
+        return;
+      }
+    }
+    // Otherwise, use default (first category)
+    resetProductTypeForm();
+    setShowModal(true);
   };
 
   // Category management
@@ -296,51 +337,7 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
     setShowCategoryModal(false);
   };
 
-  // Spec row management
-  const addSpecRow = () => setSpecRows([...specRows, { key: '' }]);
-
-  const removeSpecRow = (index: number) => {
-    if (specRows.length > 1) {
-      setSpecRows(specRows.filter((_, i) => i !== index));
-    }
-  };
-
-  const updateSpecRow = (index: number, field: 'key', value: string) => {
-    const updated = [...specRows];
-    updated[index][field] = value;
-    setSpecRows(updated);
-  };
-
-  // Drag and drop for spec rows
-  const dragItem = useRef<number | null>(null);
-  const specRowRefs = useRef<(HTMLDivElement | null)[]>([]);
-
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    dragItem.current = index;
-    e.dataTransfer.effectAllowed = 'move';
-    // Set the whole row as the drag image
-    const rowElement = specRowRefs.current[index];
-    if (rowElement) {
-      e.dataTransfer.setDragImage(rowElement, 0, 0);
-    }
-  };
-
-  const handleDragEnter = (index: number) => {
-    if (dragItem.current === null || dragItem.current === index) return;
-
-    // Reorder rows in real-time
-    const newRows = [...specRows];
-    const draggedRow = newRows[dragItem.current];
-    newRows.splice(dragItem.current, 1);
-    newRows.splice(index, 0, draggedRow);
-
-    dragItem.current = index; // Update dragged item's new position
-    setSpecRows(newRows);
-  };
-
-  const handleDragEnd = () => {
-    dragItem.current = null;
-  };
+  // Spec row management is now handled by SpecificationEditor component
 
   const getTotalCount = () => categories.reduce((sum, c) => sum + (c.material_count || 0), 0);
 
@@ -372,7 +369,7 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
             <span>Categories</span>
           </button>
           <button
-            onClick={() => setShowModal(true)}
+            onClick={handleAddProductType}
             className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
           >
             <Plus className="w-4 h-4" />
@@ -429,7 +426,8 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
       ) : (
         <div className="space-y-2">
           {archetypes.map((archetype) => {
-            const cat = categories.find(c => c.name === archetype.category);
+            // Use category color from archetype if available, else look up from categories
+            const categoryColor = archetype.category_color || categories.find(c => c.id === archetype.category_id)?.color || 'bg-gray-100 text-gray-700';
             return (
               <div key={archetype.archetype_id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
                 <div
@@ -437,14 +435,14 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
                   onClick={() => setExpandedArchetype(expandedArchetype === archetype.archetype_id ? null : archetype.archetype_id)}
                 >
                   <div className="flex items-center space-x-3 flex-1 min-w-0">
-                    <div className={`p-1.5 rounded ${cat?.color || 'bg-gray-100 text-gray-700'}`}>
+                    <div className={`p-1.5 rounded ${categoryColor}`}>
                       <Package className="w-4 h-4" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-3">
                         <h4 className="font-medium text-gray-900">{archetype.name}</h4>
-                        <span className={`px-2 py-0.5 text-xs rounded-full ${cat?.color || 'bg-gray-100'}`}>
-                          {archetype.category}
+                        <span className={`px-2 py-0.5 text-xs rounded-full ${categoryColor}`}>
+                          {archetype.category_name}
                         </span>
                         {archetype.subcategory && (
                           <span className="text-xs text-gray-400">{archetype.subcategory}</span>
@@ -486,13 +484,13 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
                         <span className="text-gray-500 text-xs">Reorder Point</span>
                         <p className="text-gray-900">{archetype.reorder_point}</p>
                       </div>
-                      {archetype.specifications && archetype.specifications.length > 0 && (
+                      {archetype.specifications && Object.keys(archetype.specifications).length > 0 && (
                         <div className="flex-1">
                           <span className="text-gray-500 text-xs">Specification Template</span>
                           <div className="flex flex-wrap gap-1 mt-0.5">
-                            {archetype.specifications.map((key) => (
+                            {Object.entries(archetype.specifications).map(([key, value]) => (
                               <span key={key} className="px-1.5 py-0.5 bg-white border rounded text-xs">
-                                {key}
+                                {key}{value ? `: ${value}` : ''}
                               </span>
                             ))}
                           </div>
@@ -539,12 +537,12 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
                   <select
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    value={formData.category_id}
+                    onChange={(e) => setFormData({ ...formData, category_id: parseInt(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500"
                   >
                     {categories.map(c => (
-                      <option key={c.id} value={c.name}>{c.name}</option>
+                      <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
                 </div>
@@ -594,48 +592,15 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
 
                 {/* Specifications Key-Value Editor */}
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Specifications</label>
-                  <div className="space-y-2">
-                    {specRows.map((row, index) => (
-                      <div
-                        key={index}
-                        ref={(el) => { specRowRefs.current[index] = el; }}
-                        onDragEnter={() => handleDragEnter(index)}
-                        onDragOver={(e) => e.preventDefault()}
-                        className="flex gap-2 items-center group bg-white"
-                      >
-                        <div
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, index)}
-                          onDragEnd={handleDragEnd}
-                          className="cursor-grab active:cursor-grabbing p-1 text-gray-300 hover:text-gray-500 group-hover:text-gray-400"
-                        >
-                          <GripVertical className="w-4 h-4" />
-                        </div>
-                        <input
-                          type="text"
-                          placeholder="Key (e.g., thickness, color, finish)"
-                          value={row.key}
-                          onChange={(e) => updateSpecRow(index, 'key', e.target.value)}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
-                        />
-                        <button
-                          onClick={() => removeSpecRow(index)}
-                          className="p-2 text-gray-400 hover:text-red-600"
-                          disabled={specRows.length === 1}
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={addSpecRow}
-                      className="text-sm text-purple-600 hover:text-purple-700 ml-6"
-                    >
-                      + Add specification
-                    </button>
-                  </div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Specification Template
+                    <span className="text-xs text-gray-500 ml-2">(Default values for new supplier products)</span>
+                  </label>
+                  <SpecificationEditor
+                    specRows={specRows}
+                    setSpecRows={setSpecRows}
+                    mode="supplier"
+                  />
                 </div>
               </div>
 
@@ -646,7 +611,7 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
                 <button
                   onClick={handleSaveProductType}
                   className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
-                  disabled={!formData.name.trim() || !formData.category}
+                  disabled={!formData.name.trim() || !formData.category_id}
                 >
                   {editingArchetype ? 'Update' : 'Create'} Product Type
                 </button>

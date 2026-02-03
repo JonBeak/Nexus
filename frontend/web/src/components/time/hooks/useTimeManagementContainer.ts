@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { detectMultipleEntries } from '../../../lib/timeUtils';
 import { timeApi, authApi } from '../../../services/api';
 import { useAlert } from '../../../contexts/AlertContext';
+import { getTodayString } from '../../../utils/dateUtils';
 import type {
   ViewMode,
   FilterStatus,
@@ -24,11 +25,11 @@ export const useTimeManagementContainer = ({ user }: UseTimeManagementContainerP
   
   // State management
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getTodayString());
+  const [endDate, setEndDate] = useState(getTodayString());
   const [dateRange, setDateRange] = useState<'single' | 'range'>('single');
-  const [displayStartDate, setDisplayStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [displayEndDate, setDisplayEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [displayStartDate, setDisplayStartDate] = useState(getTodayString());
+  const [displayEndDate, setDisplayEndDate] = useState(getTodayString());
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);

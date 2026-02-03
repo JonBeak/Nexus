@@ -30,7 +30,9 @@ const KanbanColumnComponent: React.FC<KanbanColumnProps> = ({
   columnColors,
   disableDrop = false,
   cardsDisableDrag = false,
-  cardsShowPaintingBadge = false
+  cardsShowPaintingBadge = false,
+  // Touch device support
+  isTablet = false
 }) => {
   const { isOver, setNodeRef } = useDroppable({
     id: columnId || status,
@@ -88,14 +90,18 @@ const KanbanColumnComponent: React.FC<KanbanColumnProps> = ({
         <div
           data-kanban-scroll
           className={`
-            flex-1 overflow-y-auto overflow-x-hidden py-2 space-y-2 min-h-[200px] touch-pan-y overscroll-y-contain
+            flex-1 overflow-y-auto overflow-x-hidden py-2 space-y-2 min-h-[200px] overscroll-y-contain
+            ${isTablet ? '' : 'touch-pan-y'}
             ${status === 'shipping' || status === 'pick_up' ? 'px-5' : 'pl-2 pr-0.5'}
             ${isOver && orders.length === 0 ? 'bg-orange-50' : colors.background || ''}
           `}
           style={{
             scrollbarGutter: 'stable',
             scrollbarWidth: 'thin',
-            scrollbarColor: 'var(--theme-border, #a8a29e) var(--theme-panel-bg, #f5f5f4)'
+            scrollbarColor: 'var(--theme-border, #a8a29e) var(--theme-panel-bg, #f5f5f4)',
+            // Tablet: allow both horizontal (board scroll) and vertical (card list scroll)
+            // Phone/Desktop: vertical only (pan-y class handles this)
+            ...(isTablet ? { touchAction: 'pan-x pan-y' } : {})
           } as React.CSSProperties}
         >
           {orders.map(order => (
@@ -144,6 +150,7 @@ export const KanbanColumn = React.memo(KanbanColumnComponent, (prevProps, nextPr
   if (prevProps.disableDrop !== nextProps.disableDrop) return false;
   if (prevProps.cardsDisableDrag !== nextProps.cardsDisableDrag) return false;
   if (prevProps.cardsShowPaintingBadge !== nextProps.cardsShowPaintingBadge) return false;
+  if (prevProps.isTablet !== nextProps.isTablet) return false;
 
   // Compare orders array using shared helper
   if (!areKanbanOrdersEqual(prevProps.orders, nextProps.orders)) return false;

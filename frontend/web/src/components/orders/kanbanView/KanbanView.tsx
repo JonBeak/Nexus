@@ -22,7 +22,7 @@ import {
 import { ordersApi, orderStatusApi } from '../../../services/api';
 import { OrderStatus, KanbanOrder } from '../../../types/orders';
 import { useTasksSocket } from '../../../hooks/useTasksSocket';
-import { useIsMobile } from '../../../hooks/useMediaQuery';
+import { useDeviceType } from '../../../hooks/useDeviceType';
 import { OrderQuickModal } from '../calendarView/OrderQuickModal';
 import { CalendarOrder } from '../calendarView/types';
 import { KanbanColumn } from './KanbanColumn';
@@ -84,44 +84,64 @@ export const KanbanView: React.FC = () => {
   // Track just-dropped order to scroll into view after refetch
   const [justDroppedOrderId, setJustDroppedOrderId] = useState<number | null>(null);
 
-  // Mobile detection and scroll container ref
-  const isMobile = useIsMobile();
+  // Device type detection and scroll container ref
+  const { isPhone, isTablet, isTouchDevice, deviceType } = useDeviceType();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Prevent touch scrolling on mobile - only allow scroll via custom scrollbar
-  // Also prevent page scroll while dragging a card
+
+  // Touch scroll management
+  // - Tablet (iPad): Allow all native scrolling, only block during active drag
+  // - Phone: Block background scroll, use MobileScrollbar for horizontal
+  // - Desktop: Native scroll, no intervention
   useEffect(() => {
-    if (!isMobile) return;
+    if (!isTouchDevice) return;
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const preventTouchScroll = (e: TouchEvent) => {
-      // Allow vertical scroll within column card lists (not during drag)
-      const target = e.target as HTMLElement;
-      const isInScrollArea = target.closest('[data-kanban-scroll]');
-      if (isInScrollArea && !activeId) return; // Allow vertical scroll in card lists
+    const handleTouchScroll = (e: TouchEvent) => {
+      // During active drag: block all touch movement to prevent scroll interference
+      if (activeId) {
+        e.preventDefault();
+        return;
+      }
 
-      // Prevent scroll on background/headers and during drag
-      e.preventDefault();
+      // Tablet (iPad): Allow ALL native scrolling (horizontal + vertical, anywhere)
+      // The 150ms drag delay handles distinguishing scroll from drag intent
+      if (isTablet) {
+        return; // Don't block anything
+      }
+
+      // Phone: Allow vertical scroll in card lists, block horizontal (use MobileScrollbar)
+      if (isPhone) {
+        const target = e.target as HTMLElement;
+        const isInScrollArea = target.closest('[data-kanban-scroll]');
+        if (isInScrollArea) {
+          return; // Allow vertical scroll in card lists
+        }
+        e.preventDefault(); // Block horizontal scroll (MobileScrollbar handles it)
+      }
     };
 
-    container.addEventListener('touchmove', preventTouchScroll, { passive: false });
+    container.addEventListener('touchmove', handleTouchScroll, { passive: false });
     return () => {
-      container.removeEventListener('touchmove', preventTouchScroll);
+      container.removeEventListener('touchmove', handleTouchScroll);
     };
-  }, [isMobile, activeId]);
+  }, [isTouchDevice, isPhone, isTablet, activeId]);
 
-  // DnD sensors - different constraints for mobile vs desktop
+  // DnD sensors - PointerSensor works for both mouse and touch (Pointer Events API)
+  // Touch devices: delay-based activation (hold to drag, immediate scroll)
+  // Desktop: distance-based activation (8px movement to start drag)
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: isMobile
+      activationConstraint: isTouchDevice
         ? {
-            // Mobile: require 80ms hold before drag activates
-            delay: 80,
-            tolerance: 5
+            // Touch: 150ms hold before drag activates
+            // This gives users time to start scrolling before drag kicks in
+            delay: 150,
+            tolerance: 5 // Small movement allowed during hold
           }
         : {
-            // Desktop: 8px movement threshold
+            // Mouse/trackpad: 8px movement threshold
             distance: 8
           }
     })
@@ -309,13 +329,16 @@ export const KanbanView: React.FC = () => {
       <div
         ref={scrollContainerRef}
         className={`flex-1 overflow-y-hidden p-4 ${
-          isMobile
-            ? 'overflow-x-scroll scrollbar-none'  // Hide native scrollbar, JS handler controls touch
-            : 'overflow-x-auto'
+          isPhone
+            ? 'overflow-x-scroll scrollbar-none'  // Phone: Hide native scrollbar, use MobileScrollbar
+            : 'overflow-x-auto'  // Tablet/Desktop: Native scroll with momentum
         }`}
-        style={isMobile ? {
+        style={isPhone ? {
           scrollbarWidth: 'none',  // Firefox
           msOverflowStyle: 'none'  // IE/Edge
+        } as React.CSSProperties : isTablet ? {
+          WebkitOverflowScrolling: 'touch',  // iOS momentum scrolling
+          touchAction: 'pan-x pan-y'  // Allow both horizontal and vertical touch scroll
         } as React.CSSProperties : undefined}
       >
         <DndContext
@@ -326,7 +349,7 @@ export const KanbanView: React.FC = () => {
         >
           <div className="flex gap-4 h-full min-w-max">
             {/* Leading divider for first section */}
-            <KanbanDivider label="Setup & Approval" isMobile={isMobile} />
+            <KanbanDivider label="Setup & Approval" isMobile={isPhone} />
             {COLUMN_LAYOUT.map((group, groupIdx) => {
               // Check if a divider should follow this group
               const divider = KANBAN_DIVIDERS.find(d =>
@@ -336,7 +359,7 @@ export const KanbanView: React.FC = () => {
               );
 
               // Wrapper for desktop top margin (aligns columns below divider labels)
-              const columnTopClass = isMobile ? 'h-full' : 'mt-5 h-[calc(100%-1.25rem)]';
+              const columnTopClass = isPhone ? 'h-full' : 'mt-5 h-[calc(100%-1.25rem)]';
 
               // Single column
               if (group.length === 1) {
@@ -358,6 +381,7 @@ export const KanbanView: React.FC = () => {
                       isCollapsible={isCollapsible}
                       isCollapsed={collapsedColumns.has(status)}
                       onToggleCollapsed={() => handleToggleCollapsed(status)}
+                      isTablet={isTablet}
                     />
                   </div>
                 ];
@@ -379,6 +403,7 @@ export const KanbanView: React.FC = () => {
                         disableDrop={true}
                         cardsDisableDrag={true}
                         cardsShowPaintingBadge={true}
+                        isTablet={isTablet}
                       />
                     </div>
                   );
@@ -386,7 +411,7 @@ export const KanbanView: React.FC = () => {
 
                 // Add divider after this column if configured
                 if (divider) {
-                  elements.push(<KanbanDivider key={`divider-${divider.label}`} label={divider.label} isMobile={isMobile} />);
+                  elements.push(<KanbanDivider key={`divider-${divider.label}`} label={divider.label} isMobile={isPhone} />);
                 }
 
                 return elements;
@@ -413,6 +438,7 @@ export const KanbanView: React.FC = () => {
                           isCollapsible={isCollapsible}
                           isCollapsed={collapsedColumns.has(status)}
                           onToggleCollapsed={() => handleToggleCollapsed(status)}
+                          isTablet={isTablet}
                         />
                       </div>
                     );
@@ -422,7 +448,7 @@ export const KanbanView: React.FC = () => {
 
               // Add divider after stacked group if configured
               if (divider) {
-                stackedElements.push(<KanbanDivider key={`divider-${divider.label}`} label={divider.label} isMobile={isMobile} />);
+                stackedElements.push(<KanbanDivider key={`divider-${divider.label}`} label={divider.label} isMobile={isPhone} />);
               }
 
               return stackedElements;
@@ -444,8 +470,8 @@ export const KanbanView: React.FC = () => {
         </DndContext>
       </div>
 
-      {/* Mobile Custom Scrollbar */}
-      {isMobile && <MobileScrollbar scrollContainerRef={scrollContainerRef} />}
+      {/* Phone Custom Scrollbar - tablets use native scroll */}
+      {isPhone && <MobileScrollbar scrollContainerRef={scrollContainerRef} />}
 
       {/* Order Quick Modal */}
       {selectedOrder && (

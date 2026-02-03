@@ -196,17 +196,19 @@ export class MissingEntriesService {
   }
 
   /**
-   * Adjust end date to today if in future
+   * Adjust end date to today if in future (local timezone)
    */
   private static _adjustDateRange(dateRange: DateRangeFilter): DateRangeFilter {
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-    const end = new Date(dateRange.endDate + 'T00:00:00.000Z');
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
 
-    if (end > today) {
+    if (dateRange.endDate > todayStr) {
       return {
         startDate: dateRange.startDate,
-        endDate: today.toISOString().split('T')[0]
+        endDate: todayStr
       };
     }
 
@@ -358,8 +360,12 @@ export class MissingEntriesService {
     timeout: number
   ): MissingEntryData[] {
     const missingEntries: MissingEntryData[] = [];
-    const start = new Date(dateRange.startDate + 'T00:00:00.000Z');
-    const end = new Date(dateRange.endDate + 'T00:00:00.000Z');
+
+    // Parse dates as local (no T00:00:00.000Z suffix - avoid UTC)
+    const [startYear, startMonth, startDay] = dateRange.startDate.split('-').map(Number);
+    const [endYear, endMonth, endDay] = dateRange.endDate.split('-').map(Number);
+    const start = new Date(startYear, startMonth - 1, startDay);
+    const end = new Date(endYear, endMonth - 1, endDay);
     const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     const MAX_ITERATIONS = daysDiff + 5;
 
@@ -381,7 +387,7 @@ export class MissingEntriesService {
 
       // Skip holidays
       if (holidaySet.has(dateStr)) {
-        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+        currentDate.setDate(currentDate.getDate() + 1);
         iterations++;
         continue;
       }
@@ -418,7 +424,7 @@ export class MissingEntriesService {
         }
       }
 
-      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+      currentDate.setDate(currentDate.getDate() + 1);
       iterations++;
     }
 

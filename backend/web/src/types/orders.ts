@@ -384,6 +384,7 @@ export interface OrderFilters {
   search?: string;
   limit?: number;
   offset?: number;
+  excludeStatuses?: string[];  // Exclude orders with these statuses (e.g., ['completed', 'cancelled'])
 }
 
 // =============================================

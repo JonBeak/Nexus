@@ -315,9 +315,18 @@ export class MaterialRequirementService {
       // Update notes if provided
       if (data.notes) {
         const existingNotes = existing.notes || '';
+        // Get local date for notes (avoid timezone issues)
+        const getLocalDateString = (): string => {
+          const now = new Date();
+          const year = now.getFullYear();
+          const month = String(now.getMonth() + 1).padStart(2, '0');
+          const day = String(now.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+        const todayStr = getLocalDateString();
         const newNotes = existingNotes
-          ? `${existingNotes}\n[${new Date().toISOString().split('T')[0]}] Received ${data.quantity}: ${data.notes}`
-          : `[${new Date().toISOString().split('T')[0]}] Received ${data.quantity}: ${data.notes}`;
+          ? `${existingNotes}\n[${todayStr}] Received ${data.quantity}: ${data.notes}`
+          : `[${todayStr}] Received ${data.quantity}: ${data.notes}`;
         await this.repository.update(id, { notes: newNotes }, userId);
       }
 
@@ -527,18 +536,110 @@ export class MaterialRequirementService {
   }
 
   /**
+   * Get pending/backordered requirements grouped by supplier
+   * Used for supplier order generation
+   */
+  async getGroupedBySupplier(): Promise<ServiceResult<{
+    groups: Array<{
+      supplier_id: number;
+      supplier_name: string;
+      contact_email: string | null;
+      contact_phone: string | null;
+      item_count: number;
+      total_quantity: number;
+      requirements: Array<{
+        requirement_id: number;
+        entry_date: Date | string;
+        custom_product_type: string | null;
+        archetype_name: string | null;
+        size_description: string | null;
+        quantity_ordered: number;
+        unit_of_measure: string | null;
+        order_number: string | null;
+        order_name: string | null;
+        is_stock_item: boolean;
+        notes: string | null;
+      }>;
+    }>;
+    total_requirements: number;
+    total_suppliers: number;
+  }>> {
+    try {
+      const rows = await this.repository.getGroupedBySupplier();
+
+      // Group by supplier
+      const supplierMap = new Map<number, {
+        supplier_id: number;
+        supplier_name: string;
+        contact_email: string | null;
+        contact_phone: string | null;
+        requirements: any[];
+      }>();
+
+      for (const row of rows) {
+        const supplierId = row.supplier_id;
+
+        if (!supplierMap.has(supplierId)) {
+          supplierMap.set(supplierId, {
+            supplier_id: supplierId,
+            supplier_name: row.supplier_name,
+            contact_email: row.contact_email,
+            contact_phone: row.contact_phone,
+            requirements: [],
+          });
+        }
+
+        supplierMap.get(supplierId)!.requirements.push({
+          requirement_id: row.requirement_id,
+          entry_date: row.entry_date,
+          custom_product_type: row.custom_product_type,
+          archetype_name: row.archetype_name,
+          size_description: row.size_description,
+          quantity_ordered: Number(row.quantity_ordered),
+          unit_of_measure: row.unit_of_measure,
+          order_number: row.order_number,
+          order_name: row.order_name,
+          is_stock_item: !!row.is_stock_item,
+          notes: row.notes,
+        });
+      }
+
+      // Convert to array and calculate totals
+      const groups = Array.from(supplierMap.values()).map(group => ({
+        ...group,
+        item_count: group.requirements.length,
+        total_quantity: group.requirements.reduce((sum, r) => sum + r.quantity_ordered, 0),
+      }));
+
+      return {
+        success: true,
+        data: {
+          groups,
+          total_requirements: rows.length,
+          total_suppliers: groups.length,
+        },
+      };
+    } catch (error) {
+      console.error('Error in MaterialRequirementService.getGroupedBySupplier:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch grouped requirements',
+        code: 'FETCH_ERROR',
+      };
+    }
+  }
+
+  /**
    * Get valid status transitions for a given status
    */
   private getValidStatusTransitions(currentStatus: MaterialRequirementStatus): MaterialRequirementStatus[] {
-    const transitions: Record<MaterialRequirementStatus, MaterialRequirementStatus[]> = {
-      pending: ['ordered', 'backordered', 'cancelled'],
-      ordered: ['partial_received', 'received', 'backordered', 'cancelled'],
-      backordered: ['ordered', 'partial_received', 'received', 'cancelled'],
-      partial_received: ['received', 'backordered'],
-      received: [], // Terminal state
-      cancelled: ['pending'], // Can reopen
-    };
+    // Allow all transitions to support "unreceiving" via Receiving Status dropdown
+    // The UI handles the workflow logic; backend just stores the state
+    const allStatuses: MaterialRequirementStatus[] = [
+      'pending', 'ordered', 'backordered', 'partial_received', 'received', 'cancelled'
+    ];
 
-    return transitions[currentStatus] || [];
+    // Allow transition to any status except the current one
+    return allStatuses.filter(s => s !== currentStatus);
   }
 }

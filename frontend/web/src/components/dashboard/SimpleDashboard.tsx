@@ -505,6 +505,12 @@ Check backend logs for detailed comparison!`);
                   >
                     {MODULE_COLORS.feedback.name}
                   </button>
+                  <button
+                    onClick={() => navigate('/file-browser')}
+                    className={getModulePillClasses('files')}
+                  >
+                    {MODULE_COLORS.files.name}
+                  </button>
                 </div>
               </div>
             </div>

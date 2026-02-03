@@ -1,14 +1,25 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { HomeButton } from '../common/HomeButton';
 import { useNavigate } from 'react-router-dom';
-import type { DashboardStats } from '../../services/supplyChainApi';
 import api from '../../services/api';
+
+// Dashboard stats for supply chain overview
+interface DashboardStats {
+  total_categories: number;
+  total_products: number;
+  total_inventory_items: number;
+  total_available_quantity: number;
+  critical_items: number;
+  low_items: number;
+}
 import { ProductCatalog } from './ProductCatalog';
 import { UnifiedInventory } from './UnifiedInventory';
 import { LowStockDashboard } from './LowStockDashboard';
 import { OrderMaterialRequirements } from './OrderMaterialRequirements';
 import { LowStockAlerts } from './LowStockAlerts';
 import { AllOrdersMaterialRequirements } from './AllOrdersMaterialRequirements';
+import { SupplierGroupedRequirements } from './SupplierGroupedRequirements';
+import { SupplierOrdersList } from './SupplierOrdersList';
 import { ShoppingCartComponent } from './ShoppingCart';
 import { SuppliersManager } from './SuppliersManager';
 import { ProductArchetypesManager } from './ProductArchetypesManager';
@@ -21,7 +32,7 @@ interface SupplyChainDashboardProps {
   user: AccountUser | null;
 }
 
-type TabType = 'overview' | 'all-orders' | 'shopping-cart' | 'vinyl-inventory' | 'inventory' | 'suppliers' | 'product-types' | 'products' | 'low-stock';
+type TabType = 'overview' | 'all-orders' | 'by-supplier' | 'supplier-orders' | 'shopping-cart' | 'vinyl-inventory' | 'inventory' | 'suppliers' | 'product-types' | 'products' | 'low-stock';
 
 export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user }) => {
   const navigate = useNavigate();
@@ -169,7 +180,29 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                     : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
-                All Orders
+                All Requirements
+              </button>
+
+              <button
+                onClick={() => setActiveTab('by-supplier')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'by-supplier'
+                    ? 'border-purple-500 text-purple-600'
+                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
+                }`}
+              >
+                By Supplier
+              </button>
+
+              <button
+                onClick={() => setActiveTab('supplier-orders')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'supplier-orders'
+                    ? 'border-purple-500 text-purple-600'
+                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
+                }`}
+              >
+                Supplier Orders
               </button>
 
               <button
@@ -257,7 +290,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
       </div>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <ShoppingCartProvider showNotification={showNotification}>
           {loading ? (
           <div className="text-center py-12">
@@ -282,6 +315,18 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
               <AllOrdersMaterialRequirements
                 user={user || undefined}
                 showNotification={showNotification}
+              />
+            )}
+            {activeTab === 'by-supplier' && (
+              <SupplierGroupedRequirements
+                showNotification={showNotification}
+                onOrderGenerated={() => void loadStats()}
+              />
+            )}
+            {activeTab === 'supplier-orders' && (
+              <SupplierOrdersList
+                showNotification={showNotification}
+                onViewOrder={(orderId) => showNotification(`View order ${orderId} (detail view coming soon)`)}
               />
             )}
             {activeTab === 'shopping-cart' && (

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { ordersApi } from '../../../../services/api';
 import { Order } from '../../../../types/orders';
+import { getTodayString } from '../../../../utils/dateUtils';
 
 interface CalculatedValues {
   turnaroundDays: number | null;
@@ -34,7 +35,7 @@ export function useOrderCalculations(
     if (!order || !order.due_date) return;
 
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getTodayString();
       const result = await ordersApi.calculateBusinessDays(
         today,
         order.due_date.split('T')[0]

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Building, DollarSign, Calendar, CreditCard, FileText, CheckCircle, AlertCircle, Loader2, X } from 'lucide-react';
 import { customerApi, paymentsApi, OpenInvoice, MultiPaymentInput } from '../../services/api';
 import { PAGE_STYLES } from '../../constants/moduleColors';
+import { getTodayString } from '../../utils/dateUtils';
 
 interface Customer {
   customer_id: number;
@@ -26,7 +27,7 @@ export const PaymentsTab: React.FC = () => {
   const [allocations, setAllocations] = useState<Map<string, string>>(new Map());
 
   // Payment form state
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentDate, setPaymentDate] = useState(getTodayString());
   const [paymentMethod, setPaymentMethod] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [memo, setMemo] = useState('');

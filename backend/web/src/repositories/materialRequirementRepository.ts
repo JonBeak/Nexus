@@ -19,6 +19,7 @@ export interface MaterialRequirementRow extends RowDataPacket, MaterialRequireme
 export class MaterialRequirementRepository {
   /**
    * Build enriched material requirement query with joined data
+   * Includes vinyl_products join when archetype_id = -1 (vinyl selection)
    */
   private buildMaterialRequirementQuery(whereClause: string = '1=1'): string {
     return `
@@ -29,19 +30,30 @@ export class MaterialRequirementRepository {
         o.order_name,
         c.company_name as customer_name,
         pa.name as archetype_name,
-        pa.category as archetype_category,
+        mc.name as archetype_category,
         pa.unit_of_measure,
         sp.product_name as supplier_product_name,
         sp.sku as supplier_product_sku,
         s.name as supplier_name,
+        vp.brand as vinyl_product_brand,
+        vp.series as vinyl_product_series,
+        vp.colour_number as vinyl_product_colour_number,
+        vp.colour_name as vinyl_product_colour_name,
+        CASE
+          WHEN mr.vinyl_product_id IS NOT NULL THEN
+            CONCAT(COALESCE(vp.series, ''), '-', COALESCE(vp.colour_number, ''), ' ', COALESCE(vp.colour_name, ''))
+          ELSE NULL
+        END as vinyl_product_display,
         CONCAT(cu.first_name, ' ', cu.last_name) as created_by_name,
         CONCAT(uu.first_name, ' ', uu.last_name) as updated_by_name
       FROM material_requirements mr
       LEFT JOIN orders o ON mr.order_id = o.order_id
       LEFT JOIN customers c ON o.customer_id = c.customer_id
       LEFT JOIN product_archetypes pa ON mr.archetype_id = pa.archetype_id
+      LEFT JOIN material_categories mc ON pa.category_id = mc.id
       LEFT JOIN supplier_products sp ON mr.supplier_product_id = sp.supplier_product_id
       LEFT JOIN suppliers s ON mr.supplier_id = s.supplier_id
+      LEFT JOIN vinyl_products vp ON mr.vinyl_product_id = vp.product_id
       LEFT JOIN users cu ON mr.created_by = cu.user_id
       LEFT JOIN users uu ON mr.updated_by = uu.user_id
       WHERE ${whereClause}
@@ -194,15 +206,23 @@ export class MaterialRequirementRepository {
     const sql = `
       INSERT INTO material_requirements (
         order_id, is_stock_item, archetype_id, custom_product_type,
-        supplier_product_id, size_description, quantity_ordered,
+        supplier_product_id, vinyl_product_id, size_description, quantity_ordered,
         supplier_id, entry_date, expected_delivery_date,
         delivery_method, notes, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
+
+    // Get local date in YYYY-MM-DD format (avoid timezone issues with toISOString)
+    const getLocalDateString = (date: Date): string => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
 
     const entryDate = data.entry_date
       ? new Date(data.entry_date).toISOString().split('T')[0]
-      : new Date().toISOString().split('T')[0];
+      : getLocalDateString(new Date());
 
     const expectedDeliveryDate = data.expected_delivery_date
       ? new Date(data.expected_delivery_date).toISOString().split('T')[0]
@@ -214,6 +234,7 @@ export class MaterialRequirementRepository {
       data.archetype_id ?? null,
       data.custom_product_type?.trim() ?? null,
       data.supplier_product_id ?? null,
+      data.vinyl_product_id ?? null,
       data.size_description?.trim() ?? null,
       data.quantity_ordered,
       data.supplier_id ?? null,
@@ -253,6 +274,10 @@ export class MaterialRequirementRepository {
     if (data.supplier_product_id !== undefined) {
       setClauses.push('supplier_product_id = ?');
       values.push(data.supplier_product_id);
+    }
+    if (data.vinyl_product_id !== undefined) {
+      setClauses.push('vinyl_product_id = ?');
+      values.push(data.vinyl_product_id);
     }
     if (data.size_description !== undefined) {
       setClauses.push('size_description = ?');
@@ -406,6 +431,39 @@ export class MaterialRequirementRepository {
   }
 
   /**
+   * Get pending/backordered requirements grouped by supplier
+   * Used for generating supplier orders
+   */
+  async getGroupedBySupplier(): Promise<RowDataPacket[]> {
+    const sql = `
+      SELECT
+        mr.requirement_id,
+        mr.entry_date,
+        mr.custom_product_type,
+        mr.size_description,
+        mr.quantity_ordered,
+        mr.is_stock_item,
+        mr.notes,
+        mr.supplier_id,
+        s.name as supplier_name,
+        (SELECT contact_email FROM supplier_contacts sc WHERE sc.supplier_id = s.supplier_id AND sc.is_primary = 1 LIMIT 1) as contact_email,
+        (SELECT phone FROM supplier_contacts sc WHERE sc.supplier_id = s.supplier_id AND sc.is_primary = 1 LIMIT 1) as contact_phone,
+        pa.name as archetype_name,
+        pa.unit_of_measure,
+        o.order_number,
+        o.order_name
+      FROM material_requirements mr
+      LEFT JOIN suppliers s ON mr.supplier_id = s.supplier_id
+      LEFT JOIN product_archetypes pa ON mr.archetype_id = pa.archetype_id
+      LEFT JOIN orders o ON mr.order_id = o.order_id
+      WHERE mr.status IN ('pending', 'backordered')
+        AND mr.supplier_id IS NOT NULL
+      ORDER BY s.name, mr.entry_date ASC
+    `;
+    return await query(sql) as RowDataPacket[];
+  }
+
+  /**
    * Check if order has any requirements
    */
   async orderHasRequirements(orderId: number): Promise<boolean> {
@@ -418,6 +476,9 @@ export class MaterialRequirementRepository {
    * Get recent orders for dropdown (with or without requirements)
    */
   async getRecentOrders(limit: number = 50): Promise<RowDataPacket[]> {
+    // Sanitize limit - ensure positive integer (LIMIT ? doesn't work with mysql2 prepared statements)
+    const safeLimit = Math.max(1, Math.min(100, Math.floor(Math.abs(limit || 50))));
+
     const sql = `
       SELECT
         o.order_id,
@@ -428,8 +489,8 @@ export class MaterialRequirementRepository {
       LEFT JOIN customers c ON o.customer_id = c.customer_id
       WHERE o.status NOT IN ('shipped', 'cancelled', 'completed')
       ORDER BY o.created_at DESC
-      LIMIT ?
+      LIMIT ${safeLimit}
     `;
-    return await query(sql, [limit]) as RowDataPacket[];
+    return await query(sql) as RowDataPacket[];
   }
 }

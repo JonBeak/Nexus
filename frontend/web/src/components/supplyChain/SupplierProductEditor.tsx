@@ -7,6 +7,7 @@ import { X, Save, Loader } from 'lucide-react';
 import { SupplierProduct, Supplier } from '../../types/supplyChain';
 import { SpecificationEditor } from './SpecificationEditor';
 import { apiClient } from '../../services/api';
+import { getTodayString } from '../../utils/dateUtils';
 
 export interface SupplierProductEditorProps {
   archetypeId: number;
@@ -38,7 +39,7 @@ export const SupplierProductEditor: React.FC<SupplierProductEditorProps> = ({
     initial_price: {
       unit_price: '',
       cost_currency: 'CAD',
-      effective_start_date: new Date().toISOString().split('T')[0],
+      effective_start_date: getTodayString(),
       notes: ''
     }
   });
@@ -66,7 +67,7 @@ export const SupplierProductEditor: React.FC<SupplierProductEditorProps> = ({
         initial_price: {
           unit_price: '',
           cost_currency: 'CAD',
-          effective_start_date: new Date().toISOString().split('T')[0],
+          effective_start_date: getTodayString(),
           notes: ''
         }
       });
@@ -83,16 +84,22 @@ export const SupplierProductEditor: React.FC<SupplierProductEditorProps> = ({
       // Fetch archetype specification template for auto-fill
       const fetchArchetypeTemplate = async () => {
         try {
-          const response = await apiClient.get(`/api/product-types/${archetypeId}`);
-          if (response.data.success && response.data.data.specifications) {
-            setArchetypeTemplate(response.data.data.specifications);
+          const response = await apiClient.get(`/product-types/${archetypeId}`);
+          // Note: apiClient interceptor unwraps {success, data} so response.data is the archetype directly
+          if (response.data && response.data.specifications) {
+            // Extract keys from specifications object to use as template
+            const specs = response.data.specifications;
+            if (typeof specs === 'object' && specs !== null) {
+              const templateKeys = Object.keys(specs);
+              setArchetypeTemplate(templateKeys);
 
-            // Auto-fill spec rows from template
-            const templateRows = (response.data.data.specifications as string[]).map((key: string) => ({
-              key,
-              value: ''
-            }));
-            setSpecRows(templateRows.length > 0 ? templateRows : [{ key: '', value: '' }]);
+              // Auto-fill spec rows from template with default values from archetype
+              const templateRows = Object.entries(specs).map(([key, value]) => ({
+                key,
+                value: String(value || '') // Use archetype's default value, or empty if null
+              }));
+              setSpecRows(templateRows.length > 0 ? templateRows : [{ key: '', value: '' }]);
+            }
           }
         } catch (error) {
           console.error('Failed to fetch archetype template:', error);

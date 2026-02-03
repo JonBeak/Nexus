@@ -180,8 +180,8 @@ export class CategoryService {
 
       const category = categoryResult.data;
 
-      // Check if category has materials
-      const materialCount = await this.repository.getMaterialCount(category.name);
+      // Check if category has materials (by ID now)
+      const materialCount = await this.repository.getMaterialCount(category.id);
       if (materialCount > 0) {
         return {
           success: false,

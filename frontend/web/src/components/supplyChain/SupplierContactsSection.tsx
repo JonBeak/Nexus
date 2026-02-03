@@ -202,7 +202,7 @@ export const SupplierContactsSection: React.FC<SupplierContactsSectionProps> = (
                 <div>
                   <div className="flex items-center space-x-2">
                     <span className="font-medium text-gray-900 text-sm">{contact.name}</span>
-                    {contact.is_primary && (
+                    {!!contact.is_primary && (
                       <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
                     )}
                     <span className={`px-1.5 py-0.5 text-xs rounded ${ROLE_COLORS[contact.role]}`}>

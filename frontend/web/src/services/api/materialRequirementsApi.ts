@@ -142,6 +142,39 @@ export const materialRequirementsApi = {
     });
     return response.data;
   },
+
+  /**
+   * Get pending/backordered requirements grouped by supplier
+   * Used for supplier order generation
+   */
+  getGroupedBySupplier: async (): Promise<{
+    groups: Array<{
+      supplier_id: number;
+      supplier_name: string;
+      contact_email: string | null;
+      contact_phone: string | null;
+      item_count: number;
+      total_quantity: number;
+      requirements: Array<{
+        requirement_id: number;
+        entry_date: string;
+        custom_product_type: string | null;
+        archetype_name: string | null;
+        size_description: string | null;
+        quantity_ordered: number;
+        unit_of_measure: string | null;
+        order_number: string | null;
+        order_name: string | null;
+        is_stock_item: boolean;
+        notes: string | null;
+      }>;
+    }>;
+    total_requirements: number;
+    total_suppliers: number;
+  }> => {
+    const response = await api.get('/material-requirements/grouped-by-supplier');
+    return response.data;
+  },
 };
 
 export default materialRequirementsApi;

@@ -58,6 +58,9 @@ export function useOrderPrinting(
   // Refresh key to force formUrls regeneration when modal opens
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // Shop roles for display in print modal
+  const [shopRoles, setShopRoles] = useState<string[]>([]);
+
   const handleGenerateForms = async () => {
     if (!orderData.order) return;
 
@@ -75,7 +78,10 @@ export function useOrderPrinting(
 
   const handleOpenPrintModal = (mode: PrintMode = 'full') => {
     // Calculate shop count based on current specs in state
-    const shopCount = calculateShopCount(orderData.parts);
+    const shopResult = calculateShopCount(orderData.parts);
+
+    // Store shop roles for display
+    setShopRoles(shopResult.roles);
 
     // Set default quantities based on mode
     if (mode === 'master_estimate') {
@@ -89,14 +95,14 @@ export function useOrderPrinting(
       setPrintConfig({
         master: 0,
         estimate: 0,
-        shop: shopCount,
+        shop: shopResult.count,
         packing: 2
       });
     } else {
       setPrintConfig({
         master: 1,
         estimate: 1,
-        shop: shopCount,
+        shop: shopResult.count,
         packing: 2
       });
     }
@@ -407,6 +413,7 @@ export function useOrderPrinting(
     successModalData,
     handleCloseSuccessModal,
     errorModalData,
-    handleCloseErrorModal
+    handleCloseErrorModal,
+    shopRoles
   };
 }

@@ -32,6 +32,7 @@ export interface MaterialRequirement {
   archetype_id: number | null;
   custom_product_type: string | null;
   supplier_product_id: number | null;
+  vinyl_product_id: number | null;
 
   // Size and quantity
   size_description: string | null;
@@ -76,6 +77,13 @@ export interface MaterialRequirement {
   supplier_product_name?: string | null;
   supplier_product_sku?: string | null;
 
+  // Joined fields from vinyl_product (when archetype_id = -1)
+  vinyl_product_brand?: string | null;
+  vinyl_product_series?: string | null;
+  vinyl_product_colour_number?: string | null;
+  vinyl_product_colour_name?: string | null;
+  vinyl_product_display?: string | null;
+
   // Joined fields from supplier
   supplier_name?: string | null;
 
@@ -98,6 +106,7 @@ export interface CreateMaterialRequirementRequest {
   archetype_id?: number | null;
   custom_product_type?: string | null;
   supplier_product_id?: number | null;
+  vinyl_product_id?: number | null;
   size_description?: string | null;
   quantity_ordered: number;
   supplier_id?: number | null;
@@ -116,6 +125,7 @@ export interface UpdateMaterialRequirementRequest {
   archetype_id?: number | null;
   custom_product_type?: string | null;
   supplier_product_id?: number | null;
+  vinyl_product_id?: number | null;
   size_description?: string | null;
   quantity_ordered?: number;
   supplier_id?: number | null;

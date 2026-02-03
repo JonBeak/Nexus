@@ -1,5 +1,6 @@
 import { OrderPart } from '../../../../types/orders';
 import { ordersApi } from '../../../../services/api';
+import { getTodayString } from '../../../../utils/dateUtils';
 
 /**
  * Helper function to check if any template in specs matches a given name
@@ -23,34 +24,53 @@ const hasAnyTemplate = (orderParts: OrderPart[], templateNames: string[]): boole
 };
 
 /**
- * Calculates the number of shop forms needed based on order specifications
+ * Result from shop count calculation
  */
-export const calculateShopCount = (orderParts: OrderPart[]): number => {
-  // Start with base count of 2 (Vinyl/CNC, QC & Packing)
-  let count = 2;
+export interface ShopCountResult {
+  count: number;
+  roles: string[];
+}
 
-  // Check for Return - adds 2 sheets
-  if (hasAnyTemplate(orderParts, ['Return'])) {
-    count += 2;
+/**
+ * Calculates the number of shop forms needed based on order specifications
+ * Returns both the count and the list of roles included
+ */
+export const calculateShopCount = (orderParts: OrderPart[]): ShopCountResult => {
+  // Always included: Vinyl/CNC, QC & Packing
+  const roles: string[] = ['Vinyl/CNC', 'QC & Packing'];
+
+  // Detect part types
+  const hasRegularReturn = hasAnyTemplate(orderParts, ['Return']);
+  const has3DPReturn = hasAnyTemplate(orderParts, ['3DP Return']);
+  const hasLEDs = hasAnyTemplate(orderParts, ['LEDs']);
+
+  // Check for Return - adds 2 sheets (Return, Return 2) for front-lit
+  if (hasRegularReturn) {
+    roles.push('Return', 'Return 2');
   }
 
   // Check for Trim - adds 1 sheet
   if (hasAnyTemplate(orderParts, ['Trim'])) {
-    count += 1;
+    roles.push('Trim');
   }
 
-  // Check for 3DP / LEDs / Pins / D-Tape / Mounting - adds 1 sheet (combined)
-  // For 3D Print orders, these tasks are done together so only 1 sheet needed
-  if (hasAnyTemplate(orderParts, ['3DP Return', 'LEDs', 'Pins', 'D-Tape', 'Mounting'])) {
-    count += 1;
+  // LEDs sheet: only for front-lit parts (Return without 3DP)
+  // If order has front-lit AND LEDs → separate LEDs sheet
+  if (hasRegularReturn && hasLEDs) {
+    roles.push('LEDs');
+  }
+
+  // 3DP/Assembly sheet: for 3D print parts (LEDs bundled into this workflow)
+  if (has3DPReturn || hasAnyTemplate(orderParts, ['Pins', 'D-Tape', 'Mounting'])) {
+    roles.push('3DP/Assembly');
   }
 
   // Check for Painting - adds 1 sheet
   if (hasAnyTemplate(orderParts, ['Painting'])) {
-    count += 1;
+    roles.push('Painting');
   }
 
-  return count;
+  return { count: roles.length, roles };
 };
 
 /**
@@ -76,7 +96,7 @@ export const calculateDaysUntilDue = async (
   dueDate: string
 ): Promise<number | null> => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayString();
     const response = await ordersApi.calculateBusinessDays(today, dueDate);
     return response.businessDays;
   } catch (error) {

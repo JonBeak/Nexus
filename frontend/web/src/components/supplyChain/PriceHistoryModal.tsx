@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { X, Plus, Loader, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react';
 import api from '../../services/api';
 import { SupplierProduct, PricingHistory } from '../../types/supplyChain';
+import { getTodayString } from '../../utils/dateUtils';
 
 export interface PriceHistoryModalProps {
   product: SupplierProduct;
@@ -28,7 +29,7 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
   const [formData, setFormData] = useState({
     unit_price: '',
     cost_currency: product.cost_currency || 'CAD',
-    effective_start_date: new Date().toISOString().split('T')[0],
+    effective_start_date: getTodayString(),
     notes: ''
   });
 
@@ -83,7 +84,7 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
       setFormData({
         unit_price: '',
         cost_currency: product.cost_currency || 'CAD',
-        effective_start_date: new Date().toISOString().split('T')[0],
+        effective_start_date: getTodayString(),
         notes: ''
       });
 

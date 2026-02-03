@@ -10,6 +10,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Loader2, DollarSign, Trash2, AlertCircle, Check, Calendar } from 'lucide-react';
 import { cashPaymentApi, CashPayment, CashBalanceInfo, CashPaymentMethod } from '../../../services/api';
 import { useModalBackdrop } from '../../../hooks/useModalBackdrop';
+import { getTodayString } from '../../../utils/dateUtils';
 
 interface CashPaymentModalProps {
   isOpen: boolean;
@@ -34,7 +35,7 @@ export const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
   // Form state
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<CashPaymentMethod>('cash');
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentDate, setPaymentDate] = useState(getTodayString());
   const [referenceNumber, setReferenceNumber] = useState('');
   const [memo, setMemo] = useState('');
 
@@ -81,7 +82,7 @@ export const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
   const resetForm = () => {
     setAmount('');
     setPaymentMethod('cash');
-    setPaymentDate(new Date().toISOString().split('T')[0]);
+    setPaymentDate(getTodayString());
     setReferenceNumber('');
     setMemo('');
     setSubmitError(null);

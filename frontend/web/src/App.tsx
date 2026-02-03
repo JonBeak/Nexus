@@ -178,9 +178,9 @@ function AppContent() {
           isOwner ? <ServerManagement /> : <Navigate to="/dashboard" />
         } />
 
-        {/* File Browser - Owner only */}
+        {/* File Browser - Manager+ */}
         <Route path="/file-browser" element={
-          isOwner ? <FileBrowser /> : <Navigate to="/dashboard" />
+          isManager ? <FileBrowser /> : <Navigate to="/dashboard" />
         } />
 
         {/* Feedback Manager - Manager+ */}

@@ -173,7 +173,7 @@ export const calculateBladeSign = async (input: ValidatedPricingInput): Promise<
       displayLines.push(`Frame ${formatPrice(frameCost)}, Assem ${formatPrice(assemblyCost)}, Wrap ${formatPrice(wrapCost)}, Cut ${formatPrice(cuttingCost)}`);
 
       components.push({
-        name: 'Blade Sign',
+        name: 'Blade sign',
         price: bladeSignTotal,
         type: 'blade_sign',
         calculationDisplay: displayLines.join('\n')

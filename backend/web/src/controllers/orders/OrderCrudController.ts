@@ -32,14 +32,15 @@ export async function getOrderIdFromNumber(orderNumber: string): Promise<number 
  */
 export const getAllOrders = async (req: Request, res: Response) => {
   try {
-    const { status, customer_id, search, limit = '50', offset = '0' } = req.query;
+    const { status, customer_id, search, limit, offset, excludeStatuses } = req.query;
 
     const filters: OrderFilters = {
       status: status as string,
       customer_id: customer_id ? parseIntParam(customer_id as string, 'customer ID') ?? undefined : undefined,
       search: search as string,
-      limit: parseIntParam(limit as string, 'limit') ?? 50,
-      offset: parseIntParam(offset as string, 'offset') ?? 0
+      limit: limit ? parseIntParam(limit as string, 'limit') ?? undefined : undefined,
+      offset: offset ? parseIntParam(offset as string, 'offset') ?? undefined : undefined,
+      excludeStatuses: excludeStatuses ? (excludeStatuses as string).split(',') : undefined
     };
 
     const orders = await orderService.getAllOrders(filters);

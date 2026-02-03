@@ -40,6 +40,12 @@ router.get(
 );
 
 router.get(
+  '/grouped-by-supplier',
+  requirePermission('supply_chain.read'),
+  controller.getGroupedBySupplier
+);
+
+router.get(
   '/order/:orderId',
   requirePermission('supply_chain.read'),
   controller.getRequirementsByOrderId

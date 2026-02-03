@@ -3,7 +3,7 @@
 // Created: 2025-12-19
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Plus, Edit, Trash2, TrendingUp, AlertCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, DollarSign, AlertCircle } from 'lucide-react';
 import api from '../../services/api';
 import { useAlert } from '../../contexts/AlertContext';
 import { SupplierProduct, Supplier } from '../../types/supplyChain';
@@ -214,7 +214,7 @@ export const ArchetypeSupplierProducts: React.FC<ArchetypeSupplierProductsProps>
                           className="p-1.5 text-gray-400 hover:text-green-600 rounded hover:bg-green-50"
                           title="View price history"
                         >
-                          <TrendingUp className="w-4 h-4" />
+                          <DollarSign className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleEdit(product)}

@@ -217,6 +217,7 @@ export class SupplierProductService {
    * Update supplier product
    */
   async updateSupplierProduct(id: number, data: {
+    supplier_id?: number;
     brand_name?: string;
     sku?: string;
     product_name?: string;
@@ -238,6 +239,15 @@ export class SupplierProductService {
         };
       }
 
+      // Validate supplier_id if provided
+      if (data.supplier_id !== undefined && data.supplier_id <= 0) {
+        return {
+          success: false,
+          error: 'Valid supplier ID is required',
+          code: 'VALIDATION_ERROR'
+        };
+      }
+
       // Validate numeric fields
       if (data.min_order_quantity !== undefined && data.min_order_quantity < 0) {
         return {
@@ -255,12 +265,16 @@ export class SupplierProductService {
         };
       }
 
-      // Check for SKU duplicates if SKU is being updated
-      if (data.sku !== undefined && data.sku !== existing.sku) {
+      // Check for duplicates if supplier_id or SKU is being updated
+      const newSupplierId = data.supplier_id !== undefined ? data.supplier_id : existing.supplier_id;
+      const newSku = data.sku !== undefined ? data.sku : existing.sku;
+
+      if ((data.supplier_id !== undefined && data.supplier_id !== existing.supplier_id) ||
+          (data.sku !== undefined && data.sku !== existing.sku)) {
         const isDuplicate = await this.repository.isDuplicate(
           existing.archetype_id,
-          existing.supplier_id,
-          data.sku ? data.sku.trim() : null,
+          newSupplierId,
+          newSku ? newSku.trim() : null,
           id
         );
 
@@ -275,6 +289,7 @@ export class SupplierProductService {
 
       // Update supplier product
       await this.repository.update(id, {
+        supplier_id: data.supplier_id,
         brand_name: data.brand_name !== undefined ? (data.brand_name ? data.brand_name.trim() : null) : undefined,
         sku: data.sku !== undefined ? (data.sku ? data.sku.trim() : null) : undefined,
         product_name: data.product_name !== undefined ? (data.product_name ? data.product_name.trim() : null) : undefined,

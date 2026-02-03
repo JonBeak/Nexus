@@ -190,6 +190,12 @@ export class OrderRepository {
       params.push(filters.status);
     }
 
+    if (filters.excludeStatuses && filters.excludeStatuses.length > 0) {
+      const placeholders = filters.excludeStatuses.map(() => '?').join(', ');
+      sql += ` AND o.status NOT IN (${placeholders})`;
+      params.push(...filters.excludeStatuses);
+    }
+
     if (filters.customer_id) {
       sql += ` AND o.customer_id = ?`;
       params.push(filters.customer_id);

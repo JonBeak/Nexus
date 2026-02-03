@@ -9,7 +9,7 @@ import { Order } from '../../../types/orders';
 import { useTasksSocket } from '../../../hooks/useTasksSocket';
 import { useIsMobile } from '../../../hooks/useMediaQuery';
 import { useAuth } from '../../../contexts/AuthContext';
-import { CalendarOrder, DateColumn, CALENDAR_DEFAULT_STATUSES } from './types';
+import { CalendarOrder, DateColumn } from './types';
 import {
   generateDateColumns,
   calculateWorkDaysLeft,
@@ -52,7 +52,6 @@ export const CalendarView: React.FC = () => {
   });
 
   // Filter state
-  const [showAllOrders, setShowAllOrders] = useState(false);
   const [showImages, setShowImages] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -87,10 +86,14 @@ export const CalendarView: React.FC = () => {
   }, []);
 
   // Fetch orders (silent - no loading spinner for smooth UX)
+  // Excludes terminal/inactive statuses at query level - no limit needed for active orders
   const fetchOrders = useCallback(async () => {
     try {
       setError(null);
-      const data = await ordersApi.getOrders({ search: searchTerm || undefined });
+      const data = await ordersApi.getOrders({
+        search: searchTerm || undefined,
+        excludeStatuses: ['pick_up', 'shipping', 'awaiting_payment', 'completed', 'cancelled', 'on_hold']
+      });
       setOrders(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch orders');
@@ -135,13 +138,8 @@ export const CalendarView: React.FC = () => {
     onReconnect: fetchOrders  // Immediate fetch on reconnect
   });
 
-  // Filter orders by status
-  const filteredOrders = useMemo(() => {
-    if (showAllOrders) {
-      return orders;
-    }
-    return orders.filter(order => CALENDAR_DEFAULT_STATUSES.includes(order.status));
-  }, [orders, showAllOrders]);
+  // No client-side filtering needed - backend already excludes completed/cancelled
+  const filteredOrders = orders;
 
   // Enhance orders with calculated fields
   const ordersWithProgress: CalendarOrder[] = useMemo(() => {
@@ -295,15 +293,6 @@ export const CalendarView: React.FC = () => {
               <label className="flex items-center gap-2 cursor-pointer min-h-[44px]">
                 <input
                   type="checkbox"
-                  checked={showAllOrders}
-                  onChange={(e) => setShowAllOrders(e.target.checked)}
-                  className={`h-5 w-5 text-orange-500 focus:ring-orange-500 ${PAGE_STYLES.panel.border} rounded`}
-                />
-                <span className={`text-sm ${PAGE_STYLES.header.text}`}>Show all</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer min-h-[44px]">
-                <input
-                  type="checkbox"
                   checked={showImages}
                   onChange={(e) => setShowImages(e.target.checked)}
                   className={`h-5 w-5 text-orange-500 focus:ring-orange-500 ${PAGE_STYLES.panel.border} rounded`}
@@ -372,17 +361,6 @@ export const CalendarView: React.FC = () => {
                 className={`pl-3 pr-10 py-2 border ${PAGE_STYLES.panel.border} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent w-64`}
               />
             </div>
-
-            {/* Show All Orders Toggle */}
-            <label className="flex items-center space-x-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showAllOrders}
-                onChange={(e) => setShowAllOrders(e.target.checked)}
-                className={`h-4 w-4 text-orange-500 focus:ring-orange-500 ${PAGE_STYLES.panel.border} rounded`}
-              />
-              <span className={`text-sm ${PAGE_STYLES.header.text}`}>Show all orders</span>
-            </label>
 
             {/* Show Images Toggle */}
             <label className="flex items-center space-x-2 cursor-pointer">

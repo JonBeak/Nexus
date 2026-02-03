@@ -6,11 +6,11 @@ import { RowDataPacket, ResultSetHeader } from 'mysql2';
 export interface ArchetypeRow extends RowDataPacket {
   archetype_id: number;
   name: string;
-  category: string;
+  category_id: number;
+  category_name: string;  // Joined from material_categories
   subcategory: string | null;
   unit_of_measure: string;
   specifications: Record<string, any> | null;
-  specifications_v2: string[] | null;
   description: string | null;
   reorder_point: number;
   is_active: boolean;
@@ -20,6 +20,9 @@ export interface ArchetypeRow extends RowDataPacket {
   updated_by: number | null;
   created_by_name?: string;
   updated_by_name?: string;
+  // Category metadata from JOIN
+  category_color?: string | null;
+  category_icon?: string | null;
 }
 
 export interface ArchetypeStatsRow extends RowDataPacket {
@@ -29,28 +32,46 @@ export interface ArchetypeStatsRow extends RowDataPacket {
 }
 
 export interface CategoryCountRow extends RowDataPacket {
-  category: string;
+  category_id: number;
+  category_name: string;
   count: number;
 }
 
 export interface ArchetypeSearchParams {
   search?: string;
-  category?: string;
+  category_id?: number;
+  category?: string;  // Legacy: search by category name (will lookup category_id)
   subcategory?: string;
   active_only?: boolean;
 }
 
 export class ArchetypeRepository {
   /**
-   * Build enriched archetype query with user names
+   * Build enriched archetype query with user names and category data
    */
   private buildArchetypeQuery(whereClause: string = '1=1'): string {
     return `
       SELECT
-        a.*,
+        a.archetype_id,
+        a.name,
+        a.category_id,
+        mc.name as category_name,
+        mc.color as category_color,
+        mc.icon as category_icon,
+        a.subcategory,
+        a.unit_of_measure,
+        a.specifications,
+        a.description,
+        a.reorder_point,
+        a.is_active,
+        a.created_at,
+        a.updated_at,
+        a.created_by,
+        a.updated_by,
         CONCAT(cu.first_name, ' ', cu.last_name) as created_by_name,
         CONCAT(uu.first_name, ' ', uu.last_name) as updated_by_name
       FROM product_archetypes a
+      JOIN material_categories mc ON a.category_id = mc.id
       LEFT JOIN users cu ON a.created_by = cu.user_id
       LEFT JOIN users uu ON a.updated_by = uu.user_id
       WHERE ${whereClause}
@@ -69,9 +90,14 @@ export class ArchetypeRepository {
       conditions.push('a.is_active = TRUE');
     }
 
-    // Filter by category
-    if (params.category) {
-      conditions.push('a.category = ?');
+    // Filter by category_id (preferred)
+    if (params.category_id) {
+      conditions.push('a.category_id = ?');
+      queryParams.push(params.category_id);
+    }
+    // Legacy: Filter by category name
+    else if (params.category) {
+      conditions.push('mc.name = ?');
       queryParams.push(params.category);
     }
 
@@ -86,13 +112,14 @@ export class ArchetypeRepository {
       conditions.push(`(
         a.name LIKE ? OR
         a.description LIKE ? OR
-        a.subcategory LIKE ?
+        a.subcategory LIKE ? OR
+        mc.name LIKE ?
       )`);
       const searchTerm = `%${params.search}%`;
-      queryParams.push(searchTerm, searchTerm, searchTerm);
+      queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
     }
 
-    const sql = this.buildArchetypeQuery(conditions.join(' AND ')) + ' ORDER BY a.category, a.name';
+    const sql = this.buildArchetypeQuery(conditions.join(' AND ')) + ' ORDER BY mc.sort_order, mc.name, a.name';
 
     return await query(sql, queryParams) as ArchetypeRow[];
   }
@@ -127,7 +154,7 @@ export class ArchetypeRepository {
    */
   async create(data: {
     name: string;
-    category: string;
+    category_id: number;
     subcategory?: string;
     unit_of_measure: string;
     specifications?: Record<string, any>;
@@ -137,13 +164,13 @@ export class ArchetypeRepository {
   }): Promise<number> {
     const result = await query(
       `INSERT INTO product_archetypes (
-        name, category, subcategory, unit_of_measure, specifications,
+        name, category_id, subcategory, unit_of_measure, specifications,
         description, reorder_point,
         created_by, updated_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.name,
-        data.category,
+        data.category_id,
         data.subcategory || null,
         data.unit_of_measure,
         data.specifications ? JSON.stringify(data.specifications) : null,
@@ -162,7 +189,7 @@ export class ArchetypeRepository {
    */
   async update(id: number, updates: {
     name?: string;
-    category?: string;
+    category_id?: number;
     subcategory?: string;
     unit_of_measure?: string;
     specifications?: Record<string, any>;
@@ -175,7 +202,7 @@ export class ArchetypeRepository {
     const updateValues: any[] = [];
 
     const allowedFields = [
-      'name', 'category', 'subcategory', 'unit_of_measure',
+      'name', 'category_id', 'subcategory', 'unit_of_measure',
       'description', 'reorder_point', 'is_active'
     ];
 
@@ -229,15 +256,19 @@ export class ArchetypeRepository {
   }
 
   /**
-   * Get categories with counts
+   * Get categories with counts (from material_categories joined with archetypes)
    */
   async getCategories(): Promise<CategoryCountRow[]> {
     return await query(`
-      SELECT category, COUNT(*) as count
-      FROM product_archetypes
-      WHERE is_active = TRUE
-      GROUP BY category
-      ORDER BY category
+      SELECT
+        mc.id as category_id,
+        mc.name as category_name,
+        COUNT(pa.archetype_id) as count
+      FROM material_categories mc
+      LEFT JOIN product_archetypes pa ON pa.category_id = mc.id AND pa.is_active = TRUE
+      WHERE mc.is_active = TRUE
+      GROUP BY mc.id, mc.name
+      ORDER BY mc.sort_order, mc.name
     `) as CategoryCountRow[];
   }
 
@@ -257,16 +288,42 @@ export class ArchetypeRepository {
   }
 
   /**
-   * Get unique subcategories for a category
+   * Get unique subcategories for a category (by category_id)
    */
-  async getSubcategories(category: string): Promise<string[]> {
+  async getSubcategoriesById(categoryId: number): Promise<string[]> {
     const rows = await query(`
       SELECT DISTINCT subcategory
       FROM product_archetypes
-      WHERE category = ? AND subcategory IS NOT NULL AND is_active = TRUE
+      WHERE category_id = ? AND subcategory IS NOT NULL AND is_active = TRUE
       ORDER BY subcategory
-    `, [category]) as RowDataPacket[];
+    `, [categoryId]) as RowDataPacket[];
 
     return rows.map(r => r.subcategory);
+  }
+
+  /**
+   * Get unique subcategories for a category (by category name - legacy support)
+   */
+  async getSubcategories(categoryName: string): Promise<string[]> {
+    const rows = await query(`
+      SELECT DISTINCT pa.subcategory
+      FROM product_archetypes pa
+      JOIN material_categories mc ON pa.category_id = mc.id
+      WHERE mc.name = ? AND pa.subcategory IS NOT NULL AND pa.is_active = TRUE
+      ORDER BY pa.subcategory
+    `, [categoryName]) as RowDataPacket[];
+
+    return rows.map(r => r.subcategory);
+  }
+
+  /**
+   * Find category_id by category name
+   */
+  async findCategoryIdByName(categoryName: string): Promise<number | null> {
+    const rows = await query(
+      'SELECT id FROM material_categories WHERE name = ? AND is_active = TRUE',
+      [categoryName]
+    ) as RowDataPacket[];
+    return rows.length > 0 ? rows[0].id : null;
   }
 }

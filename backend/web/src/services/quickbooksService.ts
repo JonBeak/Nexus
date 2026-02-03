@@ -283,9 +283,16 @@ export class QuickBooksService {
     }
 
     // STEP 5: Create estimate in QuickBooks
+    // Get today's date in local timezone
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
+
     const qbPayload = {
       CustomerRef: { value: qbCustomerId },
-      TxnDate: new Date().toISOString().split('T')[0],
+      TxnDate: todayStr,
       Line: lines,
     };
 

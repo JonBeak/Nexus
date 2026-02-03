@@ -170,6 +170,8 @@ export interface KanbanColumnProps {
   disableDrop?: boolean;
   cardsDisableDrag?: boolean;
   cardsShowPaintingBadge?: boolean;
+  // Touch device support
+  isTablet?: boolean;
 }
 
 /**

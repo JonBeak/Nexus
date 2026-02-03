@@ -18,6 +18,28 @@ export type MaterialRequirementStatus =
 
 export type DeliveryMethod = 'pickup' | 'shipping';
 
+/**
+ * Computed status based on requirement fields (not stored in DB)
+ */
+export type ComputedRequirementStatus =
+  | 'pending'       // ordered_date null AND supplier_id != -1 (In Stock)
+  | 'ordered_pickup'    // ordered_date set AND delivery_method = 'pickup'
+  | 'ordered_shipping'  // ordered_date set AND delivery_method = 'shipping'
+  | 'to_be_picked'      // supplier_id = -1 (In Stock) AND status != 'received'
+  | 'fulfilled';        // status = 'received'
+
+/**
+ * Receiving status options for dropdown
+ */
+export type ReceivingStatus = 'received' | 'backordered' | 'partial_received' | 'cancelled';
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+/** Special archetype_id indicating vinyl product selection */
+export const ARCHETYPE_VINYL = -1;
+
 // ============================================================================
 // CORE ENTITY TYPES
 // ============================================================================
@@ -36,6 +58,7 @@ export interface MaterialRequirement {
   archetype_id: number | null;
   custom_product_type: string | null;
   supplier_product_id: number | null;
+  vinyl_product_id: number | null;
 
   // Size and quantity
   size_description: string | null;
@@ -80,6 +103,13 @@ export interface MaterialRequirement {
   supplier_product_name?: string | null;
   supplier_product_sku?: string | null;
 
+  // Joined fields from vinyl_product (when archetype_id = -1)
+  vinyl_product_brand?: string | null;
+  vinyl_product_series?: string | null;
+  vinyl_product_colour_number?: string | null;
+  vinyl_product_colour_name?: string | null;
+  vinyl_product_display?: string | null; // Computed: "{Series}-{ColourNumber} {ColourName}"
+
   // Joined fields from supplier
   supplier_name?: string | null;
 
@@ -107,6 +137,7 @@ export interface CreateMaterialRequirementRequest {
   archetype_id?: number | null;
   custom_product_type?: string | null;
   supplier_product_id?: number | null;
+  vinyl_product_id?: number | null;
   size_description?: string | null;
   quantity_ordered: number;
   supplier_id?: number | null;
@@ -122,6 +153,7 @@ export interface UpdateMaterialRequirementRequest {
   archetype_id?: number | null;
   custom_product_type?: string | null;
   supplier_product_id?: number | null;
+  vinyl_product_id?: number | null;
   size_description?: string | null;
   quantity_ordered?: number;
   supplier_id?: number | null;
@@ -248,4 +280,46 @@ export type SortDirection = 'asc' | 'desc';
 export interface SortConfig {
   field: SortField;
   direction: SortDirection;
+}
+
+// ============================================================================
+// PRODUCT TYPE / ARCHETYPE TYPES
+// ============================================================================
+
+/**
+ * Product archetype for dropdown selection
+ */
+export interface ProductArchetype {
+  archetype_id: number;
+  name: string;
+  category_id: number;
+  category_name: string;
+  category_color?: string | null;
+  category_icon?: string | null;
+  subcategory: string | null;
+  unit_of_measure: string;
+  is_active: boolean;
+}
+
+/**
+ * Vinyl product for dropdown selection
+ */
+export interface VinylProductOption {
+  product_id: number;
+  brand: string | null;
+  series: string | null;
+  colour_number: string | null;
+  colour_name: string | null;
+  display_name: string; // Computed: "{Series}-{ColourNumber} {ColourName}"
+}
+
+/**
+ * Supplier product for dropdown selection
+ */
+export interface SupplierProductOption {
+  supplier_product_id: number;
+  product_name: string;
+  sku: string | null;
+  supplier_id: number;
+  supplier_name: string;
 }

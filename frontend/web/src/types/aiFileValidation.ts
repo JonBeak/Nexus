@@ -1,0 +1,179 @@
+/**
+ * AI File Validation Types (Frontend)
+ * Types for the AI file vector validation system
+ */
+
+// Validation issue severity levels
+export type IssueSeverity = 'error' | 'warning' | 'info';
+
+// Validation status states
+export type ValidationStatus = 'pending' | 'passed' | 'failed' | 'warning' | 'error';
+
+// Rule types for validation
+export type RuleType = 'stroke' | 'overlap' | 'holes' | 'area' | 'closure' | 'custom';
+
+/**
+ * A single validation issue found in a file
+ */
+export interface ValidationIssue {
+  rule: string;
+  severity: IssueSeverity;
+  message: string;
+  path_id?: string;
+  details?: Record<string, any>;
+}
+
+/**
+ * Statistics collected during validation
+ */
+export interface ValidationStats {
+  total_paths: number;
+  closed_paths: number;
+  paths_with_stroke: number;
+  paths_with_fill: number;
+  total_holes: number;
+  total_area: number;
+  total_perimeter: number;
+}
+
+/**
+ * Result from validating a single AI file
+ */
+export interface FileValidationResult {
+  success: boolean;
+  file_path: string;
+  file_name: string;
+  status: ValidationStatus;
+  issues: ValidationIssue[];
+  stats: ValidationStats;
+  error?: string;
+  skipped_validation?: boolean;  // True if file was not validated (e.g., cutting files)
+  skip_reason?: string;          // Reason validation was skipped
+}
+
+/**
+ * Validation record from database
+ */
+export interface AiFileValidationRecord {
+  validation_id: number;
+  order_id: number;
+  order_number: number;
+  file_path: string;
+  file_name: string;
+  validation_status: ValidationStatus;
+  validated_at: string | null;
+  validated_by: number | null;
+  approved_at: string | null;
+  approved_by: number | null;
+  issues: ValidationIssue[] | null;
+  stats: ValidationStats | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Configuration for a validation rule
+ */
+export interface ValidationRuleConfig {
+  // Overlap rule config
+  tolerance?: number;
+  check_same_path?: boolean;
+  check_position?: boolean;
+
+  // Stroke rule config
+  required_color?: string;
+  required_width?: number;
+  allow_fill?: boolean;
+
+  // Holes rule config
+  min_holes?: number;
+  holes_per_sq_inch?: number;
+  min_perimeter_for_holes?: number;
+  applies_to_backing?: boolean;
+
+  // Closure rule config
+  exclude_text_paths?: boolean;
+
+  // Generic
+  [key: string]: any;
+}
+
+/**
+ * Validation rule from database
+ */
+export interface AiValidationRule {
+  rule_id: number;
+  rule_name: string;
+  rule_type: RuleType;
+  rule_config: ValidationRuleConfig;
+  severity: IssueSeverity;
+  is_active: boolean;
+  applies_to: string | null;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * AI file info (before validation)
+ */
+export interface AiFileInfo {
+  file_path: string;
+  file_name: string;
+  size_bytes: number;
+  modified_at: string;
+  validation?: AiFileValidationRecord;
+}
+
+/**
+ * Response from validation endpoint
+ */
+export interface ValidateFilesResponse {
+  success: boolean;
+  order_number: number;
+  total_files: number;
+  passed: number;
+  failed: number;
+  warnings: number;
+  errors: number;
+  results: FileValidationResult[];
+  message?: string;
+}
+
+/**
+ * Response from approval endpoint
+ */
+export interface ApproveFilesResponse {
+  approved_count: number;
+}
+
+// =============================================
+// EXPECTED FILES RULE SYSTEM
+// =============================================
+
+// Comparison status for a file
+export type FileComparisonStatus = 'present' | 'missing' | 'unexpected';
+
+// Single file comparison entry
+export interface FileComparisonEntry {
+  filename: string;
+  detected_ai_version?: string;  // Report only, no enforcement
+  file_path?: string;
+  status: FileComparisonStatus;
+  is_required: boolean;
+  matched_rules: string[];  // Which rules generated this expectation
+}
+
+// Full comparison result
+export interface ExpectedFilesComparison {
+  order_number: number;
+  folder_exists: boolean;
+  summary: {
+    total_expected: number;
+    present: number;
+    missing_required: number;
+    missing_optional: number;
+    unexpected: number;
+  };
+  files: FileComparisonEntry[];
+}

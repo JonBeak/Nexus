@@ -10,11 +10,12 @@ const archetypeService = new ArchetypeService();
  * Get all archetypes with optional filtering
  */
 export const getArchetypes = async (req: Request, res: Response): Promise<void> => {
-  const { search, category, subcategory, active_only } = req.query;
+  const { search, category, category_id, subcategory, active_only } = req.query;
 
   const result = await archetypeService.getArchetypes({
     search: search as string | undefined,
     category: category as string | undefined,
+    category_id: category_id ? parseInt(category_id as string) : undefined,
     subcategory: subcategory as string | undefined,
     active_only: active_only === 'false' ? false : true
   });
@@ -41,14 +42,15 @@ export const getArchetypeById = async (req: Request, res: Response): Promise<voi
 export const createArchetype = async (req: Request, res: Response): Promise<void> => {
   const user = (req as any).user;
   const {
-    name, category, subcategory, unit_of_measure, specifications,
+    name, category, category_id, subcategory, unit_of_measure, specifications,
     description, reorder_point
   } = req.body;
 
   const result = await archetypeService.createArchetype(
     {
       name,
-      category,
+      category,      // Legacy: category name
+      category_id,   // Preferred: category ID
       subcategory,
       unit_of_measure,
       specifications,
