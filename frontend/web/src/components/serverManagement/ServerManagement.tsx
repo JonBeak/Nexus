@@ -31,6 +31,7 @@ import {
   BackupFile,
   DatabaseBackup,
   ScriptResult,
+  DetachedResult,
   EnvironmentInfo,
   PortStatus,
   RogueProcess,
@@ -181,6 +182,109 @@ export const ServerManagement: React.FC = () => {
         setButtonStates(prev => ({ ...prev, [key]: 'idle' }));
       }, 3000);
     } finally {
+      setAutoRefresh(true);
+    }
+  };
+
+  /**
+   * Execute a detached operation (backend rebuilds) that polls for results
+   */
+  const executeDetachedOperation = async (
+    key: string,
+    action: () => Promise<DetachedResult>,
+    commandName: string
+  ) => {
+    setButtonStates(prev => ({ ...prev, [key]: 'running' }));
+    setAutoRefresh(false);
+    setLastOutput({ command: commandName, output: 'Starting build (detached)...' });
+
+    try {
+      // Start the detached operation
+      const result = await action();
+
+      if (!result.logFile) {
+        throw new Error(result.message || 'Failed to start detached operation');
+      }
+
+      setLastOutput({ command: commandName, output: `Build started. Polling for output...\n\nLog file: ${result.logFile}\n` });
+
+      // Poll for results
+      const pollInterval = 1500; // Poll every 1.5 seconds
+      const maxPolls = 120; // Max 3 minutes of polling
+      let pollCount = 0;
+
+      const poll = async () => {
+        pollCount++;
+
+        try {
+          const logResult = await serverManagementApi.getBuildLog(result.logFile);
+
+          // Update the output display
+          setLastOutput({
+            command: commandName,
+            output: logResult.output || 'Waiting for output...'
+          });
+
+          if (logResult.isComplete) {
+            // Build finished
+            const finalState = logResult.success ? 'success' : 'error';
+            setButtonStates(prev => ({ ...prev, [key]: finalState }));
+
+            // Refresh status after operation completes
+            await fetchStatus();
+
+            setTimeout(() => {
+              setButtonStates(prev => ({ ...prev, [key]: 'idle' }));
+            }, 3000);
+
+            setAutoRefresh(true);
+            return;
+          }
+
+          if (pollCount >= maxPolls) {
+            // Timeout - but script may still be running
+            setButtonStates(prev => ({ ...prev, [key]: 'error' }));
+            setLastOutput({
+              command: commandName,
+              output: logResult.output + '\n\n[Polling timeout - check log file manually]'
+            });
+            setAutoRefresh(true);
+            return;
+          }
+
+          // Continue polling
+          setTimeout(poll, pollInterval);
+        } catch (pollError: any) {
+          // API might be down during restart - keep polling
+          if (pollCount < maxPolls) {
+            setLastOutput(prev => ({
+              command: commandName,
+              output: (prev?.output || '') + '\n[Server restarting, waiting...]'
+            }));
+            setTimeout(poll, pollInterval * 2); // Wait longer during restart
+          } else {
+            setButtonStates(prev => ({ ...prev, [key]: 'error' }));
+            setLastOutput({
+              command: commandName,
+              output: `Polling failed: ${pollError.message}\n\nCheck log file: ${result.logFile}`
+            });
+            setAutoRefresh(true);
+          }
+        }
+      };
+
+      // Start polling after a short delay
+      setTimeout(poll, 1000);
+
+    } catch (error: any) {
+      setButtonStates(prev => ({ ...prev, [key]: 'error' }));
+      setLastOutput({
+        command: commandName,
+        output: `Error: ${error.message || 'Operation failed'}`
+      });
+      setTimeout(() => {
+        setButtonStates(prev => ({ ...prev, [key]: 'idle' }));
+      }, 3000);
       setAutoRefresh(true);
     }
   };
@@ -403,7 +507,7 @@ export const ServerManagement: React.FC = () => {
                 <div className="text-xs text-gray-500">{getTimeSinceBuilt(status?.builds.backendDev.lastModified || null)}</div>
               </div>
               <button
-                onClick={() => executeOperation(
+                onClick={() => executeDetachedOperation(
                   'rebuild-backend-dev',
                   serverManagementApi.rebuildBackendDev,
                   'backend-rebuild-dev.sh'
@@ -419,7 +523,7 @@ export const ServerManagement: React.FC = () => {
                 <div className="text-xs text-gray-500">{getTimeSinceBuilt(status?.builds.backendProduction.lastModified || null)}</div>
               </div>
               <button
-                onClick={() => executeOperation(
+                onClick={() => executeDetachedOperation(
                   'rebuild-backend-prod',
                   serverManagementApi.rebuildBackendProd,
                   'backend-rebuild-production.sh'
@@ -474,7 +578,7 @@ export const ServerManagement: React.FC = () => {
               <div className="font-medium text-gray-700">Full Stack</div>
               <div className="text-center text-gray-500 text-xs">—</div>
               <button
-                onClick={() => executeOperation(
+                onClick={() => executeDetachedOperation(
                   'rebuild-all-dev',
                   serverManagementApi.rebuildAllDev,
                   'rebuild-dev.sh'
@@ -487,7 +591,7 @@ export const ServerManagement: React.FC = () => {
               </button>
               <div className="text-center text-gray-500 text-xs">—</div>
               <button
-                onClick={() => executeOperation(
+                onClick={() => executeDetachedOperation(
                   'rebuild-all-prod',
                   serverManagementApi.rebuildAllProd,
                   'rebuild-production.sh'

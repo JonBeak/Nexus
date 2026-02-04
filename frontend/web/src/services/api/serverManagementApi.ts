@@ -66,6 +66,17 @@ export interface ScriptResult {
   output: string;
 }
 
+export interface DetachedResult {
+  logFile: string;
+  message: string;
+}
+
+export interface BuildLogResult {
+  output: string;
+  isComplete: boolean;
+  success: boolean | null;
+}
+
 // Linux dev feature types
 export interface ActivePort {
   port: number;
@@ -123,13 +134,13 @@ export const serverManagementApi = {
     return response.data;
   },
 
-  // Backend operations
-  async rebuildBackendDev(): Promise<ScriptResult> {
+  // Backend operations (return detached result for polling)
+  async rebuildBackendDev(): Promise<DetachedResult> {
     const response = await api.post('/server-management/backend/rebuild-dev');
     return response.data;
   },
 
-  async rebuildBackendProd(): Promise<ScriptResult> {
+  async rebuildBackendProd(): Promise<DetachedResult> {
     const response = await api.post('/server-management/backend/rebuild-prod');
     return response.data;
   },
@@ -155,13 +166,13 @@ export const serverManagementApi = {
     return response.data;
   },
 
-  // Combined operations
-  async rebuildAllDev(): Promise<ScriptResult> {
+  // Combined operations (return detached result for polling)
+  async rebuildAllDev(): Promise<DetachedResult> {
     const response = await api.post('/server-management/rebuild-all-dev');
     return response.data;
   },
 
-  async rebuildAllProd(): Promise<ScriptResult> {
+  async rebuildAllProd(): Promise<DetachedResult> {
     const response = await api.post('/server-management/rebuild-all-prod');
     return response.data;
   },
@@ -231,6 +242,12 @@ export const serverManagementApi = {
 
   async getProcessLogs(processName: string, lines: number = 100): Promise<ScriptResult> {
     const response = await api.get(`/server-management/logs/${processName}`, { params: { lines } });
+    return response.data;
+  },
+
+  // Build log polling for detached operations
+  async getBuildLog(logFile: string): Promise<BuildLogResult> {
+    const response = await api.get('/server-management/build-log', { params: { file: logFile } });
     return response.data;
   }
 };

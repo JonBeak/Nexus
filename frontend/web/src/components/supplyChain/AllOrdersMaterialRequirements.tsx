@@ -21,13 +21,18 @@ import {
   ShoppingCart,
   HandMetal,
 } from 'lucide-react';
-import { PAGE_STYLES } from '../../constants/moduleColors';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 import { materialRequirementsApi, ordersApi, supplierProductsApi, archetypesApi, vinylProductsApi, suppliersApi } from '../../services/api';
 import { InlineEditableCell } from './components/InlineEditableCell';
 import { SupplierDropdown, SUPPLIER_IN_STOCK } from './components/SupplierDropdown';
 import { OrderDropdown } from './components/OrderDropdown';
 import { ProductTypeDropdown } from './components/ProductTypeDropdown';
 import { ProductDropdown } from './components/ProductDropdown';
+import { CheckStockButton } from './components/CheckStockButton';
+import { HeldItemButton } from './components/HeldItemButton';
+import { VinylSelectorWithHolds } from './components/VinylSelectorWithHolds';
+import { GeneralInventorySelectorModal } from './components/GeneralInventorySelectorModal';
+import { MultiHoldReceiveModal } from './components/MultiHoldReceiveModal';
 import { getTodayString } from '../../utils/dateUtils';
 import type {
   MaterialRequirement,
@@ -36,6 +41,7 @@ import type {
   CreateMaterialRequirementRequest,
   OrderDropdownOption,
   ComputedRequirementStatus,
+  VinylHold,
 } from '../../types/materialRequirements';
 import type { User as AccountUser } from '../accounts/hooks/useAccountAPI';
 
@@ -202,6 +208,16 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
   const [archetypes, setArchetypes] = useState<any[] | undefined>(undefined);
   const [vinylProducts, setVinylProducts] = useState<any[] | undefined>(undefined);
   const [suppliers, setSuppliers] = useState<any[] | undefined>(undefined);
+
+  // Inventory Hold Modal State
+  const [showVinylSelector, setShowVinylSelector] = useState(false);
+  const [showGeneralInventorySelector, setShowGeneralInventorySelector] = useState(false);
+  const [showMultiHoldModal, setShowMultiHoldModal] = useState(false);
+  const [selectedRequirementForHold, setSelectedRequirementForHold] = useState<MaterialRequirement | null>(null);
+  const [multiHoldData, setMultiHoldData] = useState<{
+    requirement: MaterialRequirement;
+    otherHolds: VinylHold[];
+  } | null>(null);
 
   const loadRequirements = useCallback(async () => {
     try {
@@ -389,6 +405,162 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
     });
   };
 
+  // ===========================================================================
+  // INVENTORY HOLD HANDLERS
+  // ===========================================================================
+
+  /**
+   * Handle "Check Stock" button click
+   * Opens appropriate selector modal based on stock type
+   */
+  const handleCheckStock = (requirement: MaterialRequirement, stockType: 'vinyl' | 'general') => {
+    setSelectedRequirementForHold(requirement);
+    if (stockType === 'vinyl') {
+      setShowVinylSelector(true);
+    } else {
+      setShowGeneralInventorySelector(true);
+    }
+  };
+
+  /**
+   * Handle vinyl selection from the selector modal
+   * Creates a hold on the vinyl piece
+   */
+  const handleVinylHoldSelect = async (vinylId: number, quantity: string) => {
+    if (!selectedRequirementForHold) return;
+
+    try {
+      await materialRequirementsApi.createVinylHold(selectedRequirementForHold.requirement_id, {
+        vinyl_id: vinylId,
+        quantity,
+      });
+      showNotification('Hold placed successfully', 'success');
+      setShowVinylSelector(false);
+      setSelectedRequirementForHold(null);
+      void loadRequirements();
+    } catch (error: any) {
+      console.error('Error creating vinyl hold:', error);
+      showNotification(error.response?.data?.error || 'Failed to create hold', 'error');
+    }
+  };
+
+  /**
+   * Handle general inventory selection from the selector modal
+   * Creates a hold on the supplier product
+   */
+  const handleGeneralInventoryHoldSelect = async (supplierProductId: number, quantity: string) => {
+    if (!selectedRequirementForHold) return;
+
+    try {
+      await materialRequirementsApi.createGeneralInventoryHold(selectedRequirementForHold.requirement_id, {
+        supplier_product_id: supplierProductId,
+        quantity,
+      });
+      showNotification('Hold placed successfully', 'success');
+      setShowGeneralInventorySelector(false);
+      setSelectedRequirementForHold(null);
+      void loadRequirements();
+    } catch (error: any) {
+      console.error('Error creating general inventory hold:', error);
+      showNotification(error.response?.data?.error || 'Failed to create hold', 'error');
+    }
+  };
+
+  /**
+   * Handle edit hold button click
+   * Re-opens the selector modal with current item pre-selected
+   */
+  const handleEditHold = (requirement: MaterialRequirement) => {
+    setSelectedRequirementForHold(requirement);
+    if (requirement.held_vinyl_id) {
+      setShowVinylSelector(true);
+    } else if (requirement.held_supplier_product_id) {
+      setShowGeneralInventorySelector(true);
+    }
+  };
+
+  /**
+   * Handle release hold button click
+   * Removes the hold and clears vendor fields
+   */
+  const handleReleaseHold = async (requirement: MaterialRequirement) => {
+    if (!confirm('Release this hold? The item will become available again.')) return;
+
+    try {
+      await materialRequirementsApi.releaseHold(requirement.requirement_id);
+      showNotification('Hold released', 'success');
+      void loadRequirements();
+    } catch (error: any) {
+      console.error('Error releasing hold:', error);
+      showNotification(error.response?.data?.error || 'Failed to release hold', 'error');
+    }
+  };
+
+  /**
+   * Handle status change to "received" for held items
+   * Checks for other holds and shows multi-hold modal if needed
+   */
+  const handleReceiveWithHold = async (requirement: MaterialRequirement) => {
+    if (!requirement.held_vinyl_id) {
+      // No vinyl hold - just do normal receive
+      await handleInlineEdit(requirement.requirement_id, 'status', 'received');
+      return;
+    }
+
+    try {
+      // Check for other holds on the same vinyl
+      const otherHolds = await materialRequirementsApi.getOtherHoldsOnVinyl(
+        requirement.requirement_id,
+        requirement.held_vinyl_id
+      );
+
+      if (otherHolds.length > 0) {
+        // Show multi-hold modal
+        setMultiHoldData({ requirement, otherHolds });
+        setShowMultiHoldModal(true);
+      } else {
+        // No other holds - receive directly
+        await materialRequirementsApi.receiveRequirementWithHold(requirement.requirement_id);
+        showNotification('Requirement received, vinyl marked as used', 'success');
+        void loadRequirements();
+      }
+    } catch (error: any) {
+      console.error('Error receiving with hold:', error);
+      showNotification(error.response?.data?.error || 'Failed to receive', 'error');
+    }
+  };
+
+  /**
+   * Handle confirmation from multi-hold receive modal
+   */
+  const handleMultiHoldConfirm = async (alsoReceiveIds: number[]) => {
+    if (!multiHoldData) return;
+
+    try {
+      const result = await materialRequirementsApi.receiveRequirementWithHold(
+        multiHoldData.requirement.requirement_id,
+        { also_receive_requirement_ids: alsoReceiveIds }
+      );
+
+      const releasedCount = multiHoldData.otherHolds.length - alsoReceiveIds.length;
+      if (releasedCount > 0) {
+        showNotification(
+          `Received ${result.received_count} requirements. ${releasedCount} holds released.`,
+          'success'
+        );
+      } else {
+        showNotification('All requirements marked as received', 'success');
+      }
+
+      setShowMultiHoldModal(false);
+      setMultiHoldData(null);
+      void loadRequirements();
+    } catch (error: any) {
+      console.error('Error processing multi-hold receive:', error);
+      showNotification(error.response?.data?.error || 'Failed to process', 'error');
+    }
+  };
+
   // Add new requirement handler
   const handleAddNewRequirement = async () => {
     try {
@@ -423,7 +595,7 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
   if (loading && requirements.length === 0) {
     return (
       <div className="text-center py-8">
-        <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+        <div className={`inline-block animate-spin rounded-full h-6 w-6 border-b-2 ${MODULE_COLORS.supplyChain.border}`}></div>
         <p className={`mt-2 text-sm ${PAGE_STYLES.panel.textMuted}`}>Loading requirements...</p>
       </div>
     );
@@ -449,7 +621,7 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
               placeholder="Search..."
               value={filters.search}
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              className={`pl-9 pr-3 py-1.5 text-sm ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-md focus:ring-purple-500 focus:border-purple-500 w-48`}
+              className={`pl-9 pr-3 py-1.5 text-sm ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-md focus:ring-red-500 focus:border-red-500 w-48`}
             />
           </div>
 
@@ -475,7 +647,7 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
           {/* Add Button */}
           <button
             onClick={handleAddNewRequirement}
-            className="px-3 py-1.5 text-sm font-medium rounded-md bg-purple-600 text-white hover:bg-purple-700 flex items-center gap-1"
+            className={`px-3 py-1.5 text-sm font-medium rounded-md ${MODULE_COLORS.supplyChain.base} text-white ${MODULE_COLORS.supplyChain.hover} flex items-center gap-1`}
           >
             <Plus className="w-4 h-4" />
             Add
@@ -657,12 +829,30 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
 
                   {/* Vendor */}
                   <td className="px-1 py-0.5">
-                    <SupplierDropdown
-                      value={req.supplier_id}
-                      onChange={(val) => handleInlineEdit(req.requirement_id, 'supplier_id', val)}
-                      suppliers={suppliers}
-                      placeholder="Vendor..."
-                    />
+                    <div className="flex flex-col gap-0.5">
+                      {/* Show HeldItemButton if item has a hold, otherwise show SupplierDropdown */}
+                      {(req.held_vinyl_id || req.held_supplier_product_id) ? (
+                        <HeldItemButton
+                          requirement={req}
+                          onEditHold={() => handleEditHold(req)}
+                          onReleaseHold={() => handleReleaseHold(req)}
+                        />
+                      ) : (
+                        <SupplierDropdown
+                          value={req.supplier_id}
+                          onChange={(val) => handleInlineEdit(req.requirement_id, 'supplier_id', val)}
+                          suppliers={suppliers}
+                          placeholder="Vendor..."
+                        />
+                      )}
+                      {/* Show CheckStockButton below when no vendor selected and no hold */}
+                      {!req.supplier_id && !req.held_vinyl_id && !req.held_supplier_product_id && (
+                        <CheckStockButton
+                          requirement={req}
+                          onCheckStock={(stockType) => handleCheckStock(req, stockType)}
+                        />
+                      )}
+                    </div>
                   </td>
 
                   {/* Delivery */}
@@ -689,7 +879,14 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
                   <td className="px-1 py-0.5">
                     <InlineEditableCell
                       value={req.status === 'pending' || req.status === 'ordered' ? '' : req.status}
-                      onChange={(val) => handleInlineEdit(req.requirement_id, 'status', val || 'pending')}
+                      onChange={(val) => {
+                        // If setting to received and has a vinyl hold, use special handler
+                        if (val === 'received' && req.held_vinyl_id) {
+                          handleReceiveWithHold(req);
+                        } else {
+                          handleInlineEdit(req.requirement_id, 'status', val || 'pending');
+                        }
+                      }}
                       type="select"
                       options={RECEIVING_STATUS_OPTIONS}
                     />
@@ -737,6 +934,51 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
           <p className="text-lg font-medium mb-1">No material requirements found</p>
           <p className="text-sm">Click "Add" to create one</p>
         </div>
+      )}
+
+      {/* Vinyl Selector Modal */}
+      {selectedRequirementForHold?.vinyl_product_id && (
+        <VinylSelectorWithHolds
+          isOpen={showVinylSelector}
+          onClose={() => {
+            setShowVinylSelector(false);
+            setSelectedRequirementForHold(null);
+          }}
+          onSelect={handleVinylHoldSelect}
+          vinylProductId={selectedRequirementForHold.vinyl_product_id}
+          title="Select Vinyl from Inventory"
+          requirementSize={selectedRequirementForHold.size_description}
+          requirementQty={selectedRequirementForHold.quantity_ordered}
+        />
+      )}
+
+      {/* General Inventory Selector Modal */}
+      {selectedRequirementForHold?.archetype_id && !selectedRequirementForHold?.vinyl_product_id && (
+        <GeneralInventorySelectorModal
+          isOpen={showGeneralInventorySelector}
+          onClose={() => {
+            setShowGeneralInventorySelector(false);
+            setSelectedRequirementForHold(null);
+          }}
+          onSelect={handleGeneralInventoryHoldSelect}
+          archetypeId={selectedRequirementForHold.archetype_id}
+          archetypeName={selectedRequirementForHold.archetype_name || undefined}
+          title="Select from Inventory"
+        />
+      )}
+
+      {/* Multi-Hold Receive Modal */}
+      {multiHoldData && (
+        <MultiHoldReceiveModal
+          isOpen={showMultiHoldModal}
+          onClose={() => {
+            setShowMultiHoldModal(false);
+            setMultiHoldData(null);
+          }}
+          onConfirm={handleMultiHoldConfirm}
+          primaryRequirement={multiHoldData.requirement}
+          otherHolds={multiHoldData.otherHolds}
+        />
       )}
     </div>
   );

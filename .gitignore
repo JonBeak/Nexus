@@ -84,3 +84,10 @@ frontend/web/.env.development
 backend/web/.env.production
 frontend/web/.env.production
 .aider*
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python

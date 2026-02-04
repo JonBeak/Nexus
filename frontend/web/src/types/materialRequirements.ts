@@ -60,6 +60,10 @@ export interface MaterialRequirement {
   supplier_product_id: number | null;
   vinyl_product_id: number | null;
 
+  // Inventory holds
+  held_vinyl_id: number | null;
+  held_supplier_product_id: number | null;
+
   // Size and quantity
   size_description: string | null;
   quantity_ordered: number;
@@ -322,4 +326,143 @@ export interface SupplierProductOption {
   sku: string | null;
   supplier_id: number;
   supplier_name: string;
+}
+
+// ============================================================================
+// INVENTORY HOLD TYPES
+// ============================================================================
+
+/**
+ * Vinyl hold - links vinyl inventory to material requirement
+ */
+export interface VinylHold {
+  hold_id: number;
+  vinyl_id: number;
+  material_requirement_id: number;
+  quantity_held: string;
+  created_at: string;
+  created_by: number | null;
+  // Joined fields
+  order_number?: string;
+  order_name?: string;
+  customer_name?: string;
+  vinyl_brand?: string;
+  vinyl_series?: string;
+  vinyl_colour_number?: string;
+  vinyl_colour_name?: string;
+  vinyl_width?: number;
+  vinyl_length_yards?: number;
+  vinyl_location?: string;
+  vinyl_disposition?: string;
+  size_description?: string;
+  created_by_name?: string;
+}
+
+/**
+ * General inventory hold - links supplier product to material requirement
+ */
+export interface GeneralInventoryHold {
+  hold_id: number;
+  supplier_product_id: number;
+  material_requirement_id: number;
+  quantity_held: string;
+  created_at: string;
+  created_by: number | null;
+  // Joined fields
+  order_number?: string;
+  order_name?: string;
+  customer_name?: string;
+  product_name?: string;
+  sku?: string;
+  brand_name?: string;
+  quantity_on_hand?: number;
+  quantity_reserved?: number;
+  location?: string;
+  archetype_id?: number;
+  archetype_name?: string;
+  supplier_id?: number;
+  supplier_name?: string;
+  size_description?: string;
+  created_by_name?: string;
+}
+
+/**
+ * Stock availability check response
+ */
+export interface StockAvailabilityResponse {
+  hasStock: boolean;
+  stockType: 'vinyl' | 'general' | null;
+}
+
+/**
+ * Hold details response
+ */
+export interface HoldDetailsResponse {
+  holdType: 'vinyl' | 'general' | null;
+  hold: VinylHold | GeneralInventoryHold | null;
+}
+
+/**
+ * Vinyl item with holds (for selector modal)
+ */
+export interface VinylItemWithHolds {
+  id: number;
+  brand: string;
+  series: string;
+  colour_number: string | null;
+  colour_name: string | null;
+  width: number;
+  length_yards: number;
+  location: string | null;
+  disposition: string;
+  supplier_name: string | null;
+  storage_date: string | null;
+  notes: string | null;
+  holds: VinylHold[];
+}
+
+/**
+ * Supplier product with holds (for selector modal)
+ */
+export interface SupplierProductWithHolds {
+  supplier_product_id: number;
+  product_name: string;
+  sku: string | null;
+  brand_name: string | null;
+  quantity_on_hand: number;
+  quantity_reserved: number;
+  location: string | null;
+  supplier_name: string;
+  holds_summary: string | null; // Pipe-separated list: "qty - Order#: OrderName|..."
+}
+
+/**
+ * Create vinyl hold request
+ */
+export interface CreateVinylHoldRequest {
+  vinyl_id: number;
+  quantity: string;
+}
+
+/**
+ * Create general inventory hold request
+ */
+export interface CreateGeneralInventoryHoldRequest {
+  supplier_product_id: number;
+  quantity: string;
+}
+
+/**
+ * Receive with hold request
+ */
+export interface ReceiveWithHoldRequest {
+  also_receive_requirement_ids?: number[];
+}
+
+/**
+ * Receive with hold response
+ */
+export interface ReceiveWithHoldResponse {
+  received_count: number;
+  released_count: number;
 }

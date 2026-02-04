@@ -21,11 +21,18 @@ except ImportError:
 
 def convert_ai_to_svg(ai_path: str) -> Tuple[bool, str, Optional[str]]:
     """
-    Convert AI file to SVG using Inkscape CLI.
+    Convert AI file to SVG using multiple converter fallbacks.
+
+    Tries converters in priority order:
+    1. Inkscape (best for modern AI files)
+    2. UniConvertor (good for legacy formats)
+    3. Ghostscript + pdf2svg (fallback for very old formats)
 
     Returns:
         Tuple of (success, svg_path_or_error, temp_file_path)
     """
+    from .ai_converters import convert_ai_to_svg_multi
+
     if not os.path.exists(ai_path):
         return False, f"File not found: {ai_path}", None
 
@@ -33,33 +40,18 @@ def convert_ai_to_svg(ai_path: str) -> Tuple[bool, str, Optional[str]]:
     os.close(temp_fd)
 
     try:
-        result = subprocess.run(
-            ['inkscape', ai_path, '--export-filename=' + temp_svg_path],
-            capture_output=True,
-            text=True,
-            timeout=60
-        )
+        success, message, attempts = convert_ai_to_svg_multi(ai_path, temp_svg_path)
 
-        if result.returncode != 0:
-            os.unlink(temp_svg_path)
-            return False, f"Inkscape conversion failed: {result.stderr}", None
-
-        if not os.path.exists(temp_svg_path) or os.path.getsize(temp_svg_path) == 0:
+        if success:
+            return True, temp_svg_path, temp_svg_path
+        else:
+            # Cleanup on failure
             if os.path.exists(temp_svg_path):
                 os.unlink(temp_svg_path)
-            return False, "Inkscape produced empty output", None
+            return False, message, None
 
-        return True, temp_svg_path, temp_svg_path
-
-    except subprocess.TimeoutExpired:
-        if os.path.exists(temp_svg_path):
-            os.unlink(temp_svg_path)
-        return False, "Inkscape conversion timed out", None
-    except FileNotFoundError:
-        if os.path.exists(temp_svg_path):
-            os.unlink(temp_svg_path)
-        return False, "Inkscape not found. Install with: sudo apt install inkscape", None
     except Exception as e:
+        # Cleanup on unexpected error
         if os.path.exists(temp_svg_path):
             os.unlink(temp_svg_path)
         return False, f"Conversion error: {str(e)}", None
@@ -275,7 +267,12 @@ def extract_paths_from_svg(svg_path: str, ai_path: Optional[str] = None) -> List
                 path_polygon = path_to_polygon(path)
                 if path_polygon and path_polygon.is_valid:
                     area = abs(path_polygon.area)
-                    num_holes = len(list(path_polygon.interiors))
+                    # Handle both Polygon and MultiPolygon types
+                    if path_polygon.geom_type == 'Polygon':
+                        num_holes = len(list(path_polygon.interiors))
+                    elif path_polygon.geom_type == 'MultiPolygon':
+                        # Sum holes from all polygons in the multipolygon
+                        num_holes = sum(len(list(poly.interiors)) for poly in path_polygon.geoms)
 
             path_is_circle, circle_diameter = is_circle_path(path)
 

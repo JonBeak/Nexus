@@ -18,6 +18,9 @@ const ownerOnly = [authenticateToken, requireRole('owner')];
 // Status endpoint
 router.get('/status', ...ownerOnly, controller.getStatus);
 
+// Build log polling endpoint (for detached operations)
+router.get('/build-log', ...ownerOnly, controller.getBuildLog);
+
 // Backend operations
 router.post('/backend/rebuild-dev', ...ownerOnly, controller.rebuildBackendDev);
 router.post('/backend/rebuild-prod', ...ownerOnly, controller.rebuildBackendProd);

@@ -17,6 +17,15 @@ import {
   ActionableRequirementsResponse,
   StatusCountsResponse,
   OrderDropdownOption,
+  StockAvailabilityResponse,
+  HoldDetailsResponse,
+  VinylHold,
+  VinylItemWithHolds,
+  SupplierProductWithHolds,
+  CreateVinylHoldRequest,
+  CreateGeneralInventoryHoldRequest,
+  ReceiveWithHoldRequest,
+  ReceiveWithHoldResponse,
 } from '../../types/materialRequirements';
 
 /**
@@ -173,6 +182,101 @@ export const materialRequirementsApi = {
     total_suppliers: number;
   }> => {
     const response = await api.get('/material-requirements/grouped-by-supplier');
+    return response.data;
+  },
+
+  // ===========================================================================
+  // INVENTORY HOLD METHODS
+  // ===========================================================================
+
+  /**
+   * Check stock availability for a material requirement
+   */
+  checkStockAvailability: async (params: {
+    archetype_id?: number | null;
+    vinyl_product_id?: number | null;
+    supplier_product_id?: number | null;
+  }): Promise<StockAvailabilityResponse> => {
+    const response = await api.get('/material-requirements/check-stock', { params });
+    return response.data;
+  },
+
+  /**
+   * Get available vinyl items with holds for a vinyl product
+   */
+  getAvailableVinylWithHolds: async (vinylProductId: number): Promise<VinylItemWithHolds[]> => {
+    const response = await api.get('/material-requirements/available-vinyl', {
+      params: { vinyl_product_id: vinylProductId },
+    });
+    return response.data;
+  },
+
+  /**
+   * Get supplier products with holds for an archetype
+   */
+  getSupplierProductsWithHolds: async (archetypeId: number): Promise<SupplierProductWithHolds[]> => {
+    const response = await api.get('/material-requirements/available-products', {
+      params: { archetype_id: archetypeId },
+    });
+    return response.data;
+  },
+
+  /**
+   * Get hold details for a requirement
+   */
+  getHoldForRequirement: async (requirementId: number): Promise<HoldDetailsResponse> => {
+    const response = await api.get(`/material-requirements/${requirementId}/hold`);
+    return response.data;
+  },
+
+  /**
+   * Get other holds on the same vinyl (for multi-hold receive flow)
+   */
+  getOtherHoldsOnVinyl: async (requirementId: number, vinylId: number): Promise<VinylHold[]> => {
+    const response = await api.get(`/material-requirements/${requirementId}/other-holds`, {
+      params: { vinyl_id: vinylId },
+    });
+    return response.data;
+  },
+
+  /**
+   * Create a vinyl hold for a material requirement
+   */
+  createVinylHold: async (
+    requirementId: number,
+    data: CreateVinylHoldRequest
+  ): Promise<{ hold_id: number }> => {
+    const response = await api.post(`/material-requirements/${requirementId}/vinyl-hold`, data);
+    return response.data;
+  },
+
+  /**
+   * Create a general inventory hold for a material requirement
+   */
+  createGeneralInventoryHold: async (
+    requirementId: number,
+    data: CreateGeneralInventoryHoldRequest
+  ): Promise<{ hold_id: number }> => {
+    const response = await api.post(`/material-requirements/${requirementId}/general-hold`, data);
+    return response.data;
+  },
+
+  /**
+   * Release a hold from a material requirement
+   */
+  releaseHold: async (requirementId: number): Promise<void> => {
+    await api.delete(`/material-requirements/${requirementId}/hold`);
+  },
+
+  /**
+   * Receive a requirement with a vinyl hold
+   * Handles multi-hold scenario
+   */
+  receiveRequirementWithHold: async (
+    requirementId: number,
+    data: ReceiveWithHoldRequest = {}
+  ): Promise<ReceiveWithHoldResponse> => {
+    const response = await api.post(`/material-requirements/${requirementId}/receive-with-hold`, data);
     return response.data;
   },
 };

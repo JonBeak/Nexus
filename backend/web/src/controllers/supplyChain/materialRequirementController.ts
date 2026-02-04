@@ -6,10 +6,12 @@
 
 import { Request, Response } from 'express';
 import { MaterialRequirementService } from '../../services/materialRequirementService';
+import { MaterialRequirementHoldsService } from '../../services/materialRequirementHoldsService';
 import { parseIntParam, handleServiceResult, sendErrorResponse } from '../../utils/controllerHelpers';
 import { MaterialRequirementStatus } from '../../types/materialRequirements';
 
 const service = new MaterialRequirementService();
+const holdsService = new MaterialRequirementHoldsService();
 
 /**
  * Get all material requirements with optional filtering
@@ -252,5 +254,163 @@ export const getStatusCounts = async (req: Request, res: Response): Promise<void
  */
 export const getGroupedBySupplier = async (req: Request, res: Response): Promise<void> => {
   const result = await service.getGroupedBySupplier();
+  handleServiceResult(res, result);
+};
+
+// ===========================================================================
+// INVENTORY HOLD ENDPOINTS
+// ===========================================================================
+
+/**
+ * Check stock availability for a material requirement
+ * Returns whether stock exists and what type (vinyl or general)
+ */
+export const checkStockAvailability = async (req: Request, res: Response): Promise<void> => {
+  const { archetype_id, vinyl_product_id, supplier_product_id } = req.query;
+
+  const result = await holdsService.checkStockAvailability(
+    archetype_id ? parseInt(archetype_id as string) : null,
+    vinyl_product_id ? parseInt(vinyl_product_id as string) : null,
+    supplier_product_id ? parseInt(supplier_product_id as string) : null
+  );
+
+  handleServiceResult(res, result);
+};
+
+/**
+ * Create a vinyl hold for a material requirement
+ */
+export const createVinylHold = async (req: Request, res: Response): Promise<void> => {
+  const user = (req as any).user;
+  const id = parseIntParam(req.params.id, 'Requirement ID');
+  if (id === null) {
+    return sendErrorResponse(res, 'Invalid requirement ID', 'VALIDATION_ERROR');
+  }
+
+  const { vinyl_id, quantity } = req.body;
+
+  if (!vinyl_id) {
+    return sendErrorResponse(res, 'vinyl_id is required', 'VALIDATION_ERROR');
+  }
+  if (!quantity) {
+    return sendErrorResponse(res, 'quantity is required', 'VALIDATION_ERROR');
+  }
+
+  const result = await holdsService.createVinylHold(id, vinyl_id, quantity, user?.user_id);
+  handleServiceResult(res, result, { successStatus: 201 });
+};
+
+/**
+ * Create a general inventory hold for a material requirement
+ */
+export const createGeneralInventoryHold = async (req: Request, res: Response): Promise<void> => {
+  const user = (req as any).user;
+  const id = parseIntParam(req.params.id, 'Requirement ID');
+  if (id === null) {
+    return sendErrorResponse(res, 'Invalid requirement ID', 'VALIDATION_ERROR');
+  }
+
+  const { supplier_product_id, quantity } = req.body;
+
+  if (!supplier_product_id) {
+    return sendErrorResponse(res, 'supplier_product_id is required', 'VALIDATION_ERROR');
+  }
+  if (!quantity) {
+    return sendErrorResponse(res, 'quantity is required', 'VALIDATION_ERROR');
+  }
+
+  const result = await holdsService.createGeneralInventoryHold(id, supplier_product_id, quantity, user?.user_id);
+  handleServiceResult(res, result, { successStatus: 201 });
+};
+
+/**
+ * Release a hold from a material requirement
+ */
+export const releaseHold = async (req: Request, res: Response): Promise<void> => {
+  const user = (req as any).user;
+  const id = parseIntParam(req.params.id, 'Requirement ID');
+  if (id === null) {
+    return sendErrorResponse(res, 'Invalid requirement ID', 'VALIDATION_ERROR');
+  }
+
+  const result = await holdsService.releaseHold(id, user?.user_id);
+  handleServiceResult(res, result);
+};
+
+/**
+ * Get hold details for a material requirement
+ */
+export const getHoldForRequirement = async (req: Request, res: Response): Promise<void> => {
+  const id = parseIntParam(req.params.id, 'Requirement ID');
+  if (id === null) {
+    return sendErrorResponse(res, 'Invalid requirement ID', 'VALIDATION_ERROR');
+  }
+
+  const result = await holdsService.getHoldForRequirement(id);
+  handleServiceResult(res, result);
+};
+
+/**
+ * Get other holds on the same vinyl item (for multi-hold receive flow)
+ */
+export const getOtherHoldsOnVinyl = async (req: Request, res: Response): Promise<void> => {
+  const id = parseIntParam(req.params.id, 'Requirement ID');
+  if (id === null) {
+    return sendErrorResponse(res, 'Invalid requirement ID', 'VALIDATION_ERROR');
+  }
+
+  const vinyl_id = parseIntParam(req.query.vinyl_id as string, 'Vinyl ID');
+  if (vinyl_id === null) {
+    return sendErrorResponse(res, 'Invalid vinyl_id', 'VALIDATION_ERROR');
+  }
+
+  const result = await holdsService.getOtherHoldsOnVinyl(id, vinyl_id);
+  handleServiceResult(res, result);
+};
+
+/**
+ * Receive a requirement with a vinyl hold
+ * Handles multi-hold scenario where multiple requirements hold the same vinyl
+ */
+export const receiveRequirementWithHold = async (req: Request, res: Response): Promise<void> => {
+  const user = (req as any).user;
+  const id = parseIntParam(req.params.id, 'Requirement ID');
+  if (id === null) {
+    return sendErrorResponse(res, 'Invalid requirement ID', 'VALIDATION_ERROR');
+  }
+
+  const { also_receive_requirement_ids } = req.body;
+
+  const result = await holdsService.receiveRequirementWithVinylHold(
+    id,
+    also_receive_requirement_ids || [],
+    user?.user_id
+  );
+  handleServiceResult(res, result);
+};
+
+/**
+ * Get available vinyl items with holds for a vinyl product
+ */
+export const getAvailableVinylWithHolds = async (req: Request, res: Response): Promise<void> => {
+  const vinyl_product_id = parseIntParam(req.query.vinyl_product_id as string, 'Vinyl Product ID');
+  if (vinyl_product_id === null) {
+    return sendErrorResponse(res, 'Invalid vinyl_product_id', 'VALIDATION_ERROR');
+  }
+
+  const result = await holdsService.getAvailableVinylWithHolds(vinyl_product_id);
+  handleServiceResult(res, result);
+};
+
+/**
+ * Get supplier products with holds for an archetype
+ */
+export const getSupplierProductsWithHolds = async (req: Request, res: Response): Promise<void> => {
+  const archetype_id = parseIntParam(req.query.archetype_id as string, 'Archetype ID');
+  if (archetype_id === null) {
+    return sendErrorResponse(res, 'Invalid archetype_id', 'VALIDATION_ERROR');
+  }
+
+  const result = await holdsService.getSupplierProductsWithHolds(archetype_id);
   handleServiceResult(res, result);
 };

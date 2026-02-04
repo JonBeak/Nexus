@@ -128,6 +128,7 @@ export interface UpdateMaterialRequirementRequest {
   vinyl_product_id?: number | null;
   size_description?: string | null;
   quantity_ordered?: number;
+  quantity_received?: number;
   supplier_id?: number | null;
   entry_date?: Date | string;
   ordered_date?: Date | string | null;

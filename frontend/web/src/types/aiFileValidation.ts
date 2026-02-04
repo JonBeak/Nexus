@@ -34,6 +34,10 @@ export interface ValidationStats {
   total_holes: number;
   total_area: number;
   total_perimeter: number;
+  layers?: string[];
+  paths_per_layer?: Record<string, number>;
+  letter_analysis?: LetterAnalysisResponse;
+  detected_scale?: number;
 }
 
 /**
@@ -145,6 +149,69 @@ export interface ValidateFilesResponse {
  */
 export interface ApproveFilesResponse {
   approved_count: number;
+}
+
+// =============================================
+// LETTER-HOLE ANALYSIS TYPES
+// =============================================
+
+/**
+ * Information about a hole within a letter
+ */
+export interface HoleDetail {
+  path_id: string;
+  hole_type: 'wire' | 'mounting' | 'unknown';
+  diameter_mm: number;
+  center: { x: number; y: number };
+  svg_path_data: string;
+}
+
+/**
+ * Information about a single letter with its holes
+ */
+export interface LetterDetail {
+  letter_id: string;
+  layer_name: string;
+
+  // File coordinates (as-is from SVG)
+  file_bbox: { x: number; y: number; width: number; height: number };
+
+  // Real-world dimensions (adjusted for scale)
+  real_size_inches: { width: number; height: number };
+  real_area_sq_inches: number;
+
+  // Scale info
+  detected_scale: number;  // 0.1 or 1.0
+
+  // SVG path data
+  svg_path_data: string;
+  counter_paths: string[];
+  holes: HoleDetail[];
+
+  // Counts
+  wire_hole_count: number;
+  mounting_hole_count: number;
+  unknown_hole_count: number;
+}
+
+/**
+ * Complete letter analysis response from the backend
+ */
+export interface LetterAnalysisResponse {
+  letters: LetterDetail[];
+  orphan_holes: HoleDetail[];
+  detected_scale: number;
+  stats: {
+    total_letters: number;
+    total_wire_holes: number;
+    total_mounting_holes: number;
+    total_unknown_holes: number;
+    orphan_count: number;
+    layers_analyzed?: string[];
+    total_paths?: number;
+    letters_found?: number;
+    circles_found?: number;
+  };
 }
 
 // =============================================

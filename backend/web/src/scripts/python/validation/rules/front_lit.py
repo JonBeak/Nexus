@@ -21,6 +21,10 @@ Trim offset note:
 - For 30° corner: 3.86x the perpendicular offset
 - Miter limit of 4 means max extension is 4x before bevel kicks in
 - We use miter_factor to allow for this variation in bbox measurements
+
+Integration with letter_analysis.py:
+- When '_letter_analysis' is provided in rules, uses pre-computed analysis
+- Falls back to legacy bbox-based analysis if not provided
 """
 
 from typing import List, Dict, Optional, Tuple, Any
@@ -30,7 +34,7 @@ try:
 except ImportError:
     Point = None
 
-from ..core import PathInfo, ValidationIssue, LetterAnalysis
+from ..core import PathInfo, ValidationIssue, LetterAnalysis, LetterAnalysisResult
 from ..transforms import apply_transform_to_bbox
 from ..geometry import get_centroid, bbox_contains
 
@@ -206,6 +210,82 @@ def match_trim_to_return(trim_letters: List[LetterAnalysis],
     return matches
 
 
+def _convert_letter_groups_to_analysis(
+    letter_analysis: LetterAnalysisResult,
+    layer_name: str,
+    file_scale: float
+) -> List[LetterAnalysis]:
+    """
+    Convert LetterGroup objects from letter_analysis.py to LetterAnalysis
+    for backwards compatibility with existing front_lit validation code.
+
+    Args:
+        letter_analysis: The pre-computed LetterAnalysisResult
+        layer_name: The layer to filter by (e.g., 'return')
+        file_scale: File scale factor
+
+    Returns:
+        List of LetterAnalysis objects
+    """
+    analyses = []
+
+    for group in letter_analysis.letter_groups:
+        # Filter by layer
+        if layer_name and group.layer_name.lower() != layer_name.lower():
+            continue
+
+        # Build contained_holes list from hole info
+        contained_holes = []
+        for hole in group.wire_holes:
+            contained_holes.append({
+                'path_id': hole.path_id,
+                'diameter': hole.diameter_mm,
+                'hole_type': 'wire',
+                'bbox': None  # Not needed for this conversion
+            })
+        for hole in group.mounting_holes:
+            contained_holes.append({
+                'path_id': hole.path_id,
+                'diameter': hole.diameter_mm,
+                'hole_type': 'mounting',
+                'bbox': None
+            })
+        for hole in group.unknown_holes:
+            contained_holes.append({
+                'path_id': hole.path_id,
+                'diameter': hole.diameter_mm,
+                'hole_type': 'unknown',
+                'bbox': None
+            })
+
+        # Get centroid from bbox
+        centroid = get_centroid(group.bbox)
+
+        # Get dimensions
+        width = group.bbox[2] - group.bbox[0]
+        height = group.bbox[3] - group.bbox[1]
+
+        # Get area and perimeter from main path
+        area = group.main_path.area or 0
+        perimeter = group.main_path.length or 0
+
+        analyses.append(LetterAnalysis(
+            path_id=group.letter_id,
+            layer=group.layer_name,
+            bbox=group.bbox,
+            width=width,
+            height=height,
+            area=area,
+            perimeter=perimeter,
+            centroid=centroid,
+            contained_holes=contained_holes,
+            wire_hole_count=len(group.wire_holes),
+            mounting_hole_count=len(group.mounting_holes)
+        ))
+
+    return analyses
+
+
 def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[ValidationIssue]:
     """
     Validate Front Lit channel letter structural requirements.
@@ -215,6 +295,9 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
     2. Mounting holes: Minimum based on letter size (perimeter and area)
     3. Trim count: Trim layer must have same number of letters as Return layer
     4. Trim offset: Each trim shape must be ~2mm larger per side than corresponding return
+
+    If '_letter_analysis' is provided in rules, uses pre-computed analysis for
+    more accurate polygon-based containment instead of bbox-based.
     """
     issues = []
 
@@ -232,8 +315,19 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
     # With miter limit of 4, corners can extend up to 4x the offset before beveling
     miter_factor = rules.get('miter_factor', 4.0)
 
-    # Analyze Return layer
-    return_letters = analyze_letters_in_layer(paths_info, return_layer, rules)
+    # Check for pre-computed letter analysis
+    letter_analysis: Optional[LetterAnalysisResult] = rules.get('_letter_analysis')
+
+    # Build return_letters from letter analysis or legacy method
+    if letter_analysis and letter_analysis.letter_groups:
+        # Use pre-computed letter analysis (more accurate polygon containment)
+        return_letters = _convert_letter_groups_to_analysis(letter_analysis, return_layer, file_scale)
+        # Update file_scale if detected
+        if letter_analysis.detected_scale:
+            file_scale = letter_analysis.detected_scale
+    else:
+        # Fall back to legacy bbox-based analysis
+        return_letters = analyze_letters_in_layer(paths_info, return_layer, rules)
 
     if not return_letters:
         layers_found = set(p.layer_name for p in paths_info if p.layer_name)

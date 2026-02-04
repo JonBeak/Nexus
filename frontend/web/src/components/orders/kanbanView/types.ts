@@ -141,8 +141,9 @@ export const PAINTING_ELIGIBLE_STATUSES: OrderStatus[] = [
  * Painting column colors (purple to match painter role)
  */
 export const PAINTING_COLUMN_COLORS = {
-  header: 'bg-purple-100',
-  border: 'border-purple-300'
+  header: 'bg-purple-200',
+  border: 'border-purple-300',
+  background: 'bg-purple-100'
 };
 
 /**

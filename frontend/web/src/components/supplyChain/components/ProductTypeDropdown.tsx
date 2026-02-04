@@ -21,7 +21,7 @@
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, X, Layers } from 'lucide-react';
-import { PAGE_STYLES } from '../../../constants/moduleColors';
+import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 import { archetypesApi } from '../../../services/api';
 import type { ProductArchetype } from '../../../types/materialRequirements';
 
@@ -94,7 +94,7 @@ export const ProductTypeDropdown: React.FC<ProductTypeDropdownProps> = ({
   }, [isVinylSelected, selectedArchetype, value, loading]);
 
   const getDisplayColor = () => {
-    if (isVinylSelected) return 'text-orange-600';
+    if (isVinylSelected) return MODULE_COLORS.vinyls.text;
     return '';
   };
 
@@ -168,6 +168,7 @@ export const ProductTypeDropdown: React.FC<ProductTypeDropdownProps> = ({
     const term = searchTerm.toLowerCase();
 
     archetypes
+      .filter(a => a.archetype_id !== ARCHETYPE_VINYL) // Exclude vinyl - shown separately at top
       .filter(a => a.name.toLowerCase().includes(term) || a.category_name.toLowerCase().includes(term))
       .forEach(archetype => {
         const categoryKey = archetype.category_name;
@@ -310,12 +311,12 @@ export const ProductTypeDropdown: React.FC<ProductTypeDropdownProps> = ({
                     <button
                       type="button"
                       onClick={() => handleSelect(ARCHETYPE_VINYL)}
-                      className={`w-full px-3 py-1.5 text-xs text-left hover:bg-orange-50 flex items-center gap-2
-                        ${isVinylSelected ? 'bg-orange-100' : ''}`}
+                      className={`w-full px-3 py-1.5 text-xs text-left hover:bg-purple-50 flex items-center gap-2
+                        ${isVinylSelected ? MODULE_COLORS.vinyls.light : ''}`}
                     >
-                      <Layers className="w-3 h-3 text-orange-600" />
+                      <Layers className={`w-3 h-3 ${MODULE_COLORS.vinyls.text}`} />
                       <div>
-                        <span className="font-medium text-orange-600">Vinyl</span>
+                        <span className={`font-medium ${MODULE_COLORS.vinyls.text}`}>Vinyl</span>
                         <span className="text-gray-400 ml-1">- Sign vinyl products</span>
                       </div>
                     </button>

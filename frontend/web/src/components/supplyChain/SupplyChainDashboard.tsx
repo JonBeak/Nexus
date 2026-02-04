@@ -26,7 +26,7 @@ import { ProductArchetypesManager } from './ProductArchetypesManager';
 import { InventoryTab } from '../inventory/InventoryTab';
 import { ShoppingCartProvider } from '../../contexts/ShoppingCartContext';
 import type { User as AccountUser } from '../accounts/hooks/useAccountAPI';
-import { PAGE_STYLES } from '../../constants/moduleColors';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 
 interface SupplyChainDashboardProps {
   user: AccountUser | null;
@@ -137,7 +137,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
           <p className={`${PAGE_STYLES.page.text} mb-4`}>Supply Chain Management is available to managers and owners only.</p>
           <button
             onClick={() => navigate('/dashboard')}
-            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+            className={`${MODULE_COLORS.supplyChain.base} text-white px-4 py-2 rounded-lg ${MODULE_COLORS.supplyChain.hover}`}
           >
             Return to Dashboard
           </button>
@@ -165,7 +165,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                 onClick={() => setActiveTab('overview')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'overview'
-                    ? 'border-purple-500 text-purple-600'
+                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
                     : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
@@ -176,7 +176,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                 onClick={() => setActiveTab('all-orders')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'all-orders'
-                    ? 'border-purple-500 text-purple-600'
+                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
                     : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
@@ -187,7 +187,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                 onClick={() => setActiveTab('by-supplier')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'by-supplier'
-                    ? 'border-purple-500 text-purple-600'
+                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
                     : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
@@ -198,7 +198,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                 onClick={() => setActiveTab('supplier-orders')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'supplier-orders'
-                    ? 'border-purple-500 text-purple-600'
+                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
                     : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
@@ -209,7 +209,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                 onClick={() => setActiveTab('shopping-cart')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'shopping-cart'
-                    ? 'border-purple-500 text-purple-600'
+                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
                     : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
@@ -223,7 +223,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                 onClick={() => setActiveTab('vinyl-inventory')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'vinyl-inventory'
-                    ? 'border-purple-500 text-purple-600'
+                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
                     : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
@@ -234,7 +234,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                 onClick={() => setActiveTab('inventory')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'inventory'
-                    ? 'border-purple-500 text-purple-600'
+                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
                     : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
@@ -245,7 +245,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                 onClick={() => setActiveTab('suppliers')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'suppliers'
-                    ? 'border-purple-500 text-purple-600'
+                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
                     : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
@@ -256,7 +256,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                 onClick={() => setActiveTab('product-types')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'product-types'
-                    ? 'border-purple-500 text-purple-600'
+                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
                     : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
@@ -267,7 +267,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                 onClick={() => setActiveTab('products')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'products'
-                    ? 'border-purple-500 text-purple-600'
+                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
                     : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
@@ -278,7 +278,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                 onClick={() => setActiveTab('low-stock')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'low-stock'
-                    ? 'border-purple-500 text-purple-600'
+                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
                     : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
                 }`}
               >
@@ -294,7 +294,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
         <ShoppingCartProvider showNotification={showNotification}>
           {loading ? (
           <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+            <div className={`inline-block animate-spin rounded-full h-8 w-8 border-b-2 ${MODULE_COLORS.supplyChain.border}`}></div>
             <p className={`mt-2 ${PAGE_STYLES.page.text}`}>Loading...</p>
           </div>
         ) : error ? (
@@ -303,7 +303,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
             <p className={`${PAGE_STYLES.page.text} mb-4`}>{error}</p>
             <button
               onClick={loadStats}
-              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+              className={`${MODULE_COLORS.supplyChain.base} text-white px-4 py-2 rounded-lg ${MODULE_COLORS.supplyChain.hover}`}
             >
               Retry
             </button>

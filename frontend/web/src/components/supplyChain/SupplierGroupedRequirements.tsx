@@ -15,7 +15,7 @@ import {
   Phone,
   Check,
 } from 'lucide-react';
-import { PAGE_STYLES } from '../../constants/moduleColors';
+import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 import { materialRequirementsApi, supplierOrdersApi } from '../../services/api';
 import type { GroupedBySupplierResponse, SupplierRequirementGroup, GroupedRequirement } from '../../types/supplierOrders';
 
@@ -159,7 +159,7 @@ export const SupplierGroupedRequirements: React.FC<SupplierGroupedRequirementsPr
   if (loading) {
     return (
       <div className="text-center py-8">
-        <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+        <div className={`inline-block animate-spin rounded-full h-6 w-6 border-b-2 ${MODULE_COLORS.supplyChain.border}`}></div>
         <p className={`mt-2 text-sm ${PAGE_STYLES.panel.textMuted}`}>Loading requirements...</p>
       </div>
     );
@@ -244,7 +244,7 @@ export const SupplierGroupedRequirements: React.FC<SupplierGroupedRequirementsPr
                       void handleGenerateOrder(group);
                     }}
                     disabled={selectedCount === 0 || isGenerating}
-                    className="px-3 py-1.5 text-sm font-medium rounded-md bg-purple-600 text-white hover:bg-purple-700 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md ${MODULE_COLORS.supplyChain.base} text-white ${MODULE_COLORS.supplyChain.hover} flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     {isGenerating ? (
                       <>
@@ -272,7 +272,7 @@ export const SupplierGroupedRequirements: React.FC<SupplierGroupedRequirementsPr
                             type="checkbox"
                             checked={selectedCount === group.requirements.length && selectedCount > 0}
                             onChange={() => toggleAllForSupplier(group.supplier_id, group.requirements)}
-                            className="w-4 h-4 text-purple-600 rounded"
+                            className={`w-4 h-4 ${MODULE_COLORS.supplyChain.text} rounded`}
                           />
                         </th>
                         <th className={`px-4 py-2 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase`}>Date</th>
@@ -289,14 +289,14 @@ export const SupplierGroupedRequirements: React.FC<SupplierGroupedRequirementsPr
                         return (
                           <tr
                             key={req.requirement_id}
-                            className={`border-b border-gray-100 hover:bg-gray-50 ${isSelected ? 'bg-purple-50' : ''}`}
+                            className={`border-b border-gray-100 hover:bg-gray-50 ${isSelected ? MODULE_COLORS.supplyChain.light : ''}`}
                           >
                             <td className="px-4 py-2">
                               <input
                                 type="checkbox"
                                 checked={isSelected}
                                 onChange={() => toggleItem(group.supplier_id, req.requirement_id)}
-                                className="w-4 h-4 text-purple-600 rounded"
+                                className={`w-4 h-4 ${MODULE_COLORS.supplyChain.text} rounded`}
                               />
                             </td>
                             <td className={`px-4 py-2 text-sm ${PAGE_STYLES.panel.textSecondary}`}>
@@ -313,7 +313,7 @@ export const SupplierGroupedRequirements: React.FC<SupplierGroupedRequirementsPr
                             </td>
                             <td className={`px-4 py-2 text-sm`}>
                               {req.is_stock_item ? (
-                                <span className="text-purple-600 font-medium">Stock</span>
+                                <span className={`${MODULE_COLORS.supplyChain.text} font-medium`}>Stock</span>
                               ) : (
                                 <span className="text-blue-600">{req.order_number || 'Job'}</span>
                               )}

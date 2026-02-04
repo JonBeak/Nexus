@@ -45,6 +45,31 @@ router.get(
   controller.getGroupedBySupplier
 );
 
+// ===========================================================================
+// Inventory Hold Routes (MUST be before /:id to avoid route conflict)
+// ===========================================================================
+
+// Check stock availability
+router.get(
+  '/check-stock',
+  requirePermission('supply_chain.read'),
+  controller.checkStockAvailability
+);
+
+// Get available vinyl items with holds
+router.get(
+  '/available-vinyl',
+  requirePermission('supply_chain.read'),
+  controller.getAvailableVinylWithHolds
+);
+
+// Get supplier products with holds
+router.get(
+  '/available-products',
+  requirePermission('supply_chain.read'),
+  controller.getSupplierProductsWithHolds
+);
+
 router.get(
   '/order/:orderId',
   requirePermission('supply_chain.read'),
@@ -93,6 +118,48 @@ router.post(
   '/add-to-cart',
   requirePermission('supply_chain.update'),
   controller.addToCart
+);
+
+// Get hold details for a requirement
+router.get(
+  '/:id/hold',
+  requirePermission('supply_chain.read'),
+  controller.getHoldForRequirement
+);
+
+// Get other holds on the same vinyl (for multi-hold receive flow)
+router.get(
+  '/:id/other-holds',
+  requirePermission('supply_chain.read'),
+  controller.getOtherHoldsOnVinyl
+);
+
+// Create vinyl hold
+router.post(
+  '/:id/vinyl-hold',
+  requirePermission('supply_chain.update'),
+  controller.createVinylHold
+);
+
+// Create general inventory hold
+router.post(
+  '/:id/general-hold',
+  requirePermission('supply_chain.update'),
+  controller.createGeneralInventoryHold
+);
+
+// Release hold
+router.delete(
+  '/:id/hold',
+  requirePermission('supply_chain.update'),
+  controller.releaseHold
+);
+
+// Receive requirement with hold (handles multi-hold scenario)
+router.post(
+  '/:id/receive-with-hold',
+  requirePermission('supply_chain.update'),
+  controller.receiveRequirementWithHold
 );
 
 export default router;

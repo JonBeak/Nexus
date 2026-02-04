@@ -256,8 +256,12 @@ const KanbanCardComponent: React.FC<ExtendedKanbanCardProps> = ({
         }
       }}
       className={`
-        ${order.invoice_sent_at ? 'bg-emerald-300' : PAGE_STYLES.input.background}
-        rounded-lg border ${order.invoice_sent_at ? 'border-emerald-500' : PAGE_STYLES.panel.border}
+        ${
+          order.invoice_sent_at
+            ? (showPaintingBadge ? 'bg-emerald-200' : 'bg-emerald-300')
+            : (showPaintingBadge ? 'bg-purple-200' : PAGE_STYLES.input.background)
+        }
+        rounded-lg border ${order.invoice_sent_at ? 'border-emerald-500' : (showPaintingBadge ? 'border-purple-400' : PAGE_STYLES.panel.border)}
         shadow-sm hover:shadow-md transition-shadow select-none
         ${disableDrag ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} overflow-hidden
         ${isDragging ? 'ring-2 ring-orange-400' : ''}

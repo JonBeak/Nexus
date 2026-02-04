@@ -28,13 +28,17 @@ export const getStatus = async (req: Request, res: Response) => {
 
 /**
  * POST /api/server-management/backend/rebuild-dev
- * Rebuild backend dev build
+ * Rebuild backend dev build (detached - returns log file path for polling)
  */
 export const rebuildBackendDev = async (req: Request, res: Response) => {
   try {
-    console.log('Server Management: Rebuilding backend dev...');
+    console.log('Server Management: Rebuilding backend dev (detached)...');
     const result = await serverManagementService.rebuildBackendDev();
-    res.json({ success: result.success, data: { output: result.output }, error: result.error });
+    res.json({
+      success: result.success,
+      data: { logFile: result.logFile, message: result.message },
+      detached: true
+    });
   } catch (error) {
     console.error('Error rebuilding backend dev:', error);
     res.status(500).json({
@@ -46,13 +50,17 @@ export const rebuildBackendDev = async (req: Request, res: Response) => {
 
 /**
  * POST /api/server-management/backend/rebuild-prod
- * Rebuild backend production build
+ * Rebuild backend production build (detached - returns log file path for polling)
  */
 export const rebuildBackendProd = async (req: Request, res: Response) => {
   try {
-    console.log('Server Management: Rebuilding backend production...');
+    console.log('Server Management: Rebuilding backend production (detached)...');
     const result = await serverManagementService.rebuildBackendProd();
-    res.json({ success: result.success, data: { output: result.output }, error: result.error });
+    res.json({
+      success: result.success,
+      data: { logFile: result.logFile, message: result.message },
+      detached: true
+    });
   } catch (error) {
     console.error('Error rebuilding backend prod:', error);
     res.status(500).json({
@@ -136,13 +144,17 @@ export const rebuildFrontendProd = async (req: Request, res: Response) => {
 
 /**
  * POST /api/server-management/rebuild-all-dev
- * Rebuild both backend and frontend dev builds
+ * Rebuild both backend and frontend dev builds (detached)
  */
 export const rebuildAllDev = async (req: Request, res: Response) => {
   try {
-    console.log('Server Management: Rebuilding all dev...');
+    console.log('Server Management: Rebuilding all dev (detached)...');
     const result = await serverManagementService.rebuildAllDev();
-    res.json({ success: result.success, data: { output: result.output }, error: result.error });
+    res.json({
+      success: result.success,
+      data: { logFile: result.logFile, message: result.message },
+      detached: true
+    });
   } catch (error) {
     console.error('Error rebuilding all dev:', error);
     res.status(500).json({
@@ -154,13 +166,17 @@ export const rebuildAllDev = async (req: Request, res: Response) => {
 
 /**
  * POST /api/server-management/rebuild-all-prod
- * Rebuild both backend and frontend production builds
+ * Rebuild both backend and frontend production builds (detached)
  */
 export const rebuildAllProd = async (req: Request, res: Response) => {
   try {
-    console.log('Server Management: Rebuilding all production...');
+    console.log('Server Management: Rebuilding all production (detached)...');
     const result = await serverManagementService.rebuildAllProd();
-    res.json({ success: result.success, data: { output: result.output }, error: result.error });
+    res.json({
+      success: result.success,
+      data: { logFile: result.logFile, message: result.message },
+      detached: true
+    });
   } catch (error) {
     console.error('Error rebuilding all prod:', error);
     res.status(500).json({
@@ -441,6 +457,35 @@ export const getAccessEnvironment = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'Failed to detect environment'
+    });
+  }
+};
+
+/**
+ * GET /api/server-management/build-log
+ * Read build log file for polling detached operations
+ */
+export const getBuildLog = async (req: Request, res: Response) => {
+  try {
+    const logFile = req.query.file as string;
+
+    if (!logFile) {
+      return res.status(400).json({
+        success: false,
+        message: 'Log file parameter is required'
+      });
+    }
+
+    const result = serverManagementService.readBuildLog(logFile);
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error reading build log:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to read build log'
     });
   }
 };

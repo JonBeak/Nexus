@@ -116,3 +116,81 @@ def centroid_distance(bbox1: Tuple[float, float, float, float],
     dx = c1[0] - c2[0]
     dy = c1[1] - c2[1]
     return (dx ** 2 + dy ** 2) ** 0.5
+
+
+def calculate_circularity(area: float, perimeter: float) -> float:
+    """
+    Calculate circularity metric (isoperimetric quotient).
+
+    Formula: 4 * pi * area / perimeter^2
+
+    Returns:
+        float: 1.0 for perfect circle, <1.0 for less circular shapes
+               Complex shapes like letters typically have circularity < 0.5
+    """
+    from math import pi
+    if perimeter <= 0:
+        return 0.0
+    return (4.0 * pi * area) / (perimeter ** 2)
+
+
+def polygon_contains(outer: Optional[Polygon], inner: Optional[Polygon],
+                    tolerance: float = 0.5) -> bool:
+    """
+    Check if outer polygon fully contains inner polygon using Shapely.
+
+    Uses centroid containment as primary check, with buffer tolerance
+    for edge cases.
+
+    Args:
+        outer: Shapely Polygon for the outer (letter) boundary
+        inner: Shapely Polygon for the inner (hole) shape
+        tolerance: Buffer tolerance for edge cases
+
+    Returns:
+        True if inner is contained within outer
+    """
+    if outer is None or inner is None:
+        return False
+
+    try:
+        # Primary check: inner's centroid must be inside outer
+        inner_centroid = inner.centroid
+        if outer.contains(inner_centroid):
+            return True
+
+        # Secondary check: with tolerance buffer for edge cases
+        buffered_outer = outer.buffer(tolerance)
+        return buffered_outer.contains(inner)
+    except Exception:
+        return False
+
+
+def point_in_polygon(polygon: Optional[Polygon], x: float, y: float,
+                     tolerance: float = 0.0) -> bool:
+    """
+    Check if a point is inside a polygon.
+
+    Args:
+        polygon: Shapely Polygon
+        x, y: Point coordinates
+        tolerance: Buffer tolerance (positive to expand, negative to shrink)
+
+    Returns:
+        True if point is inside polygon
+    """
+    if polygon is None:
+        return False
+
+    try:
+        if Polygon is None:
+            return False
+        from shapely.geometry import Point
+        point = Point(x, y)
+
+        if tolerance != 0.0:
+            polygon = polygon.buffer(tolerance)
+
+        return polygon.contains(point)
+    except Exception:
+        return False

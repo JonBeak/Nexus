@@ -23,8 +23,10 @@ import {
   ValidateFilesResponse,
   ValidationIssue,
   ValidationStatus,
+  LetterAnalysisResponse,
 } from '../../../../types/aiFileValidation';
 import ExpectedFilesTable from './ExpectedFilesTable';
+import LetterAnalysisPanel from './LetterAnalysisPanel';
 
 interface AiFileValidationModalProps {
   isOpen: boolean;
@@ -117,7 +119,11 @@ const FileCard: React.FC<{
 
   const status = validationResult?.status || file.validation?.validation_status || 'pending';
   const issues = validationResult?.issues || file.validation?.issues || [];
+  const stats = validationResult?.stats;
+  const letterAnalysis = stats?.letter_analysis as LetterAnalysisResponse | undefined;
   const hasIssues = issues.length > 0;
+  const hasLetterAnalysis = letterAnalysis && letterAnalysis.letters && letterAnalysis.letters.length > 0;
+  const hasContent = hasIssues || hasLetterAnalysis;
   const isSkipped = validationResult?.skipped_validation;
   const skipReason = validationResult?.skip_reason;
 
@@ -125,7 +131,7 @@ const FileCard: React.FC<{
     <div className={`border rounded-lg overflow-hidden ${PAGE_STYLES.panel.background}`}>
       <div
         className={`p-3 flex items-center justify-between cursor-pointer hover:bg-gray-50`}
-        onClick={() => hasIssues && setExpanded(!expanded)}
+        onClick={() => hasContent && setExpanded(!expanded)}
       >
         <div className="flex items-center gap-3">
           <FileType className="w-5 h-5 text-gray-400" />
@@ -135,6 +141,11 @@ const FileCard: React.FC<{
               {(file.size_bytes / 1024).toFixed(1)} KB
               {isSkipped && skipReason && (
                 <span className="ml-2 text-blue-600">• {skipReason}</span>
+              )}
+              {hasLetterAnalysis && (
+                <span className="ml-2 text-indigo-600">
+                  • {letterAnalysis.stats.total_letters} letters
+                </span>
               )}
             </p>
           </div>
@@ -160,7 +171,7 @@ const FileCard: React.FC<{
               {issues.length} issue{issues.length !== 1 ? 's' : ''}
             </span>
           )}
-          {hasIssues && (
+          {hasContent && (
             expanded ? (
               <ChevronUp className="w-4 h-4 text-gray-400" />
             ) : (
@@ -169,11 +180,21 @@ const FileCard: React.FC<{
           )}
         </div>
       </div>
-      {expanded && hasIssues && (
-        <div className="border-t px-3 py-2 bg-gray-50 space-y-2">
-          {issues.map((issue, idx) => (
-            <IssueItem key={idx} issue={issue} />
-          ))}
+      {expanded && hasContent && (
+        <div className="border-t px-3 py-3 bg-gray-50 space-y-3">
+          {/* Letter Analysis Panel */}
+          {hasLetterAnalysis && (
+            <LetterAnalysisPanel analysis={letterAnalysis} />
+          )}
+          {/* Issues */}
+          {hasIssues && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-gray-700">Validation Issues</h4>
+              {issues.map((issue, idx) => (
+                <IssueItem key={idx} issue={issue} />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

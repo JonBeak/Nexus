@@ -287,6 +287,10 @@ export class MaterialRequirementRepository {
       setClauses.push('quantity_ordered = ?');
       values.push(data.quantity_ordered);
     }
+    if (data.quantity_received !== undefined) {
+      setClauses.push('quantity_received = ?');
+      values.push(data.quantity_received);
+    }
     if (data.supplier_id !== undefined) {
       setClauses.push('supplier_id = ?');
       values.push(data.supplier_id);

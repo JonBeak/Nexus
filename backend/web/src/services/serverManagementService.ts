@@ -91,6 +91,18 @@ export interface ScriptResult {
   error?: string;
 }
 
+export interface DetachedScriptResult {
+  success: boolean;
+  logFile: string;
+  message: string;
+}
+
+export interface BuildLogResult {
+  output: string;
+  isComplete: boolean;
+  success: boolean | null; // null if still running
+}
+
 // New interfaces for Linux dev features
 export interface ActivePort {
   port: number;
@@ -279,6 +291,108 @@ class ServerManagementService {
       const output = error.stdout || '';
       const errorMsg = error.stderr || error.message;
       return { success: false, output, error: errorMsg };
+    }
+  }
+
+  /**
+   * Execute an infrastructure script in detached mode (writes output to a log file)
+   * Used for operations that restart the server (backend rebuilds)
+   */
+  async executeScriptDetached(scriptName: string, logFileName: string): Promise<DetachedScriptResult> {
+    const logFile = `/tmp/${logFileName}`;
+    let scriptPath: string;
+    let command: string;
+
+    if (IS_WINDOWS) {
+      // Convert .sh name to .ps1 and look in windows subdirectory
+      const psScriptName = scriptName.replace('.sh', '.ps1');
+      scriptPath = path.join(WINDOWS_SCRIPTS_DIR, psScriptName);
+
+      // Validate Windows script exists
+      if (!fs.existsSync(scriptPath)) {
+        return {
+          success: false,
+          logFile: '',
+          message: `Windows script not found: ${psScriptName}. Only dev scripts are available on Windows.`
+        };
+      }
+
+      // On Windows, run PowerShell detached with output redirection
+      command = `powershell -ExecutionPolicy Bypass -Command "& { & '${scriptPath}' } *>&1 | Tee-Object -FilePath '${logFile}'; Add-Content -Path '${logFile}' -Value '===BUILD_COMPLETE==='"`;
+    } else {
+      // Linux: use bash scripts directly
+      scriptPath = path.join(SCRIPTS_DIR, scriptName);
+
+      // Validate Linux script exists
+      if (!fs.existsSync(scriptPath)) {
+        return { success: false, logFile: '', message: `Script not found: ${scriptName}` };
+      }
+
+      // Run script detached with nohup, redirect output to log file
+      // Add completion marker at the end
+      command = `nohup bash -c '${scriptPath} 2>&1; echo "===BUILD_COMPLETE===" >> ${logFile}' > ${logFile} 2>&1 &`;
+    }
+
+    try {
+      // Clear any existing log file
+      if (fs.existsSync(logFile)) {
+        fs.unlinkSync(logFile);
+      }
+
+      // Start the detached process
+      await execAsync(command, {
+        timeout: 5000, // Short timeout - just starting the process
+        cwd: SCRIPTS_DIR
+      });
+
+      return {
+        success: true,
+        logFile,
+        message: `Build started. Output will be written to ${logFile}`
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        logFile: '',
+        message: error.message || 'Failed to start detached script'
+      };
+    }
+  }
+
+  /**
+   * Read build log file and check if the build is complete
+   */
+  readBuildLog(logFile: string): BuildLogResult {
+    // Security check: only allow reading from /tmp/
+    if (!logFile.startsWith('/tmp/') || logFile.includes('..')) {
+      return { output: 'Invalid log file path', isComplete: true, success: false };
+    }
+
+    try {
+      if (!fs.existsSync(logFile)) {
+        return { output: 'Log file not found yet. Build may be starting...', isComplete: false, success: null };
+      }
+
+      const content = fs.readFileSync(logFile, 'utf-8');
+      const isComplete = content.includes('===BUILD_COMPLETE===');
+
+      // Remove the marker from output for display
+      const output = content.replace(/===BUILD_COMPLETE===/g, '').trim();
+
+      // Determine success: check for common error indicators
+      let success: boolean | null = null;
+      if (isComplete) {
+        // Check for error indicators in the output
+        const hasErrors = output.toLowerCase().includes('error:') ||
+                         output.toLowerCase().includes('failed') ||
+                         output.includes('npm ERR!') ||
+                         output.includes('TypeScript error');
+        success = !hasErrors;
+      }
+
+      return { output, isComplete, success };
+    } catch (error: any) {
+      return { output: `Error reading log: ${error.message}`, isComplete: true, success: false };
     }
   }
 
@@ -495,13 +609,13 @@ class ServerManagementService {
     }
   }
 
-  // Backend Operations
-  async rebuildBackendDev(): Promise<ScriptResult> {
-    return this.executeScript('backend-rebuild-dev.sh');
+  // Backend Operations (use detached mode since these restart the server)
+  async rebuildBackendDev(): Promise<DetachedScriptResult> {
+    return this.executeScriptDetached('backend-rebuild-dev.sh', 'rebuild-backend-dev.log');
   }
 
-  async rebuildBackendProd(): Promise<ScriptResult> {
-    return this.executeScript('backend-rebuild-production.sh');
+  async rebuildBackendProd(): Promise<DetachedScriptResult> {
+    return this.executeScriptDetached('backend-rebuild-production.sh', 'rebuild-backend-prod.log');
   }
 
   async restartBackendDev(): Promise<ScriptResult> {
@@ -521,13 +635,13 @@ class ServerManagementService {
     return this.executeScript('frontend-rebuild-production.sh');
   }
 
-  // Combined Operations
-  async rebuildAllDev(): Promise<ScriptResult> {
-    return this.executeScript('rebuild-dev.sh', 180000); // 3 minute timeout
+  // Combined Operations (use detached mode since these restart the backend)
+  async rebuildAllDev(): Promise<DetachedScriptResult> {
+    return this.executeScriptDetached('rebuild-dev.sh', 'rebuild-all-dev.log');
   }
 
-  async rebuildAllProd(): Promise<ScriptResult> {
-    return this.executeScript('rebuild-production.sh', 180000); // 3 minute timeout
+  async rebuildAllProd(): Promise<DetachedScriptResult> {
+    return this.executeScriptDetached('rebuild-production.sh', 'rebuild-all-prod.log');
   }
 
   /**

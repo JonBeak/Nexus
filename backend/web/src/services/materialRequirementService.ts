@@ -2,6 +2,8 @@
  * Material Requirements Service
  * Business logic, validation, and coordination for material requirements
  * Created: 2025-01-27
+ *
+ * Note: Hold management methods are in MaterialRequirementHoldsService
  */
 
 import {

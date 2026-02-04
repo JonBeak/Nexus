@@ -4,10 +4,11 @@ AI File Validation Package
 Provides modular validation for AI files used in sign manufacturing.
 
 Structure:
-- core.py: Data structures (PathInfo, ValidationIssue, ValidationResult)
+- core.py: Data structures (PathInfo, ValidationIssue, ValidationResult, LetterGroup, etc.)
 - svg_parser.py: AI to SVG conversion and path extraction
 - transforms.py: SVG transform utilities
-- geometry.py: Geometric utilities (bbox, containment, circles)
+- geometry.py: Geometric utilities (bbox, containment, circles, polygon ops)
+- letter_analysis.py: Letter-hole association analysis
 - base_rules.py: Common validation rules (overlaps, strokes, etc.)
 - rules/: Spec-type specific validation rules
   - front_lit.py: Front Lit channel letter rules
@@ -18,14 +19,18 @@ Usage:
 
     result = validate_file('/path/to/file.ai', {
         'no_duplicate_overlapping': {'tolerance': 0.01},
-        'front_lit_structure': {'check_wire_holes': True}
+        'front_lit_structure': {'check_wire_holes': True},
+        'letter_hole_analysis': {'layer': 'return'}
     })
 """
 
 import os
 from typing import Dict, List, Any
 
-from .core import ValidationIssue, ValidationResult, PathInfo
+from .core import (
+    ValidationIssue, ValidationResult, PathInfo,
+    LetterGroup, LetterAnalysisResult, HoleInfo
+)
 from .svg_parser import convert_ai_to_svg, extract_paths_from_svg
 from .base_rules import (
     check_overlapping_paths,
@@ -34,6 +39,11 @@ from .base_rules import (
     check_path_closure
 )
 from .rules import check_front_lit_structure
+from .letter_analysis import (
+    analyze_letter_hole_associations,
+    generate_letter_analysis_issues,
+    detect_file_scale
+)
 
 
 def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
@@ -97,6 +107,20 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
             'paths_per_layer': paths_per_layer
         }
 
+        # Letter-hole analysis (run before other validations if requested)
+        letter_analysis = None
+        if 'letter_hole_analysis' in rules or 'front_lit_structure' in rules:
+            analysis_config = rules.get('letter_hole_analysis', rules.get('front_lit_structure', {}))
+            analysis_layer = analysis_config.get('layer', analysis_config.get('return_layer'))
+
+            letter_analysis = analyze_letter_hole_associations(
+                paths_info,
+                layer_name=analysis_layer,
+                config=analysis_config
+            )
+            stats['letter_analysis'] = letter_analysis.to_dict()
+            stats['detected_scale'] = letter_analysis.detected_scale
+
         # Run validations based on active rules
         if 'no_duplicate_overlapping' in rules:
             all_issues.extend(check_overlapping_paths(paths_info, rules['no_duplicate_overlapping']))
@@ -111,7 +135,23 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
             all_issues.extend(check_path_closure(paths_info, rules['path_closure']))
 
         if 'front_lit_structure' in rules:
-            all_issues.extend(check_front_lit_structure(paths_info, rules['front_lit_structure']))
+            # Pass letter analysis to front_lit rules for efficiency
+            front_lit_rules = rules['front_lit_structure'].copy()
+            if letter_analysis:
+                front_lit_rules['_letter_analysis'] = letter_analysis
+            all_issues.extend(check_front_lit_structure(paths_info, front_lit_rules))
+
+        # Generate issues from letter analysis if explicitly requested
+        if 'letter_hole_analysis' in rules and letter_analysis:
+            analysis_issues = generate_letter_analysis_issues(letter_analysis, rules['letter_hole_analysis'])
+            for issue_dict in analysis_issues:
+                all_issues.append(ValidationIssue(
+                    rule=issue_dict['rule'],
+                    severity=issue_dict['severity'],
+                    message=issue_dict['message'],
+                    path_id=issue_dict.get('path_id'),
+                    details=issue_dict.get('details')
+                ))
 
         # Determine overall status
         has_errors = any(i.severity == 'error' for i in all_issues)
@@ -156,4 +196,10 @@ __all__ = [
     'ValidationIssue',
     'ValidationResult',
     'PathInfo',
+    'LetterGroup',
+    'LetterAnalysisResult',
+    'HoleInfo',
+    'analyze_letter_hole_associations',
+    'generate_letter_analysis_issues',
+    'detect_file_scale',
 ]
