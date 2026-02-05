@@ -196,4 +196,51 @@ export const ordersApi = {
     const response = await api.get('/orders/kanban', { params });
     return response.data;
   },
+
+  // =============================================
+  // FOLDER MISMATCH MANAGEMENT
+  // =============================================
+
+  /**
+   * Get orders where folder location doesn't match expected based on status
+   * Note: Interceptor unwraps { success, data } to just the data array
+   */
+  async getFolderMismatches(): Promise<Array<{
+    order_id: number;
+    order_number: number;
+    order_name: string;
+    status: string;
+    folder_name: string;
+    folder_location: string;
+    expected_location: string;
+    customer_name: string;
+  }>> {
+    const response = await api.get('/orders/folder-mismatches');
+    return response.data;
+  },
+
+  /**
+   * Retry moving folder for a single order
+   */
+  async retryFolderMove(orderNumber: number): Promise<{
+    success: boolean;
+    message: string;
+    newLocation?: string;
+  }> {
+    const response = await api.post(`/orders/${orderNumber}/retry-folder-move`);
+    return response.data;
+  },
+
+  /**
+   * Retry moving all mismatched folders
+   */
+  async retryAllFolderMoves(): Promise<{
+    total: number;
+    succeeded: number;
+    failed: number;
+    results: Array<{ order_number: number; success: boolean; message: string }>;
+  }> {
+    const response = await api.post('/orders/retry-all-folder-moves');
+    return response.data;
+  },
 };

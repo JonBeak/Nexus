@@ -34,8 +34,8 @@ interface PrintFormsModalProps {
   onPrintShopPacking: () => void;
   printing: boolean;
   mode?: PrintMode;
-  onPrintAndMoveToProduction?: () => void;
-  onMoveToProductionWithoutPrinting?: () => void;
+  onPrintAndApprove?: () => void;
+  onApproveWithoutPrinting?: () => void;
   order?: Order | null;
   defaultConfig?: PrintConfig;
   shopRoles?: string[];
@@ -177,8 +177,8 @@ const PrintFormsModal: React.FC<PrintFormsModalProps> = ({
   onPrintShopPacking,
   printing,
   mode = 'full',
-  onPrintAndMoveToProduction,
-  onMoveToProductionWithoutPrinting,
+  onPrintAndApprove,
+  onApproveWithoutPrinting,
   order,
   defaultConfig,
   shopRoles
@@ -278,8 +278,8 @@ const PrintFormsModal: React.FC<PrintFormsModalProps> = ({
               printing={printing}
               showCloseButton={false}
               mode={mode}
-              onPrintAndMoveToProduction={onPrintAndMoveToProduction}
-              onMoveToProductionWithoutPrinting={onMoveToProductionWithoutPrinting}
+              onPrintAndApprove={onPrintAndApprove}
+              onApproveWithoutPrinting={onApproveWithoutPrinting}
               defaultConfig={defaultConfig}
               shopRoles={shopRoles}
             />

@@ -20,6 +20,7 @@ export interface SpecValidationRule {
   templateName: string;
   requiredFields?: string[];  // Simple required fields (all must be present)
   conditionalFields?: ConditionalField[];  // Fields required based on conditions
+  prohibitedFields?: ProhibitedField[];  // Fields that must be empty when condition is met
   orFields?: string[][];  // Array of field groups where at least one from each group is required
   errorMessage: (missingFields: string[], context?: any) => string;
 }
@@ -33,6 +34,19 @@ export interface ConditionalField {
   condition: {
     field: string;  // The field to check
     value: any;  // The value that triggers the requirement (supports true, false, string values)
+    operator?: 'equals' | 'notEquals' | 'exists';  // Comparison operator (default: equals)
+  };
+}
+
+/**
+ * Prohibited field rule
+ * Field must be empty when the condition is met
+ */
+export interface ProhibitedField {
+  field: string;  // The field that must be empty
+  condition: {
+    field: string;  // The field to check
+    value: any;  // The value that triggers the prohibition
     operator?: 'equals' | 'notEquals' | 'exists';  // Comparison operator (default: equals)
   };
 }
@@ -222,12 +236,21 @@ export const SPEC_VALIDATION_RULES: SpecValidationRule[] = [
         condition: { field: 'include', value: true, operator: 'equals' }
       }
     ],
+    prohibitedFields: [
+      {
+        field: 'size',
+        condition: { field: 'include', value: false, operator: 'equals' }
+      }
+    ],
     errorMessage: (missing, context) => {
       if (missing.includes('include')) {
         return `Drain Holes specification requires include (yes/no)`;
       }
       if (context?.conditionalViolation) {
         return `Drain Holes size is required when include is set to yes`;
+      }
+      if (context?.prohibitedViolation) {
+        return `Drain Holes size must be empty when include is set to no`;
       }
       return `Drain Holes specification is incomplete. Missing: ${missing.join(', ')}`;
     }

@@ -19,10 +19,12 @@ import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 import { useTasksSocket } from '../../../hooks/useTasksSocket';
 import { ConflictToast } from '../../common/ConflictToast';
 import { useIsMobile } from '../../../hooks/useMediaQuery';
+import { useAlert } from '../../../contexts/AlertContext';
 
 export const TasksTable: React.FC = () => {
   // Mobile detection
   const isMobile = useIsMobile();
+  const { showWarning } = useAlert();
 
   // Data state
   const [parts, setParts] = useState<PartWithTasks[]>([]);
@@ -467,7 +469,10 @@ export const TasksTable: React.FC = () => {
       setStatusModal(null);
 
       // Call API
-      await orderStatusApi.updateOrderStatus(statusModal.orderNumber, newStatus);
+      const result = await orderStatusApi.updateOrderStatus(statusModal.orderNumber, newStatus);
+      if (result?.warnings?.length) {
+        result.warnings.forEach((warning: string) => showWarning(warning));
+      }
 
       // Refetch to ensure consistency
       fetchPartsWithTasks();

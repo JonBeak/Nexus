@@ -37,6 +37,16 @@ export const VinylSpecificSelector: React.FC<VinylSpecificSelectorProps> = ({
   const [selectedItem, setSelectedItem] = useState<VinylItemWithJobs | null>(null);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
     if (isOpen && specifications.brand && specifications.series) {
       const matching = vinylItems.filter(item => {
         // Basic specification matching
@@ -168,8 +178,8 @@ export const VinylSpecificSelector: React.FC<VinylSpecificSelectorProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-4 mx-auto p-4 border w-11/12 max-w-5xl shadow-lg rounded bg-white">
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" onClick={onClose}>
+      <div className="relative top-4 mx-auto p-4 border w-11/12 max-w-5xl shadow-lg rounded bg-white" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <div>

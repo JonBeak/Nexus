@@ -121,6 +121,29 @@ router.post(
 );
 
 /**
+ * Get orders with folder location mismatches
+ * GET /api/orders/folder-mismatches
+ * Returns orders where folder_location doesn't match expected based on status
+ */
+router.get(
+  '/folder-mismatches',
+  authenticateToken,
+  requirePermission('orders.view'),
+  orderController.getFolderMismatches
+);
+
+/**
+ * Retry moving all mismatched folders
+ * POST /api/orders/retry-all-folder-moves
+ */
+router.post(
+  '/retry-all-folder-moves',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.retryAllFolderMoves
+);
+
+/**
  * Get Kanban board data (optimized for performance)
  * GET /api/orders/kanban
  * Returns pre-grouped, pre-sorted orders with computed fields
@@ -468,6 +491,17 @@ router.put(
   authenticateToken,
   requirePermission('orders.update'),
   orderController.updateOrderStatus
+);
+
+/**
+ * Retry folder move for single order
+ * POST /api/orders/:orderNumber/retry-folder-move
+ */
+router.post(
+  '/:orderNumber/retry-folder-move',
+  authenticateToken,
+  requirePermission('orders.update'),
+  orderController.retryFolderMove
 );
 
 /**

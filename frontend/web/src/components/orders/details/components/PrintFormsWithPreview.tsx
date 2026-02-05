@@ -29,8 +29,8 @@ interface PrintFormsWithPreviewProps {
   printing: boolean;
   formUrls: FormUrls | null;
   mode?: PrintMode;
-  onPrintAndMoveToProduction?: () => void;
-  onMoveToProductionWithoutPrinting?: () => void;
+  onPrintAndApprove?: () => void;
+  onApproveWithoutPrinting?: () => void;
   shopRoles?: string[];
 }
 
@@ -45,8 +45,8 @@ const PrintFormsWithPreview: React.FC<PrintFormsWithPreviewProps> = ({
   printing,
   formUrls,
   mode = 'full',
-  onPrintAndMoveToProduction,
-  onMoveToProductionWithoutPrinting,
+  onPrintAndApprove,
+  onApproveWithoutPrinting,
   shopRoles
 }) => {
   if (!isOpen) return null;
@@ -80,8 +80,8 @@ const PrintFormsWithPreview: React.FC<PrintFormsWithPreviewProps> = ({
               printing={printing}
               showCloseButton={false}
               mode={mode}
-              onPrintAndMoveToProduction={onPrintAndMoveToProduction}
-              onMoveToProductionWithoutPrinting={onMoveToProductionWithoutPrinting}
+              onPrintAndApprove={onPrintAndApprove}
+              onApproveWithoutPrinting={onApproveWithoutPrinting}
               shopRoles={shopRoles}
             />
           </div>

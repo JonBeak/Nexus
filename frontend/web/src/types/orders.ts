@@ -56,7 +56,7 @@ export interface Order {
   // Phase 1.5g - Folder & Image Management
   folder_name?: string;          // Full folder name "{order_name} ----- {customer_company_name}"
   folder_exists?: boolean;       // Whether folder exists on disk
-  folder_location?: 'active' | 'finished' | 'none';  // Folder location
+  folder_location?: 'active' | 'finished' | 'cancelled' | 'hold' | 'none';  // Folder location
   is_migrated?: boolean;         // true for legacy orders, false for app-created
 
   form_version: number;

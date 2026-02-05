@@ -1,5 +1,9 @@
 import { api } from '../../apiClient';
 
+export interface UpdateStatusResult {
+  warnings?: string[];
+}
+
 /**
  * Order Status API
  * Handles order status updates and history tracking
@@ -7,9 +11,11 @@ import { api } from '../../apiClient';
 export const orderStatusApi = {
   /**
    * Update order status
+   * Returns warnings array if folder movement or other non-blocking issues occurred
    */
-  async updateOrderStatus(orderNumber: number, status: string, notes?: string): Promise<void> {
-    await api.put(`/orders/${orderNumber}/status`, { status, notes });
+  async updateOrderStatus(orderNumber: number, status: string, notes?: string): Promise<UpdateStatusResult> {
+    const response = await api.put(`/orders/${orderNumber}/status`, { status, notes });
+    return { warnings: response.data?.warnings };
   },
 
   /**

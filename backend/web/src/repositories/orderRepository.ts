@@ -583,6 +583,63 @@ export class OrderRepository {
       cancelled: rows[0]?.cancelled || 0
     };
   }
+
+  // =============================================
+  // FOLDER MISMATCH DETECTION
+  // =============================================
+
+  /**
+   * Get orders where folder_location doesn't match expected location based on status
+   * Expected mapping:
+   * - completed, awaiting_payment → finished
+   * - cancelled → cancelled
+   * - on_hold → hold
+   * - all other statuses → active
+   */
+  async getFolderMismatches(): Promise<Array<{
+    order_id: number;
+    order_number: number;
+    order_name: string;
+    status: string;
+    folder_name: string;
+    folder_location: string;
+    expected_location: string;
+    customer_name: string;
+  }>> {
+    const rows = await query(`
+      SELECT
+        o.order_id,
+        o.order_number,
+        o.order_name,
+        o.status,
+        o.folder_name,
+        o.folder_location,
+        CASE
+          WHEN o.status IN ('completed', 'awaiting_payment') THEN 'finished'
+          WHEN o.status = 'cancelled' THEN 'cancelled'
+          WHEN o.status = 'on_hold' THEN 'hold'
+          ELSE 'active'
+        END as expected_location,
+        c.company_name as customer_name
+      FROM orders o
+      LEFT JOIN customers c ON o.customer_id = c.customer_id
+      WHERE o.folder_exists = 1
+        AND (o.is_migrated = 0 OR o.is_migrated IS NULL)
+        AND o.folder_location IS NOT NULL
+        AND o.folder_location != 'none'
+        AND o.folder_location != (
+          CASE
+            WHEN o.status IN ('completed', 'awaiting_payment') THEN 'finished'
+            WHEN o.status = 'cancelled' THEN 'cancelled'
+            WHEN o.status = 'on_hold' THEN 'hold'
+            ELSE 'active'
+          END
+        )
+      ORDER BY o.order_number DESC
+    `) as RowDataPacket[];
+
+    return rows as any[];
+  }
 }
 
 export const orderRepository = new OrderRepository();

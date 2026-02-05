@@ -48,11 +48,15 @@ import { DocumentSyncStatus, DocumentDifference } from '../../../types/document'
 import { CashPaymentModal } from '../modals/CashPaymentModal';
 import PrintFormsModal from '../details/components/PrintFormsModal';
 import AiFileValidationModal from '../details/components/AiFileValidationModal';
+import MaterialRequirementsConfirmationModal from '../modals/MaterialRequirementsConfirmationModal';
 import PDFViewerModal from '../modals/PDFViewerModal';
 import SessionsModal from '../../staff/SessionsModal';
-import { useOrderPrinting, PrintMode } from '../details/hooks/useOrderPrinting';
+import { useOrderPrinting, PrintMode, PrintResult } from '../details/hooks/useOrderPrinting';
 import { calculateShopCount } from '../details/services/orderCalculations';
 import { useAlert } from '../../../contexts/AlertContext';
+import { getFolderPathSegment } from '../../../utils/pdfUrls';
+
+type FolderLocation = 'active' | 'finished' | 'cancelled' | 'hold' | 'none';
 
 interface OrderQuickModalProps {
   isOpen: boolean;
@@ -100,7 +104,7 @@ interface TaxRule {
 const getOrderImageUrl = (order: {
   sign_image_path?: string;
   folder_name?: string;
-  folder_location?: 'active' | 'finished' | 'none';
+  folder_location?: FolderLocation;
   is_migrated?: boolean;
 }): string | null => {
   const { sign_image_path, folder_name, folder_location, is_migrated } = order;
@@ -111,15 +115,9 @@ const getOrderImageUrl = (order: {
   const encodedFolder = encodeURIComponent(folder_name);
   const encodedFile = encodeURIComponent(sign_image_path);
 
-  if (is_migrated) {
-    return folder_location === 'active'
-      ? `${basePath}/${encodedFolder}/${encodedFile}`
-      : `${basePath}/1Finished/${encodedFolder}/${encodedFile}`;
-  } else {
-    return folder_location === 'active'
-      ? `${basePath}/Orders/${encodedFolder}/${encodedFile}`
-      : `${basePath}/Orders/1Finished/${encodedFolder}/${encodedFile}`;
-  }
+  // Get folder path segment based on location (active, finished, cancelled, hold)
+  const pathSegment = getFolderPathSegment(folder_location, is_migrated);
+  return `${basePath}/${pathSegment}${encodedFolder}/${encodedFile}`;
 };
 
 export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
@@ -197,6 +195,10 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   // Cash payment modal state
   const [showCashPaymentModal, setShowCashPaymentModal] = useState(false);
 
+  // Material Requirements Confirmation modal
+  const [showMaterialRequirementsModal, setShowMaterialRequirementsModal] = useState(false);
+  const [pendingPrintResult, setPendingPrintResult] = useState<PrintResult | null>(null);
+
   // Print modal state
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [printMode, setPrintMode] = useState<PrintMode>('full');
@@ -224,12 +226,21 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
            showAiValidationModal || showInvoiceModal || showConflictModal || showLinkInvoiceModal ||
            showEstimateConflictModal || showLinkEstimateModal || showCreateEstimateModal ||
            showEstimateActionModal || showPrintModal || showPdfViewerModal ||
-           showCashPaymentModal || sessionsModalTask !== null || showAddTaskForPart !== null;
+           showCashPaymentModal || showMaterialRequirementsModal ||
+           sessionsModalTask !== null || showAddTaskForPart !== null;
   }, [showPrepareModal, showCustomerApprovedModal, showFilesCreatedModal,
       showAiValidationModal, showInvoiceModal, showConflictModal, showLinkInvoiceModal,
       showEstimateConflictModal, showLinkEstimateModal, showCreateEstimateModal,
       showEstimateActionModal, showPrintModal, showPdfViewerModal,
-      showCashPaymentModal, sessionsModalTask, showAddTaskForPart]);
+      showCashPaymentModal, showMaterialRequirementsModal,
+      sessionsModalTask, showAddTaskForPart]);
+
+  // Callback for when files are approved (from print modal) - opens material requirements modal
+  const handleFilesApproved = useCallback((printResult: PrintResult | null) => {
+    setShowPrintModal(false);
+    setPendingPrintResult(printResult);
+    setShowMaterialRequirementsModal(true);
+  }, []);
 
   // Printing hook - requires orderData with order, parts, taxRules, customerDiscount
   const orderDataForPrinting = {
@@ -245,14 +256,22 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
     handlePrintForms,
     handlePrintMasterEstimate,
     handlePrintShopPacking,
-    handlePrintAndMoveToProduction,
-    handleMoveToProductionWithoutPrinting,
+    handlePrintAndApprove,
+    handleApproveWithoutPrinting,
+    handleMoveToProductionAfterMaterials,
     handleOpenPrintModal,
     shopRoles
   } = useOrderPrinting(orderDataForPrinting, setUiState, () => {
     fetchOrderDetails();
     onOrderUpdated();
-  });
+  }, handleFilesApproved);
+
+  // Called when materials are confirmed in the modal
+  const handleMaterialsConfirmed = useCallback(async () => {
+    setShowMaterialRequirementsModal(false);
+    await handleMoveToProductionAfterMaterials(pendingPrintResult);
+    setPendingPrintResult(null);
+  }, [pendingPrintResult, handleMoveToProductionAfterMaterials]);
 
   // Calculate order totals for LinkInvoiceModal comparison
   const orderTotals = useMemo((): OrderTotals | undefined => {
@@ -693,14 +712,14 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
     openPrintModal('shop_packing_production');
   };
 
-  // Wrapped handlers to close modal after production actions complete
-  const handlePrintAndMoveToProductionWithClose = async () => {
-    await handlePrintAndMoveToProduction();
+  // Wrapped handlers to close modal after approval actions complete
+  const handlePrintAndApproveWithClose = async () => {
+    await handlePrintAndApprove();
     setShowPrintModal(false);
   };
 
-  const handleMoveToProductionWithoutPrintingWithClose = async () => {
-    await handleMoveToProductionWithoutPrinting();
+  const handleApproveWithoutPrintingWithClose = async () => {
+    await handleApproveWithoutPrinting();
     setShowPrintModal(false);
   };
 
@@ -1772,11 +1791,27 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
           onPrintShopPacking={handlePrintShopPacking}
           printing={uiState.printingForm}
           mode={printMode}
-          onPrintAndMoveToProduction={handlePrintAndMoveToProductionWithClose}
-          onMoveToProductionWithoutPrinting={handleMoveToProductionWithoutPrintingWithClose}
+          onPrintAndApprove={handlePrintAndApproveWithClose}
+          onApproveWithoutPrinting={handleApproveWithoutPrintingWithClose}
           order={orderDetails}
           defaultConfig={defaultPrintConfig}
           shopRoles={shopRoles}
+        />
+      )}
+
+      {/* Material Requirements Confirmation Modal */}
+      {showMaterialRequirementsModal && orderDetails && (
+        <MaterialRequirementsConfirmationModal
+          isOpen={showMaterialRequirementsModal}
+          onClose={() => {
+            setShowMaterialRequirementsModal(false);
+            setPendingPrintResult(null);
+          }}
+          orderId={orderDetails.order_id}
+          orderNumber={orderDetails.order_number}
+          orderName={orderDetails.order_name}
+          onConfirm={handleMaterialsConfirmed}
+          order={orderDetails}
         />
       )}
 

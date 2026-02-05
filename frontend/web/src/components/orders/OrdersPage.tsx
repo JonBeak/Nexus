@@ -8,6 +8,7 @@ import ProgressRoleView from './progressRole/ProgressRoleView';
 import TasksTable from './tasksTable/TasksTable';
 import CalendarView from './calendarView/CalendarView';
 import KanbanView from './kanbanView/KanbanView';
+import { FolderMismatchIndicator } from './FolderMismatchIndicator';
 import { useIsMobile } from '../../hooks/useMediaQuery';
 import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 import { ordersApi } from '../../services/api';
@@ -88,12 +89,13 @@ export const OrdersPage: React.FC = () => {
       {/* Header with Tabs */}
       <div className={`${PAGE_STYLES.panel.background} border-b ${PAGE_STYLES.panel.border} px-3 md:px-6`}>
         <div className="flex items-center justify-between">
-          {/* Left: Home + Title */}
+          {/* Left: Home + Title + Folder Indicator */}
           <div className="flex items-center space-x-2 md:space-x-4 py-3">
             <HomeButton />
             <div>
               <h1 className={`text-lg md:text-xl font-bold ${PAGE_STYLES.panel.text}`}>Orders</h1>
             </div>
+            {!isMobile && <FolderMismatchIndicator />}
           </div>
 
           {/* Mobile: Dropdown Menu */}

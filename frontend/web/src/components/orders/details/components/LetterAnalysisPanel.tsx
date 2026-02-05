@@ -1,21 +1,22 @@
 /**
  * Letter Analysis Panel Component
  *
- * Displays letter-hole association analysis results in an expandable panel.
- * Shows each letter with its holes, SVG preview, and measurements.
+ * Displays letter-hole association analysis results grouped by layer.
+ * Each layer is an expandable section showing its letters with holes,
+ * SVG previews, and measurements.
  *
  * Panel structure:
- * - Summary header (expandable)
- * - Letter list (each expandable)
- *   - SVG preview with grid
- *   - Details (size, area, hole counts)
+ * - Scale info + hole legend
  * - Orphan holes warning (if any)
+ * - Layer groups (each expandable)
+ *   - Letter cards (each expandable)
+ *     - SVG preview with grid
+ *     - Details (size, area, hole counts)
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ChevronDown,
-  ChevronUp,
   ChevronRight,
   AlertTriangle,
   Circle,
@@ -81,7 +82,7 @@ const LetterCard: React.FC<{
   letter: LetterDetail;
   index: number;
 }> = ({ letter, index }) => {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   const wireCount = letter.holes?.filter(h => h.hole_type === 'wire').length || 0;
 
@@ -116,7 +117,6 @@ const LetterCard: React.FC<{
             </div>
             <div className="text-xs text-gray-500 mt-0.5">
               {letter.real_size_inches?.width.toFixed(1)}" x {letter.real_size_inches?.height.toFixed(1)}"
-              {letter.layer_name && <span className="ml-2">| {letter.layer_name}</span>}
             </div>
           </div>
         </div>
@@ -149,8 +149,6 @@ const LetterCard: React.FC<{
                   </dd>
                   <dt className="text-gray-500">Area:</dt>
                   <dd className="text-gray-800">{letter.real_area_sq_inches?.toFixed(1)} sq in</dd>
-                  <dt className="text-gray-500">Layer:</dt>
-                  <dd className="text-gray-800">{letter.layer_name || 'Unknown'}</dd>
                   <dt className="text-gray-500">Scale:</dt>
                   <dd className="text-gray-800">
                     {letter.detected_scale === 0.1 ? '10%' : '100%'}
@@ -163,20 +161,30 @@ const LetterCard: React.FC<{
                 <div>
                   <h4 className="text-sm font-medium text-gray-700 mb-2">Holes ({letter.holes.length})</h4>
                   <div className="space-y-1">
-                    {letter.holes.map((hole, i) => (
+                    {Object.entries(
+                      letter.holes.reduce<Record<string, { type: string; size: number; count: number }>>((acc, hole) => {
+                        const size = hole.diameter_real_mm ?? hole.diameter_mm;
+                        const key = `${hole.hole_type}_${size.toFixed(2)}`;
+                        if (!acc[key]) {
+                          acc[key] = { type: hole.hole_type, size, count: 0 };
+                        }
+                        acc[key].count++;
+                        return acc;
+                      }, {})
+                    ).map(([key, { type, size, count }]) => (
                       <div
-                        key={i}
+                        key={key}
                         className="flex items-center justify-between text-xs py-1 px-2 bg-gray-50 rounded"
                       >
                         <span className={`capitalize ${
-                          hole.hole_type === 'wire' ? 'text-blue-600' :
-                          hole.hole_type === 'mounting' ? 'text-green-600' :
+                          type === 'wire' ? 'text-blue-600' :
+                          type === 'mounting' ? 'text-green-600' :
                           'text-orange-600'
                         }`}>
-                          {hole.hole_type}
+                          {type} x{count}
                         </span>
                         <span className="text-gray-500">
-                          {hole.diameter_mm.toFixed(2)}mm
+                          {size.toFixed(2)}mm
                         </span>
                       </div>
                     ))}
@@ -205,6 +213,53 @@ const LetterCard: React.FC<{
   );
 };
 
+const LayerGroup: React.FC<{
+  layerName: string;
+  letters: LetterDetail[];
+}> = ({ layerName, letters }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  const totalWire = letters.reduce((sum, l) => sum + (l.holes?.filter(h => h.hole_type === 'wire').length || 0), 0);
+  const totalMounting = letters.reduce((sum, l) => sum + (l.holes?.filter(h => h.hole_type === 'mounting').length || 0), 0);
+  const hasWarning = letters.some(l => {
+    const wc = l.holes?.filter(h => h.hole_type === 'wire').length || 0;
+    return wc === 0 || wc > 1;
+  });
+
+  return (
+    <div className={`border rounded-lg overflow-hidden ${hasWarning ? 'border-yellow-300' : 'border-gray-200'}`}>
+      <div
+        className={`px-4 py-3 flex items-center justify-between cursor-pointer ${
+          hasWarning ? 'bg-yellow-50' : 'bg-gray-50'
+        }`}
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-2">
+          {expanded ? (
+            <ChevronDown className="w-5 h-5 text-gray-400" />
+          ) : (
+            <ChevronRight className="w-5 h-5 text-gray-400" />
+          )}
+          <span className="font-medium text-gray-800">{layerName}</span>
+          {hasWarning && <AlertTriangle className="w-4 h-4 text-yellow-500" />}
+        </div>
+        <div className="flex items-center gap-4 text-sm text-gray-600">
+          <span>{letters.length} path{letters.length !== 1 ? 's' : ''}</span>
+          <span>{totalWire} wire</span>
+          <span>{totalMounting} mounting</span>
+        </div>
+      </div>
+      {expanded && (
+        <div className="p-4 space-y-2 bg-white">
+          {letters.map((letter, index) => (
+            <LetterCard key={letter.letter_id} letter={letter} index={index} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const OrphanHolesWarning: React.FC<{ holes: HoleDetail[] }> = ({ holes }) => {
   const [expanded, setExpanded] = useState(true);
 
@@ -223,9 +278,9 @@ const OrphanHolesWarning: React.FC<{ holes: HoleDetail[] }> = ({ holes }) => {
           </span>
         </div>
         {expanded ? (
-          <ChevronUp className="w-4 h-4 text-red-500" />
-        ) : (
           <ChevronDown className="w-4 h-4 text-red-500" />
+        ) : (
+          <ChevronRight className="w-4 h-4 text-red-500" />
         )}
       </div>
       {expanded && (
@@ -241,7 +296,7 @@ const OrphanHolesWarning: React.FC<{ holes: HoleDetail[] }> = ({ holes }) => {
               >
                 <span className="text-gray-700">{hole.path_id}</span>
                 <span className="text-gray-500">
-                  {hole.hole_type} ({hole.diameter_mm.toFixed(2)}mm)
+                  {hole.hole_type} ({(hole.diameter_real_mm ?? hole.diameter_mm).toFixed(2)}mm)
                 </span>
               </div>
             ))}
@@ -253,75 +308,48 @@ const OrphanHolesWarning: React.FC<{ holes: HoleDetail[] }> = ({ holes }) => {
 };
 
 const LetterAnalysisPanel: React.FC<LetterAnalysisPanelProps> = ({ analysis }) => {
-  const [expanded, setExpanded] = useState(true);
+  const letters = analysis?.letters || [];
 
-  const stats = analysis.stats;
-  const hasIssues = (stats.orphan_count || 0) > 0 ||
-    analysis.letters.some(l => {
-      const wireCount = l.holes?.filter(h => h.hole_type === 'wire').length || 0;
-      return wireCount === 0 || wireCount > 1;
-    });
+  // Group letters by layer name
+  const layerGroups = useMemo(() => {
+    const groups: Record<string, LetterDetail[]> = {};
+    for (const letter of letters) {
+      const layer = letter.layer_name || 'Unknown';
+      if (!groups[layer]) groups[layer] = [];
+      groups[layer].push(letter);
+    }
+    return groups;
+  }, [letters]);
+
+  const layerEntries = Object.entries(layerGroups);
 
   return (
-    <div className={`border rounded-lg overflow-hidden ${hasIssues ? 'border-yellow-300' : 'border-gray-200'}`}>
-      {/* Header */}
-      <div
-        className={`px-4 py-3 flex items-center justify-between cursor-pointer ${
-          hasIssues ? 'bg-yellow-50' : 'bg-gray-50'
-        }`}
-        onClick={() => setExpanded(!expanded)}
-      >
-        <div className="flex items-center gap-2">
-          {expanded ? (
-            <ChevronDown className="w-5 h-5 text-gray-400" />
-          ) : (
-            <ChevronRight className="w-5 h-5 text-gray-400" />
-          )}
-          <span className="font-medium text-gray-800">
-            Letter Analysis
-          </span>
-          {hasIssues && <AlertTriangle className="w-4 h-4 text-yellow-500" />}
-        </div>
-        <div className="flex items-center gap-4 text-sm text-gray-600">
-          <span>{stats.total_letters || 0} letters</span>
-          <span>{stats.total_wire_holes || 0} wire</span>
-          <span>{stats.total_mounting_holes || 0} mounting</span>
-          {(stats.orphan_count || 0) > 0 && (
-            <span className="text-red-600">{stats.orphan_count} orphan</span>
-          )}
-        </div>
+    <div className="space-y-3">
+      {/* Scale info + legend */}
+      <div className="flex items-center gap-2 text-sm">
+        <Info className="w-4 h-4 text-blue-500" />
+        <span className="text-gray-600">
+          Detected scale: {analysis?.detected_scale === 0.1 ? '10%' : '100%'}
+        </span>
+        <HoleLegend />
       </div>
 
-      {/* Content */}
-      {expanded && (
-        <div className="p-4 space-y-4 bg-white">
-          {/* Scale info */}
-          <div className="flex items-center gap-2 text-sm">
-            <Info className="w-4 h-4 text-blue-500" />
-            <span className="text-gray-600">
-              Detected scale: {analysis.detected_scale === 0.1 ? '10%' : '100%'}
-            </span>
-            <HoleLegend />
-          </div>
+      {/* Orphan holes warning */}
+      <OrphanHolesWarning holes={analysis?.orphan_holes || []} />
 
-          {/* Orphan holes warning */}
-          <OrphanHolesWarning holes={analysis.orphan_holes} />
-
-          {/* Letters list */}
-          {analysis.letters.length > 0 ? (
-            <div className="space-y-2">
-              {analysis.letters.map((letter, index) => (
-                <LetterCard key={letter.letter_id} letter={letter} index={index} />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-6 text-gray-500">
-              <p>No letters detected in this file.</p>
-              <p className="text-sm mt-1">
-                Letters are identified as closed paths that are not contained within other paths.
-              </p>
-            </div>
-          )}
+      {/* Layer groups */}
+      {layerEntries.length > 0 ? (
+        <div className="space-y-2">
+          {layerEntries.map(([layerName, layerLetters]) => (
+            <LayerGroup key={layerName} layerName={layerName} letters={layerLetters} />
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-6 text-gray-500">
+          <p>No letters detected in this file.</p>
+          <p className="text-sm mt-1">
+            Letters are identified as closed paths that are not contained within other paths.
+          </p>
         </div>
       )}
     </div>

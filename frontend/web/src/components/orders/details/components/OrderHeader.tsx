@@ -428,7 +428,7 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
                 className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium"
               >
                 <Printer className="w-4 h-4" />
-                <span>{printingForm ? 'Printing...' : 'Approve Files and Print Forms'}</span>
+                <span>{printingForm ? 'Printing...' : 'Print Forms, Approve Files, Order Materials'}</span>
               </button>
             )}
 

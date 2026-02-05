@@ -119,7 +119,8 @@ export async function generatePackingList(
         currentY,
         checkboxBgColor, // Delivery background color for packing list
         'Packing List', // pageTitle
-        false // showDueDate - hide due date on packing list
+        false, // showDueDate - hide due date on packing list
+        false  // showCompanyName - hide on packing list
       );
 
       // ============================================

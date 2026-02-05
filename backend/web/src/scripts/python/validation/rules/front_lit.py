@@ -7,10 +7,15 @@ Validates structural requirements for Front Lit channel letter working files:
 3. Trim layer path count matches Return layer
 4. Trim offset from Return is within tolerance
 
+Also provides spec-specific hole classification:
+- classify_hole_type(): Pure classification (real mm -> wire/mounting/unknown)
+- classify_holes_in_analysis(): Mutates HoleInfo objects in a LetterAnalysisResult
+- generate_letter_analysis_issues(): Generates validation issues from classified analysis
+
 File scale assumptions:
-- Working files are at 10% scale (multiply by 10 for real-world dimensions)
-- Wire hole: ~10mm real = 1mm in file
-- Mounting hole: ~4mm real = 0.4mm in file
+- Working files are at 10% scale
+- Wire hole: 9.7mm real = ~2.75mm in file
+- Mounting hole: 3.81mm real = ~1.08mm in file
 - Trim offset: 2mm real per side = 0.2mm in file per side
 
 Trim offset note:
@@ -27,263 +32,188 @@ Integration with letter_analysis.py:
 - Falls back to legacy bbox-based analysis if not provided
 """
 
-from typing import List, Dict, Optional, Tuple, Any
+from typing import List, Dict, Optional, Any
 
-try:
-    from shapely.geometry import Point
-except ImportError:
-    Point = None
-
-from ..core import PathInfo, ValidationIssue, LetterAnalysis, LetterAnalysisResult
-from ..transforms import apply_transform_to_bbox
-from ..geometry import get_centroid, bbox_contains
+from ..core import PathInfo, ValidationIssue, LetterAnalysisResult
+from .legacy_analysis import (
+    analyze_letters_in_layer,
+    match_trim_to_return,
+    convert_letter_groups_to_analysis,
+)
 
 
-def identify_outside_paths(paths_info: List[PathInfo], layer_name: str) -> List[PathInfo]:
+# Front Lit spec-specific hole configuration (real-world mm)
+FRONT_LIT_HOLE_CONFIG = {
+    'wire_hole_expected_mm': 9.7,
+    'mounting_hole_expected_mm': 3.81,
+    'hole_exact_tolerance_mm': 0.15,
+    'hole_similar_tolerance_mm': 2.0,
+}
+
+
+def classify_hole_type(diameter_real_mm: float, config: Dict = None) -> str:
     """
-    Find closed paths that are NOT contained within other paths on the same layer.
-    These are the letter outlines (outside paths).
-    """
-    layer_paths = [p for p in paths_info if p.layer_name and
-                   p.layer_name.lower() == layer_name.lower() and
-                   p.is_closed and p.bbox]
+    Classify a hole by its real-world diameter in mm.
 
-    if not layer_paths:
-        return []
-
-    path_bboxes = []
-    for p in layer_paths:
-        transformed_bbox = apply_transform_to_bbox(p.bbox, p.transform_chain or '')
-        path_bboxes.append((p, transformed_bbox))
-
-    outside_paths = []
-    for path, bbox in path_bboxes:
-        is_inside_another = False
-
-        for other_path, other_bbox in path_bboxes:
-            if path.path_id == other_path.path_id:
-                continue
-
-            if path.is_circle:
-                is_inside_another = True
-                break
-
-            if bbox_contains(other_bbox, bbox, tolerance=1.0):
-                is_inside_another = True
-                break
-
-        if not is_inside_another:
-            outside_paths.append(path)
-
-    return outside_paths
-
-
-def find_contained_circles(letter_path: PathInfo,
-                           all_paths: List[PathInfo],
-                           wire_hole_diameter: float,
-                           wire_hole_tolerance: float,
-                           mounting_hole_diameter: float,
-                           mounting_hole_tolerance: float) -> List[Dict[str, Any]]:
-    """
-    Find all circles contained within a letter path and classify them.
-    Uses bbox containment check - circles must be fully within the letter's bbox.
-    """
-    if not letter_path.bbox:
-        return []
-
-    # Use raw bbox (untransformed) for containment check
-    # This ensures we're comparing in the same coordinate space
-    letter_bbox = letter_path.bbox
-    same_layer = letter_path.layer_name
-
-    contained_holes = []
-
-    for path in all_paths:
-        if not path.layer_name or path.layer_name.lower() != same_layer.lower():
-            continue
-
-        if not path.is_circle or not path.circle_diameter:
-            continue
-
-        if path.path_id == letter_path.path_id:
-            continue
-
-        if not path.bbox:
-            continue
-
-        # Use raw bbox for circle too
-        circle_bbox = path.bbox
-
-        # Check if circle is fully contained within letter bbox
-        if not bbox_contains(letter_bbox, circle_bbox, tolerance=1.0):
-            continue
-
-        diameter = path.circle_diameter
-        hole_type = 'unknown'
-
-        if abs(diameter - wire_hole_diameter) <= wire_hole_tolerance:
-            hole_type = 'wire'
-        elif abs(diameter - mounting_hole_diameter) <= mounting_hole_tolerance:
-            hole_type = 'mounting'
-
-        contained_holes.append({
-            'path_id': path.path_id,
-            'diameter': diameter,
-            'hole_type': hole_type,
-            'bbox': circle_bbox
-        })
-
-    return contained_holes
-
-
-def analyze_letters_in_layer(paths_info: List[PathInfo],
-                             layer_name: str,
-                             rules: Dict) -> List[LetterAnalysis]:
-    """
-    Analyze all letters (outside paths) in a layer, including their contained holes.
-    """
-    wire_hole_diameter = rules.get('wire_hole_diameter_mm', 1.0)
-    wire_hole_tolerance = rules.get('wire_hole_tolerance_mm', 0.2)
-    mounting_hole_diameter = rules.get('mounting_hole_diameter_mm', 0.4)
-    mounting_hole_tolerance = rules.get('mounting_hole_tolerance_mm', 0.1)
-
-    outside_paths = identify_outside_paths(paths_info, layer_name)
-
-    analyses = []
-    for letter in outside_paths:
-        if not letter.bbox:
-            continue
-
-        bbox = apply_transform_to_bbox(letter.bbox, letter.transform_chain or '')
-        width = bbox[2] - bbox[0]
-        height = bbox[3] - bbox[1]
-        centroid = get_centroid(bbox)
-
-        contained = find_contained_circles(
-            letter, paths_info,
-            wire_hole_diameter, wire_hole_tolerance,
-            mounting_hole_diameter, mounting_hole_tolerance
-        )
-
-        wire_count = sum(1 for h in contained if h['hole_type'] == 'wire')
-        mounting_count = sum(1 for h in contained if h['hole_type'] == 'mounting')
-
-        analyses.append(LetterAnalysis(
-            path_id=letter.path_id,
-            layer=layer_name,
-            bbox=bbox,
-            width=width,
-            height=height,
-            area=letter.area or 0,
-            perimeter=letter.length,
-            centroid=centroid,
-            contained_holes=contained,
-            wire_hole_count=wire_count,
-            mounting_hole_count=mounting_count
-        ))
-
-    return analyses
-
-
-def match_trim_to_return(trim_letters: List[LetterAnalysis],
-                         return_letters: List[LetterAnalysis]) -> List[Tuple[LetterAnalysis, Optional[LetterAnalysis], float]]:
-    """
-    Match each trim letter to its corresponding return letter based on centroid proximity.
-    """
-    matches = []
-
-    for trim in trim_letters:
-        best_match = None
-        best_distance = float('inf')
-
-        for ret in return_letters:
-            dx = trim.centroid[0] - ret.centroid[0]
-            dy = trim.centroid[1] - ret.centroid[1]
-            distance = (dx ** 2 + dy ** 2) ** 0.5
-
-            if distance < best_distance:
-                best_distance = distance
-                best_match = ret
-
-        matches.append((trim, best_match, best_distance))
-
-    return matches
-
-
-def _convert_letter_groups_to_analysis(
-    letter_analysis: LetterAnalysisResult,
-    layer_name: str,
-    file_scale: float
-) -> List[LetterAnalysis]:
-    """
-    Convert LetterGroup objects from letter_analysis.py to LetterAnalysis
-    for backwards compatibility with existing front_lit validation code.
+    Returns 'wire', 'mounting', or 'unknown' based on proximity to expected sizes.
+    If within ±2.0mm (hole_similar_tolerance_mm) of an expected size, classifies as that type.
 
     Args:
-        letter_analysis: The pre-computed LetterAnalysisResult
-        layer_name: The layer to filter by (e.g., 'return')
-        file_scale: File scale factor
+        diameter_real_mm: Hole diameter in real-world millimeters
+        config: Configuration dict (uses FRONT_LIT_HOLE_CONFIG defaults)
 
     Returns:
-        List of LetterAnalysis objects
+        str: 'wire', 'mounting', or 'unknown'
     """
-    analyses = []
+    cfg = {**FRONT_LIT_HOLE_CONFIG, **(config or {})}
 
-    for group in letter_analysis.letter_groups:
-        # Filter by layer
-        if layer_name and group.layer_name.lower() != layer_name.lower():
-            continue
+    if diameter_real_mm <= 0:
+        return 'unknown'
 
-        # Build contained_holes list from hole info
-        contained_holes = []
-        for hole in group.wire_holes:
-            contained_holes.append({
-                'path_id': hole.path_id,
-                'diameter': hole.diameter_mm,
-                'hole_type': 'wire',
-                'bbox': None  # Not needed for this conversion
+    wire_mm = cfg['wire_hole_expected_mm']
+    mount_mm = cfg['mounting_hole_expected_mm']
+    similar_tol = cfg['hole_similar_tolerance_mm']
+
+    dist_wire = abs(diameter_real_mm - wire_mm)
+    dist_mount = abs(diameter_real_mm - mount_mm)
+
+    if dist_wire <= similar_tol and dist_wire <= dist_mount:
+        return 'wire'
+    elif dist_mount <= similar_tol and dist_mount < dist_wire:
+        return 'mounting'
+    else:
+        return 'unknown'
+
+
+def classify_holes_in_analysis(analysis: LetterAnalysisResult, config: Dict = None) -> None:
+    """
+    Classify all unclassified holes in a LetterAnalysisResult in-place.
+
+    Iterates all HoleInfo in letter_groups[].holes and orphan_holes,
+    mutating hole_type from 'unclassified' to the classified value.
+
+    Args:
+        analysis: The LetterAnalysisResult with unclassified holes
+        config: Configuration dict (uses FRONT_LIT_HOLE_CONFIG defaults)
+    """
+    cfg = {**FRONT_LIT_HOLE_CONFIG, **(config or {})}
+
+    # Classify holes in letter groups
+    for group in analysis.letter_groups:
+        for hole in group.holes:
+            if hole.hole_type == 'unclassified':
+                hole.hole_type = classify_hole_type(hole.diameter_real_mm, cfg)
+
+    # Classify orphan holes
+    for hole in analysis.orphan_holes:
+        if hole.hole_type == 'unclassified':
+            hole.hole_type = classify_hole_type(hole.diameter_real_mm, cfg)
+
+
+def generate_letter_analysis_issues(
+    analysis: LetterAnalysisResult,
+    config: Dict = None
+) -> List[Dict[str, Any]]:
+    """
+    Generate validation issues from letter analysis results.
+
+    Args:
+        analysis: LetterAnalysisResult (holes should already be classified)
+        config: Configuration dict (uses FRONT_LIT_HOLE_CONFIG defaults)
+
+    Returns:
+        List of issue dicts with rule, severity, message, details
+    """
+    cfg = {**FRONT_LIT_HOLE_CONFIG, **(config or {})}
+    issues = []
+
+    # Orphan holes are errors
+    for hole in analysis.orphan_holes:
+        issues.append({
+            'rule': 'orphan_hole',
+            'severity': 'error',
+            'message': f'Hole {hole.path_id} ({hole.hole_type}, {hole.diameter_real_mm:.2f}mm) is outside all letters',
+            'path_id': hole.path_id,
+            'details': {
+                'hole_type': hole.hole_type,
+                'diameter_mm': hole.diameter_mm,
+                'center': hole.center
+            }
+        })
+
+    # Check each letter for required holes
+    for letter in analysis.letter_groups:
+        # No wire hole is an error
+        if len(letter.wire_holes) == 0:
+            issues.append({
+                'rule': 'letter_no_wire_hole',
+                'severity': 'error',
+                'message': f'Letter {letter.letter_id} has no wire hole',
+                'path_id': letter.letter_id,
+                'details': {
+                    'layer': letter.layer_name,
+                    'size_inches': letter.real_size_inches,
+                    'hole_counts': {
+                        'wire': len(letter.wire_holes),
+                        'mounting': len(letter.mounting_holes),
+                        'unknown': len(letter.unknown_holes)
+                    }
+                }
             })
-        for hole in group.mounting_holes:
-            contained_holes.append({
-                'path_id': hole.path_id,
-                'diameter': hole.diameter_mm,
-                'hole_type': 'mounting',
-                'bbox': None
+
+        # Multiple wire holes is a warning
+        if len(letter.wire_holes) > 1:
+            issues.append({
+                'rule': 'letter_multiple_wire_holes',
+                'severity': 'warning',
+                'message': f'Letter {letter.letter_id} has {len(letter.wire_holes)} wire holes, expected 1',
+                'path_id': letter.letter_id,
+                'details': {
+                    'wire_hole_count': len(letter.wire_holes),
+                    'wire_holes': [h.to_dict() for h in letter.wire_holes]
+                }
             })
-        for hole in group.unknown_holes:
-            contained_holes.append({
+
+        # Unknown holes are info
+        for hole in letter.unknown_holes:
+            issues.append({
+                'rule': 'unknown_hole_size',
+                'severity': 'info',
+                'message': f'Hole {hole.path_id} in letter {letter.letter_id} has unusual diameter {hole.diameter_real_mm:.2f}mm',
                 'path_id': hole.path_id,
-                'diameter': hole.diameter_mm,
-                'hole_type': 'unknown',
-                'bbox': None
+                'details': {
+                    'letter_id': letter.letter_id,
+                    'diameter_mm': hole.diameter_mm,
+                    'diameter_real_mm': hole.diameter_real_mm,
+                    'expected_wire_mm': cfg['wire_hole_expected_mm'],
+                    'expected_mounting_mm': cfg['mounting_hole_expected_mm']
+                }
             })
 
-        # Get centroid from bbox
-        centroid = get_centroid(group.bbox)
+        # Check classified holes for size deviations
+        wire_expected = cfg['wire_hole_expected_mm']
+        mount_expected = cfg['mounting_hole_expected_mm']
+        exact_tol = cfg['hole_exact_tolerance_mm']
 
-        # Get dimensions
-        width = group.bbox[2] - group.bbox[0]
-        height = group.bbox[3] - group.bbox[1]
+        for hole in letter.wire_holes + letter.mounting_holes:
+            expected = wire_expected if hole.hole_type == 'wire' else mount_expected
+            deviation = abs(hole.diameter_real_mm - expected)
+            if deviation > exact_tol:
+                issues.append({
+                    'rule': 'hole_size_deviation',
+                    'severity': 'warning',
+                    'message': f'{hole.hole_type.title()} hole is {hole.diameter_real_mm:.2f}mm, expected {expected}mm',
+                    'path_id': hole.path_id,
+                    'details': {
+                        'letter_id': letter.letter_id,
+                        'hole_type': hole.hole_type,
+                        'actual_mm': hole.diameter_real_mm,
+                        'expected_mm': expected,
+                        'deviation_mm': round(deviation, 2)
+                    }
+                })
 
-        # Get area and perimeter from main path
-        area = group.main_path.area or 0
-        perimeter = group.main_path.length or 0
-
-        analyses.append(LetterAnalysis(
-            path_id=group.letter_id,
-            layer=group.layer_name,
-            bbox=group.bbox,
-            width=width,
-            height=height,
-            area=area,
-            perimeter=perimeter,
-            centroid=centroid,
-            contained_holes=contained_holes,
-            wire_hole_count=len(group.wire_holes),
-            mounting_hole_count=len(group.mounting_holes)
-        ))
-
-    return analyses
+    return issues
 
 
 def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[ValidationIssue]:
@@ -311,8 +241,6 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
     holes_per_sq_inch_area = rules.get('mounting_holes_per_sq_inch_area', 0.0123)
     trim_offset_min = rules.get('trim_offset_min_mm', 0.19)
     trim_offset_max = rules.get('trim_offset_max_mm', 0.21)
-    # Miter factor accounts for corners extending further than perpendicular offset
-    # With miter limit of 4, corners can extend up to 4x the offset before beveling
     miter_factor = rules.get('miter_factor', 4.0)
 
     # Check for pre-computed letter analysis
@@ -320,13 +248,10 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
 
     # Build return_letters from letter analysis or legacy method
     if letter_analysis and letter_analysis.letter_groups:
-        # Use pre-computed letter analysis (more accurate polygon containment)
-        return_letters = _convert_letter_groups_to_analysis(letter_analysis, return_layer, file_scale)
-        # Update file_scale if detected
+        return_letters = convert_letter_groups_to_analysis(letter_analysis, return_layer, file_scale)
         if letter_analysis.detected_scale:
             file_scale = letter_analysis.detected_scale
     else:
-        # Fall back to legacy bbox-based analysis
         return_letters = analyze_letters_in_layer(paths_info, return_layer, rules)
 
     if not return_letters:
@@ -339,7 +264,6 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
         ))
         return issues
 
-    # Add info about detected letters for debugging
     issues.append(ValidationIssue(
         rule='front_lit_structure',
         severity='info',
@@ -351,7 +275,6 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
         }
     ))
 
-    # Scale factor: at 10% scale, 1" real = 7.2 points in file
     points_per_real_inch = 72 * file_scale
 
     # Rule 1: Wire holes
@@ -390,8 +313,8 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
         real_perimeter_inches = letter.perimeter / points_per_real_inch
         real_area_sq_inches = letter.area / (points_per_real_inch ** 2)
 
-        holes_by_perimeter = int(real_perimeter_inches * holes_per_inch_perimeter)
-        holes_by_area = int(real_area_sq_inches * holes_per_sq_inch_area)
+        holes_by_perimeter = round(real_perimeter_inches * holes_per_inch_perimeter)
+        holes_by_area = round(real_area_sq_inches * holes_per_sq_inch_area)
         required_holes = max(min_mounting_holes, holes_by_perimeter, holes_by_area)
 
         if letter.mounting_hole_count < required_holes:
@@ -414,7 +337,6 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
     # Rule 3: Trim count
     trim_letters = analyze_letters_in_layer(paths_info, trim_layer, rules)
 
-    # Add info about detected trim letters for debugging
     issues.append(ValidationIssue(
         rule='front_lit_structure',
         severity='info',
@@ -440,8 +362,6 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
         ))
 
     # Rule 4: Trim offset
-    # Max distance for a valid match - trim and return should be nearly coincident
-    # At 10% scale, a few mm offset = a few units. 10 units is generous.
     max_match_distance = rules.get('max_match_distance', 10.0)
 
     if trim_letters and return_letters:
@@ -463,17 +383,37 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
                 ))
                 continue
 
-            width_diff = trim.width - return_match.width
-            height_diff = trim.height - return_match.height
-            width_offset_per_side = width_diff / 2
-            height_offset_per_side = height_diff / 2
+            raw_width_diff = trim.raw_width - return_match.raw_width
+            raw_height_diff = trim.raw_height - return_match.raw_height
 
-            # Min offset: straight edges should have at least the minimum offset
-            # Max offset: corners with miters can extend up to miter_factor * max_offset
+            mm_per_file_unit = 25.4 / points_per_real_inch
+            width_diff_mm = raw_width_diff * mm_per_file_unit
+            height_diff_mm = raw_height_diff * mm_per_file_unit
+
+            if width_diff_mm < 0 or height_diff_mm < 0:
+                issues.append(ValidationIssue(
+                    rule='front_lit_trim_offset',
+                    severity='error',
+                    message=f'{return_layer} is larger than {trim_layer}',
+                    path_id=trim.path_id,
+                    details={
+                        'layer': trim_layer,
+                        'trim_path_id': trim.path_id,
+                        'return_path_id': return_match.path_id,
+                        'width_diff_mm': round(width_diff_mm, 2),
+                        'height_diff_mm': round(height_diff_mm, 2),
+                        'centroid_distance': round(distance, 2)
+                    }
+                ))
+                continue
+
+            width_offset_per_side_mm = width_diff_mm / 2
+            height_offset_per_side_mm = height_diff_mm / 2
+
             max_with_miter = trim_offset_max * miter_factor
 
-            width_ok = trim_offset_min <= width_offset_per_side <= max_with_miter
-            height_ok = trim_offset_min <= height_offset_per_side <= max_with_miter
+            width_ok = trim_offset_min <= width_offset_per_side_mm <= max_with_miter
+            height_ok = trim_offset_min <= height_offset_per_side_mm <= max_with_miter
 
             if not width_ok or not height_ok:
                 expected_total_min = trim_offset_min * 2
@@ -482,22 +422,19 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
                 issues.append(ValidationIssue(
                     rule='front_lit_trim_offset',
                     severity='error',
-                    message=f'Trim {trim.path_id} offset incorrect: width diff {width_diff:.2f}mm, height diff {height_diff:.2f}mm (expected {expected_total_min:.2f}-{expected_total_max:.2f}mm total)',
+                    message=f'Trim {trim.path_id} offset: {width_diff_mm:.1f}mm W x {height_diff_mm:.1f}mm H (expected {expected_total_min:.1f}-{expected_total_max:.1f}mm total)',
                     path_id=trim.path_id,
                     details={
+                        'layer': trim_layer,
                         'trim_path_id': trim.path_id,
                         'return_path_id': return_match.path_id,
-                        'trim_bbox': trim.bbox,
-                        'trim_width': trim.width,
-                        'trim_height': trim.height,
-                        'return_bbox': return_match.bbox,
-                        'return_width': return_match.width,
-                        'return_height': return_match.height,
-                        'width_diff_mm': round(width_diff, 3),
-                        'height_diff_mm': round(height_diff, 3),
+                        'width_diff_mm': round(width_diff_mm, 2),
+                        'height_diff_mm': round(height_diff_mm, 2),
+                        'width_per_side_mm': round(width_offset_per_side_mm, 2),
+                        'height_per_side_mm': round(height_offset_per_side_mm, 2),
                         'centroid_distance': round(distance, 2),
-                        'expected_min_total': expected_total_min,
-                        'expected_max_total': expected_total_max,
+                        'expected_min_per_side_mm': trim_offset_min,
+                        'expected_max_per_side_mm': max_with_miter,
                         'miter_factor': miter_factor
                     }
                 ))

@@ -22,6 +22,7 @@ import {
 import { ordersApi, orderStatusApi } from '../../../services/api';
 import { OrderStatus, KanbanOrder } from '../../../types/orders';
 import { useTasksSocket } from '../../../hooks/useTasksSocket';
+import { useAlert } from '../../../contexts/AlertContext';
 import { useDeviceType } from '../../../hooks/useDeviceType';
 import { OrderQuickModal } from '../calendarView/OrderQuickModal';
 import { CalendarOrder } from '../calendarView/types';
@@ -87,6 +88,7 @@ export const KanbanView: React.FC = () => {
   // Device type detection and scroll container ref
   const { isPhone, isTablet, isTouchDevice, deviceType } = useDeviceType();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const { showWarning } = useAlert();
 
 
   // Touch scroll management
@@ -286,7 +288,10 @@ export const KanbanView: React.FC = () => {
     });
 
     try {
-      await orderStatusApi.updateOrderStatus(order.order_number, newStatus);
+      const result = await orderStatusApi.updateOrderStatus(order.order_number, newStatus);
+      if (result?.warnings?.length) {
+        result.warnings.forEach((warning: string) => showWarning(warning));
+      }
       // Track dropped order for scroll-into-view after refetch
       setJustDroppedOrderId(order.order_id);
       // Refetch to get proper sorting
@@ -296,7 +301,7 @@ export const KanbanView: React.FC = () => {
       // Revert on error - refetch from server
       fetchOrders();
     }
-  }, [ordersByStatus, fetchOrders]);
+  }, [ordersByStatus, fetchOrders, showWarning]);
 
   // Get active order for drag overlay - search all columns
   const activeOrder = useMemo(() => {

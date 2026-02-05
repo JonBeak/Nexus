@@ -8,10 +8,11 @@ Structure:
 - svg_parser.py: AI to SVG conversion and path extraction
 - transforms.py: SVG transform utilities
 - geometry.py: Geometric utilities (bbox, containment, circles, polygon ops)
-- letter_analysis.py: Letter-hole association analysis
+- letter_analysis.py: Letter-hole geometry analysis (spec-agnostic, returns unclassified holes)
 - base_rules.py: Common validation rules (overlaps, strokes, etc.)
 - rules/: Spec-type specific validation rules
-  - front_lit.py: Front Lit channel letter rules
+  - front_lit.py: Front Lit channel letter rules + hole classification
+  - legacy_analysis.py: Bbox-based letter analysis (fallback/trim layer)
   - (future: halo_lit.py, non_lit.py, etc.)
 
 Usage:
@@ -25,6 +26,7 @@ Usage:
 """
 
 import os
+import re
 from typing import Dict, List, Any
 
 from .core import (
@@ -39,11 +41,12 @@ from .base_rules import (
     check_path_closure
 )
 from .rules import check_front_lit_structure
-from .letter_analysis import (
-    analyze_letter_hole_associations,
+from .rules.front_lit import (
+    classify_holes_in_analysis,
     generate_letter_analysis_issues,
-    detect_file_scale
+    FRONT_LIT_HOLE_CONFIG,
 )
+from .letter_analysis import analyze_letter_hole_associations
 
 
 def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
@@ -88,6 +91,19 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
         # Parse paths from SVG
         paths_info = extract_paths_from_svg(svg_path, ai_path)
 
+        # Filter out non-production paths:
+        # - "Layer 1", "Layer_2" etc: Illustrator default unnamed layers
+        # - "_no_layer_": stray paths outside any layer group (Inkscape export artifact)
+        # - "_defs_": SVG <defs> definitions, not visible geometry
+        _skip_layers = ('_no_layer_', '_defs_')
+        paths_info = [
+            p for p in paths_info
+            if not (
+                p.layer_name in _skip_layers
+                or (p.layer_name and re.match(r'^Layer[\s_]\d+$', p.layer_name))
+            )
+        ]
+
         # Collect stats
         layers_found = set(p.layer_name for p in paths_info if p.layer_name)
         paths_per_layer = {}
@@ -107,17 +123,25 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
             'paths_per_layer': paths_per_layer
         }
 
-        # Letter-hole analysis (run before other validations if requested)
+        # Letter-hole geometry analysis (run before other validations if requested)
+        # Returns UNCLASSIFIED holes — spec rules classify them before serialization
         letter_analysis = None
         if 'letter_hole_analysis' in rules or 'front_lit_structure' in rules:
             analysis_config = rules.get('letter_hole_analysis', rules.get('front_lit_structure', {}))
             analysis_layer = analysis_config.get('layer', analysis_config.get('return_layer'))
 
+            # 1. Geometry analysis (returns UNCLASSIFIED holes)
             letter_analysis = analyze_letter_hole_associations(
                 paths_info,
                 layer_name=analysis_layer,
                 config=analysis_config
             )
+
+            # 2. Spec-specific classification (MUTATES hole_type in place)
+            if 'front_lit_structure' in rules:
+                classify_holes_in_analysis(letter_analysis, FRONT_LIT_HOLE_CONFIG)
+
+            # 3. Serialize AFTER classification (holes now have correct types)
             stats['letter_analysis'] = letter_analysis.to_dict()
             stats['detected_scale'] = letter_analysis.detected_scale
 
@@ -134,16 +158,16 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
         if 'path_closure' in rules:
             all_issues.extend(check_path_closure(paths_info, rules['path_closure']))
 
+        # 4. Structural checks (use classified data)
         if 'front_lit_structure' in rules:
-            # Pass letter analysis to front_lit rules for efficiency
             front_lit_rules = rules['front_lit_structure'].copy()
             if letter_analysis:
                 front_lit_rules['_letter_analysis'] = letter_analysis
             all_issues.extend(check_front_lit_structure(paths_info, front_lit_rules))
 
-        # Generate issues from letter analysis if explicitly requested
+        # 5. Issue generation (from classified analysis)
         if 'letter_hole_analysis' in rules and letter_analysis:
-            analysis_issues = generate_letter_analysis_issues(letter_analysis, rules['letter_hole_analysis'])
+            analysis_issues = generate_letter_analysis_issues(letter_analysis, FRONT_LIT_HOLE_CONFIG)
             for issue_dict in analysis_issues:
                 all_issues.append(ValidationIssue(
                     rule=issue_dict['rule'],
@@ -200,6 +224,7 @@ __all__ = [
     'LetterAnalysisResult',
     'HoleInfo',
     'analyze_letter_hole_associations',
+    'classify_holes_in_analysis',
     'generate_letter_analysis_issues',
-    'detect_file_scale',
+    'FRONT_LIT_HOLE_CONFIG',
 ]

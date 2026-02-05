@@ -305,13 +305,14 @@ export class OrderService {
 
   /**
    * Update order status with history tracking
+   * Returns result with optional warnings (e.g., folder movement issues)
    */
   async updateOrderStatus(
     orderId: number,
     status: string,
     userId: number,
     notes?: string
-  ): Promise<void> {
+  ): Promise<{ warnings?: string[] }> {
     // Validate order exists
     const order = await orderRepository.getOrderById(orderId);
 
@@ -343,7 +344,7 @@ export class OrderService {
 
     // Don't update if status is the same
     if (order.status === status) {
-      return;
+      return {};
     }
 
     // Check if moving to "completed" with unpaid balance → redirect to "awaiting_payment"
@@ -457,113 +458,49 @@ export class OrderService {
       }
     }
 
-    // Phase 1.5.g: Automatically move folder to 1Finished when order is completed
-    if (status === 'completed' && order.folder_exists && order.folder_location === 'active' && order.folder_name && !order.is_migrated) {
-      try {
-        const moveResult = await orderFolderService.moveToFinished(order.folder_name);
+    // === UNIFIED FOLDER MOVEMENT LOGIC ===
+    // Move folder to correct location based on new status (new orders only)
+    const warnings: string[] = [];
 
-        if (moveResult.success) {
-          // Update folder location in database
-          await orderFolderService.updateFolderTracking(
-            orderId,
+    if (order.folder_exists && order.folder_name && !order.is_migrated) {
+      const getExpectedLocation = (orderStatus: string): 'active' | 'finished' | 'cancelled' | 'hold' => {
+        if (orderStatus === 'completed' || orderStatus === 'awaiting_payment') return 'finished';
+        if (orderStatus === 'cancelled') return 'cancelled';
+        if (orderStatus === 'on_hold') return 'hold';
+        return 'active';
+      };
+
+      const expectedLocation = getExpectedLocation(status);
+      const currentLocation = order.folder_location as 'active' | 'finished' | 'cancelled' | 'hold' | 'none';
+
+      if (currentLocation && currentLocation !== 'none' && currentLocation !== expectedLocation) {
+        try {
+          const moveResult = await orderFolderService.moveFolder(
             order.folder_name,
-            true,
-            'finished'
-          );
-          console.log(`✅ Order folder moved to 1Finished: ${order.folder_name}`);
-        } else if (moveResult.conflict) {
-          // Folder name conflict in finished location - keep in active
-          console.warn(`⚠️  Cannot move folder - conflict exists in 1Finished: ${order.folder_name}`);
-        } else {
-          console.error(`❌ Failed to move folder: ${moveResult.error}`);
-        }
-      } catch (folderError) {
-        // Non-blocking: if folder movement fails, continue with status update
-        console.error('⚠️  Folder movement failed (continuing with status update):', folderError);
-      }
-    }
-
-    // Move folder to 1Cancelled when order is cancelled (new orders only)
-    if (status === 'cancelled' && order.folder_exists && order.folder_location === 'active' && order.folder_name && !order.is_migrated) {
-      try {
-        const moveResult = await orderFolderService.moveToCancelled(order.folder_name);
-
-        if (moveResult.success) {
-          await orderFolderService.updateFolderTracking(
-            orderId,
-            order.folder_name,
-            true,
-            'cancelled'
-          );
-          console.log(`✅ Order folder moved to 1Cancelled: ${order.folder_name}`);
-        } else if (moveResult.conflict) {
-          console.warn(`⚠️  Cannot move folder - conflict exists in 1Cancelled: ${order.folder_name}`);
-        } else {
-          console.error(`❌ Failed to move folder to cancelled: ${moveResult.error}`);
-        }
-      } catch (folderError) {
-        console.error('⚠️  Folder movement to cancelled failed (continuing with status update):', folderError);
-      }
-    }
-
-    // Move folder to 1Hold when order is on hold (new orders only)
-    if (status === 'on_hold' && order.folder_exists && order.folder_location === 'active' && order.folder_name && !order.is_migrated) {
-      try {
-        const moveResult = await orderFolderService.moveToHold(order.folder_name);
-
-        if (moveResult.success) {
-          await orderFolderService.updateFolderTracking(
-            orderId,
-            order.folder_name,
-            true,
-            'hold'
-          );
-          console.log(`✅ Order folder moved to 1Hold: ${order.folder_name}`);
-        } else if (moveResult.conflict) {
-          console.warn(`⚠️  Cannot move folder - conflict exists in 1Hold: ${order.folder_name}`);
-        } else {
-          console.error(`❌ Failed to move folder to hold: ${moveResult.error}`);
-        }
-      } catch (folderError) {
-        console.error('⚠️  Folder movement to hold failed (continuing with status update):', folderError);
-      }
-    }
-
-    // Move folder FROM cancelled or on_hold when status changes to something else
-    const previousStatus = order.status;
-    if ((previousStatus === 'cancelled' || previousStatus === 'on_hold') &&
-        status !== 'cancelled' && status !== 'on_hold' &&
-        order.folder_exists && order.folder_name && !order.is_migrated) {
-      try {
-        const fromLocation = previousStatus === 'cancelled' ? 'cancelled' : 'hold';
-        const toLocation = status === 'completed' ? 'finished' : 'active';
-
-        // Check if folder is actually in the cancelled/hold location before trying to move
-        if (order.folder_location === fromLocation) {
-          const moveResult = await orderFolderService.moveFromCancelledOrHold(
-            order.folder_name,
-            fromLocation,
-            toLocation
+            currentLocation,
+            expectedLocation
           );
 
           if (moveResult.success) {
-            await orderFolderService.updateFolderTracking(
-              orderId,
-              order.folder_name,
-              true,
-              toLocation
-            );
-            console.log(`✅ Order folder moved from ${fromLocation} to ${toLocation}: ${order.folder_name}`);
+            await orderFolderService.updateFolderTracking(orderId, order.folder_name, true, expectedLocation);
+            console.log(`✅ Order folder moved: ${currentLocation} → ${expectedLocation}: ${order.folder_name}`);
           } else if (moveResult.conflict) {
-            console.warn(`⚠️  Cannot move folder - conflict exists in ${toLocation}: ${order.folder_name}`);
+            const warning = `Folder not moved: already exists in ${expectedLocation}`;
+            warnings.push(warning);
+            console.warn(`⚠️  ${warning}: ${order.folder_name}`);
           } else {
-            console.error(`❌ Failed to move folder from ${fromLocation}: ${moveResult.error}`);
+            const warning = `Folder not moved: ${moveResult.error || 'unknown error'}`;
+            warnings.push(warning);
+            console.error(`❌ ${warning}`);
           }
+        } catch (folderError) {
+          const warning = `Folder movement failed: ${folderError instanceof Error ? folderError.message : 'unknown error'}`;
+          warnings.push(warning);
+          console.error('⚠️  Folder movement failed (continuing with status update):', folderError);
         }
-      } catch (folderError) {
-        console.error('⚠️  Folder movement from cancelled/hold failed (continuing with status update):', folderError);
       }
     }
+    // === END UNIFIED FOLDER MOVEMENT LOGIC ===
 
     // Create status history entry
     await orderRepository.createStatusHistory({
@@ -575,6 +512,8 @@ export class OrderService {
 
     // Broadcast status change to WebSocket clients
     broadcastOrderStatus(orderId, order.order_number, status, order.status, userId);
+
+    return { warnings: warnings.length > 0 ? warnings : undefined };
   }
 
   /**
@@ -866,7 +805,7 @@ export class OrderService {
       columns[status] = ordersWithCalcs.filter(o => o.status === status);
     }
 
-    // Sort shipping and pick_up columns: uninvoiced/unsent first, then invoice sent
+    // Sort post-production columns: uninvoiced/unsent first, then invoice sent
     // Within each group, maintain due_date sorting (already applied from SQL)
     const sortByInvoiceStatus = (a: any, b: any) => {
       const aInvoiceSent = a.invoice_sent_at ? 1 : 0;
@@ -883,6 +822,9 @@ export class OrderService {
     if (columns['awaiting_payment']) {
       columns['awaiting_payment'].sort(sortByInvoiceStatus);
     }
+    if (columns['completed']) {
+      columns['completed'].sort(sortByInvoiceStatus);
+    }
 
     // Filter painting orders - cross-status aggregation
     const PAINTING_ELIGIBLE_STATUSES = ['production_queue', 'in_production', 'overdue', 'qc_packing'];
@@ -898,6 +840,124 @@ export class OrderService {
       columns,
       painting,
       totalCounts
+    };
+  }
+
+  // =====================================================
+  // FOLDER MISMATCH DETECTION & RETRY
+  // =====================================================
+
+  /**
+   * Get orders where folder_location doesn't match expected location based on status
+   */
+  async getFolderMismatches(): Promise<Array<{
+    order_id: number;
+    order_number: number;
+    order_name: string;
+    status: string;
+    folder_name: string;
+    folder_location: string;
+    expected_location: string;
+    customer_name: string;
+  }>> {
+    return await orderRepository.getFolderMismatches();
+  }
+
+  /**
+   * Get expected folder location based on order status
+   */
+  private getExpectedFolderLocation(status: string): 'active' | 'finished' | 'cancelled' | 'hold' {
+    if (status === 'completed' || status === 'awaiting_payment') {
+      return 'finished';
+    }
+    if (status === 'cancelled') {
+      return 'cancelled';
+    }
+    if (status === 'on_hold') {
+      return 'hold';
+    }
+    return 'active';
+  }
+
+  /**
+   * Retry moving folder to correct location based on order status
+   * Returns success/failure with error message
+   */
+  async retryFolderMove(orderId: number): Promise<{
+    success: boolean;
+    message: string;
+    newLocation?: string;
+  }> {
+    const order = await orderRepository.getOrderById(orderId);
+    if (!order) {
+      return { success: false, message: 'Order not found' };
+    }
+
+    if (!order.folder_exists || !order.folder_name) {
+      return { success: false, message: 'Order does not have a folder' };
+    }
+
+    if (order.is_migrated) {
+      return { success: false, message: 'Cannot move folders for migrated orders' };
+    }
+
+    const currentLocation = order.folder_location as 'active' | 'finished' | 'cancelled' | 'hold';
+    const expectedLocation = this.getExpectedFolderLocation(order.status);
+
+    if (currentLocation === expectedLocation) {
+      return { success: true, message: 'Folder is already in the correct location' };
+    }
+
+    const moveResult = await orderFolderService.moveFolder(
+      order.folder_name,
+      currentLocation,
+      expectedLocation
+    );
+
+    if (moveResult.success) {
+      await orderFolderService.updateFolderTracking(orderId, order.folder_name, true, expectedLocation);
+      console.log(`✅ Folder moved for order #${order.order_number}: ${currentLocation} → ${expectedLocation}`);
+      return {
+        success: true,
+        message: `Folder moved from ${currentLocation} to ${expectedLocation}`,
+        newLocation: expectedLocation
+      };
+    }
+
+    if (moveResult.conflict) {
+      return { success: false, message: `Conflict: folder already exists in ${expectedLocation}` };
+    }
+
+    return { success: false, message: moveResult.error || 'Failed to move folder' };
+  }
+
+  /**
+   * Retry folder moves for all mismatched orders
+   * Returns summary of results
+   */
+  async retryAllFolderMoves(): Promise<{
+    total: number;
+    succeeded: number;
+    failed: number;
+    results: Array<{ order_number: number; success: boolean; message: string }>;
+  }> {
+    const mismatches = await this.getFolderMismatches();
+    const results: Array<{ order_number: number; success: boolean; message: string }> = [];
+
+    for (const mismatch of mismatches) {
+      const result = await this.retryFolderMove(mismatch.order_id);
+      results.push({
+        order_number: mismatch.order_number,
+        success: result.success,
+        message: result.message
+      });
+    }
+
+    return {
+      total: mismatches.length,
+      succeeded: results.filter(r => r.success).length,
+      failed: results.filter(r => !r.success).length,
+      results
     };
   }
 

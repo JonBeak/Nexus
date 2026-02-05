@@ -161,9 +161,11 @@ export interface ApproveFilesResponse {
 export interface HoleDetail {
   path_id: string;
   hole_type: 'wire' | 'mounting' | 'unknown';
-  diameter_mm: number;
+  diameter_mm: number;       // File units (points) - used for SVG rendering
+  diameter_real_mm?: number; // Actual diameter in millimeters
   center: { x: number; y: number };
   svg_path_data: string;
+  transform?: string;  // SVG transform for this hole (may differ from letter's transform)
 }
 
 /**
@@ -173,8 +175,11 @@ export interface LetterDetail {
   letter_id: string;
   layer_name: string;
 
-  // File coordinates (as-is from SVG)
+  // File coordinates (as-is from SVG, matches path coordinates)
   file_bbox: { x: number; y: number; width: number; height: number };
+
+  // SVG transform to apply to paths (if any)
+  transform?: string;
 
   // Real-world dimensions (adjusted for scale)
   real_size_inches: { width: number; height: number };
@@ -185,7 +190,7 @@ export interface LetterDetail {
 
   // SVG path data
   svg_path_data: string;
-  counter_paths: string[];
+  counter_paths: Array<{ d: string; transform?: string }>;
   holes: HoleDetail[];
 
   // Counts

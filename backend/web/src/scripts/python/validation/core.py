@@ -6,6 +6,14 @@ from dataclasses import dataclass, asdict, field
 from typing import List, Optional, Dict, Any, Tuple
 
 
+def _transform_for_svg(transform_chain: str) -> str:
+    """Convert pipe-separated transform chain to space-separated for SVG."""
+    if not transform_chain:
+        return ''
+    # SVG uses space-separated transforms, not pipe-separated
+    return ' '.join(transform_chain.split('|'))
+
+
 @dataclass
 class ValidationIssue:
     """Represents a single validation issue found in the file."""
@@ -38,6 +46,8 @@ class PathInfo:
     is_circle: bool = False
     circle_diameter: Optional[float] = None
     polygon: Optional[Any] = None  # Shapely Polygon for geometric containment checks
+    is_compound: bool = False      # True if path has multiple subpaths (M...Z M...Z)
+    num_subpaths: int = 1          # Number of continuous subpaths
 
 
 @dataclass
@@ -46,14 +56,16 @@ class LetterAnalysis:
     path_id: str
     layer: str
     bbox: Tuple[float, float, float, float]
-    width: float
-    height: float
+    width: float          # Transformed coordinate width (for centroid matching)
+    height: float         # Transformed coordinate height (for centroid matching)
     area: float
     perimeter: float
     centroid: Tuple[float, float]
     contained_holes: List[Dict[str, Any]]
     wire_hole_count: int
     mounting_hole_count: int
+    raw_width: float = 0.0   # Untransformed width in file units (for size comparison)
+    raw_height: float = 0.0  # Untransformed height in file units (for size comparison)
 
 
 @dataclass
@@ -81,48 +93,76 @@ class ValidationResult:
 
 @dataclass
 class HoleInfo:
-    """Information about a classified hole within a letter."""
+    """Information about a hole within a letter. Created unclassified by geometry layer,
+    classified later by spec-specific rules (e.g. front_lit classifies as wire/mounting)."""
     path_id: str
-    hole_type: str  # 'wire', 'mounting', 'unknown'
-    diameter_mm: float
-    center: Tuple[float, float]
-    svg_path_data: str
+    hole_type: str = 'unclassified'  # 'unclassified' -> classified to 'wire', 'mounting', or 'unknown' by rules
+    diameter_mm: float = 0.0  # File units (points) - used for SVG rendering
+    center: Tuple[float, float] = (0.0, 0.0)
+    svg_path_data: str = ''
+    transform: str = ''  # SVG transform chain for this hole
+    diameter_real_mm: float = 0.0  # Actual diameter in millimeters
 
     def to_dict(self) -> Dict[str, Any]:
+        # Safety net: map 'unclassified' to 'unknown' for frontend contract
+        display_type = self.hole_type if self.hole_type != 'unclassified' else 'unknown'
         return {
             'path_id': self.path_id,
-            'hole_type': self.hole_type,
+            'hole_type': display_type,
             'diameter_mm': round(self.diameter_mm, 3),
+            'diameter_real_mm': round(self.diameter_real_mm, 2),
             'center': {'x': round(self.center[0], 2), 'y': round(self.center[1], 2)},
-            'svg_path_data': self.svg_path_data
+            'svg_path_data': self.svg_path_data,
+            'transform': _transform_for_svg(self.transform)
         }
 
 
 @dataclass
 class LetterGroup:
-    """A letter with its associated paths and holes."""
+    """A letter with its associated paths and holes.
+    Holes are stored unclassified; spec-specific rules classify them later."""
     letter_id: str                           # Unique identifier (path_id)
     main_path: 'PathInfo'                    # The outer letter boundary
     counter_paths: List['PathInfo'] = field(default_factory=list)   # Inner counter paths (like inside "O", "A", "B")
-    wire_holes: List[HoleInfo] = field(default_factory=list)        # Holes for LED wiring (~1mm at 10% scale)
-    mounting_holes: List[HoleInfo] = field(default_factory=list)    # Holes for mounting (~0.4mm at 10% scale)
-    unknown_holes: List[HoleInfo] = field(default_factory=list)     # Holes that don't match known sizes
+    holes: List[HoleInfo] = field(default_factory=list)             # All holes (classified or unclassified)
     layer_name: str = ''                     # Source layer
-    bbox: Tuple[float, float, float, float] = (0, 0, 0, 0)  # Combined bounding box
+    bbox: Tuple[float, float, float, float] = (0, 0, 0, 0)  # Transformed bbox (for size calcs)
+    raw_bbox: Tuple[float, float, float, float] = (0, 0, 0, 0)  # Raw bbox (matches SVG path coords)
+    transform: str = ''                      # SVG transform to apply to path
     area: float = 0.0                        # Net area (main - counters)
     detected_scale: float = 1.0              # Detected file scale (0.1 or 1.0)
     real_size_inches: Tuple[float, float] = (0, 0)  # Real-world size (width, height)
 
+    @property
+    def wire_holes(self) -> List[HoleInfo]:
+        """Holes classified as wire holes."""
+        return [h for h in self.holes if h.hole_type == 'wire']
+
+    @property
+    def mounting_holes(self) -> List[HoleInfo]:
+        """Holes classified as mounting holes."""
+        return [h for h in self.holes if h.hole_type == 'mounting']
+
+    @property
+    def unknown_holes(self) -> List[HoleInfo]:
+        """Holes classified as unknown or still unclassified."""
+        return [h for h in self.holes if h.hole_type in ('unknown', 'unclassified')]
+
     def to_dict(self) -> Dict[str, Any]:
+        # Use TRANSFORMED bbox for file_bbox (viewBox needs global coordinates)
+        # The SVG paths are rendered with their transform attribute, so the viewBox
+        # must encompass the transformed coordinates for correct positioning
+        bbox_for_display = self.bbox if self.bbox != (0, 0, 0, 0) else self.raw_bbox
         return {
             'letter_id': self.letter_id,
             'layer_name': self.layer_name,
             'file_bbox': {
-                'x': round(self.bbox[0], 2),
-                'y': round(self.bbox[1], 2),
-                'width': round(self.bbox[2] - self.bbox[0], 2),
-                'height': round(self.bbox[3] - self.bbox[1], 2)
+                'x': round(bbox_for_display[0], 2),
+                'y': round(bbox_for_display[1], 2),
+                'width': round(bbox_for_display[2] - bbox_for_display[0], 2),
+                'height': round(bbox_for_display[3] - bbox_for_display[1], 2)
             },
+            'transform': _transform_for_svg(self.transform),
             'real_size_inches': {
                 'width': round(self.real_size_inches[0], 2),
                 'height': round(self.real_size_inches[1], 2)
@@ -130,12 +170,14 @@ class LetterGroup:
             'real_area_sq_inches': round(self.area, 2),
             'detected_scale': self.detected_scale,
             'svg_path_data': self.main_path.d_attribute if self.main_path else '',
-            'counter_paths': [p.d_attribute for p in self.counter_paths],
-            'holes': (
-                [h.to_dict() for h in self.wire_holes] +
-                [h.to_dict() for h in self.mounting_holes] +
-                [h.to_dict() for h in self.unknown_holes]
-            ),
+            'counter_paths': [
+                {
+                    'd': p.d_attribute,
+                    'transform': _transform_for_svg(p.transform_chain) if p.transform_chain else ''
+                }
+                for p in self.counter_paths
+            ],
+            'holes': [h.to_dict() for h in self.holes],
             'wire_hole_count': len(self.wire_holes),
             'mounting_hole_count': len(self.mounting_holes),
             'unknown_hole_count': len(self.unknown_holes)
@@ -148,6 +190,7 @@ class LetterAnalysisResult:
     letter_groups: List[LetterGroup] = field(default_factory=list)  # All identified letters with holes
     orphan_holes: List[HoleInfo] = field(default_factory=list)      # Holes not inside any letter (ERRORS)
     unassigned_paths: List['PathInfo'] = field(default_factory=list)  # Paths that couldn't be classified
+    unprocessed_paths: List[Dict[str, Any]] = field(default_factory=list)  # All non-letter/non-hole paths with reasons
     detected_scale: float = 1.0              # Detected file scale
     stats: Dict[str, Any] = field(default_factory=dict)  # Summary statistics
 
@@ -155,6 +198,7 @@ class LetterAnalysisResult:
         return {
             'letters': [lg.to_dict() for lg in self.letter_groups],
             'orphan_holes': [h.to_dict() for h in self.orphan_holes],
+            'unprocessed_paths': self.unprocessed_paths,
             'detected_scale': self.detected_scale,
             'stats': {
                 'total_letters': len(self.letter_groups),

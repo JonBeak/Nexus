@@ -4,8 +4,7 @@
  * Renders a letter with its holes and a measurement grid overlay.
  *
  * Grid Logic (based on letter size):
- * - < 12": Black inch grid only
- * - 12-24": Black inch grid + red foot lines
+ * - < 24": Black inch grid + red foot lines
  * - > 24": Red foot grid only
  *
  * Hole Colors:
@@ -72,8 +71,8 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
   // Grid settings based on size
   const gridSettings = useMemo(() => {
     if (maxDimension < 12) {
-      // Small: inch grid only (black)
-      return { showInches: true, showFeet: false, inchColor: '#00000033', footColor: '' };
+      // Small: inch grid + red foot lines
+      return { showInches: true, showFeet: true, inchColor: '#00000033', footColor: '#EF444466' };
     } else if (maxDimension <= 24) {
       // Medium: inch grid + foot lines (black + red)
       return { showInches: true, showFeet: true, inchColor: '#00000020', footColor: '#EF444466' };
@@ -87,27 +86,31 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
   const gridLines = useMemo(() => {
     if (!showGrid) return { vertical: [], horizontal: [] };
 
-    const scale = letter.detected_scale || 1.0;
-    const pointsPerInch = 72 * scale;
     const { x, y, width, height } = letter.file_bbox;
+
+    // Derive actual points-per-inch from the transformed bbox and real-world size.
+    // file_bbox is in transformed coordinate space, but 72*scale is for raw coordinates.
+    // If the SVG transform includes scaling, we need the effective ratio instead.
+    const ppiX = realWidth > 0 ? width / realWidth : 72 * (letter.detected_scale || 1.0);
+    const ppiY = realHeight > 0 ? height / realHeight : 72 * (letter.detected_scale || 1.0);
 
     const vertical: { pos: number; isFoot: boolean }[] = [];
     const horizontal: { pos: number; isFoot: boolean }[] = [];
 
-    // Generate vertical lines
-    const startX = Math.ceil(x / pointsPerInch) * pointsPerInch;
-    for (let px = startX; px < x + width; px += pointsPerInch) {
-      const inchIndex = Math.round(px / pointsPerInch);
+    // Generate vertical lines (use ppiX for horizontal spacing)
+    const startX = Math.ceil(x / ppiX) * ppiX;
+    for (let px = startX; px < x + width; px += ppiX) {
+      const inchIndex = Math.round(px / ppiX);
       const isFoot = inchIndex % 12 === 0;
       if (gridSettings.showInches || (gridSettings.showFeet && isFoot)) {
         vertical.push({ pos: px, isFoot });
       }
     }
 
-    // Generate horizontal lines
-    const startY = Math.ceil(y / pointsPerInch) * pointsPerInch;
-    for (let py = startY; py < y + height; py += pointsPerInch) {
-      const inchIndex = Math.round(py / pointsPerInch);
+    // Generate horizontal lines (use ppiY for vertical spacing)
+    const startY = Math.ceil(y / ppiY) * ppiY;
+    for (let py = startY; py < y + height; py += ppiY) {
+      const inchIndex = Math.round(py / ppiY);
       const isFoot = inchIndex % 12 === 0;
       if (gridSettings.showInches || (gridSettings.showFeet && isFoot)) {
         horizontal.push({ pos: py, isFoot });
@@ -115,25 +118,28 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
     }
 
     return { vertical, horizontal };
-  }, [letter.file_bbox, letter.detected_scale, showGrid, gridSettings]);
+  }, [letter.file_bbox, realWidth, realHeight, letter.detected_scale, showGrid, gridSettings]);
 
-  // Render hole circle
+  // Fixed visual radius for holes (~2% of viewBox smaller dimension)
+  // Makes holes clearly visible regardless of their actual size
+  const holeRadius = useMemo(() => {
+    return Math.min(viewBox.width, viewBox.height) * 0.02;
+  }, [viewBox]);
+
+  // Render hole circle with its own transform
   const renderHole = (hole: HoleDetail, index: number) => {
     const color = HOLE_COLORS[hole.hole_type] || HOLE_COLORS.unknown;
-    const scale = letter.detected_scale || 1.0;
-    const radius = (hole.diameter_mm * 72 * scale) / 2;
 
     return (
-      <circle
-        key={`hole-${index}`}
-        cx={hole.center.x}
-        cy={hole.center.y}
-        r={radius}
-        fill={color}
-        fillOpacity={0.3}
-        stroke={color}
-        strokeWidth={1}
-      />
+      <g key={`hole-${index}`} transform={hole.transform || undefined}>
+        <circle
+          cx={hole.center.x}
+          cy={hole.center.y}
+          r={holeRadius}
+          fill={color}
+          stroke="none"
+        />
+      </g>
     );
   };
 
@@ -175,27 +181,32 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
           </g>
         )}
 
-        {/* Main letter path */}
-        <path
-          d={letter.svg_path_data}
-          fill="none"
-          stroke="#374151"
-          strokeWidth={1.5}
-        />
-
-        {/* Counter paths (inner letter shapes) */}
-        {letter.counter_paths?.map((pathData, i) => (
+        {/* Main letter path with its transform */}
+        <g transform={letter.transform || undefined}>
           <path
-            key={`counter-${i}`}
-            d={pathData}
-            fill="none"
-            stroke="#6B7280"
-            strokeWidth={1}
-            strokeDasharray="4,2"
+            d={letter.svg_path_data}
+            fill="#D1D5DB"
+            stroke="#374151"
+            strokeWidth={1.5}
           />
-        ))}
+        </g>
 
-        {/* Holes */}
+        {/* Counter paths (white fill to cut out inner letter shapes) */}
+        {letter.counter_paths?.map((counter, i) => {
+          const pathData = typeof counter === 'string' ? counter : counter.d;
+          const transform = typeof counter === 'string' ? letter.transform : (counter.transform || letter.transform);
+          return (
+            <g key={`counter-${i}`} transform={transform || undefined}>
+              <path
+                d={pathData}
+                fill="white"
+                stroke="none"
+              />
+            </g>
+          );
+        })}
+
+        {/* Holes rendered separately with their own transforms */}
         {letter.holes?.map((hole, i) => renderHole(hole, i))}
       </svg>
 

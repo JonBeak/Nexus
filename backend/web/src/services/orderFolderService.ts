@@ -507,6 +507,51 @@ export class OrderFolderService {
   }
 
   /**
+   * Universal folder move method - moves folder between ANY two locations
+   * This is the primary method for all folder movements (new orders only)
+   */
+  async moveFolder(
+    folderName: string,
+    from: 'active' | 'finished' | 'cancelled' | 'hold',
+    to: 'active' | 'finished' | 'cancelled' | 'hold'
+  ): Promise<{
+    success: boolean;
+    conflict: boolean;
+    error?: string;
+  }> {
+    if (from === to) {
+      return { success: true, conflict: false };
+    }
+
+    try {
+      const sourcePath = this.getFolderPath(folderName, from, false);
+      const destPath = this.getFolderPath(folderName, to, false);
+
+      if (!fs.existsSync(sourcePath)) {
+        return { success: false, conflict: false, error: 'Source folder does not exist' };
+      }
+
+      if (fs.existsSync(destPath)) {
+        console.warn(`[OrderFolderService] ⚠️  Conflict: Folder already exists in ${to}: ${folderName}`);
+        return { success: false, conflict: true, error: `Folder already exists in ${to}` };
+      }
+
+      const destDir = path.dirname(destPath);
+      if (!fs.existsSync(destDir)) {
+        fs.mkdirSync(destDir, { recursive: true });
+      }
+
+      fs.renameSync(sourcePath, destPath);
+      console.log(`[OrderFolderService] ✅ Moved folder from ${from} to ${to}: ${folderName}`);
+
+      return { success: true, conflict: false };
+    } catch (error) {
+      console.error(`[OrderFolderService] Error moving folder from ${from} to ${to}:`, error);
+      return { success: false, conflict: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  /**
    * Rename order folder on SMB share
    * Handles all folder locations
    *

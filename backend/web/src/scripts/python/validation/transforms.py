@@ -30,9 +30,14 @@ def apply_transform_to_point(x: float, y: float,
                              transforms: List[Tuple[str, List[float]]]) -> Tuple[float, float]:
     """
     Apply a list of transforms to a point.
-    Transforms are applied in order (first in list applied first).
+
+    SVG transforms are applied RIGHT-TO-LEFT: for "A B C", C is applied first,
+    then B, then A. This matches how nested <g> transforms work in SVG.
+
+    We reverse the list so we can iterate forwards but apply in correct order.
     """
-    for transform_type, values in transforms:
+    # Reverse to match SVG right-to-left application order
+    for transform_type, values in reversed(transforms):
         if transform_type == 'translate':
             tx = values[0] if len(values) > 0 else 0
             ty = values[1] if len(values) > 1 else 0
@@ -95,3 +100,54 @@ def apply_transform_to_bbox(bbox: Tuple[float, float, float, float],
     new_ymax = max(c[1] for c in transformed)
 
     return (new_xmin, new_ymin, new_xmax, new_ymax)
+
+
+def apply_transform_to_polygon(polygon, transform_chain: str):
+    """
+    Apply SVG transform chain to a Shapely Polygon.
+
+    Args:
+        polygon: Shapely Polygon with raw coordinates
+        transform_chain: Pipe-separated transform chain (e.g., "translate(100,0)|scale(0.5)")
+
+    Returns:
+        New Polygon with transformed coordinates, or original if no transform
+    """
+    if not polygon or not transform_chain:
+        return polygon
+
+    # Import Shapely Polygon type
+    try:
+        from shapely.geometry import Polygon as ShapelyPolygon
+    except ImportError:
+        return polygon
+
+    # Parse all transforms in the chain
+    all_transforms = []
+    for transform_str in transform_chain.split('|'):
+        all_transforms.extend(parse_transform(transform_str))
+
+    if not all_transforms:
+        return polygon
+
+    # Transform exterior ring coordinates
+    exterior_coords = list(polygon.exterior.coords)
+    transformed_exterior = [
+        apply_transform_to_point(x, y, all_transforms)
+        for x, y in exterior_coords
+    ]
+
+    # Transform interior rings (holes in the polygon geometry, not to be confused with wire holes)
+    transformed_interiors = []
+    for interior in polygon.interiors:
+        interior_coords = list(interior.coords)
+        transformed_interior = [
+            apply_transform_to_point(x, y, all_transforms)
+            for x, y in interior_coords
+        ]
+        transformed_interiors.append(transformed_interior)
+
+    try:
+        return ShapelyPolygon(transformed_exterior, transformed_interiors)
+    except Exception:
+        return polygon

@@ -20,6 +20,7 @@ export interface PrintApprovalSuccessData {
   printSummary?: PrintSummary;
   jobId?: string;
   movedToProduction?: boolean;
+  materialsConfirmed?: boolean;
   orderNumber: number;
   orderName: string;
 }
@@ -37,9 +38,11 @@ export const PrintApprovalSuccessModal: React.FC<PrintApprovalSuccessModalProps>
 }) => {
   if (!isOpen || !data) return null;
 
-  const { type, printSummary, jobId, movedToProduction, orderNumber, orderName } = data;
+  const { type, printSummary, jobId, movedToProduction, materialsConfirmed, orderNumber, orderName } = data;
 
   const getTitle = () => {
+    if (materialsConfirmed && type === 'print_and_production') return 'Printed, Approved & Materials Confirmed!';
+    if (materialsConfirmed && type === 'production_only') return 'Approved & Materials Confirmed!';
     if (type === 'production_only') return 'Order Approved!';
     if (type === 'print_and_production') return 'Printed & Approved!';
     return 'Print Successful!';
@@ -157,6 +160,18 @@ export const PrintApprovalSuccessModal: React.FC<PrintApprovalSuccessModalProps>
                   <ArrowRight className="h-4 w-4 text-purple-600" />
                   <span className="text-sm font-medium text-purple-800">
                     Order moved to Production Queue
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Materials Confirmed Status */}
+            {materialsConfirmed && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-800">
+                    Material requirements confirmed
                   </span>
                 </div>
               </div>

@@ -8,8 +8,11 @@ import { FileText, Send } from 'lucide-react';
 import { CalendarOrder, ProgressColor } from './types';
 import { getProgressColor } from './utils';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
+import { getFolderPathSegment } from '../../../utils/pdfUrls';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
+type FolderLocation = 'active' | 'finished' | 'cancelled' | 'hold' | 'none';
 
 /**
  * Get image URL for order
@@ -17,7 +20,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 const getOrderImageUrl = (order: {
   sign_image_path?: string;
   folder_name?: string;
-  folder_location?: 'active' | 'finished' | 'none';
+  folder_location?: FolderLocation;
   is_migrated?: boolean;
 }): string | null => {
   const { sign_image_path, folder_name, folder_location, is_migrated } = order;
@@ -29,15 +32,9 @@ const getOrderImageUrl = (order: {
   const encodedFolder = encodeURIComponent(folder_name);
   const encodedFile = encodeURIComponent(sign_image_path);
 
-  if (is_migrated) {
-    return folder_location === 'active'
-      ? `${basePath}/${encodedFolder}/${encodedFile}`
-      : `${basePath}/1Finished/${encodedFolder}/${encodedFile}`;
-  } else {
-    return folder_location === 'active'
-      ? `${basePath}/Orders/${encodedFolder}/${encodedFile}`
-      : `${basePath}/Orders/1Finished/${encodedFolder}/${encodedFile}`;
-  }
+  // Get folder path segment based on location (active, finished, cancelled, hold)
+  const pathSegment = getFolderPathSegment(folder_location, is_migrated);
+  return `${basePath}/${pathSegment}${encodedFolder}/${encodedFile}`;
 };
 
 interface OrderCardProps {

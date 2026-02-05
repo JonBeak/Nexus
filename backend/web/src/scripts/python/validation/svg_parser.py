@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 from typing import List, Dict, Tuple, Optional
 
 from .core import PathInfo
-from .geometry import is_circle_path, path_to_polygon
+from .geometry import is_circle_path, path_to_polygon, compound_path_to_polygon
 
 try:
     from svgpathtools import svg2paths2
@@ -137,33 +137,53 @@ def build_layer_and_transform_map(svg_path: str,
 
     ai_layer_names = []
     if ai_path:
-        ai_layer_names = extract_layer_names_from_ai(ai_path)
+        raw_names = extract_layer_names_from_ai(ai_path)
+        # Filter out separator layers (names with no alphanumeric chars like "---")
+        # Inkscape drops empty/hidden layers from SVG output, but OCG extraction
+        # still finds them, causing an off-by-one index mismatch
+        ai_layer_names = [n for n in raw_names if re.search(r'[a-zA-Z0-9]', n)]
 
     try:
         tree = ET.parse(svg_path)
         root = tree.getroot()
 
-        main_group = None
+        # Find all <g> elements that are direct children of root
+        root_groups = []
         for child in root:
             tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
             if tag == 'g':
-                main_group = child
-                break
+                root_groups.append(child)
 
-        if main_group is None:
+        if not root_groups:
             return layer_map, transform_map
 
-        top_level_groups = []
-        for child in main_group:
-            tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
-            if tag == 'g':
-                top_level_groups.append(child)
+        # Determine SVG structure:
+        # - Wrapper style: single <g> under root containing layer <g> elements (e.g., Inkscape)
+        # - Flat style: multiple <g> elements under root ARE the layers (e.g., Illustrator)
+        if len(root_groups) == 1:
+            # Single wrapper group — layers are its <g> children
+            main_group = root_groups[0]
+            top_level_groups = []
+            for child in main_group:
+                tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+                if tag == 'g':
+                    top_level_groups.append(child)
+        else:
+            # Multiple groups under root — they ARE the layers (Illustrator style)
+            main_group = root  # traverse from root
+            top_level_groups = root_groups
+
+        # If there are more SVG groups than AI layer names, Inkscape may have
+        # exported extra structural groups (artboard bounds, clip regions) before
+        # the real layers. Skip leading groups to align the counts.
+        offset = max(0, len(top_level_groups) - len(ai_layer_names)) if ai_layer_names else 0
 
         group_to_layer = {}
         for i, group in enumerate(top_level_groups):
             gid = group.get('id', f'group_{i}')
-            if i < len(ai_layer_names):
-                group_to_layer[gid] = ai_layer_names[i]
+            ai_idx = i - offset
+            if ai_layer_names and 0 <= ai_idx < len(ai_layer_names):
+                group_to_layer[gid] = ai_layer_names[ai_idx]
             else:
                 group_to_layer[gid] = f'Layer_{i+1}'
 
@@ -184,7 +204,8 @@ def build_layer_and_transform_map(svg_path: str,
             new_chain = parent_chain + [elem_id] if tag == 'g' and elem_id else parent_chain
             new_transforms = transform_chain + [transform] if transform else transform_chain
 
-            if tag == 'path':
+            # Match all SVG shape elements that svgpathtools converts to paths
+            if tag in ('path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon'):
                 path_id = element.get('id')
                 if path_id:
                     if in_defs:
@@ -245,11 +266,23 @@ def extract_paths_from_svg(svg_path: str, ai_path: Optional[str] = None) -> List
                 path_length = 0
 
             is_closed = False
+            is_compound = False
+            num_subpaths = 1
             try:
                 if len(path) > 0:
-                    start = path[0].start
-                    end = path[-1].end
-                    is_closed = abs(start - end) < 0.5
+                    if path.iscontinuous():
+                        start = path[0].start
+                        end = path[-1].end
+                        is_closed = abs(start - end) < 0.5
+                    else:
+                        subpaths = path.continuous_subpaths()
+                        num_subpaths = len(subpaths)
+                        is_compound = num_subpaths > 1
+                        if is_compound:
+                            is_closed = all(
+                                abs(sp[0].start - sp[-1].end) < 0.5
+                                for sp in subpaths if len(sp) > 0
+                            )
             except Exception:
                 pass
 
@@ -264,7 +297,10 @@ def extract_paths_from_svg(svg_path: str, ai_path: Optional[str] = None) -> List
             num_holes = 0
             path_polygon = None
             if is_closed:
-                path_polygon = path_to_polygon(path)
+                if is_compound:
+                    path_polygon = compound_path_to_polygon(path)
+                else:
+                    path_polygon = path_to_polygon(path)
                 if path_polygon and path_polygon.is_valid:
                     area = abs(path_polygon.area)
                     # Handle both Polygon and MultiPolygon types
@@ -292,7 +328,9 @@ def extract_paths_from_svg(svg_path: str, ai_path: Optional[str] = None) -> List
                 transform_chain=transform_map.get(path_id),
                 is_circle=path_is_circle,
                 circle_diameter=circle_diameter,
-                polygon=path_polygon
+                polygon=path_polygon,
+                is_compound=is_compound,
+                num_subpaths=num_subpaths
             ))
 
     except Exception as e:

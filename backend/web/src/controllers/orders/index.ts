@@ -33,7 +33,10 @@ export {
   updateOrderStatus,
   getStatusHistory,
   getOrderProgress,
-  checkAwaitingPaymentOrders
+  checkAwaitingPaymentOrders,
+  getFolderMismatches,
+  retryFolderMove,
+  retryAllFolderMoves
 } from './OrderStatusController';
 
 // Task Operations

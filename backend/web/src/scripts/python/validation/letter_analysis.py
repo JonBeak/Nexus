@@ -1,102 +1,36 @@
 """
-Letter-Hole Association Analysis Module
+Letter-Hole Association Analysis Module (Geometry Layer)
 
-Groups paths into letters and identifies holes (wire/mounting) that are
-geometrically INSIDE each letter using polygon containment.
+Groups paths into letters and identifies holes that are geometrically INSIDE
+each letter using polygon containment. Returns UNCLASSIFIED holes — spec-specific
+rules (e.g. front_lit.py) classify them later as wire/mounting/unknown.
 
 Key algorithms:
 1. Letter Identification: Find outer paths not contained within others
 2. Counter Detection: Distinguish inner letter shapes (like inside "O") from holes
-3. Hole Classification: Wire vs mounting holes based on diameter
-4. Polygon Containment: Accurate geometric containment using Shapely
+3. Polygon Containment: Accurate geometric containment using Shapely
 
-File scale detection:
-- 10% scale: wire holes ~1mm, mounting ~0.4mm
-- 100% scale: wire holes ~10mm, mounting ~4mm
+This module has NO knowledge of spec-specific hole sizes (wire, mounting, etc.).
+Classification is handled by the rules layer after geometry analysis.
 """
 
-from typing import List, Dict, Any, Optional, Tuple
-from math import pi
+from typing import List, Dict, Any, Optional
 
 from .core import PathInfo, LetterGroup, LetterAnalysisResult, HoleInfo
 from .geometry import (
-    get_centroid, bbox_contains, bbox_area, calculate_circularity,
-    polygon_contains, point_in_polygon
+    get_centroid, bbox_contains, calculate_circularity,
+    polygon_contains, point_in_polygon, build_compound_polygon
 )
-from .transforms import apply_transform_to_bbox
+from .transforms import apply_transform_to_bbox, apply_transform_to_polygon
 
 
-# Default configuration for letter analysis
-DEFAULT_CONFIG = {
-    # Hole sizes at 10% scale (multiply by 10 for real-world)
-    'wire_hole_diameter_mm': 1.0,       # 10mm real
-    'wire_hole_tolerance_mm': 0.2,
-    'mounting_hole_diameter_mm': 0.4,   # 4mm real
-    'mounting_hole_tolerance_mm': 0.1,
-
-    # Hole sizes at 100% scale
-    'wire_hole_diameter_100pct': 10.0,
-    'mounting_hole_diameter_100pct': 4.0,
-
-    # Counter detection
+# Geometry-only configuration (no spec-specific hole sizes)
+GEOMETRY_CONFIG = {
     'min_counter_area_ratio': 0.05,     # Min 5% of letter area to be a counter
+    'max_counter_area_ratio': 0.98,     # Max 98% - above this is a duplicate path, not a counter
     'max_hole_circularity': 0.85,       # Above = definitely a hole, not a counter
-
-    # Containment
     'containment_tolerance': 0.5,
-
-    # Scale detection tolerance
-    'scale_detection_tolerance_10pct': 0.3,
-    'scale_detection_tolerance_100pct': 3.0,
 }
-
-
-def detect_file_scale(paths_info: List[PathInfo], config: Dict = None) -> float:
-    """
-    Detect if file is 10% or 100% scale based on hole sizes.
-
-    At 10% scale: wire holes ~ 1mm, mounting ~ 0.4mm
-    At 100% scale: wire holes ~ 10mm, mounting ~ 4mm
-
-    Returns:
-        float: 0.1 for 10% scale, 1.0 for 100% scale
-    """
-    cfg = {**DEFAULT_CONFIG, **(config or {})}
-
-    # Find all circles that look like holes
-    circles = [p for p in paths_info if p.is_circle and p.circle_diameter]
-
-    if not circles:
-        return 1.0  # Default to 100% if no holes found
-
-    wire_10pct = cfg['wire_hole_diameter_mm']
-    mount_10pct = cfg['mounting_hole_diameter_mm']
-    tol_10pct = cfg['scale_detection_tolerance_10pct']
-
-    wire_100pct = cfg['wire_hole_diameter_100pct']
-    mount_100pct = cfg['mounting_hole_diameter_100pct']
-    tol_100pct = cfg['scale_detection_tolerance_100pct']
-
-    votes_10pct = 0
-    votes_100pct = 0
-
-    for circle in circles:
-        d = circle.circle_diameter
-
-        # Check if diameter matches 10% scale values
-        if abs(d - wire_10pct) < tol_10pct or abs(d - mount_10pct) < tol_10pct:
-            votes_10pct += 1
-        # Check if diameter matches 100% scale values
-        elif abs(d - wire_100pct) < tol_100pct or abs(d - mount_100pct) < tol_100pct:
-            votes_100pct += 1
-
-    # Vote on scale
-    if votes_10pct > votes_100pct:
-        return 0.1
-    elif votes_100pct > votes_10pct:
-        return 1.0
-    else:
-        return 1.0  # Default to 100%
 
 
 def identify_letters(paths_info: List[PathInfo], layer_name: Optional[str] = None) -> List[PathInfo]:
@@ -191,7 +125,7 @@ def is_counter_path(inner: PathInfo, outer: PathInfo, config: Dict = None) -> bo
     Returns:
         True if inner is a counter, False if it's likely a hole
     """
-    cfg = {**DEFAULT_CONFIG, **(config or {})}
+    cfg = {**GEOMETRY_CONFIG, **(config or {})}
 
     # If it's flagged as a circle, it's not a counter
     if inner.is_circle:
@@ -210,6 +144,10 @@ def is_counter_path(inner: PathInfo, outer: PathInfo, config: Dict = None) -> bo
     if area_ratio < cfg['min_counter_area_ratio']:
         return False
 
+    # Must not be too large - a path near 100% of the letter area is a duplicate, not a counter
+    if area_ratio > cfg['max_counter_area_ratio']:
+        return False
+
     # Check circularity
     inner_perimeter = inner.length or 0
     if inner_perimeter > 0 and inner_area > 0:
@@ -220,45 +158,6 @@ def is_counter_path(inner: PathInfo, outer: PathInfo, config: Dict = None) -> bo
     return True  # It's a counter
 
 
-def classify_hole(path: PathInfo, scale: float, config: Dict = None) -> str:
-    """
-    Classify a circular path as wire, mounting, or unknown hole type.
-
-    Args:
-        path: PathInfo with circle detection data
-        scale: File scale (0.1 for 10%, 1.0 for 100%)
-        config: Configuration dict
-
-    Returns:
-        str: 'wire', 'mounting', or 'unknown'
-    """
-    cfg = {**DEFAULT_CONFIG, **(config or {})}
-
-    if not path.is_circle or not path.circle_diameter:
-        return 'unknown'
-
-    d = path.circle_diameter
-
-    # Adjust expected sizes based on scale
-    if scale <= 0.15:  # 10% scale
-        wire_d = cfg['wire_hole_diameter_mm']
-        wire_tol = cfg['wire_hole_tolerance_mm']
-        mount_d = cfg['mounting_hole_diameter_mm']
-        mount_tol = cfg['mounting_hole_tolerance_mm']
-    else:  # 100% scale
-        wire_d = cfg['wire_hole_diameter_100pct']
-        wire_tol = cfg['scale_detection_tolerance_100pct']
-        mount_d = cfg['mounting_hole_diameter_100pct']
-        mount_tol = cfg['scale_detection_tolerance_100pct'] / 2
-
-    if abs(d - wire_d) <= wire_tol:
-        return 'wire'
-    elif abs(d - mount_d) <= mount_tol:
-        return 'mounting'
-    else:
-        return 'unknown'
-
-
 def path_is_inside_letter(hole: PathInfo, letter: PathInfo,
                           tolerance: float = 0.5) -> bool:
     """
@@ -267,22 +166,30 @@ def path_is_inside_letter(hole: PathInfo, letter: PathInfo,
     Uses polygon containment with Shapely for accuracy.
     Falls back to bbox containment if polygons not available.
 
+    IMPORTANT: Uses compound_polygon if available (letter with counter holes).
+    This ensures holes in the counter area (like inside "O") are correctly
+    identified as NOT inside the letter material.
+
     Args:
         hole: The hole path
         letter: The letter path
         tolerance: Tolerance for edge cases
 
     Returns:
-        True if hole is inside letter
+        True if hole is inside letter material (not in counter areas)
     """
+    # Use compound_polygon if available (has counter holes subtracted)
+    # This correctly excludes the counter area from containment checks
+    letter_poly = getattr(letter, 'compound_polygon', None) or letter.polygon
+
     # Prefer polygon-based containment
-    if hole.polygon and letter.polygon:
-        return polygon_contains(letter.polygon, hole.polygon, tolerance)
+    if hole.polygon and letter_poly:
+        return polygon_contains(letter_poly, hole.polygon, tolerance)
 
     # Fall back to centroid-in-polygon check
-    if hole.bbox and letter.polygon:
+    if hole.bbox and letter_poly:
         centroid = get_centroid(hole.bbox)
-        return point_in_polygon(letter.polygon, centroid[0], centroid[1], tolerance)
+        return point_in_polygon(letter_poly, centroid[0], centroid[1], tolerance)
 
     # Last resort: bbox containment
     if hole.bbox and letter.bbox:
@@ -308,43 +215,51 @@ def find_paths_inside_letter(letter: PathInfo, all_paths: List[PathInfo],
     letter_layer = (letter.layer_name or '').lower()
 
     for path in all_paths:
-        # Skip the letter itself
         if path.path_id == letter.path_id:
             continue
 
-        # Only check paths on the same layer
+        # Only consider paths on the same layer as the letter
         path_layer = (path.layer_name or '').lower()
         if path_layer != letter_layer:
             continue
 
-        # Check containment
         if path_is_inside_letter(path, letter, tolerance):
             inside.append(path)
 
     return inside
 
 
-def create_hole_info(path: PathInfo, hole_type: str) -> HoleInfo:
+def create_hole_info(path: PathInfo, scale: float = 1.0) -> HoleInfo:
     """
-    Create a HoleInfo object from a PathInfo.
+    Create an UNCLASSIFIED HoleInfo object from a PathInfo.
 
     Args:
         path: The hole path
-        hole_type: 'wire', 'mounting', or 'unknown'
+        scale: File scale (0.1 for 10%, 1.0 for 100%) for unit conversion
 
     Returns:
-        HoleInfo object
+        HoleInfo object with hole_type='unclassified'
     """
+    # Use original_bbox (raw coordinates) for center since svg_path_data is also raw
+    # This ensures SVG rendering is consistent (both in same coordinate space)
+    raw_bbox = getattr(path, 'original_bbox', None) or path.bbox
     center = (0.0, 0.0)
-    if path.bbox:
-        center = get_centroid(path.bbox)
+    if raw_bbox:
+        center = get_centroid(raw_bbox)
+
+    # Convert file units (points) to real millimeters
+    file_diameter = path.circle_diameter or 0.0
+    points_per_inch = 72 * scale
+    diameter_real_mm = (file_diameter / points_per_inch * 25.4) if points_per_inch > 0 else 0.0
 
     return HoleInfo(
         path_id=path.path_id,
-        hole_type=hole_type,
-        diameter_mm=path.circle_diameter or 0.0,
+        hole_type='unclassified',
+        diameter_mm=file_diameter,
         center=center,
-        svg_path_data=path.d_attribute
+        svg_path_data=path.d_attribute,
+        transform=path.transform_chain or '',
+        diameter_real_mm=diameter_real_mm
     )
 
 
@@ -352,6 +267,7 @@ def build_letter_group(letter: PathInfo, inner_paths: List[PathInfo],
                        scale: float, config: Dict = None) -> LetterGroup:
     """
     Build a LetterGroup from a letter path and its inner paths.
+    All holes are stored UNCLASSIFIED — classification happens in the rules layer.
 
     Args:
         letter: The main letter path
@@ -360,42 +276,45 @@ def build_letter_group(letter: PathInfo, inner_paths: List[PathInfo],
         config: Configuration dict
 
     Returns:
-        LetterGroup object
+        LetterGroup object with unclassified holes
     """
-    cfg = {**DEFAULT_CONFIG, **(config or {})}
+    cfg = {**GEOMETRY_CONFIG, **(config or {})}
 
     counter_paths = []
-    wire_holes = []
-    mounting_holes = []
-    unknown_holes = []
+    holes = []
 
     for inner in inner_paths:
         if is_counter_path(inner, letter, cfg):
             counter_paths.append(inner)
         else:
-            hole_type = classify_hole(inner, scale, cfg)
-            hole_info = create_hole_info(inner, hole_type)
+            # Skip duplicate paths (near-identical area to the letter itself)
+            outer_area = letter.area or 0
+            inner_area = inner.area or 0
+            if outer_area > 0 and inner_area / outer_area > cfg['max_counter_area_ratio']:
+                continue
 
-            if hole_type == 'wire':
-                wire_holes.append(hole_info)
-            elif hole_type == 'mounting':
-                mounting_holes.append(hole_info)
-            else:
-                unknown_holes.append(hole_info)
+            hole_info = create_hole_info(inner, scale)
+            holes.append(hole_info)
 
     # Calculate net area (main - counters)
     main_area = letter.area or 0
     counter_area = sum(p.area or 0 for p in counter_paths)
     net_area = main_area - counter_area
 
-    # Get bbox
-    bbox = letter.bbox or (0, 0, 0, 0)
-    if letter.transform_chain:
-        bbox = apply_transform_to_bbox(bbox, letter.transform_chain)
+    # Get raw bbox (matches path coordinates for SVG rendering)
+    raw_bbox = getattr(letter, 'original_bbox', None) or letter.bbox or (0, 0, 0, 0)
 
-    # Calculate real-world size
-    width = bbox[2] - bbox[0]
-    height = bbox[3] - bbox[1]
+    # Get transformed bbox for positioning in global coordinate space
+    if hasattr(letter, 'original_bbox') and letter.original_bbox:
+        bbox = letter.bbox or (0, 0, 0, 0)  # Already transformed
+    else:
+        bbox = raw_bbox
+        if letter.transform_chain:
+            bbox = apply_transform_to_bbox(raw_bbox, letter.transform_chain)
+
+    # Calculate real-world size from RAW bbox (untransformed)
+    width = raw_bbox[2] - raw_bbox[0]
+    height = raw_bbox[3] - raw_bbox[1]
 
     # Convert to inches (72 points per inch at 100%, 7.2 at 10%)
     points_per_inch = 72 * scale
@@ -407,11 +326,11 @@ def build_letter_group(letter: PathInfo, inner_paths: List[PathInfo],
         letter_id=letter.path_id,
         main_path=letter,
         counter_paths=counter_paths,
-        wire_holes=wire_holes,
-        mounting_holes=mounting_holes,
-        unknown_holes=unknown_holes,
+        holes=holes,
         layer_name=letter.layer_name or '',
         bbox=bbox,
+        raw_bbox=raw_bbox,
+        transform=letter.transform_chain or '',
         area=real_area,
         detected_scale=scale,
         real_size_inches=(real_width, real_height)
@@ -424,26 +343,45 @@ def analyze_letter_hole_associations(
     config: Dict = None
 ) -> LetterAnalysisResult:
     """
-    Main entry point for letter-hole analysis.
+    Main entry point for letter-hole geometry analysis.
 
     Analyzes paths to:
     1. Identify letters (outer shapes)
     2. Find holes inside each letter
-    3. Classify holes (wire/mounting)
+    3. Return ALL holes as UNCLASSIFIED (rules layer classifies later)
     4. Flag orphan holes (outside all letters)
 
     Args:
         paths_info: List of all extracted paths
         layer_name: Optional layer to focus on (None = all layers)
-        config: Configuration dict
+        config: Configuration dict (must include 'file_scale' for scale)
 
     Returns:
-        LetterAnalysisResult with all analysis data
+        LetterAnalysisResult with all analysis data (holes unclassified)
     """
-    cfg = {**DEFAULT_CONFIG, **(config or {})}
+    cfg = {**GEOMETRY_CONFIG, **(config or {})}
 
-    # Detect file scale
-    scale = detect_file_scale(paths_info, cfg)
+    # CRITICAL FIX: Transform all paths to global coordinate space BEFORE analysis.
+    # Paths may have different SVG transforms (translate, scale, rotate, matrix).
+    # Without this, polygon containment checks compare coordinates in different
+    # coordinate spaces, causing holes to appear outside letters when they're
+    # actually inside after transforms are applied.
+    #
+    # We store original values for SVG rendering (which needs raw coordinates + transform)
+    for path in paths_info:
+        # Store originals before transforming (for SVG rendering later)
+        path.original_bbox = path.bbox
+        path.original_polygon = path.polygon
+
+        if path.transform_chain:
+            if path.polygon:
+                path.polygon = apply_transform_to_polygon(path.polygon, path.transform_chain)
+            if path.bbox:
+                path.bbox = apply_transform_to_bbox(path.bbox, path.transform_chain)
+
+    # Scale comes from config (file_scale: 0.1 for Working Files, 1.0 for others)
+    # TODO: 3D Print files are 100% scale even for Working File — implement spec-specific scale override later
+    scale = cfg.get('file_scale', 0.1)
 
     # Find all letters
     letters = identify_letters(paths_info, layer_name)
@@ -453,8 +391,7 @@ def analyze_letter_hole_associations(
         circles = [p for p in paths_info if p.is_circle]
         orphan_holes = []
         for c in circles:
-            hole_type = classify_hole(c, scale, cfg)
-            orphan_holes.append(create_hole_info(c, hole_type))
+            orphan_holes.append(create_hole_info(c, scale))
 
         return LetterAnalysisResult(
             letter_groups=[],
@@ -473,19 +410,56 @@ def analyze_letter_hole_associations(
     for letter in letters:
         assigned_path_ids.add(letter.path_id)
 
-    # Build letter groups
+    # STEP 1: Build compound polygons for letters with counters BEFORE containment checks
+    # This is critical for correct hole detection in letters like "O", "A", "B", etc.
+    for letter in letters:
+        # Compound paths already have interior rings baked into their polygon
+        if getattr(letter, 'is_compound', False) and letter.polygon:
+            if hasattr(letter.polygon, 'interiors') and len(list(letter.polygon.interiors)) > 0:
+                letter.compound_polygon = letter.polygon
+                continue
+
+        letter_layer = (letter.layer_name or '').lower()
+
+        # Find counter paths: non-circle paths inside letter on SAME layer
+        counter_candidates = []
+        for p in paths_info:
+            if p.path_id == letter.path_id:
+                continue
+            if p.is_circle:
+                continue
+            if not p.is_closed:
+                continue
+            if not p.polygon or not letter.polygon:
+                continue
+
+            p_layer = (p.layer_name or '').lower()
+            if p_layer != letter_layer:
+                continue
+
+            if polygon_contains(letter.polygon, p.polygon, cfg['containment_tolerance']):
+                if is_counter_path(p, letter, cfg):
+                    counter_candidates.append(p)
+
+        if counter_candidates:
+            counter_polygons = [c.polygon for c in counter_candidates if c.polygon]
+            letter.compound_polygon = build_compound_polygon(letter.polygon, counter_polygons)
+
+            for counter in counter_candidates:
+                assigned_path_ids.add(counter.path_id)
+        else:
+            letter.compound_polygon = letter.polygon
+
+    # STEP 2: Now find holes inside letters (using compound polygons for correct containment)
     letter_groups = []
     for letter in letters:
-        # Find paths inside this letter
         inner_paths = find_paths_inside_letter(
             letter, paths_info, cfg['containment_tolerance']
         )
 
-        # Track assigned paths
         for inner in inner_paths:
             assigned_path_ids.add(inner.path_id)
 
-        # Build the letter group
         group = build_letter_group(letter, inner_paths, scale, cfg)
         letter_groups.append(group)
 
@@ -493,14 +467,12 @@ def analyze_letter_hole_associations(
     orphan_holes = []
     circles = [p for p in paths_info if p.is_circle and p.path_id not in assigned_path_ids]
     for c in circles:
-        # Filter by layer if specified
         if layer_name:
             c_layer = (c.layer_name or '').lower()
             if c_layer != layer_name.lower():
                 continue
 
-        hole_type = classify_hole(c, scale, cfg)
-        orphan_holes.append(create_hole_info(c, hole_type))
+        orphan_holes.append(create_hole_info(c, scale))
 
     # Find unassigned non-circle paths
     unassigned_paths = [
@@ -510,100 +482,60 @@ def analyze_letter_hole_associations(
         and p.is_closed
     ]
 
-    # Build stats
+    # === Full path accounting: classify ALL remaining paths ===
+    num_counters = sum(len(lg.counter_paths) for lg in letter_groups)
+    total_holes_in_letters = sum(len(lg.holes) for lg in letter_groups)
+
+    unprocessed_paths = []
+    for p in paths_info:
+        if p.path_id in assigned_path_ids:
+            continue
+
+        if p.is_circle:
+            continue
+
+        reason = 'unclassified'
+        if (p.layer_name or '') == '_defs_':
+            reason = 'defs_path'
+        elif layer_name and (p.layer_name or '').lower() != layer_name.lower():
+            reason = 'off_layer'
+        elif not p.is_closed:
+            reason = 'open_path'
+
+        unprocessed_paths.append({
+            'path_id': p.path_id,
+            'reason': reason,
+            'layer': p.layer_name or '',
+            'is_compound': getattr(p, 'is_compound', False),
+            'is_closed': p.is_closed,
+        })
+
+    # Build stats with full path accounting
     layers_with_letters = list(set(lg.layer_name for lg in letter_groups if lg.layer_name))
+
+    path_accounting = {
+        'letters': len(letter_groups),
+        'counters': num_counters,
+        'holes_in_letters': total_holes_in_letters,
+        'orphan_holes': len(orphan_holes),
+        'open_paths': sum(1 for u in unprocessed_paths if u['reason'] == 'open_path'),
+        'defs_paths': sum(1 for u in unprocessed_paths if u['reason'] == 'defs_path'),
+        'off_layer': sum(1 for u in unprocessed_paths if u['reason'] == 'off_layer'),
+        'unclassified': sum(1 for u in unprocessed_paths if u['reason'] == 'unclassified'),
+        'total': len(paths_info),
+    }
 
     return LetterAnalysisResult(
         letter_groups=letter_groups,
         orphan_holes=orphan_holes,
         unassigned_paths=unassigned_paths,
+        unprocessed_paths=unprocessed_paths,
         detected_scale=scale,
         stats={
             'layers_analyzed': layers_with_letters,
             'total_paths': len(paths_info),
             'letters_found': len(letter_groups),
-            'circles_found': sum(1 for p in paths_info if p.is_circle)
+            'circles_found': sum(1 for p in paths_info if p.is_circle),
+            'path_accounting': path_accounting
         }
     )
-
-
-def generate_letter_analysis_issues(
-    analysis: LetterAnalysisResult,
-    config: Dict = None
-) -> List[Dict[str, Any]]:
-    """
-    Generate validation issues from letter analysis results.
-
-    Args:
-        analysis: LetterAnalysisResult from analyze_letter_hole_associations
-        config: Configuration dict
-
-    Returns:
-        List of issue dicts with rule, severity, message, details
-    """
-    cfg = {**DEFAULT_CONFIG, **(config or {})}
-    issues = []
-
-    # Orphan holes are errors
-    for hole in analysis.orphan_holes:
-        issues.append({
-            'rule': 'orphan_hole',
-            'severity': 'error',
-            'message': f'Hole {hole.path_id} ({hole.hole_type}, {hole.diameter_mm:.2f}mm) is outside all letters',
-            'path_id': hole.path_id,
-            'details': {
-                'hole_type': hole.hole_type,
-                'diameter_mm': hole.diameter_mm,
-                'center': hole.center
-            }
-        })
-
-    # Check each letter for required holes
-    for letter in analysis.letter_groups:
-        # No wire hole is an error
-        if len(letter.wire_holes) == 0:
-            issues.append({
-                'rule': 'letter_no_wire_hole',
-                'severity': 'error',
-                'message': f'Letter {letter.letter_id} has no wire hole',
-                'path_id': letter.letter_id,
-                'details': {
-                    'layer': letter.layer_name,
-                    'size_inches': letter.real_size_inches,
-                    'hole_counts': {
-                        'wire': len(letter.wire_holes),
-                        'mounting': len(letter.mounting_holes),
-                        'unknown': len(letter.unknown_holes)
-                    }
-                }
-            })
-
-        # Multiple wire holes is a warning
-        if len(letter.wire_holes) > 1:
-            issues.append({
-                'rule': 'letter_multiple_wire_holes',
-                'severity': 'warning',
-                'message': f'Letter {letter.letter_id} has {len(letter.wire_holes)} wire holes, expected 1',
-                'path_id': letter.letter_id,
-                'details': {
-                    'wire_hole_count': len(letter.wire_holes),
-                    'wire_holes': [h.to_dict() for h in letter.wire_holes]
-                }
-            })
-
-        # Unknown holes are info
-        for hole in letter.unknown_holes:
-            issues.append({
-                'rule': 'unknown_hole_size',
-                'severity': 'info',
-                'message': f'Hole {hole.path_id} in letter {letter.letter_id} has unusual diameter {hole.diameter_mm:.2f}mm',
-                'path_id': hole.path_id,
-                'details': {
-                    'letter_id': letter.letter_id,
-                    'diameter_mm': hole.diameter_mm,
-                    'expected_wire': cfg['wire_hole_diameter_mm'] if analysis.detected_scale <= 0.15 else cfg['wire_hole_diameter_100pct'],
-                    'expected_mounting': cfg['mounting_hole_diameter_mm'] if analysis.detected_scale <= 0.15 else cfg['mounting_hole_diameter_100pct']
-                }
-            })
-
-    return issues

@@ -290,7 +290,38 @@ export class OrderValidationService {
       }
     }
 
-    // 3. Validate OR fields (at least one from each group required)
+    // 3. Validate prohibited fields (must be empty when condition is met)
+    if (rule.prohibitedFields) {
+      for (const prohibitedField of rule.prohibitedFields) {
+        const { field, condition } = prohibitedField;
+        const conditionValue = templateRow.fields[condition.field];
+        const operator = condition.operator || 'equals';
+
+        // Check if condition is met
+        let conditionMet = false;
+        switch (operator) {
+          case 'equals':
+            conditionMet = conditionValue === condition.value;
+            break;
+          case 'notEquals':
+            conditionMet = conditionValue !== condition.value;
+            break;
+          case 'exists':
+            conditionMet = !isEmpty(conditionValue);
+            break;
+        }
+
+        // If condition is met, check if the field is NOT empty (violation)
+        if (conditionMet) {
+          const fieldValue = templateRow.fields[field];
+          if (!isEmpty(fieldValue)) {
+            context.prohibitedViolation = true;
+          }
+        }
+      }
+    }
+
+    // 4. Validate OR fields (at least one from each group required)
     if (rule.orFields) {
       for (const orGroup of rule.orFields) {
         // Check if at least one field in the group has a value
@@ -307,7 +338,7 @@ export class OrderValidationService {
     }
 
     // Generate error if any validation failed
-    if (missingFields.length > 0 || context.orFieldsViolation || context.conditionalViolation) {
+    if (missingFields.length > 0 || context.orFieldsViolation || context.conditionalViolation || context.prohibitedViolation) {
       errors.push({
         field: 'specifications',
         message: rule.errorMessage(missingFields, context),

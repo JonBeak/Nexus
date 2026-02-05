@@ -8,11 +8,38 @@
  * Created: Nov 18, 2025 - Fix for blank PDF previews in Prepare Order modal
  */
 
+type FolderLocation = 'active' | 'finished' | 'cancelled' | 'hold' | 'none';
+
 interface Order {
   folder_name?: string;
-  folder_location?: 'active' | 'finished' | 'none';
+  folder_location?: FolderLocation;
   order_number: number;
   order_name: string;
+}
+
+/**
+ * Get the folder path segment for a given folder location
+ * Maps folder_location to actual folder path on SMB share
+ */
+export function getFolderPathSegment(location: FolderLocation | undefined, isMigrated: boolean = false): string {
+  if (isMigrated) {
+    // Legacy orders only have root or 1Finished
+    return location === 'active' ? '' : '1Finished/';
+  }
+
+  // New orders are in Orders/ subdirectory
+  switch (location) {
+    case 'active':
+      return 'Orders/';
+    case 'finished':
+      return 'Orders/1Finished/';
+    case 'cancelled':
+      return 'Orders/1Cancelled/';
+    case 'hold':
+      return 'Orders/1Hold/';
+    default:
+      return 'Orders/';
+  }
 }
 
 interface PdfUrls {
@@ -49,10 +76,9 @@ export function buildPdfUrls(order: Order | null, addCacheBuster: boolean = true
   // Add cache buster using current timestamp to ensure browser fetches latest PDF
   const cacheBuster = addCacheBuster ? `?v=${Date.now()}` : '';
 
-  // Determine base path based on folder location (active vs finished)
-  const basePath = order.folder_location === 'finished'
-    ? `${apiUrl}/order-images/Orders/1Finished/${folderName}`
-    : `${apiUrl}/order-images/Orders/${folderName}`;
+  // Determine base path based on folder location
+  const pathSegment = getFolderPathSegment(order.folder_location);
+  const basePath = `${apiUrl}/order-images/${pathSegment}${folderName}`;
 
   // Build URLs using actual folder structure and file naming conventions
   return {

@@ -3,7 +3,7 @@ import { ordersApi, printApi } from '../../../../services/api';
 import { orderStatusApi } from '../../../../services/api/orders/orderStatusApi';
 import { Order, OrderPart } from '../../../../types/orders';
 import { calculateShopCount } from '../services/orderCalculations';
-import { PrintApprovalSuccessData } from '../../modals/PrintApprovalSuccessModal';
+import { PrintApprovalSuccessData, PrintSummary } from '../../modals/PrintApprovalSuccessModal';
 import { PrintApprovalErrorData } from '../../modals/PrintApprovalErrorModal';
 import { useAlert } from '../../../../contexts/AlertContext';
 
@@ -15,6 +15,12 @@ interface PrintConfig {
 }
 
 export type PrintMode = 'full' | 'master_estimate' | 'shop_packing_production';
+
+export interface PrintResult {
+  printed: boolean;
+  printSummary?: PrintSummary;
+  jobId?: string;
+}
 
 interface OrderData {
   order: Order | null;
@@ -34,7 +40,8 @@ interface FormUrls {
 export function useOrderPrinting(
   orderData: OrderData,
   setUiState: (updater: (prev: any) => any) => void,
-  onOrderUpdated?: () => void
+  onOrderUpdated?: () => void,
+  onFilesApproved?: (printResult: PrintResult | null) => void
 ) {
   const { showSuccess, showError } = useAlert();
 
@@ -239,7 +246,7 @@ export function useOrderPrinting(
     }
   };
 
-  const handlePrintAndMoveToProduction = async () => {
+  const handlePrintAndApprove = async () => {
     if (!orderData.order) return;
 
     try {
@@ -276,35 +283,18 @@ export function useOrderPrinting(
         return;
       }
 
-      // Update order status to production_queue
-      await orderStatusApi.updateOrderStatus(
-        orderData.order.order_number,
-        'production_queue',
-        'Order approved and moved to production queue (printed forms)'
-      );
-
-      // Show success modal with print summary and production status
-      setSuccessModalData({
-        type: 'print_and_production',
-        printSummary: result.summary,
-        jobId: result.jobId,
-        movedToProduction: true,
-        orderNumber: orderData.order.order_number,
-        orderName: orderData.order.order_name
-      });
-
       setUiState(prev => ({ ...prev, showPrintModal: false }));
 
-      // Refresh order data to show updated status
-      if (onOrderUpdated) {
-        onOrderUpdated();
+      // Notify parent that files are approved (with print result)
+      if (onFilesApproved) {
+        onFilesApproved({ printed: true, printSummary: result.summary, jobId: result.jobId });
       }
     } catch (err: any) {
-      console.error('Error printing and moving to production:', err);
+      console.error('Error printing forms:', err);
       setErrorModalData({
         type: 'production_failure',
         title: 'Operation Failed',
-        message: 'Failed to move order to production.',
+        message: 'Failed to print forms.',
         details: err.response?.data?.message || err.message
       });
     } finally {
@@ -312,28 +302,40 @@ export function useOrderPrinting(
     }
   };
 
-  const handleMoveToProductionWithoutPrinting = async () => {
+  const handleApproveWithoutPrinting = async () => {
+    if (!orderData.order) return;
+
+    setUiState(prev => ({ ...prev, showPrintModal: false }));
+
+    // Notify parent that files are approved (no printing)
+    if (onFilesApproved) {
+      onFilesApproved(null);
+    }
+  };
+
+  const handleMoveToProductionAfterMaterials = async (printResult: PrintResult | null) => {
     if (!orderData.order) return;
 
     try {
-      setUiState(prev => ({ ...prev, printingForm: true }));
-
       // Update order status to production_queue
       await orderStatusApi.updateOrderStatus(
         orderData.order.order_number,
         'production_queue',
-        'Order approved and moved to production queue (no forms printed)'
+        printResult?.printed
+          ? 'Order approved and moved to production queue (printed forms, materials confirmed)'
+          : 'Order approved and moved to production queue (materials confirmed)'
       );
 
-      // Show success modal with production status only
+      // Show success modal
       setSuccessModalData({
-        type: 'production_only',
+        type: printResult?.printed ? 'print_and_production' : 'production_only',
+        printSummary: printResult?.printSummary,
+        jobId: printResult?.jobId,
         movedToProduction: true,
+        materialsConfirmed: true,
         orderNumber: orderData.order.order_number,
         orderName: orderData.order.order_name
       });
-
-      setUiState(prev => ({ ...prev, showPrintModal: false }));
 
       // Refresh order data to show updated status
       if (onOrderUpdated) {
@@ -347,8 +349,6 @@ export function useOrderPrinting(
         message: 'Failed to move order to production.',
         details: err.response?.data?.message || err.message
       });
-    } finally {
-      setUiState(prev => ({ ...prev, printingForm: false }));
     }
   };
 
@@ -405,8 +405,9 @@ export function useOrderPrinting(
     handlePrintForms,
     handlePrintMasterEstimate,
     handlePrintShopPacking,
-    handlePrintAndMoveToProduction,
-    handleMoveToProductionWithoutPrinting,
+    handlePrintAndApprove,
+    handleApproveWithoutPrinting,
+    handleMoveToProductionAfterMaterials,
     handleGenerateForms,
     handlePrintMasterForm,
     formUrls,

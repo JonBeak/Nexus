@@ -32,13 +32,13 @@ import { RowDataPacket } from 'mysql2';
  */
 const FRONT_LIT_STRUCTURE_RULES: ValidationRuleConfig = {
   file_scale: 0.1,                    // 10% scale
-  wire_hole_diameter_mm: 1.0,         // ~10mm real = 1mm in file
-  wire_hole_tolerance_mm: 0.3,        // ±0.3mm tolerance
-  mounting_hole_diameter_mm: 0.4,     // ~4mm real = 0.4mm in file
-  mounting_hole_tolerance_mm: 0.15,   // ±0.15mm tolerance
-  trim_offset_min_mm: 0.19,           // per side, in file (1.9mm real per side)
-  trim_offset_max_mm: 0.21,           // per side, in file (2.1mm real per side)
-  miter_factor: 4.0,                  // Miter limit of 4: corners can extend up to 4x offset before bevel
+  wire_hole_diameter_mm: 2.75,        // 9.7mm real at 10% scale
+  wire_hole_tolerance_mm: 0.5,        // ±0.5mm tolerance
+  mounting_hole_diameter_mm: 1.08,    // 3.81mm real at 10% scale
+  mounting_hole_tolerance_mm: 0.3,    // ±0.3mm tolerance
+  trim_offset_min_mm: 1.5,             // per side, in real mm (minimum acceptable offset)
+  trim_offset_max_mm: 2.5,            // per side, in real mm (maximum at straight edges)
+  miter_factor: 4.0,                  // corners can extend up to miter_factor * max before bevel
   min_mounting_holes: 2,
   mounting_holes_per_inch_perimeter: 0.05,  // 1 per 20" real
   mounting_holes_per_sq_inch_area: 0.0123,  // 1 per 81 sq in real
@@ -233,6 +233,10 @@ export class AiFileValidationService {
       pythonProcess.stderr.on('data', (data) => { stderr += data.toString(); });
 
       pythonProcess.on('close', (code) => {
+        // Log Python stderr for debugging (debug prints go there)
+        if (stderr) {
+          console.error(`[AiFileValidation] Python stderr:\n${stderr}`);
+        }
         try {
           const result = JSON.parse(stdout);
           resolve(result as FileValidationResult);

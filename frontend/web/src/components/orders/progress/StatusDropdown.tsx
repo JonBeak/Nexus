@@ -31,7 +31,7 @@ export const StatusDropdown: React.FC<Props> = ({
   currentStatus,
   onStatusUpdated
 }) => {
-  const { showError } = useAlert();
+  const { showError, showWarning } = useAlert();
   const [updating, setUpdating] = useState(false);
 
   const handleStatusChange = async (newStatus: OrderStatus) => {
@@ -39,7 +39,10 @@ export const StatusDropdown: React.FC<Props> = ({
 
     try {
       setUpdating(true);
-      await ordersApi.updateOrderStatus(orderNumber, newStatus);
+      const result = await ordersApi.updateOrderStatus(orderNumber, newStatus);
+      if (result?.warnings?.length) {
+        result.warnings.forEach((warning: string) => showWarning(warning));
+      }
       onStatusUpdated();
     } catch (error) {
       console.error('Error updating status:', error);

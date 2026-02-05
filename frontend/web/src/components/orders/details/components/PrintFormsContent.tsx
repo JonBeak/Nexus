@@ -20,8 +20,8 @@ interface PrintFormsContentProps {
   printing: boolean;
   showCloseButton?: boolean;
   mode?: PrintMode;
-  onPrintAndMoveToProduction?: () => void;
-  onMoveToProductionWithoutPrinting?: () => void;
+  onPrintAndApprove?: () => void;
+  onApproveWithoutPrinting?: () => void;
   defaultConfig?: PrintConfig;
   shopRoles?: string[];
 }
@@ -34,8 +34,8 @@ const PrintFormsContent: React.FC<PrintFormsContentProps> = ({
   printing,
   mode = 'full',
   defaultConfig,
-  onPrintAndMoveToProduction,
-  onMoveToProductionWithoutPrinting,
+  onPrintAndApprove,
+  onApproveWithoutPrinting,
   shopRoles
 }) => {
   // Default values if no defaultConfig provided
@@ -234,15 +234,15 @@ const PrintFormsContent: React.FC<PrintFormsContentProps> = ({
       {mode === 'shop_packing_production' && (
         <div className="mt-auto pt-4 border-t border-gray-300 bg-gray-50 -mx-6 -mb-6 px-6 pb-6 space-y-2">
           <button
-            onClick={onPrintAndMoveToProduction}
+            onClick={onPrintAndApprove}
             disabled={printing || (printConfig.shop === 0 && printConfig.packing === 0)}
             className="w-full px-3 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5"
           >
             <Printer className="w-4 h-4" />
-            <span>{printing ? 'Printing...' : 'Print & Move to Production'}</span>
+            <span>{printing ? 'Printing...' : 'Print and Approve'}</span>
           </button>
           <button
-            onClick={onMoveToProductionWithoutPrinting}
+            onClick={onApproveWithoutPrinting}
             disabled={printing}
             className="w-full px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5"
           >

@@ -530,7 +530,8 @@ export function renderMasterCustomerPageHeader(
   startY: number,
   deliveryBgColor?: string,
   pageTitle: string = 'Order Form',
-  showDueDate: boolean = true
+  showDueDate: boolean = true,
+  showCompanyName: boolean = true
 ): number {
   const headerStartY = startY;
   let currentY = startY + SPACING.HEADER_START_OFFSET;
@@ -558,23 +559,38 @@ export function renderMasterCustomerPageHeader(
   // Calculate total header content height
   const headerContentHeight = currentY - headerStartY;
 
-  // Title text height: two lines (18pt + 12pt with spacing)
-  const titleHeight = 42;
+  // Title text height: single line when no company name, two lines otherwise
+  const singleLineHeight = 22;  // 18pt font + ~4pt spacing
+  const twoLineHeight = 42;     // 18pt + 12pt + spacing
+  const titleHeight = showCompanyName ? twoLineHeight : singleLineHeight;
 
   // Calculate vertical center offset for title
   const titleVerticalOffset = (headerContentHeight - titleHeight) / 2;
 
   // Now render the left side title, vertically centered
   const titleY = headerStartY + titleVerticalOffset;
-  const titleX = marginLeft + LAYOUT.TITLE_LEFT_MARGIN;
 
   // Page title (big, 18pt)
   doc.fontSize(18).font('Helvetica-Bold');
+
+  // Calculate X position: centered when no company name, left-aligned otherwise
+  let titleX: number;
+  if (showCompanyName) {
+    // Left-aligned (existing behavior)
+    titleX = marginLeft + LAYOUT.TITLE_LEFT_MARGIN;
+  } else {
+    // Centered in title area
+    const titleTextWidth = doc.widthOfString(pageTitle);
+    titleX = marginLeft + (LAYOUT.TITLE_WIDTH - titleTextWidth) / 2;
+  }
+
   doc.text(pageTitle, titleX, titleY);
 
-  // Sign House Inc. (smaller, 12pt)
-  doc.fontSize(12).font('Helvetica-Bold');
-  doc.text('Sign House Inc.', titleX, titleY + 22);
+  // Sign House Inc. (smaller, 12pt) - optional
+  if (showCompanyName) {
+    doc.fontSize(12).font('Helvetica-Bold');
+    doc.text('Sign House Inc.', titleX, titleY + 22);
+  }
 
   // Draw vertical divider between title and info columns
   const dividerX = marginLeft + LAYOUT.TITLE_WIDTH + LAYOUT.TITLE_DIVIDER_OFFSET;

@@ -27,6 +27,7 @@ import {
 } from '../../../../types/aiFileValidation';
 import ExpectedFilesTable from './ExpectedFilesTable';
 import LetterAnalysisPanel from './LetterAnalysisPanel';
+import LetterSvgPreview from './LetterSvgPreview';
 
 interface AiFileValidationModalProps {
   isOpen: boolean;
@@ -68,7 +69,7 @@ const StatusBadge: React.FC<{ status: ValidationStatus }> = ({ status }) => {
   );
 };
 
-const IssueItem: React.FC<{ issue: ValidationIssue }> = ({ issue }) => {
+const IssueItem: React.FC<{ issue: ValidationIssue; letterAnalysis?: LetterAnalysisResponse }> = ({ issue, letterAnalysis }) => {
   const [expanded, setExpanded] = useState(false);
   const severityColors: Record<string, string> = {
     error: 'border-red-200 bg-red-50',
@@ -83,13 +84,7 @@ const IssueItem: React.FC<{ issue: ValidationIssue }> = ({ issue }) => {
         onClick={() => issue.details && setExpanded(!expanded)}
       >
         <div className="flex-1">
-          <div className="flex items-center gap-2">
-            {issue.severity === 'error' && <XCircle className="w-4 h-4 text-red-500" />}
-            {issue.severity === 'warning' && <AlertTriangle className="w-4 h-4 text-yellow-500" />}
-            {issue.severity === 'info' && <Info className="w-4 h-4 text-blue-500" />}
-            <span className="text-sm font-medium text-gray-700">{issue.rule}</span>
-          </div>
-          <p className="text-sm text-gray-600 mt-1">{issue.message}</p>
+          <p className="text-sm text-gray-600">{issue.message}</p>
         </div>
         {issue.details && (
           <button className="p-1">
@@ -101,9 +96,85 @@ const IssueItem: React.FC<{ issue: ValidationIssue }> = ({ issue }) => {
           </button>
         )}
       </div>
-      {expanded && issue.details && (
-        <div className="mt-2 p-2 bg-white rounded text-xs font-mono text-gray-600 overflow-x-auto">
-          <pre>{JSON.stringify(issue.details, null, 2)}</pre>
+      {expanded && issue.details && (() => {
+        const matchedLetter = issue.path_id && letterAnalysis?.letters
+          ? letterAnalysis.letters.find(l => l.letter_id === issue.path_id)
+          : undefined;
+        const detailEntries = Object.entries(issue.details).filter(([key]) => key !== 'path_id');
+
+        return (
+          <div className="mt-2 p-2 bg-white rounded flex gap-4">
+            {matchedLetter && (
+              <div className="flex-shrink-0">
+                <LetterSvgPreview letter={matchedLetter} maxWidth={200} maxHeight={150} showGrid={true} showRuler={false} />
+              </div>
+            )}
+            {detailEntries.length > 0 && (
+              <div className="flex-1 min-w-0">
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+                  {detailEntries.map(([key, value]) => (
+                    <React.Fragment key={key}>
+                      <dt className="font-medium text-gray-500 whitespace-nowrap">{key.replace(/_/g, ' ')}</dt>
+                      <dd className="text-gray-700">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</dd>
+                    </React.Fragment>
+                  ))}
+                </dl>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+    </div>
+  );
+};
+
+const IssueGroup: React.FC<{ rule: string; issues: ValidationIssue[]; letterAnalysis?: LetterAnalysisResponse }> = ({ rule, issues, letterAnalysis }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  const severity = issues[0].severity;
+  const severityColors: Record<string, string> = {
+    error: 'border-red-200 bg-red-50',
+    warning: 'border-yellow-200 bg-yellow-50',
+    info: 'border-blue-200 bg-blue-50',
+  };
+
+  // Extract layer name from first issue's details, fall back to rule name
+  const layerName = issues[0]?.details?.layer as string | undefined;
+  const displayLabel = layerName || rule;
+
+  // Single issue — render inline without grouping
+  if (issues.length === 1) {
+    return <IssueItem issue={issues[0]} letterAnalysis={letterAnalysis} />;
+  }
+
+  return (
+    <div className={`border rounded-lg overflow-hidden ${severityColors[severity] || 'border-gray-200'}`}>
+      <div
+        className="px-3 py-2 flex items-center justify-between cursor-pointer"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-2">
+          {severity === 'error' && <XCircle className="w-4 h-4 text-red-500" />}
+          {severity === 'warning' && <AlertTriangle className="w-4 h-4 text-yellow-500" />}
+          <span className="text-sm font-medium text-gray-700">{displayLabel}</span>
+          <span className="text-xs text-gray-400">{rule}</span>
+          <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
+            severity === 'error' ? 'bg-red-200 text-red-800' : 'bg-yellow-200 text-yellow-800'
+          }`}>
+            {issues.length} {severity === 'error' ? 'errors' : 'warnings'}
+          </span>
+        </div>
+        {expanded ? (
+          <ChevronUp className="w-4 h-4 text-gray-400" />
+        ) : (
+          <ChevronDown className="w-4 h-4 text-gray-400" />
+        )}
+      </div>
+      {expanded && (
+        <div className="px-3 pb-3 space-y-2">
+          {issues.map((issue, idx) => (
+            <IssueItem key={idx} issue={issue} letterAnalysis={letterAnalysis} />
+          ))}
         </div>
       )}
     </div>
@@ -118,12 +189,17 @@ const FileCard: React.FC<{
   const [expanded, setExpanded] = useState(false);
 
   const status = validationResult?.status || file.validation?.validation_status || 'pending';
-  const issues = validationResult?.issues || file.validation?.issues || [];
+  const allIssues = validationResult?.issues || file.validation?.issues || [];
   const stats = validationResult?.stats;
   const letterAnalysis = stats?.letter_analysis as LetterAnalysisResponse | undefined;
+
+  // Separate info messages (summary) from actual issues (errors/warnings)
+  const issues = allIssues.filter(i => i.severity !== 'info');
+  const infoMessages = allIssues.filter(i => i.severity === 'info');
   const hasIssues = issues.length > 0;
-  const hasLetterAnalysis = letterAnalysis && letterAnalysis.letters && letterAnalysis.letters.length > 0;
-  const hasContent = hasIssues || hasLetterAnalysis;
+  const hasLetterAnalysis = letterAnalysis && Array.isArray(letterAnalysis.letters) && letterAnalysis.letters.length > 0;
+  const hasSummary = infoMessages.length > 0;
+  const hasContent = hasIssues || hasLetterAnalysis || hasSummary;
   const isSkipped = validationResult?.skipped_validation;
   const skipReason = validationResult?.skip_reason;
 
@@ -144,7 +220,7 @@ const FileCard: React.FC<{
               )}
               {hasLetterAnalysis && (
                 <span className="ml-2 text-indigo-600">
-                  • {letterAnalysis.stats.total_letters} letters
+                  • {letterAnalysis.stats?.total_letters || letterAnalysis.letters.length} letters
                 </span>
               )}
             </p>
@@ -182,17 +258,55 @@ const FileCard: React.FC<{
       </div>
       {expanded && hasContent && (
         <div className="border-t px-3 py-3 bg-gray-50 space-y-3">
-          {/* Letter Analysis Panel */}
-          {hasLetterAnalysis && (
-            <LetterAnalysisPanel analysis={letterAnalysis} />
-          )}
-          {/* Issues */}
-          {hasIssues && (
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium text-gray-700">Validation Issues</h4>
-              {issues.map((issue, idx) => (
-                <IssueItem key={idx} issue={issue} />
+          {/* Summary (info messages) */}
+          {hasSummary && (
+            <div className="flex flex-wrap gap-2">
+              {infoMessages.map((info, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700"
+                >
+                  <CheckCircle className="w-3 h-3" />
+                  {info.message
+                    .replace(/^Found /, '')
+                    .replace(/(\d+) (\w+)\(s\)/, (_, n, word) => `${n} ${n === '1' ? word : word + 's'}`)}
+                </span>
               ))}
+            </div>
+          )}
+          {/* Issues (errors/warnings only) — grouped by rule, errors first */}
+          {hasIssues && (() => {
+            const grouped = issues.reduce<Record<string, ValidationIssue[]>>((acc, issue) => {
+              if (!acc[issue.rule]) acc[issue.rule] = [];
+              acc[issue.rule].push(issue);
+              return acc;
+            }, {});
+
+            // Sort: error groups first, then warning groups
+            const sortedEntries = Object.entries(grouped).sort(([, a], [, b]) => {
+              const aIsError = a[0].severity === 'error' ? 0 : 1;
+              const bIsError = b[0].severity === 'error' ? 0 : 1;
+              return aIsError - bIsError;
+            });
+
+            return (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium text-gray-700">
+                  Issues ({issues.length})
+                </h4>
+                {sortedEntries.map(([rule, groupIssues]) => (
+                  <IssueGroup key={rule} rule={rule} issues={groupIssues} letterAnalysis={letterAnalysis} />
+                ))}
+              </div>
+            );
+          })()}
+          {/* Letter Analysis */}
+          {hasLetterAnalysis && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-gray-700">
+                Letter Analysis
+              </h4>
+              <LetterAnalysisPanel analysis={letterAnalysis} />
             </div>
           )}
         </div>

@@ -38,7 +38,7 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
       return sendErrorResponse(res, 'User not authenticated', 'UNAUTHORIZED');
     }
 
-    await orderService.updateOrderStatus(
+    const result = await orderService.updateOrderStatus(
       orderId,
       status,
       user.user_id,
@@ -47,7 +47,8 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      message: 'Order status updated successfully'
+      message: 'Order status updated successfully',
+      warnings: result.warnings
     });
   } catch (error) {
     console.error('Error updating order status:', error);
@@ -152,6 +153,89 @@ export const checkAwaitingPaymentOrders = async (req: Request, res: Response) =>
     console.error('Error checking awaiting payment orders:', error);
 
     const errorMessage = error instanceof Error ? error.message : 'Failed to check awaiting payment orders';
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
+  }
+};
+
+// =============================================
+// FOLDER MISMATCH MANAGEMENT
+// =============================================
+
+/**
+ * Get orders with folder location mismatches
+ * GET /api/orders/folder-mismatches
+ * Permission: orders.view (Manager+ only)
+ *
+ * Returns orders where the physical folder location doesn't match
+ * what it should be based on the order status.
+ */
+export const getFolderMismatches = async (req: Request, res: Response) => {
+  try {
+    const mismatches = await orderService.getFolderMismatches();
+
+    res.json({
+      success: true,
+      data: mismatches,
+      count: mismatches.length
+    });
+  } catch (error) {
+    console.error('Error fetching folder mismatches:', error);
+
+    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch folder mismatches';
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Retry moving folder to correct location
+ * POST /api/orders/:orderNumber/retry-folder-move
+ * Permission: orders.update (Manager+ only)
+ */
+export const retryFolderMove = async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const orderId = await getOrderIdFromNumber(orderNumber);
+
+    if (!orderId) {
+      return sendErrorResponse(res, 'Order not found', 'NOT_FOUND');
+    }
+
+    const result = await orderService.retryFolderMove(orderId);
+
+    if (!result.success) {
+      return sendErrorResponse(res, result.message, 'INTERNAL_ERROR');
+    }
+
+    res.json({
+      success: true,
+      message: result.message,
+      newLocation: result.newLocation
+    });
+  } catch (error) {
+    console.error('Error retrying folder move:', error);
+
+    const errorMessage = error instanceof Error ? error.message : 'Failed to retry folder move';
+    return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Retry moving all mismatched folders
+ * POST /api/orders/retry-all-folder-moves
+ * Permission: orders.update (Manager+ only)
+ */
+export const retryAllFolderMoves = async (req: Request, res: Response) => {
+  try {
+    const result = await orderService.retryAllFolderMoves();
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error retrying all folder moves:', error);
+
+    const errorMessage = error instanceof Error ? error.message : 'Failed to retry folder moves';
     return sendErrorResponse(res, errorMessage, 'INTERNAL_ERROR');
   }
 };

@@ -108,6 +108,63 @@ def path_to_polygon(path, samples_per_segment: int = 10) -> Optional[Polygon]:
         return None
 
 
+def compound_path_to_polygon(path, samples_per_segment: int = 10) -> Optional[Polygon]:
+    """
+    Convert a compound SVG path (multiple subpaths like M...Z M...Z) to a
+    Shapely Polygon with interior rings.
+
+    The largest-area subpath becomes the exterior ring; all others become
+    interior rings (counter holes, e.g., inside "A", "O", "B").
+
+    Falls back to path_to_polygon() on error.
+    """
+    if Polygon is None:
+        return None
+
+    try:
+        subpaths = path.continuous_subpaths()
+        if len(subpaths) < 2:
+            return path_to_polygon(path, samples_per_segment)
+
+        # Convert each subpath to a list of points
+        rings = []
+        for sp in subpaths:
+            points = []
+            for seg in sp:
+                for t in range(samples_per_segment):
+                    pt = seg.point(t / samples_per_segment)
+                    points.append((pt.real, pt.imag))
+            if len(points) >= 3:
+                # Close the ring
+                first = sp[0].point(0)
+                points.append((first.real, first.imag))
+                rings.append(points)
+
+        if not rings:
+            return path_to_polygon(path, samples_per_segment)
+
+        # Largest area ring = exterior
+        ring_areas = []
+        for pts in rings:
+            try:
+                p = Polygon(pts)
+                ring_areas.append(abs(p.area))
+            except Exception:
+                ring_areas.append(0)
+
+        max_idx = ring_areas.index(max(ring_areas))
+        exterior = rings[max_idx]
+        interiors = [r for i, r in enumerate(rings) if i != max_idx]
+
+        poly = Polygon(exterior, interiors)
+        if poly.is_valid:
+            return poly
+        return poly.buffer(0)
+
+    except Exception:
+        return path_to_polygon(path, samples_per_segment)
+
+
 def centroid_distance(bbox1: Tuple[float, float, float, float],
                       bbox2: Tuple[float, float, float, float]) -> float:
     """Calculate distance between centroids of two bounding boxes."""
@@ -194,3 +251,55 @@ def point_in_polygon(polygon: Optional[Polygon], x: float, y: float,
         return polygon.contains(point)
     except Exception:
         return False
+
+
+def build_compound_polygon(outer_polygon: Polygon,
+                           inner_polygons: list) -> Optional[Polygon]:
+    """
+    Build a Shapely Polygon with interior rings (holes) for counters.
+
+    In SVG/AI files, letters like "O", "A", "B" are compound paths where:
+    - outer_polygon: The exterior boundary of the letter
+    - inner_polygons: The interior counter shapes (the holes inside letters)
+
+    The resulting compound polygon correctly represents the filled area,
+    so containment checks work properly:
+    - A point in the counter area is NOT inside the letter (correct!)
+    - A point in the material area IS inside the letter (correct!)
+
+    Args:
+        outer_polygon: The exterior letter boundary (Shapely Polygon)
+        inner_polygons: List of interior counter polygons (Shapely Polygons)
+
+    Returns:
+        Shapely Polygon with interior rings, or None if construction fails
+    """
+    if Polygon is None or outer_polygon is None:
+        return None
+
+    try:
+        # Get the exterior ring coordinates from the outer polygon
+        exterior_coords = list(outer_polygon.exterior.coords)
+
+        # Get interior ring coordinates from each inner polygon
+        interior_rings = []
+        for inner in inner_polygons:
+            if inner is not None and hasattr(inner, 'exterior'):
+                interior_rings.append(list(inner.exterior.coords))
+
+        if not interior_rings:
+            # No counters, return the original polygon
+            return outer_polygon
+
+        # Create compound polygon with interior holes
+        compound = Polygon(exterior_coords, interior_rings)
+
+        # Validate and fix if needed
+        if not compound.is_valid:
+            compound = compound.buffer(0)
+
+        return compound
+
+    except Exception:
+        # If compound construction fails, return original polygon
+        return outer_polygon

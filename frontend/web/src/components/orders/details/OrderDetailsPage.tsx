@@ -9,7 +9,7 @@ import { useAlert } from '../../../contexts/AlertContext';
 // Import the new custom hooks
 import { useOrderDetails } from './hooks/useOrderDetails';
 import { useEditableFields } from './hooks/useEditableFields';
-import { useOrderPrinting } from './hooks/useOrderPrinting';
+import { useOrderPrinting, PrintResult } from './hooks/useOrderPrinting';
 import { useOrderCalculations } from './hooks/useOrderCalculations';
 
 // Import API
@@ -37,6 +37,7 @@ import { DocumentActionModal, LinkDocumentModal, DocumentConflictModal, OrderTot
 import { DocumentSyncStatus, DocumentDifference } from '../../../types/document';
 import PrintApprovalSuccessModal from '../modals/PrintApprovalSuccessModal';
 import PrintApprovalErrorModal from '../modals/PrintApprovalErrorModal';
+import MaterialRequirementsConfirmationModal from '../modals/MaterialRequirementsConfirmationModal';
 import { CashPaymentModal } from '../modals/CashPaymentModal';
 import AiFileValidationModal from './components/AiFileValidationModal';
 
@@ -68,6 +69,16 @@ export const OrderDetailsPage: React.FC = () => {
 
   // AI file validation modal (for "Files Created" flow)
   const [showAiValidationModal, setShowAiValidationModal] = useState(false);
+
+  // Material Requirements Confirmation modal (between approval and production queue)
+  const [showMaterialRequirementsModal, setShowMaterialRequirementsModal] = useState(false);
+  const [pendingPrintResult, setPendingPrintResult] = useState<PrintResult | null>(null);
+
+  // Callback for when files are approved (from print modal) - opens material requirements modal
+  const handleFilesApproved = useCallback((printResult: PrintResult | null) => {
+    setPendingPrintResult(printResult);
+    setShowMaterialRequirementsModal(true);
+  }, []);
 
   // State for reassign invoice modal (when invoice is deleted in QB or user chooses to reassign)
   const [reassignInvoiceInfo, setReassignInvoiceInfo] = useState<{
@@ -141,8 +152,9 @@ export const OrderDetailsPage: React.FC = () => {
     handlePrintForms,
     handlePrintMasterEstimate,
     handlePrintShopPacking,
-    handlePrintAndMoveToProduction,
-    handleMoveToProductionWithoutPrinting,
+    handlePrintAndApprove,
+    handleApproveWithoutPrinting,
+    handleMoveToProductionAfterMaterials,
     handleGenerateForms,
     handlePrintMasterForm,
     formUrls,
@@ -151,7 +163,7 @@ export const OrderDetailsPage: React.FC = () => {
     errorModalData,
     handleCloseErrorModal,
     shopRoles
-  } = useOrderPrinting(orderData, setUiState, refetch);
+  } = useOrderPrinting(orderData, setUiState, refetch, handleFilesApproved);
 
   const {
     recalculate
@@ -265,11 +277,14 @@ export const OrderDetailsPage: React.FC = () => {
     // No prompt needed, proceed with status change
     try {
       setUiState(prev => ({ ...prev, saving: true }));
-      await orderStatusApi.updateOrderStatus(
+      const result = await orderStatusApi.updateOrderStatus(
         orderData.order.order_number,
         newStatus,
         'Customer approved the estimate'
       );
+      if (result?.warnings?.length) {
+        result.warnings.forEach((warning: string) => showWarning(warning));
+      }
       showSuccess('Order status updated to Pending Files Creation');
       refetch();
     } catch (err) {
@@ -291,11 +306,14 @@ export const OrderDetailsPage: React.FC = () => {
     try {
       setUiState(prev => ({ ...prev, saving: true }));
       // TODO: Add validation to check if expected files exist based on specs
-      await orderStatusApi.updateOrderStatus(
+      const result = await orderStatusApi.updateOrderStatus(
         orderData.order.order_number,
         'pending_production_files_approval',
         'Production files created and ready for approval'
       );
+      if (result?.warnings?.length) {
+        result.warnings.forEach((warning: string) => showWarning(warning));
+      }
       setShowFilesCreatedModal(false);
       showSuccess('Order status updated to Pending Files Approval');
       refetch();
@@ -315,6 +333,13 @@ export const OrderDetailsPage: React.FC = () => {
     // Go directly to print modal - validation already done during "Files Created" step
     handleOpenPrintModal('shop_packing_production');
   };
+
+  // Called when materials are confirmed in the modal
+  const handleMaterialsConfirmed = useCallback(async () => {
+    setShowMaterialRequirementsModal(false);
+    await handleMoveToProductionAfterMaterials(pendingPrintResult);
+    setPendingPrintResult(null);
+  }, [pendingPrintResult, handleMoveToProductionAfterMaterials]);
 
   const handleAiValidationComplete = () => {
     setShowAiValidationModal(false);
@@ -530,11 +555,14 @@ export const OrderDetailsPage: React.FC = () => {
 
     try {
       setUiState(prev => ({ ...prev, saving: true }));
-      await orderStatusApi.updateOrderStatus(
+      const result = await orderStatusApi.updateOrderStatus(
         orderData.order.order_number,
         newStatus,
         `Status updated to ${newStatus}`
       );
+      if (result?.warnings?.length) {
+        result.warnings.forEach((warning: string) => showWarning(warning));
+      }
       refetch();
     } catch (err) {
       console.error('Error updating order status:', err);
@@ -1203,8 +1231,8 @@ export const OrderDetailsPage: React.FC = () => {
         printing={uiState.printingForm}
         formUrls={formUrls}
         mode={printMode}
-        onPrintAndMoveToProduction={handlePrintAndMoveToProduction}
-        onMoveToProductionWithoutPrinting={handleMoveToProductionWithoutPrinting}
+        onPrintAndApprove={handlePrintAndApprove}
+        onApproveWithoutPrinting={handleApproveWithoutPrinting}
         shopRoles={shopRoles}
       />
 
@@ -1221,6 +1249,22 @@ export const OrderDetailsPage: React.FC = () => {
         onClose={handleCloseErrorModal}
         data={errorModalData}
       />
+
+      {/* Material Requirements Confirmation Modal */}
+      {orderData.order && (
+        <MaterialRequirementsConfirmationModal
+          isOpen={showMaterialRequirementsModal}
+          onClose={() => {
+            setShowMaterialRequirementsModal(false);
+            setPendingPrintResult(null);
+          }}
+          orderId={orderData.order.order_id}
+          orderNumber={orderData.order.order_number}
+          orderName={orderData.order.order_name}
+          onConfirm={handleMaterialsConfirmed}
+          order={orderData.order}
+        />
+      )}
 
       {/* Prepare Order Modal - Phase 1.5.c.6.1 */}
       <PrepareOrderModal

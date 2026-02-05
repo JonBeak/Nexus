@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X, Image as ImageIcon, CheckCircle, AlertTriangle } from 'lucide-react';
 import { ordersApi } from '../../../services/api';
+import { getFolderPathSegment } from '../../../utils/pdfUrls';
+
+type FolderLocation = 'active' | 'finished' | 'cancelled' | 'hold' | 'none';
 
 interface ImageInfo {
   filename: string;
@@ -19,7 +22,7 @@ interface ImagePickerModalProps {
   orderNumber: number;
   currentImage?: string;
   folderName: string;
-  folderLocation: 'active' | 'finished' | 'none';
+  folderLocation: FolderLocation;
   isMigrated: boolean;
   isOpen: boolean;
   onClose: () => void;
@@ -235,17 +238,9 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
     const encodedFolder = encodeURIComponent(folderName);
     const encodedFile = encodeURIComponent(filename);
 
-    if (isMigrated) {
-      // Legacy orders: root or 1Finished
-      return folderLocation === 'active'
-        ? `${basePath}/${encodedFolder}/${encodedFile}`
-        : `${basePath}/1Finished/${encodedFolder}/${encodedFile}`;
-    } else {
-      // New orders: Orders or Orders/1Finished
-      return folderLocation === 'active'
-        ? `${basePath}/Orders/${encodedFolder}/${encodedFile}`
-        : `${basePath}/Orders/1Finished/${encodedFolder}/${encodedFile}`;
-    }
+    // Get folder path segment based on location (active, finished, cancelled, hold)
+    const pathSegment = getFolderPathSegment(folderLocation, isMigrated);
+    return `${basePath}/${pathSegment}${encodedFolder}/${encodedFile}`;
   };
 
   const formatFileSize = (bytes: number): string => {

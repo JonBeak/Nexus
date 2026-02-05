@@ -273,7 +273,7 @@ export class OrderPartRepository {
              completed_by = ?,
              version = version + 1
          WHERE task_id = ? AND version = ?`,
-        [completed, completed ? userId : null, taskId, expectedVersion]
+        [completed, completed ? (userId ?? null) : null, taskId, expectedVersion]
       );
 
       if (result.affectedRows === 0) {
@@ -303,7 +303,7 @@ export class OrderPartRepository {
            completed_by = ?,
            version = version + 1
        WHERE task_id = ?`,
-      [completed, completed ? userId : null, taskId]
+      [completed, completed ? (userId ?? null) : null, taskId]
     );
 
     // Get the new version
