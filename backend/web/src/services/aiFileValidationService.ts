@@ -14,65 +14,13 @@ import {
   ValidateFilesResponse,
   ServiceResult,
   ExpectedFilesComparison,
-  FileComparisonEntry,
-  FileExpectationRule,
   ValidationRuleConfig,
-  ValidationRuleDisplay,
 } from '../types/aiFileValidation';
-import { fileExpectationRulesRepository } from '../repositories/fileExpectationRulesRepository';
+import { aiFileValidationRepository } from '../repositories/aiFileValidationRepository';
 import { query } from '../config/database';
 import { RowDataPacket } from 'mysql2';
-
-// =============================================
-// SPEC-TYPE SPECIFIC VALIDATION RULES
-// =============================================
-
-/**
- * Front Lit channel letter validation rules
- * File scale: 10% (multiply by 10 for real-world dimensions)
- */
-const FRONT_LIT_STRUCTURE_RULES: ValidationRuleConfig = {
-  file_scale: 0.1,                    // 10% scale
-  wire_hole_diameter_mm: 2.75,        // 9.7mm real at 10% scale
-  wire_hole_tolerance_mm: 0.5,        // ±0.5mm tolerance
-  mounting_hole_diameter_mm: 1.08,    // 3.81mm real at 10% scale
-  mounting_hole_tolerance_mm: 0.3,    // ±0.3mm tolerance
-  trim_offset_min_mm: 1.5,             // per side, in real mm (minimum acceptable offset)
-  trim_offset_max_mm: 2.5,            // per side, in real mm (maximum at straight edges)
-  miter_factor: 4.0,                  // corners can extend up to miter_factor * max before bevel
-  min_mounting_holes: 2,
-  mounting_holes_per_inch_perimeter: 0.05,  // 1 per 20" real
-  mounting_holes_per_sq_inch_area: 0.0123,  // 1 per 81 sq in real
-  check_wire_holes: true,             // Front lit always has LEDs
-  return_layer: 'return',             // Layer name for returns
-  trim_layer: 'trimcap',              // Layer name for trim caps
-};
-
-/**
- * Determine which spec types are present in order parts
- */
-function detectSpecTypes(specsDisplayNames: string[]): Set<string> {
-  const specTypes = new Set<string>();
-
-  for (const name of specsDisplayNames) {
-    const lowerName = name.toLowerCase();
-
-    // Front Lit detection
-    if (lowerName.includes('front lit') || lowerName.includes('frontlit')) {
-      specTypes.add('front_lit');
-    }
-    // Halo Lit detection (future)
-    else if (lowerName.includes('halo') || lowerName.includes('back lit') || lowerName.includes('backlit')) {
-      specTypes.add('halo_lit');
-    }
-    // Non-lit detection (future)
-    else if (lowerName.includes('non lit') || lowerName.includes('non-lit') || lowerName.includes('nonlit')) {
-      specTypes.add('non_lit');
-    }
-  }
-
-  return specTypes;
-}
+import { detectSpecTypes, buildValidationRules, buildCuttingFileRules } from './aiFileValidationRules';
+import { getExpectedFilesComparison } from './aiFileValidationExpectedFiles';
 
 // Path helpers
 const LEGACY_ACTIVE_PATH = SMB_ROOT;
@@ -84,7 +32,6 @@ const NEW_HOLD_PATH = path.join(SMB_ROOT, ORDERS_FOLDER, HOLD_FOLDER);
 
 // Python script paths - resolve from project root
 const PYTHON_SCRIPT_PATH = path.resolve(__dirname, '../../src/scripts/python/validate_ai_file.py');
-const AI_VERSION_SCRIPT_PATH = path.resolve(__dirname, '../../src/scripts/python/extract_ai_version.py');
 
 export class AiFileValidationService {
   /**
@@ -119,8 +66,6 @@ export class AiFileValidationService {
   /**
    * List AI files in order folder (filesystem only, no database)
    * Checks both primary and secondary paths, aggregates results
-   * - Primary: /mnt/channelletter/Orders/{folder} (new orders) or /mnt/channelletter/{folder} (migrated)
-   * - Secondary: /mnt/channelletter/{folder} (for new orders with legacy files)
    */
   async listAiFiles(orderNumber: number): Promise<ServiceResult<AiFileInfo[]>> {
     try {
@@ -138,36 +83,43 @@ export class AiFileValidationService {
         order.folder_location as 'active' | 'finished' | 'cancelled' | 'hold',
         order.is_migrated
       );
-      // For non-migrated orders, also check root of SMB_ROOT
-      // Migrated orders already check root in getFolderPath, so skip for them
       const secondaryPath = !order.is_migrated ? path.join(SMB_ROOT, order.folder_name) : null;
 
       const aiFiles: AiFileInfo[] = [];
       const seenFilenames = new Set<string>();
 
-      // Helper to process directory
       const processDirectory = (dirPath: string, fileLocation: 'primary' | 'secondary') => {
-        if (!fs.existsSync(dirPath)) {
-          return;
-        }
+        if (!fs.existsSync(dirPath)) return;
 
         try {
           const files = fs.readdirSync(dirPath);
 
           for (const file of files) {
             const ext = path.extname(file).toLowerCase();
-            if (ext !== '.ai') continue;
+            if (ext !== '.ai' && ext !== '.svg') continue;
 
             const filePath = path.join(dirPath, file);
             const stats = fs.statSync(filePath);
 
             if (!stats.isFile()) continue;
 
-            // Avoid duplicates - primary path takes precedence
-            const lowerFilename = file.toLowerCase();
-            if (seenFilenames.has(lowerFilename)) {
-              continue;
+            // Skip old PostScript-based AI files (AI 8.0 and earlier)
+            // They can't be converted reliably — designers should export SVG instead
+            // Modern AI files are PDF-based and start with %PDF
+            if (ext === '.ai') {
+              try {
+                const fd = fs.openSync(filePath, 'r');
+                const buf = Buffer.alloc(10);
+                fs.readSync(fd, buf, 0, 10, 0);
+                fs.closeSync(fd);
+                if (!buf.toString('ascii').startsWith('%PDF')) continue;
+              } catch {
+                continue;
+              }
             }
+
+            const lowerFilename = file.toLowerCase();
+            if (seenFilenames.has(lowerFilename)) continue;
 
             seenFilenames.add(lowerFilename);
             aiFiles.push({
@@ -183,10 +135,8 @@ export class AiFileValidationService {
         }
       };
 
-      // Check primary path first (takes precedence)
       processDirectory(primaryPath, 'primary');
 
-      // Check secondary path for additional files (non-migrated orders only)
       if (secondaryPath && secondaryPath !== primaryPath) {
         processDirectory(secondaryPath, 'secondary');
       }
@@ -205,109 +155,26 @@ export class AiFileValidationService {
   }
 
   /**
-   * Get human-readable validation rule descriptions for display in the UI
-   */
-  private getValidationRuleDescriptions(specTypes: Set<string>): ValidationRuleDisplay[] {
-    const rules: ValidationRuleDisplay[] = [
-      // Global rules (always applied)
-      {
-        rule_key: 'no_duplicate_overlapping',
-        name: 'No Duplicate Paths',
-        description: 'Detects duplicate or overlapping paths on same layer',
-        category: 'Global',
-      },
-      {
-        rule_key: 'stroke_requirements',
-        name: 'Stroke Requirements',
-        description: 'Paths must have stroke, no fill allowed',
-        category: 'Global',
-      },
-    ];
-
-    // Front Lit rules
-    if (specTypes.has('front_lit')) {
-      rules.push(
-        {
-          rule_key: 'front_lit_wire_holes',
-          name: 'Wire Hole Check',
-          description: 'Each letter requires 1 wire hole (9.7mm)',
-          category: 'Front Lit Channel Letters',
-        },
-        {
-          rule_key: 'front_lit_mounting_holes',
-          name: 'Mounting Holes',
-          description: 'Min 2 per letter; 1 per 20" perimeter; 1 per 81 sq in area',
-          category: 'Front Lit Channel Letters',
-        },
-        {
-          rule_key: 'front_lit_trim_offset',
-          name: 'Trim Cap Offset',
-          description: 'Trim must be 1.5\u20132.5mm larger than return per side',
-          category: 'Front Lit Channel Letters',
-        },
-        {
-          rule_key: 'front_lit_layer_matching',
-          name: 'Layer Matching',
-          description: 'Return and Trimcap layers must have same letter count',
-          category: 'Front Lit Channel Letters',
-        },
-      );
-    }
-
-    return rules;
-  }
-
-  /**
-   * Build validation rules based on detected spec types
-   */
-  private buildValidationRules(specTypes: Set<string>): Record<string, ValidationRuleConfig> {
-    const rules: Record<string, ValidationRuleConfig> = {
-      // Base rules always applied
-      no_duplicate_overlapping: {
-        tolerance: 0.01
-      },
-      stroke_requirements: {
-        allow_fill: false  // Only check for no fill; color and width not enforced
-      },
-    };
-
-    // Add spec-type specific rules
-    if (specTypes.has('front_lit')) {
-      rules.front_lit_structure = { ...FRONT_LIT_STRUCTURE_RULES };
-    }
-
-    // Future: Add halo_lit, non_lit rules here
-
-    return rules;
-  }
-
-  /**
    * Run Python validation script on a single file
+   * @param rulesOverride - When provided, use these rules instead of building from specTypes
    */
   private async runPythonValidation(
     filePath: string,
-    specTypes: Set<string> = new Set()
+    specTypes: Set<string> = new Set(),
+    rulesOverride?: Record<string, ValidationRuleConfig>
   ): Promise<FileValidationResult> {
     return new Promise((resolve) => {
       const fileName = path.basename(filePath);
+      const emptyStats = { total_paths: 0, closed_paths: 0, paths_with_stroke: 0, paths_with_fill: 0, total_holes: 0, total_area: 0, total_perimeter: 0 };
 
       if (!fs.existsSync(PYTHON_SCRIPT_PATH)) {
-        resolve({
-          success: false,
-          file_path: filePath,
-          file_name: fileName,
-          status: 'error',
-          issues: [],
-          stats: { total_paths: 0, closed_paths: 0, paths_with_stroke: 0, paths_with_fill: 0, total_holes: 0, total_area: 0, total_perimeter: 0 },
-          error: 'Validation script not found',
-        });
+        resolve({ success: false, file_path: filePath, file_name: fileName, status: 'error', issues: [], stats: emptyStats, error: 'Validation script not found' });
         return;
       }
 
-      // Build validation rules based on spec types
-      const validationRules = this.buildValidationRules(specTypes);
+      const validationRules = rulesOverride || buildValidationRules(specTypes);
 
-      console.log(`[AiFileValidation] Validating ${fileName} with spec types: ${Array.from(specTypes).join(', ') || 'none'}`);
+      console.log(`[AiFileValidation] Validating ${fileName} with ${rulesOverride ? 'custom rules' : `spec types: ${Array.from(specTypes).join(', ') || 'none'}`}`);
 
       const pythonProcess = spawn('python3', [PYTHON_SCRIPT_PATH, filePath, '--rules-json', JSON.stringify(validationRules)]);
 
@@ -317,8 +184,7 @@ export class AiFileValidationService {
       pythonProcess.stdout.on('data', (data) => { stdout += data.toString(); });
       pythonProcess.stderr.on('data', (data) => { stderr += data.toString(); });
 
-      pythonProcess.on('close', (code) => {
-        // Log Python stderr for debugging (debug prints go there)
+      pythonProcess.on('close', () => {
         if (stderr) {
           console.error(`[AiFileValidation] Python stderr:\n${stderr}`);
         }
@@ -326,42 +192,17 @@ export class AiFileValidationService {
           const result = JSON.parse(stdout);
           resolve(result as FileValidationResult);
         } catch {
-          resolve({
-            success: false,
-            file_path: filePath,
-            file_name: fileName,
-            status: 'error',
-            issues: [],
-            stats: { total_paths: 0, closed_paths: 0, paths_with_stroke: 0, paths_with_fill: 0, total_holes: 0, total_area: 0, total_perimeter: 0 },
-            error: stderr || stdout || 'Failed to parse validation output',
-          });
+          resolve({ success: false, file_path: filePath, file_name: fileName, status: 'error', issues: [], stats: emptyStats, error: stderr || stdout || 'Failed to parse validation output' });
         }
       });
 
       pythonProcess.on('error', (error) => {
-        resolve({
-          success: false,
-          file_path: filePath,
-          file_name: fileName,
-          status: 'error',
-          issues: [],
-          stats: { total_paths: 0, closed_paths: 0, paths_with_stroke: 0, paths_with_fill: 0, total_holes: 0, total_area: 0, total_perimeter: 0 },
-          error: error.message,
-        });
+        resolve({ success: false, file_path: filePath, file_name: fileName, status: 'error', issues: [], stats: emptyStats, error: error.message });
       });
 
-      // Timeout after 60 seconds
       setTimeout(() => {
         pythonProcess.kill();
-        resolve({
-          success: false,
-          file_path: filePath,
-          file_name: fileName,
-          status: 'error',
-          issues: [],
-          stats: { total_paths: 0, closed_paths: 0, paths_with_stroke: 0, paths_with_fill: 0, total_holes: 0, total_area: 0, total_perimeter: 0 },
-          error: 'Validation timed out',
-        });
+        resolve({ success: false, file_path: filePath, file_name: fileName, status: 'error', issues: [], stats: emptyStats, error: 'Validation timed out' });
       }, 60000);
     });
   }
@@ -369,11 +210,10 @@ export class AiFileValidationService {
   /**
    * Validate AI files for an order
    * - Working file*.ai: Full Python validation with spec-type-specific rules
-   * - Other .ai files: Just verify they exist
+   * - Other .ai files: Full analysis at 100% scale (cutting files)
    */
   async validateFiles(orderNumber: number): Promise<ServiceResult<ValidateFilesResponse>> {
     try {
-      // List all AI files
       const listResult = await this.listAiFiles(orderNumber);
       if (!listResult.success || !listResult.data) {
         return { success: false, error: listResult.error || 'Failed to list files', code: listResult.code };
@@ -384,18 +224,15 @@ export class AiFileValidationService {
         return {
           success: true,
           data: {
-            success: true,
-            order_number: orderNumber,
-            total_files: 0,
-            passed: 0,
-            failed: 0,
-            warnings: 0,
-            errors: 0,
-            results: [],
-            message: 'No AI files found in order folder',
+            success: true, order_number: orderNumber, total_files: 0,
+            passed: 0, failed: 0, warnings: 0, errors: 0,
+            results: [], message: 'No AI files found in order folder',
           },
         };
       }
+
+      // Load standard hole sizes from database
+      const standardHoleSizes = await aiFileValidationRepository.getActiveHoleSizes();
 
       // Detect spec types from order parts for spec-specific validation
       const orderId = await this.getOrderIdFromNumber(orderNumber);
@@ -410,6 +247,10 @@ export class AiFileValidationService {
       const results: FileValidationResult[] = [];
       let passed = 0, failed = 0, warnings = 0, errors = 0;
 
+      // Pre-build rules for working files and cutting files
+      const workingFileRules = buildValidationRules(specTypes, standardHoleSizes);
+      const cuttingFileRules = buildCuttingFileRules(standardHoleSizes);
+
       for (const file of files) {
         const fileNameLower = file.file_name.toLowerCase();
         const isWorkingFile = fileNameLower.startsWith('working file') || fileNameLower.startsWith('working_file');
@@ -417,20 +258,12 @@ export class AiFileValidationService {
         let result: FileValidationResult;
 
         if (isWorkingFile) {
-          // Full validation for working files with spec-type-specific rules
-          result = await this.runPythonValidation(file.file_path, specTypes);
+          result = await this.runPythonValidation(file.file_path, specTypes, workingFileRules);
+          result.file_type = 'working';
         } else {
-          // Just verify existence for other files (cutting files, etc.)
-          result = {
-            success: true,
-            file_path: file.file_path,
-            file_name: file.file_name,
-            status: 'passed',
-            issues: [],
-            stats: { total_paths: 0, closed_paths: 0, paths_with_stroke: 0, paths_with_fill: 0, total_holes: 0, total_area: 0, total_perimeter: 0 },
-            skipped_validation: true,
-            skip_reason: 'Cutting file - existence verified',
-          };
+          // Full analysis for cutting files at 100% scale
+          result = await this.runPythonValidation(file.file_path, new Set(), cuttingFileRules);
+          result.file_type = 'cutting';
         }
 
         results.push(result);
@@ -449,11 +282,7 @@ export class AiFileValidationService {
           success: failed === 0 && errors === 0,
           order_number: orderNumber,
           total_files: results.length,
-          passed,
-          failed,
-          warnings,
-          errors,
-          results,
+          passed, failed, warnings, errors, results,
         },
       };
     } catch (error) {
@@ -467,54 +296,9 @@ export class AiFileValidationService {
   }
 
   /**
-   * Extract AI version from a single file using Python script
-   */
-  private async extractAiVersion(filePath: string): Promise<string | undefined> {
-    return new Promise((resolve) => {
-      if (!fs.existsSync(AI_VERSION_SCRIPT_PATH)) {
-        console.warn('[AiFileValidationService] AI version extraction script not found');
-        resolve(undefined);
-        return;
-      }
-
-      const pythonProcess = spawn('python3', [AI_VERSION_SCRIPT_PATH, filePath]);
-
-      let stdout = '';
-      let stderr = '';
-
-      pythonProcess.stdout.on('data', (data) => { stdout += data.toString(); });
-      pythonProcess.stderr.on('data', (data) => { stderr += data.toString(); });
-
-      pythonProcess.on('close', () => {
-        try {
-          const result = JSON.parse(stdout);
-          if (result.success && result.display_name) {
-            resolve(result.display_name);
-          } else {
-            resolve(undefined);
-          }
-        } catch {
-          console.warn('[AiFileValidationService] Failed to parse AI version output:', stderr || stdout);
-          resolve(undefined);
-        }
-      });
-
-      pythonProcess.on('error', () => {
-        resolve(undefined);
-      });
-
-      // Timeout after 5 seconds (version extraction should be fast)
-      setTimeout(() => {
-        pythonProcess.kill();
-        resolve(undefined);
-      }, 5000);
-    });
-  }
-
-  /**
    * Get order ID from order number
    */
-  private async getOrderIdFromNumber(orderNumber: number): Promise<number | null> {
+  async getOrderIdFromNumber(orderNumber: number): Promise<number | null> {
     const rows = await query(
       'SELECT order_id FROM orders WHERE order_number = ?',
       [orderNumber]
@@ -526,7 +310,7 @@ export class AiFileValidationService {
   /**
    * Get unique specs_display_name values from order parts
    */
-  private async getOrderSpecsDisplayNames(orderId: number): Promise<string[]> {
+  async getOrderSpecsDisplayNames(orderId: number): Promise<string[]> {
     const rows = await query(
       'SELECT DISTINCT specs_display_name FROM order_parts WHERE order_id = ? AND specs_display_name IS NOT NULL AND specs_display_name != ""',
       [orderId]
@@ -536,174 +320,14 @@ export class AiFileValidationService {
   }
 
   /**
-   * Get expected files comparison for an order
-   * Compares files expected by rules against actual files in folder
+   * Get expected files comparison for an order (delegates to extracted module)
    */
   async getExpectedFilesComparison(orderNumber: number): Promise<ServiceResult<ExpectedFilesComparison>> {
-    try {
-      // 1. Get order ID
-      const orderId = await this.getOrderIdFromNumber(orderNumber);
-      if (!orderId) {
-        return { success: false, error: 'Order not found', code: 'ORDER_NOT_FOUND' };
-      }
-
-      // 2. Get specs_display_name values from order parts
-      const specsDisplayNames = await this.getOrderSpecsDisplayNames(orderId);
-      console.log(`[ExpectedFiles] Order ${orderNumber} has specs_display_names:`, specsDisplayNames);
-
-      // 2b. Detect spec types and build validation rule descriptions
-      const specTypes = detectSpecTypes(specsDisplayNames);
-      const validationRules = this.getValidationRuleDescriptions(specTypes);
-
-      // 3. Get rules matching these specs_display_names
-      const matchingRules = specsDisplayNames.length > 0
-        ? await fileExpectationRulesRepository.getRulesByConditionValues('specs_display_name', specsDisplayNames)
-        : [];
-      console.log(`[ExpectedFiles] Found ${matchingRules.length} matching rules`);
-
-      // 4. Build expected files map (filename -> rule info)
-      // Dedupe by filename - if multiple rules expect same file, combine them
-      const expectedFilesMap = new Map<string, {
-        filename: string;
-        is_required: boolean;
-        matched_rules: string[];
-      }>();
-
-      for (const rule of matchingRules) {
-        const existing = expectedFilesMap.get(rule.expected_filename.toLowerCase());
-        if (existing) {
-          // Add rule to existing entry
-          existing.matched_rules.push(rule.rule_name);
-          // If any rule requires it, mark as required
-          if (rule.is_required) {
-            existing.is_required = true;
-          }
-        } else {
-          expectedFilesMap.set(rule.expected_filename.toLowerCase(), {
-            filename: rule.expected_filename,
-            is_required: rule.is_required,
-            matched_rules: [rule.rule_name],
-          });
-        }
-      }
-
-      // 5. Get actual AI files from order folder
-      const listResult = await this.listAiFiles(orderNumber);
-      if (!listResult.success) {
-        // If no folder, return comparison with folder_exists: false
-        if (listResult.code === 'NO_FOLDER' || listResult.code === 'FOLDER_NOT_FOUND') {
-          return {
-            success: true,
-            data: {
-              order_number: orderNumber,
-              folder_exists: false,
-              summary: {
-                total_expected: expectedFilesMap.size,
-                present: 0,
-                missing_required: Array.from(expectedFilesMap.values()).filter(e => e.is_required).length,
-                missing_optional: Array.from(expectedFilesMap.values()).filter(e => !e.is_required).length,
-                unexpected: 0,
-              },
-              files: Array.from(expectedFilesMap.values()).map(e => ({
-                filename: e.filename,
-                status: 'missing' as const,
-                is_required: e.is_required,
-                matched_rules: e.matched_rules,
-              })),
-              validation_rules: validationRules,
-            },
-          };
-        }
-        return { success: false, error: listResult.error, code: listResult.code };
-      }
-
-      const actualFiles = listResult.data || [];
-      const actualFilesMap = new Map<string, AiFileInfo>();
-      for (const file of actualFiles) {
-        actualFilesMap.set(file.file_name.toLowerCase(), file);
-      }
-
-      // 6. Build comparison entries
-      const comparisonEntries: FileComparisonEntry[] = [];
-      const processedFilenames = new Set<string>();
-
-      // Process expected files
-      for (const [lowerFilename, expected] of expectedFilesMap) {
-        const actualFile = actualFilesMap.get(lowerFilename);
-        processedFilenames.add(lowerFilename);
-
-        if (actualFile) {
-          // File exists - extract AI version
-          const aiVersion = await this.extractAiVersion(actualFile.file_path);
-          comparisonEntries.push({
-            filename: actualFile.file_name, // Use actual filename (preserves case)
-            detected_ai_version: aiVersion,
-            file_path: actualFile.file_path,
-            status: 'present',
-            is_required: expected.is_required,
-            matched_rules: expected.matched_rules,
-          });
-        } else {
-          // File missing
-          comparisonEntries.push({
-            filename: expected.filename,
-            status: 'missing',
-            is_required: expected.is_required,
-            matched_rules: expected.matched_rules,
-          });
-        }
-      }
-
-      // Process unexpected files (actual files not in expected list)
-      for (const [lowerFilename, actualFile] of actualFilesMap) {
-        if (!processedFilenames.has(lowerFilename)) {
-          const aiVersion = await this.extractAiVersion(actualFile.file_path);
-          comparisonEntries.push({
-            filename: actualFile.file_name,
-            detected_ai_version: aiVersion,
-            file_path: actualFile.file_path,
-            status: 'unexpected',
-            is_required: false,
-            matched_rules: [],
-          });
-        }
-      }
-
-      // Sort: present first, then missing, then unexpected; alphabetically within each group
-      comparisonEntries.sort((a, b) => {
-        const statusOrder = { present: 0, missing: 1, unexpected: 2 };
-        const orderDiff = statusOrder[a.status] - statusOrder[b.status];
-        if (orderDiff !== 0) return orderDiff;
-        return a.filename.localeCompare(b.filename);
-      });
-
-      // 7. Calculate summary
-      const summary = {
-        total_expected: expectedFilesMap.size,
-        present: comparisonEntries.filter(e => e.status === 'present').length,
-        missing_required: comparisonEntries.filter(e => e.status === 'missing' && e.is_required).length,
-        missing_optional: comparisonEntries.filter(e => e.status === 'missing' && !e.is_required).length,
-        unexpected: comparisonEntries.filter(e => e.status === 'unexpected').length,
-      };
-
-      return {
-        success: true,
-        data: {
-          order_number: orderNumber,
-          folder_exists: true,
-          summary,
-          files: comparisonEntries,
-          validation_rules: validationRules,
-        },
-      };
-    } catch (error) {
-      console.error('[AiFileValidationService] Error getting expected files comparison:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to compare expected files',
-        code: 'COMPARISON_ERROR',
-      };
-    }
+    return getExpectedFilesComparison(orderNumber, {
+      getOrderIdFromNumber: (n) => this.getOrderIdFromNumber(n),
+      getOrderSpecsDisplayNames: (id) => this.getOrderSpecsDisplayNames(id),
+      listAiFiles: (n) => this.listAiFiles(n),
+    });
   }
 }
 

@@ -7,8 +7,11 @@ rules (e.g. front_lit.py) classify them later as wire/mounting/unknown.
 
 Key algorithms:
 1. Letter Identification: Find outer paths not contained within others
-2. Counter Detection: Distinguish inner letter shapes (like inside "O") from holes
-3. Polygon Containment: Accurate geometric containment using Shapely
+2. Polygon Containment: Accurate geometric containment using Shapely
+
+Counters (inner letter shapes like inside "O") are always part of the letter's
+compound path — they have interior rings baked into the polygon. All separate
+paths found inside a letter are holes, never counters.
 
 This module has NO knowledge of spec-specific hole sizes (wire, mounting, etc.).
 Classification is handled by the rules layer after geometry analysis.
@@ -18,18 +21,16 @@ from typing import List, Dict, Any, Optional
 
 from .core import PathInfo, LetterGroup, LetterAnalysisResult, HoleInfo
 from .geometry import (
-    get_centroid, bbox_contains, calculate_circularity,
-    polygon_contains, point_in_polygon, build_compound_polygon
+    get_centroid, bbox_contains,
+    polygon_contains, point_in_polygon
 )
 from .transforms import apply_transform_to_bbox, apply_transform_to_polygon
 
 
 # Geometry-only configuration (no spec-specific hole sizes)
 GEOMETRY_CONFIG = {
-    'min_counter_area_ratio': 0.05,     # Min 5% of letter area to be a counter
-    'max_counter_area_ratio': 0.98,     # Max 98% - above this is a duplicate path, not a counter
-    'max_hole_circularity': 0.85,       # Above = definitely a hole, not a counter
     'containment_tolerance': 0.5,
+    'phantom_duplicate_tolerance': 0.001,  # Ratio band around 1.0 for duplicate detection
 }
 
 
@@ -72,6 +73,7 @@ def identify_letters(paths_info: List[PathInfo], layer_name: Optional[str] = Non
         return []
 
     letters = []
+    contained_by = {}  # Debug: track what contains each excluded path
     for path in candidates:
         # Check if this path is contained in any other path on the same layer
         is_contained = False
@@ -86,76 +88,39 @@ def identify_letters(paths_info: List[PathInfo], layer_name: Optional[str] = Non
             if path_layer != other_layer:
                 continue
 
+            # A container must have area >= the contained path (prevents
+            # mutual containment between overlapping shapes like outlines
+            # and vinyl fills that have each other's centroids inside)
+            other_area = other.area or 0
+            path_area = path.area or 0
+            if other_area > 0 and path_area > 0 and other_area < path_area:
+                continue
+
             # Use polygon containment if available
             if path.polygon and other.polygon:
                 if polygon_contains(other.polygon, path.polygon):
                     is_contained = True
+                    contained_by[path.path_id] = other.path_id
                     break
             else:
                 # Fall back to bbox containment
                 if path.bbox and other.bbox:
                     if bbox_contains(other.bbox, path.bbox, tolerance=1.0):
                         is_contained = True
+                        contained_by[path.path_id] = other.path_id
                         break
 
         if not is_contained:
             letters.append(path)
 
+    # Attach debug info for diagnostics
+    for path in candidates:
+        if path.path_id in contained_by:
+            path._contained_by = contained_by[path.path_id]
+        elif path.path_id not in [l.path_id for l in letters]:
+            path._contained_by = '__not_candidate__'
+
     return letters
-
-
-def is_counter_path(inner: PathInfo, outer: PathInfo, config: Dict = None) -> bool:
-    """
-    Determine if an inner path is a counter (inner letter shape like inside "O")
-    or a hole.
-
-    Counters are:
-    - NOT circular (circularity < threshold)
-    - Significant area (> min_ratio of letter area)
-
-    Holes are:
-    - Circular
-    - Small
-
-    Args:
-        inner: The inner path to classify
-        outer: The outer letter path
-        config: Configuration dict
-
-    Returns:
-        True if inner is a counter, False if it's likely a hole
-    """
-    cfg = {**GEOMETRY_CONFIG, **(config or {})}
-
-    # If it's flagged as a circle, it's not a counter
-    if inner.is_circle:
-        return False
-
-    # Calculate area ratio
-    inner_area = inner.area or 0
-    outer_area = outer.area or 0
-
-    if outer_area <= 0:
-        return False
-
-    area_ratio = inner_area / outer_area
-
-    # Must have significant area to be a counter
-    if area_ratio < cfg['min_counter_area_ratio']:
-        return False
-
-    # Must not be too large - a path near 100% of the letter area is a duplicate, not a counter
-    if area_ratio > cfg['max_counter_area_ratio']:
-        return False
-
-    # Check circularity
-    inner_perimeter = inner.length or 0
-    if inner_perimeter > 0 and inner_area > 0:
-        circularity = calculate_circularity(inner_area, inner_perimeter)
-        if circularity > cfg['max_hole_circularity']:
-            return False  # Too circular, likely a hole
-
-    return True  # It's a counter
 
 
 def path_is_inside_letter(hole: PathInfo, letter: PathInfo,
@@ -259,7 +224,11 @@ def create_hole_info(path: PathInfo, scale: float = 1.0) -> HoleInfo:
         center=center,
         svg_path_data=path.d_attribute,
         transform=path.transform_chain or '',
-        diameter_real_mm=diameter_real_mm
+        diameter_real_mm=diameter_real_mm,
+        fill=path.fill,
+        stroke=path.stroke,
+        layer_name=path.layer_name or '',
+        raw_bbox=raw_bbox,
     )
 
 
@@ -267,7 +236,8 @@ def build_letter_group(letter: PathInfo, inner_paths: List[PathInfo],
                        scale: float, config: Dict = None) -> LetterGroup:
     """
     Build a LetterGroup from a letter path and its inner paths.
-    All holes are stored UNCLASSIFIED — classification happens in the rules layer.
+    Counters are baked into compound paths — all separate inner paths are holes.
+    Holes are stored UNCLASSIFIED — classification happens in the rules layer.
 
     Args:
         letter: The main letter path
@@ -279,27 +249,24 @@ def build_letter_group(letter: PathInfo, inner_paths: List[PathInfo],
         LetterGroup object with unclassified holes
     """
     cfg = {**GEOMETRY_CONFIG, **(config or {})}
+    tol = cfg.get('phantom_duplicate_tolerance', 0.001)
 
-    counter_paths = []
     holes = []
+    outer_area = letter.area or 0
 
     for inner in inner_paths:
-        if is_counter_path(inner, letter, cfg):
-            counter_paths.append(inner)
-        else:
-            # Skip duplicate paths (near-identical area to the letter itself)
-            outer_area = letter.area or 0
-            inner_area = inner.area or 0
-            if outer_area > 0 and inner_area / outer_area > cfg['max_counter_area_ratio']:
+        # Skip phantom duplicate paths (near-identical area to the letter)
+        inner_area = inner.area or 0
+        if outer_area > 0 and inner_area > 0:
+            ratio = inner_area / outer_area
+            if (1.0 - tol) <= ratio <= (1.0 + tol):
                 continue
 
-            hole_info = create_hole_info(inner, scale)
-            holes.append(hole_info)
+        hole_info = create_hole_info(inner, scale)
+        holes.append(hole_info)
 
-    # Calculate net area (main - counters)
-    main_area = letter.area or 0
-    counter_area = sum(p.area or 0 for p in counter_paths)
-    net_area = main_area - counter_area
+    # Net area — counters are already subtracted in compound path polygons
+    net_area = letter.area or 0
 
     # Get raw bbox (matches path coordinates for SVG rendering)
     raw_bbox = getattr(letter, 'original_bbox', None) or letter.bbox or (0, 0, 0, 0)
@@ -326,7 +293,6 @@ def build_letter_group(letter: PathInfo, inner_paths: List[PathInfo],
     return LetterGroup(
         letter_id=letter.path_id,
         main_path=letter,
-        counter_paths=counter_paths,
         holes=holes,
         layer_name=letter.layer_name or '',
         bbox=bbox,
@@ -385,6 +351,44 @@ def analyze_letter_hole_associations(
     # TODO: 3D Print files are 100% scale even for Working File — implement spec-specific scale override later
     scale = cfg.get('file_scale', 0.1)
 
+    # Filter out tiny circles (< 2% of the SVG extent) — they're artifacts, not holes
+    # But preserve circles that match known standard hole sizes (wire, mounting, etc.)
+    min_hole_pct = cfg.get('min_hole_percent', 0.02)
+    standard_sizes = cfg.get('standard_hole_sizes', [])
+    all_bboxes = [p.bbox for p in paths_info if p.bbox]
+    if all_bboxes:
+        svg_width = max(b[2] for b in all_bboxes) - min(b[0] for b in all_bboxes)
+        svg_height = max(b[3] for b in all_bboxes) - min(b[1] for b in all_bboxes)
+        min_circle_diameter = max(svg_width, svg_height) * min_hole_pct
+        for p in paths_info:
+            # Compare in transformed coordinate space (bbox is already transformed above)
+            if p.is_circle and p.bbox:
+                transformed_w = p.bbox[2] - p.bbox[0]
+                transformed_h = p.bbox[3] - p.bbox[1]
+                transformed_diameter = (transformed_w + transformed_h) / 2
+                if transformed_diameter < min_circle_diameter:
+                    # Before stripping is_circle, check if this matches a standard hole size
+                    if standard_sizes and scale > 0 and p.circle_diameter is not None:
+                        real_mm = p.circle_diameter / (72 * scale) * 25.4
+                        matches_standard = any(
+                            abs(real_mm - s['diameter_mm']) <= s.get('tolerance_mm', 0.03)
+                            for s in standard_sizes
+                        )
+                        if matches_standard:
+                            continue  # Keep is_circle — it's a real hole
+                    p.is_circle = False  # Too small to be a hole — exclude from analysis
+
+    # Reclassify circles that are too LARGE to be holes — they're letter shapes
+    # (e.g., the dot of "i", a period, a circular logo element)
+    # Max real-world hole is 16mm; anything larger is definitely a letter
+    max_hole_mm = 16.0
+    if scale > 0:
+        for p in paths_info:
+            if p.is_circle and p.circle_diameter is not None:
+                real_mm = p.circle_diameter / (72 * scale) * 25.4
+                if real_mm > max_hole_mm:
+                    p.is_circle = False
+
     # Find all letters
     letters = identify_letters(paths_info, layer_name)
 
@@ -412,47 +416,12 @@ def analyze_letter_hole_associations(
     for letter in letters:
         assigned_path_ids.add(letter.path_id)
 
-    # STEP 1: Build compound polygons for letters with counters BEFORE containment checks
-    # This is critical for correct hole detection in letters like "O", "A", "B", etc.
+    # Counters are baked into compound paths (interior rings in the polygon).
+    # Set compound_polygon so containment checks exclude counter areas.
     for letter in letters:
-        # Compound paths already have interior rings baked into their polygon
-        if getattr(letter, 'is_compound', False) and letter.polygon:
-            if hasattr(letter.polygon, 'interiors') and len(list(letter.polygon.interiors)) > 0:
-                letter.compound_polygon = letter.polygon
-                continue
+        letter.compound_polygon = letter.polygon
 
-        letter_layer = (letter.layer_name or '').lower()
-
-        # Find counter paths: non-circle paths inside letter on SAME layer
-        counter_candidates = []
-        for p in paths_info:
-            if p.path_id == letter.path_id:
-                continue
-            if p.is_circle:
-                continue
-            if not p.is_closed:
-                continue
-            if not p.polygon or not letter.polygon:
-                continue
-
-            p_layer = (p.layer_name or '').lower()
-            if p_layer != letter_layer:
-                continue
-
-            if polygon_contains(letter.polygon, p.polygon, cfg['containment_tolerance']):
-                if is_counter_path(p, letter, cfg):
-                    counter_candidates.append(p)
-
-        if counter_candidates:
-            counter_polygons = [c.polygon for c in counter_candidates if c.polygon]
-            letter.compound_polygon = build_compound_polygon(letter.polygon, counter_polygons)
-
-            for counter in counter_candidates:
-                assigned_path_ids.add(counter.path_id)
-        else:
-            letter.compound_polygon = letter.polygon
-
-    # STEP 2: Now find holes inside letters (using compound polygons for correct containment)
+    # Find holes inside letters (using compound polygons for correct containment)
     letter_groups = []
     for letter in letters:
         inner_paths = find_paths_inside_letter(
@@ -485,7 +454,6 @@ def analyze_letter_hole_associations(
     ]
 
     # === Full path accounting: classify ALL remaining paths ===
-    num_counters = sum(len(lg.counter_paths) for lg in letter_groups)
     total_holes_in_letters = sum(len(lg.holes) for lg in letter_groups)
 
     unprocessed_paths = []
@@ -510,6 +478,9 @@ def analyze_letter_hole_associations(
             'layer': p.layer_name or '',
             'is_compound': getattr(p, 'is_compound', False),
             'is_closed': p.is_closed,
+            'has_polygon': p.polygon is not None,
+            'area': round(p.area, 2) if p.area else 0,
+            'contained_by': getattr(p, '_contained_by', None),
         })
 
     # Build stats with full path accounting
@@ -517,7 +488,6 @@ def analyze_letter_hole_associations(
 
     path_accounting = {
         'letters': len(letter_groups),
-        'counters': num_counters,
         'holes_in_letters': total_holes_in_letters,
         'orphan_holes': len(orphan_holes),
         'open_paths': sum(1 for u in unprocessed_paths if u['reason'] == 'open_path'),

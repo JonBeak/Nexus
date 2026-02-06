@@ -40,7 +40,8 @@
       "WebSearch",
       "mcp__ide__getDiagnostics",
       "Bash(ls:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(source:*)"
     ],
     "deny": [],
     "ask": [],

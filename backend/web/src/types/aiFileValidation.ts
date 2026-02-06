@@ -47,6 +47,7 @@ export interface FileValidationResult {
   issues: ValidationIssue[];
   stats: ValidationStats;
   error?: string;
+  file_type?: 'working' | 'cutting';  // Working File (10% scale) or Cutting File (100% scale)
   skipped_validation?: boolean;  // True if file was not validated (e.g., cutting files)
   skip_reason?: string;          // Reason validation was skipped
 }
@@ -193,6 +194,20 @@ export interface ServiceResult<T> {
   data?: T;
   error?: string;
   code?: string;
+}
+
+// =============================================
+// STANDARD HOLE SIZES
+// =============================================
+
+export interface StandardHoleSize {
+  hole_size_id: number;
+  name: string;           // e.g. "LED Wire Hole", "Mounting Stud"
+  diameter_mm: number;    // Expected real-world diameter in mm
+  tolerance_mm: number;   // Match window (±mm)
+  category: string;       // 'wire', 'mounting', 'drain', etc.
+  display_order: number;
+  is_active: boolean;
 }
 
 // =============================================

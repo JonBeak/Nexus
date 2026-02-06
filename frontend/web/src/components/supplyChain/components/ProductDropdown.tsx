@@ -23,7 +23,7 @@ import { ChevronDown, X } from 'lucide-react';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
 import { vinylProductsApi, supplierProductsApi } from '../../../services/api';
 import { ARCHETYPE_VINYL } from './ProductTypeDropdown';
-import { SUPPLIER_IN_STOCK, SUPPLIER_IN_HOUSE } from './SupplierDropdown';
+import { SUPPLIER_IN_STOCK, SUPPLIER_IN_HOUSE, SUPPLIER_CUSTOMER_PROVIDED } from './SupplierDropdown';
 
 interface VinylProduct {
   product_id: number;
@@ -277,7 +277,7 @@ export const ProductDropdown: React.FC<ProductDropdownProps> = ({
         // NEW: Vendor filter
         let matchesSupplier = true;
         if (supplierId !== undefined && supplierId !== null) {
-          if (supplierId === SUPPLIER_IN_STOCK || supplierId === SUPPLIER_IN_HOUSE) {
+          if (supplierId === SUPPLIER_IN_STOCK || supplierId === SUPPLIER_IN_HOUSE || supplierId === SUPPLIER_CUSTOMER_PROVIDED) {
             matchesSupplier = false;  // Special vendors don't show supplier products
           } else {
             matchesSupplier = p.supplier_id === supplierId;  // Filter to selected vendor

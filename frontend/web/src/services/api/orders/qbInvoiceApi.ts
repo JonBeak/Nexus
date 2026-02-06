@@ -438,7 +438,7 @@ export const qbInvoiceApi = {
 
   /**
    * Get detailed QB invoice including line items
-   * Used for LinkInvoiceModal expandable row preview
+   * Used for expandable row preview in invoice linking
    */
   async getInvoiceDetails(invoiceId: string): Promise<InvoiceDetailsResult> {
     const response = await api.get(`/invoices/${invoiceId}/details`);

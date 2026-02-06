@@ -14,19 +14,22 @@
  * - Auto-save on selection
  * - Portal rendering to escape table overflow
  *
- * Special Archetype ID:
+ * Special Archetype IDs:
  * - ARCHETYPE_VINYL (131): Vinyl product selection
+ * - ARCHETYPE_DIGITAL_PRINT (132): Digital print media selection
  */
 
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, X, Layers } from 'lucide-react';
+import { ChevronDown, X, Layers, Printer } from 'lucide-react';
 import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 import { archetypesApi } from '../../../services/api';
 import type { ProductArchetype } from '../../../types/materialRequirements';
 
 /** Vinyl archetype ID - real archetype in database */
 export const ARCHETYPE_VINYL = 131;
+/** Digital Print archetype ID - real archetype in database */
+export const ARCHETYPE_DIGITAL_PRINT = 132;
 
 export interface ProductTypeDropdownProps {
   value: number | null;
@@ -81,20 +84,23 @@ export const ProductTypeDropdown: React.FC<ProductTypeDropdownProps> = ({
 
   const selectedArchetype = archetypes.find(a => a.archetype_id === value);
   const isVinylSelected = value === ARCHETYPE_VINYL;
+  const isDigitalPrintSelected = value === ARCHETYPE_DIGITAL_PRINT;
 
   // Get display name for current value
   const getSelectedDisplayName = useCallback((): string => {
     if (isVinylSelected) return 'Vinyl';
+    if (isDigitalPrintSelected) return 'Digital Print';
     if (selectedArchetype) return selectedArchetype.name;
     // Fallback: show loading or ID if archetype not found yet
     if (value !== null && value > 0) {
       return loading ? 'Loading...' : `Type #${value}`;
     }
     return '';
-  }, [isVinylSelected, selectedArchetype, value, loading]);
+  }, [isVinylSelected, isDigitalPrintSelected, selectedArchetype, value, loading]);
 
   const getDisplayColor = () => {
     if (isVinylSelected) return MODULE_COLORS.vinyls.text;
+    if (isDigitalPrintSelected) return 'text-cyan-600';
     return '';
   };
 
@@ -168,7 +174,7 @@ export const ProductTypeDropdown: React.FC<ProductTypeDropdownProps> = ({
     const term = searchTerm.toLowerCase();
 
     archetypes
-      .filter(a => a.archetype_id !== ARCHETYPE_VINYL) // Exclude vinyl - shown separately at top
+      .filter(a => a.archetype_id !== ARCHETYPE_VINYL && a.archetype_id !== ARCHETYPE_DIGITAL_PRINT)
       .filter(a => a.name.toLowerCase().includes(term) || a.category_name.toLowerCase().includes(term))
       .forEach(archetype => {
         const categoryKey = archetype.category_name;
@@ -181,10 +187,16 @@ export const ProductTypeDropdown: React.FC<ProductTypeDropdownProps> = ({
     return groups;
   }, [archetypes, searchTerm]);
 
-  // Check if vinyl matches search term
+  // Check if special options match search term
   const showVinylOption = useMemo(() => {
     if (!searchTerm) return true;
     return 'vinyl'.includes(searchTerm.toLowerCase());
+  }, [searchTerm]);
+
+  const showDigitalPrintOption = useMemo(() => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return 'digital print'.includes(term) || 'digital'.includes(term) || 'print'.includes(term);
   }, [searchTerm]);
 
   const handleSelect = useCallback((archetypeId: number | null) => {
@@ -288,7 +300,7 @@ export const ProductTypeDropdown: React.FC<ProductTypeDropdownProps> = ({
           <div className="max-h-64 overflow-y-auto">
             {loading ? (
               <div className="px-3 py-2 text-xs text-gray-500">Loading...</div>
-            ) : (categoryCount === 0 && !showVinylOption) ? (
+            ) : (categoryCount === 0 && !showVinylOption && !showDigitalPrintOption) ? (
               <div className="px-3 py-2 text-xs text-gray-500">
                 {searchTerm ? 'No matches' : 'No product types available'}
               </div>
@@ -305,25 +317,37 @@ export const ProductTypeDropdown: React.FC<ProductTypeDropdownProps> = ({
                   </button>
                 )}
 
-                {/* Vinyl special option */}
+                {/* Special pinned options (Vinyl, Digital Print) */}
                 {showVinylOption && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => handleSelect(ARCHETYPE_VINYL)}
-                      className={`w-full px-3 py-1.5 text-xs text-left hover:bg-purple-50 flex items-center gap-2
-                        ${isVinylSelected ? MODULE_COLORS.vinyls.light : ''}`}
-                    >
-                      <Layers className={`w-3 h-3 ${MODULE_COLORS.vinyls.text}`} />
-                      <div>
-                        <span className={`font-medium ${MODULE_COLORS.vinyls.text}`}>Vinyl</span>
-                        <span className="text-gray-400 ml-1">- Sign vinyl products</span>
-                      </div>
-                    </button>
-                    {categoryCount > 0 && (
-                      <div className="border-t border-gray-100 my-1" />
-                    )}
-                  </>
+                  <button
+                    type="button"
+                    onClick={() => handleSelect(ARCHETYPE_VINYL)}
+                    className={`w-full px-3 py-1.5 text-xs text-left hover:bg-purple-50 flex items-center gap-2
+                      ${isVinylSelected ? MODULE_COLORS.vinyls.light : ''}`}
+                  >
+                    <Layers className={`w-3 h-3 ${MODULE_COLORS.vinyls.text}`} />
+                    <div>
+                      <span className={`font-medium ${MODULE_COLORS.vinyls.text}`}>Vinyl</span>
+                      <span className="text-gray-400 ml-1">- Sign vinyl products</span>
+                    </div>
+                  </button>
+                )}
+                {showDigitalPrintOption && (
+                  <button
+                    type="button"
+                    onClick={() => handleSelect(ARCHETYPE_DIGITAL_PRINT)}
+                    className={`w-full px-3 py-1.5 text-xs text-left hover:bg-cyan-50 flex items-center gap-2
+                      ${isDigitalPrintSelected ? 'bg-cyan-100' : ''}`}
+                  >
+                    <Printer className="w-3 h-3 text-cyan-600" />
+                    <div>
+                      <span className="font-medium text-cyan-600">Digital Print</span>
+                      <span className="text-gray-400 ml-1">- Digital print substrates</span>
+                    </div>
+                  </button>
+                )}
+                {(showVinylOption || showDigitalPrintOption) && categoryCount > 0 && (
+                  <div className="border-t border-gray-100 my-1" />
                 )}
 
                 {/* Archetypes grouped by category */}

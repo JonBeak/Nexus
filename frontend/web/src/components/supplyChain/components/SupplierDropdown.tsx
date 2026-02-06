@@ -17,29 +17,32 @@
  * Special Supplier IDs:
  * - SUPPLIER_IN_STOCK (-1): Material sourced from existing inventory
  * - SUPPLIER_IN_HOUSE (-2): Product produced in-house (e.g., digital prints)
+ * - SUPPLIER_CUSTOMER_PROVIDED (-3): Customer supplies their own material
  */
 
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, X, Package, Printer } from 'lucide-react';
+import { ChevronDown, X, Package, Printer, UserCircle } from 'lucide-react';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
 import { suppliersApi, Supplier } from '../../../services/api/suppliersApi';
 
 // Special "supplier" IDs for internal sourcing options
 export const SUPPLIER_IN_STOCK = -1;
 export const SUPPLIER_IN_HOUSE = -2;
+export const SUPPLIER_CUSTOMER_PROVIDED = -3;
 
 interface SpecialOption {
   id: number;
   name: string;
   description: string;
-  icon: 'package' | 'printer';
+  icon: 'package' | 'printer' | 'user-circle';
   color: string;
 }
 
 const SPECIAL_OPTIONS: SpecialOption[] = [
   { id: SUPPLIER_IN_STOCK, name: 'In Stock', description: 'Source from existing inventory', icon: 'package', color: 'text-green-600' },
   { id: SUPPLIER_IN_HOUSE, name: 'In House', description: 'Produced in-house (e.g., digital prints)', icon: 'printer', color: 'text-purple-600' },
+  { id: SUPPLIER_CUSTOMER_PROVIDED, name: 'Customer Provided', description: 'Customer supplies their own material', icon: 'user-circle', color: 'text-orange-600' },
 ];
 
 export interface SupplierDropdownProps {
@@ -320,8 +323,10 @@ export const SupplierDropdown: React.FC<SupplierDropdownProps> = ({
                       >
                         {option.icon === 'package' ? (
                           <Package className={`w-3 h-3 ${option.color}`} />
-                        ) : (
+                        ) : option.icon === 'printer' ? (
                           <Printer className={`w-3 h-3 ${option.color}`} />
+                        ) : (
+                          <UserCircle className={`w-3 h-3 ${option.color}`} />
                         )}
                         <div>
                           <span className={`font-medium ${option.color}`}>{option.name}</span>

@@ -1,3 +1,4 @@
+// File Clean up Finished: 2026-02-06
 /**
  * Cash Payment Service
  * Created: 2025-01-27
@@ -9,7 +10,7 @@
 import * as cashPaymentRepo from '../repositories/cashPaymentRepository';
 import { orderService } from './orderService';
 import { broadcastOrderStatus } from '../websocket/taskBroadcast';
-import { CashPayment, CreateCashPaymentInput } from '../repositories/cashPaymentRepository';
+import { CashPayment, CreateCashPaymentInput, OpenCashOrder } from '../repositories/cashPaymentRepository';
 
 // =============================================
 // TYPES
@@ -194,14 +195,6 @@ export async function getOrderPayments(orderId: number): Promise<CashPayment[]> 
 }
 
 /**
- * Check if an order is a cash job
- */
-export async function isCashJob(orderId: number): Promise<boolean> {
-  const orderInfo = await cashPaymentRepo.getOrderCashInfo(orderId);
-  return orderInfo?.is_cash ?? false;
-}
-
-/**
  * Check if a cash job is fully paid and auto-complete if so
  * Called by checkAwaitingPaymentOrders on page load
  */
@@ -241,4 +234,76 @@ export async function checkAndAutoCompleteCashJob(orderId: number, orderNumber: 
   }
 
   return { autoCompleted, balance };
+}
+
+// =============================================
+// CENTRALIZED PAYMENTS PAGE
+// =============================================
+
+export interface MultiOrderCashPaymentInput {
+  allocations: { order_id: number; amount: number }[];
+  payment_method: 'cash' | 'e_transfer' | 'check';
+  payment_date: string;
+  reference_number?: string;
+  memo?: string;
+}
+
+export interface MultiOrderCashPaymentResult {
+  totalAmount: number;
+  ordersUpdated: number;
+  autoCompletedOrders: number[];
+  payments: CashPayment[];
+}
+
+/**
+ * Get all open cash orders with positive balance for a customer
+ */
+export async function getOpenCashOrdersForCustomer(customerId: number): Promise<OpenCashOrder[]> {
+  return cashPaymentRepo.getOpenCashOrdersForCustomer(customerId);
+}
+
+/**
+ * Record a cash payment split across multiple orders
+ * Loops through allocations and calls existing recordCashPayment for each
+ */
+export async function recordMultiOrderCashPayment(
+  input: MultiOrderCashPaymentInput,
+  userId: number
+): Promise<MultiOrderCashPaymentResult> {
+  if (!input.allocations || input.allocations.length === 0) {
+    throw new Error('At least one order allocation is required');
+  }
+
+  const totalAmount = input.allocations.reduce((sum, a) => sum + a.amount, 0);
+  if (totalAmount <= 0) {
+    throw new Error('Total payment amount must be greater than zero');
+  }
+
+  const payments: CashPayment[] = [];
+  const autoCompletedOrders: number[] = [];
+
+  for (const allocation of input.allocations) {
+    if (allocation.amount <= 0) continue;
+
+    const result = await recordCashPayment({
+      order_id: allocation.order_id,
+      amount: allocation.amount,
+      payment_method: input.payment_method,
+      payment_date: input.payment_date,
+      reference_number: input.reference_number,
+      memo: input.memo
+    }, userId);
+
+    payments.push(result.payment);
+    if (result.autoCompleted) {
+      autoCompletedOrders.push(allocation.order_id);
+    }
+  }
+
+  return {
+    totalAmount,
+    ordersUpdated: payments.length,
+    autoCompletedOrders,
+    payments
+  };
 }

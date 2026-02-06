@@ -33,7 +33,7 @@ from .core import (
     ValidationIssue, ValidationResult, PathInfo,
     LetterGroup, LetterAnalysisResult, HoleInfo
 )
-from .svg_parser import convert_ai_to_svg, extract_paths_from_svg
+from .svg_parser import convert_ai_to_svg, extract_paths_from_svg, detect_svg_scale
 from .base_rules import (
     check_overlapping_paths,
     check_stroke_requirements,
@@ -41,12 +41,40 @@ from .base_rules import (
     check_path_closure
 )
 from .rules import check_front_lit_structure
-from .rules.front_lit import (
-    classify_holes_in_analysis,
-    generate_letter_analysis_issues,
-    FRONT_LIT_HOLE_CONFIG,
-)
+from .rules.front_lit import generate_letter_analysis_issues
 from .letter_analysis import analyze_letter_hole_associations
+
+
+def _classify_holes_from_standards(analysis: 'LetterAnalysisResult', standard_sizes: list) -> None:
+    """
+    Classify all unclassified holes using standard hole sizes from the database.
+    Mutates HoleInfo objects in place — sets hole_type, matched_name, matched_size_id.
+    """
+    if not standard_sizes:
+        return
+
+    def classify_one(hole):
+        if hole.hole_type != 'unclassified' or hole.diameter_real_mm <= 0:
+            return
+        best_dist = float('inf')
+        best_match = None
+        for std in standard_sizes:
+            dist = abs(hole.diameter_real_mm - std['diameter_mm'])
+            if dist <= std['tolerance_mm'] and dist < best_dist:
+                best_dist = dist
+                best_match = std
+        if best_match:
+            hole.hole_type = best_match['category']
+            hole.matched_name = best_match['name']
+            hole.matched_size_id = best_match.get('hole_size_id')
+        else:
+            hole.hole_type = 'unknown'
+
+    for group in analysis.letter_groups:
+        for hole in group.holes:
+            classify_one(hole)
+    for hole in analysis.orphan_holes:
+        classify_one(hole)
 
 
 def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
@@ -72,35 +100,43 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
     temp_svg = None
 
     try:
-        # Convert AI to SVG
-        success, result, temp_svg = convert_ai_to_svg(ai_path)
-
-        if not success:
-            return ValidationResult(
-                success=False,
-                file_path=ai_path,
-                file_name=file_name,
-                status='error',
-                issues=[],
-                stats={},
-                error=result
-            )
-
-        svg_path = result
+        # SVG files don't need conversion — use directly
+        detected_svg_scale = None
+        if ai_path.lower().endswith('.svg'):
+            svg_path = ai_path
+            temp_svg = None  # Don't delete the original!
+            detected_svg_scale = detect_svg_scale(svg_path)
+        else:
+            success, result, temp_svg = convert_ai_to_svg(ai_path)
+            if not success:
+                return ValidationResult(
+                    success=False,
+                    file_path=ai_path,
+                    file_name=file_name,
+                    status='error',
+                    issues=[],
+                    stats={},
+                    error=result
+                )
+            svg_path = result
 
         # Parse paths from SVG
-        paths_info = extract_paths_from_svg(svg_path, ai_path)
+        # For .svg files, pass None as ai_path to skip binary OCG extraction
+        source_ai_path = None if ai_path.lower().endswith('.svg') else ai_path
+        paths_info = extract_paths_from_svg(svg_path, source_ai_path)
 
         # Filter out non-production paths:
         # - "Layer 1", "Layer_2" etc: Illustrator default unnamed layers
         # - "_no_layer_": stray paths outside any layer group (Inkscape export artifact)
         # - "_defs_": SVG <defs> definitions, not visible geometry
+        # - Separator layers: names with no alphanumeric chars (e.g., "---")
         _skip_layers = ('_no_layer_', '_defs_')
         paths_info = [
             p for p in paths_info
             if not (
                 p.layer_name in _skip_layers
                 or (p.layer_name and re.match(r'^Layer[\s_]\d+$', p.layer_name))
+                or (p.layer_name and not re.search(r'[a-zA-Z0-9]', p.layer_name))
             )
         ]
 
@@ -129,6 +165,10 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
         if 'letter_hole_analysis' in rules or 'front_lit_structure' in rules:
             analysis_config = rules.get('letter_hole_analysis', rules.get('front_lit_structure', {}))
 
+            # For SVG files with detected unit scale, override file_scale
+            if detected_svg_scale is not None:
+                analysis_config = {**analysis_config, 'file_scale': detected_svg_scale}
+
             # 1. Geometry analysis — all layers (returns UNCLASSIFIED holes)
             letter_analysis = analyze_letter_hole_associations(
                 paths_info,
@@ -136,14 +176,15 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
                 config=analysis_config
             )
 
-            # 2. Spec-specific classification (MUTATES hole_type in place)
-            if 'front_lit_structure' in rules:
-                classify_holes_in_analysis(letter_analysis, FRONT_LIT_HOLE_CONFIG)
+            # 2. Classify holes using standard sizes from DB (if provided)
+            standard_sizes = analysis_config.get('standard_hole_sizes', [])
+            if standard_sizes:
+                _classify_holes_from_standards(letter_analysis, standard_sizes)
 
             # 3. Per-letter issues (attaches to letter.issues + analysis.issues)
             if 'front_lit_structure' in rules:
-                issue_config = {**FRONT_LIT_HOLE_CONFIG, **rules.get('front_lit_structure', {})}
-                analysis_issues = generate_letter_analysis_issues(letter_analysis, issue_config)
+                return_layer = rules.get('front_lit_structure', {}).get('return_layer', 'return')
+                analysis_issues = generate_letter_analysis_issues(letter_analysis, return_layer)
                 for issue_dict in analysis_issues:
                     all_issues.append(ValidationIssue(
                         rule=issue_dict['rule'],
@@ -224,7 +265,5 @@ __all__ = [
     'LetterAnalysisResult',
     'HoleInfo',
     'analyze_letter_hole_associations',
-    'classify_holes_in_analysis',
     'generate_letter_analysis_issues',
-    'FRONT_LIT_HOLE_CONFIG',
 ]

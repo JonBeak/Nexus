@@ -7,14 +7,17 @@ import { X, Plus, Loader, TrendingUp, TrendingDown, AlertCircle } from 'lucide-r
 import api from '../../services/api';
 import { SupplierProduct, PricingHistory } from '../../types/supplyChain';
 import { getTodayString } from '../../utils/dateUtils';
+import { useModalBackdrop } from '../../hooks/useModalBackdrop';
 
 export interface PriceHistoryModalProps {
+  isOpen: boolean;
   product: SupplierProduct;
   onClose: () => void;
   onAddPrice?: () => void;
 }
 
 export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
+  isOpen,
   product,
   onClose,
   onAddPrice
@@ -24,6 +27,12 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const {
+    modalContentRef,
+    handleBackdropMouseDown,
+    handleBackdropMouseUp
+  } = useModalBackdrop({ isOpen, onClose });
 
   // Form state
   const [formData, setFormData] = useState({
@@ -57,8 +66,10 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
   }, [product.supplier_product_id]);
 
   useEffect(() => {
-    void loadPriceHistory();
-  }, [loadPriceHistory]);
+    if (isOpen) {
+      void loadPriceHistory();
+    }
+  }, [isOpen, loadPriceHistory]);
 
   // Handle add price
   const handleAddPrice = async (e: React.FormEvent) => {
@@ -122,9 +133,18 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
     );
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
+    >
+      <div
+        ref={modalContentRef}
+        className="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto"
+      >
         <div className="p-6">
           {/* Header */}
           <div className="flex justify-between items-start mb-4">

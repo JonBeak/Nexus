@@ -102,19 +102,42 @@ class HoleInfo:
     svg_path_data: str = ''
     transform: str = ''  # SVG transform chain for this hole
     diameter_real_mm: float = 0.0  # Actual diameter in millimeters
+    fill: Optional[str] = None     # Original SVG fill color
+    stroke: Optional[str] = None   # Original SVG stroke color
+    matched_name: str = ''         # Label from standard_hole_sizes (e.g. "LED Wire Hole")
+    matched_size_id: Optional[int] = None  # ID from standard_hole_sizes table
+    layer_name: str = ''           # Source layer name
+    raw_bbox: Optional[Tuple[float, float, float, float]] = None  # Raw bbox for SVG viewBox
 
     def to_dict(self) -> Dict[str, Any]:
         # Safety net: map 'unclassified' to 'unknown' for frontend contract
         display_type = self.hole_type if self.hole_type != 'unclassified' else 'unknown'
-        return {
+        result = {
             'path_id': self.path_id,
             'hole_type': display_type,
             'diameter_mm': round(self.diameter_mm, 3),
             'diameter_real_mm': round(self.diameter_real_mm, 2),
             'center': {'x': round(self.center[0], 2), 'y': round(self.center[1], 2)},
             'svg_path_data': self.svg_path_data,
-            'transform': _transform_for_svg(self.transform)
+            'transform': _transform_for_svg(self.transform),
+            'layer_name': self.layer_name,
         }
+        if self.raw_bbox:
+            result['file_bbox'] = {
+                'x': round(self.raw_bbox[0], 2),
+                'y': round(self.raw_bbox[1], 2),
+                'width': round(self.raw_bbox[2] - self.raw_bbox[0], 2),
+                'height': round(self.raw_bbox[3] - self.raw_bbox[1], 2),
+            }
+        if self.fill:
+            result['fill'] = self.fill
+        if self.stroke:
+            result['stroke'] = self.stroke
+        if self.matched_name:
+            result['matched_name'] = self.matched_name
+        if self.matched_size_id is not None:
+            result['matched_size_id'] = self.matched_size_id
+        return result
 
 
 @dataclass
@@ -123,7 +146,7 @@ class LetterGroup:
     Holes are stored unclassified; spec-specific rules classify them later."""
     letter_id: str                           # Unique identifier (path_id)
     main_path: 'PathInfo'                    # The outer letter boundary
-    counter_paths: List['PathInfo'] = field(default_factory=list)   # Inner counter paths (like inside "O", "A", "B")
+    counter_paths: List['PathInfo'] = field(default_factory=list)   # Legacy — counters are now baked into compound paths
     holes: List[HoleInfo] = field(default_factory=list)             # All holes (classified or unclassified)
     layer_name: str = ''                     # Source layer
     bbox: Tuple[float, float, float, float] = (0, 0, 0, 0)  # Transformed bbox (for size calcs)

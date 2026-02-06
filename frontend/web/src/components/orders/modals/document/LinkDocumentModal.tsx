@@ -55,7 +55,7 @@ interface LinkDocumentModalProps {
   };
   /** Document status if known (from verification check) */
   documentStatus?: 'exists' | 'not_found' | 'error' | 'not_linked';
-  /** Order totals for comparison display (invoice only) */
+  /** Order totals for comparison display */
   orderTotals?: OrderTotals;
 }
 
@@ -329,7 +329,7 @@ export const LinkDocumentModal: React.FC<LinkDocumentModalProps> = ({
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">
                     {isCurrentDocumentDeleted
-                      ? `Reassign or Unlink ${config.labels.documentName}`
+                      ? (config.features.hasUnlink ? `Reassign or Unlink ${config.labels.documentName}` : `Reassign ${config.labels.documentName}`)
                       : hasCurrentDocument
                         ? `Reassign ${config.labels.documentName}`
                         : config.title.link
@@ -370,7 +370,7 @@ export const LinkDocumentModal: React.FC<LinkDocumentModalProps> = ({
             ) : (
               <>
                 {/* Order Totals Reference (invoice only) */}
-                {orderTotals && documentType === 'invoice' && (
+                {orderTotals && (
                   <div className={`mb-3 px-3 py-2 border rounded-lg flex items-center justify-between ${
                     orderTotals.taxPercent < 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'
                   }`}>
@@ -399,7 +399,7 @@ export const LinkDocumentModal: React.FC<LinkDocumentModalProps> = ({
                 )}
 
                 {/* Current Document Status Banner */}
-                {hasCurrentDocument && config.features.hasUnlink && (
+                {hasCurrentDocument && (
                   <div className={`mb-4 p-4 rounded-lg border ${
                     isCurrentDocumentDeleted ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'
                   }`}>
@@ -429,29 +429,31 @@ export const LinkDocumentModal: React.FC<LinkDocumentModalProps> = ({
                               </p>
                             )}
                           </div>
-                          {isCurrentDocumentDeleted && (
+                          {isCurrentDocumentDeleted && config.features.hasUnlink && (
                             <p className="text-sm text-red-600 mt-2">
                               You must unlink or reassign this {config.labels.documentName.toLowerCase()} to continue.
                             </p>
                           )}
                         </div>
                       </div>
-                      <button
-                        onClick={handleUnlink}
-                        disabled={unlinking}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-lg flex items-center gap-1.5 ${
-                          isCurrentDocumentDeleted
-                            ? 'bg-red-600 hover:bg-red-700 text-white'
-                            : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                        } disabled:opacity-50`}
-                      >
-                        {unlinking ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Unlink className="w-4 h-4" />
-                        )}
-                        Unlink
-                      </button>
+                      {config.features.hasUnlink && (
+                        <button
+                          onClick={handleUnlink}
+                          disabled={unlinking}
+                          className={`px-3 py-1.5 text-sm font-medium rounded-lg flex items-center gap-1.5 ${
+                            isCurrentDocumentDeleted
+                              ? 'bg-red-600 hover:bg-red-700 text-white'
+                              : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                          } disabled:opacity-50`}
+                        >
+                          {unlinking ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Unlink className="w-4 h-4" />
+                          )}
+                          Unlink
+                        </button>
+                      )}
                     </div>
                     {unlinkError && (
                       <div className="mt-2 text-sm text-red-600">{unlinkError}</div>

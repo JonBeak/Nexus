@@ -1,3 +1,4 @@
+// File Clean up Finished: 2026-02-06
 /**
  * QuickBooks Customer Service
  * Business logic for creating and syncing customers with QuickBooks
@@ -159,29 +160,6 @@ export class QBCustomerService {
     };
   }
 
-  /**
-   * Store QB customer mapping for an existing local customer
-   * Used when linking after local creation
-   */
-  async storeCustomerMapping(
-    customerId: number,
-    qbCustomerId: string,
-    displayName: string
-  ): Promise<void> {
-    await quickbooksRepository.storeCustomerMapping({
-      customer_id: customerId,
-      qb_customer_id: qbCustomerId,
-      qb_customer_name: displayName
-    });
-  }
-
-  /**
-   * Check if QB is connected (has valid realm ID)
-   */
-  async isQBConnected(): Promise<boolean> {
-    const realmId = await quickbooksRepository.getDefaultRealmId();
-    return !!realmId;
-  }
 }
 
 // Export singleton instance

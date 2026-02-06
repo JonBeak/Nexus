@@ -13,6 +13,7 @@ import {
   CreateMaterialRequirementRequest,
   UpdateMaterialRequirementRequest,
 } from '../types/materialRequirements';
+import { getLocalDateString } from '../utils/dateUtils';
 
 export interface MaterialRequirementRow extends RowDataPacket, MaterialRequirement {}
 
@@ -34,7 +35,12 @@ export class MaterialRequirementRepository {
         pa.unit_of_measure,
         sp.product_name as supplier_product_name,
         sp.sku as supplier_product_sku,
-        s.name as supplier_name,
+        CASE
+          WHEN mr.supplier_id = -1 THEN 'In Stock'
+          WHEN mr.supplier_id = -2 THEN 'In House'
+          WHEN mr.supplier_id = -3 THEN 'Customer Provided'
+          ELSE s.name
+        END as supplier_name,
         vp.brand as vinyl_product_brand,
         vp.series as vinyl_product_series,
         vp.colour_number as vinyl_product_colour_number,
@@ -212,17 +218,9 @@ export class MaterialRequirementRepository {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-    // Get local date in YYYY-MM-DD format (avoid timezone issues with toISOString)
-    const getLocalDateString = (date: Date): string => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
-
     const entryDate = data.entry_date
       ? new Date(data.entry_date).toISOString().split('T')[0]
-      : getLocalDateString(new Date());
+      : getLocalDateString();
 
     const expectedDeliveryDate = data.expected_delivery_date
       ? new Date(data.expected_delivery_date).toISOString().split('T')[0]
@@ -240,7 +238,7 @@ export class MaterialRequirementRepository {
       data.supplier_id ?? null,
       entryDate,
       expectedDeliveryDate,
-      data.delivery_method ?? 'shipping',
+      data.delivery_method ?? null,
       data.notes?.trim() ?? null,
       userId ?? null,
     ]) as ResultSetHeader;
@@ -449,7 +447,12 @@ export class MaterialRequirementRepository {
         mr.is_stock_item,
         mr.notes,
         mr.supplier_id,
-        s.name as supplier_name,
+        CASE
+          WHEN mr.supplier_id = -1 THEN 'In Stock'
+          WHEN mr.supplier_id = -2 THEN 'In House'
+          WHEN mr.supplier_id = -3 THEN 'Customer Provided'
+          ELSE s.name
+        END as supplier_name,
         (SELECT contact_email FROM supplier_contacts sc WHERE sc.supplier_id = s.supplier_id AND sc.is_primary = 1 LIMIT 1) as contact_email,
         (SELECT phone FROM supplier_contacts sc WHERE sc.supplier_id = s.supplier_id AND sc.is_primary = 1 LIMIT 1) as contact_phone,
         pa.name as archetype_name,
@@ -496,5 +499,57 @@ export class MaterialRequirementRepository {
       LIMIT ${safeLimit}
     `;
     return await query(sql) as RowDataPacket[];
+  }
+
+  // ==========================================
+  // HOLD FIELD METHODS (Added 2026-02-06)
+  // These update hold-specific columns that the generic update() intentionally doesn't expose.
+  // ==========================================
+
+  /**
+   * Set the held_vinyl_id reference on a material requirement
+   */
+  async setHeldVinylId(requirementId: number, vinylId: number): Promise<void> {
+    await query(
+      'UPDATE material_requirements SET held_vinyl_id = ? WHERE requirement_id = ?',
+      [vinylId, requirementId]
+    );
+  }
+
+  /**
+   * Set the held_supplier_product_id reference on a material requirement
+   */
+  async setHeldSupplierProductId(requirementId: number, supplierProductId: number): Promise<void> {
+    await query(
+      'UPDATE material_requirements SET held_supplier_product_id = ? WHERE requirement_id = ?',
+      [supplierProductId, requirementId]
+    );
+  }
+
+  /**
+   * Clear all hold-related fields and revert supplier fields to defaults
+   * Used when releasing a hold entirely
+   */
+  async clearHoldFields(requirementId: number): Promise<void> {
+    await query(
+      `UPDATE material_requirements
+       SET held_vinyl_id = NULL,
+           held_supplier_product_id = NULL,
+           supplier_id = NULL,
+           ordered_date = NULL,
+           delivery_method = 'shipping'
+       WHERE requirement_id = ?`,
+      [requirementId]
+    );
+  }
+
+  /**
+   * Clear only the held_vinyl_id reference (used after receiving vinyl)
+   */
+  async clearHeldVinylId(requirementId: number): Promise<void> {
+    await query(
+      'UPDATE material_requirements SET held_vinyl_id = NULL WHERE requirement_id = ?',
+      [requirementId]
+    );
   }
 }

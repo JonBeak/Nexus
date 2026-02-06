@@ -80,7 +80,7 @@ def check_stroke_requirements(paths_info: List[PathInfo], rules: Dict) -> List[V
                 severity='error',
                 message=f'Path {path.path_id} has incorrect stroke color: {path.stroke} (expected {required_color})',
                 path_id=path.path_id,
-                details={'actual_stroke': path.stroke, 'expected': required_color}
+                details={'actual_stroke': path.stroke, 'expected': required_color, 'layer': path.layer_name}
             ))
 
         if required_width is not None and path.stroke_width is not None:
@@ -90,7 +90,7 @@ def check_stroke_requirements(paths_info: List[PathInfo], rules: Dict) -> List[V
                     severity='error',
                     message=f'Path {path.path_id} has incorrect stroke width: {path.stroke_width:.2f}pt (expected {required_width}pt)',
                     path_id=path.path_id,
-                    details={'actual_width': path.stroke_width, 'expected': required_width}
+                    details={'actual_width': path.stroke_width, 'expected': required_width, 'layer': path.layer_name}
                 ))
 
         if not allow_fill and path.fill and path.fill != 'none':
@@ -99,7 +99,7 @@ def check_stroke_requirements(paths_info: List[PathInfo], rules: Dict) -> List[V
                 severity='error',
                 message=f'Path {path.path_id} has fill: {path.fill} (expected no fill)',
                 path_id=path.path_id,
-                details={'actual_fill': path.fill}
+                details={'actual_fill': path.fill, 'layer': path.layer_name}
             ))
 
     return issues

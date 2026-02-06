@@ -7,10 +7,10 @@ Validates structural requirements for Front Lit channel letter working files:
 3. Trim layer path count matches Return layer
 4. Trim offset from Return is within tolerance
 
-Also provides spec-specific hole classification:
-- classify_hole_type(): Pure classification (real mm -> wire/mounting/unknown)
-- classify_holes_in_analysis(): Mutates HoleInfo objects in a LetterAnalysisResult
-- generate_letter_analysis_issues(): Generates validation issues from classified analysis
+Hole classification is handled by the database (standard_hole_sizes table)
+via _classify_holes_from_standards() in __init__.py.
+
+generate_letter_analysis_issues(): Generates validation issues from classified analysis
 
 File scale assumptions:
 - Working files are at 10% scale
@@ -42,77 +42,9 @@ from .legacy_analysis import (
 )
 
 
-# Front Lit spec-specific hole configuration (real-world mm)
-FRONT_LIT_HOLE_CONFIG = {
-    'wire_hole_expected_mm': 9.7,
-    'mounting_hole_expected_mm': 3.81,
-    'hole_exact_tolerance_mm': 0.15,
-    'hole_similar_tolerance_mm': 2.0,
-}
-
-
-def classify_hole_type(diameter_real_mm: float, config: Dict = None) -> str:
-    """
-    Classify a hole by its real-world diameter in mm.
-
-    Returns 'wire', 'mounting', or 'unknown' based on proximity to expected sizes.
-    If within ±2.0mm (hole_similar_tolerance_mm) of an expected size, classifies as that type.
-
-    Args:
-        diameter_real_mm: Hole diameter in real-world millimeters
-        config: Configuration dict (uses FRONT_LIT_HOLE_CONFIG defaults)
-
-    Returns:
-        str: 'wire', 'mounting', or 'unknown'
-    """
-    cfg = {**FRONT_LIT_HOLE_CONFIG, **(config or {})}
-
-    if diameter_real_mm <= 0:
-        return 'unknown'
-
-    wire_mm = cfg['wire_hole_expected_mm']
-    mount_mm = cfg['mounting_hole_expected_mm']
-    similar_tol = cfg['hole_similar_tolerance_mm']
-
-    dist_wire = abs(diameter_real_mm - wire_mm)
-    dist_mount = abs(diameter_real_mm - mount_mm)
-
-    if dist_wire <= similar_tol and dist_wire <= dist_mount:
-        return 'wire'
-    elif dist_mount <= similar_tol and dist_mount < dist_wire:
-        return 'mounting'
-    else:
-        return 'unknown'
-
-
-def classify_holes_in_analysis(analysis: LetterAnalysisResult, config: Dict = None) -> None:
-    """
-    Classify all unclassified holes in a LetterAnalysisResult in-place.
-
-    Iterates all HoleInfo in letter_groups[].holes and orphan_holes,
-    mutating hole_type from 'unclassified' to the classified value.
-
-    Args:
-        analysis: The LetterAnalysisResult with unclassified holes
-        config: Configuration dict (uses FRONT_LIT_HOLE_CONFIG defaults)
-    """
-    cfg = {**FRONT_LIT_HOLE_CONFIG, **(config or {})}
-
-    # Classify holes in letter groups
-    for group in analysis.letter_groups:
-        for hole in group.holes:
-            if hole.hole_type == 'unclassified':
-                hole.hole_type = classify_hole_type(hole.diameter_real_mm, cfg)
-
-    # Classify orphan holes
-    for hole in analysis.orphan_holes:
-        if hole.hole_type == 'unclassified':
-            hole.hole_type = classify_hole_type(hole.diameter_real_mm, cfg)
-
-
 def generate_letter_analysis_issues(
     analysis: LetterAnalysisResult,
-    config: Dict = None
+    return_layer: str = 'return'
 ) -> List[Dict[str, Any]]:
     """
     Generate validation issues from letter analysis results.
@@ -121,13 +53,11 @@ def generate_letter_analysis_issues(
 
     Args:
         analysis: LetterAnalysisResult (holes should already be classified)
-        config: Configuration dict (uses FRONT_LIT_HOLE_CONFIG defaults)
+        return_layer: Layer name for return paths (default 'return')
 
     Returns:
         List of issue dicts with rule, severity, message, details
     """
-    cfg = {**FRONT_LIT_HOLE_CONFIG, **(config or {})}
-    return_layer = cfg.get('return_layer', 'return')
     all_issues = []
 
     # Orphan holes are errors — attach to analysis.issues
@@ -198,37 +128,10 @@ def generate_letter_analysis_issues(
                     'letter_id': letter.letter_id,
                     'diameter_mm': hole.diameter_mm,
                     'diameter_real_mm': hole.diameter_real_mm,
-                    'expected_wire_mm': cfg['wire_hole_expected_mm'],
-                    'expected_mounting_mm': cfg['mounting_hole_expected_mm']
                 }
             }
             all_issues.append(issue)
             letter.issues.append(issue)
-
-        # Check classified holes for size deviations
-        wire_expected = cfg['wire_hole_expected_mm']
-        mount_expected = cfg['mounting_hole_expected_mm']
-        exact_tol = cfg['hole_exact_tolerance_mm']
-
-        for hole in letter.wire_holes + letter.mounting_holes:
-            expected = wire_expected if hole.hole_type == 'wire' else mount_expected
-            deviation = abs(hole.diameter_real_mm - expected)
-            if deviation > exact_tol:
-                issue = {
-                    'rule': 'hole_size_deviation',
-                    'severity': 'warning',
-                    'message': f'{hole.hole_type.title()} hole is {hole.diameter_real_mm:.2f}mm, expected {expected}mm',
-                    'path_id': hole.path_id,
-                    'details': {
-                        'letter_id': letter.letter_id,
-                        'hole_type': hole.hole_type,
-                        'actual_mm': hole.diameter_real_mm,
-                        'expected_mm': expected,
-                        'deviation_mm': round(deviation, 2)
-                    }
-                }
-                all_issues.append(issue)
-                letter.issues.append(issue)
 
     return all_issues
 
@@ -320,8 +223,11 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
                 }
             ))
 
-    # Rule 3: Trim count
-    trim_letters = analyze_letters_in_layer(paths_info, trim_layer, rules)
+    # Rule 3: Trim count — use same analysis source as return for consistency
+    if letter_analysis and letter_analysis.letter_groups:
+        trim_letters = convert_letter_groups_to_analysis(letter_analysis, trim_layer, file_scale)
+    else:
+        trim_letters = analyze_letters_in_layer(paths_info, trim_layer, rules)
 
     issues.append(ValidationIssue(
         rule='front_lit_structure',

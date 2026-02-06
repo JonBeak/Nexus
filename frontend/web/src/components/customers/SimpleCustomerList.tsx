@@ -71,12 +71,11 @@ function SimpleCustomerList() {
   return (
     <>
       {/* Customer Details Modal */}
-      {showCustomerDetails && (
-        <CustomerDetailsModal 
-          customer={selectedCustomer} 
-          onClose={handleCloseCustomerDetailsCallback}
-        />
-      )}
+      <CustomerDetailsModal
+        isOpen={showCustomerDetails}
+        customer={selectedCustomer}
+        onClose={handleCloseCustomerDetailsCallback}
+      />
       
       <div className={PAGE_STYLES.fullPage}>
         <CustomerListHeader

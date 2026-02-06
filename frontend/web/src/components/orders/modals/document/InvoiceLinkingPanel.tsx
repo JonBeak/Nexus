@@ -3,8 +3,8 @@
  *
  * Reusable component for selecting and linking existing QuickBooks invoices.
  * Used in:
- * - InvoiceActionModal (create mode - right panel)
- * - LinkInvoiceModal/LinkDocumentModal (standalone modal for reassignment)
+ * - DocumentActionModal (create mode - right panel)
+ * - LinkDocumentModal (standalone modal for reassignment)
  *
  * Features:
  * - Customer invoices list with pagination (open first, then closed)

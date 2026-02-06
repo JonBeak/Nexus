@@ -622,6 +622,18 @@ export class SupplierProductRepository {
   }
 
   /**
+   * Check if any active supplier product has stock for a given archetype
+   */
+  async hasInStockForArchetype(archetypeId: number): Promise<boolean> {
+    const sql = `
+      SELECT COUNT(*) as count FROM supplier_products
+      WHERE archetype_id = ? AND is_active = 1 AND quantity_on_hand > 0
+    `;
+    const rows = await query(sql, [archetypeId]) as RowDataPacket[];
+    return rows[0]?.count > 0;
+  }
+
+  /**
    * Get stock summary by category
    */
   async getStockSummaryByCategory(): Promise<RowDataPacket[]> {

@@ -212,7 +212,7 @@ export const BackerPricingDisplay: React.FC = () => {
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <ConstantCard title="Aluminum Backer">
-              <ConstantRow label="1.25\" Angle" value={`$${miscDisplay.alumAngle}`} />
+              <ConstantRow label={'1.25" Angle'} value={`$${miscDisplay.alumAngle}`} />
               <ConstantRow label="Assembly" value={`$${miscDisplay.alumAssembly}`} />
               <ConstantRow label="Mounting angle" value={`$${miscDisplay.alumMounting}`} />
               <ConstantRow label="Total angle cost" value={`$${miscDisplay.alumTotal} per ${miscDisplay.angleLinearDivisor}" linear`} />
@@ -220,7 +220,7 @@ export const BackerPricingDisplay: React.FC = () => {
               <ConstantRow label="Perimeter type" value="Horizontal only (top + bottom)" />
             </ConstantCard>
             <ConstantCard title="ACM Backer">
-              <ConstantRow label="2\" Angle" value={`$${miscDisplay.acmAngle}`} />
+              <ConstantRow label={'2" Angle'} value={`$${miscDisplay.acmAngle}`} />
               <ConstantRow label="Assembly + VHB" value={`$${miscDisplay.acmAssembly}`} />
               <ConstantRow label="Mounting angle" value={`$${miscDisplay.acmMounting}`} />
               <ConstantRow label="Total angle cost" value={`$${miscDisplay.acmTotal} per ${miscDisplay.angleLinearDivisor}" linear`} />

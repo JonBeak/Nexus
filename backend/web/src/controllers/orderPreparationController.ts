@@ -869,6 +869,51 @@ export const getCustomerEstimates = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * GET /api/order-preparation/estimates/:estimateId/details
+ * Get detailed QB estimate including line items (for preview panel)
+ */
+export const getEstimateDetails = async (req: Request, res: Response) => {
+  try {
+    const { estimateId } = req.params;
+    if (!estimateId) {
+      return sendErrorResponse(res, 'Estimate ID is required', 'VALIDATION_ERROR');
+    }
+
+    const { quickbooksRepository } = await import('../repositories/quickbooksRepository');
+    const realmId = await quickbooksRepository.getDefaultRealmId();
+    if (!realmId) {
+      return sendErrorResponse(res, 'QuickBooks not configured', 'CONFIGURATION_ERROR');
+    }
+
+    const { getQBEstimate } = await import('../utils/quickbooks/apiClient');
+    const estimate = await getQBEstimate(estimateId, realmId);
+
+    const lineItems = (estimate.Line || [])
+      .filter((line: any) => line.DetailType === 'SalesItemLineDetail' || line.DetailType === 'DescriptionOnly')
+      .map((line: any) => ({
+        description: line.Description || '',
+        itemName: line.SalesItemLineDetail?.ItemRef?.name || (line.DetailType === 'DescriptionOnly' ? line.Description || '' : '-'),
+        quantity: line.SalesItemLineDetail?.Qty || 0,
+        unitPrice: line.SalesItemLineDetail?.UnitPrice || 0,
+        amount: line.Amount || 0
+      }));
+
+    sendSuccessResponse(res, {
+      estimateId: estimate.Id,
+      docNumber: estimate.DocNumber,
+      txnDate: estimate.TxnDate,
+      total: estimate.TotalAmt,
+      customerName: estimate.CustomerRef?.name || '',
+      lineItems
+    });
+  } catch (error) {
+    console.error('Error getting estimate details:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get estimate details';
+    sendErrorResponse(res, message, 'INTERNAL_ERROR');
+  }
+};
+
 // =============================================
 // CASH JOB ESTIMATE EMAIL WORKFLOW
 // =============================================

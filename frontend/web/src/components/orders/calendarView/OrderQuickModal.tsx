@@ -186,6 +186,11 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   const [estimateSyncStatus, setEstimateSyncStatus] = useState<DocumentSyncStatus>('in_sync');
   const [estimateDifferences, setEstimateDifferences] = useState<DocumentDifference[]>([]);
   const [showLinkEstimateModal, setShowLinkEstimateModal] = useState(false);
+  const [reassignEstimateInfo, setReassignEstimateInfo] = useState<{
+    estimateId: string | null;
+    estimateNumber: string | null;
+    isDeleted: boolean;
+  } | null>(null);
   const [estimateIsStale, setEstimateIsStale] = useState(false);
   const [showEstimateDropdown, setShowEstimateDropdown] = useState(false);
   const [showCreateEstimateModal, setShowCreateEstimateModal] = useState(false);
@@ -273,7 +278,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
     setPendingPrintResult(null);
   }, [pendingPrintResult, handleMoveToProductionAfterMaterials]);
 
-  // Calculate order totals for LinkInvoiceModal comparison
+  // Calculate order totals for LinkDocumentModal comparison
   const orderTotals = useMemo((): OrderTotals | undefined => {
     if (!orderDetails || !parts || parts.length === 0) return undefined;
 
@@ -1727,14 +1732,23 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
         <LinkDocumentModal
           documentType="estimate"
           isOpen={showLinkEstimateModal}
-          onClose={() => setShowLinkEstimateModal(false)}
+          onClose={() => {
+            setShowLinkEstimateModal(false);
+            setReassignEstimateInfo(null);
+          }}
           orderNumber={orderDetails.order_number}
-          customerId={orderDetails.qb_customer_id || ''}
-          currentDocument={orderDetails.qb_estimate_id ? {
-            id: orderDetails.qb_estimate_id,
-            number: orderDetails.qb_estimate_number || ''
-          } : undefined}
-          onSuccess={handleLinkEstimateSuccess}
+          onSuccess={() => {
+            handleLinkEstimateSuccess();
+            setReassignEstimateInfo(null);
+          }}
+          currentDocument={reassignEstimateInfo ? {
+            documentId: reassignEstimateInfo.estimateId,
+            documentNumber: reassignEstimateInfo.estimateNumber,
+          } : (orderDetails.qb_estimate_id ? {
+            documentId: orderDetails.qb_estimate_id,
+            documentNumber: orderDetails.qb_estimate_doc_number || null,
+          } : undefined)}
+          documentStatus={reassignEstimateInfo?.isDeleted ? 'not_found' : (reassignEstimateInfo ? 'exists' : 'not_linked')}
         />
       )}
 
@@ -1771,6 +1785,15 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
             setShowEstimateActionModal(false);
             fetchOrderDetails();
             onOrderUpdated();
+          }}
+          onReassign={(isDeleted) => {
+            setShowEstimateActionModal(false);
+            setReassignEstimateInfo({
+              estimateId: orderDetails!.qb_estimate_id || null,
+              estimateNumber: orderDetails!.qb_estimate_doc_number || null,
+              isDeleted,
+            });
+            setShowLinkEstimateModal(true);
           }}
           onLinkExisting={() => {
             setShowEstimateActionModal(false);

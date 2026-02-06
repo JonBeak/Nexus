@@ -19,6 +19,43 @@ except ImportError:
     svg2paths2 = None
 
 
+def detect_svg_scale(svg_path: str) -> Optional[float]:
+    """
+    Detect file_scale from SVG dimensions/units.
+
+    Returns scale factor such that: real_mm = diameter / (72 * scale) * 25.4
+
+    - viewBox in points (typical AI→Inkscape conversion): returns None (caller uses its own file_scale)
+    - viewBox in inches (Illustrator SVG export with width="Xin"): returns 1/72
+      This makes 72 * (1/72) = 1.0, so diameter_inches * 25.4 = real_mm
+    """
+    try:
+        tree = ET.parse(svg_path)
+        root = tree.getroot()
+
+        width_str = root.get('width', '')
+        viewBox = root.get('viewBox', '')
+
+        if not viewBox:
+            return None
+
+        vb_parts = viewBox.replace(',', ' ').split()
+        if len(vb_parts) < 4:
+            return None
+
+        # Check if width attribute has explicit inch unit
+        if 'in' in width_str:
+            # Width in inches, viewBox matches → units are inches
+            # scale = 1/72 makes the formula: diameter_inches / 1.0 * 25.4 = real_mm
+            return 1.0 / 72.0
+
+        # Default: assume points (standard AI→SVG conversion)
+        return None
+    except Exception as e:
+        print(f"Warning: Could not detect SVG scale: {e}", file=sys.stderr)
+        return None
+
+
 def convert_ai_to_svg(ai_path: str) -> Tuple[bool, str, Optional[str]]:
     """
     Convert AI file to SVG using multiple converter fallbacks.
@@ -127,6 +164,36 @@ def extract_layer_names_from_ai(ai_path: str) -> List[str]:
     return layer_names
 
 
+def _classify_svg_group(group, ns_strip=True) -> str:
+    """
+    Classify a top-level SVG <g> as 'container' or 'orphan'.
+
+    Container groups correspond to AI layer boundaries — they wrap other <g>
+    children and have no transform or direct path/shape children.
+
+    Orphan groups are flattened sub-groups from within an AI layer — they
+    typically have a transform attribute and contain direct path/shape children.
+    """
+    shape_tags = {'path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon'}
+
+    has_child_g = False
+    has_direct_shapes = False
+
+    for child in group:
+        tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+        if tag == 'g':
+            has_child_g = True
+        elif tag in shape_tags:
+            has_direct_shapes = True
+
+    has_transform = group.get('transform') is not None
+
+    # Container: wraps child <g> elements, no transform, no direct shapes
+    if has_child_g and not has_transform and not has_direct_shapes:
+        return 'container'
+    return 'orphan'
+
+
 def build_layer_and_transform_map(svg_path: str,
                                    ai_path: Optional[str] = None) -> Tuple[Dict[str, str], Dict[str, str]]:
     """
@@ -135,13 +202,13 @@ def build_layer_and_transform_map(svg_path: str,
     layer_map: Dict[str, str] = {}
     transform_map: Dict[str, str] = {}
 
+    ai_layer_names_raw = []
     ai_layer_names = []
     if ai_path:
-        raw_names = extract_layer_names_from_ai(ai_path)
+        ai_layer_names_raw = extract_layer_names_from_ai(ai_path)
         # Filter out separator layers (names with no alphanumeric chars like "---")
-        # Inkscape drops empty/hidden layers from SVG output, but OCG extraction
-        # still finds them, causing an off-by-one index mismatch
-        ai_layer_names = [n for n in raw_names if re.search(r'[a-zA-Z0-9]', n)]
+        # for the final assignment, but keep raw count for mapping alignment
+        ai_layer_names = [n for n in ai_layer_names_raw if re.search(r'[a-zA-Z0-9]', n)]
 
     try:
         tree = ET.parse(svg_path)
@@ -173,19 +240,77 @@ def build_layer_and_transform_map(svg_path: str,
             main_group = root  # traverse from root
             top_level_groups = root_groups
 
-        # If there are more SVG groups than AI layer names, Inkscape may have
-        # exported extra structural groups (artboard bounds, clip regions) before
-        # the real layers. Skip leading groups to align the counts.
-        offset = max(0, len(top_level_groups) - len(ai_layer_names)) if ai_layer_names else 0
+        # Classify each top-level group as container or orphan
+        group_types = [_classify_svg_group(g) for g in top_level_groups]
+        num_containers = sum(1 for t in group_types if t == 'container')
+        num_orphans = sum(1 for t in group_types if t == 'orphan')
 
+        # Map from element ID → layer name (covers both groups and loose paths)
         group_to_layer = {}
-        for i, group in enumerate(top_level_groups):
-            gid = group.get('id', f'group_{i}')
-            ai_idx = i - offset
-            if ai_layer_names and 0 <= ai_idx < len(ai_layer_names):
-                group_to_layer[gid] = ai_layer_names[ai_idx]
-            else:
-                group_to_layer[gid] = f'Layer_{i+1}'
+
+        if num_orphans > 0 and num_containers == len(ai_layer_names):
+            # Container-based partitioning: Inkscape flattened sub-groups within layers.
+            # Each container anchors a layer; orphans preceding it belong to the
+            # previous container's layer. Orphans before the first container belong
+            # to the first layer.
+            #
+            # IMPORTANT: Iterate ALL children of main_group (not just <g> elements)
+            # because Inkscape can also place loose <path>/<circle>/etc. as siblings
+            # of the groups. These loose paths belong to the same layer partition.
+            shape_tags = {'path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon'}
+            group_set = set(id(g) for g in top_level_groups)
+            group_idx_map = {id(g): i for i, g in enumerate(top_level_groups)}
+
+            # Partition ALL children into segments ending at each container group
+            partitions: List[List] = []
+            current_partition: List = []
+            for child in main_group:
+                tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+                if id(child) in group_set:
+                    # This is a top-level group
+                    current_partition.append(child)
+                    if group_types[group_idx_map[id(child)]] == 'container':
+                        partitions.append(current_partition)
+                        current_partition = []
+                elif tag in shape_tags:
+                    # Loose path/shape sibling — include in current partition
+                    current_partition.append(child)
+
+            # Any trailing elements after the last container go into the last partition
+            if current_partition and partitions:
+                partitions[-1].extend(current_partition)
+            elif current_partition:
+                partitions.append(current_partition)
+
+            # Assign layer names to partitions
+            # Use raw OCG names to find the correct mapping — separator layers
+            # in the AI file don't produce SVG groups, so we skip them
+            content_layer_idx = 0
+            for partition_idx, partition in enumerate(partitions):
+                # Find next content layer name (skip separators)
+                layer_name = f'Layer_{partition_idx+1}'
+                while content_layer_idx < len(ai_layer_names_raw):
+                    candidate = ai_layer_names_raw[content_layer_idx]
+                    content_layer_idx += 1
+                    if re.search(r'[a-zA-Z0-9]', candidate):
+                        layer_name = candidate
+                        break
+
+                for elem in partition:
+                    eid = elem.get('id', f'elem_{partition_idx}')
+                    group_to_layer[eid] = layer_name
+        else:
+            # Simple case: no orphans, or container count doesn't match layer count.
+            # Fall back to offset heuristic — extra leading groups are structural.
+            offset = max(0, len(top_level_groups) - len(ai_layer_names)) if ai_layer_names else 0
+
+            for i, group in enumerate(top_level_groups):
+                gid = group.get('id', f'group_{i}')
+                ai_idx = i - offset
+                if ai_layer_names and 0 <= ai_idx < len(ai_layer_names):
+                    group_to_layer[gid] = ai_layer_names[ai_idx]
+                else:
+                    group_to_layer[gid] = f'Layer_{i+1}'
 
         def get_top_level_parent(element, parent_chain):
             for parent_id in parent_chain:
@@ -211,7 +336,9 @@ def build_layer_and_transform_map(svg_path: str,
                     if in_defs:
                         layer_map[path_id] = '_defs_'
                     else:
-                        layer_name = get_top_level_parent(element, new_chain)
+                        # Check if this path is directly mapped (loose path in wrapper)
+                        # before falling back to parent chain lookup
+                        layer_name = group_to_layer.get(path_id) or get_top_level_parent(element, new_chain)
                         layer_map[path_id] = layer_name or '_no_layer_'
 
                     path_transform = element.get('transform', '')

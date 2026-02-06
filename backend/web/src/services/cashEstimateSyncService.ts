@@ -779,17 +779,17 @@ export async function linkExistingEstimate(
  * Get QB estimates for a customer (for linking)
  */
 export async function getCustomerEstimates(orderId: number): Promise<CustomerEstimate[]> {
-  // Get customer's QB ID
+  // Get customer's QB ID from mapping table
   const orderData = await query(
-    `SELECT c.qb_customer_id
+    `SELECT m.qb_customer_id
      FROM orders o
-     JOIN customers c ON c.customer_id = o.customer_id
+     JOIN qb_customer_id_mappings m ON m.customer_id = o.customer_id
      WHERE o.order_id = ?`,
     [orderId]
   ) as any[];
 
   if (!orderData.length || !orderData[0].qb_customer_id) {
-    throw new Error('Customer not linked to QuickBooks');
+    return [];
   }
 
   const qbCustomerId = orderData[0].qb_customer_id;
@@ -797,17 +797,21 @@ export async function getCustomerEstimates(orderId: number): Promise<CustomerEst
   // Get realm ID
   const realmId = await quickbooksRepository.getDefaultRealmId();
   if (!realmId) {
-    throw new Error('QuickBooks realm ID not configured');
+    return [];
   }
 
   // Fetch estimates from QB
-  const estimates = await queryEstimatesByCustomer(qbCustomerId, realmId);
-
-  return estimates.map(est => ({
-    Id: est.Id,
-    DocNumber: est.DocNumber,
-    TxnDate: est.TxnDate,
-    TotalAmt: est.TotalAmt,
-    CustomerRef: est.CustomerRef
-  }));
+  try {
+    const estimates = await queryEstimatesByCustomer(qbCustomerId, realmId);
+    return estimates.map(est => ({
+      Id: est.Id,
+      DocNumber: est.DocNumber,
+      TxnDate: est.TxnDate,
+      TotalAmt: est.TotalAmt,
+      CustomerRef: est.CustomerRef
+    }));
+  } catch (error) {
+    console.error('Failed to fetch estimates from QuickBooks:', error);
+    return [];
+  }
 }

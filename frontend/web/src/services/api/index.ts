@@ -149,7 +149,11 @@ export type {
   InvoicePaymentAllocation,
   MultiPaymentInput,
   MultiPaymentResult,
-  OpenInvoicesResponse
+  OpenInvoicesResponse,
+  OpenCashOrder,
+  CashOrderAllocation,
+  MultiCashPaymentInput,
+  MultiCashPaymentResult
 } from './paymentsApi';
 
 // Customer Accounting Emails

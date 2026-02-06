@@ -375,8 +375,23 @@ function createEstimateApiAdapter(): DocumentApiAdapter {
     // Search not currently supported for estimates
     search: undefined,
 
-    // Details not currently supported for estimates
-    getDetails: undefined,
+    getDetails: async (documentId) => {
+      const result = await orderPreparationApi.getEstimateDetails(documentId);
+      return {
+        documentId: result.estimateId,
+        docNumber: result.docNumber,
+        txnDate: result.txnDate,
+        total: result.total,
+        customerName: result.customerName,
+        lineItems: result.lineItems.map((line: any) => ({
+          itemName: line.itemName,
+          description: line.description,
+          quantity: line.quantity,
+          unitPrice: line.unitPrice,
+          amount: line.amount,
+        })),
+      };
+    },
 
     // Verify not currently supported for estimates
     verify: undefined,

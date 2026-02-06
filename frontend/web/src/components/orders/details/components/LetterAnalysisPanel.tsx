@@ -22,8 +22,10 @@ import {
   Circle,
   Info,
 } from 'lucide-react';
-import { LetterAnalysisResponse, LetterDetail, HoleDetail } from '../../../../types/aiFileValidation';
+import { LetterAnalysisResponse, LetterDetail } from '../../../../types/aiFileValidation';
 import LetterSvgPreview from './LetterSvgPreview';
+import LayerSvgOverview from './LayerSvgOverview';
+import OrphanHolesPanel from './OrphanHolesPanel';
 
 interface LetterAnalysisPanelProps {
   analysis: LetterAnalysisResponse;
@@ -47,31 +49,27 @@ const HoleLegend: React.FC = () => (
 );
 
 const HoleStats: React.FC<{ letter: LetterDetail }> = ({ letter }) => {
-  const wireCount = letter.holes?.filter(h => h.hole_type === 'wire').length || 0;
-  const mountingCount = letter.holes?.filter(h => h.hole_type === 'mounting').length || 0;
-  const unknownCount = letter.holes?.filter(h => h.hole_type === 'unknown').length || 0;
+  // Group holes by type, using matched_name for display when available
+  const groups = (letter.holes || []).reduce<Record<string, { count: number; color: string; dotColor: string }>>((acc, h) => {
+    const label = h.matched_name || h.hole_type;
+    const color = h.hole_type === 'wire' ? 'text-blue-600' : h.hole_type === 'mounting' ? 'text-green-600' : 'text-orange-600';
+    const dotColor = h.hole_type === 'wire' ? 'fill-blue-500 text-blue-500' : h.hole_type === 'mounting' ? 'fill-green-500 text-green-500' : 'fill-orange-500 text-orange-500';
+    if (!acc[label]) acc[label] = { count: 0, color, dotColor };
+    acc[label].count++;
+    return acc;
+  }, {});
+
+  const entries = Object.entries(groups);
 
   return (
     <div className="flex items-center gap-3 text-sm">
-      {wireCount > 0 && (
-        <span className="flex items-center gap-1 text-blue-600">
-          <Circle className="w-3 h-3 fill-blue-500 text-blue-500" />
-          {wireCount} wire
+      {entries.map(([label, { count, color, dotColor }]) => (
+        <span key={label} className={`flex items-center gap-1 ${color}`}>
+          <Circle className={`w-3 h-3 ${dotColor}`} />
+          {count} {label}
         </span>
-      )}
-      {mountingCount > 0 && (
-        <span className="flex items-center gap-1 text-green-600">
-          <Circle className="w-3 h-3 fill-green-500 text-green-500" />
-          {mountingCount} mounting
-        </span>
-      )}
-      {unknownCount > 0 && (
-        <span className="flex items-center gap-1 text-orange-600">
-          <Circle className="w-3 h-3 fill-orange-500 text-orange-500" />
-          {unknownCount} unknown
-        </span>
-      )}
-      {wireCount === 0 && mountingCount === 0 && unknownCount === 0 && (
+      ))}
+      {entries.length === 0 && (
         <span className="text-gray-400">No holes</span>
       )}
     </div>
@@ -81,8 +79,9 @@ const HoleStats: React.FC<{ letter: LetterDetail }> = ({ letter }) => {
 const LetterCard: React.FC<{
   letter: LetterDetail;
   index: number;
-}> = ({ letter, index }) => {
-  const [expanded, setExpanded] = useState(true);
+  expanded: boolean;
+  onToggle: () => void;
+}> = ({ letter, index, expanded, onToggle }) => {
 
   const issues = letter.issues || [];
   const hasError = issues.some(i => i.severity === 'error');
@@ -92,13 +91,13 @@ const LetterCard: React.FC<{
                     : 'border-purple-300';
 
   return (
-    <div className={`border rounded-lg overflow-hidden ${borderClass}`}>
+    <div id={`letter-${letter.letter_id}`} className={`border rounded-lg overflow-hidden ${borderClass}`}>
       {/* Header */}
       <div
         className={`px-4 py-2.5 flex items-center justify-between cursor-pointer transition-colors ${
           hasError ? 'bg-red-100/60 hover:bg-red-100' : hasWarning ? 'bg-yellow-100/60 hover:bg-yellow-100' : 'bg-purple-100 hover:bg-purple-100/60'
         }`}
-        onClick={() => setExpanded(!expanded)}
+        onClick={onToggle}
       >
         <div className="flex items-center gap-3">
           {expanded ? (
@@ -167,26 +166,26 @@ const LetterCard: React.FC<{
                   <h4 className="text-sm font-medium text-gray-700 mb-2">Holes ({letter.holes.length})</h4>
                   <div className="space-y-1">
                     {Object.entries(
-                      letter.holes.reduce<Record<string, { type: string; size: number; count: number }>>((acc, hole) => {
+                      letter.holes.reduce<Record<string, { type: string; name: string; size: number; count: number }>>((acc, hole) => {
                         const size = hole.diameter_real_mm ?? hole.diameter_mm;
                         const key = `${hole.hole_type}_${size.toFixed(2)}`;
                         if (!acc[key]) {
-                          acc[key] = { type: hole.hole_type, size, count: 0 };
+                          acc[key] = { type: hole.hole_type, name: hole.matched_name || '', size, count: 0 };
                         }
                         acc[key].count++;
                         return acc;
                       }, {})
-                    ).map(([key, { type, size, count }]) => (
+                    ).map(([key, { type, name, size, count }]) => (
                       <div
                         key={key}
                         className="flex items-center justify-between text-xs py-1 px-2 bg-gray-50 rounded"
                       >
-                        <span className={`capitalize ${
+                        <span className={`${
                           type === 'wire' ? 'text-blue-600' :
                           type === 'mounting' ? 'text-green-600' :
                           'text-orange-600'
                         }`}>
-                          {type} x{count}
+                          {name || type} x{count}
                         </span>
                         <span className="text-gray-500">
                           {size.toFixed(2)}mm
@@ -223,6 +222,7 @@ const LayerGroup: React.FC<{
   letters: LetterDetail[];
 }> = ({ layerName, letters }) => {
   const [expanded, setExpanded] = useState(false);
+  const [expandedLetterIds, setExpandedLetterIds] = useState<Set<string>>(new Set());
 
   const totalWire = letters.reduce((sum, l) => sum + (l.holes?.filter(h => h.hole_type === 'wire').length || 0), 0);
   const totalMounting = letters.reduce((sum, l) => sum + (l.holes?.filter(h => h.hole_type === 'mounting').length || 0), 0);
@@ -263,8 +263,28 @@ const LayerGroup: React.FC<{
       </div>
       {expanded && (
         <div className="p-4 space-y-2 bg-indigo-100/50 border-t border-indigo-200">
+          <LayerSvgOverview
+            letters={letters}
+            onLetterClick={(letterId) => {
+              setExpandedLetterIds(prev => new Set(prev).add(letterId));
+              setTimeout(() => {
+                document.getElementById(`letter-${letterId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }, 50);
+            }}
+          />
           {letters.map((letter, index) => (
-            <LetterCard key={letter.letter_id} letter={letter} index={index} />
+            <LetterCard
+              key={letter.letter_id}
+              letter={letter}
+              index={index}
+              expanded={expandedLetterIds.has(letter.letter_id)}
+              onToggle={() => setExpandedLetterIds(prev => {
+                const next = new Set(prev);
+                if (next.has(letter.letter_id)) next.delete(letter.letter_id);
+                else next.add(letter.letter_id);
+                return next;
+              })}
+            />
           ))}
         </div>
       )}
@@ -272,54 +292,14 @@ const LayerGroup: React.FC<{
   );
 };
 
-const OrphanHolesWarning: React.FC<{ holes: HoleDetail[] }> = ({ holes }) => {
-  const [expanded, setExpanded] = useState(true);
-
-  if (!holes || holes.length === 0) return null;
-
-  return (
-    <div className="border border-red-300 rounded-lg overflow-hidden bg-red-50">
-      <div
-        className="px-4 py-3 flex items-center justify-between cursor-pointer"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <div className="flex items-center gap-2 text-red-700">
-          <AlertTriangle className="w-5 h-5" />
-          <span className="font-medium">
-            {holes.length} Orphan Hole{holes.length !== 1 ? 's' : ''} (Outside Letters)
-          </span>
-        </div>
-        {expanded ? (
-          <ChevronDown className="w-4 h-4 text-red-500" />
-        ) : (
-          <ChevronRight className="w-4 h-4 text-red-500" />
-        )}
-      </div>
-      {expanded && (
-        <div className="px-4 py-3 border-t border-red-200 bg-white">
-          <p className="text-sm text-red-600 mb-3">
-            These holes are not inside any detected letter. They may be misplaced or indicate a letter detection issue.
-          </p>
-          <div className="space-y-1">
-            {holes.map((hole, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between text-sm py-2 px-3 bg-red-50 rounded"
-              >
-                <span className="text-gray-700">{hole.path_id}</span>
-                <span className="text-gray-500">
-                  {hole.hole_type} ({(hole.diameter_real_mm ?? hole.diameter_mm).toFixed(2)}mm)
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
 const LetterAnalysisPanel: React.FC<LetterAnalysisPanelProps> = ({ analysis }) => {
+  // Debug: log unclassified paths to diagnose missing letters
+  const rawAnalysis = analysis as any;
+  if (rawAnalysis?.unprocessed_paths?.length) {
+    console.table(rawAnalysis.unprocessed_paths);
+  }
+  console.log('[LetterAnalysis] Stats:', rawAnalysis?.stats);
+
   const letters = analysis?.letters || [];
 
   // Group letters by layer name
@@ -347,7 +327,7 @@ const LetterAnalysisPanel: React.FC<LetterAnalysisPanelProps> = ({ analysis }) =
       </div>
 
       {/* Orphan holes warning */}
-      <OrphanHolesWarning holes={analysis?.orphan_holes || []} />
+      <OrphanHolesPanel holes={analysis?.orphan_holes || []} />
 
       {/* Layer groups */}
       {layerEntries.length > 0 ? (

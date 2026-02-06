@@ -14,16 +14,22 @@ import { ServiceResult } from '../types/serviceResults';
 import { VinylHoldsRepository, VinylHoldWithDetails } from '../repositories/supplyChain/vinylHoldsRepository';
 import { GeneralInventoryHoldsRepository, GeneralInventoryHoldWithDetails } from '../repositories/supplyChain/generalInventoryHoldsRepository';
 import { VinylInventoryRepository } from '../repositories/vinyl/vinylInventoryRepository';
-import { query } from '../config/database';
+import { SupplierProductRepository } from '../repositories/supplyChain/supplierProductRepository';
+import { VinylProductsRepository } from '../repositories/vinyl/vinylProductsRepository';
+import { getLocalDateString } from '../utils/dateUtils';
 
 /** Special supplier ID indicating "In Stock" sourcing */
 const SUPPLIER_IN_STOCK = -1;
+/** Special supplier ID indicating customer supplies their own material */
+const SUPPLIER_CUSTOMER_PROVIDED = -3;
 
 export class MaterialRequirementHoldsService {
   private repository: MaterialRequirementRepository;
+  private supplierProductRepo: SupplierProductRepository;
 
   constructor() {
     this.repository = new MaterialRequirementRepository();
+    this.supplierProductRepo = new SupplierProductRepository();
   }
 
   /**
@@ -68,7 +74,7 @@ export class MaterialRequirementHoldsService {
       });
 
       // Update the material requirement
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDateString();
       await this.repository.update(requirementId, {
         supplier_id: SUPPLIER_IN_STOCK,
         delivery_method: 'pickup',
@@ -76,10 +82,7 @@ export class MaterialRequirementHoldsService {
       }, userId);
 
       // Set the held_vinyl_id reference
-      await query(
-        'UPDATE material_requirements SET held_vinyl_id = ? WHERE requirement_id = ?',
-        [vinylId, requirementId]
-      );
+      await this.repository.setHeldVinylId(requirementId, vinylId);
 
       return { success: true, data: { hold_id: holdId } };
     } catch (error) {
@@ -112,14 +115,11 @@ export class MaterialRequirementHoldsService {
       }
 
       // Verify supplier product exists and has stock
-      const productRows = await query(
-        'SELECT supplier_product_id, quantity_on_hand FROM supplier_products WHERE supplier_product_id = ?',
-        [supplierProductId]
-      ) as any[];
-      if (!productRows || productRows.length === 0) {
+      const product = await this.supplierProductRepo.findById(supplierProductId);
+      if (!product) {
         return { success: false, error: 'Supplier product not found', code: 'NOT_FOUND' };
       }
-      if (productRows[0]?.quantity_on_hand <= 0) {
+      if (product.quantity_on_hand <= 0) {
         return { success: false, error: 'No stock available for this product', code: 'VALIDATION_ERROR' };
       }
 
@@ -132,7 +132,7 @@ export class MaterialRequirementHoldsService {
       });
 
       // Update the material requirement
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDateString();
       await this.repository.update(requirementId, {
         supplier_id: SUPPLIER_IN_STOCK,
         delivery_method: 'pickup',
@@ -140,10 +140,7 @@ export class MaterialRequirementHoldsService {
       }, userId);
 
       // Set the held_supplier_product_id reference
-      await query(
-        'UPDATE material_requirements SET held_supplier_product_id = ? WHERE requirement_id = ?',
-        [supplierProductId, requirementId]
-      );
+      await this.repository.setHeldSupplierProductId(requirementId, supplierProductId);
 
       return { success: true, data: { hold_id: holdId } };
     } catch (error) {
@@ -171,16 +168,7 @@ export class MaterialRequirementHoldsService {
       await GeneralInventoryHoldsRepository.deleteHoldsByRequirementId(requirementId);
 
       // Clear the held references and revert supplier fields
-      await query(
-        `UPDATE material_requirements
-         SET held_vinyl_id = NULL,
-             held_supplier_product_id = NULL,
-             supplier_id = NULL,
-             ordered_date = NULL,
-             delivery_method = 'shipping'
-         WHERE requirement_id = ?`,
-        [requirementId]
-      );
+      await this.repository.clearHoldFields(requirementId);
 
       return { success: true, data: undefined };
     } catch (error) {
@@ -264,14 +252,14 @@ export class MaterialRequirementHoldsService {
       const otherHolds = allHolds.filter(h => h.material_requirement_id !== requirementId);
 
       // Process the primary requirement
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDateString();
       await this.repository.update(requirementId, {
         status: 'received',
         received_date: today,
         quantity_received: requirement.quantity_ordered
       }, userId);
       await VinylHoldsRepository.deleteHoldsByRequirementId(requirementId);
-      await query('UPDATE material_requirements SET held_vinyl_id = NULL WHERE requirement_id = ?', [requirementId]);
+      await this.repository.clearHeldVinylId(requirementId);
 
       let receivedCount = 1;
       let releasedCount = 0;
@@ -286,7 +274,7 @@ export class MaterialRequirementHoldsService {
             quantity_received: otherReq.quantity_ordered
           }, userId);
           await VinylHoldsRepository.deleteHoldsByRequirementId(otherId);
-          await query('UPDATE material_requirements SET held_vinyl_id = NULL WHERE requirement_id = ?', [otherId]);
+          await this.repository.clearHeldVinylId(otherId);
           receivedCount++;
         }
       }
@@ -295,12 +283,7 @@ export class MaterialRequirementHoldsService {
       for (const otherHold of otherHolds) {
         if (!alsoReceiveRequirementIds.includes(otherHold.material_requirement_id)) {
           await VinylHoldsRepository.deleteHoldsByRequirementId(otherHold.material_requirement_id);
-          await query(
-            `UPDATE material_requirements
-             SET held_vinyl_id = NULL, supplier_id = NULL, ordered_date = NULL, delivery_method = 'shipping'
-             WHERE requirement_id = ?`,
-            [otherHold.material_requirement_id]
-          );
+          await this.repository.clearHoldFields(otherHold.material_requirement_id);
           releasedCount++;
         }
       }
@@ -328,14 +311,9 @@ export class MaterialRequirementHoldsService {
       // Check vinyl stock if vinyl_product_id is specified
       if (vinylProductId) {
         const vinylItems = await VinylInventoryRepository.getVinylItems({ disposition: 'in_stock' });
-        // Get vinyl product details to match brand/series
-        const vpRows = await query(
-          'SELECT brand, series, colour_number, colour_name FROM vinyl_products WHERE product_id = ?',
-          [vinylProductId]
-        ) as any[];
+        const vp = await VinylProductsRepository.getVinylProductById(vinylProductId);
 
-        if (vpRows && vpRows.length > 0) {
-          const vp = vpRows[0];
+        if (vp) {
           const matchingVinyl = vinylItems.filter((v: any) =>
             v.brand === vp.brand &&
             v.series === vp.series &&
@@ -351,26 +329,16 @@ export class MaterialRequirementHoldsService {
 
       // Check general inventory if archetype is specified (but not vinyl)
       if (archetypeId && archetypeId > 0) {
-        // Check if there are supplier products with stock for this archetype
-        const stockRows = await query(
-          `SELECT COUNT(*) as count FROM supplier_products
-           WHERE archetype_id = ? AND is_active = 1 AND quantity_on_hand > 0`,
-          [archetypeId]
-        ) as any[];
-
-        if (stockRows && stockRows[0]?.count > 0) {
+        const hasStock = await this.supplierProductRepo.hasInStockForArchetype(archetypeId);
+        if (hasStock) {
           return { success: true, data: { hasStock: true, stockType: 'general' } };
         }
       }
 
       // Check specific supplier product
       if (supplierProductId) {
-        const prodRows = await query(
-          'SELECT quantity_on_hand FROM supplier_products WHERE supplier_product_id = ? AND is_active = 1',
-          [supplierProductId]
-        ) as any[];
-
-        if (prodRows && prodRows[0]?.quantity_on_hand > 0) {
+        const product = await this.supplierProductRepo.findById(supplierProductId);
+        if (product && product.is_active && product.quantity_on_hand > 0) {
           return { success: true, data: { hasStock: true, stockType: 'general' } };
         }
       }
@@ -389,16 +357,10 @@ export class MaterialRequirementHoldsService {
   async getAvailableVinylWithHolds(vinylProductId: number): Promise<ServiceResult<any[]>> {
     try {
       // Get vinyl product details
-      const vpRows = await query(
-        'SELECT brand, series, colour_number, colour_name FROM vinyl_products WHERE product_id = ?',
-        [vinylProductId]
-      ) as any[];
-
-      if (!vpRows || vpRows.length === 0) {
+      const vp = await VinylProductsRepository.getVinylProductById(vinylProductId);
+      if (!vp) {
         return { success: false, error: 'Vinyl product not found', code: 'NOT_FOUND' };
       }
-
-      const vp = vpRows[0];
 
       // Get matching vinyl items that are in stock
       const vinylItems = await VinylInventoryRepository.getVinylItems({ disposition: 'in_stock' });

@@ -129,10 +129,23 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
     return Math.min(viewBox.width, viewBox.height) * 0.02;
   }, [viewBox]);
 
-  // Render hole circle with its own transform
+  // Render hole — known types get colored circles, unknown rendered as-is
   const renderHole = (hole: HoleDetail, index: number) => {
-    const color = HOLE_COLORS[hole.hole_type] || HOLE_COLORS.unknown;
+    // Unknown holes: render actual SVG path with original color (or orange fallback)
+    if (hole.hole_type === 'unknown' && hole.svg_path_data) {
+      return (
+        <g key={`hole-${index}`} transform={hole.transform || undefined}>
+          <path
+            d={hole.svg_path_data}
+            fill={hole.fill || HOLE_COLORS.unknown}
+            stroke="none"
+          />
+        </g>
+      );
+    }
 
+    // Wire/mounting holes: colored indicator circles
+    const color = HOLE_COLORS[hole.hole_type] || HOLE_COLORS.unknown;
     return (
       <g key={`hole-${index}`} transform={hole.transform || undefined}>
         <circle

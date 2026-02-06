@@ -222,6 +222,17 @@ router.get(
   orderPrepController.getCustomerEstimates
 );
 
+/**
+ * GET /api/order-preparation/estimates/:estimateId/details
+ * Get detailed QB estimate including line items (for preview panel)
+ */
+router.get(
+  '/estimates/:estimateId/details',
+  authenticateToken,
+  requirePermission('orders.prepare'),
+  orderPrepController.getEstimateDetails
+);
+
 // =============================================
 // CASH JOB ESTIMATE EMAIL WORKFLOW
 // =============================================

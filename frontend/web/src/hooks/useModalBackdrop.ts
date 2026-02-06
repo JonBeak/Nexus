@@ -85,12 +85,18 @@ export function useModalBackdrop({
 
   // Handle backdrop click - only close if both mousedown and mouseup are outside modal content
   const handleBackdropMouseDown = useCallback((e: React.MouseEvent) => {
+    // Ignore portal events (React bubbles synthetic events through component tree, not DOM tree)
+    if (!(e.currentTarget as HTMLElement).contains(e.target as Node)) return;
+
     const inside = isInsideModal(e.target as Node);
     // If ref not attached (null), default to false (safe - don't trigger close)
     mouseDownOutsideRef.current = inside === null ? false : !inside;
   }, [isInsideModal]);
 
   const handleBackdropMouseUp = useCallback((e: React.MouseEvent) => {
+    // Ignore portal events (React bubbles synthetic events through component tree, not DOM tree)
+    if (!(e.currentTarget as HTMLElement).contains(e.target as Node)) return;
+
     if (preventClose) {
       mouseDownOutsideRef.current = false;
       return;

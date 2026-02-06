@@ -245,7 +245,7 @@ export function getDocumentConfig(type: DocumentType): DocumentConfig {
     features: {
       hasBalance: false,
       hasSearch: false,     // Can be enabled when backend supports it
-      hasPreview: false,    // Can be enabled when backend supports it
+      hasPreview: true,
       hasUnlink: false,     // Can be enabled when backend supports it
       hasKeepBoth: false,   // Estimates only have use_local and use_qb
       hasMarkAsSent: true,

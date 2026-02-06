@@ -7,6 +7,7 @@ import AccountingEmailsEditor from './AccountingEmailsEditor';
 import ConfirmationModals from './ConfirmationModals';
 import { Address, Customer, LedType, PowerSupplyType } from '../../types';
 import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
+import { useModalBackdrop } from '../../hooks/useModalBackdrop';
 
 interface DeleteConfirmation {
   show: boolean;
@@ -20,24 +21,35 @@ interface DeactivateConfirmation {
 }
 
 interface CustomerDetailsModalProps {
-  customer: Customer;
+  isOpen: boolean;
+  customer: Customer | null;
   onClose: () => void;
 }
 
-function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) {
+function CustomerDetailsModal({ isOpen, customer, onClose }: CustomerDetailsModalProps) {
+  // Nested modal states (for preventClose)
+  const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation>({show: false, address: null, index: -1});
+  const [deactivateConfirmation, setDeactivateConfirmation] = useState<DeactivateConfirmation>({show: false, customer: null});
+
+  const { modalContentRef, handleBackdropMouseDown, handleBackdropMouseUp, isMobile } =
+    useModalBackdrop({
+      isOpen,
+      onClose,
+      preventClose: deleteConfirmation.show || deactivateConfirmation.show
+    });
+
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Customer>({} as Customer);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [showDeactivated, setShowDeactivated] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
-  const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation>({show: false, address: null, index: -1});
   const [ledTypes, setLedTypes] = useState<LedType[]>([]);
   const [powerSupplyTypes, setPowerSupplyTypes] = useState<PowerSupplyType[]>([]);
-  const [deactivateConfirmation, setDeactivateConfirmation] = useState<DeactivateConfirmation>({show: false, customer: null});
 
   // Helper function to refresh customer details
   const refreshCustomerDetails = async () => {
+    if (!customer) return;
     try {
       const updatedCustomer = await customerApi.getCustomer(customer.customer_id);
       setFormData({ ...updatedCustomer });
@@ -48,6 +60,7 @@ function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) 
   };
   
   const refreshAddresses = useCallback(async () => {
+    if (!customer) return;
     try {
       if (showDeactivated) {
         const data = await customerApi.getAddresses(customer.customer_id, true);
@@ -59,10 +72,10 @@ function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) 
     } catch (error) {
       console.error('Error refreshing addresses:', error);
     }
-  }, [customer.customer_id, showDeactivated]);
+  }, [customer?.customer_id, showDeactivated]);
 
   useEffect(() => {
-    setFormData({ ...customer });
+    if (customer) setFormData({ ...customer });
   }, [customer]);
 
   // Fetch LED and Power Supply types on component mount
@@ -89,7 +102,7 @@ function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) 
     refreshAddresses();
   }, [refreshAddresses]);
 
-  if (!customer) return null;
+  if (!isOpen || !customer) return null;
 
   const handleCancel = () => {
     setFormData({ ...customer });
@@ -191,8 +204,15 @@ function CustomerDetailsModal({ customer, onClose }: CustomerDetailsModalProps) 
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className={`${PAGE_STYLES.panel.background} rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto modal-content`}>
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
+    >
+      <div
+        ref={modalContentRef}
+        className={`${PAGE_STYLES.panel.background} rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto modal-content`}
+      >
         <div className={`sticky top-0 ${PAGE_STYLES.panel.background} border-b-2 ${PAGE_STYLES.panel.border} p-6 rounded-t-2xl`}>
           <div className="flex items-center justify-between">
             <h2 className={`text-3xl font-bold ${PAGE_STYLES.panel.text}`}>Customer Details</h2>

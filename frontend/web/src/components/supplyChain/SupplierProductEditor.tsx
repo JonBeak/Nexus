@@ -2,7 +2,7 @@
 // Purpose: Modal form for creating/editing supplier products
 // Created: 2025-12-19
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { X, Save, Loader } from 'lucide-react';
 import { SupplierProduct, Supplier } from '../../types/supplyChain';
 import { SpecificationEditor } from './SpecificationEditor';
@@ -50,6 +50,10 @@ export const SupplierProductEditor: React.FC<SupplierProductEditorProps> = ({
 
   const [archetypeTemplate, setArchetypeTemplate] = useState<string[] | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Refs for backdrop click handling
+  const modalContentRef = useRef<HTMLDivElement>(null);
+  const mouseDownOutsideRef = useRef(false);
 
   // Load product data when editing or fetch archetype specs when creating
   useEffect(() => {
@@ -117,6 +121,30 @@ export const SupplierProductEditor: React.FC<SupplierProductEditorProps> = ({
       }
     }
   }, [product, suppliers]);
+
+  // Handle ESC key to close modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !loading) {
+        e.stopImmediatePropagation();
+        onCancel();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [loading, onCancel]);
+
+  // Handle backdrop click - only close if both mousedown and mouseup are outside modal content
+  const handleBackdropMouseDown = (e: React.MouseEvent) => {
+    mouseDownOutsideRef.current = modalContentRef.current ? !modalContentRef.current.contains(e.target as Node) : false;
+  };
+
+  const handleBackdropMouseUp = (e: React.MouseEvent) => {
+    if (!loading && mouseDownOutsideRef.current && modalContentRef.current && !modalContentRef.current.contains(e.target as Node)) {
+      onCancel();
+    }
+    mouseDownOutsideRef.current = false;
+  };
 
   // Convert spec rows to object
   const rowsToSpecs = (rows: Array<{ key: string; value: string }>): Record<string, any> => {
@@ -186,8 +214,15 @@ export const SupplierProductEditor: React.FC<SupplierProductEditorProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
+    >
+      <div
+        ref={modalContentRef}
+        className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+      >
         <div className="p-6">
           {/* Header */}
           <div className="flex justify-between items-center mb-4">

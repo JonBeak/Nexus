@@ -20,6 +20,7 @@ import OrderFormPdfPreview from './OrderFormPdfPreview';
 import { MaterialRequirementCard } from './MaterialRequirementCard';
 import { VinylSelectorWithHolds } from '../../supplyChain/components/VinylSelectorWithHolds';
 import { GeneralInventorySelectorModal } from '../../supplyChain/components/GeneralInventorySelectorModal';
+import { useModalBackdrop } from '../../../hooks/useModalBackdrop';
 
 interface MaterialRequirementsConfirmationModalProps {
   isOpen: boolean;
@@ -114,14 +115,17 @@ export const MaterialRequirementsConfirmationModal: React.FC<MaterialRequirement
   onConfirm,
   order
 }) => {
+  const { modalContentRef, handleBackdropMouseDown, handleBackdropMouseUp, isMobile } =
+    useModalBackdrop({ isOpen, onClose });
+
   const [rows, setRows] = useState<MaterialRow[]>([]);
   const [originalRows, setOriginalRows] = useState<MaterialRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const modalContentRef = useRef<HTMLDivElement>(null);
-  const mouseDownOutsideRef = useRef(false);
   const supplierProductsRef = useRef<SupplierProduct[]>([]);
+  const rowsRef = useRef<MaterialRow[]>([]);
+  const originalRowsRef = useRef<MaterialRow[]>([]);
 
   // Dropdown data
   const [archetypes, setArchetypes] = useState<ProductArchetype[] | undefined>(undefined);
@@ -135,6 +139,8 @@ export const MaterialRequirementsConfirmationModal: React.FC<MaterialRequirement
   const [selectedRowForHold, setSelectedRowForHold] = useState<MaterialRow | null>(null);
 
   supplierProductsRef.current = supplierProducts;
+  rowsRef.current = rows;
+  originalRowsRef.current = originalRows;
 
   // Load all dropdown data once on mount
   useEffect(() => {
@@ -161,24 +167,6 @@ export const MaterialRequirementsConfirmationModal: React.FC<MaterialRequirement
   }, [orderId]);
 
   useEffect(() => { if (isOpen) fetchRequirements(); }, [isOpen, fetchRequirements]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopImmediatePropagation(); onClose(); } };
-    if (isOpen) document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
-  const handleBackdropMouseDown = (e: React.MouseEvent) => {
-    const target = e.target as Node;
-    if (!(e.currentTarget as Node).contains(target)) { mouseDownOutsideRef.current = false; return; }
-    mouseDownOutsideRef.current = modalContentRef.current ? !modalContentRef.current.contains(target) : false;
-  };
-  const handleBackdropMouseUp = (e: React.MouseEvent) => {
-    const target = e.target as Node;
-    if (!(e.currentTarget as Node).contains(target)) { mouseDownOutsideRef.current = false; return; }
-    if (mouseDownOutsideRef.current && modalContentRef.current && !modalContentRef.current.contains(target)) onClose();
-    mouseDownOutsideRef.current = false;
-  };
 
   const handleFieldChange = useCallback((localId: string, field: string, value: any) => {
     setRows(prev => prev.map(r => r._localId === localId ? { ...r, [field]: value } : r));
@@ -218,11 +206,77 @@ export const MaterialRequirementsConfirmationModal: React.FC<MaterialRequirement
     });
   }, []);
 
-  const handleCheckStock = useCallback((row: MaterialRow, stockType: 'vinyl' | 'general') => {
-    setSelectedRowForHold(row);
-    if (stockType === 'vinyl') setShowVinylSelector(true);
-    else setShowGeneralInventorySelector(true);
-  }, []);
+  /**
+   * Save all unsaved/changed rows to DB.
+   * Returns updated rows array with requirement_ids populated.
+   */
+  const saveAllRows = useCallback(async (): Promise<MaterialRow[]> => {
+    const currentRows = [...rowsRef.current];
+    const currentOriginals = [...originalRowsRef.current];
+    const updatedRows = [...currentRows];
+    const updatedOriginals = [...currentOriginals];
+
+    for (let i = 0; i < updatedRows.length; i++) {
+      const row = updatedRows[i];
+      if (row._deleted) continue;
+
+      if (!row.requirement_id) {
+        // Skip completely empty rows
+        if (!row.custom_product_type && !row.archetype_id && !row.size_description && row.quantity_ordered <= 0) {
+          continue;
+        }
+        const created = await materialRequirementsApi.createRequirement({
+          order_id: orderId,
+          archetype_id: row.archetype_id,
+          custom_product_type: row.archetype_id ? null : (row.custom_product_type || null),
+          vinyl_product_id: row.vinyl_product_id,
+          supplier_product_id: row.supplier_product_id,
+          size_description: row.size_description || null,
+          quantity_ordered: row.quantity_ordered || 1,
+          supplier_id: row.supplier_id,
+          delivery_method: row.delivery_method,
+          notes: row.notes || null,
+        });
+        updatedRows[i] = { ...row, requirement_id: created.requirement_id };
+        updatedOriginals.push({ ...updatedRows[i] });
+      } else {
+        const original = currentOriginals.find(o => o.requirement_id === row.requirement_id);
+        if (original && hasRowChanged(original, row)) {
+          await materialRequirementsApi.updateRequirement(row.requirement_id, {
+            archetype_id: row.archetype_id,
+            custom_product_type: row.archetype_id ? null : (row.custom_product_type || null),
+            vinyl_product_id: row.vinyl_product_id,
+            supplier_product_id: row.supplier_product_id,
+            size_description: row.size_description || null,
+            quantity_ordered: row.quantity_ordered,
+            supplier_id: row.supplier_id,
+            delivery_method: row.delivery_method,
+            notes: row.notes || null,
+          });
+          const origIdx = updatedOriginals.findIndex(o => o.requirement_id === row.requirement_id);
+          if (origIdx >= 0) updatedOriginals[origIdx] = { ...updatedRows[i] };
+        }
+      }
+    }
+
+    setRows(updatedRows);
+    setOriginalRows(updatedOriginals);
+    return updatedRows;
+  }, [orderId]);
+
+  const handleCheckStock = useCallback(async (row: MaterialRow, stockType: 'vinyl' | 'general') => {
+    try {
+      const savedRows = await saveAllRows();
+      const savedRow = savedRows.find(r => r._localId === row._localId) || row;
+
+      setSelectedRowForHold(savedRow);
+      if (stockType === 'vinyl') setShowVinylSelector(true);
+      else setShowGeneralInventorySelector(true);
+    } catch (err) {
+      console.error('Error saving rows before stock check:', err);
+      setError('Failed to save requirements.');
+    }
+  }, [saveAllRows]);
 
   const handleVinylHoldSelect = async (vinylId: number, quantity: string) => {
     if (!selectedRowForHold?.requirement_id) return;
@@ -245,49 +299,13 @@ export const MaterialRequirementsConfirmationModal: React.FC<MaterialRequirement
       setSaving(true);
       setError(null);
 
-      const visibleRows = rows.filter(r => !r._deleted);
-      const deletedRows = rows.filter(r => r._deleted && r.requirement_id);
+      // Save all new/changed rows
+      await saveAllRows();
 
       // Delete removed existing rows
+      const deletedRows = rowsRef.current.filter(r => r._deleted && r.requirement_id);
       for (const row of deletedRows) {
         await materialRequirementsApi.deleteRequirement(row.requirement_id!);
-      }
-
-      // Create or update rows
-      for (const row of visibleRows) {
-        if (!row.requirement_id) {
-          // Skip completely empty rows
-          if (!row.custom_product_type && !row.archetype_id && !row.size_description && row.quantity_ordered <= 0) {
-            continue;
-          }
-          await materialRequirementsApi.createRequirement({
-            order_id: orderId,
-            archetype_id: row.archetype_id,
-            custom_product_type: row.archetype_id ? null : (row.custom_product_type || null),
-            vinyl_product_id: row.vinyl_product_id,
-            supplier_product_id: row.supplier_product_id,
-            size_description: row.size_description || null,
-            quantity_ordered: row.quantity_ordered || 1,
-            supplier_id: row.supplier_id,
-            delivery_method: row.delivery_method,
-            notes: row.notes || null
-          });
-        } else {
-          const original = originalRows.find(o => o.requirement_id === row.requirement_id);
-          if (original && hasRowChanged(original, row)) {
-            await materialRequirementsApi.updateRequirement(row.requirement_id, {
-              archetype_id: row.archetype_id,
-              custom_product_type: row.archetype_id ? null : (row.custom_product_type || null),
-              vinyl_product_id: row.vinyl_product_id,
-              supplier_product_id: row.supplier_product_id,
-              size_description: row.size_description || null,
-              quantity_ordered: row.quantity_ordered,
-              supplier_id: row.supplier_id,
-              delivery_method: row.delivery_method,
-              notes: row.notes || null
-            });
-          }
-        }
       }
 
       await onConfirm();

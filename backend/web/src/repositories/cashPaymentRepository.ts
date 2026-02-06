@@ -1,3 +1,4 @@
+// File Clean up Finished: 2026-02-06
 /**
  * Cash Payment Repository
  * Created: 2025-01-27
@@ -188,14 +189,66 @@ export async function updateOrderCachedBalance(
   );
 }
 
+// =============================================
+// OPEN CASH ORDERS (for centralized payments page)
+// =============================================
+
+export interface OpenCashOrder {
+  order_id: number;
+  order_number: number;
+  order_name: string;
+  status: string;
+  order_date: string;
+  total: number;
+  total_paid: number;
+  balance: number;
+}
+
 /**
- * Update order status
+ * Get all open cash orders with a positive balance for a customer
+ * Used by the centralized Payments page
  */
-export async function updateOrderStatus(orderId: number, status: string): Promise<void> {
-  await query(
-    `UPDATE orders SET status = ? WHERE order_id = ?`,
-    [status, orderId]
-  );
+export async function getOpenCashOrdersForCustomer(customerId: number): Promise<OpenCashOrder[]> {
+  const rows = await query(
+    `SELECT
+       o.order_id,
+       o.order_number,
+       o.order_name,
+       o.status,
+       o.created_at AS order_date,
+       COALESCE(totals.total, 0) AS total,
+       COALESCE(payments.total_paid, 0) AS total_paid,
+       GREATEST(0, COALESCE(totals.total, 0) - COALESCE(payments.total_paid, 0)) AS balance
+     FROM orders o
+     LEFT JOIN (
+       SELECT order_id, SUM(extended_price) AS total
+       FROM order_parts
+       WHERE is_header_row = 0 OR is_header_row IS NULL
+       GROUP BY order_id
+     ) totals ON totals.order_id = o.order_id
+     LEFT JOIN (
+       SELECT order_id, SUM(amount) AS total_paid
+       FROM cash_payments
+       GROUP BY order_id
+     ) payments ON payments.order_id = o.order_id
+     WHERE o.customer_id = ?
+       AND o.cash = 1
+       AND o.status NOT IN ('completed', 'cancelled')
+     HAVING balance > 0
+     ORDER BY o.order_number DESC`,
+    [customerId]
+  ) as RowDataPacket[];
+
+  return rows.map(row => ({
+    order_id: row.order_id,
+    order_number: row.order_number,
+    order_name: row.order_name || '',
+    status: row.status,
+    order_date: row.order_date,
+    total: parseFloat(row.total) || 0,
+    total_paid: parseFloat(row.total_paid) || 0,
+    balance: parseFloat(row.balance) || 0
+  }));
 }
 
 // =============================================

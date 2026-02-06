@@ -9,6 +9,7 @@ import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
 import * as qbPaymentController from '../controllers/qbPaymentController';
+import * as cashPaymentController from '../controllers/cashPaymentController';
 
 const router = Router();
 
@@ -42,6 +43,34 @@ router.post(
   authenticateToken,
   requirePermission('orders.create'),
   qbPaymentController.recordPayment
+);
+
+// =============================================
+// CASH ORDER PAYMENTS
+// =============================================
+
+/**
+ * Get open cash orders for a customer
+ * GET /api/payments/customer/:customerId/open-cash-orders
+ * Returns all cash orders with positive balance
+ */
+router.get(
+  '/customer/:customerId/open-cash-orders',
+  authenticateToken,
+  requirePermission('orders.view'),
+  cashPaymentController.getOpenCashOrders
+);
+
+/**
+ * Record a cash payment across multiple orders
+ * POST /api/payments/cash
+ * Allocates a single payment to one or more cash orders
+ */
+router.post(
+  '/cash',
+  authenticateToken,
+  requirePermission('orders.update'),
+  cashPaymentController.recordMultiOrderPayment
 );
 
 export default router;

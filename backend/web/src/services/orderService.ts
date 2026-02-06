@@ -38,6 +38,7 @@ import { getQBInvoice } from '../utils/quickbooks/invoiceClient';
 import { quickbooksRepository } from '../repositories/quickbooksRepository';
 import * as invoiceListingRepo from '../repositories/invoiceListingRepository';
 import * as cashPaymentRepo from '../repositories/cashPaymentRepository';
+import { aiFileValidationRepository } from '../repositories/aiFileValidationRepository';
 
 // QC task constants
 const QC_TASK_NAME = 'QC & Packing';
@@ -501,6 +502,19 @@ export class OrderService {
       }
     }
     // === END UNIFIED FOLDER MOVEMENT LOGIC ===
+
+    // Clean up AI file validation data for terminal/hold statuses
+    const CLEANUP_STATUSES = ['awaiting_payment', 'completed', 'cancelled', 'on_hold'];
+    if (CLEANUP_STATUSES.includes(status)) {
+      try {
+        const deleted = await aiFileValidationRepository.deleteAllForOrder(order.order_number);
+        if (deleted > 0) {
+          console.log(`🗑️  Cleaned up ${deleted} AI validation records for order #${order.order_number} (status: ${status})`);
+        }
+      } catch (cleanupError) {
+        console.error('⚠️  AI validation cleanup failed (continuing with status update):', cleanupError);
+      }
+    }
 
     // Create status history entry
     await orderRepository.createStatusHistory({

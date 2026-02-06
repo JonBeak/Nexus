@@ -227,7 +227,7 @@ const InvoiceEmailComposer: React.FC<InvoiceEmailComposerProps> = ({
   }, [config?.includePayButton, initialIncludePayButton]);
 
   // Note: Auto-apply prefix based on order status is now handled in the parent component
-  // (InvoiceActionModal) to avoid race conditions between child and parent state updates
+  // (DocumentActionModal) to avoid race conditions between child and parent state updates
 
   // Notify parent of changes
   const notifyChange = useCallback((

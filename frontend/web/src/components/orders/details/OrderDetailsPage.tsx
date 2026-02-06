@@ -99,6 +99,11 @@ export const OrderDetailsPage: React.FC = () => {
   const [estimateSyncStatus, setEstimateSyncStatus] = useState<DocumentSyncStatus>('in_sync');
   const [estimateDifferences, setEstimateDifferences] = useState<DocumentDifference[]>([]);
   const [showLinkEstimateModal, setShowLinkEstimateModal] = useState(false);
+  const [reassignEstimateInfo, setReassignEstimateInfo] = useState<{
+    estimateId: string | null;
+    estimateNumber: string | null;
+    isDeleted: boolean;
+  } | null>(null);
   const [estimateIsStale, setEstimateIsStale] = useState(false);
   const [showCreateEstimateModal, setShowCreateEstimateModal] = useState(false);
   const [showEstimateActionModal, setShowEstimateActionModal] = useState(false);
@@ -471,6 +476,7 @@ export const OrderDetailsPage: React.FC = () => {
   // Handle link estimate success (Cash Jobs)
   const handleLinkEstimateSuccess = () => {
     setShowLinkEstimateModal(false);
+    setReassignEstimateInfo(null);
     refetch();
   };
 
@@ -790,7 +796,7 @@ export const OrderDetailsPage: React.FC = () => {
     }
   };
 
-  // Calculate order totals for LinkInvoiceModal comparison
+  // Calculate order totals for LinkDocumentModal comparison
   const orderTotals = useMemo((): OrderTotals | undefined => {
     if (!orderData.order || !orderData.parts) return undefined;
 
@@ -1385,9 +1391,18 @@ export const OrderDetailsPage: React.FC = () => {
         <LinkDocumentModal
           documentType="estimate"
           isOpen={showLinkEstimateModal}
-          onClose={() => setShowLinkEstimateModal(false)}
+          onClose={() => {
+            setShowLinkEstimateModal(false);
+            setReassignEstimateInfo(null);
+          }}
           orderNumber={orderData.order.order_number}
           onSuccess={handleLinkEstimateSuccess}
+          currentDocument={reassignEstimateInfo ? {
+            documentId: reassignEstimateInfo.estimateId,
+            documentNumber: reassignEstimateInfo.estimateNumber
+          } : undefined}
+          documentStatus={reassignEstimateInfo?.isDeleted ? 'not_found' : (reassignEstimateInfo ? 'exists' : 'not_linked')}
+          orderTotals={orderTotals}
         />
       )}
 
@@ -1427,8 +1442,13 @@ export const OrderDetailsPage: React.FC = () => {
             setShowEstimateActionModal(false);
             refetch();
           }}
-          onReassign={() => {
+          onReassign={(isDeleted) => {
             setShowEstimateActionModal(false);
+            setReassignEstimateInfo({
+              estimateId: orderData.order!.qb_estimate_id || null,
+              estimateNumber: orderData.order!.qb_estimate_doc_number || null,
+              isDeleted,
+            });
             setShowLinkEstimateModal(true);
           }}
           taxRules={orderData.taxRules}

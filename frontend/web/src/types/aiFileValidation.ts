@@ -51,6 +51,7 @@ export interface FileValidationResult {
   issues: ValidationIssue[];
   stats: ValidationStats;
   error?: string;
+  file_type?: 'working' | 'cutting';  // Working File (10% scale) or Cutting File (100% scale)
   skipped_validation?: boolean;  // True if file was not validated (e.g., cutting files)
   skip_reason?: string;          // Reason validation was skipped
 }
@@ -167,6 +168,12 @@ export interface HoleDetail {
   center: { x: number; y: number };
   svg_path_data: string;
   transform?: string;  // SVG transform for this hole (may differ from letter's transform)
+  fill?: string;       // Original SVG fill color
+  stroke?: string;     // Original SVG stroke color
+  matched_name?: string;     // Label from standard_hole_sizes (e.g. "LED Wire Hole")
+  matched_size_id?: number;  // ID from standard_hole_sizes table
+  layer_name?: string;       // Source layer name (for orphan hole grouping)
+  file_bbox?: { x: number; y: number; width: number; height: number };  // Raw bbox for SVG viewBox
 }
 
 /**

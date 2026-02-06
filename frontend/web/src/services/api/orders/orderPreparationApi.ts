@@ -287,6 +287,16 @@ export const orderPreparationApi = {
   },
 
   /**
+   * Get detailed QB estimate including line items (for preview panel)
+   */
+  getEstimateDetails: async (estimateId: string) => {
+    const response = await api.get(
+      `/order-preparation/estimates/${estimateId}/details`
+    );
+    return response.data;
+  },
+
+  /**
    * Get QB estimates for the order's customer (for linking)
    */
   getCustomerEstimates: async (orderNumber: number) => {

@@ -4,10 +4,11 @@
  * Created: 2026-02-04
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, Package, MapPin, AlertCircle, CheckCircle } from 'lucide-react';
 import { SupplierProductWithHolds } from '../../../types/materialRequirements';
 import { materialRequirementsApi } from '../../../services/api/materialRequirementsApi';
+import { useModalBackdrop } from '../../../hooks/useModalBackdrop';
 
 interface GeneralInventorySelectorModalProps {
   isOpen: boolean;
@@ -34,6 +35,12 @@ export const GeneralInventorySelectorModal: React.FC<GeneralInventorySelectorMod
   const [customQuantity, setCustomQuantity] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [searchFilter, setSearchFilter] = useState('');
+
+  const {
+    modalContentRef,
+    handleBackdropMouseDown,
+    handleBackdropMouseUp
+  } = useModalBackdrop({ isOpen, onClose });
 
   // Load products when modal opens
   useEffect(() => {
@@ -107,26 +114,18 @@ export const GeneralInventorySelectorModal: React.FC<GeneralInventorySelectorMod
     onClose();
   };
 
-  // Close on Escape key
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') handleClose();
-  }, []);
-
-  useEffect(() => {
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [isOpen, handleKeyDown]);
-
   if (!isOpen) return null;
 
   return (
     <div
       className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) handleClose(); }}
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
     >
-      <div className="relative top-4 mx-auto p-4 border w-11/12 max-w-4xl shadow-lg rounded bg-white">
+      <div
+        ref={modalContentRef}
+        className="relative top-4 mx-auto p-4 border w-11/12 max-w-4xl shadow-lg rounded bg-white"
+      >
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <div>

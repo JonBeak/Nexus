@@ -8,6 +8,7 @@ import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import {
   AiFileValidationRecord,
   AiValidationRule,
+  StandardHoleSize,
   ValidationStatus,
   ValidationIssue,
   ValidationStats,
@@ -186,6 +187,18 @@ export class AiFileValidationRepository {
   }
 
   /**
+   * Delete all validation records for an order
+   */
+  async deleteAllForOrder(orderNumber: number): Promise<number> {
+    const result = await query(
+      `DELETE FROM ai_file_validations WHERE order_number = ?`,
+      [orderNumber]
+    ) as ResultSetHeader;
+
+    return result.affectedRows;
+  }
+
+  /**
    * Get all active validation rules
    */
   async getActiveRules(): Promise<AiValidationRule[]> {
@@ -263,6 +276,25 @@ export class AiFileValidationRepository {
       `UPDATE ai_validation_rules SET ${updates.join(', ')} WHERE rule_id = ?`,
       params
     );
+  }
+
+  /**
+   * Get all active standard hole sizes, ordered by display_order
+   */
+  async getActiveHoleSizes(): Promise<StandardHoleSize[]> {
+    const rows = await query(
+      `SELECT * FROM standard_hole_sizes WHERE is_active = TRUE ORDER BY display_order ASC`
+    ) as RowDataPacket[];
+
+    return rows.map((row) => ({
+      hole_size_id: row.hole_size_id,
+      name: row.name,
+      diameter_mm: parseFloat(row.diameter_mm),
+      tolerance_mm: parseFloat(row.tolerance_mm),
+      category: row.category,
+      display_order: row.display_order,
+      is_active: !!row.is_active,
+    }));
   }
 
   /**

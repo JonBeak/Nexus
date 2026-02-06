@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import { X, AlertTriangle, CheckSquare, Square, Package } from 'lucide-react';
 import { VinylHold, MaterialRequirement } from '../../../types/materialRequirements';
+import { useModalBackdrop } from '../../../hooks/useModalBackdrop';
 
 interface MultiHoldReceiveModalProps {
   isOpen: boolean;
@@ -24,6 +25,12 @@ export const MultiHoldReceiveModal: React.FC<MultiHoldReceiveModalProps> = ({
   otherHolds,
 }) => {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
+  const {
+    modalContentRef,
+    handleBackdropMouseDown,
+    handleBackdropMouseUp
+  } = useModalBackdrop({ isOpen, onClose });
 
   // Toggle selection for a hold
   const toggleSelection = (requirementId: number) => {
@@ -55,8 +62,15 @@ export const MultiHoldReceiveModal: React.FC<MultiHoldReceiveModalProps> = ({
   const unselectedCount = otherHolds.length - selectedIds.length;
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-4 border w-full max-w-lg shadow-lg rounded bg-white">
+    <div
+      className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
+    >
+      <div
+        ref={modalContentRef}
+        className="relative top-20 mx-auto p-4 border w-full max-w-lg shadow-lg rounded bg-white"
+      >
         {/* Header */}
         <div className="flex justify-between items-start mb-4">
           <div className="flex items-start gap-3">

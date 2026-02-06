@@ -267,8 +267,9 @@ export const ArchetypeSupplierProducts: React.FC<ArchetypeSupplierProductsProps>
       )}
 
       {/* Price History Modal */}
-      {showPriceHistory && selectedProduct && (
+      {selectedProduct && (
         <PriceHistoryModal
+          isOpen={showPriceHistory}
           product={selectedProduct}
           onClose={() => {
             setShowPriceHistory(false);

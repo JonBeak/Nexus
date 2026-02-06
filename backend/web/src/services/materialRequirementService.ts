@@ -21,6 +21,7 @@ import {
   BulkReceiveRequest,
   ActionableMaterialRequirement,
 } from '../types/materialRequirements';
+import { getLocalDateString } from '../utils/dateUtils';
 
 export class MaterialRequirementService {
   private repository: MaterialRequirementRepository;
@@ -317,14 +318,6 @@ export class MaterialRequirementService {
       // Update notes if provided
       if (data.notes) {
         const existingNotes = existing.notes || '';
-        // Get local date for notes (avoid timezone issues)
-        const getLocalDateString = (): string => {
-          const now = new Date();
-          const year = now.getFullYear();
-          const month = String(now.getMonth() + 1).padStart(2, '0');
-          const day = String(now.getDate()).padStart(2, '0');
-          return `${year}-${month}-${day}`;
-        };
         const todayStr = getLocalDateString();
         const newNotes = existingNotes
           ? `${existingNotes}\n[${todayStr}] Received ${data.quantity}: ${data.notes}`

@@ -81,9 +81,8 @@ export const MaterialRequirementCard: React.FC<MaterialRequirementCardProps> = R
   onRemove,
   onCheckStock,
 }) => {
-  // Show CheckStockButton when: saved row + has archetype + no vendor + no holds
+  // Show CheckStockButton when: has archetype + no vendor + no holds
   const showCheckStock =
-    row.requirement_id != null &&
     row.archetype_id != null &&
     row.supplier_id == null &&
     row.held_vinyl_id == null &&

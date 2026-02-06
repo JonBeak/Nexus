@@ -113,6 +113,8 @@ export const createBatchStateManager = (config: BatchStateConfig) => {
               break;
               
             case 'notification':
+              if (config.onNotification) {
+                config.onNotification(
                   updates.metadata.notificationMessage,
                   updates.metadata.notificationType
                 );

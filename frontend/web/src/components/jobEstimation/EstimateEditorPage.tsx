@@ -961,12 +961,11 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
       </div>
 
       {/* Customer Edit Modal */}
-      {showEditCustomerModal && fullCustomer && (
-        <CustomerDetailsModal
-          customer={fullCustomer}
-          onClose={() => handleCloseEditCustomerModal(currentEstimate.customer_id)}
-        />
-      )}
+      <CustomerDetailsModal
+        isOpen={showEditCustomerModal && !!fullCustomer}
+        customer={fullCustomer || {} as any}
+        onClose={() => handleCloseEditCustomerModal(currentEstimate.customer_id)}
+      />
 
       {/* Approve Estimate Modal */}
       {showApprovalModal && currentEstimate && (

@@ -1,11 +1,13 @@
 /**
  * AI File Validation Controller
- * HTTP Request Handlers for AI File Validation - simplified, no database
+ * HTTP Request Handlers for AI File Validation
  */
 
 import { Request, Response } from 'express';
 import { aiFileValidationService } from '../../services/aiFileValidationService';
+import { aiFileValidationRepository } from '../../repositories/aiFileValidationRepository';
 import { parseIntParam, sendErrorResponse } from '../../utils/controllerHelpers';
+import { ValidationStatus } from '../../types/aiFileValidation';
 
 /**
  * List AI files in order folder
@@ -57,6 +59,38 @@ export const validateAiFiles = async (req: Request, res: Response) => {
 
     if (!result.success) {
       return sendErrorResponse(res, result.error || 'Validation failed', result.code || 'VALIDATION_ERROR');
+    }
+
+    // Persist results to DB (non-blocking — don't fail the response)
+    try {
+      const userId = (req as any).user?.user_id || null;
+      const orderId = await aiFileValidationService.getOrderIdFromNumber(orderNum);
+
+      if (orderId && result.data) {
+        // Clear previous results for this order
+        await aiFileValidationRepository.deleteAllForOrder(orderNum);
+
+        // Save each file result
+        for (const fileResult of result.data.results) {
+          const validationId = await aiFileValidationRepository.createValidation({
+            order_id: orderId,
+            order_number: orderNum,
+            file_path: fileResult.file_path,
+            file_name: fileResult.file_name,
+          });
+
+          await aiFileValidationRepository.updateValidationResult(validationId, {
+            status: fileResult.status as ValidationStatus,
+            issues: fileResult.issues || [],
+            stats: fileResult.stats || { total_paths: 0, closed_paths: 0, paths_with_stroke: 0, paths_with_fill: 0, total_holes: 0, total_area: 0, total_perimeter: 0 },
+            validated_by: userId,
+          });
+        }
+
+        console.log(`[AiFileValidation] Saved ${result.data.results.length} validation results to DB for order #${orderNum}`);
+      }
+    } catch (dbError) {
+      console.error('[AiFileValidation] Failed to persist results to DB (non-blocking):', dbError);
     }
 
     res.json({
