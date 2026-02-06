@@ -61,6 +61,7 @@ export interface SupplierProduct {
   sku: string | null;
   supplier_id: number;
   supplier_name?: string;
+  archetype_id?: number;
 }
 
 let localIdCounter = 0;
@@ -194,6 +195,17 @@ export const MaterialRequirementsConfirmationModal: React.FC<MaterialRequirement
     if (productId === null) { setRows(prev => prev.map(r => r._localId === localId ? { ...r, supplier_product_id: null } : r)); return; }
     const sp = supplierProductsRef.current.find(p => p.supplier_product_id === productId);
     setRows(prev => prev.map(r => r._localId === localId ? { ...r, supplier_product_id: productId, supplier_id: sp?.supplier_id ?? null } : r));
+  }, []);
+  // Custom product type text (non-vinyl combobox)
+  const handleCustomProductTypeChange = useCallback((localId: string, text: string) => {
+    setRows(prev => prev.map(r => {
+      if (r._localId !== localId) return r;
+      const updates: Partial<MaterialRow> = { custom_product_type: text };
+      if (text.trim() && r.supplier_product_id !== null) {
+        updates.supplier_product_id = null;
+      }
+      return { ...r, ...updates };
+    }));
   }, []);
 
   const addRow = useCallback(() => setRows(prev => [...prev, emptyRow()]), []);
@@ -377,6 +389,7 @@ export const MaterialRequirementsConfirmationModal: React.FC<MaterialRequirement
                         onProductTypeChange={handleProductTypeChange}
                         onVinylProductChange={handleVinylProductChange}
                         onSupplierProductChange={handleSupplierProductChange}
+                        onCustomProductTypeChange={handleCustomProductTypeChange}
                         onFieldChange={handleFieldChange}
                         onRemove={removeRow}
                         onCheckStock={handleCheckStock}

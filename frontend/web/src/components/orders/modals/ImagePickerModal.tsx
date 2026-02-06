@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Image as ImageIcon, CheckCircle, AlertTriangle } from 'lucide-react';
 import { ordersApi } from '../../../services/api';
-import { getFolderPathSegment } from '../../../utils/pdfUrls';
+import { getFolderPathSegment, getImagePathSegment } from '../../../utils/pdfUrls';
+import { formatDateTimeWithYear } from '../../../utils/dateUtils';
 
 type FolderLocation = 'active' | 'finished' | 'cancelled' | 'hold' | 'none';
 
@@ -9,6 +10,7 @@ interface ImageInfo {
   filename: string;
   size: number;
   modifiedDate: string;
+  location: 'primary' | 'secondary';
 }
 
 interface CropCoordinates {
@@ -27,6 +29,7 @@ interface ImagePickerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImageSelected: (filename: string) => void;
+  onImageLocationDetected?: (location: 'primary' | 'secondary') => void;
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
@@ -39,7 +42,8 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
   isMigrated,
   isOpen,
   onClose,
-  onImageSelected
+  onImageSelected,
+  onImageLocationDetected
 }) => {
   const [images, setImages] = useState<ImageInfo[]>([]);
   const [loading, setLoading] = useState(false);
@@ -194,13 +198,18 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
     return crop;
   };
 
-  const handleSelectImage = async (filename: string) => {
+  const handleSelectImage = async (filename: string, fileLocation: 'primary' | 'secondary') => {
     try {
       setSelecting(filename);
       setError(null);
 
+      // Notify parent of the selected image's location so it can construct the correct URL
+      if (onImageLocationDetected) {
+        onImageLocationDetected(fileLocation);
+      }
+
       // Load image to detect white borders
-      const imageUrl = getImageUrl(filename);
+      const imageUrl = getImageUrl(filename, fileLocation);
       const img = new Image();
       img.crossOrigin = 'anonymous'; // Allow canvas to read image data
 
@@ -230,7 +239,7 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
     }
   };
 
-  const getImageUrl = (filename: string): string => {
+  const getImageUrl = (filename: string, fileLocation?: 'primary' | 'secondary'): string => {
     // Static images are served from /order-images (not under /api/)
     // Extract base server URL (remove /api if present)
     const serverUrl = API_BASE_URL.replace(/\/api$/, '');
@@ -238,7 +247,13 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
     const encodedFolder = encodeURIComponent(folderName);
     const encodedFile = encodeURIComponent(filename);
 
-    // Get folder path segment based on location (active, finished, cancelled, hold)
+    // If we have per-file location metadata, use it for precise path construction
+    if (fileLocation) {
+      const pathSegment = getImagePathSegment(fileLocation, isMigrated);
+      return `${basePath}/${pathSegment}${encodedFolder}/${encodedFile}`;
+    }
+
+    // Fallback: use folder-level location (for backwards compatibility)
     const pathSegment = getFolderPathSegment(folderLocation, isMigrated);
     return `${basePath}/${pathSegment}${encodedFolder}/${encodedFile}`;
   };
@@ -247,17 +262,6 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
   };
 
   if (!isOpen) return null;
@@ -332,7 +336,7 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
                   return (
                     <button
                       key={image.filename}
-                      onClick={() => handleSelectImage(image.filename)}
+                      onClick={() => handleSelectImage(image.filename, image.location)}
                       disabled={selecting !== null}
                       className={`relative group border-2 rounded-lg overflow-hidden transition-all ${
                         isSelected
@@ -343,7 +347,7 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
                       {/* Image Preview */}
                       <div className="aspect-[4/3] bg-gray-100 flex items-center justify-center overflow-hidden">
                         <img
-                          src={getImageUrl(image.filename)}
+                          src={getImageUrl(image.filename, image.location)}
                           alt={image.filename}
                           className="w-full h-full object-contain"
                           onError={(e) => {
@@ -374,7 +378,7 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
                             {formatFileSize(image.size)}
                           </p>
                           <p className="text-xs text-gray-500">
-                            {formatDate(image.modifiedDate)}
+                            {formatDateTimeWithYear(image.modifiedDate)}
                           </p>
                         </div>
                       </div>

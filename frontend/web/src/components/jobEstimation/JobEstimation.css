@@ -623,3 +623,29 @@ body:has(.job-estimation-builder-mode) {
     min-width: 0;
   }
 }
+
+/* ============================================
+   HIGH STANDARDS - Gold Shimmer Animation
+   ============================================ */
+@keyframes gold-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.gold-shimmer {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    110deg,
+    transparent 20%,
+    rgba(255, 215, 0, 0.12) 40%,
+    rgba(255, 215, 0, 0.22) 50%,
+    rgba(255, 215, 0, 0.12) 60%,
+    transparent 80%
+  );
+  background-size: 200% 100%;
+  animation: gold-shimmer 3s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}

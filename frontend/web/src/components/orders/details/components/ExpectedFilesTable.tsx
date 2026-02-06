@@ -24,6 +24,7 @@ import {
 interface ExpectedFilesTableProps {
   orderNumber: number;
   onRefresh?: () => void;
+  onDataLoaded?: (data: ExpectedFilesComparison) => void;
 }
 
 // Status icon component
@@ -157,7 +158,7 @@ const FileRow: React.FC<{ file: FileComparisonEntry }> = ({ file }) => {
   );
 };
 
-const ExpectedFilesTable: React.FC<ExpectedFilesTableProps> = ({ orderNumber, onRefresh }) => {
+const ExpectedFilesTable: React.FC<ExpectedFilesTableProps> = ({ orderNumber, onRefresh, onDataLoaded }) => {
   const [data, setData] = useState<ExpectedFilesComparison | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -168,6 +169,7 @@ const ExpectedFilesTable: React.FC<ExpectedFilesTableProps> = ({ orderNumber, on
     try {
       const result = await aiFileValidationApi.getExpectedFilesComparison(orderNumber);
       setData(result);
+      onDataLoaded?.(result);
     } catch (err) {
       console.error('Error loading expected files comparison:', err);
       setError('Failed to load expected files comparison');

@@ -175,6 +175,23 @@ export function getPackingItemsForProduct(
 }
 
 /**
+ * Extract all template row indices from specs object.
+ * Returns the numeric indices for every `_template_N` key that exists,
+ * so callers iterate over actual data instead of an arbitrary limit.
+ */
+function getTemplateIndices(specs: any): number[] {
+  if (!specs || typeof specs !== 'object') return [];
+  const indices: number[] = [];
+  for (const key of Object.keys(specs)) {
+    const match = key.match(/^_template_(\d+)$/);
+    if (match) {
+      indices.push(parseInt(match[1], 10));
+    }
+  }
+  return indices.sort((a, b) => a - b);
+}
+
+/**
  * Helper function to check if a template exists in specifications
  * Used for filtering - determines if an item should appear in the checklist
  */
@@ -208,15 +225,12 @@ function hasTemplateInSpecs(templateName: string, specs: any): boolean {
   console.log(`[hasTemplateInSpecs] Checking "${templateName}" against variations: [${templates.join(', ')}]`);
 
   // Check if any matching template exists in specs
-  // Loop up to 100 to handle combined parent + sub-item specifications
-  for (let i = 1; i <= 100; i++) {
+  for (const i of getTemplateIndices(specs)) {
     const specTemplateName = specs[`_template_${i}`];
-    if (specTemplateName) {
-      console.log(`[hasTemplateInSpecs]   _template_${i} = "${specTemplateName}"`);
-      if (templates.some(t => specTemplateName.toLowerCase().includes(t.toLowerCase()))) {
-        console.log(`[hasTemplateInSpecs] ✅ FOUND "${templateName}" - template "${specTemplateName}" matches!`);
-        return true;
-      }
+    console.log(`[hasTemplateInSpecs]   _template_${i} = "${specTemplateName}"`);
+    if (templates.some(t => specTemplateName.toLowerCase().includes(t.toLowerCase()))) {
+      console.log(`[hasTemplateInSpecs] ✅ FOUND "${templateName}" - template "${specTemplateName}" matches!`);
+      return true;
     }
   }
 
@@ -268,9 +282,8 @@ function shouldIncludeWiringDiagram(prefs: CustomerPackingPreferences, specs?: a
  * Check if LEDs template exists with count > 0
  */
 function hasLEDsInSpecs(specs: any): boolean {
-  for (let i = 1; i <= 100; i++) {
+  for (const i of getTemplateIndices(specs)) {
     const templateName = specs[`_template_${i}`];
-    if (!templateName) continue;
 
     // Check for LEDs template with count > 0
     if (templateName.toLowerCase() === 'leds') {
@@ -292,9 +305,8 @@ function shouldIncludePowerSupply(specs: any): boolean {
   if (!specs) return false;
 
   // Check for Power Supply template
-  for (let i = 1; i <= 10; i++) {
-    const templateName = specs[`_template_${i}`];
-    if (templateName === 'Power Supply') {
+  for (const i of getTemplateIndices(specs)) {
+    if (specs[`_template_${i}`] === 'Power Supply') {
       const count = specs[`row${i}_count`];
       return count && parseInt(count, 10) > 0;
     }
@@ -311,9 +323,8 @@ function shouldIncludePins(specs: any): boolean {
   if (!specs) return false;
 
   // Check for Mounting template
-  for (let i = 1; i <= 10; i++) {
-    const templateName = specs[`_template_${i}`];
-    if (templateName === 'Mounting') {
+  for (const i of getTemplateIndices(specs)) {
+    if (specs[`_template_${i}`] === 'Mounting') {
       const count = specs[`row${i}_count`];
       const pinType = specs[`row${i}_pins`];
 
@@ -337,9 +348,8 @@ function shouldIncludeSpacers(specs: any): boolean {
   if (!specs) return false;
 
   // Check for Mounting template with spacers
-  for (let i = 1; i <= 10; i++) {
-    const templateName = specs[`_template_${i}`];
-    if (templateName === 'Mounting') {
+  for (const i of getTemplateIndices(specs)) {
+    if (specs[`_template_${i}`] === 'Mounting') {
       const count = specs[`row${i}_count`];
       const spacersValue = specs[`row${i}_spacers`];
 
@@ -365,9 +375,8 @@ function shouldIncludeUL(specs: any): boolean {
   if (!specs) return false;
 
   // Check for UL template in specifications
-  for (let i = 1; i <= 10; i++) {
-    const templateName = specs[`_template_${i}`];
-    if (templateName === 'UL') {
+  for (const i of getTemplateIndices(specs)) {
+    if (specs[`_template_${i}`] === 'UL') {
       const includeValue = specs[`row${i}_include`];
       // If include field exists, check its value
       if (includeValue !== undefined) {
@@ -389,9 +398,8 @@ function shouldIncludeDrainHoles(specs: any): boolean {
   if (!specs) return false;
 
   // Check for Drain Holes template
-  for (let i = 1; i <= 10; i++) {
-    const templateName = specs[`_template_${i}`];
-    if (templateName === 'Drain Holes') {
+  for (const i of getTemplateIndices(specs)) {
+    if (specs[`_template_${i}`] === 'Drain Holes') {
       const includeValue = specs[`row${i}_include`];
       return includeValue === 'true' || includeValue === true;
     }
@@ -411,32 +419,29 @@ function shouldIncludeDTape(specs: any): boolean {
   const dtapeVariations = ['d-tape', 'dtape', 'd tape'];
 
   // Check for D-Tape template and its include value
-  // Loop up to 100 to handle combined parent + sub-item specifications
-  for (let i = 1; i <= 100; i++) {
+  for (const i of getTemplateIndices(specs)) {
     const templateName = specs[`_template_${i}`];
-    if (templateName) {
-      const lowerTemplateName = templateName.toLowerCase();
+    const lowerTemplateName = templateName.toLowerCase();
 
-      // Check if template name matches any D-Tape variation
-      const isDTapeTemplate = dtapeVariations.some(variation =>
-        lowerTemplateName.includes(variation)
-      );
+    // Check if template name matches any D-Tape variation
+    const isDTapeTemplate = dtapeVariations.some(variation =>
+      lowerTemplateName.includes(variation)
+    );
 
-      if (isDTapeTemplate) {
-        const includeValue = specs[`row${i}_include`];
-        console.log(`[D-Tape] Found template "${templateName}", includeValue="${includeValue}"`);
+    if (isDTapeTemplate) {
+      const includeValue = specs[`row${i}_include`];
+      console.log(`[D-Tape] Found template "${templateName}", includeValue="${includeValue}"`);
 
-        // Check if include field exists and is set to "Yes"
-        if (includeValue !== undefined) {
-          const shouldInclude = includeValue === 'true' || includeValue === true || includeValue === 'Yes' || String(includeValue).toLowerCase() === 'yes';
-          console.log(`[D-Tape] Include value check: ${shouldInclude}`);
-          return shouldInclude;
-        }
-
-        // If no include field, default to false (don't include)
-        console.log(`[D-Tape] No include field found, defaulting to false`);
-        return false;
+      // Check if include field exists and is set to "Yes"
+      if (includeValue !== undefined) {
+        const shouldInclude = includeValue === 'true' || includeValue === true || includeValue === 'Yes' || String(includeValue).toLowerCase() === 'yes';
+        console.log(`[D-Tape] Include value check: ${shouldInclude}`);
+        return shouldInclude;
       }
+
+      // If no include field, default to false (don't include)
+      console.log(`[D-Tape] No include field found, defaulting to false`);
+      return false;
     }
   }
 

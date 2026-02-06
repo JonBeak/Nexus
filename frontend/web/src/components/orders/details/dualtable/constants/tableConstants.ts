@@ -82,6 +82,7 @@ export interface DualTableLayoutProps {
   taxName?: string;
   cash?: boolean;
   estimateId?: number;  // Linked estimate for auto-navigation in import modal
+  highStandards?: boolean;  // Gold treatment for high-standards customers
   onPartsChange?: (parts: OrderPart[]) => void;
 }
 

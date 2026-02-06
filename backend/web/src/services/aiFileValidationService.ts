@@ -17,6 +17,7 @@ import {
   FileComparisonEntry,
   FileExpectationRule,
   ValidationRuleConfig,
+  ValidationRuleDisplay,
 } from '../types/aiFileValidation';
 import { fileExpectationRulesRepository } from '../repositories/fileExpectationRulesRepository';
 import { query } from '../config/database';
@@ -117,6 +118,9 @@ export class AiFileValidationService {
 
   /**
    * List AI files in order folder (filesystem only, no database)
+   * Checks both primary and secondary paths, aggregates results
+   * - Primary: /mnt/channelletter/Orders/{folder} (new orders) or /mnt/channelletter/{folder} (migrated)
+   * - Secondary: /mnt/channelletter/{folder} (for new orders with legacy files)
    */
   async listAiFiles(orderNumber: number): Promise<ServiceResult<AiFileInfo[]>> {
     try {
@@ -129,34 +133,62 @@ export class AiFileValidationService {
         return { success: false, error: 'Order does not have a folder', code: 'NO_FOLDER' };
       }
 
-      const folderPath = this.getFolderPath(
+      const primaryPath = this.getFolderPath(
         order.folder_name,
         order.folder_location as 'active' | 'finished' | 'cancelled' | 'hold',
         order.is_migrated
       );
+      // For non-migrated orders, also check root of SMB_ROOT
+      // Migrated orders already check root in getFolderPath, so skip for them
+      const secondaryPath = !order.is_migrated ? path.join(SMB_ROOT, order.folder_name) : null;
 
-      if (!fs.existsSync(folderPath)) {
-        return { success: false, error: 'Order folder does not exist', code: 'FOLDER_NOT_FOUND' };
-      }
-
-      const files = fs.readdirSync(folderPath);
       const aiFiles: AiFileInfo[] = [];
+      const seenFilenames = new Set<string>();
 
-      for (const file of files) {
-        const ext = path.extname(file).toLowerCase();
-        if (ext !== '.ai') continue;
+      // Helper to process directory
+      const processDirectory = (dirPath: string, fileLocation: 'primary' | 'secondary') => {
+        if (!fs.existsSync(dirPath)) {
+          return;
+        }
 
-        const filePath = path.join(folderPath, file);
-        const stats = fs.statSync(filePath);
+        try {
+          const files = fs.readdirSync(dirPath);
 
-        if (!stats.isFile()) continue;
+          for (const file of files) {
+            const ext = path.extname(file).toLowerCase();
+            if (ext !== '.ai') continue;
 
-        aiFiles.push({
-          file_path: filePath,
-          file_name: file,
-          size_bytes: stats.size,
-          modified_at: stats.mtime,
-        });
+            const filePath = path.join(dirPath, file);
+            const stats = fs.statSync(filePath);
+
+            if (!stats.isFile()) continue;
+
+            // Avoid duplicates - primary path takes precedence
+            const lowerFilename = file.toLowerCase();
+            if (seenFilenames.has(lowerFilename)) {
+              continue;
+            }
+
+            seenFilenames.add(lowerFilename);
+            aiFiles.push({
+              file_path: filePath,
+              file_name: file,
+              size_bytes: stats.size,
+              modified_at: stats.mtime,
+              location: fileLocation,
+            });
+          }
+        } catch (error) {
+          console.warn(`[AiFileValidationService] Error reading directory ${dirPath}:`, error);
+        }
+      };
+
+      // Check primary path first (takes precedence)
+      processDirectory(primaryPath, 'primary');
+
+      // Check secondary path for additional files (non-migrated orders only)
+      if (secondaryPath && secondaryPath !== primaryPath) {
+        processDirectory(secondaryPath, 'secondary');
       }
 
       aiFiles.sort((a, b) => a.file_name.localeCompare(b.file_name));
@@ -170,6 +202,59 @@ export class AiFileValidationService {
         code: 'LIST_ERROR',
       };
     }
+  }
+
+  /**
+   * Get human-readable validation rule descriptions for display in the UI
+   */
+  private getValidationRuleDescriptions(specTypes: Set<string>): ValidationRuleDisplay[] {
+    const rules: ValidationRuleDisplay[] = [
+      // Global rules (always applied)
+      {
+        rule_key: 'no_duplicate_overlapping',
+        name: 'No Duplicate Paths',
+        description: 'Detects duplicate or overlapping paths on same layer',
+        category: 'Global',
+      },
+      {
+        rule_key: 'stroke_requirements',
+        name: 'Stroke Requirements',
+        description: 'Paths must have stroke, no fill allowed',
+        category: 'Global',
+      },
+    ];
+
+    // Front Lit rules
+    if (specTypes.has('front_lit')) {
+      rules.push(
+        {
+          rule_key: 'front_lit_wire_holes',
+          name: 'Wire Hole Check',
+          description: 'Each letter requires 1 wire hole (9.7mm)',
+          category: 'Front Lit Channel Letters',
+        },
+        {
+          rule_key: 'front_lit_mounting_holes',
+          name: 'Mounting Holes',
+          description: 'Min 2 per letter; 1 per 20" perimeter; 1 per 81 sq in area',
+          category: 'Front Lit Channel Letters',
+        },
+        {
+          rule_key: 'front_lit_trim_offset',
+          name: 'Trim Cap Offset',
+          description: 'Trim must be 1.5\u20132.5mm larger than return per side',
+          category: 'Front Lit Channel Letters',
+        },
+        {
+          rule_key: 'front_lit_layer_matching',
+          name: 'Layer Matching',
+          description: 'Return and Trimcap layers must have same letter count',
+          category: 'Front Lit Channel Letters',
+        },
+      );
+    }
+
+    return rules;
   }
 
   /**
@@ -466,6 +551,10 @@ export class AiFileValidationService {
       const specsDisplayNames = await this.getOrderSpecsDisplayNames(orderId);
       console.log(`[ExpectedFiles] Order ${orderNumber} has specs_display_names:`, specsDisplayNames);
 
+      // 2b. Detect spec types and build validation rule descriptions
+      const specTypes = detectSpecTypes(specsDisplayNames);
+      const validationRules = this.getValidationRuleDescriptions(specTypes);
+
       // 3. Get rules matching these specs_display_names
       const matchingRules = specsDisplayNames.length > 0
         ? await fileExpectationRulesRepository.getRulesByConditionValues('specs_display_name', specsDisplayNames)
@@ -521,6 +610,7 @@ export class AiFileValidationService {
                 is_required: e.is_required,
                 matched_rules: e.matched_rules,
               })),
+              validation_rules: validationRules,
             },
           };
         }
@@ -603,6 +693,7 @@ export class AiFileValidationService {
           folder_exists: true,
           summary,
           files: comparisonEntries,
+          validation_rules: validationRules,
         },
       };
     } catch (error) {

@@ -11,6 +11,7 @@ import { FileText, AlertCircle, Clock, Truck, Package, Mail, CheckCircle, FileCh
 import { PanelOrderRow, PanelFilters, PanelActionType } from '../../../types/dashboardPanel';
 import { OrderStatus, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../../types/orders';
 import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
+import { formatRelativeDate } from '../../../utils/dateUtils';
 
 interface Props {
   order: PanelOrderRow;
@@ -35,30 +36,6 @@ export const CompactOrderRow: React.FC<Props> = ({ order, filters, onAction }) =
   const showDaysOverdue = filters?.dueDateRange === 'overdue' && order.days_overdue !== undefined;
   const hideStatus = filters?.hideStatus;
   const actions = filters?.actions || [];
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    // Reset times for comparison
-    today.setHours(0, 0, 0, 0);
-    tomorrow.setHours(0, 0, 0, 0);
-    date.setHours(0, 0, 0, 0);
-
-    if (date.getTime() === today.getTime()) {
-      return 'Today';
-    }
-    if (date.getTime() === tomorrow.getTime()) {
-      return 'Tomorrow';
-    }
-    if (date < today) {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    }
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
 
   const isOverdue = () => {
     if (!order.due_date) return false;
@@ -136,7 +113,7 @@ export const CompactOrderRow: React.FC<Props> = ({ order, filters, onAction }) =
             <Clock className="w-3 h-3 text-purple-500" title={`Hard due: ${order.hard_due_date_time}`} />
           )}
           <span className={`text-sm ${isOverdue() ? 'text-red-600 font-medium' : PAGE_STYLES.panel.textMuted}`}>
-            {formatDate(order.due_date)}
+            {formatRelativeDate(order.due_date)}
           </span>
         </div>
       </td>

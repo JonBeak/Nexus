@@ -19,6 +19,7 @@ import {
   ChevronLeft, ChevronRight, Link2, Eye
 } from 'lucide-react';
 import { qbInvoiceApi, CustomerInvoiceListItem, CustomerInvoiceListResult } from '../../../../services/api';
+import { formatDateWithYear } from '../../../../utils/dateUtils';
 
 /** Order totals for comparison with QB invoices */
 export interface OrderTotals {
@@ -210,17 +211,6 @@ export const InvoiceLinkingPanel: React.FC<InvoiceLinkingPanelProps> = ({
     }
   };
 
-  // Format date helper
-  const formatDate = (dateStr: string | null | undefined) => {
-    if (!dateStr) return '-';
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    } catch {
-      return dateStr;
-    }
-  };
-
   return (
     <div className={`flex flex-col h-full ${compact ? '' : 'p-4'}`}>
       {/* Order Totals Reference (non-compact only) */}
@@ -390,7 +380,7 @@ export const InvoiceLinkingPanel: React.FC<InvoiceLinkingPanelProps> = ({
                               )}
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
-                              {formatDate(invoice.txnDate)}
+                              {formatDateWithYear(invoice.txnDate)}
                             </div>
                             {isLinked && (
                               <div className="text-xs text-amber-600 mt-0.5">
@@ -582,7 +572,7 @@ export const InvoiceLinkingPanel: React.FC<InvoiceLinkingPanelProps> = ({
                 {searchResult.txnDate && (
                   <div className="flex justify-between">
                     <span className="text-gray-600">Date:</span>
-                    <span>{formatDate(searchResult.txnDate)}</span>
+                    <span>{formatDateWithYear(searchResult.txnDate)}</span>
                   </div>
                 )}
               </div>

@@ -9,13 +9,13 @@
  * Features:
  * - Type to search/filter archetypes by name
  * - Archetypes grouped by category
- * - Special "Vinyl" option (archetype_id = -1)
+ * - Special "Vinyl" option (archetype_id = 131)
  * - Integrates with InlineEditableCell pattern
  * - Auto-save on selection
  * - Portal rendering to escape table overflow
  *
  * Special Archetype ID:
- * - ARCHETYPE_VINYL (-1): Vinyl product selection
+ * - ARCHETYPE_VINYL (131): Vinyl product selection
  */
 
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } from 'react';

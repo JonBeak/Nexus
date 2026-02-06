@@ -5,29 +5,35 @@
   </PrimaryDirective>
 
   <KeyDocumentation>
-    <Document name="BUILD_MANAGEMENT.md">
-      <Path>/home/jon/Nexus/BUILD_MANAGEMENT.md</Path>
-      <Purpose>Streamlined guide for build management, backup operations, server control, and troubleshooting. References BUILD_MANAGEMENT_DETAILED.md for advanced scenarios.</Purpose>
-      <WhenToReference>Before any build/deployment operations, backup/restore operations, or server management tasks</WhenToReference>
-      <Note>Context-optimized - detailed version only referenced when needed</Note>
+    <Document name="CODE_STANDARDS.md">
+      <Path>/home/jon/Nexus/docs/CODE_STANDARDS.md</Path>
+      <Purpose>Detailed code examples for backend/frontend patterns, common issue solutions with before/after code, database query pattern examples</Purpose>
+      <WhenToReference>When writing new backend services/repositories/controllers, debugging MySQL boolean or credential issues, or needing code pattern examples</WhenToReference>
+    </Document>
+    <Document name="SYSTEM_OPERATIONS.md">
+      <Path>/home/jon/Nexus/docs/SYSTEM_OPERATIONS.md</Path>
+      <Purpose>Server management, dual-instance architecture, build/backup commands, dev workflow, troubleshooting</Purpose>
+      <WhenToReference>Before any build, deployment, server, backup, or database connection operations</WhenToReference>
+    </Document>
+    <Document name="PROJECT_STRUCTURE.md">
+      <Path>/home/jon/Nexus/docs/PROJECT_STRUCTURE.md</Path>
+      <Purpose>Directory organization, tech stack, architecture pattern, key API routes, file size limits</Purpose>
+      <WhenToReference>When navigating the codebase, understanding architecture, or adding new files/routes</WhenToReference>
     </Document>
     <Document name="HOME_DEV_SETUP.md">
       <Path>/home/jon/Nexus/docs/HOME_DEV_SETUP.md</Path>
       <Purpose>Home (Windows) development environment setup - HTTPS, SSL certs, QB credentials via .env, DuckDNS configuration</Purpose>
       <WhenToReference>When working from home environment or troubleshooting home dev setup</WhenToReference>
-      <Note>Home uses different encryption keys and QB credentials stored in .env instead of encrypted database</Note>
     </Document>
     <Document name="CSS_PATTERNS_GUIDE.md">
       <Path>/home/jon/Nexus/docs/CSS_PATTERNS_GUIDE.md</Path>
       <Purpose>CSS layout patterns and fixes - scrolling backgrounds, GPU rendering, scrollbar reservation</Purpose>
       <WhenToReference>When implementing layouts with horizontal scroll, grids, or fixing rendering issues</WhenToReference>
-      <Note>References INDUSTRIAL_STYLING_GUIDE.md for theme colors and PAGE_STYLES</Note>
     </Document>
     <Document name="INDUSTRIAL_STYLING_GUIDE.md">
       <Path>/home/jon/Nexus/docs/INDUSTRIAL_STYLING_GUIDE.md</Path>
       <Purpose>Industrial theme colors, PAGE_STYLES constants, CSS variables for theming</Purpose>
       <WhenToReference>When styling components - always use PAGE_STYLES, never hardcode colors</WhenToReference>
-      <Note>Defines the industrial gray palette and theme system</Note>
     </Document>
   </KeyDocumentation>
 
@@ -41,10 +47,27 @@
       <Rule id="5">Error Handling: Every database and file operation MUST include error handling</Rule>
       <Rule id="6">Pattern Consistency: ALWAYS examine existing code patterns before writing new code</Rule>
       <Rule id="7">CRITICAL GIT SAFETY: NEVER use "git checkout HEAD --" or any destructive git operations without creating backups first. User lost hours of work - always commit progress or create backups before any revert operations.</Rule>
-      <Rule id="8">BUILD SCRIPTS ONLY: NEVER manually run npm run build, mv dist, or manipulate build folders directly. ALWAYS use the preset scripts in /infrastructure/scripts/ (backend-rebuild-dev.sh, backend-rebuild-production.sh, frontend-rebuild-dev.sh, frontend-rebuild-production.sh). Manual builds bypass PM2 restarts and cause deployment issues.</Rule>
-      <Rule id="9">HOT-RELOAD: During development, frontend uses Vite hot-reload. Do NOT rebuild frontend unless explicitly told to. Code changes apply automatically.</Rule>
+      <Rule id="8">BUILD SCRIPTS ONLY: NEVER manually run npm run build, mv dist, or manipulate build folders directly. ALWAYS use the preset scripts in /infrastructure/scripts/. See docs/SYSTEM_OPERATIONS.md for all server/build/backup commands.</Rule>
+      <Rule id="9">HOT-RELOAD: Frontend uses Vite hot-reload in dev - do NOT rebuild. Use frontend-rebuild scripts ONLY for production deployments.</Rule>
     </AbsoluteRules>
   </ProductionSafetyRules>
+
+  <CriticalRules>
+    <DatabaseRules>
+      <Rule>MySQL booleans: ALWAYS use `!!` to convert tinyint to JS boolean (e.g., `!!row.is_active`)</Rule>
+      <Rule>Database credentials: ALWAYS use DB_HOST, DB_USER, DB_PASSWORD, DB_NAME from .env</Rule>
+      <Rule>NEVER use root database user. Always use dedicated non-root user from .env</Rule>
+      <Rule>ALWAYS use `query()` from config/database.ts, NEVER `pool.execute()` directly</Rule>
+      <Rule>Legacy code may still use pool.execute() - update to query() when touching those files</Rule>
+      <Rule>DB credentials: always from .env. QB credentials: encrypted in database (office) or .env (home - see HOME_DEV_SETUP.md)</Rule>
+      <Rule>CLI MySQL queries: ALWAYS source .env first, then use variables: `source /home/jon/Nexus/backend/web/.env && mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME"` - NEVER hardcode credentials in bash commands</Rule>
+    </DatabaseRules>
+    <ArchitectureRules>
+      <Rule>Repository imports query() -> Service calls repository -> Controller calls service -> Route defines middleware</Rule>
+      <Rule>Routes: ONLY middleware chains. Controllers: ONLY HTTP concerns. Services: ALL business logic. Repositories: ONLY data access.</Rule>
+    </ArchitectureRules>
+    <DetailedExamples>See docs/CODE_STANDARDS.md for full code examples and common issue solutions</DetailedExamples>
+  </CriticalRules>
 
   <MandatoryWorkflow>
     <ResearchPhase>
@@ -60,7 +83,7 @@
       <CompletionCriteria>Must have complete confidence in understanding the problem AND the solution before proceeding</CompletionCriteria>
     </ResearchPhase>
 
-  <ProposalPhase>
+    <ProposalPhase>
       <Prerequisite>Only proceed after achieving complete confidence in the solution</Prerequisite>
       <ResponseFormat>Based on research, I recommend [solution]. This will modify [files] following [pattern]. Please confirm before I proceed.</ResponseFormat>
       <MustInclude>
@@ -73,7 +96,7 @@
       <WaitFor>Explicit confirmation before proceeding</WaitFor>
     </ProposalPhase>
 
-  <ImplementationPhase>
+    <ImplementationPhase>
       <RefactoringTrigger>
         <Condition>If changes will exceed 500 lines</Condition>
         <Actions>
@@ -91,7 +114,7 @@
       </DuringImplementation>
     </ImplementationPhase>
 
-  <VerificationPhase>
+    <VerificationPhase>
       <Action>Test with real production data (read-only)</Action>
       <Action>Verify no regression in working features</Action>
       <Action>Check all error paths</Action>
@@ -101,498 +124,71 @@
 
   <SystemArchitecture>
     <TechnologyStack>
-      <Backend>
-        <Technology>TypeScript/Node.js + Express</Technology>
-        <Port>3001</Port>
-        <Path>/backend/web/</Path>
-      </Backend>
-      <Frontend>
-        <Technology>React + TypeScript + Vite</Technology>
-        <Port>5173</Port>
-        <Path>/frontend/web/</Path>
-      </Frontend>
-      <Database>
-        <Technology>MySQL 8.0</Technology>
-        <Connection>localhost:3306</Connection>
-        <Name>sign_manufacturing</Name>
-        <Driver>mysql2/promise with connection pooling</Driver>
-      </Database>
-      <Authentication>
-        <Type>JWT Tokens</Type>
-        <AccessToken>1 hour expiry</AccessToken>
-        <RefreshToken>30 day expiry</RefreshToken>
-      </Authentication>
+      <Backend>TypeScript/Node.js + Express on port 3001 (/backend/web/)</Backend>
+      <Frontend>React + TypeScript + Vite on port 5173 (/frontend/web/)</Frontend>
+      <Database>MySQL 8.0 on localhost:3306 (sign_manufacturing) via mysql2/promise with connection pooling</Database>
+      <Authentication>JWT Tokens - 1 hour access, 30 day refresh</Authentication>
     </TechnologyStack>
-
-  <FileOrganization>
-      <Root>/home/jon/Nexus/</Root>
-      <Structure>
-        <Directory path="backend/web/">
-          <Subdirectory path="src/config/">database.ts - connection pool</Subdirectory>
-          <Subdirectory path="src/controllers/">Request handlers</Subdirectory>
-          <Subdirectory path="src/routes/">Express route definitions</Subdirectory>
-          <Subdirectory path="src/services/">Business logic layer</Subdirectory>
-          <Subdirectory path="src/middleware/">Auth, RBAC, validation</Subdirectory>
-          <Subdirectory path="src/types/">TypeScript definitions</Subdirectory>
-          <File path=".env">Database credentials</File>
-          <File path="package.json">Backend dependencies</File>
-        </Directory>
-        <Directory path="frontend/web/">
-          <Subdirectory path="src/components/">UI components by feature</Subdirectory>
-          <Subdirectory path="src/services/">api/ - Modular API modules with barrel export | apiClient.ts - Shared axios instance | jobVersioningApi.ts - Dedicated versioning service</Subdirectory>
-          <Subdirectory path="src/contexts/">AuthContext, etc.</Subdirectory>
-          <Subdirectory path="src/types/">Frontend TypeScript types</Subdirectory>
-          <File path="package.json">Frontend dependencies</File>
-        </Directory>
-        <Directory path="infrastructure/">
-          <Subdirectory path="backups/">DO NOT MODIFY</Subdirectory>
-          <Subdirectory path="scripts/">Server management</Subdirectory>
-        </Directory>
-        <Directory path="database/">
-          <Subdirectory path="migrations/">Schema changes</Subdirectory>
-        </Directory>
-      </Structure>
-    </FileOrganization>
+    <FullStructure>See docs/PROJECT_STRUCTURE.md for directory organization and file layout</FullStructure>
   </SystemArchitecture>
 
-  <ImplementedRoutes>
-    <Route path="/login">Authentication with JWT refresh token system</Route>
-    <Route path="/dashboard">Main dashboard with role-based feature access</Route>
-    <Route path="/customers">Customer management with addresses, contacts, and accounting emails</Route>
-    <Route path="/time-management">Time tracking, approvals, scheduling (Manager+ only)</Route>
-    <Route path="/vinyl-inventory">Vinyl inventory management with bulk operations</Route>
-    <Route path="/wages">Payroll and wage management (Owner only)</Route>
-    <Route path="/account-management">User account and RBAC management (Manager+ only)</Route>
-    <Route path="/supply-chain">Supply chain and supplier management (Manager+ only)</Route>
-    <Route path="/job-estimation">Job estimation with complex product forms (Manager+ only)</Route>
-    <Route path="/orders">Orders management with Tasks Table, invoice automation, email history, panel dashboard</Route>
-    <Route path="/invoices">Invoice listing with analytics, balance tracking (Manager+ only)</Route>
-    <Route path="/payments">Multi-invoice payment management (Manager+ only)</Route>
-    <Route path="/settings">Email templates, system configuration, audit log (Manager+ only)</Route>
-  </ImplementedRoutes>
-
-  <WorkingFeatures>
-    <Feature name="CustomerManagement">Full CRUD with multi-address support, contacts, and accounting emails (to/cc/bcc for invoices)</Feature>
-    <Feature name="TimeTracking">Complete time management system (approvals, scheduling, edit requests with notifications)</Feature>
-    <Feature name="VinylInventory">Comprehensive vinyl products management (512 inventory items, 190 products with bulk operations)</Feature>
-    <Feature name="WageManagement">Full payroll system with wage calculations, deduction overrides, payment history</Feature>
-    <Feature name="Authentication">JWT with automatic refresh, comprehensive RBAC (59 permissions, 132 role assignments, login tracking)</Feature>
-    <Feature name="AuditSystem">Complete audit trail for all data changes</Feature>
-    <Feature name="TaxRules">Tax calculation system based on billing address (29 rules, 67 provinces)</Feature>
-    <Feature name="JobEstimation">Grid-based job builder with dynamic product forms and QB estimate sync</Feature>
-    <Feature name="AccountManagement">User account system with role management, vacation tracking, schedule management</Feature>
-    <Feature name="CompanyOperations">Holiday management, work schedules, company-wide settings</Feature>
-    <Feature name="TasksTable">Production task tracking grid with sticky headers, role-based task columns, hide completed/empty filters</Feature>
-    <Feature name="InvoiceAutomation">QB invoice create/update/link with bi-directional sync, conflict detection and resolution, PDF viewing, email sending/scheduling, email history, custom messages, customer invoice browser for linking</Feature>
-    <Feature name="PaymentProcessing">Record payments to QuickBooks, balance fetched from QB (no local tracking)</Feature>
-    <Feature name="PanelDashboard">Configurable workflow panels with compact order rows, filtering by assigned/status</Feature>
-    <Feature name="OrderPartHeaders">Header rows for grouping line items in orders (is_header_row flag)</Feature>
-    <Feature name="GmailIntegration">Service account email sending with BCC support, retry logic, attachment support</Feature>
-  </WorkingFeatures>
-
-  <FuturePriorities>
-    <Priority order="4"><Feature name="SupplyChain">Supply chain management with suppliers, orders, cost tracking, low stock alerts</Feature></Priority>
-    <Priority order="5">Material requirements calculation from grid data for order conversion</Priority>
-    <Priority order="6">Supply chain integration for real-time material costs in pricing</Priority>
-    <Priority order="7">Job tracking dashboard enhancement (Quote → Production → Shipped workflow)</Priority>
-  </FuturePriorities>
-
+  <ArchitectureStandard>
+    <MandatoryPattern>Route -> Controller -> Service -> Repository -> Database</MandatoryPattern>
+    <StrictRules>
+      <Rule>Routes contain ONLY middleware chains - no business logic</Rule>
+      <Rule>Controllers contain ONLY HTTP concerns - no database queries</Rule>
+      <Rule>Services contain ALL business logic - no HTTP or database details</Rule>
+      <Rule>Repositories contain ONLY data access - no business logic</Rule>
+      <Rule>All new features MUST follow this pattern</Rule>
+      <Rule>All refactoring MUST migrate to this pattern</Rule>
+    </StrictRules>
+    <LineLimits>See docs/PROJECT_STRUCTURE.md for per-layer line limits</LineLimits>
+  </ArchitectureStandard>
 
   <BusinessDomainRules>
     <Rule name="TaxCalculation">Based on billing address using tax_rules table with provincial tax rates</Rule>
     <Rule name="BusinessModel">Wholesale manufacturing for other sign companies (no permits/installation)</Rule>
-    <Rule name="JobWorkflow">Quote → Approved → Order Form → Production → Shipped (with full status tracking)</Rule>
+    <Rule name="JobWorkflow">Quote -> Approved -> Order Form -> Production -> Shipped (with full status tracking)</Rule>
     <Rule name="TimeTracking">Employee time entries require manager approval, with edit request workflow</Rule>
     <Rule name="InventoryControl">Vinyl inventory with low stock alerts, supplier cost tracking, and reservation system</Rule>
     <Rule name="RoleBasedAccess">Comprehensive RBAC system with granular permissions and audit logging</Rule>
-    <Rule name="FrontendRBAC">Frontend uses simple role checks (owner/manager/staff) for UI visibility; backend enforces granular permissions on API calls. No frontend permission API needed - decided 2025-11-25 during cleanup.</Rule>
+    <Rule name="FrontendRBAC">Frontend uses simple role checks (owner/manager/staff) for UI visibility; backend enforces granular permissions on API calls. No frontend permission API needed.</Rule>
   </BusinessDomainRules>
 
-  <CodeStandards>
-    <Backend>
-      <PatternLocation>/home/jon/Nexus/backend/web/src/</PatternLocation>
-      <RepositoryExample>
-        <![CDATA[
-// Repository Layer - Database Access
-import { query } from '../config/database';
-import { RowDataPacket } from 'mysql2';
+  <CriticalPaths>
+    <Path name="DatabaseConfig">/backend/web/src/config/database.ts</Path>
+    <Path name="APIClient">/frontend/web/src/services/api/index.ts</Path>
+    <Path name="AuthContext">/frontend/web/src/contexts/AuthContext.tsx</Path>
+    <Path name="Environment">/backend/web/.env</Path>
+    <Path name="MainApp">/frontend/web/src/App.tsx - routing and auth</Path>
+    <Path name="RouteDefinitions">/backend/web/src/routes/</Path>
+    <Path name="EstimateVersioning">/backend/web/src/controllers/estimateVersioningController.ts</Path>
+    <Path name="DynamicTemplates">/backend/web/src/services/dynamicTemplateService.ts</Path>
+    <Path name="GridJobBuilder">/frontend/web/src/components/jobEstimation/GridJobBuilderRefactored.tsx</Path>
+    <Path name="TasksTable">/frontend/web/src/components/orders/tasksTable/TasksTable.tsx</Path>
+  </CriticalPaths>
 
-export class ExampleRepository {
-  async findById(id: number): Promise<RowDataPacket | null> {
-    const rows = await query(
-      'SELECT * FROM table_name WHERE id = ?',
-      [id]
-    ) as RowDataPacket[];
-    return rows.length > 0 ? rows[0] : null;
-  }
-}
-        ]]>
-      </RepositoryExample>
-      <ServiceExample>
-        <![CDATA[
-// Service Layer - Business Logic
-export class ExampleService {
-  constructor(private repository: ExampleRepository) {}
-
-  async getItemDetails(id: number) {
-    const item = await this.repository.findById(id);
-    if (!item) {
-      throw new Error('Item not found');
-    }
-    // Business logic here
-    return item;
-  }
-}
-        ]]>
-      </ServiceExample>
-      <ControllerExample>
-        <![CDATA[
-// Controller Layer - HTTP Handling
-import { Request, Response } from 'express';
-
-export const exampleController = async (req: Request, res: Response) => {
-  try {
-    const data = await exampleService.getItemDetails(
-      parseInt(req.params.id)
-    );
-    res.json({ success: true, data });
-  } catch (error) {
-    console.error('Controller error:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Operation failed'
-    });
-  }
-};
-        ]]>
-      </ControllerExample>
-    </Backend>
-
-  <Frontend>
-      <PatternLocation>/home/jon/Nexus/frontend/web/src/components/</PatternLocation>
-      <Example>
-        <![CDATA[
-import { useState, useEffect } from 'react';
-import { apiClient } from '@/services/api';
-
-interface Props {
-  // Always define proper TypeScript interfaces
-}
-
-export const ExampleComponent = ({ }: Props) => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Always handle loading and error states
-  
-  return (
-    // Component JSX
-  );
-};
-        ]]>
-      </Example>
-    </Frontend>
-  </CodeStandards>
-
-  <RefactoringBestPractices>
-    <Methodology>Deep-dive analysis → Plan creation → Backup → Implementation → Testing → Documentation</Methodology>
-    <SafetyFirst>ALWAYS create backups before refactoring, maintain backward compatibility, zero breaking changes</SafetyFirst>
-    <DRYPrinciple>Eliminate code duplication by sharing common configurations and consolidating identical methods</DRYPrinciple>
-    <FileSize>Split files exceeding 500 lines while preserving all existing imports and functionality</FileSize>
-    <SingleResponsibility>Separate concerns into focused, maintainable modules with clear boundaries</SingleResponsibility>
-    <ExampleSuccess>Frontend API refactoring: 26% code reduction, eliminated duplication, improved maintainability</ExampleSuccess>
-  </RefactoringBestPractices>
-
-  <ArchitectureStandard>
-    <EnhancedThreeLayer>
-      <MandatoryPattern>
-        Route → Controller → Service → Repository → Database
-      </MandatoryPattern>
-      
-      <LayerResponsibilities>
-        <Route>HTTP routing, middleware chains, authentication, permissions (15-25 lines per endpoint)</Route>
-        <Controller>Request/response handling, data extraction, error formatting (20-40 lines per method, 300 lines max per file)</Controller>
-        <Service>Business logic, validation, orchestration, calculations (50-200 lines per method, 500 lines max per file)</Service>
-        <Repository>Database queries, data access, caching (20-60 lines per method, 300 lines max per file)</Repository>
-      </LayerResponsibilities>
-      
-      <StrictRules>
-        <Rule>Routes contain ONLY middleware chains - no business logic</Rule>
-        <Rule>Controllers contain ONLY HTTP concerns - no database queries</Rule>
-        <Rule>Services contain ALL business logic - no HTTP or database details</Rule>
-        <Rule>Repositories contain ONLY data access - no business logic</Rule>
-        <Rule>Each layer MUST stay within specified line limits</Rule>
-        <Rule>All new features MUST follow this pattern</Rule>
-        <Rule>All refactoring MUST migrate to this pattern</Rule>
-      </StrictRules>
-    </EnhancedThreeLayer>
-  </ArchitectureStandard>
-
-  <SystemAccess>
-    <DualInstanceArchitecture>
-      <Overview>
-        Two backend instances run simultaneously on different ports, allowing development
-        without affecting production. Each instance runs from its own build directory.
-      </Overview>
-      <Instances>
-        <Production>
-          <Port>3001</Port>
-          <BuildDir>dist-production/</BuildDir>
-          <PM2Name>signhouse-backend</PM2Name>
-          <Frontend>https://nexuswebapp.duckdns.org (Nginx)</Frontend>
-        </Production>
-        <Development>
-          <Port>3002</Port>
-          <BuildDir>dist-dev/</BuildDir>
-          <PM2Name>signhouse-backend-dev</PM2Name>
-          <Frontend>http://192.168.2.14:5173 (Vite hot-reload)</Frontend>
-        </Development>
-      </Instances>
-      <PM2Config>/home/jon/Nexus/backend/web/ecosystem.config.js</PM2Config>
-    </DualInstanceArchitecture>
-
-    <ServerManagement>
-      <StartProduction>/home/jon/Nexus/infrastructure/scripts/start-production.sh</StartProduction>
-      <StartDevelopment>/home/jon/Nexus/infrastructure/scripts/start-dev.sh</StartDevelopment>
-      <StopServers>/home/jon/Nexus/infrastructure/scripts/stop-servers.sh</StopServers>
-      <CheckStatus>/home/jon/Nexus/infrastructure/scripts/status-servers.sh (shows both instances)</CheckStatus>
-      <ViewLogs>
-        <BackendProd>pm2 logs signhouse-backend</BackendProd>
-        <BackendDev>pm2 logs signhouse-backend-dev</BackendDev>
-        <Frontend>tail -f /tmp/signhouse-frontend.log</Frontend>
-      </ViewLogs>
-    </ServerManagement>
-
-    <DevelopmentWorkflow>
-      <Step order="1">Make code changes (frontend hot-reloads automatically)</Step>
-      <Step order="2">For backend changes: backend-rebuild-dev.sh (rebuilds and restarts dev instance)</Step>
-      <Step order="3">Test on http://192.168.2.14:5173 (talks to backend on port 3002)</Step>
-      <Step order="4">Production on port 3001 remains untouched during development</Step>
-      <Step order="5">When ready to deploy: backend-rebuild-production.sh</Step>
-      <Step order="6">Production immediately serves new code</Step>
-    </DevelopmentWorkflow>
-
-    <BuildAndBackupManagement>
-      <FullDocumentation>See /home/jon/Nexus/BUILD_MANAGEMENT.md for complete build and backup management guide</FullDocumentation>
-
-      <BackupSchedule>
-        <Requirement>Create production build backups WEEKLY to maintain stable restore points</Requirement>
-        <Rationale>Backups enable quick rollback if issues occur. Weekly frequency ensures you always have a recent known-good state. Backup metadata includes commit hash so you know exact code version.</Rationale>
-        <Command>backup-builds.sh</Command>
-        <Note>Test backup restoration periodically to ensure backups are valid and processes work correctly</Note>
-      </BackupSchedule>
-
-      <QuickReference>
-        <DualInstanceSystem>
-          Two backend instances run simultaneously: production (3001) and dev (3002).
-          Each runs from its own build directory (dist-production/ and dist-dev/).
-          No symlink switching needed - just rebuild the appropriate directory.
-        </DualInstanceSystem>
-
-        <MostUsedCommands>
-          <ServerControl>
-            <Start>start-production.sh or start-dev.sh</Start>
-            <Stop>stop-servers.sh</Stop>
-            <Status>status-servers.sh</Status>
-          </ServerControl>
-
-          <BuildControl>
-            <RebuildDev>backend-rebuild-dev.sh (rebuilds and restarts dev on 3002)</RebuildDev>
-            <RebuildProd>backend-rebuild-production.sh (rebuilds and restarts prod on 3001)</RebuildProd>
-            <RestartDev>pm2 restart signhouse-backend-dev</RestartDev>
-            <RestartProd>pm2 restart signhouse-backend</RestartProd>
-          </BuildControl>
-
-          <BackupControl>
-            <Create>backup-builds.sh</Create>
-            <List>list-backups.sh</List>
-            <Restore>restore-backup.sh &lt;filename&gt;</Restore>
-            <Cleanup>cleanup-backups.sh [count]</Cleanup>
-          </BackupControl>
-        </MostUsedCommands>
-
-        <ScriptLocation>/home/jon/Nexus/infrastructure/scripts/</ScriptLocation>
-      </QuickReference>
-    </BuildAndBackupManagement>
-
-    <DatabaseAccess>
-      <CheckStatus>systemctl status mysql</CheckStatus>
-      <Credentials>/home/jon/Nexus/backend/web/.env</Credentials>
-      <QuickConnect>mysql -u root -p sign_manufacturing</QuickConnect>
-    </DatabaseAccess>
-
-    <UtilityScripts>
-      <CredentialManagement>
-        <UpdateQuickBooks>node /home/jon/Nexus/backend/web/update-qb-credentials.js</UpdateQuickBooks>
-        <Description>Interactive CLI tool to update encrypted QuickBooks credentials</Description>
-        <Note>QuickBooks credentials are stored encrypted in database using AES-256-GCM</Note>
-      </CredentialManagement>
-    </UtilityScripts>
-
-    <DemoUsers>
-      <User role="manager">
-        <Username>manager</Username>
-        <Password>managermanager123123</Password>
-      </User>
-      <User role="designer">
-        <Username>designer</Username>
-        <Password>design123</Password>
-      </User>
-      <User role="production_staff">
-        <Username>staff</Username>
-        <Password>staff123</Password>
-      </User>
-    </DemoUsers>
-  </SystemAccess>
-
-  <ResponsePatterns>
-    <StartingTask>
-      Let me understand the existing codebase and plan the approach. I'll examine [specific files] to understand the current patterns.
-    </StartingTask>
-
-    <AfterResearch>
-      I found the established pattern in [file]. The approach involves [explanation]. This will require modifying [files].
-    </AfterResearch>
-
-    <ConfirmingConfidence>
-      After thorough research, I'm confident that [solution description]. This approach will [benefits/outcomes].
-    </ConfirmingConfidence>
-
-    <BeforeImplementation>
-      Based on my research, I recommend [solution]. This will:
-      - Modify [files]
-      - Follow the pattern from [reference file]
-      - [Any risks or considerations]
-      
-      Please confirm before I proceed with implementation.
-    </BeforeImplementation>
-
-    <WhenUncertain>
-      I found [issue/ambiguity]. Should I:
-      - Option A: [description]
-      - Option B: [description]
-      
-      Which approach aligns better with business requirements?
-    </WhenUncertain>
-
-    <RefactoringNeeded>
-      This implementation will exceed 500 lines. I'll refactor it into:
-      - module1.ts: [purpose, ~lines]
-      - module2.ts: [purpose, ~lines]
-      - module3.ts: [purpose, ~lines]
-    </RefactoringNeeded>
-  </ResponsePatterns>
-
-  <DatabaseGuidelines>
-    <BeforeChanges>
-      <![CDATA[
--- Always check existing structure
-SHOW CREATE TABLE table_name;
-DESCRIBE table_name;
-
--- Check for dependencies
-SELECT * FROM information_schema.KEY_COLUMN_USAGE
-WHERE REFERENCED_TABLE_NAME = 'table_name';
-
--- Test with sample data first
-SELECT * FROM table_name LIMIT 10;
-      ]]>
-    </BeforeChanges>
-
-    <ConnectionConfiguration>
-      <Host>localhost:3306</Host>
-      <Database>sign_manufacturing</Database>
-      <CredentialsLocation>/home/jon/Nexus/backend/web/.env</CredentialsLocation>
-      <PoolConfiguration>/backend/web/src/config/database.ts</PoolConfiguration>
-    </ConnectionConfiguration>
-
-    <QueryStandards>
-      <Critical>ALWAYS use the query() helper function from config/database.ts</Critical>
-      <MandatoryPattern>
-        <![CDATA[
-// CORRECT - Use query() helper
-import { query } from '../config/database';
-import { RowDataPacket } from 'mysql2';
-
-async getItemById(id: number): Promise<RowDataPacket | null> {
-  const rows = await query(
-    'SELECT * FROM items WHERE id = ?',
-    [id]
-  ) as RowDataPacket[];
-  return rows.length > 0 ? rows[0] : null;
-}
-
-// WRONG - Do NOT use pool.execute() directly
-import { pool } from '../config/database';
-const [rows] = await pool.execute(...);  // ❌ NEVER DO THIS
-        ]]>
-      </MandatoryPattern>
-
-      <Benefits>
-        <Benefit>Automatic destructuring - returns rows directly, not [rows, fields] tuple</Benefit>
-        <Benefit>Centralized error logging - all database errors logged consistently</Benefit>
-        <Benefit>Cleaner syntax - less boilerplate code</Benefit>
-        <Benefit>No TypeScript generics needed at call sites</Benefit>
-        <Benefit>Single enhancement point for query timing, metrics, retry logic</Benefit>
-        <Benefit>Future-proof - easy to add monitoring, slow query detection, etc.</Benefit>
-      </Benefits>
-
-      <ArchitectureRules>
-        <Rule layer="Repository">ONLY layer that should import and use query() function</Rule>
-        <Rule layer="Service">Call repository methods, NEVER query database directly</Rule>
-        <Rule layer="Controller">Call service methods, NEVER access database or repository</Rule>
-        <Rule layer="Route">Define middleware chains only, NEVER access database</Rule>
-      </ArchitectureRules>
-
-      <MigrationReference>
-        <Document>/home/jon/Nexus/DATABASE_QUERY_STANDARDIZATION_PLAN.md</Document>
-        <Status>In progress - migrating all pool.execute() to query() helper</Status>
-        <Note>Legacy code may still use pool.execute() - update to query() when touching those files</Note>
-      </MigrationReference>
-    </QueryStandards>
-  </DatabaseGuidelines>
-
-  <QuickReference>
-    <BuildAndBackupCommands>
-      <FullReference>See /home/jon/Nexus/BUILD_MANAGEMENT.md for complete command reference, workflows, and troubleshooting</FullReference>
-      <MostCommon>
-        <Build>backend-rebuild-dev.sh, backend-rebuild-production.sh, frontend-rebuild-dev.sh, frontend-rebuild-production.sh</Build>
-        <Backup>backup-builds.sh, list-backups.sh, restore-backup.sh, cleanup-backups.sh</Backup>
-        <Server>start-production.sh, start-dev.sh, stop-servers.sh, status-servers.sh</Server>
-      </MostCommon>
-    </BuildAndBackupCommands>
-
-    <CriticalPaths>
-      <Path name="DatabaseConfig">/backend/web/src/config/database.ts</Path>
-      <Path name="APIClient">/frontend/web/src/services/api/index.ts</Path>
-      <Path name="AuthContext">/frontend/web/src/contexts/AuthContext.tsx</Path>
-      <Path name="Environment">/backend/web/.env</Path>
-      <Path name="MainApp">/frontend/web/src/App.tsx - routing and auth</Path>
-      <Path name="RouteDefinitions">/backend/web/src/routes/</Path>
-      <Path name="EstimateVersioning">/backend/web/src/controllers/estimateVersioningController.ts</Path>
-      <Path name="DynamicTemplates">/backend/web/src/services/dynamicTemplateService.ts</Path>
-      <Path name="GridJobBuilder">/frontend/web/src/components/jobEstimation/GridJobBuilderRefactored.tsx</Path>
-      <Path name="TasksTable">/frontend/web/src/components/orders/tasksTable/TasksTable.tsx</Path>
-    </CriticalPaths>
-
-    <Troubleshooting>
-      <Step order="1">Check server status: infrastructure/scripts/status-servers.sh</Step>
-      <Step order="2">Review logs: /tmp/signhouse-*.log</Step>
-      <Step order="3">Verify database connection: systemctl status mysql</Step>
-      <Step order="4">Check for port conflicts: lsof -i :3001 and lsof -i :5173</Step>
-      <Step order="5">If rebuild/restart doesn't update running server: Check for rogue processes - compare PM2 PID (pm2 list) with port PID (lsof -i :3001). If different, kill the rogue process before restarting PM2.</Step>
-      <Step order="6">Never modify backup files as fallback</Step>
-    </Troubleshooting>
-
-    <TestingReference>
-      <File>See /home/jon/Nexus/testingChecklist.md for comprehensive testing checklist</File>
-      <Usage>Reference during testing and before deployments</Usage>
-    </TestingReference>
-
-  </QuickReference>
+  <DateHandlingRules>
+    <Critical>MySQL DATE columns return UTC midnight strings that shift to the previous day in Eastern timezone when parsed with new Date()</Critical>
+    <Rules>
+      <Rule>ALWAYS import date formatters from `utils/dateUtils.ts` — NEVER define inline `formatDate` functions</Rule>
+      <Rule>NEVER use `new Date(dateStr)` for date-only values (DATE columns) — use the safe `parseLocalDate` pattern that extracts YYYY-MM-DD components</Rule>
+      <Rule>Datetime values (DATETIME/TIMESTAMP columns with time component) are safe with `new Date()` — timezone conversion is correct for those</Rule>
+    </Rules>
+    <QuickReference>
+      <Format function="formatDate(str)">Short date: "Sun, Feb 8" — for compact displays (tasks table, time entries)</Format>
+      <Format function="formatDateWithYear(str)">Date with year: "Feb 8, 2026" — most common format. Pass { weekday: true } for "Sunday, Feb 8, 2026"</Format>
+      <Format function="formatMonthDay(str)">Month + day: "Feb 8" — for supply chain/material requirements</Format>
+      <Format function="formatDateTimeWithYear(str)">Full datetime: "Feb 8, 2026, 2:30 PM" — for audit logs, file dates</Format>
+      <Format function="formatDateTime(str)">Short datetime: "Feb 8, 2:30 PM" — for recent timestamps (no year needed)</Format>
+      <Format function="formatRelativeDate(str)">Relative: "Today" / "Tomorrow" / "Feb 8" — for dashboard panels</Format>
+      <Format function="formatDateLong(str)">Long date: "February 8, 2026" — for formal displays</Format>
+    </QuickReference>
+    <BackendNote>Server-side (Eastern TZ): `toISOString().split('T')[0]` is acceptable. Prefer `DATE_FORMAT` in SQL queries.</BackendNote>
+  </DateHandlingRules>
 
   <FinalReminder>
-    This is a production system serving an active business. Every change matters. 
+    This is a production system serving an active business. Every change matters.
     Research until you have complete confidence in both the problem and solution.
     When in doubt, ask for clarification rather than making assumptions.
   </FinalReminder>

@@ -106,6 +106,36 @@ function CustomerForm({ formData, isEditing, ledTypes, powerSupplyTypes, onInput
             )}
           </div>
           <div>
+            <label className={`text-sm font-semibold ${PAGE_STYLES.panel.textSecondary}`}>High Standards</label>
+            {isEditing ? (
+              <select
+                value={formData.high_standards ? 'yes' : 'no'}
+                onChange={(e) => onInputChange('high_standards', e.target.value === 'yes')}
+                className={inputClass}
+              >
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </select>
+            ) : (
+              <p className={displayClass}>{formData.high_standards ? 'Yes' : 'No'}</p>
+            )}
+          </div>
+          <div>
+            <label className={`text-sm font-semibold ${PAGE_STYLES.panel.textSecondary}`}>Hide Sign House from Order Forms</label>
+            {isEditing ? (
+              <select
+                value={formData.hide_company_name ? 'yes' : 'no'}
+                onChange={(e) => onInputChange('hide_company_name', e.target.value === 'yes')}
+                className={inputClass}
+              >
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </select>
+            ) : (
+              <p className={displayClass}>{formData.hide_company_name ? 'Yes' : 'No'}</p>
+            )}
+          </div>
+          <div>
             <label className={`text-sm font-semibold ${PAGE_STYLES.panel.textSecondary}`}>Default Turnaround (days)</label>
             {isEditing ? (
               <input

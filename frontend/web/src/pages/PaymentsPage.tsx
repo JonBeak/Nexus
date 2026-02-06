@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Building, DollarSign, Calendar, CreditCard, FileText, CheckCircle, AlertCircle, Loader2, X, Home } from 'lucide-react';
 import { customerApi, paymentsApi, OpenInvoice, MultiPaymentInput } from '../services/api';
-import { getTodayString } from '../utils/dateUtils';
+import { getTodayString, formatDateWithYear } from '../utils/dateUtils';
 
 interface Customer {
   customer_id: number;
@@ -151,15 +151,6 @@ export const PaymentsPage: React.FC = () => {
       style: 'currency',
       currency: 'USD'
     }).format(amount);
-  };
-
-  // Format date for display
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
   };
 
   // Submit payment
@@ -389,10 +380,10 @@ export const PaymentsPage: React.FC = () => {
                                 {invoice.docNumber}
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-600">
-                                {formatDate(invoice.txnDate)}
+                                {formatDateWithYear(invoice.txnDate)}
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-600">
-                                {invoice.dueDate ? formatDate(invoice.dueDate) : '-'}
+                                {invoice.dueDate ? formatDateWithYear(invoice.dueDate) : '-'}
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-600 text-right">
                                 {formatCurrency(invoice.totalAmt)}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
+import { formatDateWithYear } from '../../../utils/dateUtils';
 
 interface User {
   user_id: number;
@@ -111,11 +112,6 @@ export const VacationModal: React.FC<VacationModalProps> = ({
     return users.find(u => u.user_id === formData.user_id);
   };
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return '';
-    return new Date(dateString).toLocaleDateString();
-  };
-
   const calculateDays = () => {
     if (formData.start_date && formData.end_date) {
       const start = new Date(formData.start_date);
@@ -206,7 +202,7 @@ export const VacationModal: React.FC<VacationModalProps> = ({
                   Vacation Duration: {calculateDays()} day{calculateDays() !== 1 ? 's' : ''}
                 </p>
                 <p className="text-sm text-purple-700">
-                  {formatDate(formData.start_date)} to {formatDate(formData.end_date)}
+                  {formatDateWithYear(formData.start_date)} to {formatDateWithYear(formData.end_date)}
                 </p>
               </div>
               {getSelectedUser() && (

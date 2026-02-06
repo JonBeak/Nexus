@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, AlertCircle, ChevronLeft, ChevronRight, Filter, Clock, User, Database } from 'lucide-react';
 import { settingsApi, AuditLogEntry } from '../../services/api/settings';
+import { formatDateTimeWithYear } from '../../utils/dateUtils';
 
 // Table name to display name mapping
 const TABLE_DISPLAY_NAMES: Record<string, string> = {
@@ -128,18 +129,6 @@ export const AuditLogViewer: React.FC = () => {
 
   const totalPages = Math.ceil(total / pageSize);
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    }).format(date);
-  };
-
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
@@ -235,7 +224,7 @@ export const AuditLogViewer: React.FC = () => {
                           <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center gap-2 text-sm text-gray-600">
                               <Clock className="w-4 h-4 text-gray-400" />
-                              {formatDate(entry.changed_at)}
+                              {formatDateTimeWithYear(entry.changed_at)}
                             </div>
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">

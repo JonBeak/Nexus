@@ -138,6 +138,7 @@ export interface AiFileInfo {
   file_name: string;
   size_bytes: number;
   modified_at: Date;
+  location: 'primary' | 'secondary';
   validation?: AiFileValidationRecord;
 }
 
@@ -227,6 +228,14 @@ export interface FileComparisonEntry {
   matched_rules: string[];  // Which rules generated this expectation
 }
 
+// Human-readable validation rule for display in the UI
+export interface ValidationRuleDisplay {
+  rule_key: string;       // e.g. "no_duplicate_overlapping"
+  name: string;           // e.g. "No Duplicate Paths"
+  description: string;    // e.g. "Detects duplicate or overlapping paths on same layer"
+  category: string;       // "Global" or "Front Lit Channel Letters"
+}
+
 // Full comparison result
 export interface ExpectedFilesComparison {
   order_number: number;
@@ -239,4 +248,5 @@ export interface ExpectedFilesComparison {
     unexpected: number;
   };
   files: FileComparisonEntry[];
+  validation_rules?: ValidationRuleDisplay[];
 }

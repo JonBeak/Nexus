@@ -43,6 +43,7 @@ export const useCustomerContext = () => {
         customerId: customer.customer_id,
         customerName: customer.quickbooks_name || null, // Use QB name only for QuickBooks integration
         cashCustomer: customer.cash_yes_or_no === 1,
+        highStandards: !!customer.high_standards,
         discount: customer.discount,
         defaultTurnaround: customer.default_turnaround,
         postalCode: postalCode,

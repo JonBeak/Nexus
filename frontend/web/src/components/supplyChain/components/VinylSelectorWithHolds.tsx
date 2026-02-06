@@ -5,7 +5,7 @@
  * Created: 2026-02-04
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Package, MapPin, Calendar, CheckCircle, AlertCircle, Eye, List } from 'lucide-react';
 import { VinylItemWithHolds, VinylHold } from '../../../types/materialRequirements';
 import { materialRequirementsApi } from '../../../services/api/materialRequirementsApi';
@@ -92,10 +92,25 @@ export const VinylSelectorWithHolds: React.FC<VinylSelectorWithHoldsProps> = ({
     onClose();
   };
 
+  // Close on Escape key
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') handleClose();
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isOpen, handleKeyDown]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div
+      className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) handleClose(); }}
+    >
       <div className="relative top-4 mx-auto p-4 border w-11/12 max-w-6xl shadow-lg rounded bg-white">
         {/* Header */}
         <div className="flex justify-between items-center mb-4">

@@ -40,6 +40,7 @@ interface PartRowProps {
   qbItems: QBItem[];
   rowCount: number;
   isPriceCalcExpanded?: boolean;
+  highStandards?: boolean;
   onFieldSave: (partId: number, field: string, value: string) => Promise<void>;
   onTemplateSave: (partId: number, rowNum: number, value: string) => Promise<void>;
   onSpecFieldSave: (partId: number, specKey: string, value: string) => Promise<void>;
@@ -59,6 +60,7 @@ export const PartRow: React.FC<PartRowProps> = ({
   qbItems,
   rowCount,
   isPriceCalcExpanded = true,
+  highStandards,
   onFieldSave,
   onTemplateSave,
   onSpecFieldSave,
@@ -72,43 +74,52 @@ export const PartRow: React.FC<PartRowProps> = ({
 }) => {
   // Handle header row separately (visible but disabled, gray styling)
   if (part.is_header_row) {
+    const headerRowBg = highStandards ? 'bg-amber-100' : 'bg-gray-100';
+    const headerRowBorder = highStandards ? 'border-amber-400' : 'border-gray-300';
+    const headerControlBg = highStandards ? 'bg-amber-200' : 'bg-gray-200';
+    const headerQbBorder = highStandards ? 'border-amber-500' : 'border-green-500';
+    const headerQbBg = highStandards ? 'bg-amber-50' : 'bg-gray-100';
+
     return (
-      <div
-        className="border-b-2 border-gray-300 grid gap-2 px-2 bg-gray-100"
-        style={{
-          gridTemplateColumns: getGridTemplate(isPriceCalcExpanded)
-        }}
-      >
-        {/* Row Controls - empty */}
-        <div className="bg-gray-200 -ml-2 pl-2 -mr-2 pr-2" />
+      <div className={`border-b-2 ${headerRowBorder} ${headerRowBg} relative overflow-hidden`}>
+        {highStandards && <div className="gold-shimmer" />}
+        <div
+          className="grid gap-2 px-2 relative z-[1]"
+          style={{
+            gridTemplateColumns: getGridTemplate(isPriceCalcExpanded)
+          }}
+        >
+          {/* Row Controls - empty */}
+          <div className={`${headerControlBg} -ml-2 pl-2 -mr-2 pr-2`} />
 
-        {/* Item Name - empty */}
-        <div className="border-l-2 border-gray-300" />
+          {/* Item Name - empty */}
+          <div className={`border-l-2 ${headerRowBorder}`} />
 
-        {/* Spec columns - empty, spans 5 columns */}
-        <div className="col-span-5" />
+          {/* Spec columns - empty, spans 5 columns */}
+          <div className="col-span-5" />
 
-        {/* QB Item - empty */}
-        <div className="border-l-2 border-gray-300" />
+          {/* QB Item - empty */}
+          <div className={`border-l-2 ${headerRowBorder}`} />
 
-        {/* QB Description - shows header text with green border */}
-        <div className="h-full py-1">
-          <div className="w-full h-full px-2 py-1 text-sm text-black bg-gray-100 border-2 border-green-500 rounded whitespace-pre-wrap">
-            {part.qb_description || ''}
+          {/* QB Description - shows header text with border */}
+          <div className="h-full py-1">
+            <div className={`w-full h-full px-2 py-1 text-sm text-black ${headerQbBg} border-2 ${headerQbBorder} rounded whitespace-pre-wrap`}>
+              {part.qb_description || ''}
+            </div>
           </div>
+
+          {/* Price Calculation - empty */}
+          <div />
+
+          {/* Qty - empty */}
+          <div />
+
+          {/* Unit Price - empty */}
+          <div />
+
+          {/* Extended - empty */}
+          <div />
         </div>
-
-        {/* Price Calculation - empty */}
-        <div />
-
-        {/* Qty - empty */}
-        <div />
-
-        {/* Unit Price - empty */}
-        <div />
-
-        {/* Extended - empty */}
-        <div />
       </div>
     );
   }

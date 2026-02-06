@@ -84,39 +84,42 @@ const LetterCard: React.FC<{
 }> = ({ letter, index }) => {
   const [expanded, setExpanded] = useState(true);
 
-  const wireCount = letter.holes?.filter(h => h.hole_type === 'wire').length || 0;
-
-  const hasWarning = wireCount === 0 || wireCount > 1;
+  const issues = letter.issues || [];
+  const hasError = issues.some(i => i.severity === 'error');
+  const hasWarning = !hasError && issues.some(i => i.severity === 'warning');
+  const borderClass = hasError ? 'border-red-300'
+                    : hasWarning ? 'border-yellow-300'
+                    : 'border-purple-300';
 
   return (
-    <div className={`border rounded-lg overflow-hidden ${hasWarning ? 'border-yellow-300 bg-yellow-50/50' : 'border-gray-200'}`}>
+    <div className={`border rounded-lg overflow-hidden ${borderClass}`}>
       {/* Header */}
       <div
-        className={`px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors ${
-          hasWarning ? 'bg-yellow-50/50' : ''
+        className={`px-4 py-2.5 flex items-center justify-between cursor-pointer transition-colors ${
+          hasError ? 'bg-red-100/60 hover:bg-red-100' : hasWarning ? 'bg-yellow-100/60 hover:bg-yellow-100' : 'bg-purple-100 hover:bg-purple-100/60'
         }`}
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-3">
           {expanded ? (
-            <ChevronDown className="w-4 h-4 text-gray-400" />
+            <ChevronDown className="w-4 h-4 text-purple-400" />
           ) : (
-            <ChevronRight className="w-4 h-4 text-gray-400" />
+            <ChevronRight className="w-4 h-4 text-purple-400" />
           )}
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-medium text-gray-800">
+              <span className="font-semibold text-purple-900">
                 Letter {index + 1}
               </span>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-purple-400">
                 ({letter.letter_id})
               </span>
-              {hasWarning && (
-                <AlertTriangle className="w-4 h-4 text-yellow-500" />
+              {(hasError || hasWarning) && (
+                <AlertTriangle className={`w-4 h-4 ${hasError ? 'text-red-500' : 'text-yellow-500'}`} />
               )}
             </div>
             <div className="text-xs text-gray-500 mt-0.5">
-              {letter.real_size_inches?.width.toFixed(1)}" x {letter.real_size_inches?.height.toFixed(1)}"
+              {letter.real_size_inches?.width.toFixed(1)}" W x {letter.real_size_inches?.height.toFixed(1)}" H
             </div>
           </div>
         </div>
@@ -125,7 +128,7 @@ const LetterCard: React.FC<{
 
       {/* Expanded content */}
       {expanded && (
-        <div className="px-4 py-3 border-t bg-white">
+        <div className="px-4 py-3 border-t border-purple-300 bg-white">
           <div className="flex gap-6">
             {/* SVG Preview */}
             <div className="flex-shrink-0">
@@ -145,10 +148,12 @@ const LetterCard: React.FC<{
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                   <dt className="text-gray-500">Size:</dt>
                   <dd className="text-gray-800">
-                    {letter.real_size_inches?.width.toFixed(1)}" x {letter.real_size_inches?.height.toFixed(1)}"
+                    {letter.real_size_inches?.width.toFixed(1)}" W x {letter.real_size_inches?.height.toFixed(1)}" H
                   </dd>
+                  <dt className="text-gray-500">Perimeter:</dt>
+                  <dd className="text-gray-800">{letter.real_perimeter_inches?.toFixed(1)}"</dd>
                   <dt className="text-gray-500">Area:</dt>
-                  <dd className="text-gray-800">{letter.real_area_sq_inches?.toFixed(1)} sq in</dd>
+                  <dd className="text-gray-800">{letter.real_area_sq_inches?.toFixed(1)} in<sup>2</sup></dd>
                   <dt className="text-gray-500">Scale:</dt>
                   <dd className="text-gray-800">
                     {letter.detected_scale === 0.1 ? '10%' : '100%'}
@@ -192,19 +197,19 @@ const LetterCard: React.FC<{
                 </div>
               )}
 
-              {/* Warnings */}
-              {wireCount === 0 && (
-                <div className="flex items-start gap-2 p-2 bg-red-50 border border-red-200 rounded text-sm">
-                  <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5" />
-                  <span className="text-red-700">No wire hole found</span>
+              {/* Backend-driven issues */}
+              {issues.filter(i => i.severity !== 'info').map((issue, i) => (
+                <div key={i} className={`flex items-start gap-2 p-2 rounded text-sm ${
+                  issue.severity === 'error' ? 'bg-red-50 border border-red-200' : 'bg-yellow-50 border border-yellow-200'
+                }`}>
+                  <AlertTriangle className={`w-4 h-4 mt-0.5 ${
+                    issue.severity === 'error' ? 'text-red-500' : 'text-yellow-500'
+                  }`} />
+                  <span className={issue.severity === 'error' ? 'text-red-700' : 'text-yellow-700'}>
+                    {issue.message}
+                  </span>
                 </div>
-              )}
-              {wireCount > 1 && (
-                <div className="flex items-start gap-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm">
-                  <AlertTriangle className="w-4 h-4 text-yellow-500 mt-0.5" />
-                  <span className="text-yellow-700">{wireCount} wire holes (expected 1)</span>
-                </div>
-              )}
+              ))}
             </div>
           </div>
         </div>
@@ -221,36 +226,43 @@ const LayerGroup: React.FC<{
 
   const totalWire = letters.reduce((sum, l) => sum + (l.holes?.filter(h => h.hole_type === 'wire').length || 0), 0);
   const totalMounting = letters.reduce((sum, l) => sum + (l.holes?.filter(h => h.hole_type === 'mounting').length || 0), 0);
-  const hasWarning = letters.some(l => {
-    const wc = l.holes?.filter(h => h.hole_type === 'wire').length || 0;
-    return wc === 0 || wc > 1;
-  });
+  const totalPerimeter = letters.reduce((sum, l) => sum + (l.real_perimeter_inches || 0), 0);
+  const totalArea = letters.reduce((sum, l) => sum + (l.real_area_sq_inches || 0), 0);
+  const hasError = letters.some(l => l.issues?.some(i => i.severity === 'error'));
+  const hasWarning = !hasError && letters.some(l => l.issues?.some(i => i.severity === 'warning'));
+  const hasIssue = hasError || hasWarning;
 
   return (
-    <div className={`border rounded-lg overflow-hidden ${hasWarning ? 'border-yellow-300' : 'border-gray-200'}`}>
+    <div className={`border rounded-lg overflow-hidden ${hasError ? 'border-red-300' : hasWarning ? 'border-yellow-300' : 'border-indigo-200'}`}>
       <div
         className={`px-4 py-3 flex items-center justify-between cursor-pointer ${
-          hasWarning ? 'bg-yellow-50' : 'bg-gray-50'
+          hasError ? 'bg-red-50' : hasWarning ? 'bg-yellow-50' : 'bg-indigo-100'
         }`}
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-2">
           {expanded ? (
-            <ChevronDown className="w-5 h-5 text-gray-400" />
+            <ChevronDown className="w-5 h-5 text-indigo-400" />
           ) : (
-            <ChevronRight className="w-5 h-5 text-gray-400" />
+            <ChevronRight className="w-5 h-5 text-indigo-400" />
           )}
-          <span className="font-medium text-gray-800">{layerName}</span>
-          {hasWarning && <AlertTriangle className="w-4 h-4 text-yellow-500" />}
+          <span className="font-semibold text-indigo-900">{layerName}</span>
+          {hasIssue && <AlertTriangle className={`w-4 h-4 ${hasError ? 'text-red-500' : 'text-yellow-500'}`} />}
         </div>
-        <div className="flex items-center gap-4 text-sm text-gray-600">
-          <span>{letters.length} path{letters.length !== 1 ? 's' : ''}</span>
-          <span>{totalWire} wire</span>
-          <span>{totalMounting} mounting</span>
+        <div className="text-sm text-indigo-600 text-right space-y-1">
+          <div className="flex items-center gap-4 justify-end">
+            <span>{letters.length} path{letters.length !== 1 ? 's' : ''}</span>
+            <span>{totalWire} wire</span>
+            <span>{totalMounting} mounting</span>
+          </div>
+          <div className="flex items-center gap-4 justify-end text-indigo-400">
+            <span>{totalPerimeter.toFixed(1)}" perim</span>
+            <span>{totalArea.toFixed(1)} in<sup>2</sup> area</span>
+          </div>
         </div>
       </div>
       {expanded && (
-        <div className="p-4 space-y-2 bg-white">
+        <div className="p-4 space-y-2 bg-indigo-100/50 border-t border-indigo-200">
           {letters.map((letter, index) => (
             <LetterCard key={letter.letter_id} letter={letter} index={index} />
           ))}

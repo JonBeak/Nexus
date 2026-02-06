@@ -36,6 +36,7 @@ export interface InlineEditableCellProps {
   min?: number;
   max?: number;
   step?: number;
+  defaultToToday?: boolean;
 }
 
 export const InlineEditableCell: React.FC<InlineEditableCellProps> = ({
@@ -49,6 +50,7 @@ export const InlineEditableCell: React.FC<InlineEditableCellProps> = ({
   min,
   max,
   step = 1,
+  defaultToToday = false,
 }) => {
   const [localValue, setLocalValue] = useState<string>(formatValue(value, type));
   const [isDirty, setIsDirty] = useState(false);
@@ -270,7 +272,15 @@ export const InlineEditableCell: React.FC<InlineEditableCellProps> = ({
         {/* Button always rendered to maintain consistent size */}
         <button
           type="button"
-          onClick={() => setIsEditingDate(true)}
+          onClick={() => {
+            if (!localValue && defaultToToday) {
+              const now = new Date();
+              const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+              setLocalValue(today);
+              setIsDirty(true);
+            }
+            setIsEditingDate(true);
+          }}
           className={`w-full h-[30px] pl-1 pr-4 text-xs text-left border rounded-none ${PAGE_STYLES.input.text}
             border-gray-300 bg-white hover:border-gray-400 hover:bg-gray-50
             focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${className}

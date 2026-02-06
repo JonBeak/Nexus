@@ -77,6 +77,8 @@ export interface CustomerData {
   shipping_yes_or_no?: boolean;
   shipping_multiplier?: number;
   shipping_flat?: number;
+  high_standards?: boolean;
+  hide_company_name?: boolean;
   comments?: string;
   special_instructions?: string;
 }
@@ -151,7 +153,9 @@ export class CustomerService {
       'powersupply_yes_or_no',
       'ul_yes_or_no',
       'drain_holes_yes_or_no',
-      'plug_n_play_yes_or_no'
+      'plug_n_play_yes_or_no',
+      'high_standards',
+      'hide_company_name'
     ];
     const convertedCustomers = convertBooleanFieldsArray(customers, booleanFields);
 
@@ -192,7 +196,9 @@ export class CustomerService {
       'powersupply_yes_or_no',
       'ul_yes_or_no',
       'drain_holes_yes_or_no',
-      'plug_n_play_yes_or_no'
+      'plug_n_play_yes_or_no',
+      'high_standards',
+      'hide_company_name'
     ];
     const convertedCustomer = convertBooleanFields(customer, customerBooleanFields) as Customer;
 
@@ -290,6 +296,8 @@ export class CustomerService {
       customerData.shipping_yes_or_no ? 1 : 0,
       customerData.shipping_multiplier || 1.5,
       customerData.shipping_flat || null,
+      customerData.high_standards ? 1 : 0,
+      customerData.hide_company_name ? 1 : 0,
       customerData.comments || null,
       customerData.special_instructions || null
     ];
@@ -339,6 +347,8 @@ export class CustomerService {
       shipping_yes_or_no: Boolean(customerData.shipping_yes_or_no),
       shipping_multiplier: customerData.shipping_multiplier || 1.5,
       shipping_flat: customerData.shipping_flat || null,
+      high_standards: Boolean(customerData.high_standards),
+      hide_company_name: Boolean(customerData.hide_company_name),
       comments: customerData.comments || null,
       special_instructions: customerData.special_instructions || null
     };
@@ -364,7 +374,7 @@ export class CustomerService {
       'powersupply_yes_or_no', 'power_supply_id', 'ul_yes_or_no', 'default_turnaround',
       'drain_holes_yes_or_no', 'pattern_yes_or_no', 'pattern_type',
       'wiring_diagram_yes_or_no', 'wiring_diagram_type', 'plug_n_play_yes_or_no',
-      'shipping_yes_or_no', 'shipping_multiplier', 'shipping_flat',
+      'shipping_yes_or_no', 'shipping_multiplier', 'shipping_flat', 'high_standards', 'hide_company_name',
       'comments', 'special_instructions', 'created_by', 'updated_by', 'active', 'created_date', 'updated_date'
     ];
 
@@ -376,7 +386,7 @@ export class CustomerService {
       safeData.powersupply_yes_or_no, safeData.power_supply_id, safeData.ul_yes_or_no, safeData.default_turnaround,
       safeData.drain_holes_yes_or_no, safeData.pattern_yes_or_no, safeData.pattern_type,
       safeData.wiring_diagram_yes_or_no, safeData.wiring_diagram_type, safeData.plug_n_play_yes_or_no,
-      safeData.shipping_yes_or_no, safeData.shipping_multiplier, safeData.shipping_flat,
+      safeData.shipping_yes_or_no, safeData.shipping_multiplier, safeData.shipping_flat, safeData.high_standards, safeData.hide_company_name,
       safeData.comments, safeData.special_instructions, null, null, 1, 'CURRENT_TIMESTAMP', 'CURRENT_TIMESTAMP'
     ];
 

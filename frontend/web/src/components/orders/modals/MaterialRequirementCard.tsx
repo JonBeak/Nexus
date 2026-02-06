@@ -24,6 +24,7 @@ export interface MaterialRequirementCardProps {
   onProductTypeChange: (localId: string, archetypeId: number | null) => void;
   onVinylProductChange: (localId: string, productId: number | null) => void;
   onSupplierProductChange: (localId: string, productId: number | null) => void;
+  onCustomProductTypeChange: (localId: string, text: string) => void;
   onFieldChange: (localId: string, field: string, value: any) => void;
   onRemove: (localId: string) => void;
   onCheckStock: (row: MaterialRow, stockType: 'vinyl' | 'general') => void;
@@ -75,6 +76,7 @@ export const MaterialRequirementCard: React.FC<MaterialRequirementCardProps> = R
   onProductTypeChange,
   onVinylProductChange,
   onSupplierProductChange,
+  onCustomProductTypeChange,
   onFieldChange,
   onRemove,
   onCheckStock,
@@ -147,6 +149,8 @@ export const MaterialRequirementCard: React.FC<MaterialRequirementCardProps> = R
               supplierProductId={row.supplier_product_id}
               onVinylProductChange={(val) => onVinylProductChange(row._localId, val)}
               onSupplierProductChange={(val) => onSupplierProductChange(row._localId, val)}
+              customProductType={row.custom_product_type}
+              onCustomProductTypeChange={(text) => onCustomProductTypeChange(row._localId, text)}
               supplierId={row.supplier_id}
               supplierProducts={supplierProducts}
               vinylProducts={vinylProducts}

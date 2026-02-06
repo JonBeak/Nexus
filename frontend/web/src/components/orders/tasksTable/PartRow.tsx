@@ -9,6 +9,7 @@ import { PartWithTasks, PartTask } from './types';
 import TaskCell from './TaskCell';
 import { OrderStatus } from '../../../types/orders';
 import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
+import { formatDate } from '../../../utils/dateUtils';
 
 interface Props {
   part: PartWithTasks;
@@ -48,15 +49,6 @@ export const PartRow: React.FC<Props> = ({
     e.preventDefault();
     e.stopPropagation();
     navigate(`/orders/${part.orderNumber}`);
-  };
-
-  // Format date as 'Day, Mon d' (e.g., "Mon, Dec 15")
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
   };
 
   // Format time from HH:MM:SS to 12-hour AM/PM format

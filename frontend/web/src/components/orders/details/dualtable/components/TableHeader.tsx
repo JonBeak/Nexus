@@ -14,19 +14,23 @@ interface TableHeaderProps {
   onImportClick?: () => void;
   isPriceCalcExpanded?: boolean;
   onTogglePriceCalc?: () => void;
+  highStandards?: boolean;
 }
 
 export const TableHeader: React.FC<TableHeaderProps> = ({
   onImportClick,
   isPriceCalcExpanded = true,
-  onTogglePriceCalc
+  onTogglePriceCalc,
+  highStandards
 }) => {
-  const headerCell = `text-xs font-semibold ${PAGE_STYLES.header.text} uppercase tracking-wider py-2`;
+  const headerTextClass = highStandards ? 'text-amber-900' : PAGE_STYLES.header.text;
+  const headerCell = `text-xs font-semibold ${headerTextClass} uppercase tracking-wider py-2`;
   const dividerBorder = `border-l-2 ${PAGE_STYLES.panel.border}`;
+  const headerBg = highStandards ? 'bg-gradient-to-r from-amber-300 to-yellow-300' : PAGE_STYLES.header.background;
 
   return (
     <div
-      className={`${PAGE_STYLES.header.background} border-b-2 ${PAGE_STYLES.panel.border} grid gap-2 px-2`}
+      className={`${headerBg} border-b-2 ${PAGE_STYLES.panel.border} grid gap-2 px-2`}
       style={{
         gridTemplateColumns: getGridTemplate(isPriceCalcExpanded)
       }}

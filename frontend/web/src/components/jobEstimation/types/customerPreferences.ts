@@ -7,6 +7,7 @@ export interface CustomerPreferencesData {
   customerId: number;
   customerName: string | null; // QuickBooks DisplayName - null if not configured
   cashCustomer: boolean;
+  highStandards: boolean;
   discount?: number;
   defaultTurnaround?: number;
 

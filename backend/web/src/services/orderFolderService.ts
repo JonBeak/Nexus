@@ -682,6 +682,9 @@ export class OrderFolderService {
 
   /**
    * List all image files (JPG, JPEG, PNG) in folder
+   * Checks both primary and secondary paths, aggregates results
+   * - Primary: /mnt/channelletter/Orders/{folder} (new orders) or /mnt/channelletter/{folder} (migrated)
+   * - Secondary: /mnt/channelletter/{folder} (for new orders with legacy files)
    * Returns: Array of { filename, size, modifiedDate }
    */
   listImagesInFolder(
@@ -692,38 +695,66 @@ export class OrderFolderService {
     filename: string;
     size: number;
     modifiedDate: Date;
+    location: 'primary' | 'secondary';
   }> {
     try {
-      const folderPath = this.getFolderPath(folderName, location, isMigrated);
+      const primaryPath = this.getFolderPath(folderName, location, isMigrated);
+      // For non-migrated orders, also check root of SMB_ROOT
+      // Migrated orders already check root in getFolderPath, so skip for them
+      const secondaryPath = !isMigrated ? path.join(SMB_ROOT, folderName) : null;
 
-      // Check if folder exists
-      if (!fs.existsSync(folderPath)) {
-        console.warn(`[OrderFolderService] Folder does not exist: ${folderPath}`);
-        return [];
-      }
+      const images: Array<{ filename: string; size: number; modifiedDate: Date; location: 'primary' | 'secondary' }> = [];
+      const seenFilenames = new Set<string>();
 
-      // Read directory
-      const items = fs.readdirSync(folderPath);
-      const images: Array<{ filename: string; size: number; modifiedDate: Date }> = [];
-
-      for (const item of items) {
-        const itemPath = path.join(folderPath, item);
-        const stats = fs.statSync(itemPath);
-
-        // Only include files (not directories)
-        if (!stats.isFile()) {
-          continue;
+      // Helper to process directory
+      const processDirectory = (dirPath: string, fileLocation: 'primary' | 'secondary') => {
+        if (!fs.existsSync(dirPath)) {
+          return;
         }
 
-        // Check file extension (case-insensitive)
-        const ext = path.extname(item).toLowerCase();
-        if (['.jpg', '.jpeg', '.png'].includes(ext)) {
-          images.push({
-            filename: item,
-            size: stats.size,
-            modifiedDate: stats.mtime
-          });
+        try {
+          const items = fs.readdirSync(dirPath);
+
+          for (const item of items) {
+            const itemPath = path.join(dirPath, item);
+            const stats = fs.statSync(itemPath);
+
+            // Only include files (not directories)
+            if (!stats.isFile()) {
+              continue;
+            }
+
+            // Check file extension (case-insensitive)
+            const ext = path.extname(item).toLowerCase();
+            if (!['.jpg', '.jpeg', '.png'].includes(ext)) {
+              continue;
+            }
+
+            // Avoid duplicates - primary path takes precedence
+            const lowerFilename = item.toLowerCase();
+            if (seenFilenames.has(lowerFilename)) {
+              continue;
+            }
+
+            seenFilenames.add(lowerFilename);
+            images.push({
+              filename: item,
+              size: stats.size,
+              modifiedDate: stats.mtime,
+              location: fileLocation
+            });
+          }
+        } catch (error) {
+          console.warn(`[OrderFolderService] Error reading directory ${dirPath}:`, error);
         }
+      };
+
+      // Check primary path first (takes precedence)
+      processDirectory(primaryPath, 'primary');
+
+      // Check secondary path for additional files (non-migrated orders only)
+      if (secondaryPath && secondaryPath !== primaryPath) {
+        processDirectory(secondaryPath, 'secondary');
       }
 
       // Sort by modified date (newest first)
@@ -738,6 +769,7 @@ export class OrderFolderService {
 
   /**
    * Check if image file exists in folder
+   * Checks both primary and secondary paths
    */
   imageExists(
     folderName: string,
@@ -746,10 +778,26 @@ export class OrderFolderService {
     isMigrated: boolean = false
   ): boolean {
     try {
-      const folderPath = this.getFolderPath(folderName, location, isMigrated);
-      const imagePath = path.join(folderPath, filename);
+      const primaryPath = this.getFolderPath(folderName, location, isMigrated);
+      // For non-migrated orders, also check root of SMB_ROOT
+      // Migrated orders already check root in getFolderPath, so skip for them
+      const secondaryPath = !isMigrated ? path.join(SMB_ROOT, folderName) : null;
 
-      return fs.existsSync(imagePath) && fs.statSync(imagePath).isFile();
+      // Check primary path first
+      const primaryImagePath = path.join(primaryPath, filename);
+      if (fs.existsSync(primaryImagePath) && fs.statSync(primaryImagePath).isFile()) {
+        return true;
+      }
+
+      // Check secondary path (non-migrated orders only)
+      if (secondaryPath && secondaryPath !== primaryPath) {
+        const secondaryImagePath = path.join(secondaryPath, filename);
+        if (fs.existsSync(secondaryImagePath) && fs.statSync(secondaryImagePath).isFile()) {
+          return true;
+        }
+      }
+
+      return false;
     } catch (error) {
       console.error('[OrderFolderService] Error checking image existence:', error);
       return false;

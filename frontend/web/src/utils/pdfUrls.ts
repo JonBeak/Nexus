@@ -42,6 +42,22 @@ export function getFolderPathSegment(location: FolderLocation | undefined, isMig
   }
 }
 
+/**
+ * Get the image path segment based on file location metadata from the backend.
+ * Unlike getFolderPathSegment (which uses folder_location), this uses the per-file
+ * 'primary'/'secondary' location returned by the images API.
+ * - primary: file is in the expected folder (Orders/{folder} or root for migrated)
+ * - secondary: file is in root /mnt/channelletter/{folder} (legacy location for non-migrated orders)
+ */
+export function getImagePathSegment(fileLocation: 'primary' | 'secondary', isMigrated: boolean = false): string {
+  if (fileLocation === 'secondary') {
+    // Secondary is always root level (no Orders/ prefix)
+    return '';
+  }
+  // Primary for migrated orders = root, for non-migrated = Orders/
+  return isMigrated ? '' : 'Orders/';
+}
+
 interface PdfUrls {
   master: string;
   estimate: string;

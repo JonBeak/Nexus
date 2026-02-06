@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Building, DollarSign, Calendar, CreditCard, FileText, CheckCircle, AlertCircle, Loader2, X } from 'lucide-react';
 import { customerApi, paymentsApi, OpenInvoice, MultiPaymentInput } from '../../services/api';
 import { PAGE_STYLES } from '../../constants/moduleColors';
-import { getTodayString } from '../../utils/dateUtils';
+import { getTodayString, formatDateWithYear } from '../../utils/dateUtils';
 
 interface Customer {
   customer_id: number;
@@ -144,15 +144,6 @@ export const PaymentsTab: React.FC = () => {
       style: 'currency',
       currency: 'USD'
     }).format(amount);
-  };
-
-  // Format date for display
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
   };
 
   // Submit payment
@@ -364,10 +355,10 @@ export const PaymentsTab: React.FC = () => {
                                 {invoice.docNumber}
                               </td>
                               <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.textSecondary}`}>
-                                {formatDate(invoice.txnDate)}
+                                {formatDateWithYear(invoice.txnDate)}
                               </td>
                               <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.textSecondary}`}>
-                                {invoice.dueDate ? formatDate(invoice.dueDate) : '-'}
+                                {invoice.dueDate ? formatDateWithYear(invoice.dueDate) : '-'}
                               </td>
                               <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.textSecondary} text-right`}>
                                 {formatCurrency(invoice.totalAmt)}

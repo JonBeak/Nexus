@@ -6,7 +6,9 @@
 -- It converts legacy invoice_email values into the new accounting_emails JSON format.
 -- Orders that already have accounting_emails populated will NOT be affected.
 --
--- Run with: mysql -u root -p sign_manufacturing < 2025-12-17_backfill_accounting_emails.sql
+-- Run with credentials from .env file (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME):
+-- mysql -h localhost -u signhouse_user -p sign_manufacturing < 2025-12-17_backfill_accounting_emails.sql
+-- CRITICAL: Never use root user. Always use a dedicated non-root database user.
 
 -- =============================================
 -- Step 1: Backfill orders with invoice_email but no accounting_emails

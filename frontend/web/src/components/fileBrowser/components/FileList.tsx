@@ -20,6 +20,7 @@ import {
   Pencil
 } from 'lucide-react';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
+import { formatDateTimeWithYear } from '../../../utils/dateUtils';
 import type { FileItem } from '../../../services/api/fileBrowserApi';
 
 interface FileListProps {
@@ -78,18 +79,6 @@ function formatSize(bytes: number): string {
   return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
-// Format date
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-}
-
 export function FileList({ items, onNavigate, onDownload, onRename }: FileListProps) {
   if (items.length === 0) {
     return (
@@ -130,7 +119,7 @@ export function FileList({ items, onNavigate, onDownload, onRename }: FileListPr
                 {formatSize(item.size)}
               </td>
               <td className={`text-right px-4 py-3 ${PAGE_STYLES.panel.textMuted} text-sm hidden md:table-cell`}>
-                {formatDate(item.modifiedDate)}
+                {formatDateTimeWithYear(item.modifiedDate)}
               </td>
               <td className="text-right px-4 py-3">
                 <div className="flex items-center justify-end gap-1">

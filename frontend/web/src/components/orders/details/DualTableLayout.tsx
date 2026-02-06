@@ -30,6 +30,7 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
   taxName,
   cash,
   estimateId,
+  highStandards,
   onPartsChange
 }) => {
   // Import modal state
@@ -150,6 +151,7 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
           onImportClick={() => setShowImportModal(true)}
           isPriceCalcExpanded={isPriceCalcExpanded}
           onTogglePriceCalc={handleTogglePriceCalc}
+          highStandards={highStandards}
         />
 
         {/* Body */}
@@ -173,6 +175,7 @@ export const DualTableLayout: React.FC<DualTableLayoutProps> = ({
                     qbItems={qbItems}
                     rowCount={rowCounts[part.part_id]}
                     isPriceCalcExpanded={isPriceCalcExpanded}
+                    highStandards={highStandards}
                     onFieldSave={handleFieldSave}
                     onTemplateSave={handleTemplateSave}
                     onSpecFieldSave={handleSpecFieldSave}

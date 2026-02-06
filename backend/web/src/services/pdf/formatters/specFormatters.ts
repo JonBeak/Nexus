@@ -332,10 +332,14 @@ export function formatSpecValues(
 
     case 'Drain Holes':
       // Template stores: include (boolean), size (combobox)
-      // Format as Yes [size] if included, or "None" for special formatting
+      // Non-default sizes (anything other than 1/4") get "Custom Size:" prefix for alert highlighting
       const drainInclude = formatBooleanValue(specs.include);
       const drainSize = specs.size || '';
       if (drainInclude === 'Yes' && drainSize) {
+        // Non-default size gets "Custom Size:" prefix; default 1/4" stays normal
+        if (drainSize !== '1/4"') {
+          return `Custom Size: ${drainSize}`;
+        }
         return `${drainInclude} [${drainSize}]`;
       } else if (drainInclude === 'Yes') {
         return 'Yes';

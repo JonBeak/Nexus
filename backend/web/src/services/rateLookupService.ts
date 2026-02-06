@@ -96,6 +96,26 @@ const PRICING_TABLES: Record<string, PricingTableConfig> = {
       return configMap;
     }
   },
+  hingedRacewayPricing: {
+    table: 'hinged_raceway_pricing',
+    columns: ['id', 'category_max_width', 'price', 'config_description', 'is_active'],
+    orderBy: 'category_max_width ASC',
+    hasActiveFilter: true
+  },
+  miscPricing: {
+    table: 'misc_pricing',
+    columns: ['id', 'config_name', 'config_value', 'config_description', 'is_active'],
+    orderBy: 'config_name',
+    hasActiveFilter: true,
+    postProcess: (data: any[]) => {
+      // Convert array to object map (same pattern as bladeSignConfig)
+      const configMap: Record<string, number> = {};
+      for (const row of data) {
+        configMap[row.config_name] = parseFloat(row.config_value);
+      }
+      return configMap;
+    }
+  },
   ledNeonPricing: {
     table: 'led_neon_pricing',
     columns: ['id', 'solder_type', 'price', 'is_active'],

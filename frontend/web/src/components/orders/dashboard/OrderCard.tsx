@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Calendar, User, Package, ChevronRight } from 'lucide-react';
 import StatusBadge from '../common/StatusBadge';
 import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
+import { formatDateWithYear } from '../../../utils/dateUtils';
 
 interface Props {
   order: Order;
@@ -15,11 +16,6 @@ export const OrderCard: React.FC<Props> = ({ order, onUpdated }) => {
 
   const handleClick = () => {
     navigate(`/orders/${order.order_number}`);
-  };
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString();
   };
 
   // Calculate progress percent from task counts
@@ -55,7 +51,7 @@ export const OrderCard: React.FC<Props> = ({ order, onUpdated }) => {
 
         <div className={`flex items-center text-sm ${PAGE_STYLES.panel.textMuted}`}>
           <Calendar className={`w-4 h-4 mr-2 ${PAGE_STYLES.panel.textMuted}`} />
-          <span>Due: {formatDate(order.due_date)}</span>
+          <span>Due: {formatDateWithYear(order.due_date)}</span>
         </div>
 
         {order.customer_po && (

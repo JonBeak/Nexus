@@ -239,6 +239,10 @@ export type {
   IssueSeverity
 } from '../../types/aiFileValidation';
 
+// Pricing Management UI (Feb 2026)
+export { pricingManagementApi } from './pricingManagementApi';
+export type { PricingRow } from './pricingManagementApi';
+
 // Inventory Management (Feb 2026)
 export { default as inventoryApi } from './inventoryApi';
 export type {

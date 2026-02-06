@@ -321,6 +321,7 @@ def build_letter_group(letter: PathInfo, inner_paths: List[PathInfo],
     real_width = width / points_per_inch if points_per_inch > 0 else 0
     real_height = height / points_per_inch if points_per_inch > 0 else 0
     real_area = net_area / (points_per_inch ** 2) if points_per_inch > 0 else 0
+    real_perimeter = (letter.length / points_per_inch) if points_per_inch > 0 else 0
 
     return LetterGroup(
         letter_id=letter.path_id,
@@ -332,6 +333,7 @@ def build_letter_group(letter: PathInfo, inner_paths: List[PathInfo],
         raw_bbox=raw_bbox,
         transform=letter.transform_chain or '',
         area=real_area,
+        perimeter=real_perimeter,
         detected_scale=scale,
         real_size_inches=(real_width, real_height)
     )

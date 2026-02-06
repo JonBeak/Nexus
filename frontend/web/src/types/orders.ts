@@ -11,6 +11,7 @@ export interface Order {
   estimate_id?: number;
   customer_id: number;
   customer_name?: string;  // From join
+  high_standards?: boolean;  // From customer join
   customer_po?: string;
   customer_job_number?: string;
   order_date: string;

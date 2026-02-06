@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Package, AlertTriangle, CheckCircle, ShoppingCart, Plus, Calendar, Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { PAGE_STYLES } from '../../constants/moduleColors';
+import { formatMonthDay } from '../../utils/dateUtils';
 import type { User as AccountUser } from '../accounts/hooks/useAccountAPI';
 
 interface MaterialRequirement {
@@ -200,14 +201,6 @@ export const OrderMaterialRequirements: React.FC<OrderMaterialRequirementsProps>
     return <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 flex items-center gap-1"><CheckCircle className="w-3 h-3" />Ready</span>;
   };
 
-  const formatDate = (dateStr: string | undefined) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
   const handleAddMissingToCart = (order: OrderMaterialRequirement, e: React.MouseEvent) => {
     e.stopPropagation();
     const missingItems = order.materials_needed.filter(m => m.status !== 'in_stock' && m.status !== 'used');
@@ -387,10 +380,10 @@ export const OrderMaterialRequirements: React.FC<OrderMaterialRequirementsProps>
                         {order.order_name}
                       </td>
                       <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.textSecondary}`}>
-                        {formatDate(order.start_date)}
+                        {formatMonthDay(order.start_date)}
                       </td>
                       <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.textSecondary}`}>
-                        {formatDate(order.due_date)}
+                        {formatMonthDay(order.due_date)}
                       </td>
                       <td className="px-4 py-3">
                         {getPriorityBadge(order.priority)}

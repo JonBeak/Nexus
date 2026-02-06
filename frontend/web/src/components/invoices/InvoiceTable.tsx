@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { RefreshCw, ChevronUp, ChevronDown, Loader2, Check, Mail, MailX, Clock } from 'lucide-react';
 import { InvoiceListingOrder, InvoiceFilters, invoicesApi } from '../../services/api/invoicesApi';
 import { PAGE_STYLES } from '../../constants/moduleColors';
+import { formatDateWithYear } from '../../utils/dateUtils';
 
 interface Props {
   orders: InvoiceListingOrder[];
@@ -29,15 +30,6 @@ export const InvoiceTable: React.FC<Props> = ({
       style: 'currency',
       currency: 'USD'
     }).format(amount);
-  };
-
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
   };
 
   const handleSort = (column: InvoiceFilters['sortBy']) => {
@@ -138,7 +130,7 @@ export const InvoiceTable: React.FC<Props> = ({
   const getSentIcon = (sentAt: string | null) => {
     if (sentAt) {
       return (
-        <div className="flex items-center text-green-600" title={`Sent ${formatDate(sentAt)}`}>
+        <div className="flex items-center text-green-600" title={`Sent ${formatDateWithYear(sentAt)}`}>
           <Mail className="w-4 h-4" />
         </div>
       );

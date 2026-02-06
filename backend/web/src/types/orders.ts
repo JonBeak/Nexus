@@ -533,6 +533,10 @@ export interface OrderDataForPDF {
   phone?: string;
   email?: string;
 
+  // Customer flags
+  high_standards?: boolean;                // Gold treatment on forms for high-standards customers
+  hide_company_name?: boolean;             // Hide "Sign House Inc." from order forms
+
   // Customer packing preferences
   pattern_yes_or_no?: number;              // For packing list pattern logic
   pattern_type?: string;                   // "Paper" or "Digital"

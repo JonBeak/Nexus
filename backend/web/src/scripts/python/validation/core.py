@@ -130,8 +130,10 @@ class LetterGroup:
     raw_bbox: Tuple[float, float, float, float] = (0, 0, 0, 0)  # Raw bbox (matches SVG path coords)
     transform: str = ''                      # SVG transform to apply to path
     area: float = 0.0                        # Net area (main - counters)
+    perimeter: float = 0.0                   # Real-world perimeter in inches
     detected_scale: float = 1.0              # Detected file scale (0.1 or 1.0)
     real_size_inches: Tuple[float, float] = (0, 0)  # Real-world size (width, height)
+    issues: List[Dict[str, Any]] = field(default_factory=list)  # Backend-generated validation issues
 
     @property
     def wire_holes(self) -> List[HoleInfo]:
@@ -168,6 +170,7 @@ class LetterGroup:
                 'height': round(self.real_size_inches[1], 2)
             },
             'real_area_sq_inches': round(self.area, 2),
+            'real_perimeter_inches': round(self.perimeter, 2),
             'detected_scale': self.detected_scale,
             'svg_path_data': self.main_path.d_attribute if self.main_path else '',
             'counter_paths': [
@@ -180,7 +183,8 @@ class LetterGroup:
             'holes': [h.to_dict() for h in self.holes],
             'wire_hole_count': len(self.wire_holes),
             'mounting_hole_count': len(self.mounting_holes),
-            'unknown_hole_count': len(self.unknown_holes)
+            'unknown_hole_count': len(self.unknown_holes),
+            'issues': self.issues
         }
 
 
@@ -193,6 +197,7 @@ class LetterAnalysisResult:
     unprocessed_paths: List[Dict[str, Any]] = field(default_factory=list)  # All non-letter/non-hole paths with reasons
     detected_scale: float = 1.0              # Detected file scale
     stats: Dict[str, Any] = field(default_factory=dict)  # Summary statistics
+    issues: List[Dict[str, Any]] = field(default_factory=list)  # Analysis-level validation issues
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -200,6 +205,7 @@ class LetterAnalysisResult:
             'orphan_holes': [h.to_dict() for h in self.orphan_holes],
             'unprocessed_paths': self.unprocessed_paths,
             'detected_scale': self.detected_scale,
+            'issues': self.issues,
             'stats': {
                 'total_letters': len(self.letter_groups),
                 'total_wire_holes': sum(len(lg.wire_holes) for lg in self.letter_groups),

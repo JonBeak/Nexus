@@ -19,6 +19,7 @@ import {
   FeedbackPriority
 } from '../../services/api';
 import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
+import { formatDateWithYear } from '../../utils/dateUtils';
 import { FeedbackDetailModal } from './FeedbackDetailModal';
 import { FeedbackSubmitModal } from './FeedbackSubmitModal';
 import '../jobEstimation/JobEstimation.css';
@@ -86,14 +87,6 @@ export const MyFeedbackPage: React.FC = () => {
         newSet.add(status);
       }
       return newSet;
-    });
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
     });
   };
 
@@ -219,7 +212,7 @@ export const MyFeedbackPage: React.FC = () => {
                     <div className="flex items-center gap-3 text-sm">
                       <div className="flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5 text-gray-400" />
-                        <span className={PAGE_STYLES.panel.textMuted}>{formatDate(item.created_at)}</span>
+                        <span className={PAGE_STYLES.panel.textMuted}>{formatDateWithYear(item.created_at)}</span>
                       </div>
                       {getStatusBadge(item.status)}
                       {getPriorityBadge(item.priority)}

@@ -142,12 +142,17 @@ export const SupplierProductEditor: React.FC<SupplierProductEditorProps> = ({
       return;
     }
 
+    if (!formData.product_name.trim()) {
+      setSaveError('Product name is required');
+      return;
+    }
+
     try {
       const submitData = {
         supplier_id: formData.supplier_id,
         brand_name: formData.brand_name || undefined,
         sku: formData.sku || undefined,
-        product_name: formData.product_name || undefined,
+        product_name: formData.product_name,
         min_order_quantity: formData.min_order_quantity
           ? parseFloat(formData.min_order_quantity)
           : undefined,
@@ -229,21 +234,39 @@ export const SupplierProductEditor: React.FC<SupplierProductEditorProps> = ({
               </select>
             </div>
 
-            {/* Brand Name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Brand Name
-              </label>
-              <input
-                type="text"
-                placeholder="e.g., 3M, Avery"
-                value={formData.brand_name}
-                onChange={(e) =>
-                  setFormData({ ...formData, brand_name: e.target.value })
-                }
-                disabled={loading}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-100"
-              />
+            {/* Brand Name & Product Name */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Brand Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., 3M, Avery"
+                  value={formData.brand_name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, brand_name: e.target.value })
+                  }
+                  disabled={loading}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Product Name *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Product display name"
+                  value={formData.product_name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, product_name: e.target.value })
+                  }
+                  disabled={loading}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-100"
+                />
+              </div>
             </div>
 
             {/* SKU */}
@@ -262,25 +285,6 @@ export const SupplierProductEditor: React.FC<SupplierProductEditorProps> = ({
                   disabled={loading}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-100"
                 />
-              </div>
-
-              {/* Product Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Product Name
-                  <span className="text-gray-400 text-xs ml-1">(optional)</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="Custom display name"
-                  value={formData.product_name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, product_name: e.target.value })
-                  }
-                  disabled={loading}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-100"
-                />
-                <p className="text-xs text-gray-500 mt-1">Leave blank to use archetype name</p>
               </div>
             </div>
 
@@ -483,7 +487,7 @@ export const SupplierProductEditor: React.FC<SupplierProductEditorProps> = ({
               </button>
               <button
                 type="submit"
-                disabled={loading || !formData.supplier_id}
+                disabled={loading || !formData.supplier_id || !formData.product_name.trim()}
                 className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
               >
                 {loading ? (

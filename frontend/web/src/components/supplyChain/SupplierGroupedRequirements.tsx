@@ -16,6 +16,7 @@ import {
   Check,
 } from 'lucide-react';
 import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
+import { formatMonthDay } from '../../utils/dateUtils';
 import { materialRequirementsApi, supplierOrdersApi } from '../../services/api';
 import type { GroupedBySupplierResponse, SupplierRequirementGroup, GroupedRequirement } from '../../types/supplierOrders';
 
@@ -147,13 +148,6 @@ export const SupplierGroupedRequirements: React.FC<SupplierGroupedRequirementsPr
         return next;
       });
     }
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
   };
 
   if (loading) {
@@ -300,7 +294,7 @@ export const SupplierGroupedRequirements: React.FC<SupplierGroupedRequirementsPr
                               />
                             </td>
                             <td className={`px-4 py-2 text-sm ${PAGE_STYLES.panel.textSecondary}`}>
-                              {formatDate(req.entry_date)}
+                              {formatMonthDay(req.entry_date)}
                             </td>
                             <td className={`px-4 py-2 text-sm ${PAGE_STYLES.panel.text}`}>
                               {req.archetype_name || req.custom_product_type || '-'}

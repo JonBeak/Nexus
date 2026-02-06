@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Order, OrderStatus, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../../types/orders';
 import { calculateWorkDaysLeft } from '../calendarView/utils';
+import { formatDateWithYear } from '../../../utils/dateUtils';
 
 interface Props {
   order: Order & { progress_percent?: number };
@@ -15,17 +16,6 @@ export const TableRow: React.FC<Props> = ({ order, onStatusClick, holidays }) =>
   const handleOrderClick = (e: React.MouseEvent) => {
     e.preventDefault();
     navigate(`/orders/${order.order_number}`);
-  };
-
-  const formatDate = (dateString?: string, includeWeekday = false) => {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    if (includeWeekday) {
-      return `${weekdays[date.getDay()]} ${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
-    }
-    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   };
 
   const formatTime = (timeString?: string) => {
@@ -92,7 +82,7 @@ export const TableRow: React.FC<Props> = ({ order, onStatusClick, holidays }) =>
         </button>
       </td>
       <td className={`px-4 py-3 whitespace-nowrap text-sm ${order.hard_due_date_time ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
-        {formatDate(order.due_date, true)}
+        {formatDateWithYear(order.due_date, { weekday: true })}
       </td>
       <td className={`px-4 py-3 whitespace-nowrap text-sm ${order.hard_due_date_time ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
         {formatTime(order.hard_due_date_time)}
@@ -112,7 +102,7 @@ export const TableRow: React.FC<Props> = ({ order, onStatusClick, holidays }) =>
         </div>
       </td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-        {formatDate(order.created_at)}
+        {formatDateWithYear(order.created_at)}
       </td>
     </tr>
   );

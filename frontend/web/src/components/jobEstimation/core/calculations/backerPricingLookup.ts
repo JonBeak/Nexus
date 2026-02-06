@@ -5,25 +5,22 @@
 // This module generates lookup tables using the EXACT same calculation logic
 // as backerPricing.ts but does it upfront for all possible combinations
 
-import { PricingDataResource } from '../../../../services/pricingDataResource';
+import { PricingDataResource, MiscPricingMap } from '../../../../services/pricingDataResource';
 
-// Import constants from backerPricing.ts (keep in sync)
-const BACKER_CONSTANTS = {
+// Structural constants (categories, panel sizes, reference dimensions)
+// These define the grid structure — NOT pricing values
+export const BACKER_CONSTANTS = {
   X_CATEGORIES: [59.5, 119.5, 179.5, 239.5],
   Y_CATEGORIES: [15.5, 23.5, 47.5],
   REFERENCE_WIDTH: 119.5,
-  REFERENCE_HEIGHT: 47.5,
-  ANGLE_LINEAR_DIVISOR: 240,
-  TOTAL_ANGLE_COST: 150,
-  PER_ANGLE_CUT: 25
+  REFERENCE_HEIGHT: 47.5
 };
 
-const HINGED_RACEWAY_LOOKUP = {
-  CATEGORIES: [59.5, 119.5, 179.5, 239.5, 299.5],
-  PRICES: [190, 305, 420, 570, 685]
+export const HINGED_RACEWAY_LOOKUP = {
+  CATEGORIES: [59.5, 119.5, 179.5, 239.5, 299.5]
 };
 
-const ACM_CONSTANTS = {
+export const ACM_CONSTANTS = {
   X_CATEGORIES: [48, 60, 96, 120, 192, 240, 300],
   Y_CATEGORIES: [15.5, 23.5, 29, 48, 60],
   SMALL_PANEL: {
@@ -39,19 +36,45 @@ const ACM_CONSTANTS = {
     HEIGHT: 60,
     MAX_X: 300,
     MAX_Y: 60
-  },
-  ANGLE_LINEAR_DIVISOR: 240,
-  TOTAL_ANGLE_COST: 225,
-  PER_LENGTH_CUT: 25
+  }
 };
 
-// Unified pricing config (matches backerPricing.ts interface)
+/**
+ * Read angle/assembly pricing from misc_pricing DB table.
+ * Returns derived totals used by the calculation engine.
+ */
+function loadMiscPricingValues(misc: MiscPricingMap) {
+  const angleLinearDivisor = misc['angle_linear_divisor'] ?? 240;
+
+  // Aluminum: sum individual components → total angle cost
+  const alumAngle = misc['alum_angle_cost'] ?? 50;
+  const alumAssembly = misc['alum_assembly_cost'] ?? 50;
+  const alumMounting = misc['alum_mounting_angle_cost'] ?? 50;
+  const alumTotalAngleCost = alumAngle + alumAssembly + alumMounting;
+  const alumPerCut = misc['alum_per_angle_cut'] ?? 25;
+
+  // ACM: sum individual components → total angle cost
+  const acmAngle = misc['acm_angle_cost'] ?? 75;
+  const acmAssembly = misc['acm_assembly_cost'] ?? 100;
+  const acmMounting = misc['acm_mounting_angle_cost'] ?? 50;
+  const acmTotalAngleCost = acmAngle + acmAssembly + acmMounting;
+  const acmPerCut = misc['acm_per_length_cut'] ?? 25;
+
+  return {
+    angleLinearDivisor,
+    alumTotalAngleCost, alumPerCut,
+    acmTotalAngleCost, acmPerCut
+  };
+}
+
+// Unified pricing config
 interface BackerPricingConfig {
   perimeterType: 'horizontal-only' | 'full-perimeter';
   referenceWidth: number;
   referenceHeight: number;
   totalSheetCost: number;
   shippingCostPerSheet: number;
+  angleLinearDivisor: number;
   totalAngleCost: number;
   perCut: number;
 }
@@ -88,10 +111,10 @@ function calculateBackerPrice(
     : (categoryX + categoryY) * 2;       // ACM: full perimeter
 
   // 4. Angle linear footage
-  const angleCost = perimeter / BACKER_CONSTANTS.ANGLE_LINEAR_DIVISOR * config.totalAngleCost;
+  const angleCost = perimeter / config.angleLinearDivisor * config.totalAngleCost;
 
   // 5. Angle cuts
-  const angleCutCount = Math.ceil(perimeter / BACKER_CONSTANTS.ANGLE_LINEAR_DIVISOR);
+  const angleCutCount = Math.ceil(perimeter / config.angleLinearDivisor);
   const angleCutCost = angleCutCount * config.perCut;
 
   const totalCost = areaCost + shippingCost + angleCost + angleCutCost;
@@ -103,9 +126,11 @@ function calculateBackerPrice(
 /**
  * Load aluminum pricing configuration from database
  */
-async function loadAluminumPricingConfig(): Promise<BackerPricingConfig> {
+async function loadAluminumPricingConfig(
+  basePricingMap: Record<string, number>,
+  miscValues: ReturnType<typeof loadMiscPricingValues>
+): Promise<BackerPricingConfig> {
   const substratePricing = await PricingDataResource.getSubstrateCutPricing('Alum 0.040"');
-  const basePricingMap = await PricingDataResource.getSubstrateCutBasePricingMap();
 
   if (!substratePricing) {
     throw new Error('Alum 0.040" pricing not found in database');
@@ -123,8 +148,9 @@ async function loadAluminumPricingConfig(): Promise<BackerPricingConfig> {
     referenceHeight: BACKER_CONSTANTS.REFERENCE_HEIGHT,
     totalSheetCost,
     shippingCostPerSheet,
-    totalAngleCost: BACKER_CONSTANTS.TOTAL_ANGLE_COST,
-    perCut: BACKER_CONSTANTS.PER_ANGLE_CUT
+    angleLinearDivisor: miscValues.angleLinearDivisor,
+    totalAngleCost: miscValues.alumTotalAngleCost,
+    perCut: miscValues.alumPerCut
   };
 }
 
@@ -134,10 +160,11 @@ async function loadAluminumPricingConfig(): Promise<BackerPricingConfig> {
 async function loadAcmPricingConfig(
   panelName: string,
   referenceWidth: number,
-  referenceHeight: number
+  referenceHeight: number,
+  basePricingMap: Record<string, number>,
+  miscValues: ReturnType<typeof loadMiscPricingValues>
 ): Promise<BackerPricingConfig> {
   const substratePricing = await PricingDataResource.getSubstrateCutPricing(panelName);
-  const basePricingMap = await PricingDataResource.getSubstrateCutBasePricingMap();
 
   if (!substratePricing) {
     throw new Error(`${panelName} pricing not found in database`);
@@ -155,29 +182,39 @@ async function loadAcmPricingConfig(
     referenceHeight,
     totalSheetCost,
     shippingCostPerSheet,
-    totalAngleCost: ACM_CONSTANTS.TOTAL_ANGLE_COST,
-    perCut: ACM_CONSTANTS.PER_LENGTH_CUT
+    angleLinearDivisor: miscValues.angleLinearDivisor,
+    totalAngleCost: miscValues.acmTotalAngleCost,
+    perCut: miscValues.acmPerCut
   };
 }
 
 /**
  * Generate all lookup tables for backer pricing
  * Called once when estimate loads or pricing data changes
+ * Reads angle/assembly costs from misc_pricing DB table
  */
 export async function generateBackerLookupTables(): Promise<BackerLookupTables> {
-  const startTime = performance.now();
+  // Load shared data once (all cached — no redundant queries)
+  const [basePricingMap, miscPricingMap, racewayRows] = await Promise.all([
+    PricingDataResource.getSubstrateCutBasePricingMap(),
+    PricingDataResource.getMiscPricingMap(),
+    PricingDataResource.getHingedRacewayPricing()
+  ]);
+  const miscValues = loadMiscPricingValues(miscPricingMap);
 
-  // Load pricing configurations (3 database queries total)
-  const alumConfig = await loadAluminumPricingConfig();
+  // Load pricing configurations
+  const alumConfig = await loadAluminumPricingConfig(basePricingMap, miscValues);
   const acmSmallConfig = await loadAcmPricingConfig(
     ACM_CONSTANTS.SMALL_PANEL.NAME,
     ACM_CONSTANTS.SMALL_PANEL.WIDTH,
-    ACM_CONSTANTS.SMALL_PANEL.HEIGHT
+    ACM_CONSTANTS.SMALL_PANEL.HEIGHT,
+    basePricingMap, miscValues
   );
   const acmLargeConfig = await loadAcmPricingConfig(
     ACM_CONSTANTS.LARGE_PANEL.NAME,
     ACM_CONSTANTS.LARGE_PANEL.WIDTH,
-    ACM_CONSTANTS.LARGE_PANEL.HEIGHT
+    ACM_CONSTANTS.LARGE_PANEL.HEIGHT,
+    basePricingMap, miscValues
   );
 
   // Pre-calculate aluminum lookup table (4 x 3 = 12 combinations)
@@ -209,11 +246,11 @@ export async function generateBackerLookupTables(): Promise<BackerLookupTables> 
     }
   }
 
-  // Hinged raceway lookup (hardcoded prices)
+  // Hinged raceway lookup (prices from hinged_raceway_pricing DB table)
   const hingedRaceway: Record<string, number> = {};
-  HINGED_RACEWAY_LOOKUP.CATEGORIES.forEach((category, index) => {
-    hingedRaceway[category.toString()] = HINGED_RACEWAY_LOOKUP.PRICES[index];
-  });
+  for (const row of racewayRows) {
+    hingedRaceway[Number(row.category_max_width).toString()] = Number(row.price);
+  }
 
   return { aluminum, acmSmall, acmLarge, hingedRaceway };
 }

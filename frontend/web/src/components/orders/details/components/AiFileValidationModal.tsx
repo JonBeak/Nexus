@@ -23,9 +23,12 @@ import {
   ValidateFilesResponse,
   ValidationIssue,
   ValidationStatus,
+  ValidationRuleDisplay,
   LetterAnalysisResponse,
+  ExpectedFilesComparison,
 } from '../../../../types/aiFileValidation';
 import ExpectedFilesTable from './ExpectedFilesTable';
+import ValidationRulesPanel from './ValidationRulesPanel';
 import LetterAnalysisPanel from './LetterAnalysisPanel';
 import LetterSvgPreview from './LetterSvgPreview';
 
@@ -204,13 +207,13 @@ const FileCard: React.FC<{
   const skipReason = validationResult?.skip_reason;
 
   return (
-    <div className={`border rounded-lg overflow-hidden ${PAGE_STYLES.panel.background}`}>
+    <div className={`border-2 border-gray-400 rounded-lg overflow-hidden shadow-sm ${PAGE_STYLES.panel.background}`}>
       <div
-        className={`p-3 flex items-center justify-between cursor-pointer hover:bg-gray-50`}
+        className={`p-3 flex items-center justify-between cursor-pointer bg-gray-100 hover:bg-gray-150 transition-colors`}
         onClick={() => hasContent && setExpanded(!expanded)}
       >
         <div className="flex items-center gap-3">
-          <FileType className="w-5 h-5 text-gray-400" />
+          <FileType className="w-5 h-5 text-gray-500" />
           <div>
             <p className="font-medium text-gray-800">{file.file_name}</p>
             <p className="text-xs text-gray-500">
@@ -257,7 +260,7 @@ const FileCard: React.FC<{
         </div>
       </div>
       {expanded && hasContent && (
-        <div className="border-t px-3 py-3 bg-gray-50 space-y-3">
+        <div className="border-t-2 border-gray-400 px-3 py-3 bg-gray-50 space-y-3">
           {/* Summary (info messages) */}
           {hasSummary && (
             <div className="flex flex-wrap gap-2">
@@ -327,6 +330,7 @@ const AiFileValidationModal: React.FC<AiFileValidationModalProps> = ({
 
   const [files, setFiles] = useState<AiFileInfo[]>([]);
   const [validationResult, setValidationResult] = useState<ValidateFilesResponse | null>(null);
+  const [validationRules, setValidationRules] = useState<ValidationRuleDisplay[]>([]);
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState(false);
   const [approving, setApproving] = useState(false);
@@ -428,7 +432,7 @@ const AiFileValidationModal: React.FC<AiFileValidationModalProps> = ({
     >
       <div
         ref={modalContentRef}
-        className={`${PAGE_STYLES.panel.background} rounded-lg shadow-2xl max-w-[700px] w-full max-h-[85vh] flex flex-col`}
+        className={`${PAGE_STYLES.panel.background} rounded-lg shadow-2xl max-w-[1300px] w-full max-h-[85vh] flex flex-col`}
       >
         {/* Header */}
         <div className={`px-6 py-4 border-b ${PAGE_STYLES.border} flex items-center justify-between`}>
@@ -448,103 +452,97 @@ const AiFileValidationModal: React.FC<AiFileValidationModalProps> = ({
           </button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        {/* Content — two-column layout */}
+        <div className="flex-1 min-h-0 flex flex-col">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
+            <div className="flex items-center justify-center py-12 px-6">
               <Loader className="w-8 h-8 animate-spin text-indigo-500" />
               <span className="ml-3 text-gray-600">Loading AI files...</span>
             </div>
           ) : error ? (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <div className="flex items-center gap-2 text-red-700">
-                <XCircle className="w-5 h-5" />
-                <span className="font-medium">Error</span>
-              </div>
-              <p className="text-sm text-red-600 mt-1">{error}</p>
-              <button
-                onClick={loadFiles}
-                className="mt-3 text-sm text-red-600 hover:text-red-800 underline"
-              >
-                Try again
-              </button>
-            </div>
-          ) : !hasFiles ? (
-            <div className="space-y-6">
-              {/* Expected Files Comparison (Rule-Based) - show even when no files */}
-              <ExpectedFilesTable orderNumber={orderNumber} />
-
-              <div className="text-center py-8">
-                <FileType className="w-10 h-10 mx-auto text-gray-300" />
-                <p className="text-gray-600 mt-3">No AI files found in order folder</p>
-                <p className="text-sm text-gray-500 mt-1">
-                  You can proceed without validation
-                </p>
+            <div className="px-6 py-6">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-red-700">
+                  <XCircle className="w-5 h-5" />
+                  <span className="font-medium">Error</span>
+                </div>
+                <p className="text-sm text-red-600 mt-1">{error}</p>
+                <button
+                  onClick={loadFiles}
+                  className="mt-3 text-sm text-red-600 hover:text-red-800 underline"
+                >
+                  Try again
+                </button>
               </div>
             </div>
           ) : (
-            <div className="space-y-6">
-              {/* Expected Files Comparison (Rule-Based) */}
-              <ExpectedFilesTable orderNumber={orderNumber} />
+            <div className="flex gap-6 flex-1 min-h-0 pl-6">
+              {/* Left column — Expected Files + Validation Rules */}
+              <div className="w-1/2 flex-shrink-0 overflow-y-auto pr-2 py-6">
+                <ExpectedFilesTable
+                  orderNumber={orderNumber}
+                  onDataLoaded={(data) => setValidationRules(data.validation_rules || [])}
+                />
+                <ValidationRulesPanel rules={validationRules} />
+              </div>
 
-              {/* Validation Summary */}
-              {validationResult && (
-                <div
-                  className={`p-4 rounded-lg border ${
-                    hasErrors
-                      ? 'bg-red-50 border-red-200'
-                      : hasWarnings
-                      ? 'bg-yellow-50 border-yellow-200'
-                      : 'bg-green-50 border-green-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    {hasErrors ? (
-                      <XCircle className="w-6 h-6 text-red-500" />
-                    ) : hasWarnings ? (
-                      <AlertTriangle className="w-6 h-6 text-yellow-500" />
-                    ) : (
-                      <CheckCircle className="w-6 h-6 text-green-500" />
-                    )}
-                    <div>
-                      <p
-                        className={`font-medium ${
-                          hasErrors ? 'text-red-800' : hasWarnings ? 'text-yellow-800' : 'text-green-800'
-                        }`}
-                      >
-                        {hasErrors
-                          ? 'Validation Failed'
-                          : hasWarnings
-                          ? 'Passed with Warnings'
-                          : 'All Files Passed'}
-                      </p>
-                      <p className="text-sm text-gray-600 mt-0.5">
-                        {validationResult.passed} passed, {validationResult.warnings} warnings,{' '}
-                        {validationResult.failed + validationResult.errors} failed
-                      </p>
-                    </div>
+              {/* Right column — Validation Results + AI Files */}
+              <div className="w-1/2 overflow-y-auto space-y-4 pr-6 py-6">
+                {!hasFiles ? (
+                  <div className="text-center py-8">
+                    <FileType className="w-10 h-10 mx-auto text-gray-300" />
+                    <p className="text-gray-600 mt-3">No AI files found in order folder</p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      You can proceed without validation
+                    </p>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <>
+                    {/* Status stickers */}
+                    {validationResult && (
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
+                          validationResult.passed > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'
+                        }`}>
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          {validationResult.passed} passed
+                        </span>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
+                          validationResult.warnings > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-400'
+                        }`}>
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          {validationResult.warnings} warnings
+                        </span>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
+                          (validationResult.failed + validationResult.errors) > 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-400'
+                        }`}>
+                          <XCircle className="w-3.5 h-3.5" />
+                          {validationResult.failed + validationResult.errors} failed
+                        </span>
+                      </div>
+                    )}
 
-              {/* File List */}
-              <div className="space-y-2">
-                <h3 className="font-medium text-gray-700 mb-2">
-                  AI Files ({files.length})
-                </h3>
-                {files.map((file) => {
-                  const result = validationResult?.results.find(
-                    (r) => r.file_path === file.file_path
-                  );
-                  return (
-                    <FileCard
-                      key={file.file_path}
-                      file={file}
-                      validationResult={result}
-                      isValidating={validating}
-                    />
-                  );
-                })}
+                    {/* File List */}
+                    <div className="space-y-2">
+                      <h3 className="font-medium text-gray-700">
+                        AI Files ({files.length})
+                      </h3>
+                      {files.map((file) => {
+                        const result = validationResult?.results.find(
+                          (r) => r.file_path === file.file_path
+                        );
+                        return (
+                          <FileCard
+                            key={file.file_path}
+                            file={file}
+                            validationResult={result}
+                            isValidating={validating}
+                          />
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}

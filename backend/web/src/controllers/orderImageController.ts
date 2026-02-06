@@ -71,7 +71,8 @@ export const getAvailableImages = async (req: Request, res: Response) => {
       images: images.map(img => ({
         filename: img.filename,
         size: img.size,
-        modifiedDate: img.modifiedDate
+        modifiedDate: img.modifiedDate,
+        location: img.location
       }))
     });
 

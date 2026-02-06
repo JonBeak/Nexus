@@ -87,10 +87,12 @@ function renderCompactHeader(
 
   // Render header rows first to get the total height
   if (formType === 'shop') {
-    currentY = renderShopInfoRows(doc, orderData, col1X, col2X, col3X, currentY, pageWidth, marginRight);
+    const isHighStandards = !!orderData.high_standards;
+    currentY = renderShopInfoRows(doc, orderData, col1X, col2X, col3X, currentY, pageWidth, marginRight, isHighStandards);
   } else {
     const showDueDate = formType !== 'customer';
-    currentY = renderMasterCustomerInfoRows(doc, orderData, col1X, col2X, col3X, currentY, showDueDate, undefined, pageWidth, marginRight);
+    const isHighStandards = !!orderData.high_standards;
+    currentY = renderMasterCustomerInfoRows(doc, orderData, col1X, col2X, col3X, currentY, showDueDate, undefined, pageWidth, marginRight, isHighStandards);
   }
 
   currentY += SPACING.BEFORE_DIVIDER;
@@ -101,7 +103,8 @@ function renderCompactHeader(
   // Title text height: single line for shop forms, two lines for others
   const singleLineHeight = 22;  // 18pt font + ~4pt spacing
   const twoLineHeight = 42;     // 18pt + 12pt + spacing
-  const showCompanyName = formType !== 'shop';
+  const showCompanyName = formType === 'master' || !orderData.hide_company_name;
+
   const titleHeight = showCompanyName ? twoLineHeight : singleLineHeight;
 
   // Calculate vertical center offset for title
@@ -110,9 +113,13 @@ function renderCompactHeader(
   // Now render the left side title, vertically centered
   const titleY = headerStartY + titleVerticalOffset;
 
+  // Check if high standards gold treatment applies (master and shop forms only)
+  const isGoldTitle = !!orderData.high_standards && (formType === 'master' || formType === 'shop');
+
   // Order Form (big, 18pt)
   const titleText = 'Order Form';
   doc.fontSize(18).font('Helvetica-Bold');
+  if (isGoldTitle) doc.fillColor(COLORS.GOLD);
 
   // Calculate X position: centered for shop forms, left-aligned otherwise
   let titleX: number;
@@ -125,24 +132,40 @@ function renderCompactHeader(
     titleX = marginLeft + (LAYOUT.TITLE_WIDTH - titleTextWidth) / 2;
   }
 
-  doc.text(titleText, titleX, titleY);
+  // Adjust vertical position for shop form titles (only when company name shown)
+  const shopTitleAdjustment = formType === 'shop' && showCompanyName ? 4 : 0;
+  const shopSubtitleAdjustment = formType === 'shop' ? 2 : 0;
+  const masterTitleAdjustment = formType === 'master' ? -1 : 0;
 
-  // Sign House Inc. (smaller, 12pt) - only for master/customer forms
-  if (showCompanyName) {
+  doc.text(titleText, titleX, titleY + shopTitleAdjustment + masterTitleAdjustment);
+
+  // Sign House Inc. (smaller, 12pt) - shown for master/customer forms, hidden in shop if toggle is set
+  const shouldShowCompanyName = showCompanyName;
+  if (shouldShowCompanyName) {
     doc.fontSize(12).font('Helvetica-Bold');
-    doc.text('Sign House Inc.', titleX, titleY + 22);
+    const masterSubtitleAdjustment = formType === 'master' ? -3 : 0;
+    doc.text('Sign House Inc.', titleX, titleY + 22 + shopSubtitleAdjustment + masterSubtitleAdjustment);
+    // High Standards subtitle: only show for master forms
+    if (isGoldTitle && formType === 'master') {
+      doc.fontSize(11).font('Helvetica-Bold').fillColor(COLORS.GOLD);
+      doc.text('High Standards', titleX, titleY + 36 + masterSubtitleAdjustment);
+    }
   }
+
+  // Reset fill color
+  if (isGoldTitle) doc.fillColor(COLORS.BLACK);
 
   // Draw vertical divider between title and info columns
   const dividerX = marginLeft + LAYOUT.TITLE_WIDTH + LAYOUT.TITLE_DIVIDER_OFFSET;
-  doc.strokeColor(COLORS.DIVIDER_DARK)
+  const dividerColor = isGoldTitle ? COLORS.GOLD : COLORS.DIVIDER_DARK;
+  doc.strokeColor(dividerColor)
     .lineWidth(LINE_WIDTHS.VERTICAL_DIVIDER)
     .moveTo(dividerX, headerStartY)
     .lineTo(dividerX, currentY)
     .stroke();
 
   // Horizontal divider - thicker line
-  doc.strokeColor(COLORS.DIVIDER_DARK)
+  doc.strokeColor(dividerColor)
     .lineWidth(LINE_WIDTHS.DIVIDER_MAIN)
     .moveTo(marginLeft, currentY)
     .lineTo(pageWidth - marginRight, currentY)
@@ -156,6 +179,7 @@ function renderCompactHeader(
 /**
  * Render a single part with specs split into 2 horizontal columns (for 9+ specs)
  * Used when there's only 1 part and it has many specs
+ * @param orderData - Order data for accessing high_standards flag
  * @param measureOnly - If true, calculate positions but skip drawing (for space measurement)
  * @param specFontSize - Font size for spec values (default 12pt, can be reduced to 10pt)
  */
@@ -168,9 +192,11 @@ function renderSpecsInTwoColumns(
   pageWidth: number,
   marginRight: number,
   formType: FormType,
+  orderData: OrderDataForPDF,
   measureOnly: boolean = false,
   specFontSize: number = FONT_SIZES.SPEC_BODY
 ): number {
+  const isHighStandards = !!orderData.high_standards && (formType === 'master' || formType === 'shop');
   const parent = column.parent;
   const allParts = column.allParts;
 
@@ -243,6 +269,7 @@ function renderSpecsInTwoColumns(
 
 /**
  * Render all part columns
+ * @param orderData - Order data for accessing high_standards flag
  * @param measureOnly - If true, calculate positions but skip drawing (for space measurement)
  * @param specFontSize - Font size for spec values (default 12pt, can be reduced to 10pt)
  */
@@ -255,9 +282,11 @@ function renderPartColumns(
   pageWidth: number,
   marginRight: number,
   formType: FormType,
+  orderData: OrderDataForPDF,
   measureOnly: boolean = false,
   specFontSize: number = FONT_SIZES.SPEC_BODY
 ): number {
+  const isHighStandards = !!orderData.high_standards && (formType === 'master' || formType === 'shop');
   // Check if this is a single-part order with 9+ specs (use 2-column layout)
   if (partColumns.length === 1) {
     const singleColumn = partColumns[0];
@@ -269,7 +298,7 @@ function renderPartColumns(
         console.log(`[SINGLE PART 2-COLUMN] Order has ${sortedSpecs.length} specs - using 2-column layout`);
       }
       debugLog(`[SINGLE PART 2-COLUMN] Using 2-column layout for ${sortedSpecs.length} specs`);
-      return renderSpecsInTwoColumns(doc, singleColumn, marginLeft, contentWidth, contentStartY, pageWidth, marginRight, formType, measureOnly, specFontSize);
+      return renderSpecsInTwoColumns(doc, singleColumn, marginLeft, contentWidth, contentStartY, pageWidth, marginRight, formType, orderData, measureOnly, specFontSize);
     }
   }
 
@@ -418,6 +447,15 @@ export async function generateOrderForm(
       const marginRight = SPACING.PAGE_MARGIN;
       const contentWidth = pageWidth - marginLeft - marginRight;
 
+      // Gold page border for high standards customers (master and shop forms only)
+      if (!!orderData.high_standards && (formType === 'master' || formType === 'shop')) {
+        doc.strokeColor(COLORS.GOLD)
+          .lineWidth(2.5)
+          .rect(marginLeft - 4, SPACING.PAGE_MARGIN - 4, contentWidth + 8, pageHeight - (SPACING.PAGE_MARGIN * 2) + 8)
+          .stroke();
+        doc.strokeColor(COLORS.BLACK);
+      }
+
       // Render header
       let currentY = SPACING.PAGE_MARGIN;
       currentY = renderCompactHeader(doc, orderData, formType, marginLeft, contentWidth, pageWidth, marginRight, currentY);
@@ -458,7 +496,7 @@ export async function generateOrderForm(
       // Measure at 12pt first (measureOnly=true)
       const maxPartY12pt = renderPartColumns(
         doc, columnsToRender, marginLeft, contentWidth, contentStartY,
-        pageWidth, marginRight, formType, true, 12
+        pageWidth, marginRight, formType, orderData, true, 12
       );
 
       // Calculate available space for image at 12pt
@@ -473,7 +511,7 @@ export async function generateOrderForm(
         // Not enough space at 12pt - try 10pt
         const maxPartY10pt = renderPartColumns(
           doc, columnsToRender, marginLeft, contentWidth, contentStartY,
-          pageWidth, marginRight, formType, true, 10
+          pageWidth, marginRight, formType, orderData, true, 10
         );
 
         const availableSpace10pt = pageHeight - maxPartY10pt - SPACING.IMAGE_AFTER_PARTS
@@ -501,7 +539,7 @@ export async function generateOrderForm(
       // Render part columns using pre-computed transformed specs (measureOnly=false)
       const maxPartY = renderPartColumns(
         doc, columnsToRender, marginLeft, contentWidth, contentStartY,
-        pageWidth, marginRight, formType, false, specFontSize
+        pageWidth, marginRight, formType, orderData, false, specFontSize
       );
 
       // Render notes and image section

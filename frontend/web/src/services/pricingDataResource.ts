@@ -190,6 +190,16 @@ export interface MaterialCutPricing {
   is_active: boolean;
 }
 
+export interface HingedRacewayPricing {
+  id: number;
+  category_max_width: number;
+  price: number;
+  config_description: string;
+  is_active: boolean;
+}
+
+export type MiscPricingMap = Record<string, number>;
+
 export interface AllPricingData {
   channelLetterTypes: ChannelLetterType[];
   leds: Led[];
@@ -201,6 +211,8 @@ export interface AllPricingData {
   substrateCutPricing: SubstrateCutPricing[];
   substrateCutBasePricing: SubstrateCutBasePricing[];
   bladeSignConfig: BladeSignConfig;
+  hingedRacewayPricing: HingedRacewayPricing[];
+  miscPricing: MiscPricingMap;
   ledNeonPricing: LedNeonPricing[];
   shippingRatesPricing: ShippingRate[];
   paintingPricing: PaintingPricing | null;
@@ -223,6 +235,7 @@ export class PricingDataResource {
   private static substrateCutPricingMapCache: Record<string, SubstrateCutPricing> | null = null;
   private static substrateCutBasePricingMapCache: Record<string, number> | null = null;
   private static shippingRatesMapCache: Record<string, number> | null = null;
+  private static miscPricingMapCache: MiscPricingMap | null = null;
 
   // WebSocket subscription flag
   private static socketSubscriptionSetup = false;
@@ -566,6 +579,28 @@ export class PricingDataResource {
   }
 
   /**
+   * Get hinged raceway pricing rows (sorted by category)
+   */
+  static async getHingedRacewayPricing(): Promise<HingedRacewayPricing[]> {
+    const pricingData = await this.getAllPricingData();
+    return pricingData.hingedRacewayPricing || [];
+  }
+
+  /**
+   * Get misc pricing as a config_name → config_value map (CACHED)
+   */
+  static async getMiscPricingMap(): Promise<MiscPricingMap> {
+    if (this.miscPricingMapCache) {
+      return this.miscPricingMapCache;
+    }
+
+    const pricingData = await this.getAllPricingData();
+    // Backend postProcess already converts to a map
+    this.miscPricingMapCache = pricingData.miscPricing || {};
+    return this.miscPricingMapCache;
+  }
+
+  /**
    * Clear cached data (force refresh)
    */
   static clearCache(): void {
@@ -576,6 +611,7 @@ export class PricingDataResource {
     this.substrateCutPricingMapCache = null;
     this.substrateCutBasePricingMapCache = null;
     this.shippingRatesMapCache = null;
+    this.miscPricingMapCache = null;
   }
 
   /**

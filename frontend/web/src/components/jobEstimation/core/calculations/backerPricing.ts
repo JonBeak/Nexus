@@ -5,70 +5,16 @@
 
 import { RowCalculationResult } from '../types/LayerTypes';
 import { ValidatedPricingInput, PricingCalculationData } from './types/CalculatorTypes';
-import { BackerLookupTables, lookupAluminumPrice, lookupAcmPrice, lookupHingedRacewayPrice } from './backerPricingLookup';
+import {
+  BACKER_CONSTANTS,
+  HINGED_RACEWAY_LOOKUP,
+  ACM_CONSTANTS,
+  BackerLookupTables,
+  lookupAluminumPrice,
+  lookupAcmPrice,
+  lookupHingedRacewayPrice
+} from './backerPricingLookup';
 import { formatPrice } from './utils/priceFormatter';
-
-// Hardcoded constants for aluminum backers
-const BACKER_CONSTANTS = {
-  ANGLE_COST: 50,           // 1.25" Angle
-  ASSEM_COST: 50,           // Assembly
-  MOUNTING_ANGLE_COST: 50,  // Mounting Angle
-  PER_ANGLE_CUT: 25,        // Per Angle Cut
-
-  // Total derived from above
-  TOTAL_ANGLE_COST: 150,    // 50 + 50 + 50
-
-  // Lookup table categories (inches)
-  X_CATEGORIES: [59.5, 119.5, 179.5, 239.5],
-  Y_CATEGORIES: [15.5, 23.5, 47.5],
-
-  // Reference sheet size for formula
-  REFERENCE_WIDTH: 119.5,
-  REFERENCE_HEIGHT: 47.5,
-
-  // Angle calculation constants
-  ANGLE_LINEAR_DIVISOR: 240
-};
-
-// Hinged Raceway lookup table (hardcoded)
-const HINGED_RACEWAY_LOOKUP = {
-  CATEGORIES: [59.5, 119.5, 179.5, 239.5, 299.5],
-  PRICES: [190, 305, 420, 570, 685]
-};
-
-// ACM Backer constants
-const ACM_CONSTANTS = {
-  ANGLE_COST: 75,           // 2" Angle
-  ASSEM_COST: 100,          // Assembly + VHB Tape
-  MOUNTING_ANGLE_COST: 50,  // Mounting Angle
-  PER_LENGTH_CUT: 25,       // Per Length Cut
-
-  // Total derived from above
-  TOTAL_ANGLE_COST: 225,    // 75 + 100 + 50
-
-  // Lookup table categories (inches) - inclusive
-  X_CATEGORIES: [48, 60, 96, 120, 192, 240, 300],
-  Y_CATEGORIES: [15.5, 23.5, 29, 48, 60],
-
-  // Panel reference sizes
-  SMALL_PANEL: {
-    NAME: 'ACM 3mm',
-    WIDTH: 96,   // 4ft
-    HEIGHT: 48,  // 8ft
-    MAX_X: 96,
-    MAX_Y: 48
-  },
-  LARGE_PANEL: {
-    NAME: 'ACM 3mm 5x10',
-    WIDTH: 120,  // 5ft (actual panel)
-    HEIGHT: 60,  // 10ft (actual panel)
-    MAX_X: 300,  // Maximum backer size
-    MAX_Y: 60
-  },
-
-  // Angle calculation constants
-  ANGLE_LINEAR_DIVISOR: 240
-};
 
 // Removed: BackerPricingConfig interface - no longer needed with lookup tables
 

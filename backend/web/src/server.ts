@@ -57,6 +57,7 @@ import fileBrowserRoutes from './routes/fileBrowser';  // File Browser (Jan 2026
 import materialRequirementsRoutes from './routes/materialRequirements';  // Material Requirements tracking (Jan 27, 2026)
 import supplierOrdersRoutes from './routes/supplierOrders';  // Supplier Orders management (Feb 2, 2026)
 import inventoryRoutes from './routes/inventory';  // Inventory management (Feb 2, 2026)
+import pricingManagementRoutes from './routes/pricingManagement';  // Pricing Management UI (Feb 2026)
 
 // QuickBooks utilities for startup
 import { quickbooksOAuthRepository } from './repositories/quickbooksOAuthRepository';
@@ -174,6 +175,7 @@ app.use('/api/file-browser', fileBrowserRoutes);  // File Browser (Jan 2026)
 app.use('/api/material-requirements', materialRequirementsRoutes);  // Material Requirements tracking (Jan 27, 2026)
 app.use('/api/supplier-orders', supplierOrdersRoutes);  // Supplier Orders management (Feb 2, 2026)
 app.use('/api/inventory', inventoryRoutes);  // Inventory management (Feb 2, 2026)
+app.use('/api/pricing-management', pricingManagementRoutes);  // Pricing Management UI (Feb 2026)
 
 // =============================================
 // STATIC FILE SERVING (Phase 1.5.g)
@@ -191,15 +193,14 @@ app.use('/api/inventory', inventoryRoutes);  // Inventory management (Feb 2, 202
  * CORS enabled for Canvas API access (auto-crop feature)
  */
 app.use('/order-images', (req, res, next) => {
-  // Add CORS headers to allow Canvas API to read pixel data
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   next();
 }, express.static(SMB_ROOT, {
-  maxAge: '7d',         // 7-day browser caching for performance
-  immutable: true,      // Images don't change (same filename = same content)
-  fallthrough: false,   // Return 404 if file not found (don't continue to next middleware)
-  dotfiles: 'deny'      // Security: don't serve hidden files
+  maxAge: '7d',
+  immutable: true,
+  fallthrough: false,
+  dotfiles: 'deny'
 }));
 
 // Health check endpoint

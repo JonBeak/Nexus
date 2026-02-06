@@ -98,6 +98,7 @@ export function renderHeaderLabel(doc: any, label: string, x: number, y: number,
 /**
  * Draw header label + value box using compound path with inset cutout
  * Creates label background and value borders in one fill operation
+ * @param useGoldBg - If true, use COLORS.GOLD for label background instead of COLORS.LABEL_BG_DARKER
  */
 function drawHeaderValueBox(
   doc: any,
@@ -105,7 +106,8 @@ function drawHeaderValueBox(
   labelBoxY: number,
   labelBoxHeight: number,
   standardLabelWidth: number,
-  columnWidth: number
+  columnWidth: number,
+  useGoldBg: boolean = false
 ): void {
   const GAP_BEFORE_NEXT_LABEL = 8;
   const borderWidth = 1;
@@ -128,7 +130,8 @@ function drawHeaderValueBox(
   // Create compound path and fill with evenOdd rule
   doc.rect(labelBoxX, labelBoxY, outerWidth, labelBoxHeight)  // Outer rect
     .rect(cutoutX, cutoutY, cutoutWidth, cutoutHeight);        // Inner cutout
-  doc.fillColor(COLORS.LABEL_BG_DARKER).fill('evenodd');
+  const bgColor = useGoldBg ? COLORS.GOLD : COLORS.LABEL_BG_DARKER;
+  doc.fillColor(bgColor).fill('evenodd');
 
   doc.fillColor(COLORS.BLACK);
 }
@@ -136,6 +139,7 @@ function drawHeaderValueBox(
 /**
  * Draw header label + value box using compound path, then fill cutout with color
  * Same as drawHeaderValueBox but fills the value content area with a background color
+ * @param useGoldBg - If true, use COLORS.GOLD for label background instead of COLORS.LABEL_BG_DARKER
  */
 function drawHeaderValueBoxFilled(
   doc: any,
@@ -144,7 +148,8 @@ function drawHeaderValueBoxFilled(
   labelBoxHeight: number,
   standardLabelWidth: number,
   columnWidth: number,
-  fillColor: string
+  fillColor: string,
+  useGoldBg: boolean = false
 ): void {
   const GAP_BEFORE_NEXT_LABEL = 8;
   const borderWidth = 1;
@@ -167,7 +172,8 @@ function drawHeaderValueBoxFilled(
   // Create compound path and fill with evenOdd rule (label + borders)
   doc.rect(labelBoxX, labelBoxY, outerWidth, labelBoxHeight)  // Outer rect
     .rect(cutoutX, cutoutY, cutoutWidth, cutoutHeight);        // Inner cutout
-  doc.fillColor(COLORS.LABEL_BG_DARKER).fill('evenodd');
+  const bgColor = useGoldBg ? COLORS.GOLD : COLORS.LABEL_BG_DARKER;
+  doc.fillColor(bgColor).fill('evenodd');
 
   // Fill the cutout area with the specified color
   doc.fillColor(fillColor)
@@ -340,6 +346,7 @@ export function renderQuantityBox(
  *
  * @param showDueDate - Whether to show due date (false for customer forms)
  * @param deliveryBgColor - Optional background color for Delivery field (for packing list styling)
+ * @param isHighStandards - Whether to apply High Standards gold treatment (master/shop forms only)
  * @returns Y position after rows
  */
 export function renderMasterCustomerInfoRows(
@@ -352,7 +359,8 @@ export function renderMasterCustomerInfoRows(
   showDueDate: boolean = true,
   deliveryBgColor?: string,
   pageWidth?: number,
-  marginRight?: number
+  marginRight?: number,
+  isHighStandards: boolean = false
 ): number {
   const GAP_BEFORE_NEXT_LABEL = 8;
 
@@ -405,23 +413,23 @@ export function renderMasterCustomerInfoRows(
   // === STEP 1: Draw all backgrounds FIRST (compound paths) ===
 
   // Row 1 backgrounds
-  drawHeaderValueBox(doc, col1X - SPACING.LABEL_PADDING, row1BoxY, row1BoxHeight, standardLabelWidth, col1Width);
-  drawHeaderValueBox(doc, col2X - SPACING.LABEL_PADDING, row1BoxY, row1BoxHeight, standardLabelWidth, col2Width);
-  drawHeaderValueBox(doc, col3X - SPACING.LABEL_PADDING, row1BoxY, row1BoxHeight, standardLabelWidth, col3Width);
+  drawHeaderValueBox(doc, col1X - SPACING.LABEL_PADDING, row1BoxY, row1BoxHeight, standardLabelWidth, col1Width, isHighStandards);
+  drawHeaderValueBox(doc, col2X - SPACING.LABEL_PADDING, row1BoxY, row1BoxHeight, standardLabelWidth, col2Width, isHighStandards);
+  drawHeaderValueBox(doc, col3X - SPACING.LABEL_PADDING, row1BoxY, row1BoxHeight, standardLabelWidth, col3Width, isHighStandards);
 
   // Row 2 backgrounds
-  drawHeaderValueBox(doc, col1X - SPACING.LABEL_PADDING, row2BoxY, row2BoxHeight, standardLabelWidth, col1Width);
-  drawHeaderValueBox(doc, col2X - SPACING.LABEL_PADDING, row2BoxY, row2BoxHeight, standardLabelWidth, col2Width);
-  drawHeaderValueBox(doc, col3X - SPACING.LABEL_PADDING, row2BoxY, row2BoxHeight, standardLabelWidth, col3Width);
+  drawHeaderValueBox(doc, col1X - SPACING.LABEL_PADDING, row2BoxY, row2BoxHeight, standardLabelWidth, col1Width, isHighStandards);
+  drawHeaderValueBox(doc, col2X - SPACING.LABEL_PADDING, row2BoxY, row2BoxHeight, standardLabelWidth, col2Width, isHighStandards);
+  drawHeaderValueBox(doc, col3X - SPACING.LABEL_PADDING, row2BoxY, row2BoxHeight, standardLabelWidth, col3Width, isHighStandards);
 
   // Row 3 backgrounds (Due Date + Delivery)
   if (showDueDate) {
-    drawHeaderValueBox(doc, col2X - SPACING.LABEL_PADDING, row3BoxY, row3BoxHeight, standardLabelWidth, col2Width);
+    drawHeaderValueBox(doc, col2X - SPACING.LABEL_PADDING, row3BoxY, row3BoxHeight, standardLabelWidth, col2Width, isHighStandards);
   }
   if (deliveryBgColor) {
-    drawHeaderValueBoxFilled(doc, col3X - SPACING.LABEL_PADDING, row3BoxY, row3BoxHeight, standardLabelWidth, col3Width, deliveryBgColor);
+    drawHeaderValueBoxFilled(doc, col3X - SPACING.LABEL_PADDING, row3BoxY, row3BoxHeight, standardLabelWidth, col3Width, deliveryBgColor, isHighStandards);
   } else {
-    drawHeaderValueBox(doc, col3X - SPACING.LABEL_PADDING, row3BoxY, row3BoxHeight, standardLabelWidth, col3Width);
+    drawHeaderValueBox(doc, col3X - SPACING.LABEL_PADDING, row3BoxY, row3BoxHeight, standardLabelWidth, col3Width, isHighStandards);
   }
 
   // === STEP 2: Render all text ON TOP of backgrounds ===
@@ -519,6 +527,7 @@ export function renderMasterCustomerInfoRows(
  * @param deliveryBgColor - Optional background color for Delivery field (for packing list styling)
  * @param pageTitle - Optional title text (default "Order Form")
  * @param showDueDate - Optional flag to show/hide due date (default true)
+ * @param isHighStandards - Whether to apply High Standards gold treatment
  */
 export function renderMasterCustomerPageHeader(
   doc: any,
@@ -531,7 +540,8 @@ export function renderMasterCustomerPageHeader(
   deliveryBgColor?: string,
   pageTitle: string = 'Order Form',
   showDueDate: boolean = true,
-  showCompanyName: boolean = true
+  showCompanyName: boolean = true,
+  isHighStandards: boolean = false
 ): number {
   const headerStartY = startY;
   let currentY = startY + SPACING.HEADER_START_OFFSET;
@@ -553,7 +563,8 @@ export function renderMasterCustomerPageHeader(
     showDueDate,
     deliveryBgColor,
     pageWidth,
-    marginRight
+    marginRight,
+    isHighStandards
   );
 
   // Calculate total header content height
@@ -620,6 +631,7 @@ export function renderMasterCustomerPageHeader(
  * Row 1: Order # | Start Date | Job Name
  * Row 2: (blank) | Due Date | Delivery
  *
+ * @param isHighStandards - Whether to apply High Standards gold treatment
  * @returns Y position after rows
  */
 export function renderShopInfoRows(
@@ -630,7 +642,8 @@ export function renderShopInfoRows(
   col3X: number,
   startY: number,
   pageWidth?: number,
-  marginRight?: number
+  marginRight?: number,
+  isHighStandards: boolean = false
 ): number {
   const GAP_BEFORE_NEXT_LABEL = 8;
 
@@ -663,13 +676,13 @@ export function renderShopInfoRows(
   // === STEP 1: Draw all backgrounds FIRST (compound paths) ===
 
   // Row 1 backgrounds
-  drawHeaderValueBox(doc, col1X - SPACING.LABEL_PADDING, row1BoxY, row1BoxHeight, standardLabelWidth, col1Width);
-  drawHeaderValueBox(doc, col2X - SPACING.LABEL_PADDING, row1BoxY, row1BoxHeight, standardLabelWidth, col2Width);
-  drawHeaderValueBox(doc, col3X - SPACING.LABEL_PADDING, row1BoxY, row1BoxHeight, standardLabelWidth, col3Width);
+  drawHeaderValueBox(doc, col1X - SPACING.LABEL_PADDING, row1BoxY, row1BoxHeight, standardLabelWidth, col1Width, isHighStandards);
+  drawHeaderValueBox(doc, col2X - SPACING.LABEL_PADDING, row1BoxY, row1BoxHeight, standardLabelWidth, col2Width, isHighStandards);
+  drawHeaderValueBox(doc, col3X - SPACING.LABEL_PADDING, row1BoxY, row1BoxHeight, standardLabelWidth, col3Width, isHighStandards);
 
   // Row 2 backgrounds (Due Date + Delivery)
-  drawHeaderValueBox(doc, col2X - SPACING.LABEL_PADDING, row2BoxY, row2BoxHeight, standardLabelWidth, col2Width);
-  drawHeaderValueBox(doc, col3X - SPACING.LABEL_PADDING, row2BoxY, row2BoxHeight, standardLabelWidth, col3Width);
+  drawHeaderValueBox(doc, col2X - SPACING.LABEL_PADDING, row2BoxY, row2BoxHeight, standardLabelWidth, col2Width, isHighStandards);
+  drawHeaderValueBox(doc, col3X - SPACING.LABEL_PADDING, row2BoxY, row2BoxHeight, standardLabelWidth, col3Width, isHighStandards);
 
   // === STEP 2: Render all text ON TOP of backgrounds ===
 

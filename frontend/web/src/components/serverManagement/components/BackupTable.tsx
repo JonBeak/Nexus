@@ -8,6 +8,7 @@
 import React, { useState } from 'react';
 import { Archive, AlertTriangle, MessageSquare, Check, X } from 'lucide-react';
 import type { BackupFile } from '../../../services/api/serverManagementApi';
+import { formatDateTime } from '../../../utils/dateUtils';
 
 interface BackupTableProps {
   title: string;
@@ -66,16 +67,6 @@ export const BackupTable: React.FC<BackupTableProps> = ({
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
   // Shorten filename for display
   const shortenFilename = (filename: string) => {
     // Extract key parts: type, date, commit
@@ -131,7 +122,7 @@ export const BackupTable: React.FC<BackupTableProps> = ({
                         {backup.buildType}
                       </span>
                     </td>
-                    <td className="py-2 text-gray-600">{formatDate(backup.date)}</td>
+                    <td className="py-2 text-gray-600">{formatDateTime(backup.date)}</td>
                     <td className="py-2 text-gray-600">{backup.size}</td>
                     <td className="py-2 text-gray-600 font-mono text-xs">
                       {backup.commitHash ? backup.commitHash.slice(0, 7) : '-'}

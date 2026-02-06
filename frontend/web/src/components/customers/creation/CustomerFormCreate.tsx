@@ -187,6 +187,16 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
             />
             <label htmlFor="cash_payment" className={`ml-2 text-sm font-semibold ${PAGE_STYLES.panel.textSecondary}`}>Cash Payment Accepted</label>
           </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="high_standards"
+              checked={formData.high_standards || false}
+              onChange={(e) => onInputChange('high_standards', e.target.checked)}
+              className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-gray-300 rounded"
+            />
+            <label htmlFor="high_standards" className={`ml-2 text-sm font-semibold ${PAGE_STYLES.panel.textSecondary}`}>High Standards</label>
+          </div>
         </div>
       </div>
 

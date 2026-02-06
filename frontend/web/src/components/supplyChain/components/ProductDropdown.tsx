@@ -3,7 +3,7 @@
  *
  * Searchable product selection dropdown with grouping.
  * Shows different products based on the selected Product Type (archetype):
- * - If archetype_id = -1 (Vinyl): Shows vinyl products grouped by brand/series
+ * - If archetype_id = 131 (Vinyl): Shows vinyl products grouped by brand/series
  * - If archetype_id > 0: Shows supplier products grouped by supplier name
  *
  * Uses portal rendering to escape table overflow clipping.
@@ -39,6 +39,7 @@ interface SupplierProduct {
   sku: string | null;
   supplier_id: number;
   supplier_name?: string;
+  archetype_id?: number;
 }
 
 export interface ProductDropdownProps {
@@ -60,6 +61,11 @@ export interface ProductDropdownProps {
   supplierProducts?: SupplierProduct[];
   vinylProducts?: VinylProduct[];
 
+  /** Custom free-text product type (non-vinyl archetypes only) */
+  customProductType?: string | null;
+  /** Called when user types custom text and blurs (non-vinyl archetypes only) */
+  onCustomProductTypeChange?: (text: string) => void;
+
   disabled?: boolean;
   placeholder?: string;
   className?: string;
@@ -74,6 +80,8 @@ export const ProductDropdown: React.FC<ProductDropdownProps> = ({
   supplierId,
   supplierProducts: externalSupplierProducts,
   vinylProducts: externalVinylProducts,
+  customProductType = null,
+  onCustomProductTypeChange,
   disabled = false,
   placeholder = 'Select product...',
   className = '',
@@ -89,6 +97,7 @@ export const ProductDropdown: React.FC<ProductDropdownProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const textChangedSinceOpenRef = useRef<boolean>(false);
 
   const isVinylMode = archetypeId === ARCHETYPE_VINYL;
 
@@ -128,8 +137,12 @@ export const ProductDropdown: React.FC<ProductDropdownProps> = ({
       if (sp) return getSupplierDisplayName(sp);
       return loading ? 'Loading...' : `Product #${supplierProductId}`;
     }
+    // Non-vinyl: show custom product type text if no supplier product selected
+    if (!isVinylMode && customProductType) {
+      return customProductType;
+    }
     return '';
-  }, [isVinylMode, vinylProductId, supplierProductId, vinylProducts, supplierProducts, loading]);
+  }, [isVinylMode, vinylProductId, supplierProductId, vinylProducts, supplierProducts, loading, customProductType]);
 
   // Load products based on archetype selection (only if not provided externally)
   useEffect(() => {
@@ -222,8 +235,18 @@ export const ProductDropdown: React.FC<ProductDropdownProps> = ({
         !dropdownRef.current.contains(target)
       ) {
         setIsOpen(false);
-        // Reset input to selected value on close
-        setInputValue(getSelectedDisplayName());
+        // Non-vinyl combobox: save custom text on blur if user typed something
+        if (!isVinylMode && textChangedSinceOpenRef.current && onCustomProductTypeChange) {
+          onCustomProductTypeChange(inputValue.trim());
+          // Clear supplier product if custom text is being set
+          if (supplierProductId !== null) {
+            onSupplierProductChange(null);
+          }
+        } else {
+          // Vinyl or no text change: revert to selected value
+          setInputValue(getSelectedDisplayName());
+        }
+        textChangedSinceOpenRef.current = false;
       }
     };
 
@@ -231,7 +254,7 @@ export const ProductDropdown: React.FC<ProductDropdownProps> = ({
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, getSelectedDisplayName]);
+  }, [isOpen, getSelectedDisplayName, isVinylMode, onCustomProductTypeChange, inputValue, supplierProductId, onSupplierProductChange]);
 
   // Filter term is the input value when dropdown is open
   const searchTerm = isOpen ? inputValue : '';
@@ -248,6 +271,9 @@ export const ProductDropdown: React.FC<ProductDropdownProps> = ({
         const supplier = (p.supplier_name || '').toLowerCase();
         const matchesSearch = name.includes(term) || supplier.includes(term);
 
+        // Archetype filter — when archetypeId is set, only show products for that archetype
+        const matchesArchetype = !archetypeId || !p.archetype_id || p.archetype_id === archetypeId;
+
         // NEW: Vendor filter
         let matchesSupplier = true;
         if (supplierId !== undefined && supplierId !== null) {
@@ -258,7 +284,7 @@ export const ProductDropdown: React.FC<ProductDropdownProps> = ({
           }
         }
 
-        return matchesSearch && matchesSupplier;
+        return matchesSearch && matchesArchetype && matchesSupplier;
       })
       .forEach(product => {
         const supplierKey = product.supplier_name || 'Unknown Supplier';
@@ -273,7 +299,7 @@ export const ProductDropdown: React.FC<ProductDropdownProps> = ({
     });
 
     return sortedGroups;
-  }, [supplierProducts, searchTerm, supplierId]);
+  }, [supplierProducts, searchTerm, supplierId, archetypeId]);
 
   // Group vinyl products by brand/series
   const groupedVinylProducts = useMemo(() => {
@@ -299,15 +325,17 @@ export const ProductDropdown: React.FC<ProductDropdownProps> = ({
 
   const handleSelectVinyl = useCallback((productId: number | null) => {
     onVinylProductChange(productId);
-    // ✓ Don't clear supplier product - allow both to be set
+    if (productId !== null) onCustomProductTypeChange?.('');
+    textChangedSinceOpenRef.current = false;
     setIsOpen(false);
-  }, [onVinylProductChange]);
+  }, [onVinylProductChange, onCustomProductTypeChange]);
 
   const handleSelectSupplier = useCallback((productId: number | null) => {
     onSupplierProductChange(productId);
-    // ✓ Don't clear vinyl product - allow both to be set
+    if (productId !== null) onCustomProductTypeChange?.('');
+    textChangedSinceOpenRef.current = false;
     setIsOpen(false);
-  }, [onSupplierProductChange]);
+  }, [onSupplierProductChange, onCustomProductTypeChange]);
 
   const handleClear = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -316,12 +344,17 @@ export const ProductDropdown: React.FC<ProductDropdownProps> = ({
     } else {
       onSupplierProductChange(null);
     }
+    onCustomProductTypeChange?.('');
+    textChangedSinceOpenRef.current = false;
     setInputValue('');
     setIsOpen(false);
-  }, [isVinylMode, onVinylProductChange, onSupplierProductChange]);
+  }, [isVinylMode, onVinylProductChange, onSupplierProductChange, onCustomProductTypeChange]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
+    if (!isVinylMode) {
+      textChangedSinceOpenRef.current = true;
+    }
     if (!isOpen) {
       setIsOpen(true);
     }
@@ -329,6 +362,7 @@ export const ProductDropdown: React.FC<ProductDropdownProps> = ({
 
   const handleInputFocus = () => {
     setIsOpen(true);
+    textChangedSinceOpenRef.current = false;
     // Select all text for easy replacement
     inputRef.current?.select();
   };
@@ -336,6 +370,7 @@ export const ProductDropdown: React.FC<ProductDropdownProps> = ({
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       setIsOpen(false);
+      textChangedSinceOpenRef.current = false;
       setInputValue(getSelectedDisplayName());
       inputRef.current?.blur();
     }
@@ -351,7 +386,9 @@ export const ProductDropdown: React.FC<ProductDropdownProps> = ({
     );
   }
 
-  const hasValue = isVinylMode ? vinylProductId !== null : supplierProductId !== null;
+  const hasValue = isVinylMode
+    ? vinylProductId !== null
+    : (supplierProductId !== null || !!(customProductType && customProductType.trim()));
   const groupCount = isVinylMode
     ? Object.keys(groupedVinylProducts).length
     : Object.keys(groupedSupplierProducts).length;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, AlertTriangle, Edit2 } from 'lucide-react';
+import { FileText, AlertTriangle, Edit2, Star } from 'lucide-react';
 import { CustomerPreferencesData, CustomerPreferencesValidationResult } from './types/customerPreferences';
 import { formatNumber } from './core/calculations/utils/priceFormatter';
 import { PAGE_STYLES } from '../../constants/moduleColors';
@@ -19,7 +19,7 @@ export const CustomerPreferencesPanel: React.FC<CustomerPreferencesPanelProps> =
     return null;
   }
 
-  const { preferences, cashCustomer, discount, defaultTurnaround, postalCode } = customerData;
+  const { preferences, cashCustomer, highStandards, discount, defaultTurnaround, postalCode } = customerData;
 
   // Helper function to format LED preference display
   const formatLEDPreference = (): string => {
@@ -150,9 +150,9 @@ export const CustomerPreferencesPanel: React.FC<CustomerPreferencesPanelProps> =
                 }`}
               />
             )}
-            <span className={`font-bold ${PAGE_STYLES.panel.text} whitespace-nowrap text-right`}>{label}:</span>
+            <span className={`font-bold ${highStandards ? 'text-amber-900' : PAGE_STYLES.panel.text} whitespace-nowrap text-right`}>{label}:</span>
           </div>
-          <span className={`${PAGE_STYLES.panel.textMuted} flex-1 text-left`}>{value}</span>
+          <span className={`${highStandards ? 'text-amber-800' : PAGE_STYLES.panel.textMuted} flex-1 text-left`}>{value}</span>
         </div>
         {validationError && validationMessage && (
           <div
@@ -167,17 +167,37 @@ export const CustomerPreferencesPanel: React.FC<CustomerPreferencesPanelProps> =
     );
   };
 
+  const panelContainerClass = highStandards
+    ? 'bg-gradient-to-br from-amber-100 via-yellow-50 to-amber-100 rounded-lg shadow border border-amber-400 relative overflow-hidden mb-4 w-full'
+    : `${PAGE_STYLES.composites.panelContainer} mb-4 w-full`;
+
+  const headerClass = highStandards
+    ? `flex items-center justify-between p-2 border-b border-amber-400 bg-gradient-to-r from-amber-300 to-yellow-300`
+    : `flex items-center justify-between p-2 border-b ${PAGE_STYLES.border}`;
+
   return (
-    <div className={`${PAGE_STYLES.composites.panelContainer} mb-4 w-full`}>
+    <div className={panelContainerClass}>
+      {highStandards && <div className="gold-shimmer" />}
       {/* Header */}
-      <div className={`flex items-center justify-between p-2 border-b ${PAGE_STYLES.border}`}>
+      <div className={headerClass}>
         <div className="flex items-center gap-2">
-          <FileText className={`w-4 h-4 ${PAGE_STYLES.panel.textMuted}`} />
-          <h3 className={`text-base font-medium ${PAGE_STYLES.panel.text}`}>Customer Preferences</h3>
+          {highStandards ? (
+            <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
+          ) : (
+            <FileText className={`w-4 h-4 ${PAGE_STYLES.panel.textMuted}`} />
+          )}
+          <h3 className={`text-base font-medium ${highStandards ? 'text-amber-900' : PAGE_STYLES.panel.text}`}>Customer Preferences</h3>
+          {highStandards && (
+            <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded ml-1">HIGH STANDARDS</span>
+          )}
         </div>
         <button
           onClick={onEditCustomer}
-          className={`flex items-center gap-1 px-2 py-1 text-xs ${PAGE_STYLES.header.background} ${PAGE_STYLES.header.text} rounded ${PAGE_STYLES.interactive.hoverOnHeader} hover:${PAGE_STYLES.page.text} transition-colors`}
+          className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors ${
+            highStandards
+              ? 'bg-amber-200 text-amber-900 hover:bg-amber-300'
+              : `${PAGE_STYLES.header.background} ${PAGE_STYLES.header.text} ${PAGE_STYLES.interactive.hoverOnHeader} hover:${PAGE_STYLES.page.text}`
+          }`}
         >
           <Edit2 className="w-3.5 h-3.5" />
           Edit Customer
@@ -186,7 +206,7 @@ export const CustomerPreferencesPanel: React.FC<CustomerPreferencesPanelProps> =
 
       {/* Content - 2 Column Layout */}
       <div className="p-3">
-        <div className={`grid grid-cols-[45%_55%] gap-6 divide-x ${PAGE_STYLES.divider}`}>
+        <div className={`grid grid-cols-[45%_55%] gap-6 divide-x ${highStandards ? 'divide-amber-300' : PAGE_STYLES.divider}`}>
           {/* Left Column - Items with Validation */}
           <div className="space-y-0.5 pr-1">
             {/* LEDs */}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Star } from 'lucide-react';
 import { Customer } from '../../../types';
 import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
 
@@ -19,7 +20,10 @@ export const CustomerTableRow: React.FC<CustomerTableRowProps> = React.memo(({
     <tr className={`${isDeactivated ? 'opacity-60' : ''} ${PAGE_STYLES.header.background} hover:bg-[var(--theme-hover-bg)] transition-colors`}>
       {/* Company */}
       <td className="px-2 py-1 min-w-48 max-w-56">
-        <div className={`text-sm font-medium ${isDeactivated ? PAGE_STYLES.panel.textMuted : PAGE_STYLES.panel.text} truncate`} title={customer.company_name}>
+        <div className={`text-sm font-medium ${isDeactivated ? PAGE_STYLES.panel.textMuted : PAGE_STYLES.panel.text} truncate flex items-center gap-1`} title={customer.company_name}>
+          {customer.high_standards && (
+            <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500 flex-shrink-0" />
+          )}
           {customer.company_name}
         </div>
         {customer.quickbooks_name && customer.quickbooks_name !== customer.company_name && (

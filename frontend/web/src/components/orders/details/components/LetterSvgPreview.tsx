@@ -97,9 +97,12 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
     const vertical: { pos: number; isFoot: boolean }[] = [];
     const horizontal: { pos: number; isFoot: boolean }[] = [];
 
+    // Extend range beyond bbox to cover viewBox padding area
+    const pad = 10;
+
     // Generate vertical lines (use ppiX for horizontal spacing)
-    const startX = Math.ceil(x / ppiX) * ppiX;
-    for (let px = startX; px < x + width; px += ppiX) {
+    const startX = Math.floor((x - pad) / ppiX) * ppiX;
+    for (let px = startX; px <= x + width + pad; px += ppiX) {
       const inchIndex = Math.round(px / ppiX);
       const isFoot = inchIndex % 12 === 0;
       if (gridSettings.showInches || (gridSettings.showFeet && isFoot)) {
@@ -108,8 +111,8 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
     }
 
     // Generate horizontal lines (use ppiY for vertical spacing)
-    const startY = Math.ceil(y / ppiY) * ppiY;
-    for (let py = startY; py < y + height; py += ppiY) {
+    const startY = Math.floor((y - pad) / ppiY) * ppiY;
+    for (let py = startY; py <= y + height + pad; py += ppiY) {
       const inchIndex = Math.round(py / ppiY);
       const isFoot = inchIndex % 12 === 0;
       if (gridSettings.showInches || (gridSettings.showFeet && isFoot)) {
@@ -213,11 +216,11 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
       {/* Ruler labels */}
       {showRuler && (
         <div className="mt-2 flex justify-between text-xs text-gray-500">
-          <span>{realWidth.toFixed(1)}"</span>
+          <span>{realWidth.toFixed(1)}" W</span>
           <span className="text-gray-400">
             {letter.detected_scale === 0.1 ? '10% scale' : '100% scale'}
           </span>
-          <span>{realHeight.toFixed(1)}"</span>
+          <span>{realHeight.toFixed(1)}" H</span>
         </div>
       )}
     </div>

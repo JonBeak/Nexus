@@ -19,6 +19,7 @@ import {
 } from '../../services/api';
 import { PAGE_STYLES } from '../../constants/moduleColors';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatDateTimeWithYear } from '../../utils/dateUtils';
 
 interface Props {
   feedbackId: number;
@@ -150,16 +151,6 @@ export const FeedbackDetailModal: React.FC<Props> = ({
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
   const getStatusBadge = (status: FeedbackStatus) => {
     const option = STATUS_OPTIONS.find(o => o.value === status);
     return option ? (
@@ -232,7 +223,7 @@ export const FeedbackDetailModal: React.FC<Props> = ({
                     <div className="flex items-center gap-1">
                       <Clock className="w-4 h-4 text-gray-400" />
                       <span className={PAGE_STYLES.panel.textSecondary}>
-                        {formatDate(feedback.created_at)}
+                        {formatDateTimeWithYear(feedback.created_at)}
                       </span>
                     </div>
                     {getStatusBadge(feedback.status)}
@@ -352,7 +343,7 @@ export const FeedbackDetailModal: React.FC<Props> = ({
                               {response.responder_first_name} {response.responder_last_name}
                             </span>
                             <span className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>
-                              {formatDate(response.created_at)}
+                              {formatDateTimeWithYear(response.created_at)}
                             </span>
                             {!!response.is_internal && (
                               <span className="px-2 py-0.5 bg-yellow-200 text-yellow-800 text-xs rounded-full flex items-center gap-1">

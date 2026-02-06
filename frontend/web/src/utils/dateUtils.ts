@@ -48,6 +48,75 @@ export const formatDate = (dateString: string): string => {
   });
 };
 
+// Safely parse a date string, extracting YYYY-MM-DD to avoid timezone shifts.
+// Handles "2026-02-06", "2026-02-06T00:00:00.000Z", and full datetime strings.
+const parseLocalDate = (str: string): Date => {
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
+  }
+  return new Date(str);
+};
+
+// Format date with year (e.g., "Feb 8, 2026")
+// Options: { weekday: true } → "Sunday, Feb 8, 2026"
+export const formatDateWithYear = (
+  dateString: string | null | undefined,
+  opts?: { weekday?: boolean }
+): string => {
+  if (!dateString) return '-';
+  const date = parseLocalDate(dateString);
+  const options: Intl.DateTimeFormatOptions = {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  };
+  if (opts?.weekday) {
+    options.weekday = 'long';
+  }
+  return date.toLocaleDateString('en-US', options);
+};
+
+// Format month and day only (e.g., "Feb 8")
+export const formatMonthDay = (dateString: string | null | undefined): string => {
+  if (!dateString) return '-';
+  const date = parseLocalDate(dateString);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+// Format datetime with year (e.g., "Feb 8, 2026, 2:30 PM")
+// Uses parseLocalDate for the date portion, preserves time from original string
+export const formatDateTimeWithYear = (dateString: string | null | undefined): string => {
+  if (!dateString) return '-';
+  // For datetime strings we need the time component, so use new Date() which handles UTC correctly
+  const date = new Date(dateString);
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+};
+
+// Format relative date: "Today", "Tomorrow", or "Feb 8"
+export const formatRelativeDate = (dateString: string | null | undefined): string => {
+  if (!dateString) return '-';
+  const date = parseLocalDate(dateString);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const dateOnly = new Date(date);
+  dateOnly.setHours(0, 0, 0, 0);
+
+  if (dateOnly.getTime() === today.getTime()) return 'Today';
+  if (dateOnly.getTime() === tomorrow.getTime()) return 'Tomorrow';
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
 // Format date to long format (e.g., "February 8, 2026")
 export const formatDateLong = (dateString?: string | null): string => {
   if (!dateString) return '-';
@@ -305,6 +374,10 @@ export default {
   getTodayString,
   formatTime,
   formatDate,
+  formatDateWithYear,
+  formatMonthDay,
+  formatDateTimeWithYear,
+  formatRelativeDate,
   formatDateLong,
   formatDateTime,
   formatDuration,

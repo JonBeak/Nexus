@@ -168,6 +168,7 @@ export class OrderRepository {
         o.*,
         TIME_FORMAT(o.hard_due_date_time, '%H:%i') as hard_due_date_time,
         c.company_name as customer_name,
+        c.high_standards,
         (SELECT COUNT(*) FROM order_tasks ot
          INNER JOIN order_parts op ON ot.part_id = op.part_id
          WHERE ot.order_id = o.order_id
@@ -240,6 +241,7 @@ export class OrderRepository {
         o.*,
         TIME_FORMAT(o.hard_due_date_time, '%H:%i') as hard_due_date_time,
         c.company_name as customer_name,
+        c.high_standards,
         e.qb_estimate_id,
         e.qb_estimate_number AS qb_estimate_doc_number
       FROM orders o

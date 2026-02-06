@@ -136,14 +136,16 @@ npm run dev  # Development server on port 5173
 ```
 
 ### Database Setup
+Use credentials from your `/home/jon/Nexus/backend/web/.env` file (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME):
 ```bash
 cd /home/jon/Nexus/database/migrations
-# Run migrations in order:
-mysql -u root -p sign_manufacturing < 01_create_pricing_tables.sql
-mysql -u root -p sign_manufacturing < 02_create_remaining_pricing_tables.sql
-mysql -u root -p sign_manufacturing < 03_extend_product_types.sql
-mysql -u root -p sign_manufacturing < 04_sample_pricing_data.sql
+# Run migrations in order (replace USER, PASSWORD, and HOST with values from .env):
+mysql -h localhost -u signhouse_user -p sign_manufacturing < 01_create_pricing_tables.sql
+mysql -h localhost -u signhouse_user -p sign_manufacturing < 02_create_remaining_pricing_tables.sql
+mysql -h localhost -u signhouse_user -p sign_manufacturing < 03_extend_product_types.sql
+mysql -h localhost -u signhouse_user -p sign_manufacturing < 04_sample_pricing_data.sql
 ```
+CRITICAL: Never use root user. Always use a dedicated non-root database user with restricted permissions.
 
 ### Access the System
 - **Frontend**: http://localhost:5173

@@ -128,12 +128,11 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
         letter_analysis = None
         if 'letter_hole_analysis' in rules or 'front_lit_structure' in rules:
             analysis_config = rules.get('letter_hole_analysis', rules.get('front_lit_structure', {}))
-            analysis_layer = analysis_config.get('layer', analysis_config.get('return_layer'))
 
-            # 1. Geometry analysis (returns UNCLASSIFIED holes)
+            # 1. Geometry analysis — all layers (returns UNCLASSIFIED holes)
             letter_analysis = analyze_letter_hole_associations(
                 paths_info,
-                layer_name=analysis_layer,
+                layer_name=None,
                 config=analysis_config
             )
 
@@ -141,7 +140,20 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
             if 'front_lit_structure' in rules:
                 classify_holes_in_analysis(letter_analysis, FRONT_LIT_HOLE_CONFIG)
 
-            # 3. Serialize AFTER classification (holes now have correct types)
+            # 3. Per-letter issues (attaches to letter.issues + analysis.issues)
+            if 'front_lit_structure' in rules:
+                issue_config = {**FRONT_LIT_HOLE_CONFIG, **rules.get('front_lit_structure', {})}
+                analysis_issues = generate_letter_analysis_issues(letter_analysis, issue_config)
+                for issue_dict in analysis_issues:
+                    all_issues.append(ValidationIssue(
+                        rule=issue_dict['rule'],
+                        severity=issue_dict['severity'],
+                        message=issue_dict['message'],
+                        path_id=issue_dict.get('path_id'),
+                        details=issue_dict.get('details')
+                    ))
+
+            # 4. Serialize AFTER classification + issue attachment
             stats['letter_analysis'] = letter_analysis.to_dict()
             stats['detected_scale'] = letter_analysis.detected_scale
 
@@ -164,18 +176,6 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
             if letter_analysis:
                 front_lit_rules['_letter_analysis'] = letter_analysis
             all_issues.extend(check_front_lit_structure(paths_info, front_lit_rules))
-
-        # 5. Issue generation (from classified analysis)
-        if 'letter_hole_analysis' in rules and letter_analysis:
-            analysis_issues = generate_letter_analysis_issues(letter_analysis, FRONT_LIT_HOLE_CONFIG)
-            for issue_dict in analysis_issues:
-                all_issues.append(ValidationIssue(
-                    rule=issue_dict['rule'],
-                    severity=issue_dict['severity'],
-                    message=issue_dict['message'],
-                    path_id=issue_dict.get('path_id'),
-                    details=issue_dict.get('details')
-                ))
 
         # Determine overall status
         has_errors = any(i.severity == 'error' for i in all_issues)

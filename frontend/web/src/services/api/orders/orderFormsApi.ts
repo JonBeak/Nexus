@@ -21,6 +21,7 @@ export const orderFormsApi = {
       filename: string;
       size: number;
       modifiedDate: string;
+      location: 'primary' | 'secondary';
     }>;
   }> {
     const response = await api.get(`/orders/${orderNumber}/available-images`);

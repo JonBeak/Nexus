@@ -20,6 +20,7 @@ import {
 import { FeedbackDetailModal } from '../feedback/FeedbackDetailModal';
 import { PAGE_STYLES } from '../../constants/moduleColors';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatDateTime } from '../../utils/dateUtils';
 
 const STATUS_OPTIONS: { value: FeedbackStatus; label: string; color: string }[] = [
   { value: 'open', label: 'Open', color: 'bg-blue-100 text-blue-800' },
@@ -101,15 +102,6 @@ export const FeedbackManager: React.FC = () => {
         newSet.add(status);
       }
       return newSet;
-    });
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
     });
   };
 
@@ -266,7 +258,7 @@ export const FeedbackManager: React.FC = () => {
                       <div className="flex items-center gap-1">
                         <Clock className="w-4 h-4 text-gray-400" />
                         <span className={`text-sm ${PAGE_STYLES.panel.textSecondary}`}>
-                          {formatDate(feedback.created_at)}
+                          {formatDateTime(feedback.created_at)}
                         </span>
                       </div>
                     </td>

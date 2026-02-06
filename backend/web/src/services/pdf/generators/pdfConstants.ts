@@ -34,7 +34,11 @@ export const COLORS = {
   LABEL_BG_ELECTRICAL: '#f3da80',  // Electrical/LED specs (yellow)
   LABEL_BG_VINYL: '#eabcbf',       // Vinyl specs (pink)
   LABEL_BG_PAINTING: '#c9b8e8',    // Painting specs (purple)
+  LABEL_BG_ALERT: '#f0a0a0',       // Alert specs (soft red) - non-default drain holes
   NO_BG: '#b8b8b8',                 // Background for "None" values (same as LABEL_BG_DARKER)
+  // High Standards gold treatment
+  GOLD: '#d4af37',
+  GOLD_LIGHT: '#f5e6a3',
 };
 
 // ============================================

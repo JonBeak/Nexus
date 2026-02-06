@@ -1,5 +1,6 @@
 import React from 'react';
 import { PAGE_STYLES } from '../../constants/moduleColors';
+import { formatDate } from '../../utils/dateUtils';
 import '../jobEstimation/JobEstimation.css';
 
 interface WeeklyEntry {
@@ -57,12 +58,6 @@ function EditRequestForm({
     if (!dateString) return '-';
     const date = new Date(dateString);
     return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   };
 
   return (

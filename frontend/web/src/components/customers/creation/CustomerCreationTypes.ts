@@ -13,6 +13,7 @@ export interface CustomerCreateData {
   payment_terms?: string;
   discount?: number;
   cash_yes_or_no?: boolean;
+  high_standards?: boolean;
   notes?: string;
   active?: boolean;
   // QuickBooks integration
@@ -108,6 +109,7 @@ export const DEFAULT_CUSTOMER_VALUES: CustomerCreateData = {
   payment_terms: 'Due on Receipt',
   discount: 0,
   cash_yes_or_no: false,
+  high_standards: false,
   notes: '',
   active: true,
   // QuickBooks - checked by default

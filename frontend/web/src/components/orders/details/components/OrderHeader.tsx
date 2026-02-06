@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, Printer, FolderOpen, Settings, CheckCircle, FileCheck, RefreshCw, Send, ChevronDown, Eye, AlertTriangle, AlertOctagon, Link, DollarSign } from 'lucide-react';
+import { ArrowLeft, FileText, Printer, FolderOpen, Settings, CheckCircle, FileCheck, RefreshCw, Send, ChevronDown, Eye, AlertTriangle, AlertOctagon, Link, DollarSign, Star } from 'lucide-react';
 import { Order, DEPOSIT_TRACKING_STATUSES } from '../../../../types/orders';
 import StatusBadge from '../../common/StatusBadge';
 import InvoiceButton, { InvoiceAction } from './InvoiceButton';
@@ -336,7 +336,15 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
                   );
                 })()}
               </div>
-              <p className={`text-lg font-semibold ${PAGE_STYLES.panel.text} mt-1`}>{order.customer_name}</p>
+              <p className={`text-lg font-semibold ${PAGE_STYLES.panel.text} mt-1 flex items-center`}>
+                {order.customer_name}
+                {!!order.high_standards && (
+                  <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded border border-amber-400 ml-2">
+                    <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                    HIGH STANDARDS
+                  </span>
+                )}
+              </p>
               <p className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>Order #{order.order_number}</p>
             </div>
           </div>

@@ -109,6 +109,9 @@ export async function generatePackingList(
       const checkboxBgColor = isPickup ? PACKING_COLORS.PICKUP_BG : PACKING_COLORS.SHIPPING_BG;
 
       // Render header using shared function with packing list styling
+      // Show company name in packing list unless hide_company_name is set
+      const showCompanyNameOnPackingList = !orderData.hide_company_name;
+      const isHighStandards = !!orderData.high_standards;
       currentY = renderMasterCustomerPageHeader(
         doc,
         orderData,
@@ -120,7 +123,8 @@ export async function generatePackingList(
         checkboxBgColor, // Delivery background color for packing list
         'Packing List', // pageTitle
         false, // showDueDate - hide due date on packing list
-        false  // showCompanyName - hide on packing list
+        showCompanyNameOnPackingList,  // showCompanyName - toggle based on hide_company_name
+        isHighStandards  // High Standards gold treatment
       );
 
       // ============================================

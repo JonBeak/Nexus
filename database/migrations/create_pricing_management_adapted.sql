@@ -572,11 +572,11 @@ INSERT INTO vinyl_materials_pricing (
   calculation_rules, effective_date, created_by
 ) VALUES
 ('Standard Vinyl', 'VINYL_STD', 'STANDARD', 2.85, 3,
- '{"T_rate": 2.85, "Tc_rate": 3.20, "24_inch_rate": 2.65}', CURDATE(), 1),
+ '{"T_rate": 2.85, "Tc_rate": 3.20}', CURDATE(), 1),
 ('Translucent Vinyl', 'VINYL_TC', 'TRANSLUCENT', 3.20, 4,
- '{"T_rate": 3.20, "Tc_rate": 3.20, "24_inch_rate": 3.00}', CURDATE(), 1),
+ '{"T_rate": 3.20, "Tc_rate": 3.20}', CURDATE(), 1),
 ('Perforated Vinyl', 'VINYL_PERF', 'PERFORATED', 4.15, 5,
- '{"Perf_rate": 4.15, "24_perf_rate": 3.95}', CURDATE(), 1);
+ '{"Perf_rate": 4.15}', CURDATE(), 1);
 
 -- Sample Labor Rates (from Excel categories)
 INSERT INTO labor_rates_pricing (

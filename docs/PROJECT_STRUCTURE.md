@@ -48,8 +48,8 @@
 │   │   │   │   └── ...
 │   │   │   └── gmail/           # Gmail API utilities
 │   │   └── server.ts            # Express app entry point
-│   ├── .env                     # Environment variables (credentials)
-│   └── package.json
+│   ├── .env                     # Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
+│   └── package.json             # Backend dependencies
 │
 ├── frontend/web/                # React + TypeScript + Vite
 │   ├── src/
@@ -106,6 +106,11 @@
 │
 └── docs/                        # Documentation
     ├── PROJECT_STRUCTURE.md     # This file
+    ├── CODE_STANDARDS.md        # Backend/frontend code examples, common issue solutions
+    ├── SYSTEM_OPERATIONS.md     # Server mgmt, dual-instance, build/backup, troubleshooting
+    ├── CSS_PATTERNS_GUIDE.md    # CSS layout patterns and fixes
+    ├── INDUSTRIAL_STYLING_GUIDE.md # Theme colors, PAGE_STYLES constants
+    ├── HOME_DEV_SETUP.md        # Home (Windows) dev environment setup
     └── ROADMAP.md               # Development roadmap
 ```
 
@@ -198,4 +203,4 @@ Route → Controller → Service → Repository → Database
 
 ---
 
-**Last Updated**: 2025-12-17
+**Last Updated**: 2026-02-06

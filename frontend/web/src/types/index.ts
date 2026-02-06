@@ -53,6 +53,10 @@ export interface Customer {
   wiring_diagram_type?: string;
   plug_n_play_yes_or_no?: boolean;
   
+  // Customer flags
+  high_standards?: boolean;
+  hide_company_name?: boolean;
+
   // Shipping
   shipping_yes_or_no?: boolean;
   shipping_multiplier?: number;

@@ -51,6 +51,7 @@ interface SupplierProduct {
   sku: string | null;
   supplier_id: number;
   supplier_name?: string;
+  archetype_id?: number;
 }
 
 interface AllOrdersMaterialRequirementsProps {
@@ -178,6 +179,16 @@ const getAutoStatusBadge = (status: ComputedRequirementStatus) => {
   }
 };
 
+
+/** Row background color based on computed auto status */
+const getRowBgClass = (status: ComputedRequirementStatus): string => {
+  switch (status) {
+    case 'ordered_pickup': return 'bg-blue-50';
+    case 'ordered_shipping': return 'bg-purple-50';
+    case 'fulfilled': return 'bg-green-50';
+    default: return '';
+  }
+};
 
 export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequirementsProps> = ({
   user,
@@ -405,6 +416,19 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
     });
   };
 
+  /**
+   * Custom product type text change (non-vinyl combobox)
+   * Saves custom text and clears supplier_product_id if needed
+   */
+  const handleCustomProductTypeChange = async (requirementId: number, text: string) => {
+    const updates: Record<string, any> = { custom_product_type: text };
+    const req = requirements.find(r => r.requirement_id === requirementId);
+    if (text.trim() && req?.supplier_product_id !== null) {
+      updates.supplier_product_id = null;
+    }
+    await handleMultiFieldEdit(requirementId, updates);
+  };
+
   // ===========================================================================
   // INVENTORY HOLD HANDLERS
   // ===========================================================================
@@ -574,7 +598,7 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
         size_description: undefined,
         quantity_ordered: 0,  // Start with 0 to bypass validation until product type is selected
         supplier_id: null,
-        delivery_method: 'shipping',
+        delivery_method: undefined,
         notes: undefined,
         entry_date: getTodayString(),
       };
@@ -721,6 +745,7 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
               <th className={thClass} style={{ width: '70px' }}>Delivery</th>
               <th className={thClass} style={{ width: '95px' }}>Ordered</th>
               <th className={thClass} style={{ width: '100px' }}>Receiving</th>
+              <th className={thClass} style={{ width: '95px' }}>Received</th>
               <th className={thClass} style={{ width: '180px' }}>Notes</th>
               <th className={`${thClass} text-center`} style={{ width: '60px' }}>Actions</th>
               <th className={thClass} style={{ width: '80px' }}>Status</th>
@@ -731,7 +756,7 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
             {requirements.map((req) => {
               const autoStatus = computeAutoStatus(req);
               return (
-                <tr key={req.requirement_id} className="hover:bg-[var(--theme-hover-bg)] border-b border-gray-100">
+                <tr key={req.requirement_id} className={`hover:bg-[var(--theme-hover-bg)] border-b border-gray-100 ${getRowBgClass(autoStatus)}`}>
                   {/* Date */}
                   <td className="px-1 py-0.5">
                     <InlineEditableCell
@@ -775,6 +800,7 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
                         vinyl_product_id: null,
                         supplier_product_id: null,
                         supplier_id: null,
+                        custom_product_type: null,
                       })}
                       archetypes={archetypes}
                       placeholder="Type..."
@@ -793,6 +819,8 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
                         vinylProducts={vinylProducts}
                         onVinylProductChange={(val) => handleVinylProductSelect(req.requirement_id, val)}
                         onSupplierProductChange={(val) => handleSupplierProductSelect(req.requirement_id, val)}
+                        customProductType={req.custom_product_type}
+                        onCustomProductTypeChange={(text) => handleCustomProductTypeChange(req.requirement_id, text)}
                         placeholder="Product..."
                       />
                     ) : (
@@ -858,10 +886,16 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
                   {/* Delivery */}
                   <td className="px-1 py-0.5">
                     <InlineEditableCell
-                      value={req.delivery_method}
-                      onChange={(val) => handleInlineEdit(req.requirement_id, 'delivery_method', val)}
+                      value={req.delivery_method || ''}
+                      onChange={(val) => handleInlineEdit(req.requirement_id, 'delivery_method', val || null)}
                       type="select"
                       options={DELIVERY_OPTIONS}
+                      placeholder="Select..."
+                      className={
+                        req.delivery_method === 'pickup' ? '!bg-blue-50 !text-blue-700 !border-blue-300 font-medium' :
+                        req.delivery_method === 'shipping' ? '!bg-purple-50 !text-purple-700 !border-purple-300 font-medium' :
+                        'text-gray-400'
+                      }
                     />
                   </td>
 
@@ -872,6 +906,7 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
                       onChange={(val) => handleInlineEdit(req.requirement_id, 'ordered_date', val || null)}
                       type="date"
                       placeholder="-"
+                      defaultToToday
                     />
                   </td>
 
@@ -889,6 +924,17 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
                       }}
                       type="select"
                       options={RECEIVING_STATUS_OPTIONS}
+                    />
+                  </td>
+
+                  {/* Received Date */}
+                  <td className="px-1 py-0.5">
+                    <InlineEditableCell
+                      value={req.received_date || ''}
+                      onChange={(val) => handleInlineEdit(req.requirement_id, 'received_date', val || null)}
+                      type="date"
+                      placeholder="-"
+                      defaultToToday
                     />
                   </td>
 

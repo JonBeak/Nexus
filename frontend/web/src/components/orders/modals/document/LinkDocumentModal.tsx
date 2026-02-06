@@ -30,6 +30,7 @@ import {
 } from '../../../../types/document';
 import { createDocumentApi, DocumentLineItemDetail } from './documentApi';
 import { useModalBackdrop } from '../../../../hooks/useModalBackdrop';
+import { formatDateWithYear } from '../../../../utils/dateUtils';
 
 /** Order totals for comparison with QB documents */
 export interface OrderTotals {
@@ -300,17 +301,6 @@ export const LinkDocumentModal: React.FC<LinkDocumentModalProps> = ({
     setLoadingDetails(new Set());
   };
 
-  // Format date helper
-  const formatDate = (dateStr: string | null | undefined) => {
-    if (!dateStr) return '-';
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    } catch {
-      return dateStr;
-    }
-  };
-
   if (!isOpen) return null;
 
   const activeDocument = viewMode === 'list' ? selectedDocument : searchResult;
@@ -557,7 +547,7 @@ export const LinkDocumentModal: React.FC<LinkDocumentModalProps> = ({
                                         )}
                                       </div>
                                       <div className="text-xs text-gray-500 mt-1">
-                                        {formatDate(doc.txnDate)}
+                                        {formatDateWithYear(doc.txnDate)}
                                       </div>
                                     </div>
                                     <div className="text-right">
@@ -731,7 +721,7 @@ export const LinkDocumentModal: React.FC<LinkDocumentModalProps> = ({
                           {searchResult.txnDate && (
                             <div className="flex justify-between">
                               <span className="text-gray-600">Date:</span>
-                              <span>{formatDate(searchResult.txnDate)}</span>
+                              <span>{formatDateWithYear(searchResult.txnDate)}</span>
                             </div>
                           )}
                         </div>
@@ -800,7 +790,7 @@ export const LinkDocumentModal: React.FC<LinkDocumentModalProps> = ({
             <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
               <div>
                 <div className="text-sm font-medium text-gray-900">{config.labels.documentName} #{previewDocument.docNumber}</div>
-                <div className="text-xs text-gray-500">{formatDate(previewDocument.txnDate)}</div>
+                <div className="text-xs text-gray-500">{formatDateWithYear(previewDocument.txnDate)}</div>
               </div>
               <button
                 onClick={closePreview}

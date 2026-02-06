@@ -85,6 +85,7 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
   const [expandedArchetype, setExpandedArchetype] = useState<number | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
 
   // Product type form state
   const [formData, setFormData] = useState({
@@ -111,7 +112,7 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
       const params: Record<string, string> = {};
       // selectedCategory stores category name for display, filter by it
       if (selectedCategory !== 'all') params.category = selectedCategory;
-      if (searchTerm) params.search = searchTerm;
+      if (debouncedSearchTerm) params.search = debouncedSearchTerm;
 
       const [archetypesRes, categoriesRes, suppliersRes] = await Promise.all([
         api.get<Archetype[]>('/product-types', { params }),
@@ -133,11 +134,17 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
     } finally {
       setLoading(false);
     }
-  }, [showNotification, selectedCategory, searchTerm]);
+  }, [showNotification, selectedCategory, debouncedSearchTerm]);
 
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  // Debounce search input - wait 300ms after last keystroke before triggering API calls
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   // Convert specs object to rows
   const specsToRows = (specs: Record<string, any> | null): SpecRow[] => {

@@ -16,6 +16,7 @@ import { X, Loader2, Link, Search, FileText, AlertCircle, Check, ChevronLeft, Ch
 import { orderPreparationApi } from '../../../services/api';
 import { useIsMobile } from '../../../hooks/useMediaQuery';
 import { useBodyScrollLock } from '../../../hooks/useBodyScrollLock';
+import { formatDateWithYear } from '../../../utils/dateUtils';
 
 interface CustomerEstimate {
   Id: string;
@@ -146,15 +147,6 @@ export const LinkEstimateModal: React.FC<LinkEstimateModalProps> = ({
 
   if (!isOpen) return null;
 
-  const formatDate = (dateStr: string) => {
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    } catch {
-      return dateStr;
-    }
-  };
-
   return (
     <div
       className={`fixed inset-0 bg-black bg-opacity-50 z-50 ${
@@ -269,7 +261,7 @@ export const LinkEstimateModal: React.FC<LinkEstimateModalProps> = ({
                           </div>
                           <div>
                             <span className="font-medium text-gray-900">#{estimate.DocNumber}</span>
-                            <span className="text-gray-500 text-sm ml-2">{formatDate(estimate.TxnDate)}</span>
+                            <span className="text-gray-500 text-sm ml-2">{formatDateWithYear(estimate.TxnDate)}</span>
                           </div>
                         </div>
                         <div className="text-right">

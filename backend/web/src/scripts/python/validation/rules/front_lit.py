@@ -116,6 +116,8 @@ def generate_letter_analysis_issues(
 ) -> List[Dict[str, Any]]:
     """
     Generate validation issues from letter analysis results.
+    Attaches issues directly to letter.issues and analysis.issues as it generates them.
+    Only checks hole requirements for the return layer (trim letters have no holes by design).
 
     Args:
         analysis: LetterAnalysisResult (holes should already be classified)
@@ -125,11 +127,12 @@ def generate_letter_analysis_issues(
         List of issue dicts with rule, severity, message, details
     """
     cfg = {**FRONT_LIT_HOLE_CONFIG, **(config or {})}
-    issues = []
+    return_layer = cfg.get('return_layer', 'return')
+    all_issues = []
 
-    # Orphan holes are errors
+    # Orphan holes are errors — attach to analysis.issues
     for hole in analysis.orphan_holes:
-        issues.append({
+        issue = {
             'rule': 'orphan_hole',
             'severity': 'error',
             'message': f'Hole {hole.path_id} ({hole.hole_type}, {hole.diameter_real_mm:.2f}mm) is outside all letters',
@@ -139,13 +142,19 @@ def generate_letter_analysis_issues(
                 'diameter_mm': hole.diameter_mm,
                 'center': hole.center
             }
-        })
+        }
+        all_issues.append(issue)
+        analysis.issues.append(issue)
 
-    # Check each letter for required holes
+    # Check each letter for required holes (return layer only)
     for letter in analysis.letter_groups:
+        # Only check hole requirements for return layer
+        if letter.layer_name.lower() != return_layer.lower():
+            continue
+
         # No wire hole is an error
         if len(letter.wire_holes) == 0:
-            issues.append({
+            issue = {
                 'rule': 'letter_no_wire_hole',
                 'severity': 'error',
                 'message': f'Letter {letter.letter_id} has no wire hole',
@@ -159,11 +168,13 @@ def generate_letter_analysis_issues(
                         'unknown': len(letter.unknown_holes)
                     }
                 }
-            })
+            }
+            all_issues.append(issue)
+            letter.issues.append(issue)
 
         # Multiple wire holes is a warning
         if len(letter.wire_holes) > 1:
-            issues.append({
+            issue = {
                 'rule': 'letter_multiple_wire_holes',
                 'severity': 'warning',
                 'message': f'Letter {letter.letter_id} has {len(letter.wire_holes)} wire holes, expected 1',
@@ -172,11 +183,13 @@ def generate_letter_analysis_issues(
                     'wire_hole_count': len(letter.wire_holes),
                     'wire_holes': [h.to_dict() for h in letter.wire_holes]
                 }
-            })
+            }
+            all_issues.append(issue)
+            letter.issues.append(issue)
 
         # Unknown holes are info
         for hole in letter.unknown_holes:
-            issues.append({
+            issue = {
                 'rule': 'unknown_hole_size',
                 'severity': 'info',
                 'message': f'Hole {hole.path_id} in letter {letter.letter_id} has unusual diameter {hole.diameter_real_mm:.2f}mm',
@@ -188,7 +201,9 @@ def generate_letter_analysis_issues(
                     'expected_wire_mm': cfg['wire_hole_expected_mm'],
                     'expected_mounting_mm': cfg['mounting_hole_expected_mm']
                 }
-            })
+            }
+            all_issues.append(issue)
+            letter.issues.append(issue)
 
         # Check classified holes for size deviations
         wire_expected = cfg['wire_hole_expected_mm']
@@ -199,7 +214,7 @@ def generate_letter_analysis_issues(
             expected = wire_expected if hole.hole_type == 'wire' else mount_expected
             deviation = abs(hole.diameter_real_mm - expected)
             if deviation > exact_tol:
-                issues.append({
+                issue = {
                     'rule': 'hole_size_deviation',
                     'severity': 'warning',
                     'message': f'{hole.hole_type.title()} hole is {hole.diameter_real_mm:.2f}mm, expected {expected}mm',
@@ -211,9 +226,11 @@ def generate_letter_analysis_issues(
                         'expected_mm': expected,
                         'deviation_mm': round(deviation, 2)
                     }
-                })
+                }
+                all_issues.append(issue)
+                letter.issues.append(issue)
 
-    return issues
+    return all_issues
 
 
 def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[ValidationIssue]:
@@ -221,10 +238,11 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
     Validate Front Lit channel letter structural requirements.
 
     Rules:
-    1. Wire holes: Each letter in Return layer must have exactly 1 wire hole (if LEDs present)
-    2. Mounting holes: Minimum based on letter size (perimeter and area)
-    3. Trim count: Trim layer must have same number of letters as Return layer
-    4. Trim offset: Each trim shape must be ~2mm larger per side than corresponding return
+    1. Mounting holes: Minimum based on letter size (perimeter and area)
+    2. Trim count: Trim layer must have same number of letters as Return layer
+    3. Trim offset: Each trim shape must be ~2mm larger per side than corresponding return
+
+    Wire hole checks are handled per-letter in generate_letter_analysis_issues().
 
     If '_letter_analysis' is provided in rules, uses pre-computed analysis for
     more accurate polygon-based containment instead of bbox-based.
@@ -235,7 +253,6 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
     return_layer = rules.get('return_layer', 'return')
     trim_layer = rules.get('trim_layer', 'trimcap')
     file_scale = rules.get('file_scale', 0.1)
-    check_wire_holes = rules.get('check_wire_holes', True)
     min_mounting_holes = rules.get('min_mounting_holes', 2)
     holes_per_inch_perimeter = rules.get('mounting_holes_per_inch_perimeter', 0.05)
     holes_per_sq_inch_area = rules.get('mounting_holes_per_sq_inch_area', 0.0123)
@@ -277,38 +294,7 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
 
     points_per_real_inch = 72 * file_scale
 
-    # Rule 1: Wire holes
-    if check_wire_holes:
-        for letter in return_letters:
-            if letter.wire_hole_count == 0:
-                issues.append(ValidationIssue(
-                    rule='front_lit_wire_holes',
-                    severity='error',
-                    message=f'Letter {letter.path_id} in {return_layer} layer has no wire hole',
-                    path_id=letter.path_id,
-                    details={
-                        'layer': letter.layer,
-                        'bbox': letter.bbox,
-                        'total_holes_found': len(letter.contained_holes)
-                    }
-                ))
-            elif letter.wire_hole_count > 1:
-                issues.append(ValidationIssue(
-                    rule='front_lit_wire_holes',
-                    severity='warning',
-                    message=f'Letter {letter.path_id} has {letter.wire_hole_count} wire holes, expected 1',
-                    path_id=letter.path_id,
-                    details={
-                        'layer': letter.layer,
-                        'wire_hole_count': letter.wire_hole_count,
-                        'letter_bbox': letter.bbox,
-                        'letter_width': letter.width,
-                        'letter_height': letter.height,
-                        'holes_detected': letter.contained_holes
-                    }
-                ))
-
-    # Rule 2: Mounting holes
+    # Rule 1: Mounting holes (wire holes now handled per-letter in generate_letter_analysis_issues)
     for letter in return_letters:
         real_perimeter_inches = letter.perimeter / points_per_real_inch
         real_area_sq_inches = letter.area / (points_per_real_inch ** 2)

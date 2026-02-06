@@ -79,6 +79,35 @@ function shouldSkipCuttingSpec(specsDisplayName: string | null): boolean {
 }
 
 /**
+ * Default Face Assembly values by product type
+ * When Face Assembly matches the default, it should be skipped (redundant info)
+ * Note: Only Halo Lit has a default - Front Lit Acrylic Face always shows its Face Assembly
+ */
+const DEFAULT_FACE_ASSEMBLY: Record<string, string> = {
+  'Halo Lit': 'Face to Return',
+};
+
+/**
+ * Check if the Face Assembly spec should be skipped because it matches the default value
+ *
+ * @param specsDisplayName - The product type (e.g., "Halo Lit", "Front Lit Acrylic Face")
+ * @param faceAssemblySpecs - The Face Assembly spec values (contains 'description' field)
+ * @returns true if the spec should be skipped, false otherwise
+ */
+function shouldSkipFaceAssemblySpec(specsDisplayName: string | null, faceAssemblySpecs: Record<string, any>): boolean {
+  if (!specsDisplayName || !faceAssemblySpecs) return false;
+
+  const defaultFaceAssembly = DEFAULT_FACE_ASSEMBLY[specsDisplayName];
+  if (!defaultFaceAssembly) return false;
+
+  // Get the description value from the Face Assembly spec
+  const faceAssemblyDescription = faceAssemblySpecs.description || '';
+
+  // Skip if the Face Assembly description matches the default for this product type
+  return faceAssemblyDescription === defaultFaceAssembly;
+}
+
+/**
  * Specs that should be hidden from all PDF order forms
  * Currently empty - Assembly specs now display on Master, Customer, and Shop forms
  * (Packing List uses a separate renderer and doesn't show specs)
@@ -564,6 +593,12 @@ export function renderSpecifications(
       return; // Skip to next row
     }
 
+    // Skip Face Assembly spec when it matches the default for this product type (e.g., Halo Lit "Face to Return")
+    if (row.template === 'Face Assembly' && shouldSkipFaceAssemblySpec(specsDisplayName, row.specs)) {
+      debugLog(`[PDF RENDER] Skipping Face Assembly spec - matches default value for ${specsDisplayName}`);
+      return; // Skip to next row
+    }
+
     // Skip specs that should be hidden from PDFs (e.g., Assembly - used for task generation only)
     if (HIDDEN_SPECS_FROM_PDF.includes(row.template)) {
       debugLog(`[PDF RENDER] Skipping hidden spec: ${row.template}`);
@@ -576,7 +611,13 @@ export function renderSpecifications(
       : undefined;
 
     // Build transform metadata for label coloring
-    const transformMeta = row.paintingApplied ? { paintingApplied: true } : undefined;
+    // Detect non-default drain hole sizes for alert highlighting
+    const isDrainHolesAlert = row.template === 'Drain Holes' && row.specs.size && row.specs.size !== '1/4"';
+    const transformMeta: TransformMeta | undefined = row.paintingApplied
+      ? { paintingApplied: true }
+      : isDrainHolesAlert
+        ? { alertHighlight: true }
+        : undefined;
 
     // Critical specs: always show them (unless exempt)
     if (isCriticalSpec) {
@@ -662,6 +703,7 @@ export function calculateAccurateTextHeight(
  */
 interface TransformMeta {
   paintingApplied?: boolean;
+  alertHighlight?: boolean;
 }
 
 /**
@@ -746,7 +788,10 @@ function renderSpecRow(
   // Priority: 1) Painting applied (purple), 2) Electrical (yellow), 3) Vinyl (pink), 4) Painting spec (purple), 5) Default (gray)
 
   let labelBgColor = COLORS.LABEL_BG_DEFAULT;
-  if (transformMeta?.paintingApplied) {
+  if (transformMeta?.alertHighlight) {
+    // Non-default drain holes get red alert background
+    labelBgColor = COLORS.LABEL_BG_ALERT;
+  } else if (transformMeta?.paintingApplied) {
     // Specs that have been transformed by a painting get purple background
     labelBgColor = COLORS.LABEL_BG_PAINTING;
   } else if (['LEDs', 'Neon LED', 'Power Supply', 'Wire Length', 'UL'].includes(labelText)) {
@@ -868,7 +913,9 @@ function renderSpecRow(
         });
 
       // Render value text (use maxTextWidth for consistent wrapping)
-      doc.fillColor(COLORS.BLACK)
+      // Alert highlighted specs (e.g., non-default drain holes) use red text
+      const valueTextColor = transformMeta?.alertHighlight ? COLORS.URGENT_RED : COLORS.BLACK;
+      doc.fillColor(valueTextColor)
         .fontSize(specFontSize)
         .font('Helvetica')
         .text(value, valueTextX, valueY, {

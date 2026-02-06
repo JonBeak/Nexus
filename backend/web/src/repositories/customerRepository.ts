@@ -34,6 +34,7 @@ export interface CustomerPreferences {
   shipping_yes_or_no?: boolean;
   shipping_multiplier?: number;
   shipping_flat?: number;
+  hide_company_name?: boolean;
 }
 
 export class CustomerRepository {
@@ -67,7 +68,8 @@ export class CustomerRepository {
         plug_n_play_yes_or_no,
         shipping_yes_or_no,
         shipping_multiplier,
-        shipping_flat
+        shipping_flat,
+        hide_company_name
       FROM customers
       WHERE customer_id = ?`,
       [customerId]
@@ -186,6 +188,7 @@ export class CustomerRepository {
         c.ul_yes_or_no,
         c.drain_holes_yes_or_no,
         c.plug_n_play_yes_or_no,
+        c.high_standards,
         c.comments,
         c.special_instructions,
         c.created_date,
@@ -375,6 +378,8 @@ export class CustomerRepository {
         shipping_yes_or_no = ?,
         shipping_multiplier = ?,
         shipping_flat = ?,
+        high_standards = ?,
+        hide_company_name = ?,
         comments = ?,
         special_instructions = ?,
         updated_by = ?,

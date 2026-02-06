@@ -20,6 +20,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { PAGE_STYLES } from '../../constants/moduleColors';
+import { formatDateWithYear } from '../../utils/dateUtils';
 import { supplierOrdersApi } from '../../services/api';
 import type { SupplierOrder, SupplierOrderStatus, SupplierOrderSearchParams } from '../../types/supplierOrders';
 
@@ -123,15 +124,6 @@ export const SupplierOrdersList: React.FC<SupplierOrdersListProps> = ({
     }
   };
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -224,10 +216,10 @@ export const SupplierOrdersList: React.FC<SupplierOrdersListProps> = ({
                   {getStatusBadge(order.status)}
                 </td>
                 <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.textSecondary}`}>
-                  {formatDate(order.order_date)}
+                  {formatDateWithYear(order.order_date)}
                 </td>
                 <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.textSecondary}`}>
-                  {formatDate(order.expected_delivery_date)}
+                  {formatDateWithYear(order.expected_delivery_date)}
                 </td>
                 <td className={`px-4 py-3 text-sm text-center ${PAGE_STYLES.panel.text}`}>
                   {order.item_count || 0}

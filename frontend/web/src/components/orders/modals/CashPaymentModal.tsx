@@ -10,7 +10,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Loader2, DollarSign, Trash2, AlertCircle, Check, Calendar } from 'lucide-react';
 import { cashPaymentApi, CashPayment, CashBalanceInfo, CashPaymentMethod } from '../../../services/api';
 import { useModalBackdrop } from '../../../hooks/useModalBackdrop';
-import { getTodayString } from '../../../utils/dateUtils';
+import { getTodayString, formatDateWithYear } from '../../../utils/dateUtils';
 
 interface CashPaymentModalProps {
   isOpen: boolean;
@@ -158,15 +158,6 @@ export const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
       case 'check': return 'Check';
       default: return method;
     }
-  };
-
-  const formatDate = (dateStr: string): string => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
   };
 
   if (!isOpen) return null;
@@ -420,7 +411,7 @@ export const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
                             </span>
                           </div>
                           <div className="text-xs text-gray-500 mt-1">
-                            {formatDate(payment.payment_date)}
+                            {formatDateWithYear(payment.payment_date)}
                             {payment.reference_number && (
                               <span className="ml-2">• Ref: {payment.reference_number}</span>
                             )}

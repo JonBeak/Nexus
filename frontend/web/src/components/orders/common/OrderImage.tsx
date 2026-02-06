@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Image as ImageIcon, AlertCircle } from 'lucide-react';
 import { ImagePickerModal } from '../modals/ImagePickerModal';
-import { getFolderPathSegment } from '../../../utils/pdfUrls';
+import { getFolderPathSegment, getImagePathSegment } from '../../../utils/pdfUrls';
 
 type FolderLocation = 'active' | 'finished' | 'cancelled' | 'hold' | 'none';
 
@@ -38,6 +38,7 @@ export const OrderImage: React.FC<OrderImageProps> = ({
   const [imageError, setImageError] = useState(false);
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   const [croppedImageUrl, setCroppedImageUrl] = useState<string | null>(null);
+  const [imageLocation, setImageLocation] = useState<'primary' | 'secondary'>('primary');
 
   // Clean up blob URLs to prevent memory leaks
   useEffect(() => {
@@ -69,7 +70,13 @@ export const OrderImage: React.FC<OrderImageProps> = ({
     const encodedFolder = encodeURIComponent(folderName);
     const encodedFile = encodeURIComponent(signImagePath);
 
-    // Get folder path segment based on location (active, finished, cancelled, hold)
+    // If we know the image's actual location (set when user picks from modal), use it
+    if (imageLocation === 'secondary') {
+      const pathSegment = getImagePathSegment(imageLocation, isMigrated);
+      return `${basePath}/${pathSegment}${encodedFolder}/${encodedFile}`;
+    }
+
+    // Default: use folder-level location for primary images
     const pathSegment = getFolderPathSegment(folderLocation, isMigrated);
     return `${basePath}/${pathSegment}${encodedFolder}/${encodedFile}`;
   };
@@ -154,6 +161,16 @@ export const OrderImage: React.FC<OrderImageProps> = ({
     }
   };
 
+  // On image load error, try secondary location before giving up
+  const handleImageError = () => {
+    if (imageLocation === 'primary' && !isMigrated) {
+      // Try secondary (root-level) path before giving up
+      setImageLocation('secondary');
+    } else {
+      setImageError(true);
+    }
+  };
+
   const imageContent = (
     <>
       {hasImage ? (
@@ -166,7 +183,7 @@ export const OrderImage: React.FC<OrderImageProps> = ({
               crossOrigin="anonymous"
               style={{ display: 'none' }}
               onLoad={handleImageLoad}
-              onError={() => setImageError(true)}
+              onError={handleImageError}
             />
           )}
           {/* Display either cropped or original image */}
@@ -176,7 +193,7 @@ export const OrderImage: React.FC<OrderImageProps> = ({
               alt="Job Image"
               className="w-full h-full object-contain"
               crossOrigin="anonymous"
-              onError={() => setImageError(true)}
+              onError={handleImageError}
             />
           )}
         </div>
@@ -249,6 +266,7 @@ export const OrderImage: React.FC<OrderImageProps> = ({
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           onImageSelected={handleImageSelected}
+          onImageLocationDetected={setImageLocation}
         />
       )}
     </div>

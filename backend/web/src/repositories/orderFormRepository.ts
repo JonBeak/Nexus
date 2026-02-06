@@ -148,7 +148,9 @@ export class OrderFormRepository {
         c.email,
         c.pattern_yes_or_no,
         c.pattern_type,
-        c.wiring_diagram_yes_or_no
+        c.wiring_diagram_yes_or_no,
+        c.high_standards,
+        c.hide_company_name
       FROM orders o
       JOIN customers c ON o.customer_id = c.customer_id
       WHERE o.order_id = ?

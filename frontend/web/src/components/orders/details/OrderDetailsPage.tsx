@@ -5,6 +5,7 @@ import DualTableLayout from './DualTableLayout';
 import OrderImage from '../common/OrderImage';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
 import { useAlert } from '../../../contexts/AlertContext';
+import '../../jobEstimation/JobEstimation.css'; // For gold-shimmer animation
 
 // Import the new custom hooks
 import { useOrderDetails } from './hooks/useOrderDetails';
@@ -1197,6 +1198,7 @@ export const OrderDetailsPage: React.FC = () => {
                   taxName={orderData.order.tax_name}
                   cash={orderData.order.cash}
                   estimateId={orderData.order.estimate_id}
+                  highStandards={!!orderData.order.high_standards}
                   onPartsChange={handlePartsChange}
                 />
               </div>
