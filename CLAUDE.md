@@ -1,3 +1,11 @@
+<GitHubActionsInstructions>
+  <WhenRunningAsGitHubAction>
+    When running as a GitHub Action (triggered by issues or comments):
+    - Always create a pull request with your changes
+    - Always tag @JonBeak in your responses so they get notified
+  </WhenRunningAsGitHubAction>
+</GitHubActionsInstructions>
+
 <SignHouseInstructions>
   <PrimaryDirective>
     We're building a production sign manufacturing system together.
