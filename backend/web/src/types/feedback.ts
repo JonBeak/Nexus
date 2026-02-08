@@ -31,6 +31,12 @@ export interface FeedbackRequest {
   updated_at: Date;
   resolved_at: Date | null;
   closed_at: Date | null;
+  // GitHub integration fields
+  github_issue_number: number | null;
+  github_pr_number: number | null;
+  github_pr_url: string | null;
+  github_branch: string | null;
+  pipeline_status: 'open' | 'claude_working' | 'pr_ready' | 'merged' | 'closed' | null;
   // Joined fields
   submitter_first_name?: string;
   submitter_last_name?: string;

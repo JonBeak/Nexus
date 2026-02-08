@@ -58,6 +58,7 @@ import materialRequirementsRoutes from './routes/materialRequirements';  // Mate
 import supplierOrdersRoutes from './routes/supplierOrders';  // Supplier Orders management (Feb 2, 2026)
 import inventoryRoutes from './routes/inventory';  // Inventory management (Feb 2, 2026)
 import pricingManagementRoutes from './routes/pricingManagement';  // Pricing Management UI (Feb 2026)
+import githubIntegrationRoutes from './routes/githubIntegration';  // GitHub/Claude Code integration (Feb 8, 2026)
 
 // QuickBooks utilities for startup
 import { quickbooksOAuthRepository } from './repositories/quickbooksOAuthRepository';
@@ -176,6 +177,7 @@ app.use('/api/material-requirements', materialRequirementsRoutes);  // Material 
 app.use('/api/supplier-orders', supplierOrdersRoutes);  // Supplier Orders management (Feb 2, 2026)
 app.use('/api/inventory', inventoryRoutes);  // Inventory management (Feb 2, 2026)
 app.use('/api/pricing-management', pricingManagementRoutes);  // Pricing Management UI (Feb 2026)
+app.use('/api/github-integration', githubIntegrationRoutes);  // GitHub/Claude Code integration (Feb 8, 2026)
 
 // =============================================
 // STATIC FILE SERVING (Phase 1.5.g)
