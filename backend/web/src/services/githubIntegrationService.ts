@@ -183,8 +183,12 @@ export class GitHubIntegrationService {
 
       const body = triggerClaude ? `@claude ${comment}` : comment;
 
+      // Post on PR if available (Claude edits PR code), otherwise on issue
+      // GitHub API treats PRs as issues for comments, so /issues/{number}/comments works for both
+      const targetNumber = ghStatus.github_pr_number || ghStatus.github_issue_number;
+
       const response = await fetch(
-        `https://api.github.com/repos/${config.owner}/${config.repo}/issues/${ghStatus.github_issue_number}/comments`,
+        `https://api.github.com/repos/${config.owner}/${config.repo}/issues/${targetNumber}/comments`,
         {
           method: 'POST',
           headers: {

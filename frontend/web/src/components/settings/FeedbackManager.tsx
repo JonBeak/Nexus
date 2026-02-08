@@ -8,7 +8,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   RefreshCw, ChevronLeft, ChevronRight, AlertCircle, Loader2,
-  MessageSquare, Clock, User, Image
+  MessageSquare, Clock, User, Image, Bot
 } from 'lucide-react';
 import {
   feedbackApi,
@@ -214,6 +214,9 @@ export const FeedbackManager: React.FC = () => {
                   )}
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Status</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Priority</th>
+                  {isManager && (
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Pipeline</th>
+                  )}
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Date</th>
                   <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider w-16"></th>
                 </tr>
@@ -254,6 +257,23 @@ export const FeedbackManager: React.FC = () => {
                     <td className="px-4 py-3">
                       {getPriorityBadge(feedback.priority)}
                     </td>
+                    {isManager && (
+                      <td className="px-4 py-3">
+                        {feedback.pipeline_status ? (
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 w-fit ${
+                            feedback.pipeline_status === 'claude_working' ? 'bg-violet-100 text-violet-800' :
+                            feedback.pipeline_status === 'pr_ready' ? 'bg-cyan-100 text-cyan-800' :
+                            feedback.pipeline_status === 'merged' ? 'bg-green-100 text-green-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            <Bot className="w-3 h-3" />
+                            {feedback.pipeline_status === 'claude_working' ? 'Working' :
+                             feedback.pipeline_status === 'pr_ready' ? 'PR' :
+                             feedback.pipeline_status === 'merged' ? 'Merged' : 'Closed'}
+                          </span>
+                        ) : null}
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
                         <Clock className="w-4 h-4 text-gray-400" />

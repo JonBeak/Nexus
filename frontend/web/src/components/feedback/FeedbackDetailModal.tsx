@@ -7,8 +7,8 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  X, Send, Loader2, Clock, User, AlertCircle, CheckCircle,
-  MessageSquare, Eye, EyeOff, ExternalLink
+  X, Send, Loader2, Clock, User, AlertCircle,
+  MessageSquare, EyeOff, ExternalLink
 } from 'lucide-react';
 import {
   feedbackApi,
@@ -20,6 +20,7 @@ import {
 import { PAGE_STYLES } from '../../constants/moduleColors';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDateTimeWithYear } from '../../utils/dateUtils';
+import { ClaudeIntegrationPanel, getPipelineBadge } from './ClaudeIntegrationPanel';
 
 interface Props {
   feedbackId: number;
@@ -101,7 +102,6 @@ export const FeedbackDetailModal: React.FC<Props> = ({
       setScreenshot(screenshotData);
     } catch (err) {
       console.error('Error loading screenshot:', err);
-      // Don't show error - screenshot is optional
     } finally {
       setLoadingScreenshot(false);
     }
@@ -169,6 +169,11 @@ export const FeedbackDetailModal: React.FC<Props> = ({
     ) : null;
   };
 
+  const handleClaudeUpdate = () => {
+    loadFeedback();
+    onUpdate?.();
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -228,6 +233,7 @@ export const FeedbackDetailModal: React.FC<Props> = ({
                     </div>
                     {getStatusBadge(feedback.status)}
                     {getPriorityBadge(feedback.priority)}
+                    {getPipelineBadge(feedback.pipeline_status)}
                   </div>
                 </div>
 
@@ -291,6 +297,16 @@ export const FeedbackDetailModal: React.FC<Props> = ({
                   </div>
                 )}
 
+                {/* Claude Code Integration (Manager only) */}
+                {isManager && (
+                  <ClaudeIntegrationPanel
+                    feedback={feedback}
+                    feedbackId={feedbackId}
+                    onUpdate={handleClaudeUpdate}
+                    onError={(msg) => setError(msg)}
+                  />
+                )}
+
                 {/* Screenshot Preview */}
                 {(feedback.screenshot_drive_id || loadingScreenshot) && (
                   <div>
@@ -306,7 +322,6 @@ export const FeedbackDetailModal: React.FC<Props> = ({
                         alt="Screenshot"
                         className="max-w-full rounded-lg border border-gray-200 cursor-pointer hover:opacity-90"
                         onClick={() => {
-                          // Open in new tab for full view
                           const win = window.open();
                           if (win) {
                             win.document.write(`<img src="data:${screenshot.mimeType};base64,${screenshot.data}" />`);

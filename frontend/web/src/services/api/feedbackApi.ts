@@ -31,6 +31,12 @@ export interface FeedbackRequest {
   closed_at?: string;
   submitter_first_name?: string;
   submitter_last_name?: string;
+  // GitHub/Claude Code integration fields
+  github_issue_number?: number | null;
+  github_pr_number?: number | null;
+  github_pr_url?: string | null;
+  github_branch?: string | null;
+  pipeline_status?: string | null;
 }
 
 export interface FeedbackResponse {

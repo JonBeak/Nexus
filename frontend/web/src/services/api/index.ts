@@ -178,6 +178,15 @@ export type {
   FeedbackDetailResponse
 } from './feedbackApi';
 
+// GitHub/Claude Code Integration (Feb 2026)
+export { githubIntegrationApi } from './githubIntegrationApi';
+export type {
+  PipelineStatus,
+  GitHubPipelineInfo,
+  AssignToClaudeResult,
+  RateLimitInfo
+} from './githubIntegrationApi';
+
 // File Browser (Owner-only, Jan 2026)
 export { fileBrowserApi } from './fileBrowserApi';
 export type {

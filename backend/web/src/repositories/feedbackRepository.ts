@@ -103,6 +103,7 @@ export class FeedbackRepository {
       `SELECT fr.feedback_id, fr.submitted_by, fr.title, fr.description, fr.status, fr.priority,
               fr.screenshot_drive_id, fr.screenshot_filename, fr.screenshot_mime_type, fr.page_url,
               fr.created_at, fr.updated_at, fr.resolved_at, fr.closed_at,
+              fr.github_issue_number, fr.github_pr_number, fr.github_pr_url, fr.github_branch, fr.pipeline_status,
               u.first_name as submitter_first_name, u.last_name as submitter_last_name
        FROM feedback_requests fr
        LEFT JOIN users u ON fr.submitted_by = u.user_id
