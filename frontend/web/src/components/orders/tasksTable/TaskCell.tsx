@@ -40,7 +40,7 @@ export const TaskCell: React.FC<TaskCellProps> = ({ task, onToggle, disabled = f
         onClick={handleClick}
         title={task.notes || task.taskName}
         data-task-cell
-        style={{ paddingTop: hasNote ? '4px' : '4px', paddingBottom: hasNote ? '2px' : '4px' }}
+        style={{ paddingTop: hasNote ? '4px' : '4px', paddingBottom: hasNote ? '2px' : '4px', touchAction: 'manipulation' }}
       >
         <div className="flex flex-col items-center">
           <div className="w-5 h-5 rounded border-2 border-emerald-500 bg-emerald-500 flex items-center justify-center flex-shrink-0">
@@ -66,7 +66,7 @@ export const TaskCell: React.FC<TaskCellProps> = ({ task, onToggle, disabled = f
       onClick={handleClick}
       title={task.notes || task.taskName}
       data-task-cell
-      style={{ paddingTop: hasNote ? '4px' : '4px', paddingBottom: hasNote ? '2px' : '4px' }}
+      style={{ paddingTop: hasNote ? '4px' : '4px', paddingBottom: hasNote ? '2px' : '4px', touchAction: 'manipulation' }}
     >
       <div className="flex flex-col items-center">
         <div className={`w-5 h-5 rounded border-2 ${PAGE_STYLES.panel.border} ${PAGE_STYLES.panel.background} flex-shrink-0`} />
