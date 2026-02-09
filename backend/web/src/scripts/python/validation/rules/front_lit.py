@@ -47,9 +47,11 @@ def generate_letter_analysis_issues(
     return_layer: str = 'return'
 ) -> List[Dict[str, Any]]:
     """
-    Generate validation issues from letter analysis results.
-    Attaches issues directly to letter.issues and analysis.issues as it generates them.
+    Generate spec-specific validation issues from letter analysis results.
+    Attaches issues directly to letter.issues as it generates them.
     Only checks hole requirements for the return layer (trim letters have no holes by design).
+
+    Note: Orphan hole errors are handled in __init__.py (applies to all file types).
 
     Args:
         analysis: LetterAnalysisResult (holes should already be classified)
@@ -59,22 +61,6 @@ def generate_letter_analysis_issues(
         List of issue dicts with rule, severity, message, details
     """
     all_issues = []
-
-    # Orphan holes are errors — attach to analysis.issues
-    for hole in analysis.orphan_holes:
-        issue = {
-            'rule': 'orphan_hole',
-            'severity': 'error',
-            'message': f'Hole {hole.path_id} ({hole.hole_type}, {hole.diameter_real_mm:.2f}mm) is outside all letters',
-            'path_id': hole.path_id,
-            'details': {
-                'hole_type': hole.hole_type,
-                'diameter_mm': hole.diameter_mm,
-                'center': hole.center
-            }
-        }
-        all_issues.append(issue)
-        analysis.issues.append(issue)
 
     # Check each letter for required holes (return layer only)
     for letter in analysis.letter_groups:

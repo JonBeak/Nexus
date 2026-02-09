@@ -181,7 +181,23 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
             if standard_sizes:
                 _classify_holes_from_standards(letter_analysis, standard_sizes)
 
-            # 3. Per-letter issues (attaches to letter.issues + analysis.issues)
+            # 3a. Orphan hole errors — always checked (holes outside all letters are always wrong)
+            for hole in letter_analysis.orphan_holes:
+                issue = ValidationIssue(
+                    rule='orphan_hole',
+                    severity='error',
+                    message=f'Hole {hole.path_id} ({hole.hole_type}, {hole.diameter_real_mm:.2f}mm) is outside all letters',
+                    path_id=hole.path_id,
+                    details={
+                        'hole_type': hole.hole_type,
+                        'diameter_mm': hole.diameter_mm,
+                        'center': hole.center
+                    }
+                )
+                all_issues.append(issue)
+                letter_analysis.issues.append(issue.to_dict())
+
+            # 3b. Per-letter spec-specific issues (wire holes, mounting holes, etc.)
             if 'front_lit_structure' in rules:
                 return_layer = rules.get('front_lit_structure', {}).get('return_layer', 'return')
                 analysis_issues = generate_letter_analysis_issues(letter_analysis, return_layer)
