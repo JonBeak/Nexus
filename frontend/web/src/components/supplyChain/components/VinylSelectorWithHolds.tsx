@@ -219,7 +219,7 @@ export const VinylSelectorWithHolds: React.FC<VinylSelectorWithHoldsProps> = ({
                     <div className="flex items-center justify-between">
                       <span className="font-medium">#{item.id}</span>
                       <span className="text-gray-500">
-                        {item.width}" × {item.length_yards}yd
+                        {item.width}" × {item.length_yards}yd ({Math.round(item.length_yards * 36)}")
                       </span>
                     </div>
                     {item.location && (
@@ -375,7 +375,7 @@ const VinylItemCard: React.FC<VinylItemCardProps> = ({ item, isSelected, onSelec
             <div className="flex items-center gap-1">
               <span className="font-medium">{item.width}"</span>
               <span>×</span>
-              <span className="font-medium text-purple-600">{item.length_yards} yds</span>
+              <span className="font-medium text-purple-600">{item.length_yards} yds ({Math.round(item.length_yards * 36)}")</span>
             </div>
             {item.location && (
               <div className="flex items-center gap-1">

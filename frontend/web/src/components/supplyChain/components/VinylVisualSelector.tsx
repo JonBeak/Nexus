@@ -223,7 +223,7 @@ export const VinylVisualSelector: React.FC<VinylVisualSelectorProps> = ({
         >
           <div className="font-medium">#{hoveredItem.id}</div>
           <div>
-            {hoveredItem.width}" × {hoveredItem.length_yards} yds
+            {hoveredItem.width}" × {hoveredItem.length_yards} yds ({Math.round(hoveredItem.length_yards * 36)}")
           </div>
           <div className="text-gray-300">
             {hoveredItem.brand} {hoveredItem.series}
