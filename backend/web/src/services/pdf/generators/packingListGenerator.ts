@@ -159,8 +159,8 @@ export async function generatePackingList(
         // Get specs_qty from specifications (using shared utility)
         const specsQty = getSpecsQuantity(part);
 
-        // Part header - use specs_display_name instead of product_type
-        const displayName = part.specs_display_name || part.product_type;
+        // Part header - use specs_display_name only (no QB item fallback)
+        const displayName = part.specs_display_name || '';
 
         // Render Sign Type box (and Scope box if scope exists)
         partY = renderSignTypeBox(doc, displayName, part.part_scope || null, partX, partY, partColumnWidth);
@@ -181,7 +181,7 @@ export async function generatePackingList(
         partY += separatorPadding + 3;
 
         // Get packing items using combined specifications from parent + sub-items
-        const productTypeForPacking = part.specs_display_name || part.product_type;
+        const productTypeForPacking = part.specs_display_name || '';
 
         // Combine specifications from parent + sub-items (same as Master Form)
         const allParts = [part, ...column.subItems];
