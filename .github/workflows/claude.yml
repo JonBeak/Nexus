@@ -38,6 +38,6 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: |
             --model claude-opus-4-6
-            --max-turns 15
+            --max-turns 100
             --append-system-prompt "Always @mention @JonBeak in every GitHub comment you post so they receive a notification. Always create a pull request with your changes using the create_pull_request tool."
             --allowedTools "mcp__github__create_pull_request"
