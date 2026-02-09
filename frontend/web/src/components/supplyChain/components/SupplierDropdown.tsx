@@ -179,18 +179,22 @@ export const SupplierDropdown: React.FC<SupplierDropdownProps> = ({
   // Filter term is the input value when dropdown is open
   const searchTerm = isOpen ? inputValue : '';
 
-  // Filter suppliers and special options based on search term
-  const filteredSuppliers = suppliers.filter(s =>
-    s.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter suppliers and special options based on search term (each word matched independently)
+  const searchWords = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
+
+  const filteredSuppliers = suppliers.filter(s => {
+    if (searchWords.length === 0) return true;
+    const name = s.name.toLowerCase();
+    return searchWords.every(w => name.includes(w));
+  });
 
   const filteredSpecialOptions = useMemo(() => {
     if (!searchTerm) return SPECIAL_OPTIONS;
-    const term = searchTerm.toLowerCase();
-    return SPECIAL_OPTIONS.filter(o =>
-      o.name.toLowerCase().includes(term) ||
-      o.description.toLowerCase().includes(term)
-    );
+    const words = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
+    return SPECIAL_OPTIONS.filter(o => {
+      const text = `${o.name} ${o.description}`.toLowerCase();
+      return words.every(w => text.includes(w));
+    });
   }, [searchTerm]);
 
   const handleSelect = useCallback((supplierId: number | null) => {

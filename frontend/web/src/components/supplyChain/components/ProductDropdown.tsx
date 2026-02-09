@@ -262,14 +262,14 @@ export const ProductDropdown: React.FC<ProductDropdownProps> = ({
   // Group supplier products by supplier_name
   const groupedSupplierProducts = useMemo(() => {
     const groups: Record<string, SupplierProduct[]> = {};
-    const term = searchTerm.toLowerCase();
+    const words = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
 
     supplierProducts
       .filter(p => {
-        // Existing search filter
+        // Search filter - each word must match in name or supplier
         const name = getSupplierDisplayName(p).toLowerCase();
         const supplier = (p.supplier_name || '').toLowerCase();
-        const matchesSearch = name.includes(term) || supplier.includes(term);
+        const matchesSearch = words.length === 0 || words.every(w => name.includes(w) || supplier.includes(w));
 
         // Archetype filter — when archetypeId is set, only show products for that archetype
         const matchesArchetype = !archetypeId || !p.archetype_id || p.archetype_id === archetypeId;
@@ -304,10 +304,14 @@ export const ProductDropdown: React.FC<ProductDropdownProps> = ({
   // Group vinyl products by brand/series
   const groupedVinylProducts = useMemo(() => {
     const groups: Record<string, VinylProduct[]> = {};
-    const term = searchTerm.toLowerCase();
+    const words = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
 
     vinylProducts
-      .filter(vp => getVinylDisplayName(vp).toLowerCase().includes(term))
+      .filter(vp => {
+        if (words.length === 0) return true;
+        const name = getVinylDisplayName(vp).toLowerCase();
+        return words.every(w => name.includes(w));
+      })
       .forEach(product => {
         const brandKey = product.brand || product.series || 'Other';
         if (!groups[brandKey]) groups[brandKey] = [];

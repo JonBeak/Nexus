@@ -74,13 +74,11 @@ export const GeneralInventorySelectorModal: React.FC<GeneralInventorySelectorMod
     }
 
     if (searchFilter) {
-      const search = searchFilter.toLowerCase();
-      filtered = filtered.filter(
-        (p) =>
-          p.product_name?.toLowerCase().includes(search) ||
-          p.sku?.toLowerCase().includes(search) ||
-          p.supplier_name?.toLowerCase().includes(search)
-      );
+      const words = searchFilter.toLowerCase().split(/\s+/).filter(Boolean);
+      filtered = filtered.filter((p) => {
+        const text = `${p.product_name || ''} ${p.sku || ''} ${p.supplier_name || ''}`.toLowerCase();
+        return words.every(w => text.includes(w));
+      });
     }
 
     return filtered;

@@ -171,11 +171,16 @@ export const ProductTypeDropdown: React.FC<ProductTypeDropdownProps> = ({
   // Group archetypes by category_name
   const groupedArchetypes = useMemo(() => {
     const groups: Record<string, ProductArchetype[]> = {};
-    const term = searchTerm.toLowerCase();
+    const words = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
 
     archetypes
       .filter(a => a.archetype_id !== ARCHETYPE_VINYL && a.archetype_id !== ARCHETYPE_DIGITAL_PRINT)
-      .filter(a => a.name.toLowerCase().includes(term) || a.category_name.toLowerCase().includes(term))
+      .filter(a => {
+        if (words.length === 0) return true;
+        const name = a.name.toLowerCase();
+        const category = a.category_name.toLowerCase();
+        return words.every(w => name.includes(w) || category.includes(w));
+      })
       .forEach(archetype => {
         const categoryKey = archetype.category_name;
         if (!groups[categoryKey]) {
@@ -190,13 +195,14 @@ export const ProductTypeDropdown: React.FC<ProductTypeDropdownProps> = ({
   // Check if special options match search term
   const showVinylOption = useMemo(() => {
     if (!searchTerm) return true;
-    return 'vinyl'.includes(searchTerm.toLowerCase());
+    const words = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
+    return words.every(w => 'vinyl'.includes(w));
   }, [searchTerm]);
 
   const showDigitalPrintOption = useMemo(() => {
     if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
-    return 'digital print'.includes(term) || 'digital'.includes(term) || 'print'.includes(term);
+    const words = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
+    return words.every(w => 'digital print'.includes(w));
   }, [searchTerm]);
 
   const handleSelect = useCallback((archetypeId: number | null) => {
