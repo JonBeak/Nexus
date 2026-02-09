@@ -109,6 +109,7 @@ def generate_letter_analysis_issues(
                 'message': f'Hole {hole.path_id} in letter {letter.letter_id} has unusual diameter {hole.diameter_real_mm:.2f}mm',
                 'path_id': hole.path_id,
                 'details': {
+                    'layer': letter.layer_name,
                     'letter_id': letter.letter_id,
                     'diameter_mm': hole.diameter_mm,
                     'diameter_real_mm': hole.diameter_real_mm,

@@ -145,9 +145,7 @@ export const LayerSubGroup: React.FC<{
       >
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-gray-700">{layer}</span>
-          <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
-            severity === 'error' ? 'bg-red-200 text-red-800' : 'bg-yellow-200 text-yellow-800'
-          }`}>
+          <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${severityBadgeColor(severity)}`}>
             {issues.length}
           </span>
         </div>
@@ -166,6 +164,28 @@ export const LayerSubGroup: React.FC<{
       )}
     </div>
   );
+};
+
+// Friendly labels for rule identifiers
+const RULE_LABELS: Record<string, string> = {
+  unknown_hole_size: 'Unusual Hole Sizes',
+  front_lit_mounting_holes: 'Mounting Hole Requirements',
+  front_lit_trim_count: 'Trim/Return Count Mismatch',
+  front_lit_trim_offset: 'Trim Offset',
+  letter_no_wire_hole: 'Missing Wire Holes',
+  letter_multiple_wire_holes: 'Multiple Wire Holes',
+};
+
+const severityLabel = (severity: string, count: number): string => {
+  if (severity === 'error') return count === 1 ? 'error' : 'errors';
+  if (severity === 'info') return count === 1 ? 'notice' : 'notices';
+  return count === 1 ? 'warning' : 'warnings';
+};
+
+const severityBadgeColor = (severity: string): string => {
+  if (severity === 'error') return 'bg-red-200 text-red-800';
+  if (severity === 'info') return 'bg-blue-200 text-blue-800';
+  return 'bg-yellow-200 text-yellow-800';
 };
 
 export const IssueGroup: React.FC<{
@@ -196,6 +216,8 @@ export const IssueGroup: React.FC<{
       }, {})
     : null;
 
+  const displayLabel = RULE_LABELS[rule] || rule;
+
   return (
     <div className={`border rounded-lg overflow-hidden ${severityColors[severity] || 'border-gray-200'}`}>
       <div
@@ -205,11 +227,10 @@ export const IssueGroup: React.FC<{
         <div className="flex items-center gap-2">
           {severity === 'error' && <XCircle className="w-4 h-4 text-red-500" />}
           {severity === 'warning' && <AlertTriangle className="w-4 h-4 text-yellow-500" />}
-          <span className="text-sm font-medium text-gray-700">{rule}</span>
-          <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
-            severity === 'error' ? 'bg-red-200 text-red-800' : 'bg-yellow-200 text-yellow-800'
-          }`}>
-            {issues.length} {severity === 'error' ? 'errors' : 'warnings'}
+          {severity === 'info' && <Info className="w-4 h-4 text-blue-500" />}
+          <span className="text-sm font-medium text-gray-700">{displayLabel}</span>
+          <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${severityBadgeColor(severity)}`}>
+            {issues.length} {severityLabel(severity, issues.length)}
           </span>
         </div>
         {expanded ? (

@@ -35,8 +35,9 @@ const FileCard: React.FC<{
   const fileType = validationResult?.file_type;
 
   // Separate info messages (summary) from actual issues (errors/warnings)
-  const issues = allIssues.filter(i => i.severity !== 'info');
-  const infoMessages = allIssues.filter(i => i.severity === 'info');
+  // unknown_hole_size issues are info severity but should display grouped, not as flat badges
+  const issues = allIssues.filter(i => i.severity !== 'info' || i.rule === 'unknown_hole_size');
+  const infoMessages = allIssues.filter(i => i.severity === 'info' && i.rule !== 'unknown_hole_size');
   const hasIssues = issues.length > 0;
   const hasLetterAnalysis = letterAnalysis && Array.isArray(letterAnalysis.letters) && letterAnalysis.letters.length > 0;
   const hasSummary = infoMessages.length > 0;
@@ -119,7 +120,7 @@ const FileCard: React.FC<{
               ))}
             </div>
           )}
-          {/* Issues (errors/warnings only) — grouped by rule, errors first */}
+          {/* Issues — grouped by rule, errors first, then warnings, then info */}
           {hasIssues && (() => {
             const grouped = issues.reduce<Record<string, ValidationIssue[]>>((acc, issue) => {
               if (!acc[issue.rule]) acc[issue.rule] = [];
@@ -127,10 +128,9 @@ const FileCard: React.FC<{
               return acc;
             }, {});
 
+            const severityOrder: Record<string, number> = { error: 0, warning: 1, info: 2 };
             const sortedEntries = Object.entries(grouped).sort(([, a], [, b]) => {
-              const aIsError = a[0].severity === 'error' ? 0 : 1;
-              const bIsError = b[0].severity === 'error' ? 0 : 1;
-              return aIsError - bIsError;
+              return (severityOrder[a[0].severity] ?? 3) - (severityOrder[b[0].severity] ?? 3);
             });
 
             return (
