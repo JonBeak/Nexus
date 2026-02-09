@@ -35,6 +35,7 @@ Integration with letter_analysis.py:
 from typing import List, Dict, Optional, Any
 
 from ..core import PathInfo, ValidationIssue, LetterAnalysisResult
+from ..geometry import polygon_distance, buffer_polygon_with_mitre
 from .legacy_analysis import (
     analyze_letters_in_layer,
     match_trim_to_return,
@@ -119,6 +120,98 @@ def generate_letter_analysis_issues(
             letter.issues.append(issue)
 
     return all_issues
+
+
+def check_trim_cap_spacing(
+    letter_analysis: LetterAnalysisResult,
+    rules: Dict,
+) -> List[ValidationIssue]:
+    """
+    Validate that trim cap letters maintain at least the required clearance
+    between each other, using polygon shapes (not bounding boxes) with
+    simulated mitered corners.
+
+    Algorithm:
+    1. Get return letter polygons from letter_analysis
+    2. Buffer each outward by trim_offset_max with mitre join to simulate
+       physical trim cap shape including mitered corners
+    3. Pairwise distance check between buffered polygons
+    4. Convert distance to inches, compare against min_trim_spacing_inches
+
+    Args:
+        letter_analysis: Pre-computed LetterAnalysisResult with polygon data
+        rules: Dict with front_lit_structure config values
+
+    Returns:
+        List of ValidationIssue objects for spacing violations
+    """
+    issues = []
+
+    return_layer = rules.get('return_layer', 'return')
+    file_scale = rules.get('file_scale', 0.1)
+    trim_offset_max_mm = rules.get('trim_offset_max_mm', 2.5)
+    miter_factor = rules.get('miter_factor', 4.0)
+    min_spacing_inches = rules.get('min_trim_spacing_inches', 0.15)
+
+    if letter_analysis and letter_analysis.detected_scale:
+        file_scale = letter_analysis.detected_scale
+
+    # Collect return layer letters that have polygon data
+    return_letters_with_poly = []
+    for lg in letter_analysis.letter_groups:
+        if lg.layer_name.lower() != return_layer.lower():
+            continue
+        if lg.main_path and lg.main_path.polygon is not None:
+            return_letters_with_poly.append(lg)
+
+    if len(return_letters_with_poly) < 2:
+        # Need at least 2 letters to check spacing
+        return issues
+
+    # Convert trim_offset_max from real mm to file units
+    # mm -> inches -> points -> file-scale points
+    points_per_real_inch = 72 * file_scale
+    trim_buffer_file_units = trim_offset_max_mm * points_per_real_inch / 25.4
+
+    # Buffer each return letter polygon to simulate mitered trim cap shape
+    buffered = []
+    for lg in return_letters_with_poly:
+        sim = buffer_polygon_with_mitre(
+            lg.main_path.polygon, trim_buffer_file_units, mitre_limit=miter_factor
+        )
+        buffered.append((lg, sim))
+
+    # Pairwise distance check
+    for i in range(len(buffered)):
+        lg_a, poly_a = buffered[i]
+        if poly_a is None:
+            continue
+        for j in range(i + 1, len(buffered)):
+            lg_b, poly_b = buffered[j]
+            if poly_b is None:
+                continue
+
+            dist = polygon_distance(poly_a, poly_b)
+            dist_inches = dist / points_per_real_inch
+
+            if dist_inches < min_spacing_inches:
+                issues.append(ValidationIssue(
+                    rule='front_lit_trim_spacing',
+                    severity='error',
+                    message=(
+                        f'Trim caps for {lg_a.letter_id} and {lg_b.letter_id} '
+                        f'are {dist_inches:.3f}" apart (min {min_spacing_inches}")'
+                    ),
+                    details={
+                        'letter_a': lg_a.letter_id,
+                        'letter_b': lg_b.letter_id,
+                        'distance_inches': round(dist_inches, 4),
+                        'required_inches': min_spacing_inches,
+                        'distance_file_units': round(dist, 2),
+                    }
+                ))
+
+    return issues
 
 
 def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[ValidationIssue]:
@@ -225,7 +318,17 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
         }
     ))
 
-    if len(trim_letters) != len(return_letters):
+    if len(trim_letters) == 0 and len(return_letters) > 0:
+        issues.append(ValidationIssue(
+            rule='front_lit_trim_missing',
+            severity='error',
+            message=f'Working file must include a {trim_layer} layer with letters',
+            details={
+                'trim_layer': trim_layer,
+                'return_count': len(return_letters),
+            }
+        ))
+    elif len(trim_letters) != len(return_letters):
         issues.append(ValidationIssue(
             rule='front_lit_trim_count',
             severity='error',
@@ -315,5 +418,9 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
                         'miter_factor': miter_factor
                     }
                 ))
+
+    # Rule 5: Trim cap spacing (polygon-based with simulated miters)
+    if letter_analysis and letter_analysis.letter_groups:
+        issues.extend(check_trim_cap_spacing(letter_analysis, rules))
 
     return issues

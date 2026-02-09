@@ -6,8 +6,10 @@ from typing import Tuple, Optional
 
 try:
     from shapely.geometry import Polygon
+    from shapely.geometry import JOIN_STYLE as _JOIN_STYLE
 except ImportError:
     Polygon = None
+    _JOIN_STYLE = None
 
 
 def get_centroid(bbox: Tuple[float, float, float, float]) -> Tuple[float, float]:
@@ -303,3 +305,51 @@ def build_compound_polygon(outer_polygon: Polygon,
     except Exception:
         # If compound construction fails, return original polygon
         return outer_polygon
+
+
+def polygon_distance(poly1: Optional[Polygon], poly2: Optional[Polygon]) -> float:
+    """
+    Minimum distance between two Shapely polygon boundaries.
+
+    Returns:
+        float: Minimum distance between polygon boundaries.
+               Returns float('inf') if either polygon is None.
+    """
+    if poly1 is None or poly2 is None:
+        return float('inf')
+
+    try:
+        return poly1.distance(poly2)
+    except Exception:
+        return float('inf')
+
+
+def buffer_polygon_with_mitre(polygon: Optional[Polygon],
+                              offset: float,
+                              mitre_limit: float = 4.0) -> Optional[Polygon]:
+    """
+    Buffer a Shapely polygon outward using mitre joins.
+
+    Simulates physical mitered trim cap geometry from a return letter polygon.
+    At corners the miter extends further than the perpendicular offset, which
+    is the exact behaviour of real trim cap material at joins.
+
+    Args:
+        polygon: Shapely Polygon to buffer
+        offset: Buffer distance in file units (positive = outward)
+        mitre_limit: Maximum miter extension ratio before bevel (default 4.0)
+
+    Returns:
+        Buffered Shapely Polygon, or None if input is None or operation fails
+    """
+    if polygon is None or Polygon is None or _JOIN_STYLE is None:
+        return None
+
+    try:
+        buffered = polygon.buffer(offset, join_style=_JOIN_STYLE.mitre,
+                                  mitre_limit=mitre_limit)
+        if buffered.is_empty:
+            return None
+        return buffered
+    except Exception:
+        return None
