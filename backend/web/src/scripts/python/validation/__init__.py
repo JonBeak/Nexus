@@ -238,6 +238,11 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
             front_lit_rules = rules['front_lit_structure'].copy()
             if letter_analysis:
                 front_lit_rules['_letter_analysis'] = letter_analysis
+            # Pass standard hole sizes so mounting hole warnings can show expected size
+            analysis_cfg = rules.get('letter_hole_analysis', rules.get('front_lit_structure', {}))
+            std_sizes = analysis_cfg.get('standard_hole_sizes', [])
+            if std_sizes:
+                front_lit_rules['_standard_hole_sizes'] = std_sizes
             all_issues.extend(check_front_lit_structure(paths_info, front_lit_rules))
 
         # Determine overall status

@@ -83,6 +83,54 @@ export const IssueItem: React.FC<{ issue: ValidationIssue; letterAnalysis?: Lett
         const matchedLetter = issue.path_id && letterAnalysis?.letters
           ? letterAnalysis.letters.find(l => l.letter_id === issue.path_id)
           : undefined;
+
+        // Specialized rendering for mounting hole requirements
+        if (issue.rule === 'front_lit_mounting_holes') {
+          const d = issue.details;
+          return (
+            <div className="mt-2 p-2 bg-white rounded flex gap-4">
+              {matchedLetter && (
+                <div className="flex-shrink-0">
+                  <LetterSvgPreview letter={matchedLetter} maxWidth={200} maxHeight={150} showGrid={true} showRuler={false} />
+                </div>
+              )}
+              <div className="flex-1 min-w-0 space-y-2">
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+                  <dt className="font-medium text-gray-500">Required</dt>
+                  <dd className="text-gray-700">{d.required_holes} mounting holes</dd>
+                  <dt className="font-medium text-gray-500">Detected</dt>
+                  <dd className="text-gray-700">{d.actual_holes} mounting holes</dd>
+                  {d.mounting_std_name && (
+                    <>
+                      <dt className="font-medium text-gray-500">Expected size</dt>
+                      <dd className="text-gray-700">{d.mounting_std_name} ({d.mounting_std_diameter_mm}mm)</dd>
+                    </>
+                  )}
+                  <dt className="font-medium text-gray-500">Letter size</dt>
+                  <dd className="text-gray-700">{d.real_perimeter_inches}&quot; perimeter, {d.real_area_sq_inches} sq in</dd>
+                </dl>
+                {d.unknown_hole_count > 0 && (
+                  <div className="border border-orange-200 bg-orange-50 rounded p-2">
+                    <p className="text-xs font-medium text-orange-700 mb-1">
+                      {d.unknown_hole_count} unknown hole{d.unknown_hole_count !== 1 ? 's' : ''} detected
+                    </p>
+                    {d.unknown_holes && (
+                      <ul className="text-xs text-orange-600 space-y-0.5">
+                        {(d.unknown_holes as Array<{ path_id: string; diameter_real_mm: number }>).map(
+                          (h: { path_id: string; diameter_real_mm: number }) => (
+                            <li key={h.path_id}>{h.path_id}: {h.diameter_real_mm}mm diameter</li>
+                          )
+                        )}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        // Default rendering for all other rules
         const detailEntries = Object.entries(issue.details).filter(([key]) => key !== 'path_id' && key !== 'layer');
 
         return (

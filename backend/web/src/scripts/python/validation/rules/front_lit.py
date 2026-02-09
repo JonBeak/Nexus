@@ -275,6 +275,18 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
 
     points_per_real_inch = 72 * file_scale
 
+    # Extract standard mounting hole size from standard_hole_sizes (if available)
+    standard_hole_sizes = rules.get('_standard_hole_sizes', [])
+    mounting_std = next((s for s in standard_hole_sizes if s.get('category') == 'mounting'), None)
+    mounting_std_diameter = mounting_std['diameter_mm'] if mounting_std else None
+    mounting_std_name = mounting_std['name'] if mounting_std else None
+
+    # Build a lookup from letter path_id to LetterGroup for unknown hole details
+    letter_group_lookup = {}
+    if letter_analysis and letter_analysis.letter_groups:
+        for lg in letter_analysis.letter_groups:
+            letter_group_lookup[lg.letter_id] = lg
+
     # Rule 1: Mounting holes (wire holes now handled per-letter in generate_letter_analysis_issues)
     for letter in return_letters:
         real_perimeter_inches = letter.perimeter / points_per_real_inch
@@ -285,20 +297,41 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
         required_holes = max(min_mounting_holes, holes_by_perimeter, holes_by_area)
 
         if letter.mounting_hole_count < required_holes:
+            detail = {
+                'layer': letter.layer,
+                'actual_holes': letter.mounting_hole_count,
+                'required_holes': required_holes,
+                'real_perimeter_inches': round(real_perimeter_inches, 2),
+                'real_area_sq_inches': round(real_area_sq_inches, 2),
+                'holes_by_perimeter': holes_by_perimeter,
+                'holes_by_area': holes_by_area,
+            }
+
+            # Add required mounting hole size from standards
+            if mounting_std_diameter is not None:
+                detail['mounting_std_diameter_mm'] = mounting_std_diameter
+                detail['mounting_std_name'] = mounting_std_name
+
+            # Add unknown hole info from LetterGroup (if available)
+            lg = letter_group_lookup.get(letter.path_id)
+            if lg:
+                unknown = lg.unknown_holes
+                detail['unknown_hole_count'] = len(unknown)
+                if unknown:
+                    detail['unknown_holes'] = [
+                        {
+                            'path_id': h.path_id,
+                            'diameter_real_mm': round(h.diameter_real_mm, 2),
+                        }
+                        for h in unknown
+                    ]
+
             issues.append(ValidationIssue(
                 rule='front_lit_mounting_holes',
                 severity='warning',
                 message=f'Letter {letter.path_id} needs {required_holes} mounting holes, has {letter.mounting_hole_count}',
                 path_id=letter.path_id,
-                details={
-                    'layer': letter.layer,
-                    'actual_holes': letter.mounting_hole_count,
-                    'required_holes': required_holes,
-                    'real_perimeter_inches': round(real_perimeter_inches, 2),
-                    'real_area_sq_inches': round(real_area_sq_inches, 2),
-                    'holes_by_perimeter': holes_by_perimeter,
-                    'holes_by_area': holes_by_area
-                }
+                details=detail,
             ))
 
     # Rule 3: Trim count — use same analysis source as return for consistency
