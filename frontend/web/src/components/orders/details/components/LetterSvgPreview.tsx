@@ -84,7 +84,7 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
 
   // Calculate grid lines
   const gridLines = useMemo(() => {
-    if (!showGrid) return { vertical: [], horizontal: [] };
+    if (!showGrid) return { vertical: [], horizontal: [], strokeScale: 1 };
 
     const { x, y, width, height } = letter.file_bbox;
 
@@ -93,6 +93,10 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
     // If the SVG transform includes scaling, we need the effective ratio instead.
     const ppiX = realWidth > 0 ? width / realWidth : 72 * (letter.detected_scale || 1.0);
     const ppiY = realHeight > 0 ? height / realHeight : 72 * (letter.detected_scale || 1.0);
+
+    // Scale stroke widths proportionally to PPI so gridlines look the same
+    // thickness regardless of 10% vs 100% scale. Reference PPI = 7.2 (10% scale).
+    const strokeScale = Math.max(ppiX, ppiY) / 7.2;
 
     const vertical: { pos: number; isFoot: boolean }[] = [];
     const horizontal: { pos: number; isFoot: boolean }[] = [];
@@ -120,7 +124,7 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
       }
     }
 
-    return { vertical, horizontal };
+    return { vertical, horizontal, strokeScale };
   }, [letter.file_bbox, realWidth, realHeight, letter.detected_scale, showGrid, gridSettings]);
 
   // Fixed visual radius for holes (~2% of viewBox smaller dimension)
@@ -179,7 +183,7 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
                 x2={line.pos}
                 y2={viewBox.y + viewBox.height}
                 stroke={line.isFoot ? gridSettings.footColor : gridSettings.inchColor}
-                strokeWidth={line.isFoot ? 1.5 : 0.5}
+                strokeWidth={(line.isFoot ? 1.5 : 0.5) * gridLines.strokeScale}
               />
             ))}
             {/* Horizontal lines */}
@@ -191,7 +195,7 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
                 x2={viewBox.x + viewBox.width}
                 y2={line.pos}
                 stroke={line.isFoot ? gridSettings.footColor : gridSettings.inchColor}
-                strokeWidth={line.isFoot ? 1.5 : 0.5}
+                strokeWidth={(line.isFoot ? 1.5 : 0.5) * gridLines.strokeScale}
               />
             ))}
           </g>
@@ -203,7 +207,7 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
             d={letter.svg_path_data}
             fill="#D1D5DB"
             stroke="#374151"
-            strokeWidth={1.5}
+            strokeWidth={1.5 * gridLines.strokeScale}
           />
         </g>
 

@@ -81,6 +81,10 @@ const LayerSvgOverview: React.FC<LayerSvgOverviewProps> = ({
     const vertical: { pos: number; isFoot: boolean }[] = [];
     const horizontal: { pos: number; isFoot: boolean }[] = [];
 
+    // Scale stroke widths proportionally to PPI so gridlines look the same
+    // thickness regardless of 10% vs 100% scale. Reference PPI = 7.2 (10% scale).
+    const strokeScale = Math.max(ppiX, ppiY) / 7.2;
+
     const startX = Math.floor(viewBox.x / ppiX) * ppiX;
     for (let px = startX; px <= viewBox.x + viewBox.width; px += ppiX) {
       const idx = Math.round(px / ppiX);
@@ -95,7 +99,7 @@ const LayerSvgOverview: React.FC<LayerSvgOverviewProps> = ({
       if (showInches || isFoot) horizontal.push({ pos: py, isFoot });
     }
 
-    return { vertical, horizontal, inchColor, footColor };
+    return { vertical, horizontal, inchColor, footColor, strokeScale };
   }, [letters, viewBox, realDims]);
 
   // Hole visual radius — 1% of smaller viewBox dimension (smaller than single-letter preview)
@@ -136,7 +140,7 @@ const LayerSvgOverview: React.FC<LayerSvgOverviewProps> = ({
               key={`v-${i}`}
               x1={line.pos} y1={viewBox.y} x2={line.pos} y2={viewBox.y + viewBox.height}
               stroke={line.isFoot ? gridLines.footColor : gridLines.inchColor}
-              strokeWidth={line.isFoot ? 1.5 : 0.5}
+              strokeWidth={(line.isFoot ? 1.5 : 0.5) * (gridLines.strokeScale || 1)}
             />
           ))}
           {gridLines.horizontal.map((line, i) => (
@@ -144,7 +148,7 @@ const LayerSvgOverview: React.FC<LayerSvgOverviewProps> = ({
               key={`h-${i}`}
               x1={viewBox.x} y1={line.pos} x2={viewBox.x + viewBox.width} y2={line.pos}
               stroke={line.isFoot ? gridLines.footColor : gridLines.inchColor}
-              strokeWidth={line.isFoot ? 1.5 : 0.5}
+              strokeWidth={(line.isFoot ? 1.5 : 0.5) * (gridLines.strokeScale || 1)}
             />
           ))}
         </g>
@@ -161,7 +165,7 @@ const LayerSvgOverview: React.FC<LayerSvgOverviewProps> = ({
 
             {/* Main letter path */}
             <g transform={letter.transform || undefined}>
-              <path d={letter.svg_path_data} fill="#D1D5DB" stroke="#374151" strokeWidth={1.5} />
+              <path d={letter.svg_path_data} fill="#D1D5DB" stroke="#374151" strokeWidth={1.5 * (gridLines.strokeScale || 1)} />
             </g>
 
             {/* Counter paths */}
