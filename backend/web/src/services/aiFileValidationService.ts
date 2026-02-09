@@ -67,7 +67,7 @@ export class AiFileValidationService {
    * List AI files in order folder (filesystem only, no database)
    * Checks both primary and secondary paths, aggregates results
    */
-  async listAiFiles(orderNumber: number): Promise<ServiceResult<AiFileInfo[]>> {
+  async listAiFiles(orderNumber: number, options?: { includePostScript?: boolean }): Promise<ServiceResult<AiFileInfo[]>> {
     try {
       const order = await orderFormRepository.getOrderFolderDetails(orderNumber);
       if (!order) {
@@ -96,23 +96,26 @@ export class AiFileValidationService {
 
           for (const file of files) {
             const ext = path.extname(file).toLowerCase();
-            if (ext !== '.ai' && ext !== '.svg') continue;
+            if (ext !== '.ai') continue;
 
             const filePath = path.join(dirPath, file);
             const stats = fs.statSync(filePath);
 
             if (!stats.isFile()) continue;
 
-            // Skip old PostScript-based AI files (AI 8.0 and earlier)
-            // They can't be converted reliably — designers should export SVG instead
+            // Check if this is an old PostScript-based AI file (AI 8.0 and earlier)
             // Modern AI files are PDF-based and start with %PDF
+            let isPostScript = false;
             if (ext === '.ai') {
               try {
                 const fd = fs.openSync(filePath, 'r');
                 const buf = Buffer.alloc(10);
                 fs.readSync(fd, buf, 0, 10, 0);
                 fs.closeSync(fd);
-                if (!buf.toString('ascii').startsWith('%PDF')) continue;
+                if (!buf.toString('ascii').startsWith('%PDF')) {
+                  if (!options?.includePostScript) continue;
+                  isPostScript = true;
+                }
               } catch {
                 continue;
               }
@@ -128,6 +131,7 @@ export class AiFileValidationService {
               size_bytes: stats.size,
               modified_at: stats.mtime,
               location: fileLocation,
+              ...(isPostScript && { is_postscript: true }),
             });
           }
         } catch (error) {
@@ -326,7 +330,7 @@ export class AiFileValidationService {
     return getExpectedFilesComparison(orderNumber, {
       getOrderIdFromNumber: (n) => this.getOrderIdFromNumber(n),
       getOrderSpecsDisplayNames: (id) => this.getOrderSpecsDisplayNames(id),
-      listAiFiles: (n) => this.listAiFiles(n),
+      listAiFiles: (n, opts) => this.listAiFiles(n, opts),
     });
   }
 }

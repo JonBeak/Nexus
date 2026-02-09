@@ -139,7 +139,15 @@ const FileRow: React.FC<{ file: FileComparisonEntry }> = ({ file }) => {
       <td className="px-3 py-2 whitespace-nowrap">
         <div className="flex items-center gap-2">
           <FileType className="w-4 h-4 text-gray-400 flex-shrink-0" />
-          <span className="font-medium text-gray-800 text-sm">{file.filename}</span>
+          <div>
+            <span className="font-medium text-gray-800 text-sm">{file.filename}</span>
+            {file.format_warning && (
+              <div className="flex items-center gap-1 mt-0.5">
+                <AlertTriangle className="w-3 h-3 text-orange-500 flex-shrink-0" />
+                <span className="text-xs text-orange-600">{file.format_warning}</span>
+              </div>
+            )}
+          </div>
         </div>
       </td>
       <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600">

@@ -162,7 +162,7 @@ export class FeedbackController {
       return sendErrorResponse(res, 'Invalid feedback ID', 'VALIDATION_ERROR');
     }
 
-    const { message, is_internal } = req.body;
+    const { message, is_internal, is_claude_message } = req.body;
     if (!message) {
       return sendErrorResponse(res, 'Message is required', 'VALIDATION_ERROR');
     }
@@ -172,7 +172,8 @@ export class FeedbackController {
       userId,
       message,
       is_internal || false,
-      isManager(userRole)
+      isManager(userRole),
+      is_claude_message || false
     );
     handleServiceResult(res, result, { successStatus: 201 });
   }

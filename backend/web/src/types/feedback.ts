@@ -66,6 +66,7 @@ export interface FeedbackResponse {
   responded_by: number;
   message: string;
   is_internal: boolean;
+  is_claude_message: boolean;
   created_at: Date;
   // Joined fields
   responder_first_name?: string;
@@ -103,4 +104,5 @@ export interface FeedbackListResponse {
 export interface FeedbackDetailResponse {
   feedback: FeedbackRequest;
   responses: FeedbackResponse[];
+  claudeMessages?: FeedbackResponse[];
 }

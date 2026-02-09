@@ -222,6 +222,7 @@ const RULE_LABELS: Record<string, string> = {
   front_lit_trim_offset: 'Trim Offset',
   letter_no_wire_hole: 'Missing Wire Holes',
   letter_multiple_wire_holes: 'Multiple Wire Holes',
+  unexpected_mounting_type: 'Unexpected Mounting Type',
 };
 
 const severityLabel = (severity: string, count: number): string => {

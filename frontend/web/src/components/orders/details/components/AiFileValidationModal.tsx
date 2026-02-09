@@ -229,7 +229,7 @@ const AiFileValidationModal: React.FC<AiFileValidationModalProps> = ({
                     {/* File List — Working File first */}
                     <div className="space-y-2">
                       <h3 className="font-medium text-gray-700">
-                        AI Files ({files.length})
+                        Validation Results ({files.length})
                       </h3>
                       {[...files].sort((a, b) => {
                         const aIsWorking = a.file_name.toLowerCase().startsWith('working');

@@ -140,6 +140,7 @@ export interface AiFileInfo {
   size_bytes: number;
   modified_at: Date;
   location: 'primary' | 'secondary';
+  is_postscript?: boolean;
   validation?: AiFileValidationRecord;
 }
 
@@ -241,6 +242,7 @@ export interface FileComparisonEntry {
   status: FileComparisonStatus;
   is_required: boolean;
   matched_rules: string[];  // Which rules generated this expectation
+  format_warning?: string;  // Warning about file format (e.g., PostScript)
 }
 
 // Human-readable validation rule for display in the UI

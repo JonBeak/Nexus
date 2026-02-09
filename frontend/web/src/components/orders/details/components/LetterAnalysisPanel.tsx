@@ -31,7 +31,7 @@ interface LetterAnalysisPanelProps {
   analysis: LetterAnalysisResponse;
 }
 
-const HoleLegend: React.FC = () => (
+export const HoleLegend: React.FC = () => (
   <div className="flex items-center gap-4 text-xs text-gray-500">
     <span className="flex items-center gap-1">
       <Circle className="w-3 h-3 fill-blue-500 text-blue-500" />
@@ -217,7 +217,7 @@ const LetterCard: React.FC<{
   );
 };
 
-const LayerGroup: React.FC<{
+export const LayerGroup: React.FC<{
   layerName: string;
   letters: LetterDetail[];
 }> = ({ layerName, letters }) => {
@@ -330,18 +330,11 @@ const LetterAnalysisPanel: React.FC<LetterAnalysisPanelProps> = ({ analysis }) =
       <OrphanHolesPanel holes={analysis?.orphan_holes || []} />
 
       {/* Layer groups */}
-      {layerEntries.length > 0 ? (
+      {layerEntries.length > 0 && (
         <div className="space-y-2">
           {layerEntries.map(([layerName, layerLetters]) => (
             <LayerGroup key={layerName} layerName={layerName} letters={layerLetters} />
           ))}
-        </div>
-      ) : (
-        <div className="text-center py-6 text-gray-500">
-          <p>No letters detected in this file.</p>
-          <p className="text-sm mt-1">
-            Letters are identified as closed paths that are not contained within other paths.
-          </p>
         </div>
       )}
     </div>

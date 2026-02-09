@@ -206,7 +206,8 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
             # 4. Per-letter issues (attaches to letter.issues + analysis.issues)
             if 'front_lit_structure' in rules:
                 return_layer = rules.get('front_lit_structure', {}).get('return_layer', 'return')
-                analysis_issues = generate_letter_analysis_issues(letter_analysis, return_layer)
+                expected_mounting_names = rules.get('front_lit_structure', {}).get('expected_mounting_names')
+                analysis_issues = generate_letter_analysis_issues(letter_analysis, return_layer, expected_mounting_names)
                 for issue_dict in analysis_issues:
                     all_issues.append(ValidationIssue(
                         rule=issue_dict['rule'],

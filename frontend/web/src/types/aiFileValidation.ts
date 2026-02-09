@@ -212,6 +212,34 @@ export interface LetterDetail {
 }
 
 /**
+ * An unprocessed path (not classified as letter or hole)
+ */
+export interface UnprocessedPath {
+  path_id: string;
+  reason: 'open_path' | 'defs_path' | 'off_layer' | 'unclassified';
+  layer: string;
+  is_compound: boolean;
+  is_closed: boolean;
+  has_polygon: boolean;
+  area: number;
+  contained_by: string | null;
+}
+
+/**
+ * Path accounting summary — how all paths in the file were classified
+ */
+export interface PathAccounting {
+  letters: number;
+  holes_in_letters: number;
+  orphan_holes: number;
+  open_paths: number;
+  defs_paths: number;
+  off_layer: number;
+  unclassified: number;
+  total: number;
+}
+
+/**
  * Complete letter analysis response from the backend
  */
 export interface LetterAnalysisResponse {
@@ -219,6 +247,7 @@ export interface LetterAnalysisResponse {
   orphan_holes: HoleDetail[];
   detected_scale: number;
   issues?: ValidationIssue[];
+  unprocessed_paths?: UnprocessedPath[];
   stats: {
     total_letters: number;
     total_wire_holes: number;
@@ -229,6 +258,7 @@ export interface LetterAnalysisResponse {
     total_paths?: number;
     letters_found?: number;
     circles_found?: number;
+    path_accounting?: PathAccounting;
   };
 }
 
@@ -247,6 +277,7 @@ export interface FileComparisonEntry {
   status: FileComparisonStatus;
   is_required: boolean;
   matched_rules: string[];  // Which rules generated this expectation
+  format_warning?: string;  // Warning about file format (e.g., PostScript)
 }
 
 // Human-readable validation rule for display in the UI

@@ -172,7 +172,12 @@ export class FeedbackService {
       // Get responses (non-managers don't see internal responses)
       const responses = await feedbackRepository.getResponses(feedbackId, isManager);
 
-      return { success: true, data: { feedback, responses } };
+      // Get Claude messages for managers
+      const claudeMessages = isManager
+        ? await feedbackRepository.getClaudeMessages(feedbackId)
+        : undefined;
+
+      return { success: true, data: { feedback, responses, claudeMessages } };
     } catch (error) {
       console.error('Error fetching feedback:', error);
       return { success: false, error: 'Failed to fetch feedback', code: 'DATABASE_ERROR' };
@@ -266,7 +271,8 @@ export class FeedbackService {
     userId: number,
     message: string,
     isInternal: boolean,
-    isManager: boolean
+    isManager: boolean,
+    isClaudeMessage: boolean = false
   ): Promise<ServiceResult<number>> {
     try {
       if (!message?.trim()) {
@@ -292,7 +298,8 @@ export class FeedbackService {
         feedbackId,
         userId,
         message.trim(),
-        isInternal
+        isInternal,
+        isClaudeMessage
       );
 
       return { success: true, data: responseId };

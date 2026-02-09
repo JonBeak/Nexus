@@ -44,6 +44,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const [notesValue, setNotesValue] = useState(task.notes || '');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const notesInputRef = useRef<HTMLInputElement>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   // Sync local state with prop (when parent updates after API response)
   useEffect(() => {
@@ -127,6 +128,25 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     onRemove?.();
   };
 
+  // Touch handlers - bypass iOS Safari's hover-then-click behavior in group containers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const makeTouchEnd = (action: () => void) => (e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    const touch = e.changedTouches[0];
+    const dx = Math.abs(touch.clientX - touchStartRef.current.x);
+    const dy = Math.abs(touch.clientY - touchStartRef.current.y);
+    touchStartRef.current = null;
+    // Only fire for taps (not scrolls) — 10px threshold
+    if (dx < 10 && dy < 10) {
+      e.preventDefault(); // Prevents synthetic click from double-firing
+      action();
+    }
+  };
+
   return (
     <>
       {onRemove && (
@@ -146,24 +166,33 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           {localTask.completed ? (
             <button
               onClick={handleUncomplete}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={makeTouchEnd(handleUncomplete)}
               className="hover:opacity-70 transition-opacity"
               title="Mark as not completed"
+              style={{ touchAction: 'manipulation' }}
             >
               <CheckCircle2 className="w-5 h-5 text-emerald-500" />
             </button>
           ) : isStarted ? (
             <button
               onClick={handleUnstart}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={makeTouchEnd(handleUnstart)}
               className="hover:opacity-70 transition-opacity"
               title={isManager ? 'Manage sessions' : 'Mark as not started'}
+              style={{ touchAction: 'manipulation' }}
             >
               <PlayCircle className="w-5 h-5 text-blue-500" />
             </button>
           ) : (
             <button
               onClick={handleComplete}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={makeTouchEnd(handleComplete)}
               className="hover:opacity-70 transition-opacity"
               title="Mark as completed"
+              style={{ touchAction: 'manipulation' }}
             >
               <div className={`w-5 h-5 rounded-full border-2 ${PAGE_STYLES.panel.border} hover:border-emerald-400`} />
             </button>
@@ -211,8 +240,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           {!localTask.completed && !isStarted && (
             <button
               onClick={handleStart}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={makeTouchEnd(handleStart)}
               className="p-0.5 text-blue-600 hover:bg-blue-100 rounded"
               title={isManager ? 'Manage sessions' : 'Start task'}
+              style={{ touchAction: 'manipulation' }}
             >
               <PlayCircle className="w-5 h-5" />
             </button>
@@ -222,8 +254,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           {!localTask.completed && isStarted && (
             <button
               onClick={handleComplete}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={makeTouchEnd(handleComplete)}
               className="p-0.5 text-emerald-600 hover:bg-emerald-100 rounded"
               title="Mark complete"
+              style={{ touchAction: 'manipulation' }}
             >
               <CheckCircle2 className="w-5 h-5" />
             </button>

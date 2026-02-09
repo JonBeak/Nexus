@@ -45,7 +45,8 @@ from .legacy_analysis import (
 
 def generate_letter_analysis_issues(
     analysis: LetterAnalysisResult,
-    return_layer: str = 'return'
+    return_layer: str = 'return',
+    expected_mounting_names: Optional[List[str]] = None
 ) -> List[Dict[str, Any]]:
     """
     Generate validation issues from letter analysis results.
@@ -55,6 +56,8 @@ def generate_letter_analysis_issues(
     Args:
         analysis: LetterAnalysisResult (holes should already be classified)
         return_layer: Layer name for return paths (default 'return')
+        expected_mounting_names: List of expected mounting type names (e.g. ['Regular Mounting']).
+                                 If set, warns when other mounting types are found.
 
     Returns:
         List of issue dicts with rule, severity, message, details
@@ -101,6 +104,30 @@ def generate_letter_analysis_issues(
             }
             all_issues.append(issue)
             letter.issues.append(issue)
+
+        # Unexpected mounting type is a warning
+        if expected_mounting_names and letter.mounting_holes:
+            unexpected: Dict[str, int] = {}
+            for hole in letter.mounting_holes:
+                if hole.matched_name and hole.matched_name not in expected_mounting_names:
+                    unexpected[hole.matched_name] = unexpected.get(hole.matched_name, 0) + 1
+            for mtype, count in unexpected.items():
+                expected_str = ', '.join(expected_mounting_names)
+                issue = {
+                    'rule': 'unexpected_mounting_type',
+                    'severity': 'warning',
+                    'message': f'Letter {letter.letter_id} has {count}x {mtype} hole{"s" if count > 1 else ""} (expected {expected_str})',
+                    'path_id': letter.letter_id,
+                    'details': {
+                        'layer': letter.layer_name,
+                        'letter_id': letter.letter_id,
+                        'unexpected_type': mtype,
+                        'count': count,
+                        'expected_types': expected_mounting_names,
+                    }
+                }
+                all_issues.append(issue)
+                letter.issues.append(issue)
 
         # Unknown holes are info
         for hole in letter.unknown_holes:

@@ -19,7 +19,7 @@ import {
   LetterAnalysisResponse,
 } from '../../../../../types/aiFileValidation';
 import { StatusIcon, StatusBadge, IssueGroup } from './IssueDisplay';
-import LetterAnalysisPanel from '../LetterAnalysisPanel';
+import FileStructurePanel from './FileStructurePanel';
 
 const FileCard: React.FC<{
   file: AiFileInfo;
@@ -39,9 +39,10 @@ const FileCard: React.FC<{
   const issues = allIssues.filter(i => i.severity !== 'info' || i.rule === 'unknown_hole_size');
   const infoMessages = allIssues.filter(i => i.severity === 'info' && i.rule !== 'unknown_hole_size');
   const hasIssues = issues.length > 0;
-  const hasLetterAnalysis = letterAnalysis && Array.isArray(letterAnalysis.letters) && letterAnalysis.letters.length > 0;
+  const hasFileStructure = !!(stats?.layers?.length);
+  const hasLetters = letterAnalysis && Array.isArray(letterAnalysis.letters) && letterAnalysis.letters.length > 0;
   const hasSummary = infoMessages.length > 0;
-  const hasContent = hasIssues || hasLetterAnalysis || hasSummary;
+  const hasContent = hasIssues || hasFileStructure || hasSummary;
 
   return (
     <div className={`border-2 border-gray-400 rounded-lg overflow-hidden shadow-sm ${PAGE_STYLES.panel.background}`}>
@@ -71,9 +72,10 @@ const FileCard: React.FC<{
                   • {Math.round(stats.detected_scale * 100)}% scale
                 </span>
               )}
-              {hasLetterAnalysis && (
+              {hasFileStructure && (
                 <span className="ml-2 text-indigo-600">
-                  • {letterAnalysis.stats?.total_letters || letterAnalysis.letters.length} letters
+                  • {stats!.layers!.length} layer{stats!.layers!.length !== 1 ? 's' : ''}, {stats!.total_paths} path{stats!.total_paths !== 1 ? 's' : ''}
+                  {hasLetters && `, ${letterAnalysis!.stats?.total_letters || letterAnalysis!.letters.length} letters`}
                 </span>
               )}
             </p>
@@ -144,13 +146,13 @@ const FileCard: React.FC<{
               </div>
             );
           })()}
-          {/* Letter Analysis */}
-          {hasLetterAnalysis && (
+          {/* File Structure — Layers > Paths */}
+          {hasFileStructure && (
             <div className="space-y-2">
               <h4 className="text-sm font-medium text-gray-700">
-                Letter Analysis
+                File Structure
               </h4>
-              <LetterAnalysisPanel analysis={letterAnalysis} />
+              <FileStructurePanel stats={stats!} letterAnalysis={letterAnalysis} />
             </div>
           )}
         </div>

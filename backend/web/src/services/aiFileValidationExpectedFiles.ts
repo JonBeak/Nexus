@@ -66,7 +66,7 @@ async function extractAiVersion(filePath: string): Promise<string | undefined> {
 interface ExpectedFilesDeps {
   getOrderIdFromNumber(orderNumber: number): Promise<number | null>;
   getOrderSpecsDisplayNames(orderId: number): Promise<string[]>;
-  listAiFiles(orderNumber: number): Promise<ServiceResult<AiFileInfo[]>>;
+  listAiFiles(orderNumber: number, options?: { includePostScript?: boolean }): Promise<ServiceResult<AiFileInfo[]>>;
 }
 
 /**
@@ -121,8 +121,8 @@ export async function getExpectedFilesComparison(
       }
     }
 
-    // 5. Get actual AI files from order folder
-    const listResult = await deps.listAiFiles(orderNumber);
+    // 5. Get actual AI files from order folder (include PostScript so they appear in comparison)
+    const listResult = await deps.listAiFiles(orderNumber, { includePostScript: true });
     if (!listResult.success) {
       if (listResult.code === 'NO_FOLDER' || listResult.code === 'FOLDER_NOT_FOUND') {
         return {
@@ -173,6 +173,7 @@ export async function getExpectedFilesComparison(
           status: 'present',
           is_required: expected.is_required,
           matched_rules: expected.matched_rules,
+          ...(actualFile.is_postscript && { format_warning: "PostScript format — re-save with 'Create PDF Compatible File' enabled" }),
         });
       } else {
         comparisonEntries.push({
@@ -195,6 +196,7 @@ export async function getExpectedFilesComparison(
           status: 'unexpected',
           is_required: false,
           matched_rules: [],
+          ...(actualFile.is_postscript && { format_warning: "PostScript format — re-save with 'Create PDF Compatible File' enabled" }),
         });
       }
     }

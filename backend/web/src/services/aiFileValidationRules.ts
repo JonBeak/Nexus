@@ -22,6 +22,7 @@ export const FRONT_LIT_STRUCTURE_RULES: ValidationRuleConfig = {
   mounting_holes_per_inch_perimeter: 0.05,  // 1 per 20" real
   mounting_holes_per_sq_inch_area: 0.0123,  // 1 per 81 sq in real
   check_wire_holes: true,            // Front lit always has LEDs
+  expected_mounting_names: ['Regular Mounting'],  // Warn if other mounting types found
   return_layer: 'return',            // Layer name for returns
   trim_layer: 'trimcap',             // Layer name for trim caps
   min_trim_spacing_inches: 0.15,     // Minimum clearance between trim cap letters (with miter)

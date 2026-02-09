@@ -45,6 +45,7 @@ export interface FeedbackResponse {
   responded_by: number;
   message: string;
   is_internal: boolean;
+  is_claude_message?: boolean;
   created_at: string;
   responder_first_name?: string;
   responder_last_name?: string;
@@ -76,6 +77,7 @@ export interface FeedbackListResponse {
 export interface FeedbackDetailResponse {
   feedback: FeedbackRequest;
   responses: FeedbackResponse[];
+  claudeMessages?: FeedbackResponse[];
 }
 
 // =============================================================================
@@ -134,11 +136,13 @@ export const feedbackApi = {
   addResponse: async (
     feedbackId: number,
     message: string,
-    isInternal: boolean = false
+    isInternal: boolean = false,
+    isClaudeMessage: boolean = false
   ): Promise<number> => {
     const response = await api.post(`/feedback/${feedbackId}/responses`, {
       message,
-      is_internal: isInternal
+      is_internal: isInternal,
+      is_claude_message: isClaudeMessage
     });
     return response.data;
   },

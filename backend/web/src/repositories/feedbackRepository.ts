@@ -154,12 +154,13 @@ export class FeedbackRepository {
     feedbackId: number,
     userId: number,
     message: string,
-    isInternal: boolean
+    isInternal: boolean,
+    isClaudeMessage: boolean = false
   ): Promise<number> {
     const result = await query(
-      `INSERT INTO feedback_responses (feedback_id, responded_by, message, is_internal)
-       VALUES (?, ?, ?, ?)`,
-      [feedbackId, userId, message, isInternal]
+      `INSERT INTO feedback_responses (feedback_id, responded_by, message, is_internal, is_claude_message)
+       VALUES (?, ?, ?, ?, ?)`,
+      [feedbackId, userId, message, isInternal, isClaudeMessage]
     ) as ResultSetHeader;
     return result.insertId;
   }
@@ -176,7 +177,23 @@ export class FeedbackRepository {
               u.last_name as responder_last_name
        FROM feedback_responses fr
        LEFT JOIN users u ON fr.responded_by = u.user_id
-       WHERE fr.feedback_id = ? ${internalClause}
+       WHERE fr.feedback_id = ? AND fr.is_claude_message = FALSE ${internalClause}
+       ORDER BY fr.created_at ASC`,
+      [feedbackId]
+    ) as FeedbackResponse[];
+  }
+
+  /**
+   * Get Claude messages for a feedback request (manager-only)
+   */
+  async getClaudeMessages(feedbackId: number): Promise<FeedbackResponse[]> {
+    return await query(
+      `SELECT fr.*,
+              u.first_name as responder_first_name,
+              u.last_name as responder_last_name
+       FROM feedback_responses fr
+       LEFT JOIN users u ON fr.responded_by = u.user_id
+       WHERE fr.feedback_id = ? AND fr.is_claude_message = TRUE
        ORDER BY fr.created_at ASC`,
       [feedbackId]
     ) as FeedbackResponse[];

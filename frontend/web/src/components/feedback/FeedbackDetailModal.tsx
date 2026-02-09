@@ -1,8 +1,10 @@
 /**
  * Feedback Detail Modal
  * Shows full feedback details with responses and management options
+ * Managers see side-by-side layout: feedback on left, Claude panel on right
  *
  * Created: 2026-01-16
+ * Updated: 2026-02-09 - Side-by-side layout for Claude integration
  */
 
 import React, { useState, useEffect } from 'react';
@@ -52,6 +54,7 @@ export const FeedbackDetailModal: React.FC<Props> = ({
   const { isManager } = useAuth();
   const [feedback, setFeedback] = useState<FeedbackRequest | null>(null);
   const [responses, setResponses] = useState<FeedbackResponse[]>([]);
+  const [claudeMessages, setClaudeMessages] = useState<FeedbackResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,6 +85,7 @@ export const FeedbackDetailModal: React.FC<Props> = ({
       const data = await feedbackApi.getById(feedbackId);
       setFeedback(data.feedback);
       setResponses(data.responses);
+      setClaudeMessages(data.claudeMessages || []);
 
       // Load screenshot if available
       if (data.feedback.screenshot_drive_id) {
@@ -176,6 +180,200 @@ export const FeedbackDetailModal: React.FC<Props> = ({
 
   if (!isOpen) return null;
 
+  // Left column content (shared between manager and non-manager)
+  const leftContent = (
+    <>
+      {/* Title and Meta */}
+      <div>
+        <h4 className={`text-xl font-semibold ${PAGE_STYLES.panel.text} mb-2`}>
+          {feedback!.title}
+        </h4>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <div className="flex items-center gap-1">
+            <User className="w-4 h-4 text-gray-400" />
+            <span className={PAGE_STYLES.panel.textSecondary}>
+              {feedback!.submitter_first_name} {feedback!.submitter_last_name}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Clock className="w-4 h-4 text-gray-400" />
+            <span className={PAGE_STYLES.panel.textSecondary}>
+              {formatDateTimeWithYear(feedback!.created_at)}
+            </span>
+          </div>
+          {getStatusBadge(feedback!.status)}
+          {getPriorityBadge(feedback!.priority)}
+          {getPipelineBadge(feedback!.pipeline_status)}
+        </div>
+      </div>
+
+      {/* Status/Priority Controls (Manager only) */}
+      {isManager && (
+        <div className={`flex gap-4 p-3 ${PAGE_STYLES.input.background} rounded-lg border ${PAGE_STYLES.panel.border}`}>
+          <div className="flex-1">
+            <label className={`block text-xs font-medium ${PAGE_STYLES.panel.textMuted} mb-1`}>
+              Status
+            </label>
+            <select
+              value={feedback!.status}
+              onChange={(e) => handleStatusChange(e.target.value as FeedbackStatus)}
+              disabled={updatingStatus}
+              className={`w-full px-2 py-1 text-sm ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.text} border rounded focus:ring-1 focus:ring-blue-500`}
+            >
+              {STATUS_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className={`block text-xs font-medium ${PAGE_STYLES.panel.textMuted} mb-1`}>
+              Priority
+            </label>
+            <select
+              value={feedback!.priority}
+              onChange={(e) => handlePriorityChange(e.target.value as FeedbackPriority)}
+              disabled={updatingPriority}
+              className={`w-full px-2 py-1 text-sm ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.text} border rounded focus:ring-1 focus:ring-blue-500`}
+            >
+              {PRIORITY_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* Description */}
+      <div>
+        <h5 className={`text-sm font-medium ${PAGE_STYLES.panel.text} mb-2`}>Description</h5>
+        <p className={`${PAGE_STYLES.panel.textSecondary} whitespace-pre-wrap`}>
+          {feedback!.description}
+        </p>
+      </div>
+
+      {/* Page URL */}
+      {feedback!.page_url && (
+        <div className="flex items-center gap-2">
+          <span className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>Submitted from:</span>
+          <a
+            href={feedback!.page_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+          >
+            {new URL(feedback!.page_url).pathname}
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+      )}
+
+      {/* Screenshot Preview */}
+      {(feedback!.screenshot_drive_id || loadingScreenshot) && (
+        <div>
+          <h5 className={`text-sm font-medium ${PAGE_STYLES.panel.text} mb-2`}>Screenshot</h5>
+          {loadingScreenshot ? (
+            <div className="flex items-center gap-2 text-gray-500">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-sm">Loading screenshot...</span>
+            </div>
+          ) : screenshot ? (
+            <img
+              src={`data:${screenshot.mimeType};base64,${screenshot.data}`}
+              alt="Screenshot"
+              className="max-w-full rounded-lg border border-gray-200 cursor-pointer hover:opacity-90"
+              onClick={() => {
+                const win = window.open();
+                if (win) {
+                  win.document.write(`<img src="data:${screenshot.mimeType};base64,${screenshot.data}" />`);
+                }
+              }}
+            />
+          ) : (
+            <p className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>Screenshot unavailable</p>
+          )}
+        </div>
+      )}
+
+      {/* Responses */}
+      <div>
+        <h5 className={`text-sm font-medium ${PAGE_STYLES.panel.text} mb-3 flex items-center gap-2`}>
+          <MessageSquare className="w-4 h-4" />
+          Responses ({responses.length})
+        </h5>
+        {responses.length === 0 ? (
+          <p className={`text-sm ${PAGE_STYLES.panel.textMuted} italic`}>No responses yet</p>
+        ) : (
+          <div className="space-y-3">
+            {responses.map((response) => (
+              <div
+                key={response.response_id}
+                className={`p-3 rounded-lg border ${
+                  !!response.is_internal
+                    ? 'bg-yellow-50 border-yellow-200'
+                    : `${PAGE_STYLES.input.background} ${PAGE_STYLES.panel.border}`
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`text-sm font-medium ${PAGE_STYLES.panel.text}`}>
+                    {response.responder_first_name} {response.responder_last_name}
+                  </span>
+                  <span className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>
+                    {formatDateTimeWithYear(response.created_at)}
+                  </span>
+                  {!!response.is_internal && (
+                    <span className="px-2 py-0.5 bg-yellow-200 text-yellow-800 text-xs rounded-full flex items-center gap-1">
+                      <EyeOff className="w-3 h-3" />
+                      Internal
+                    </span>
+                  )}
+                </div>
+                <p className={`text-sm ${PAGE_STYLES.panel.textSecondary} whitespace-pre-wrap`}>
+                  {response.message}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Add Response Form */}
+      <div className={`p-3 rounded-lg border ${PAGE_STYLES.panel.border} ${PAGE_STYLES.input.background}`}>
+        <h5 className={`text-sm font-medium ${PAGE_STYLES.panel.text} mb-2`}>Add Response</h5>
+        <textarea
+          value={newMessage}
+          onChange={(e) => setNewMessage(e.target.value)}
+          placeholder="Type your response..."
+          className={`w-full px-3 py-2 ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.text} border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-h-[80px] resize-y`}
+        />
+        <div className="flex items-center justify-between mt-2">
+          {isManager && (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={isInternal}
+                onChange={(e) => setIsInternal(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              <span className={PAGE_STYLES.panel.textSecondary}>Internal note (not visible to submitter)</span>
+            </label>
+          )}
+          <button
+            onClick={handleSubmitResponse}
+            disabled={submitting || !newMessage.trim()}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ml-auto"
+          >
+            {submitting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+            Send
+          </button>
+        </div>
+      </div>
+    </>
+  );
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-start justify-center min-h-screen px-4 pt-8 pb-20">
@@ -185,8 +383,8 @@ export const FeedbackDetailModal: React.FC<Props> = ({
           onClick={onClose}
         />
 
-        {/* Modal */}
-        <div className={`relative ${PAGE_STYLES.panel.background} rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col`}>
+        {/* Modal — wider for managers to fit side-by-side layout */}
+        <div className={`relative ${PAGE_STYLES.panel.background} rounded-lg shadow-xl w-full ${isManager ? 'max-w-5xl' : 'max-w-2xl'} max-h-[90vh] flex flex-col`}>
           {/* Header */}
           <div className={`flex items-center justify-between p-4 border-b ${PAGE_STYLES.panel.border}`}>
             <h3 className={`text-lg font-semibold ${PAGE_STYLES.panel.text}`}>
@@ -201,7 +399,7 @@ export const FeedbackDetailModal: React.FC<Props> = ({
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-hidden">
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
@@ -212,206 +410,25 @@ export const FeedbackDetailModal: React.FC<Props> = ({
                 <span>{error}</span>
               </div>
             ) : feedback ? (
-              <>
-                {/* Title and Meta */}
-                <div>
-                  <h4 className={`text-xl font-semibold ${PAGE_STYLES.panel.text} mb-2`}>
-                    {feedback.title}
-                  </h4>
-                  <div className="flex flex-wrap items-center gap-3 text-sm">
-                    <div className="flex items-center gap-1">
-                      <User className="w-4 h-4 text-gray-400" />
-                      <span className={PAGE_STYLES.panel.textSecondary}>
-                        {feedback.submitter_first_name} {feedback.submitter_last_name}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-4 h-4 text-gray-400" />
-                      <span className={PAGE_STYLES.panel.textSecondary}>
-                        {formatDateTimeWithYear(feedback.created_at)}
-                      </span>
-                    </div>
-                    {getStatusBadge(feedback.status)}
-                    {getPriorityBadge(feedback.priority)}
-                    {getPipelineBadge(feedback.pipeline_status)}
-                  </div>
+              <div className={`flex ${isManager ? 'flex-row' : 'flex-col'} h-full max-h-[calc(90vh-65px)]`}>
+                {/* Left column — feedback content */}
+                <div className={`${isManager ? 'flex-1 min-w-0' : 'w-full'} overflow-y-auto p-4 space-y-4`}>
+                  {leftContent}
                 </div>
 
-                {/* Status/Priority Controls (Manager only) */}
+                {/* Right column — Claude panel (manager only) */}
                 {isManager && (
-                  <div className={`flex gap-4 p-3 ${PAGE_STYLES.input.background} rounded-lg border ${PAGE_STYLES.panel.border}`}>
-                    <div className="flex-1">
-                      <label className={`block text-xs font-medium ${PAGE_STYLES.panel.textMuted} mb-1`}>
-                        Status
-                      </label>
-                      <select
-                        value={feedback.status}
-                        onChange={(e) => handleStatusChange(e.target.value as FeedbackStatus)}
-                        disabled={updatingStatus}
-                        className={`w-full px-2 py-1 text-sm ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.text} border rounded focus:ring-1 focus:ring-blue-500`}
-                      >
-                        {STATUS_OPTIONS.map(opt => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="flex-1">
-                      <label className={`block text-xs font-medium ${PAGE_STYLES.panel.textMuted} mb-1`}>
-                        Priority
-                      </label>
-                      <select
-                        value={feedback.priority}
-                        onChange={(e) => handlePriorityChange(e.target.value as FeedbackPriority)}
-                        disabled={updatingPriority}
-                        className={`w-full px-2 py-1 text-sm ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.text} border rounded focus:ring-1 focus:ring-blue-500`}
-                      >
-                        {PRIORITY_OPTIONS.map(opt => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                    </div>
+                  <div className={`w-80 flex-shrink-0 border-l ${PAGE_STYLES.panel.border} overflow-y-auto p-4`}>
+                    <ClaudeIntegrationPanel
+                      feedback={feedback}
+                      feedbackId={feedbackId}
+                      claudeMessages={claudeMessages}
+                      onUpdate={handleClaudeUpdate}
+                      onError={(msg) => setError(msg)}
+                    />
                   </div>
                 )}
-
-                {/* Description */}
-                <div>
-                  <h5 className={`text-sm font-medium ${PAGE_STYLES.panel.text} mb-2`}>Description</h5>
-                  <p className={`${PAGE_STYLES.panel.textSecondary} whitespace-pre-wrap`}>
-                    {feedback.description}
-                  </p>
-                </div>
-
-                {/* Page URL */}
-                {feedback.page_url && (
-                  <div className="flex items-center gap-2">
-                    <span className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>Submitted from:</span>
-                    <a
-                      href={feedback.page_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                    >
-                      {new URL(feedback.page_url).pathname}
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </div>
-                )}
-
-                {/* Claude Code Integration (Manager only) */}
-                {isManager && (
-                  <ClaudeIntegrationPanel
-                    feedback={feedback}
-                    feedbackId={feedbackId}
-                    onUpdate={handleClaudeUpdate}
-                    onError={(msg) => setError(msg)}
-                  />
-                )}
-
-                {/* Screenshot Preview */}
-                {(feedback.screenshot_drive_id || loadingScreenshot) && (
-                  <div>
-                    <h5 className={`text-sm font-medium ${PAGE_STYLES.panel.text} mb-2`}>Screenshot</h5>
-                    {loadingScreenshot ? (
-                      <div className="flex items-center gap-2 text-gray-500">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="text-sm">Loading screenshot...</span>
-                      </div>
-                    ) : screenshot ? (
-                      <img
-                        src={`data:${screenshot.mimeType};base64,${screenshot.data}`}
-                        alt="Screenshot"
-                        className="max-w-full rounded-lg border border-gray-200 cursor-pointer hover:opacity-90"
-                        onClick={() => {
-                          const win = window.open();
-                          if (win) {
-                            win.document.write(`<img src="data:${screenshot.mimeType};base64,${screenshot.data}" />`);
-                          }
-                        }}
-                      />
-                    ) : (
-                      <p className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>Screenshot unavailable</p>
-                    )}
-                  </div>
-                )}
-
-                {/* Responses */}
-                <div>
-                  <h5 className={`text-sm font-medium ${PAGE_STYLES.panel.text} mb-3 flex items-center gap-2`}>
-                    <MessageSquare className="w-4 h-4" />
-                    Responses ({responses.length})
-                  </h5>
-                  {responses.length === 0 ? (
-                    <p className={`text-sm ${PAGE_STYLES.panel.textMuted} italic`}>No responses yet</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {responses.map((response) => (
-                        <div
-                          key={response.response_id}
-                          className={`p-3 rounded-lg border ${
-                            !!response.is_internal
-                              ? 'bg-yellow-50 border-yellow-200'
-                              : `${PAGE_STYLES.input.background} ${PAGE_STYLES.panel.border}`
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className={`text-sm font-medium ${PAGE_STYLES.panel.text}`}>
-                              {response.responder_first_name} {response.responder_last_name}
-                            </span>
-                            <span className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>
-                              {formatDateTimeWithYear(response.created_at)}
-                            </span>
-                            {!!response.is_internal && (
-                              <span className="px-2 py-0.5 bg-yellow-200 text-yellow-800 text-xs rounded-full flex items-center gap-1">
-                                <EyeOff className="w-3 h-3" />
-                                Internal
-                              </span>
-                            )}
-                          </div>
-                          <p className={`text-sm ${PAGE_STYLES.panel.textSecondary} whitespace-pre-wrap`}>
-                            {response.message}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Add Response Form */}
-                <div className={`p-3 rounded-lg border ${PAGE_STYLES.panel.border} ${PAGE_STYLES.input.background}`}>
-                  <h5 className={`text-sm font-medium ${PAGE_STYLES.panel.text} mb-2`}>Add Response</h5>
-                  <textarea
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Type your response..."
-                    className={`w-full px-3 py-2 ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.text} border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-h-[80px] resize-y`}
-                  />
-                  <div className="flex items-center justify-between mt-2">
-                    {isManager && (
-                      <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={isInternal}
-                          onChange={(e) => setIsInternal(e.target.checked)}
-                          className="rounded border-gray-300"
-                        />
-                        <span className={PAGE_STYLES.panel.textSecondary}>Internal note (not visible to submitter)</span>
-                      </label>
-                    )}
-                    <button
-                      onClick={handleSubmitResponse}
-                      disabled={submitting || !newMessage.trim()}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ml-auto"
-                    >
-                      {submitting ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Send className="w-4 h-4" />
-                      )}
-                      Send
-                    </button>
-                  </div>
-                </div>
-              </>
+              </div>
             ) : null}
           </div>
         </div>
