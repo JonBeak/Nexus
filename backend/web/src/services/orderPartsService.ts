@@ -103,11 +103,12 @@ export class OrderPartsService {
    * Phase 3.1
    *
    * This method:
-   * 1. Gets the part to determine if parent or regular row
-   * 2. Maps specs_display_name to spec types
-   * 3. Regenerates the SPECIFICATIONS column (clears existing templates)
-   * 4. Auto-fills static defaults (always) and dynamic values (if qb_item_name matches)
-   * 5. Auto-demotes to sub-item if specs_display_name is cleared
+   * 1. If clearing specs_display_name on a parent, auto-demotes to sub-item
+   *    while preserving all existing spec data
+   * 2. Gets the part to determine if parent or regular row
+   * 3. Maps specs_display_name to spec types
+   * 4. Regenerates the SPECIFICATIONS column (clears existing templates)
+   * 5. Auto-fills static defaults (always) and dynamic values (if qb_item_name matches)
    */
   async updateSpecsDisplayName(
     partId: number,
@@ -117,6 +118,21 @@ export class OrderPartsService {
     const part = await orderPartRepository.getOrderPartById(partId);
     if (!part) {
       throw new Error('Part not found');
+    }
+
+    // Auto-demote to sub-item if specs_display_name is being cleared
+    // Preserve all existing spec data during demotion (only update is_parent and specs_display_name)
+    if (!specsDisplayName && part.is_parent) {
+      const updateData: any = {
+        specs_display_name: null,
+        is_parent: false
+      };
+      await orderPartRepository.updateOrderPart(partId, updateData);
+      const updatedPart = await orderPartRepository.getOrderPartById(partId);
+      if (!updatedPart) {
+        throw new Error('Failed to fetch updated part');
+      }
+      return updatedPart;
     }
 
     // Determine if this is a parent or regular row
@@ -194,11 +210,6 @@ export class OrderPartsService {
       specs_display_name: specsDisplayName,
       specifications: finalSpecifications
     };
-
-    // Auto-demote to sub-item if specs_display_name is being cleared
-    if (!specsDisplayName && part.is_parent) {
-      updateData.is_parent = false;
-    }
 
     // Update the order part
     await orderPartRepository.updateOrderPart(partId, updateData);
