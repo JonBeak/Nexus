@@ -181,7 +181,29 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
             if standard_sizes:
                 _classify_holes_from_standards(letter_analysis, standard_sizes)
 
-            # 3. Per-letter issues (attaches to letter.issues + analysis.issues)
+            # 3. Orphan holes are always errors regardless of spec type
+            for hole in letter_analysis.orphan_holes:
+                issue_dict = {
+                    'rule': 'orphan_hole',
+                    'severity': 'error',
+                    'message': f'Hole {hole.path_id} ({hole.hole_type}, {hole.diameter_real_mm:.2f}mm) is outside all letters',
+                    'path_id': hole.path_id,
+                    'details': {
+                        'hole_type': hole.hole_type,
+                        'diameter_mm': hole.diameter_mm,
+                        'center': hole.center
+                    }
+                }
+                all_issues.append(ValidationIssue(
+                    rule=issue_dict['rule'],
+                    severity=issue_dict['severity'],
+                    message=issue_dict['message'],
+                    path_id=issue_dict.get('path_id'),
+                    details=issue_dict.get('details')
+                ))
+                letter_analysis.issues.append(issue_dict)
+
+            # 4. Per-letter issues (attaches to letter.issues + analysis.issues)
             if 'front_lit_structure' in rules:
                 return_layer = rules.get('front_lit_structure', {}).get('return_layer', 'return')
                 analysis_issues = generate_letter_analysis_issues(letter_analysis, return_layer)
@@ -194,7 +216,7 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
                         details=issue_dict.get('details')
                     ))
 
-            # 4. Serialize AFTER classification + issue attachment
+            # 5. Serialize AFTER classification + issue attachment
             stats['letter_analysis'] = letter_analysis.to_dict()
             stats['detected_scale'] = letter_analysis.detected_scale
 
@@ -211,7 +233,7 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
         if 'path_closure' in rules:
             all_issues.extend(check_path_closure(paths_info, rules['path_closure']))
 
-        # 4. Structural checks (use classified data)
+        # 5. Structural checks (use classified data)
         if 'front_lit_structure' in rules:
             front_lit_rules = rules['front_lit_structure'].copy()
             if letter_analysis:

@@ -166,7 +166,7 @@ export const FeedbackSubmitModal: React.FC<Props> = ({ isOpen, onClose, onSucces
                   <CheckCircle className="w-8 h-8 text-green-600" />
                 </div>
                 <h4 className={`text-lg font-medium ${PAGE_STYLES.panel.text}`}>Thank you!</h4>
-                <p className={PAGE_STYLES.panel.textMuted}>Your feedback has been submitted.</p>
+                <p className={PAGE_STYLES.panel.textMuted}>Your feedback has been submitted and sent to Claude.</p>
               </div>
             ) : (
               <>

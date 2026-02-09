@@ -60,22 +60,6 @@ def generate_letter_analysis_issues(
     """
     all_issues = []
 
-    # Orphan holes are errors — attach to analysis.issues
-    for hole in analysis.orphan_holes:
-        issue = {
-            'rule': 'orphan_hole',
-            'severity': 'error',
-            'message': f'Hole {hole.path_id} ({hole.hole_type}, {hole.diameter_real_mm:.2f}mm) is outside all letters',
-            'path_id': hole.path_id,
-            'details': {
-                'hole_type': hole.hole_type,
-                'diameter_mm': hole.diameter_mm,
-                'center': hole.center
-            }
-        }
-        all_issues.append(issue)
-        analysis.issues.append(issue)
-
     # Check each letter for required holes (return layer only)
     for letter in analysis.letter_groups:
         # Only check hole requirements for return layer

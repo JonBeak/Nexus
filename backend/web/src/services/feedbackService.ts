@@ -18,6 +18,7 @@ import {
   FeedbackPriority
 } from '../types/feedback';
 import * as driveService from './driveService';
+import { githubIntegrationService } from './githubIntegrationService';
 
 // Maximum screenshot size (10MB base64)
 const MAX_SCREENSHOT_SIZE = 10 * 1024 * 1024;
@@ -88,6 +89,18 @@ export class FeedbackService {
           // Don't fail the feedback creation, just log the error
           // The feedback is still created without the screenshot
         }
+      }
+
+      // Auto-assign to Claude (fire-and-forget — never fail the submission)
+      try {
+        const result = await githubIntegrationService.assignToClaude(feedbackId, userId);
+        if (result.success) {
+          console.log(`[Feedback] Auto-assigned feedback #${feedbackId} to Claude (issue #${result.data!.issueNumber})`);
+        } else {
+          console.warn(`[Feedback] Failed to auto-assign feedback #${feedbackId} to Claude: ${result.error}`);
+        }
+      } catch (claudeError) {
+        console.error(`[Feedback] Error auto-assigning feedback #${feedbackId} to Claude:`, claudeError);
       }
 
       return { success: true, data: feedbackId };

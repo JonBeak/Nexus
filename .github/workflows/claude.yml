@@ -7,8 +7,6 @@ on:
     types: [created]
   issues:
     types: [opened, assigned, labeled]
-  pull_request_review:
-    types: [submitted]
 
 permissions:
   contents: write
@@ -22,7 +20,6 @@ jobs:
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
       (github.event_name == 'issues' && ((github.event.action == 'opened' && contains(github.event.issue.body, '@claude')) || github.event.action == 'assigned' || github.event.action == 'labeled'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -39,5 +36,5 @@ jobs:
           claude_args: |
             --model claude-opus-4-6
             --max-turns 100
-            --append-system-prompt "Always @mention @JonBeak in every GitHub comment you post so they receive a notification. Always create a pull request with your changes using the create_pull_request tool."
+            --append-system-prompt "Always @mention @JonBeak in every GitHub comment you post so they receive a notification. Always create a pull request with your changes using the create_pull_request tool. If a request seems large and the direction is unclear, comment on the issue asking @JonBeak for clarification before making code changes. For small or straightforward fixes, proceed directly."
             --allowedTools "mcp__github__create_pull_request"
