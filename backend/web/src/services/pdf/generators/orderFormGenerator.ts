@@ -205,8 +205,8 @@ function renderSpecsInTwoColumns(
 
   let currentY = contentStartY;
 
-  // Display name
-  const displayName = parent.specs_display_name || parent.product_type;
+  // Display name — use specs_display_name only, no QB Item fallback
+  const displayName = parent.specs_display_name || '';
 
   // Calculate column width for Sign Type box (same as spec columns)
   const signTypeX = marginLeft + LAYOUT.PART_COLUMN_INNER_PADDING;
@@ -321,8 +321,8 @@ function renderPartColumns(
     // Get specs_qty from specifications (using shared utility)
     const specsQty = getSpecsQuantity(parent);
 
-    // Display name
-    const displayName = parent.specs_display_name || parent.product_type;
+    // Display name — use specs_display_name only, no QB Item fallback
+    const displayName = parent.specs_display_name || '';
 
     // Render Sign Type box (and Scope box if scope exists)
     partY = renderSignTypeBox(doc, displayName, parent.part_scope || null, partX, partY, partColumnWidth, measureOnly);
