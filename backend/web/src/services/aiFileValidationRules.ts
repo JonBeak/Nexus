@@ -24,6 +24,7 @@ export const FRONT_LIT_STRUCTURE_RULES: ValidationRuleConfig = {
   check_wire_holes: true,            // Front lit always has LEDs
   return_layer: 'return',            // Layer name for returns
   trim_layer: 'trimcap',             // Layer name for trim caps
+  min_trim_spacing_inches: 0.15,     // Minimum clearance between trim cap letters (with miter)
 };
 
 /**
@@ -97,6 +98,18 @@ export function getValidationRuleDescriptions(specTypes: Set<string>): Validatio
         rule_key: 'front_lit_layer_matching',
         name: 'Layer Matching',
         description: 'Return and Trimcap layers must have same letter count',
+        category: 'Front Lit Channel Letters',
+      },
+      {
+        rule_key: 'front_lit_trim_spacing',
+        name: 'Trim Cap Spacing',
+        description: 'Trim cap letters must be at least 0.15" apart (with miter)',
+        category: 'Front Lit Channel Letters',
+      },
+      {
+        rule_key: 'front_lit_trim_missing',
+        name: 'Trim Cap Layer Required',
+        description: 'Working file must include a trimcap layer with letters',
         category: 'Front Lit Channel Letters',
       },
     );
