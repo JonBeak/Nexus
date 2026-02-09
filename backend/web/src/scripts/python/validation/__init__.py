@@ -45,6 +45,47 @@ from .rules.front_lit import generate_letter_analysis_issues
 from .letter_analysis import analyze_letter_hole_associations
 
 
+_SYSTEM_LAYERS = frozenset(('_no_layer_', '_defs_'))
+_DEFAULT_LAYER_RE = re.compile(r'^Layer[\s_]\d+$')
+
+
+def filter_production_paths(paths: List[PathInfo]) -> List[PathInfo]:
+    """
+    Filter parsed paths to production-relevant layers.
+
+    Always removes:
+      - System layers (_no_layer_, _defs_)
+      - Separator layers (no alphanumeric chars)
+
+    Conditionally removes:
+      - Default Illustrator layers (Layer 1, Layer_2, etc.)
+        ONLY when named production layers also exist.
+        If default layers are the only layers, keeps them
+        so non-front-lit files still get analysis.
+    """
+    # Pass 1: Remove system + separator layers
+    paths = [
+        p for p in paths
+        if not (
+            p.layer_name in _SYSTEM_LAYERS
+            or (p.layer_name and not re.search(r'[a-zA-Z0-9]', p.layer_name))
+        )
+    ]
+
+    # Pass 2: Only strip default layers when named production layers exist
+    remaining_layers = set(p.layer_name for p in paths if p.layer_name)
+    has_named_layers = any(
+        not _DEFAULT_LAYER_RE.match(name) for name in remaining_layers
+    )
+    if has_named_layers:
+        paths = [
+            p for p in paths
+            if not (p.layer_name and _DEFAULT_LAYER_RE.match(p.layer_name))
+        ]
+
+    return paths
+
+
 def _classify_holes_from_standards(analysis: 'LetterAnalysisResult', standard_sizes: list) -> None:
     """
     Classify all unclassified holes using standard hole sizes from the database.
@@ -125,20 +166,8 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
         source_ai_path = None if ai_path.lower().endswith('.svg') else ai_path
         paths_info = extract_paths_from_svg(svg_path, source_ai_path)
 
-        # Filter out non-production paths:
-        # - "Layer 1", "Layer_2" etc: Illustrator default unnamed layers
-        # - "_no_layer_": stray paths outside any layer group (Inkscape export artifact)
-        # - "_defs_": SVG <defs> definitions, not visible geometry
-        # - Separator layers: names with no alphanumeric chars (e.g., "---")
-        _skip_layers = ('_no_layer_', '_defs_')
-        paths_info = [
-            p for p in paths_info
-            if not (
-                p.layer_name in _skip_layers
-                or (p.layer_name and re.match(r'^Layer[\s_]\d+$', p.layer_name))
-                or (p.layer_name and not re.search(r'[a-zA-Z0-9]', p.layer_name))
-            )
-        ]
+        # Filter out non-production paths (system layers, separators, default layers)
+        paths_info = filter_production_paths(paths_info)
 
         # Collect stats
         layers_found = set(p.layer_name for p in paths_info if p.layer_name)
@@ -163,7 +192,7 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
         # Returns UNCLASSIFIED holes — spec rules classify them before serialization
         letter_analysis = None
         if 'letter_hole_analysis' in rules or 'front_lit_structure' in rules:
-            analysis_config = rules.get('letter_hole_analysis', rules.get('front_lit_structure', {}))
+            analysis_config = rules.get('letter_hole_analysis', {})
 
             # For SVG files with detected unit scale, override file_scale
             if detected_svg_scale is not None:
@@ -240,7 +269,7 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
             if letter_analysis:
                 front_lit_rules['_letter_analysis'] = letter_analysis
             # Pass standard hole sizes so mounting hole warnings can show expected size
-            analysis_cfg = rules.get('letter_hole_analysis', rules.get('front_lit_structure', {}))
+            analysis_cfg = rules.get('letter_hole_analysis', {})
             std_sizes = analysis_cfg.get('standard_hole_sizes', [])
             if std_sizes:
                 front_lit_rules['_standard_hole_sizes'] = std_sizes
@@ -286,6 +315,7 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
 
 __all__ = [
     'validate_file',
+    'filter_production_paths',
     'ValidationIssue',
     'ValidationResult',
     'PathInfo',

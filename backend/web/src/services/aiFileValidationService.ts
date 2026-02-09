@@ -98,6 +98,9 @@ export class AiFileValidationService {
             const ext = path.extname(file).toLowerCase();
             if (ext !== '.ai') continue;
 
+            // Skip estimate files — not production artwork
+            if (file.toLowerCase() === 'estimate.ai') continue;
+
             const filePath = path.join(dirPath, file);
             const stats = fs.statSync(filePath);
 

@@ -146,6 +146,7 @@ export function buildValidationRules(
       allow_fill: false  // Only check for no fill; color and width not enforced
     },
     letter_hole_analysis: {
+      file_scale: 0.1,  // Working files are 10% scale
       standard_hole_sizes: serializeHoleSizes(standardHoleSizes),
     },
   };

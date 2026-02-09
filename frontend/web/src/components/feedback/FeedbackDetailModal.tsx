@@ -178,7 +178,7 @@ export const FeedbackDetailModal: React.FC<Props> = ({
     onUpdate?.();
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !feedback) return null;
 
   // Left column content (shared between manager and non-manager)
   const leftContent = (
@@ -186,24 +186,24 @@ export const FeedbackDetailModal: React.FC<Props> = ({
       {/* Title and Meta */}
       <div>
         <h4 className={`text-xl font-semibold ${PAGE_STYLES.panel.text} mb-2`}>
-          {feedback!.title}
+          {feedback.title}
         </h4>
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <div className="flex items-center gap-1">
             <User className="w-4 h-4 text-gray-400" />
             <span className={PAGE_STYLES.panel.textSecondary}>
-              {feedback!.submitter_first_name} {feedback!.submitter_last_name}
+              {feedback.submitter_first_name} {feedback.submitter_last_name}
             </span>
           </div>
           <div className="flex items-center gap-1">
             <Clock className="w-4 h-4 text-gray-400" />
             <span className={PAGE_STYLES.panel.textSecondary}>
-              {formatDateTimeWithYear(feedback!.created_at)}
+              {formatDateTimeWithYear(feedback.created_at)}
             </span>
           </div>
-          {getStatusBadge(feedback!.status)}
-          {getPriorityBadge(feedback!.priority)}
-          {getPipelineBadge(feedback!.pipeline_status)}
+          {getStatusBadge(feedback.status)}
+          {getPriorityBadge(feedback.priority)}
+          {getPipelineBadge(feedback.pipeline_status)}
         </div>
       </div>
 
@@ -215,7 +215,7 @@ export const FeedbackDetailModal: React.FC<Props> = ({
               Status
             </label>
             <select
-              value={feedback!.status}
+              value={feedback.status}
               onChange={(e) => handleStatusChange(e.target.value as FeedbackStatus)}
               disabled={updatingStatus}
               className={`w-full px-2 py-1 text-sm ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.text} border rounded focus:ring-1 focus:ring-blue-500`}
@@ -230,7 +230,7 @@ export const FeedbackDetailModal: React.FC<Props> = ({
               Priority
             </label>
             <select
-              value={feedback!.priority}
+              value={feedback.priority}
               onChange={(e) => handlePriorityChange(e.target.value as FeedbackPriority)}
               disabled={updatingPriority}
               className={`w-full px-2 py-1 text-sm ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.text} border rounded focus:ring-1 focus:ring-blue-500`}
@@ -247,28 +247,28 @@ export const FeedbackDetailModal: React.FC<Props> = ({
       <div>
         <h5 className={`text-sm font-medium ${PAGE_STYLES.panel.text} mb-2`}>Description</h5>
         <p className={`${PAGE_STYLES.panel.textSecondary} whitespace-pre-wrap`}>
-          {feedback!.description}
+          {feedback.description}
         </p>
       </div>
 
       {/* Page URL */}
-      {feedback!.page_url && (
+      {feedback.page_url && (
         <div className="flex items-center gap-2">
           <span className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>Submitted from:</span>
           <a
-            href={feedback!.page_url}
+            href={feedback.page_url}
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
           >
-            {new URL(feedback!.page_url).pathname}
+            {new URL(feedback.page_url).pathname}
             <ExternalLink className="w-3 h-3" />
           </a>
         </div>
       )}
 
       {/* Screenshot Preview */}
-      {(feedback!.screenshot_drive_id || loadingScreenshot) && (
+      {(feedback.screenshot_drive_id || loadingScreenshot) && (
         <div>
           <h5 className={`text-sm font-medium ${PAGE_STYLES.panel.text} mb-2`}>Screenshot</h5>
           {loadingScreenshot ? (
