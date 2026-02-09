@@ -69,7 +69,8 @@ export class EstimateDuplicationService {
       source.tax_amount,
       source.total_amount,
       source.notes,
-      userId
+      userId,
+      source.high_standards
     );
 
     // Duplicate the estimate items and groups

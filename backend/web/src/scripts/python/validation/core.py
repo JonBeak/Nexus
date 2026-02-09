@@ -6,6 +6,13 @@ from dataclasses import dataclass, asdict, field
 from typing import List, Optional, Dict, Any, Tuple
 
 
+_HOLE_TYPE_ORDER = {'wire': 0, 'mounting': 1}
+
+def _hole_sort_key(h):
+    """Sort key for holes: wire=0, mounting=1, everything else=2."""
+    return _HOLE_TYPE_ORDER.get(h.hole_type, 2)
+
+
 def _transform_for_svg(transform_chain: str) -> str:
     """Convert pipe-separated transform chain to space-separated for SVG."""
     if not transform_chain:
@@ -203,7 +210,7 @@ class LetterGroup:
                 }
                 for p in self.counter_paths
             ],
-            'holes': [h.to_dict() for h in self.holes],
+            'holes': [h.to_dict() for h in sorted(self.holes, key=_hole_sort_key)],
             'wire_hole_count': len(self.wire_holes),
             'mounting_hole_count': len(self.mounting_holes),
             'unknown_hole_count': len(self.unknown_holes),
@@ -225,7 +232,7 @@ class LetterAnalysisResult:
     def to_dict(self) -> Dict[str, Any]:
         return {
             'letters': [lg.to_dict() for lg in self.letter_groups],
-            'orphan_holes': [h.to_dict() for h in self.orphan_holes],
+            'orphan_holes': [h.to_dict() for h in sorted(self.orphan_holes, key=_hole_sort_key)],
             'unprocessed_paths': self.unprocessed_paths,
             'detected_scale': self.detected_scale,
             'issues': self.issues,

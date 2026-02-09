@@ -149,6 +149,40 @@ export const updateEstimateNotes = async (req: AuthRequest, res: Response) => {
 };
 
 /**
+ * Update estimate high_standards override
+ * @route PATCH /estimates/:estimateId/high-standards
+ */
+export const updateEstimateHighStandards = async (req: AuthRequest, res: Response) => {
+  try {
+    const validated = validateEstimateRequest(req, res);
+    if (!validated) return;
+
+    const { high_standards } = req.body;
+
+    // Validate: must be true, false, or null
+    if (high_standards !== null && typeof high_standards !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'high_standards must be true, false, or null'
+      });
+    }
+
+    await versioningService.updateEstimateHighStandards(validated.estimateId, high_standards, validated.userId);
+
+    res.json({
+      success: true,
+      message: 'High standards updated successfully'
+    });
+  } catch (error) {
+    console.error('Controller error updating high standards:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update high standards'
+    });
+  }
+};
+
+/**
  * Copy rows from another estimate and append to this estimate
  * @route POST /estimates/:estimateId/copy-rows
  */

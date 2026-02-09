@@ -149,10 +149,11 @@ export class OrderFormRepository {
         c.pattern_yes_or_no,
         c.pattern_type,
         c.wiring_diagram_yes_or_no,
-        c.high_standards,
+        COALESCE(je.high_standards, c.high_standards, 0) AS high_standards,
         c.hide_company_name
       FROM orders o
       JOIN customers c ON o.customer_id = c.customer_id
+      LEFT JOIN job_estimates je ON o.estimate_id = je.id
       WHERE o.order_id = ?
     `, [orderId]) as RowDataPacket[];
 

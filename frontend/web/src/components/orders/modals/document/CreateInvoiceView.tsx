@@ -5,10 +5,11 @@
  * Desktop: Side-by-side panels (Create New | Link Existing | Invoice Preview)
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
-  X, Loader2, FileText, Link as LinkIcon, Plus
+  X, Loader2, FileText, Link as LinkIcon, Plus, AlertTriangle
 } from 'lucide-react';
+import { useAlert } from '../../../../contexts/AlertContext';
 import { Order } from '../../../../types/orders';
 import { Address } from '../../../../types';
 import { CustomerInvoiceListItem, InvoiceLineItem } from '../../../../services/api';
@@ -73,6 +74,49 @@ export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
   onLinkInvoiceFromCreate, onInvoicePreview, onClosePreview,
   onSuccessModalClose, formatAddress,
 }) => {
+  const { showConfirmation } = useAlert();
+
+  const descriptionWarnings = useMemo(() => {
+    const problematic = invoiceDisplayParts.filter(part => {
+      if (part.is_header_row || part.is_description_only) return false;
+      return !part.qb_description || !part.qb_description.trim();
+    });
+    const total = invoiceDisplayParts.filter(p => !p.is_header_row && !p.is_description_only).length;
+    return {
+      hasIssues: problematic.length > 0,
+      emptyCount: problematic.length,
+      totalLineItems: total,
+      emptyItems: problematic.map(p => p.qb_item_name || 'Unknown Item')
+    };
+  }, [invoiceDisplayParts]);
+
+  const handleCreateInvoice = async () => {
+    if (!descriptionWarnings.hasIssues) {
+      onDocumentOnly();
+      return;
+    }
+    const confirmed = await showConfirmation({
+      title: 'Empty QB Descriptions',
+      message: `${descriptionWarnings.emptyCount} of ${descriptionWarnings.totalLineItems} line items have empty QB descriptions. The invoice will be sent to the customer with blank description fields.`,
+      confirmText: 'Create Anyway',
+      cancelText: 'Go Back',
+      variant: 'warning',
+      details: (
+        <div className="mt-2 text-sm text-gray-600">
+          <div className="font-medium text-gray-700 mb-1">Items with empty descriptions:</div>
+          <ul className="list-disc pl-5 space-y-0.5">
+            {descriptionWarnings.emptyItems.map((name, i) => (
+              <li key={i}>{name}</li>
+            ))}
+          </ul>
+        </div>
+      )
+    });
+    if (confirmed) {
+      onDocumentOnly();
+    }
+  };
+
   const orderTotalsForLink = {
     subtotal: totals.subtotal,
     taxName: totals.taxName || 'Tax',
@@ -154,6 +198,14 @@ export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
             ) : mobileCreateTab === 'create' ? (
               <>
                 <div className="flex-1 overflow-y-auto p-4">
+                  {descriptionWarnings.hasIssues && !loadingInvoicePreview && (
+                    <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm text-amber-800">
+                        <span className="font-medium">{descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} line items</span> have empty QB descriptions. Consider editing them before creating.
+                      </div>
+                    </div>
+                  )}
                   <MobileCreateContent
                     companySettings={companySettings}
                     order={order}
@@ -174,7 +226,7 @@ export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
                       {onSkip ? 'Skip' : 'Cancel'}
                     </button>
                     <button
-                      onClick={onDocumentOnly}
+                      onClick={handleCreateInvoice}
                       disabled={loading || linking}
                       className="rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium flex items-center justify-center gap-2 text-sm w-full py-3 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -249,6 +301,15 @@ export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
                   <span className="ml-2 text-gray-500">Loading...</span>
                 </div>
               ) : (
+                <>
+                {descriptionWarnings.hasIssues && !loadingInvoicePreview && (
+                  <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-amber-800">
+                      <span className="font-medium">{descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} line items</span> have empty QB descriptions. Consider editing them before creating.
+                    </div>
+                  </div>
+                )}
                 <DesktopCreateContent
                   companySettings={companySettings}
                   order={order}
@@ -259,6 +320,7 @@ export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
                   totals={totals}
                   formatAddress={formatAddress}
                 />
+                </>
               )}
               {error && (
                 <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
@@ -275,7 +337,7 @@ export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
                   {onSkip ? 'Skip' : 'Cancel'}
                 </button>
                 <button
-                  onClick={onDocumentOnly}
+                  onClick={handleCreateInvoice}
                   disabled={loading || linking}
                   className="rounded-lg bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-medium flex items-center justify-center gap-2 text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >

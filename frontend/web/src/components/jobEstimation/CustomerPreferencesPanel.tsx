@@ -8,18 +8,30 @@ interface CustomerPreferencesPanelProps {
   customerData: CustomerPreferencesData | null;
   validationResult: CustomerPreferencesValidationResult | null;
   onEditCustomer: () => void;
+  // Per-estimate high standards override
+  estimateHighStandards?: boolean | null;  // null = inherit, true = on, false = off
+  onHighStandardsChange?: (value: boolean | null) => void;
+  isDraft?: boolean;
 }
 
 export const CustomerPreferencesPanel: React.FC<CustomerPreferencesPanelProps> = ({
   customerData,
   validationResult,
-  onEditCustomer
+  onEditCustomer,
+  estimateHighStandards,
+  onHighStandardsChange,
+  isDraft = false
 }) => {
   if (!customerData || !customerData.preferences) {
     return null;
   }
 
-  const { preferences, cashCustomer, highStandards, discount, defaultTurnaround, postalCode } = customerData;
+  const { preferences, cashCustomer, highStandards: customerHighStandards, discount, defaultTurnaround, postalCode } = customerData;
+
+  // Compute effective high standards: estimate override takes precedence over customer default
+  const highStandards = estimateHighStandards !== null && estimateHighStandards !== undefined
+    ? estimateHighStandards
+    : customerHighStandards;
 
   // Helper function to format LED preference display
   const formatLEDPreference = (): string => {
@@ -191,17 +203,39 @@ export const CustomerPreferencesPanel: React.FC<CustomerPreferencesPanelProps> =
             <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded ml-1">HIGH STANDARDS</span>
           )}
         </div>
-        <button
-          onClick={onEditCustomer}
-          className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors ${
-            highStandards
-              ? 'bg-amber-200 text-amber-900 hover:bg-amber-300'
-              : `${PAGE_STYLES.header.background} ${PAGE_STYLES.header.text} ${PAGE_STYLES.interactive.hoverOnHeader} hover:${PAGE_STYLES.page.text}`
-          }`}
-        >
-          <Edit2 className="w-3.5 h-3.5" />
-          Edit Customer
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Per-estimate high standards override */}
+          {isDraft && onHighStandardsChange && (
+            <select
+              value={estimateHighStandards === null || estimateHighStandards === undefined ? 'inherit' : estimateHighStandards ? 'yes' : 'no'}
+              onChange={(e) => {
+                const val = e.target.value;
+                onHighStandardsChange(val === 'inherit' ? null : val === 'yes');
+              }}
+              className={`text-[11px] px-1.5 py-1 rounded border ${
+                highStandards
+                  ? 'border-amber-400 bg-amber-50 text-amber-900'
+                  : `border-gray-500 bg-gray-700 text-gray-200`
+              }`}
+              title="Per-job high standards override"
+            >
+              <option value="inherit">High Standards: Customer Default ({customerHighStandards ? 'Yes' : 'No'})</option>
+              <option value="yes">High Standards: Yes</option>
+              <option value="no">High Standards: No</option>
+            </select>
+          )}
+          <button
+            onClick={onEditCustomer}
+            className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors ${
+              highStandards
+                ? 'bg-amber-200 text-amber-900 hover:bg-amber-300'
+                : `${PAGE_STYLES.header.background} ${PAGE_STYLES.header.text} ${PAGE_STYLES.interactive.hoverOnHeader} hover:${PAGE_STYLES.page.text}`
+            }`}
+          >
+            <Edit2 className="w-3.5 h-3.5" />
+            Edit Customer
+          </button>
+        </div>
       </div>
 
       {/* Content - 2 Column Layout */}

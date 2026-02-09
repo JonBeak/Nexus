@@ -116,6 +116,9 @@ export const MobileCreateContent: React.FC<ContentProps> = ({
         ) : (
           <div key={part.key} className="bg-white border border-gray-300 rounded-lg p-3">
             <div className="font-medium text-gray-900 text-sm">{part.qb_item_name || '-'}</div>
+            {(!part.qb_description || !part.qb_description.trim()) && (
+              <div className="text-xs text-amber-600 italic mt-0.5">No QB description</div>
+            )}
             <div className="flex items-center justify-between mt-2 text-sm">
               <span className="text-gray-600">Qty: <span className="font-medium">{part.quantity}</span></span>
               <span className="text-gray-600">@ ${Number(part.unit_price || 0).toFixed(2)}</span>
@@ -180,7 +183,9 @@ export const DesktopCreateContent: React.FC<ContentProps> = ({
               ) : (
                 <tr key={part.key} className="border-b border-gray-200 align-top">
                   <td className="py-2 text-gray-900">{part.qb_item_name || '-'}</td>
-                  <td className="py-2 text-gray-600 whitespace-pre-wrap">{part.qb_description || '-'}</td>
+                  <td className={`py-2 whitespace-pre-wrap ${!part.qb_description || !part.qb_description.trim() ? 'text-amber-600 italic' : 'text-gray-600'}`}>
+                    {!part.qb_description || !part.qb_description.trim() ? '(empty)' : part.qb_description}
+                  </td>
                   <td className="py-2 text-right text-gray-600">{part.quantity}</td>
                   <td className="py-2 text-right text-gray-600">${Number(part.unit_price || 0).toFixed(2)}</td>
                   <td className="py-2 text-right text-gray-900">${Number(part.extended_price || 0).toFixed(2)}</td>

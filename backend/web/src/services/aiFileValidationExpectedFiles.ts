@@ -173,7 +173,6 @@ export async function getExpectedFilesComparison(
           status: 'present',
           is_required: expected.is_required,
           matched_rules: expected.matched_rules,
-          ...(actualFile.is_postscript && { format_warning: "PostScript format — re-save with 'Create PDF Compatible File' enabled" }),
         });
       } else {
         comparisonEntries.push({
@@ -196,7 +195,6 @@ export async function getExpectedFilesComparison(
           status: 'unexpected',
           is_required: false,
           matched_rules: [],
-          ...(actualFile.is_postscript && { format_warning: "PostScript format — re-save with 'Create PDF Compatible File' enabled" }),
         });
       }
     }

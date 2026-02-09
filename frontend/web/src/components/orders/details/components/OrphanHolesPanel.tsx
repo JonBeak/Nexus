@@ -11,6 +11,8 @@ import { ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
 import { HoleDetail } from '../../../../types/aiFileValidation';
 import OrphanHoleSvgPreview from './OrphanHoleSvgPreview';
 
+const HOLE_TYPE_ORDER: Record<string, number> = { wire: 0, mounting: 1 };
+
 interface OrphanHolesPanelProps {
   holes: HoleDetail[];
 }
@@ -83,6 +85,9 @@ const OrphanHolesPanel: React.FC<OrphanHolesPanelProps> = ({ holes }) => {
       const layer = hole.layer_name || 'Unknown Layer';
       if (!groups[layer]) groups[layer] = [];
       groups[layer].push(hole);
+    }
+    for (const layerHoles of Object.values(groups)) {
+      layerHoles.sort((a, b) => (HOLE_TYPE_ORDER[a.hole_type] ?? 2) - (HOLE_TYPE_ORDER[b.hole_type] ?? 2));
     }
     return Object.entries(groups);
   }, [holes]);

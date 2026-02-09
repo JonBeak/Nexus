@@ -27,6 +27,8 @@ import LetterSvgPreview from './LetterSvgPreview';
 import LayerSvgOverview from './LayerSvgOverview';
 import OrphanHolesPanel from './OrphanHolesPanel';
 
+const HOLE_TYPE_ORDER: Record<string, number> = { wire: 0, mounting: 1 };
+
 interface LetterAnalysisPanelProps {
   analysis: LetterAnalysisResponse;
 }
@@ -50,16 +52,17 @@ export const HoleLegend: React.FC = () => (
 
 const HoleStats: React.FC<{ letter: LetterDetail }> = ({ letter }) => {
   // Group holes by type, using matched_name for display when available
-  const groups = (letter.holes || []).reduce<Record<string, { count: number; color: string; dotColor: string }>>((acc, h) => {
+  const groups = (letter.holes || []).reduce<Record<string, { count: number; color: string; dotColor: string; type: string }>>((acc, h) => {
     const label = h.matched_name || h.hole_type;
     const color = h.hole_type === 'wire' ? 'text-blue-600' : h.hole_type === 'mounting' ? 'text-green-600' : 'text-orange-600';
     const dotColor = h.hole_type === 'wire' ? 'fill-blue-500 text-blue-500' : h.hole_type === 'mounting' ? 'fill-green-500 text-green-500' : 'fill-orange-500 text-orange-500';
-    if (!acc[label]) acc[label] = { count: 0, color, dotColor };
+    if (!acc[label]) acc[label] = { count: 0, color, dotColor, type: h.hole_type };
     acc[label].count++;
     return acc;
   }, {});
 
-  const entries = Object.entries(groups);
+  const entries = Object.entries(groups)
+    .sort(([, a], [, b]) => (HOLE_TYPE_ORDER[a.type] ?? 2) - (HOLE_TYPE_ORDER[b.type] ?? 2));
 
   return (
     <div className="flex items-center gap-3 text-sm">
@@ -175,7 +178,8 @@ const LetterCard: React.FC<{
                         acc[key].count++;
                         return acc;
                       }, {})
-                    ).map(([key, { type, name, size, count }]) => (
+                    ).sort(([, a], [, b]) => (HOLE_TYPE_ORDER[a.type] ?? 2) - (HOLE_TYPE_ORDER[b.type] ?? 2))
+                    .map(([key, { type, name, size, count }]) => (
                       <div
                         key={key}
                         className="flex items-center justify-between text-xs py-1 px-2 bg-gray-50 rounded"
