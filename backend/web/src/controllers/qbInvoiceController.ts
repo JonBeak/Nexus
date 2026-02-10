@@ -863,7 +863,8 @@ export const getInvoicePreview = async (req: Request, res: Response) => {
 
     const lineItems = await qbInvoiceService.buildInvoiceLineItems(orderId);
 
-    // Check if QB descriptions are all auto-generated defaults (never manually edited)
+    // Check if QB descriptions are all auto-generated defaults (never meaningfully reviewed)
+    // Three checks: (1) is_auto_filled flag, (2) no descriptions exist at all, (3) all descriptions empty on order_parts
     let allDescriptionsDefault = true;
     const orderRows = await query(
       'SELECT estimate_id FROM orders WHERE order_id = ?',
@@ -871,11 +872,37 @@ export const getInvoicePreview = async (req: Request, res: Response) => {
     ) as RowDataPacket[];
     const estimateId = orderRows[0]?.estimate_id;
     if (estimateId) {
-      const countRows = await query(
-        'SELECT COUNT(*) as manually_edited FROM estimate_line_descriptions WHERE estimate_id = ? AND is_auto_filled = 0',
+      const descRows = await query(
+        `SELECT
+          COUNT(*) as total_descriptions,
+          SUM(CASE WHEN is_auto_filled = 0 THEN 1 ELSE 0 END) as manually_edited,
+          SUM(CASE WHEN is_auto_filled = 0 AND qb_description IS NOT NULL AND TRIM(qb_description) != '' THEN 1 ELSE 0 END) as manually_edited_with_content
+        FROM estimate_line_descriptions WHERE estimate_id = ?`,
         [estimateId]
       ) as RowDataPacket[];
-      allDescriptionsDefault = (countRows[0]?.manually_edited || 0) === 0;
+      const totalDescriptions = descRows[0]?.total_descriptions || 0;
+      const manuallyEditedWithContent = descRows[0]?.manually_edited_with_content || 0;
+
+      if (totalDescriptions === 0) {
+        // No descriptions exist at all - definitely not reviewed
+        allDescriptionsDefault = true;
+      } else if (manuallyEditedWithContent > 0) {
+        // At least one description was manually edited AND has actual content - considered reviewed
+        allDescriptionsDefault = false;
+      } else {
+        // All auto-filled OR manually "edited" but left empty/unchanged - still defaults
+        allDescriptionsDefault = true;
+      }
+    }
+
+    // Additional safety check: if all line item descriptions are empty, flag as default
+    // regardless of what estimate_line_descriptions says
+    if (!allDescriptionsDefault) {
+      const nonHeaderItems = lineItems.filter(li => !li.isHeaderRow && !li.isDescriptionOnly);
+      const allEmpty = nonHeaderItems.length > 0 && nonHeaderItems.every(li => !li.description || !li.description.trim());
+      if (allEmpty) {
+        allDescriptionsDefault = true;
+      }
     }
 
     res.json({

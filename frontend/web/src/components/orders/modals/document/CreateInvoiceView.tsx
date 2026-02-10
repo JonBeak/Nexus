@@ -106,9 +106,12 @@ export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
     let message: string;
     let details: React.ReactNode = null;
 
+    let variant: 'danger' | 'warning' = 'warning';
+
     if (descriptionWarnings.hasDefault) {
-      title = 'Default QB Descriptions';
-      message = 'QB descriptions are auto-generated defaults — they haven\'t been reviewed or customized for this customer.';
+      title = 'Default Template Descriptions';
+      message = 'QB descriptions are auto-generated defaults — they haven\'t been reviewed or customized for this customer. Creating an invoice with default templates may result in incorrect or unprofessional descriptions.';
+      variant = 'danger';
       if (descriptionWarnings.hasEmpty) {
         details = (
           <div className="mt-2 text-sm text-gray-600">
@@ -141,7 +144,7 @@ export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
       message,
       confirmText: 'Create Anyway',
       cancelText: 'Go Back',
-      variant: 'warning',
+      variant,
       details
     });
     if (confirmed) {
@@ -231,17 +234,23 @@ export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
               <>
                 <div className="flex-1 overflow-y-auto p-4">
                   {descriptionWarnings.hasIssues && !loadingInvoicePreview && (
-                    <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
-                      <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                      <div className="text-sm text-amber-800">
-                        {descriptionWarnings.hasDefault ? (
-                          <>QB descriptions are <span className="font-medium">auto-generated defaults</span> — not yet reviewed.{descriptionWarnings.hasEmpty && <> {descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} are completely empty.</>} </>
-                        ) : (
-                          <><span className="font-medium">{descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} line items</span> have empty QB descriptions. </>
-                        )}
-                        Consider editing them before creating.
+                    descriptionWarnings.hasDefault ? (
+                      <div className="mb-3 bg-red-50 border border-red-300 rounded-lg p-3 flex items-start gap-2">
+                        <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm text-red-800">
+                          <div className="font-semibold">Default Template Descriptions</div>
+                          <div className="mt-0.5">QB descriptions are <span className="font-medium">auto-generated defaults</span> — not yet reviewed or customized for this customer.{descriptionWarnings.hasEmpty && <> {descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} are also completely empty.</>}</div>
+                          <div className="mt-1 font-medium">Edit descriptions before creating the invoice.</div>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm text-amber-800">
+                          <span className="font-medium">{descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} line items</span> have empty QB descriptions. Consider editing them before creating.
+                        </div>
+                      </div>
+                    )
                   )}
                   <MobileCreateContent
                     companySettings={companySettings}
@@ -340,17 +349,23 @@ export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
               ) : (
                 <>
                 {descriptionWarnings.hasIssues && !loadingInvoicePreview && (
-                  <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2.5">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                    <div className="text-sm text-amber-800">
-                      {descriptionWarnings.hasDefault ? (
-                        <>QB descriptions are <span className="font-medium">auto-generated defaults</span> — not yet reviewed.{descriptionWarnings.hasEmpty && <> {descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} are completely empty.</>} </>
-                      ) : (
-                        <><span className="font-medium">{descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} line items</span> have empty QB descriptions. </>
-                      )}
-                      Consider editing them before creating.
+                  descriptionWarnings.hasDefault ? (
+                    <div className="mb-4 bg-red-50 border border-red-300 rounded-lg p-3 flex items-start gap-2.5">
+                      <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm text-red-800">
+                        <div className="font-semibold">Default Template Descriptions</div>
+                        <div className="mt-0.5">QB descriptions are <span className="font-medium">auto-generated defaults</span> — not yet reviewed or customized for this customer.{descriptionWarnings.hasEmpty && <> {descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} are also completely empty.</>}</div>
+                        <div className="mt-1 font-medium">Edit descriptions before creating the invoice.</div>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2.5">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm text-amber-800">
+                        <span className="font-medium">{descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} line items</span> have empty QB descriptions. Consider editing them before creating.
+                      </div>
+                    </div>
+                  )
                 )}
                 <DesktopCreateContent
                   companySettings={companySettings}
