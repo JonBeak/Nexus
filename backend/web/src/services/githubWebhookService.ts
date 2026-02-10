@@ -9,6 +9,7 @@
 import { githubIntegrationRepository } from '../repositories/githubIntegrationRepository';
 import { feedbackRepository } from '../repositories/feedbackRepository';
 import { slackNotificationService } from './slackNotificationService';
+import { slackIntegrationRepository } from '../repositories/slackIntegrationRepository';
 
 interface PullRequestPayload {
   action: string;
@@ -138,6 +139,9 @@ export class GitHubWebhookService {
     }
 
     console.log(`[Webhook] Claude comment on issue #${issue.number} → feedback #${feedback.feedback_id}`);
+
+    // Update dedup marker BEFORE sending to Slack so the polling job won't re-send
+    await slackIntegrationRepository.updateLastCommentId(feedback.feedback_id, comment.id);
 
     slackNotificationService.notifyClaudeComment(
       feedback.feedback_id,

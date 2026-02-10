@@ -213,9 +213,8 @@ export class SupplierOrderService {
         const itemData: CreateSupplierOrderItemRequest = {
           product_description: req.archetype_name || req.custom_product_type || 'Unknown Product',
           quantity_ordered: req.quantity_ordered,
-          unit_of_measure: req.unit_of_measure || 'each',
+          unit_of_measure: req.unit || req.unit_of_measure || 'each',
           material_requirement_id: req.requirement_id,
-          notes: req.size_description ? `Size: ${req.size_description}` : undefined,
         };
 
         await this.repository.addItem(orderId, itemData);
@@ -388,7 +387,8 @@ export class SupplierOrderService {
         status: ['pending'],
       });
       const selectedReqs = allReqs.filter(
-        r => requirementIds.includes(r.requirement_id) && r.supplier_id === supplierId
+        r => requirementIds.includes(r.requirement_id)
+        // TODO: re-enable supplier check: && r.supplier_id === supplierId
       );
 
       if (selectedReqs.length === 0) {
@@ -404,11 +404,11 @@ export class SupplierOrderService {
         product_description: req.archetype_name || req.custom_product_type || 'Unknown Product',
         sku: req.supplier_product_sku || null,
         quantity_ordered: Number(req.quantity_ordered),
-        unit_of_measure: req.unit_of_measure || 'each',
+        unit_of_measure: req.unit || req.unit_of_measure || 'each',
         unit_price: 0,
         material_requirement_id: req.requirement_id,
         supplier_product_id: req.supplier_product_id || null,
-        notes: req.size_description ? `Size: ${req.size_description}` : null,
+        notes: null,
       }));
 
       // Create snapshot in supplier_orders + supplier_order_items

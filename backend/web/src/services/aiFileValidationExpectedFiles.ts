@@ -14,6 +14,7 @@ import {
 } from '../types/aiFileValidation';
 import { fileExpectationRulesRepository } from '../repositories/fileExpectationRulesRepository';
 import { detectSpecTypes, getValidationRuleDescriptions } from './aiFileValidationRules';
+import { buildConditionTree, evaluateCondition, OrderConditionContext } from '../utils/conditionTree';
 
 // Python script path for AI version extraction
 const AI_VERSION_SCRIPT_PATH = path.resolve(__dirname, '../../src/scripts/python/extract_ai_version.py');
@@ -66,6 +67,7 @@ async function extractAiVersion(filePath: string): Promise<string | undefined> {
 interface ExpectedFilesDeps {
   getOrderIdFromNumber(orderNumber: number): Promise<number | null>;
   getOrderSpecsDisplayNames(orderId: number): Promise<string[]>;
+  getOrderApplications?(orderId: number): Promise<string[]>;
   listAiFiles(orderNumber: number, options?: { includePostScript?: boolean }): Promise<ServiceResult<AiFileInfo[]>>;
 }
 
@@ -92,11 +94,24 @@ export async function getExpectedFilesComparison(
     const specTypes = detectSpecTypes(specsDisplayNames);
     const validationRules = getValidationRuleDescriptions(specTypes);
 
-    // 3. Get rules matching these specs_display_names
-    const matchingRules = specsDisplayNames.length > 0
-      ? await fileExpectationRulesRepository.getRulesByConditionValues('specs_display_name', specsDisplayNames)
+    // 2c. Build condition context for tree evaluation
+    const applications = deps.getOrderApplications
+      ? await deps.getOrderApplications(orderId)
       : [];
-    console.log(`[ExpectedFiles] Found ${matchingRules.length} matching rules`);
+
+    const conditionContext: OrderConditionContext = {
+      specs_display_names: specsDisplayNames,
+      applications,
+      parts: specsDisplayNames.map(name => ({ specs_display_name: name, specifications: {} })),
+    };
+
+    // 3. Load all active rules with condition trees and evaluate
+    const allRulesWithConditions = await fileExpectationRulesRepository.getActiveRulesWithConditions();
+    const matchingRules = allRulesWithConditions.filter(rule => {
+      const tree = buildConditionTree(rule.conditionRows);
+      return evaluateCondition(tree, conditionContext);
+    });
+    console.log(`[ExpectedFiles] Found ${matchingRules.length} matching rules (from ${allRulesWithConditions.length} active)`);
 
     // 4. Build expected files map (filename -> rule info)
     const expectedFilesMap = new Map<string, {
@@ -115,7 +130,7 @@ export async function getExpectedFilesComparison(
       } else {
         expectedFilesMap.set(rule.expected_filename.toLowerCase(), {
           filename: rule.expected_filename,
-          is_required: rule.is_required,
+          is_required: !!rule.is_required,
           matched_rules: [rule.rule_name],
         });
       }

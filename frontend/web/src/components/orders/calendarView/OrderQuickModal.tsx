@@ -576,16 +576,39 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
     }
   };
 
+  // Folder dropdown state
+  const [showFolderDropdown, setShowFolderDropdown] = useState(false);
+  const folderDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutsideFolder = (event: MouseEvent) => {
+      if (folderDropdownRef.current && !folderDropdownRef.current.contains(event.target as Node)) {
+        setShowFolderDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutsideFolder);
+    return () => document.removeEventListener('mousedown', handleClickOutsideFolder);
+  }, []);
+
   // Handle open folder
-  const handleOpenFolder = () => {
+  const handleOpenFolder = (locationType: 'new' | 'legacy') => {
     if (!orderDetails?.folder_name || orderDetails.folder_location === 'none') {
       return;
     }
-    // Construct UNC path based on folder location (same as OrderDetailsPage)
-    let folderPath = '\\\\192.168.2.85\\Channel Letter\\Orders\\';
-    if (orderDetails.folder_location === 'finished') {
-      folderPath += '1Finished\\';
+
+    const location = orderDetails.folder_location;
+    let folderPath: string;
+
+    if (locationType === 'new') {
+      folderPath = '\\\\192.168.2.85\\Channel Letter\\Orders\\';
+      if (location === 'finished') folderPath += '1Finished\\';
+      else if (location === 'cancelled') folderPath += '1Cancelled\\';
+      else if (location === 'hold') folderPath += '1Hold\\';
+    } else {
+      folderPath = '\\\\192.168.2.85\\Channel Letter\\';
+      if (location === 'finished') folderPath += '1Finished\\';
     }
+
     folderPath += orderDetails.folder_name;
     window.location.href = `nexus://open?path=${encodeURIComponent(folderPath)}`;
   };
@@ -1297,19 +1320,44 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                 <span className="hidden md:inline">Go to Order</span>
                 <span className="md:hidden">Order</span>
               </Link>
-              <button
-                onClick={handleOpenFolder}
-                disabled={!orderDetails?.folder_name || orderDetails.folder_location === 'none'}
-                className={`flex-1 min-w-[45%] md:min-w-0 flex items-center justify-center gap-1.5 px-3 py-3 md:py-2 rounded text-sm font-medium transition-colors min-h-[44px]
-                  ${orderDetails?.folder_name && orderDetails.folder_location !== 'none'
-                    ? `${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} ${PAGE_STYLES.header.text} ${PAGE_STYLES.interactive.hover} active:bg-gray-200`
-                    : `${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.textMuted} cursor-not-allowed`
-                  }
-                `}
-              >
-                <FolderOpen className="w-4 h-4" />
-                Folder
-              </button>
+              <div className="relative flex-1 min-w-[45%] md:min-w-0" ref={folderDropdownRef}>
+                <button
+                  onClick={() => {
+                    if (orderDetails?.folder_name && orderDetails.folder_location !== 'none') {
+                      setShowFolderDropdown(!showFolderDropdown);
+                    }
+                  }}
+                  disabled={!orderDetails?.folder_name || orderDetails.folder_location === 'none'}
+                  className={`w-full flex items-center justify-center gap-1.5 px-3 py-3 md:py-2 rounded text-sm font-medium transition-colors min-h-[44px]
+                    ${orderDetails?.folder_name && orderDetails.folder_location !== 'none'
+                      ? `${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} ${PAGE_STYLES.header.text} ${PAGE_STYLES.interactive.hover} active:bg-gray-200`
+                      : `${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.textMuted} cursor-not-allowed`
+                    }
+                  `}
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  Folder
+                  <ChevronDown className={`w-3 h-3 transition-transform ${showFolderDropdown ? 'rotate-180' : ''}`} />
+                </button>
+                {showFolderDropdown && (
+                  <div className="absolute bottom-full left-0 mb-1 bg-white border border-gray-200 rounded-lg shadow-lg z-[70] min-w-[170px]">
+                    <button
+                      onClick={() => { setShowFolderDropdown(false); handleOpenFolder('new'); }}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 rounded-t-lg"
+                    >
+                      <FolderOpen className="w-4 h-4" />
+                      Order Folder
+                    </button>
+                    <button
+                      onClick={() => { setShowFolderDropdown(false); handleOpenFolder('legacy'); }}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 rounded-b-lg"
+                    >
+                      <FolderOpen className="w-4 h-4 text-gray-400" />
+                      Legacy Folder
+                    </button>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={() => setShowPdfViewerModal(true)}
                 disabled={!orderDetails?.folder_name}

@@ -50,6 +50,7 @@ async function pollTicket(
     last_github_comment_id: number | null;
     title: string;
     pipeline_status: string;
+    github_pr_number: number | null;
   }
 ): Promise<void> {
   const headers = {
@@ -93,8 +94,8 @@ async function pollTicket(
       }
     }
 
-    // Check for linked PRs that webhooks may have missed (only for claude_working tickets)
-    if (ticket.pipeline_status === 'claude_working') {
+    // Check for linked PRs that webhooks may have missed (only for claude_working tickets without a PR)
+    if (ticket.pipeline_status === 'claude_working' && !ticket.github_pr_number) {
       try {
         const timelineRes = await fetch(
           `https://api.github.com/repos/${config.owner}/${config.repo}/issues/${ticket.github_issue_number}/timeline`,

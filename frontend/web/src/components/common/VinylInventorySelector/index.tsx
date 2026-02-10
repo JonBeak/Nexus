@@ -142,7 +142,7 @@ export const VinylInventorySelector: React.FC<VinylInventorySelectorProps> = (pr
                 <div className="flex items-center gap-2 text-xs">
                   {props.requirementSize && (
                     <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-medium">
-                      Size: {props.requirementSize}
+                      Unit: {props.requirementSize}
                     </span>
                   )}
                   {props.requirementQty !== undefined && (

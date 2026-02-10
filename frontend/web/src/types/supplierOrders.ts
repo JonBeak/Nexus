@@ -251,7 +251,7 @@ export interface GroupedRequirement {
   entry_date: string;
   custom_product_type: string | null;
   archetype_name: string | null;
-  size_description: string | null;
+  unit: string | null;
   quantity_ordered: number;
   unit_of_measure: string | null;
   order_number: string | null;

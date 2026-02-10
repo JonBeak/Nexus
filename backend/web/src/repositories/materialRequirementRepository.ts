@@ -219,7 +219,7 @@ export class MaterialRequirementRepository {
     const sql = `
       INSERT INTO material_requirements (
         order_id, is_stock_item, archetype_id, custom_product_type,
-        supplier_product_id, vinyl_product_id, size_description, quantity_ordered,
+        supplier_product_id, vinyl_product_id, unit, quantity_ordered,
         supplier_id, entry_date, expected_delivery_date,
         delivery_method, notes, created_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -240,7 +240,7 @@ export class MaterialRequirementRepository {
       data.custom_product_type?.trim() ?? null,
       data.supplier_product_id ?? null,
       data.vinyl_product_id ?? null,
-      data.size_description?.trim() ?? null,
+      data.unit?.trim() ?? null,
       data.quantity_ordered,
       data.supplier_id ?? null,
       entryDate,
@@ -284,9 +284,9 @@ export class MaterialRequirementRepository {
       setClauses.push('vinyl_product_id = ?');
       values.push(data.vinyl_product_id);
     }
-    if (data.size_description !== undefined) {
-      setClauses.push('size_description = ?');
-      values.push(data.size_description?.trim() ?? null);
+    if (data.unit !== undefined) {
+      setClauses.push('unit = ?');
+      values.push(data.unit?.trim() ?? null);
     }
     if (data.quantity_ordered !== undefined) {
       setClauses.push('quantity_ordered = ?');
@@ -491,7 +491,7 @@ export class MaterialRequirementRepository {
     const conditions = [
       'mr.supplier_id > 0',
       'mr.ordered_date IS NULL',
-      "mr.status = 'pending'",
+      "mr.status IN ('pending', 'ordered')",
     ];
     const params: any[] = [];
 

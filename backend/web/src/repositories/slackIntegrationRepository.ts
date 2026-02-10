@@ -50,7 +50,8 @@ export class SlackIntegrationRepository {
   async getActiveFeedbackForPolling(): Promise<ActivePollingTicket[]> {
     return await query(
       `SELECT feedback_id, github_issue_number, pipeline_status,
-              slack_thread_ts, slack_last_polled_at, last_github_comment_id, title
+              slack_thread_ts, slack_last_polled_at, last_github_comment_id, title,
+              github_pr_number
        FROM feedback_requests
        WHERE pipeline_status IN ('claude_working', 'pr_ready')
          AND github_issue_number IS NOT NULL`,
@@ -67,6 +68,16 @@ export class SlackIntegrationRepository {
        SET slack_last_polled_at = NOW(), last_github_comment_id = COALESCE(?, last_github_comment_id)
        WHERE feedback_id = ?`,
       [lastCommentId, feedbackId]
+    );
+  }
+  /**
+   * Update last_github_comment_id for dedup between webhook and polling
+   * Uses GREATEST to avoid regressing the marker if events arrive out of order
+   */
+  async updateLastCommentId(feedbackId: number, commentId: number): Promise<void> {
+    await query(
+      `UPDATE feedback_requests SET last_github_comment_id = GREATEST(COALESCE(last_github_comment_id, 0), ?) WHERE feedback_id = ?`,
+      [commentId, feedbackId]
     );
   }
 }

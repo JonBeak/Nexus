@@ -60,6 +60,7 @@ import inventoryRoutes from './routes/inventory';  // Inventory management (Feb 
 import pricingManagementRoutes from './routes/pricingManagement';  // Pricing Management UI (Feb 2026)
 import githubIntegrationRoutes from './routes/githubIntegration';  // GitHub/Claude Code integration (Feb 8, 2026)
 import githubWebhookRoutes from './routes/githubWebhook';  // GitHub webhook receiver (Feb 8, 2026)
+import validationRulesRoutes from './routes/validationRules';  // Configurable validation rules (Feb 10, 2026)
 
 // QuickBooks utilities for startup
 import { quickbooksOAuthRepository } from './repositories/quickbooksOAuthRepository';
@@ -190,6 +191,7 @@ app.use('/api/inventory', inventoryRoutes);  // Inventory management (Feb 2, 202
 app.use('/api/pricing-management', pricingManagementRoutes);  // Pricing Management UI (Feb 2026)
 app.use('/api/github-integration', githubIntegrationRoutes);  // GitHub/Claude Code integration (Feb 8, 2026)
 app.use('/api/github-webhook', githubWebhookRoutes);  // GitHub webhook receiver (Feb 8, 2026)
+app.use('/api/settings/validation-rules', validationRulesRoutes);  // Configurable validation rules (Feb 10, 2026)
 
 // =============================================
 // STATIC FILE SERVING (Phase 1.5.g)

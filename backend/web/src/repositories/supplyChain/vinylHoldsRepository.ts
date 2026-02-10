@@ -41,7 +41,7 @@ export interface VinylHoldWithDetails extends VinylHold {
   order_number?: string;
   order_name?: string;
   customer_name?: string;
-  size_description?: string;
+  unit?: string;
 
   // User details
   created_by_name?: string;
@@ -112,7 +112,7 @@ export class VinylHoldsRepository {
         o.order_number,
         o.order_name,
         c.company_name as customer_name,
-        mr.size_description,
+        mr.unit,
         CONCAT(u.first_name, ' ', u.last_name) as created_by_name
       FROM vinyl_holds vh
       JOIN vinyl_inventory vi ON vh.vinyl_id = vi.id
@@ -148,7 +148,7 @@ export class VinylHoldsRepository {
         o.order_number,
         o.order_name,
         c.company_name as customer_name,
-        mr.size_description,
+        mr.unit,
         CONCAT(u.first_name, ' ', u.last_name) as created_by_name
       FROM vinyl_holds vh
       JOIN vinyl_inventory vi ON vh.vinyl_id = vi.id
@@ -180,7 +180,7 @@ export class VinylHoldsRepository {
         o.order_number,
         o.order_name,
         c.company_name as customer_name,
-        mr.size_description,
+        mr.unit,
         CONCAT(u.first_name, ' ', u.last_name) as created_by_name
       FROM vinyl_holds vh
       JOIN material_requirements mr ON vh.material_requirement_id = mr.requirement_id
@@ -220,7 +220,7 @@ export class VinylHoldsRepository {
         o.order_number,
         o.order_name,
         c.company_name as customer_name,
-        mr.size_description,
+        mr.unit,
         CONCAT(u.first_name, ' ', u.last_name) as created_by_name
       FROM vinyl_holds vh
       JOIN material_requirements mr ON vh.material_requirement_id = mr.requirement_id

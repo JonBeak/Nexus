@@ -36,4 +36,5 @@ export interface ActivePollingTicket {
   slack_last_polled_at: Date | null;
   last_github_comment_id: number | null;
   title: string;
+  github_pr_number: number | null;
 }

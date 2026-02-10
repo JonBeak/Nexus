@@ -34,8 +34,8 @@ export interface MaterialRequirement {
   supplier_product_id: number | null;
   vinyl_product_id: number | null;
 
-  // Size and quantity
-  size_description: string | null;
+  // Unit and quantity
+  unit: string | null;
   quantity_ordered: number;
   quantity_received: number;
 
@@ -113,7 +113,7 @@ export interface CreateMaterialRequirementRequest {
   custom_product_type?: string | null;
   supplier_product_id?: number | null;
   vinyl_product_id?: number | null;
-  size_description?: string | null;
+  unit?: string | null;
   quantity_ordered: number;
   supplier_id?: number | null;
   entry_date?: Date | string;
@@ -132,7 +132,7 @@ export interface UpdateMaterialRequirementRequest {
   custom_product_type?: string | null;
   supplier_product_id?: number | null;
   vinyl_product_id?: number | null;
-  size_description?: string | null;
+  unit?: string | null;
   quantity_ordered?: number;
   quantity_received?: number;
   supplier_id?: number | null;

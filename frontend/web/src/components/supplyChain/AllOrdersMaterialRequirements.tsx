@@ -91,6 +91,7 @@ const DELIVERY_OPTIONS = [
   { value: 'pickup', label: 'Pickup' },
 ];
 
+
 // Receiving Status dropdown options (replaces old status editing)
 // When "Select..." (empty) is chosen, it maps to 'pending' status
 const RECEIVING_STATUS_OPTIONS = [
@@ -662,7 +663,7 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
         vinyl_product_id: null,
         supplier_product_id: null,
         custom_product_type: undefined,
-        size_description: undefined,
+        unit: 'each',
         quantity_ordered: 0,  // Start with 0 to bypass validation until product type is selected
         supplier_id: null,
         delivery_method: undefined,
@@ -823,7 +824,7 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
               <th className={thClass} style={{ width: '170px' }}>Order Ref</th>
               <th className={thClass} style={{ width: '130px' }}>Product Type</th>
               <th className={thClass} style={{ width: '160px' }}>Product</th>
-              <th className={thClass} style={{ width: '90px' }}>Size</th>
+              <th className={thClass} style={{ width: '90px' }}>Unit</th>
               <th className={`${thClass} text-right`} style={{ width: '65px' }}>Qty</th>
               <th className={thClass} style={{ width: '130px' }}>Vendor</th>
               <th className={thClass} style={{ width: '70px' }}>Delivery</th>
@@ -879,13 +880,17 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
                   <td className="px-1 py-0.5">
                     <ProductTypeDropdown
                       value={req.archetype_id}
-                      onChange={(val) => handleMultiFieldEdit(req.requirement_id, {
-                        archetype_id: val,
-                        vinyl_product_id: null,
-                        supplier_product_id: null,
-                        supplier_id: null,
-                        custom_product_type: null,
-                      })}
+                      onChange={(val) => {
+                        const arch = archetypes.find(a => a.archetype_id === val);
+                        handleMultiFieldEdit(req.requirement_id, {
+                          archetype_id: val,
+                          vinyl_product_id: null,
+                          supplier_product_id: null,
+                          supplier_id: null,
+                          custom_product_type: null,
+                          unit: arch?.unit_of_measure || 'each',
+                        });
+                      }}
                       archetypes={archetypes}
                       placeholder="Type..."
                     />
@@ -917,13 +922,13 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
                     )}
                   </td>
 
-                  {/* Size */}
+                  {/* Unit */}
                   <td className="px-1 py-0.5">
                     <InlineEditableCell
-                      value={req.size_description || ''}
-                      onChange={(val) => handleInlineEdit(req.requirement_id, 'size_description', val)}
+                      value={req.unit || ''}
+                      onChange={(val) => handleInlineEdit(req.requirement_id, 'unit', val)}
                       type="text"
-                      placeholder="Size"
+                      placeholder="Unit"
                     />
                   </td>
 
@@ -1085,7 +1090,7 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
           onSelect={handleVinylHoldSelect}
           vinylProductId={selectedRequirementForHold.vinyl_product_id}
           title="Select Vinyl from Inventory"
-          requirementSize={selectedRequirementForHold.size_description}
+          requirementSize={selectedRequirementForHold.unit}
           requirementQty={selectedRequirementForHold.quantity_ordered}
         />
       )}

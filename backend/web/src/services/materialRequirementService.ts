@@ -532,7 +532,7 @@ export class MaterialRequirementService {
           requirement_id: req.requirement_id,
           archetype_name: req.archetype_name ?? null,
           custom_product_type: req.custom_product_type ?? null,
-          size_description: req.size_description ?? null,
+          unit: req.unit ?? null,
           quantity_ordered: req.quantity_ordered,
           unit_of_measure: req.unit_of_measure ?? null,
           order_number: req.order_number ?? null,
@@ -551,9 +551,8 @@ export class MaterialRequirementService {
       if (supplierIds.length > 0) {
         const placeholders = supplierIds.map(() => '?').join(',');
         const contactRows = await dbQuery(
-          `SELECT sc.supplier_id, sc.email, s.contact_phone
+          `SELECT sc.supplier_id, sc.email, sc.phone
            FROM supplier_contacts sc
-           JOIN suppliers s ON sc.supplier_id = s.supplier_id
            WHERE sc.supplier_id IN (${placeholders}) AND sc.is_primary = 1
            LIMIT ${supplierIds.length}`,
           supplierIds
@@ -562,7 +561,7 @@ export class MaterialRequirementService {
           const group = groupMap.get(row.supplier_id);
           if (group) {
             group.contact_email = row.email || null;
-            group.contact_phone = row.contact_phone || null;
+            group.contact_phone = row.phone || null;
           }
         }
       }

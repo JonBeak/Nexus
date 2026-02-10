@@ -594,31 +594,30 @@ export const OrderDetailsPage: React.FC = () => {
   };
 
   // Handle opening order folder in Windows Explorer
-  const handleOpenFolder = () => {
-    console.log('Order data:', {
-      folder_name: orderData.order.folder_name,
-      folder_location: orderData.order.folder_location,
-      folder_exists: orderData.order.folder_exists
-    });
-
+  const handleOpenFolder = (locationType: 'new' | 'legacy') => {
     if (!orderData.order.folder_name || orderData.order.folder_location === 'none') {
       showWarning('No folder exists for this order');
       return;
     }
 
-    // Construct UNC path based on folder location
-    let folderPath = '\\\\192.168.2.85\\Channel Letter\\Orders\\';
-    if (orderData.order.folder_location === 'finished') {
-      folderPath += '1Finished\\';
+    const location = orderData.order.folder_location;
+    let folderPath: string;
+
+    if (locationType === 'new') {
+      // New path: \\192.168.2.85\Channel Letter\Orders\{subfolder}\{folder}
+      folderPath = '\\\\192.168.2.85\\Channel Letter\\Orders\\';
+      if (location === 'finished') folderPath += '1Finished\\';
+      else if (location === 'cancelled') folderPath += '1Cancelled\\';
+      else if (location === 'hold') folderPath += '1Hold\\';
+    } else {
+      // Legacy path: \\192.168.2.85\Channel Letter\{subfolder}\{folder}
+      folderPath = '\\\\192.168.2.85\\Channel Letter\\';
+      if (location === 'finished') folderPath += '1Finished\\';
+      // Legacy had no cancelled/hold subfolders — all at root
     }
+
     folderPath += orderData.order.folder_name;
-
-    console.log('Opening folder:', folderPath);
-    console.log('Nexus URL:', `nexus://open?path=${encodeURIComponent(folderPath)}`);
-
-    // Open folder using nexus:// protocol
-    const nexusUrl = `nexus://open?path=${encodeURIComponent(folderPath)}`;
-    window.location.href = nexusUrl;
+    window.location.href = `nexus://open?path=${encodeURIComponent(folderPath)}`;
   };
 
   // Order Name Edit Handlers

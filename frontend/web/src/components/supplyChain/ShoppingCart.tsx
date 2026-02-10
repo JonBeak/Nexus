@@ -142,11 +142,8 @@ export const ShoppingCartComponent: React.FC<ShoppingCartProps> = ({
                   <span className={`text-sm font-medium ${PAGE_STYLES.panel.text}`}>
                     {(req as any).archetype_name || req.custom_product_type || 'Unknown'}
                   </span>
-                  {req.size_description && (
-                    <span className={`text-xs ml-2 ${PAGE_STYLES.panel.textMuted}`}>{req.size_description}</span>
-                  )}
                   <div className={`text-xs ${PAGE_STYLES.panel.textMuted}`}>
-                    Qty: {req.quantity_ordered}
+                    Qty: {req.quantity_ordered} {(req as any).unit || (req as any).unit_of_measure || 'each'}
                     {req.order_id && <span className="ml-2">Order #{(req as any).order_number}</span>}
                   </div>
                 </div>

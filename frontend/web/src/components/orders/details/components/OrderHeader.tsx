@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Printer, FolderOpen, Settings, CheckCircle, FileCheck, RefreshCw, Send, ChevronDown, Eye, AlertTriangle, AlertOctagon, Link, DollarSign, Star } from 'lucide-react';
 import { Order, DEPOSIT_TRACKING_STATUSES } from '../../../../types/orders';
@@ -17,7 +17,7 @@ interface OrderHeaderProps {
   onGenerateForms: () => void;
   onOpenPrint: () => void;
   onOpenPrintMasterEstimate: () => void;  // NEW: Print Master/Estimate only
-  onOpenFolder: () => void;
+  onOpenFolder: (location: 'new' | 'legacy') => void;
   onPrepareOrder: () => void;
   onCustomerApproved: () => void;  // NEW: Customer approved transition
   onFilesCreated: () => void;  // NEW: Files created transition
@@ -271,6 +271,18 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
   onOrderNameChange
 }) => {
   const navigate = useNavigate();
+  const [showFolderDropdown, setShowFolderDropdown] = useState(false);
+  const folderDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (folderDropdownRef.current && !folderDropdownRef.current.contains(event.target as Node)) {
+        setShowFolderDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleBack = () => {
     navigate('/orders');
@@ -375,14 +387,35 @@ const OrderHeader: React.FC<OrderHeaderProps> = ({
 
           {/* Right: Quick Actions */}
           <div className="flex items-center space-x-3 flex-1 justify-end">
-            {/* Open Folder - Always visible */}
-            <button
-              onClick={onOpenFolder}
-              className={`flex items-center space-x-2 px-4 py-2 ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} rounded-lg ${PAGE_STYLES.interactive.hover} text-sm font-medium ${PAGE_STYLES.header.text}`}
-            >
-              <FolderOpen className="w-4 h-4" />
-              <span>Open Folder</span>
-            </button>
+            {/* Open Folder - Dropdown with New + Legacy options */}
+            <div className="relative" ref={folderDropdownRef}>
+              <button
+                onClick={() => setShowFolderDropdown(!showFolderDropdown)}
+                className={`flex items-center space-x-2 px-4 py-2 ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} rounded-lg ${PAGE_STYLES.interactive.hover} text-sm font-medium ${PAGE_STYLES.header.text}`}
+              >
+                <FolderOpen className="w-4 h-4" />
+                <span>Open Folder</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${showFolderDropdown ? 'rotate-180' : ''}`} />
+              </button>
+              {showFolderDropdown && (
+                <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-[70] min-w-[170px]">
+                  <button
+                    onClick={() => { setShowFolderDropdown(false); onOpenFolder('new'); }}
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 rounded-t-lg"
+                  >
+                    <FolderOpen className="w-4 h-4" />
+                    Order Folder
+                  </button>
+                  <button
+                    onClick={() => { setShowFolderDropdown(false); onOpenFolder('legacy'); }}
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 rounded-b-lg"
+                  >
+                    <FolderOpen className="w-4 h-4 text-gray-400" />
+                    Legacy Folder
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Phase-Specific Actions */}
             {/* Job Details Setup - Prepare Order */}

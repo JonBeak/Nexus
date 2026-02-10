@@ -137,7 +137,7 @@ function buildHtmlBody(
     <tr style="border-bottom: 1px solid #e5e7eb;">
       <td style="padding: 10px 12px; font-size: 14px;">${escapeHtml(item.product_description)}</td>
       <td style="padding: 10px 12px; font-size: 14px; color: #6b7280;">${escapeHtml(item.sku || '—')}</td>
-      <td style="padding: 10px 12px; font-size: 14px; text-align: center;">${Number(item.quantity_ordered)} ${escapeHtml(item.unit_of_measure || 'each')}</td>
+      <td style="padding: 10px 12px; font-size: 14px; text-align: center;">${Number(item.quantity_ordered)} ${escapeHtml(item.unit || item.unit_of_measure || 'each')}</td>
       <td style="padding: 10px 12px; font-size: 14px; text-align: right;">${Number(item.unit_price) > 0 ? formatCurrency(Number(item.unit_price)) : '—'}</td>
       <td style="padding: 10px 12px; font-size: 14px; text-align: right; font-weight: 500;">${Number(item.line_total) > 0 ? formatCurrency(Number(item.line_total)) : '—'}</td>
     </tr>
@@ -287,7 +287,7 @@ function buildPlainText(
     const price = Number(item.unit_price) > 0 ? ` @ ${formatCurrency(Number(item.unit_price))}` : '';
     const total = Number(item.line_total) > 0 ? ` = ${formatCurrency(Number(item.line_total))}` : '';
     lines.push(`• ${item.product_description}${item.sku ? ` (SKU: ${item.sku})` : ''}`);
-    lines.push(`  Qty: ${item.quantity_ordered} ${item.unit_of_measure || 'each'}${price}${total}`);
+    lines.push(`  Qty: ${item.quantity_ordered} ${item.unit || item.unit_of_measure || 'each'}${price}${total}`);
   }
 
   lines.push('-'.repeat(60));

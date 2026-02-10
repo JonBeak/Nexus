@@ -47,7 +47,7 @@ export interface GeneralInventoryHoldWithDetails extends GeneralInventoryHold {
   order_number?: string;
   order_name?: string;
   customer_name?: string;
-  size_description?: string;
+  unit?: string;
 
   // User details
   created_by_name?: string;
@@ -120,7 +120,7 @@ export class GeneralInventoryHoldsRepository {
         o.order_number,
         o.order_name,
         c.company_name as customer_name,
-        mr.size_description,
+        mr.unit,
         CONCAT(u.first_name, ' ', u.last_name) as created_by_name
       FROM general_inventory_holds gih
       JOIN supplier_products sp ON gih.supplier_product_id = sp.supplier_product_id
@@ -158,7 +158,7 @@ export class GeneralInventoryHoldsRepository {
         o.order_number,
         o.order_name,
         c.company_name as customer_name,
-        mr.size_description,
+        mr.unit,
         CONCAT(u.first_name, ' ', u.last_name) as created_by_name
       FROM general_inventory_holds gih
       JOIN supplier_products sp ON gih.supplier_product_id = sp.supplier_product_id
@@ -191,7 +191,7 @@ export class GeneralInventoryHoldsRepository {
         o.order_number,
         o.order_name,
         c.company_name as customer_name,
-        mr.size_description,
+        mr.unit,
         CONCAT(u.first_name, ' ', u.last_name) as created_by_name
       FROM general_inventory_holds gih
       JOIN material_requirements mr ON gih.material_requirement_id = mr.requirement_id
@@ -231,7 +231,7 @@ export class GeneralInventoryHoldsRepository {
         o.order_number,
         o.order_name,
         c.company_name as customer_name,
-        mr.size_description,
+        mr.unit,
         CONCAT(u.first_name, ' ', u.last_name) as created_by_name
       FROM general_inventory_holds gih
       JOIN material_requirements mr ON gih.material_requirement_id = mr.requirement_id

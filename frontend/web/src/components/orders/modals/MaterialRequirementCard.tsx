@@ -46,7 +46,7 @@ function rowToMaterialRequirement(row: MaterialRow): MaterialRequirement {
     vinyl_product_id: row.vinyl_product_id,
     held_vinyl_id: row.held_vinyl_id,
     held_supplier_product_id: row.held_supplier_product_id,
-    size_description: row.size_description || null,
+    unit: row.unit || 'each',
     quantity_ordered: row.quantity_ordered,
     quantity_received: 0,
     supplier_id: row.supplier_id,
@@ -140,12 +140,12 @@ export const MaterialRequirementCard: React.FC<MaterialRequirementCardProps> = R
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-0.5">Size</label>
+          <label className="block text-xs font-medium text-gray-500 mb-0.5">Unit</label>
           <input
             type="text"
-            value={row.size_description}
-            onChange={(e) => onFieldChange(row._localId, 'size_description', e.target.value)}
-            placeholder="e.g. 24x48"
+            value={row.unit}
+            onChange={(e) => onFieldChange(row._localId, 'unit', e.target.value)}
+            placeholder="e.g. each"
             className={inputClass}
           />
         </div>

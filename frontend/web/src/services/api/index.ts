@@ -95,6 +95,7 @@ export {
 
 // Phase 3 - Settings & Templates UI
 export { settingsApi } from './settings';
+export { validationRulesApi } from './validationRulesApi';
 export type {
   SpecificationCategory,
   SpecificationOption,

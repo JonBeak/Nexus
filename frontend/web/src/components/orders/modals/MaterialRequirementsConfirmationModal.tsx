@@ -37,7 +37,7 @@ export interface MaterialRow {
   requirement_id: number | null;
   _deleted: boolean;
   custom_product_type: string;
-  size_description: string;
+  unit: string;
   quantity_ordered: number;
   supplier_id: number | null;
   delivery_method: DeliveryMethod;
@@ -77,7 +77,7 @@ const toRow = (req: MaterialRequirement): MaterialRow => ({
   requirement_id: req.requirement_id,
   _deleted: false,
   custom_product_type: req.custom_product_type || '',
-  size_description: req.size_description || '',
+  unit: req.unit || 'each',
   quantity_ordered: req.quantity_ordered || 0,
   supplier_id: req.supplier_id,
   delivery_method: req.delivery_method || 'pickup',
@@ -102,7 +102,7 @@ const emptyRow = (): MaterialRow => ({
   requirement_id: null,
   _deleted: false,
   custom_product_type: '',
-  size_description: '',
+  unit: 'each',
   quantity_ordered: 1,
   supplier_id: null,
   delivery_method: 'pickup',
@@ -179,10 +179,12 @@ export const MaterialRequirementsConfirmationModal: React.FC<MaterialRequirement
   const handleFieldChange = useCallback((localId: string, field: string, value: any) => {
     setRows(prev => prev.map(r => r._localId === localId ? { ...r, [field]: value } : r));
   }, []);
-  // Cascading: Product Type changes → clear product + vendor
+  // Cascading: Product Type changes → clear product + vendor, auto-fill unit
   const handleProductTypeChange = useCallback((localId: string, archetypeId: number | null) => {
-    setRows(prev => prev.map(r => r._localId === localId ? { ...r, archetype_id: archetypeId, vinyl_product_id: null, supplier_product_id: null, supplier_id: null, custom_product_type: '' } : r));
-  }, []);
+    const arch = archetypes?.find(a => a.archetype_id === archetypeId);
+    const unit = arch?.unit_of_measure || 'each';
+    setRows(prev => prev.map(r => r._localId === localId ? { ...r, archetype_id: archetypeId, vinyl_product_id: null, supplier_product_id: null, supplier_id: null, custom_product_type: '', unit } : r));
+  }, [archetypes]);
   const handleVinylProductChange = useCallback((localId: string, productId: number | null) => {
     setRows(prev => prev.map(r => r._localId === localId ? { ...r, vinyl_product_id: productId } : r));
   }, []);
@@ -230,7 +232,7 @@ export const MaterialRequirementsConfirmationModal: React.FC<MaterialRequirement
 
       if (!row.requirement_id) {
         // Skip completely empty rows
-        if (!row.custom_product_type && !row.archetype_id && !row.size_description && row.quantity_ordered <= 0) {
+        if (!row.custom_product_type && !row.archetype_id && row.quantity_ordered <= 0) {
           continue;
         }
         const created = await materialRequirementsApi.createRequirement({
@@ -239,7 +241,7 @@ export const MaterialRequirementsConfirmationModal: React.FC<MaterialRequirement
           custom_product_type: row.archetype_id ? null : (row.custom_product_type || null),
           vinyl_product_id: row.vinyl_product_id,
           supplier_product_id: row.supplier_product_id,
-          size_description: row.size_description || null,
+          unit: row.unit || 'each',
           quantity_ordered: row.quantity_ordered || 1,
           supplier_id: row.supplier_id,
           delivery_method: row.delivery_method,
@@ -255,7 +257,7 @@ export const MaterialRequirementsConfirmationModal: React.FC<MaterialRequirement
             custom_product_type: row.archetype_id ? null : (row.custom_product_type || null),
             vinyl_product_id: row.vinyl_product_id,
             supplier_product_id: row.supplier_product_id,
-            size_description: row.size_description || null,
+            unit: row.unit || 'each',
             quantity_ordered: row.quantity_ordered,
             supplier_id: row.supplier_id,
             delivery_method: row.delivery_method,
@@ -525,7 +527,7 @@ export const MaterialRequirementsConfirmationModal: React.FC<MaterialRequirement
           onSelect={handleVinylHoldSelect}
           vinylProductId={selectedRowForHold.vinyl_product_id}
           title="Select Vinyl from Inventory"
-          requirementSize={selectedRowForHold.size_description || undefined}
+          requirementSize={selectedRowForHold.unit || undefined}
           requirementQty={selectedRowForHold.quantity_ordered}
         />
       )}
@@ -551,7 +553,7 @@ export const MaterialRequirementsConfirmationModal: React.FC<MaterialRequirement
 function hasRowChanged(original: MaterialRow, current: MaterialRow): boolean {
   return (
     original.custom_product_type !== current.custom_product_type ||
-    original.size_description !== current.size_description ||
+    original.unit !== current.unit ||
     original.quantity_ordered !== current.quantity_ordered ||
     original.supplier_id !== current.supplier_id ||
     original.delivery_method !== current.delivery_method ||
