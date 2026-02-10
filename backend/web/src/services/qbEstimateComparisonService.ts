@@ -211,8 +211,8 @@ export class QBEstimateComparisonService {
         };
       }
 
-      // Compare quantity
-      if (appItem.quantity !== qbItem.quantity) {
+      // Compare quantity (numeric comparison to avoid 1 !== 1.00 false positives)
+      if (Math.abs((Number(appItem.quantity) || 0) - (Number(qbItem.quantity) || 0)) > 0.001) {
         return {
           matches: false,
           reason: `Quantity mismatch at position ${i + 1}: app=${appItem.quantity}, QB=${qbItem.quantity}`

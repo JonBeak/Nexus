@@ -99,7 +99,11 @@ export function calculateQBEstimateContentHash(estimate: QBEstimate): string {
       detailType: line.DetailType,
       description: (line.Description || '').trim(),
       amount: line.Amount || 0,
-      qty: line.SalesItemLineDetail?.Qty || null,
+      // Normalize qty to integer when whole number (e.g., 1.00 -> 1)
+      // to avoid hash mismatches between QB's "1.00" and local "1"
+      qty: line.SalesItemLineDetail?.Qty != null
+        ? (Number.isInteger(line.SalesItemLineDetail.Qty) ? Math.round(line.SalesItemLineDetail.Qty) : line.SalesItemLineDetail.Qty)
+        : null,
       unitPrice: line.SalesItemLineDetail?.UnitPrice || null,
       itemId: line.SalesItemLineDetail?.ItemRef?.value || null
     }));
@@ -130,7 +134,10 @@ export function parseQBEstimateSnapshot(estimate: QBEstimate): QBEstimateSnapsho
       detailType: line.DetailType as 'SalesItemLineDetail' | 'DescriptionOnly',
       description: (line.Description || '').trim(),
       amount: line.Amount || 0,
-      quantity: line.SalesItemLineDetail?.Qty || null,
+      // Normalize qty: convert 1.00 to 1 for consistent comparison with local integer values
+      quantity: line.SalesItemLineDetail?.Qty != null
+        ? (Number.isInteger(line.SalesItemLineDetail.Qty) ? Math.round(line.SalesItemLineDetail.Qty) : line.SalesItemLineDetail.Qty)
+        : null,
       unitPrice: line.SalesItemLineDetail?.UnitPrice || null,
       itemName: line.SalesItemLineDetail?.ItemRef?.name || null
     }));
@@ -468,8 +475,10 @@ async function calculateDifferences(
         });
       }
 
-      // Compare quantity
-      if (localPart.quantity !== qbLine.quantity) {
+      // Compare quantity (numeric comparison to avoid 1 !== 1.00 false positives)
+      const localQty = Number(localPart.quantity) || 0;
+      const qbQty = Number(qbLine.quantity) || 0;
+      if (Math.abs(localQty - qbQty) > 0.001) {
         differences.push({
           type: 'modified',
           lineNumber: i + 1,
@@ -667,8 +676,8 @@ async function syncQBLinesToOrderParts(
         updates.push('qb_description = ?');
         values.push(qbLine.description);
       }
-      // Quantity
-      if (orderPart.quantity !== qbLine.quantity && qbLine.quantity !== null) {
+      // Quantity (numeric comparison to avoid 1 !== 1.00 false positives)
+      if (qbLine.quantity !== null && Math.abs((Number(orderPart.quantity) || 0) - (Number(qbLine.quantity) || 0)) > 0.001) {
         updates.push('quantity = ?');
         values.push(qbLine.quantity);
       }
