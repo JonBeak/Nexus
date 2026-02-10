@@ -18,7 +18,7 @@ import { buildPdfUrls } from '../../../utils/pdfUrls';
 import { Order } from '../../../types/orders';
 import OrderFormPdfPreview from './OrderFormPdfPreview';
 import { MaterialRequirementCard } from './MaterialRequirementCard';
-import { VinylSelectorWithHolds } from '../../supplyChain/components/VinylSelectorWithHolds';
+import { VinylInventorySelector } from '../../common/VinylInventorySelector';
 import { GeneralInventorySelectorModal } from '../../supplyChain/components/GeneralInventorySelectorModal';
 import { useModalBackdrop } from '../../../hooks/useModalBackdrop';
 
@@ -485,7 +485,8 @@ export const MaterialRequirementsConfirmationModal: React.FC<MaterialRequirement
 
       {/* Vinyl Selector Modal */}
       {selectedRowForHold?.vinyl_product_id && (
-        <VinylSelectorWithHolds
+        <VinylInventorySelector
+          mode="hold"
           isOpen={showVinylSelector}
           onClose={() => {
             setShowVinylSelector(false);

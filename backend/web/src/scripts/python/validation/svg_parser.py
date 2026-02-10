@@ -240,77 +240,114 @@ def build_layer_and_transform_map(svg_path: str,
             main_group = root  # traverse from root
             top_level_groups = root_groups
 
-        # Classify each top-level group as container or orphan
-        group_types = [_classify_svg_group(g) for g in top_level_groups]
-        num_containers = sum(1 for t in group_types if t == 'container')
-        num_orphans = sum(1 for t in group_types if t == 'orphan')
+        # === Preferred path: use inkscape:label attributes if present ===
+        # Inkscape exports AI→SVG with authoritative layer names on <g> elements.
+        # This completely bypasses the fragile positional OCG→SVG mapping.
+        INK_NS = '{http://www.inkscape.org/namespaces/inkscape}'
+        ink_labels = {}
+        for g in top_level_groups:
+            label = g.get(f'{INK_NS}label')
+            gid = g.get('id', '')
+            if label and gid:
+                ink_labels[gid] = label
 
         # Map from element ID → layer name (covers both groups and loose paths)
         group_to_layer = {}
 
-        if num_orphans > 0 and num_containers == len(ai_layer_names):
-            # Container-based partitioning: Inkscape flattened sub-groups within layers.
-            # Each container anchors a layer; orphans preceding it belong to the
-            # previous container's layer. Orphans before the first container belong
-            # to the first layer.
-            #
-            # IMPORTANT: Iterate ALL children of main_group (not just <g> elements)
-            # because Inkscape can also place loose <path>/<circle>/etc. as siblings
-            # of the groups. These loose paths belong to the same layer partition.
-            shape_tags = {'path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon'}
-            group_set = set(id(g) for g in top_level_groups)
-            group_idx_map = {id(g): i for i, g in enumerate(top_level_groups)}
-
-            # Partition ALL children into segments ending at each container group
-            partitions: List[List] = []
-            current_partition: List = []
-            for child in main_group:
-                tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
-                if id(child) in group_set:
-                    # This is a top-level group
-                    current_partition.append(child)
-                    if group_types[group_idx_map[id(child)]] == 'container':
-                        partitions.append(current_partition)
-                        current_partition = []
-                elif tag in shape_tags:
-                    # Loose path/shape sibling — include in current partition
-                    current_partition.append(child)
-
-            # Any trailing elements after the last container go into the last partition
-            if current_partition and partitions:
-                partitions[-1].extend(current_partition)
-            elif current_partition:
-                partitions.append(current_partition)
-
-            # Assign layer names to partitions
-            # Use raw OCG names to find the correct mapping — separator layers
-            # in the AI file don't produce SVG groups, so we skip them
-            content_layer_idx = 0
-            for partition_idx, partition in enumerate(partitions):
-                # Find next content layer name (skip separators)
-                layer_name = f'Layer_{partition_idx+1}'
-                while content_layer_idx < len(ai_layer_names_raw):
-                    candidate = ai_layer_names_raw[content_layer_idx]
-                    content_layer_idx += 1
-                    if re.search(r'[a-zA-Z0-9]', candidate):
-                        layer_name = candidate
-                        break
-
-                for elem in partition:
-                    eid = elem.get('id', f'elem_{partition_idx}')
-                    group_to_layer[eid] = layer_name
+        if ink_labels:
+            # Inkscape labels found — use them directly (authoritative)
+            group_to_layer = dict(ink_labels)
+            print(f"Layer mapping: using inkscape:label attributes for {len(ink_labels)} groups: {list(ink_labels.values())}", file=sys.stderr)
         else:
-            # Simple case: no orphans, or container count doesn't match layer count.
-            # Fall back to offset heuristic — extra leading groups are structural.
-            offset = max(0, len(top_level_groups) - len(ai_layer_names)) if ai_layer_names else 0
+            # === Fallback: heuristic mapping from OCG names ===
+            # No inkscape:label found — log diagnostics for debugging
+            print(f"Layer mapping: no inkscape:label attributes found, using OCG heuristic", file=sys.stderr)
+            print(f"  OCG names (raw): {ai_layer_names_raw}", file=sys.stderr)
+            print(f"  OCG names (filtered): {ai_layer_names}", file=sys.stderr)
+            print(f"  SVG top-level groups: {len(top_level_groups)}", file=sys.stderr)
 
-            for i, group in enumerate(top_level_groups):
-                gid = group.get('id', f'group_{i}')
-                ai_idx = i - offset
-                if ai_layer_names and 0 <= ai_idx < len(ai_layer_names):
-                    group_to_layer[gid] = ai_layer_names[ai_idx]
-                else:
-                    group_to_layer[gid] = f'Layer_{i+1}'
+            # Classify each top-level group as container or orphan
+            group_types = [_classify_svg_group(g) for g in top_level_groups]
+            num_containers = sum(1 for t in group_types if t == 'container')
+            num_orphans = sum(1 for t in group_types if t == 'orphan')
+            print(f"  Containers: {num_containers}, Orphans: {num_orphans}", file=sys.stderr)
+
+            if num_orphans > 0 and num_containers == len(ai_layer_names):
+                # Container-based partitioning: Inkscape flattened sub-groups within layers.
+                # Each container anchors a layer; orphans preceding it belong to the
+                # previous container's layer. Orphans before the first container belong
+                # to the first layer.
+                #
+                # IMPORTANT: Iterate ALL children of main_group (not just <g> elements)
+                # because Inkscape can also place loose <path>/<circle>/etc. as siblings
+                # of the groups. These loose paths belong to the same layer partition.
+                shape_tags = {'path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon'}
+                group_set = set(id(g) for g in top_level_groups)
+                group_idx_map = {id(g): i for i, g in enumerate(top_level_groups)}
+
+                # Partition ALL children into segments ending at each container group
+                partitions: List[List] = []
+                current_partition: List = []
+                for child in main_group:
+                    tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+                    if id(child) in group_set:
+                        # This is a top-level group
+                        current_partition.append(child)
+                        if group_types[group_idx_map[id(child)]] == 'container':
+                            partitions.append(current_partition)
+                            current_partition = []
+                    elif tag in shape_tags:
+                        # Loose path/shape sibling — include in current partition
+                        current_partition.append(child)
+
+                # Any trailing elements after the last container go into the last partition
+                if current_partition and partitions:
+                    partitions[-1].extend(current_partition)
+                elif current_partition:
+                    partitions.append(current_partition)
+
+                # Assign layer names to partitions
+                # Use raw OCG names to find the correct mapping — separator layers
+                # in the AI file don't produce SVG groups, so we skip them
+                content_layer_idx = 0
+                for partition_idx, partition in enumerate(partitions):
+                    # Find next content layer name (skip separators)
+                    layer_name = f'Layer_{partition_idx+1}'
+                    while content_layer_idx < len(ai_layer_names_raw):
+                        candidate = ai_layer_names_raw[content_layer_idx]
+                        content_layer_idx += 1
+                        if re.search(r'[a-zA-Z0-9]', candidate):
+                            layer_name = candidate
+                            break
+
+                    for elem in partition:
+                        eid = elem.get('id', f'elem_{partition_idx}')
+                        group_to_layer[eid] = layer_name
+            else:
+                # Simple case: no orphans, or container count doesn't match layer count.
+                # Fall back to offset heuristic — extra leading elements are structural.
+                # Include ALL children (groups + loose shapes) — some AI layers
+                # produce loose <path> elements instead of <g> groups, which shifts
+                # the positional mapping if we only count groups.
+                shape_tags = {'path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon'}
+                all_children = []
+                for child in main_group:
+                    tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+                    if tag == 'g' or tag in shape_tags:
+                        all_children.append(child)
+
+                offset = max(0, len(all_children) - len(ai_layer_names)) if ai_layer_names else 0
+
+                for i, elem in enumerate(all_children):
+                    eid = elem.get('id', f'elem_{i}')
+                    ai_idx = i - offset
+                    if ai_layer_names and 0 <= ai_idx < len(ai_layer_names):
+                        group_to_layer[eid] = ai_layer_names[ai_idx]
+                    else:
+                        group_to_layer[eid] = f'Layer_{i+1}'
+
+            # Log final heuristic assignments
+            print(f"  Heuristic layer assignments: {group_to_layer}", file=sys.stderr)
 
         def get_top_level_parent(element, parent_chain):
             for parent_id in parent_chain:

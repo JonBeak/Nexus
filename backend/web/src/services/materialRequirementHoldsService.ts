@@ -14,6 +14,7 @@ import { ServiceResult } from '../types/serviceResults';
 import { VinylHoldsRepository, VinylHoldWithDetails } from '../repositories/supplyChain/vinylHoldsRepository';
 import { GeneralInventoryHoldsRepository, GeneralInventoryHoldWithDetails } from '../repositories/supplyChain/generalInventoryHoldsRepository';
 import { VinylInventoryRepository } from '../repositories/vinyl/vinylInventoryRepository';
+import { VinylInventoryOrderLinksRepository } from '../repositories/vinyl/vinylInventoryOrderLinksRepository';
 import { SupplierProductRepository } from '../repositories/supplyChain/supplierProductRepository';
 import { VinylProductsRepository } from '../repositories/vinyl/vinylProductsRepository';
 import { getLocalDateString } from '../utils/dateUtils';
@@ -351,34 +352,69 @@ export class MaterialRequirementHoldsService {
   }
 
   /**
-   * Get available vinyl items for a vinyl product
-   * Includes holds information for display
+   * Get available vinyl items matching a vinyl product or raw specs
+   * Includes holds and order associations for display
+   *
+   * @param params.vinylProductId - Look up specs from vinyl_products table
+   * @param params.brand - Direct brand filter (alternative to vinylProductId)
+   * @param params.series - Direct series filter (alternative to vinylProductId)
+   * @param params.colour_number - Direct colour number filter
+   * @param params.colour_name - Direct colour name filter
    */
-  async getAvailableVinylWithHolds(vinylProductId: number): Promise<ServiceResult<any[]>> {
+  async getAvailableVinylWithHolds(params: {
+    vinylProductId?: number;
+    brand?: string;
+    series?: string;
+    colour_number?: string;
+    colour_name?: string;
+  }): Promise<ServiceResult<any[]>> {
     try {
-      // Get vinyl product details
-      const vp = await VinylProductsRepository.getVinylProductById(vinylProductId);
-      if (!vp) {
-        return { success: false, error: 'Vinyl product not found', code: 'NOT_FOUND' };
+      let brand: string;
+      let series: string;
+      let colour_number: string | null = null;
+      let colour_name: string | null = null;
+
+      if (params.vinylProductId) {
+        // Look up specs from product
+        const vp = await VinylProductsRepository.getVinylProductById(params.vinylProductId);
+        if (!vp) {
+          return { success: false, error: 'Vinyl product not found', code: 'NOT_FOUND' };
+        }
+        brand = vp.brand;
+        series = vp.series;
+        colour_number = vp.colour_number || null;
+        colour_name = vp.colour_name || null;
+      } else if (params.brand && params.series) {
+        // Use raw specs directly
+        brand = params.brand;
+        series = params.series;
+        colour_number = params.colour_number || null;
+        colour_name = params.colour_name || null;
+      } else {
+        return { success: false, error: 'Either vinyl_product_id or brand+series are required', code: 'VALIDATION_ERROR' };
       }
 
       // Get matching vinyl items that are in stock
       const vinylItems = await VinylInventoryRepository.getVinylItems({ disposition: 'in_stock' });
       const matchingItems = vinylItems.filter((v: any) =>
-        v.brand === vp.brand &&
-        v.series === vp.series &&
-        (!vp.colour_number || v.colour_number === vp.colour_number) &&
-        (!vp.colour_name || v.colour_name === vp.colour_name)
+        v.brand === brand &&
+        v.series === series &&
+        (!colour_number || v.colour_number === colour_number) &&
+        (!colour_name || v.colour_name === colour_name)
       );
 
-      // Get holds for these items
+      // Get holds and order associations for these items
       const vinylIds = matchingItems.map((v: any) => v.id);
       const holdsMap = await VinylHoldsRepository.getHoldsForVinylItems(vinylIds);
+      const orderLinksMap = vinylIds.length > 0
+        ? await VinylInventoryOrderLinksRepository.getOrderLinksForItems(vinylIds)
+        : {};
 
-      // Attach holds to items
+      // Attach holds and order associations to items
       const itemsWithHolds = matchingItems.map((item: any) => ({
         ...item,
-        holds: holdsMap.get(item.id) || []
+        holds: holdsMap.get(item.id) || [],
+        order_associations: orderLinksMap[item.id] || [],
       }));
 
       return { success: true, data: itemsWithHolds };

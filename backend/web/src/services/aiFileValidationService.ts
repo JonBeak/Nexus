@@ -210,7 +210,7 @@ export class AiFileValidationService {
       setTimeout(() => {
         pythonProcess.kill();
         resolve({ success: false, file_path: filePath, file_name: fileName, status: 'error', issues: [], stats: emptyStats, error: 'Validation timed out' });
-      }, 60000);
+      }, 180000);
     });
   }
 

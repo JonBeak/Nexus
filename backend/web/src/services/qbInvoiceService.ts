@@ -623,6 +623,7 @@ export interface InvoicePreviewLineItem {
   isHeaderRow: boolean;
   qbItemName: string | null;
   isDescriptionOnly: boolean;
+  isDefaultDescription?: boolean;
 }
 
 /**

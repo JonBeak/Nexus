@@ -863,24 +863,32 @@ export const getInvoicePreview = async (req: Request, res: Response) => {
 
     const lineItems = await qbInvoiceService.buildInvoiceLineItems(orderId);
 
-    // Check if QB descriptions are all auto-generated defaults (never manually edited)
-    let allDescriptionsDefault = true;
-    const orderRows = await query(
-      'SELECT estimate_id FROM orders WHERE order_id = ?',
-      [orderId]
-    ) as RowDataPacket[];
-    const estimateId = orderRows[0]?.estimate_id;
-    if (estimateId) {
-      const countRows = await query(
-        'SELECT COUNT(*) as manually_edited FROM estimate_line_descriptions WHERE estimate_id = ? AND is_auto_filled = 0',
-        [estimateId]
+    // Check each line's description against qb_item_mappings template
+    const itemNames = [...new Set(lineItems.map(l => l.qbItemName).filter(Boolean))] as string[];
+    const templateMap = new Map<string, string>();
+    if (itemNames.length > 0) {
+      const placeholders = itemNames.map(() => '?').join(',');
+      const templateRows = await query(
+        `SELECT item_name, COALESCE(description, '') as description FROM qb_item_mappings WHERE LOWER(item_name) IN (${placeholders})`,
+        itemNames.map(n => n.toLowerCase())
       ) as RowDataPacket[];
-      allDescriptionsDefault = (countRows[0]?.manually_edited || 0) === 0;
+      templateRows.forEach((r: any) => templateMap.set(r.item_name.toLowerCase(), r.description));
+    }
+
+    // Tag each line item with isDefaultDescription
+    for (const line of lineItems) {
+      if (line.isHeaderRow || line.isDescriptionOnly || !line.qbItemName) {
+        line.isDefaultDescription = false;
+        continue;
+      }
+      const template = templateMap.get(line.qbItemName.toLowerCase()) ?? '';
+      const desc = line.description || '';
+      line.isDefaultDescription = template !== '' && desc === template;
     }
 
     res.json({
       success: true,
-      data: { lineItems, allDescriptionsDefault }
+      data: { lineItems }
     });
   } catch (error) {
     console.error('Error getting invoice preview:', error);

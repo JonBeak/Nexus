@@ -213,6 +213,13 @@ def polygon_contains(outer: Optional[Polygon], inner: Optional[Polygon],
         return False
 
     try:
+        # Fast bbox pre-check: if bounding boxes don't overlap, skip expensive ops
+        o_minx, o_miny, o_maxx, o_maxy = outer.bounds
+        i_minx, i_miny, i_maxx, i_maxy = inner.bounds
+        if i_maxx < o_minx - tolerance or i_minx > o_maxx + tolerance or \
+           i_maxy < o_miny - tolerance or i_miny > o_maxy + tolerance:
+            return False
+
         # Primary check: inner's centroid must be inside outer
         inner_centroid = inner.centroid
         if outer.contains(inner_centroid):

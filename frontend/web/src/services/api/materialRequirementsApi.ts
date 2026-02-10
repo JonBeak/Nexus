@@ -202,12 +202,21 @@ export const materialRequirementsApi = {
   },
 
   /**
-   * Get available vinyl items with holds for a vinyl product
+   * Get available vinyl items with holds for a vinyl product or raw specs
+   * Accepts either vinylProductId OR brand+series
    */
-  getAvailableVinylWithHolds: async (vinylProductId: number): Promise<VinylItemWithHolds[]> => {
-    const response = await api.get('/material-requirements/available-vinyl', {
-      params: { vinyl_product_id: vinylProductId },
-    });
+  getAvailableVinylWithHolds: async (
+    params: { vinylProductId: number } | { brand: string; series: string; colour_number?: string; colour_name?: string }
+  ): Promise<VinylItemWithHolds[]> => {
+    const queryParams = 'vinylProductId' in params
+      ? { vinyl_product_id: params.vinylProductId }
+      : {
+          brand: params.brand,
+          series: params.series,
+          colour_number: params.colour_number,
+          colour_name: params.colour_name,
+        };
+    const response = await api.get('/material-requirements/available-vinyl', { params: queryParams });
     return response.data;
   },
 

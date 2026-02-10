@@ -11,6 +11,9 @@ import { Loader2 } from 'lucide-react';
 import { Order } from '../../../../types/orders';
 import { Address } from '../../../../types';
 
+/** Normalize \r\n and \r to \n so whitespace-pre-wrap renders line breaks */
+const normalizeLF = (s: string) => s.replace(/\r\n?/g, '\n');
+
 export interface InvoiceDisplayPart {
   key: number;
   qb_item_name: string | undefined;
@@ -20,6 +23,7 @@ export interface InvoiceDisplayPart {
   extended_price: number | undefined;
   is_header_row: boolean | undefined;
   is_description_only: boolean;
+  is_default_description: boolean;
 }
 
 export interface TotalsResult {
@@ -116,9 +120,9 @@ export const MobileCreateContent: React.FC<ContentProps> = ({
         ) : (
           <div key={part.key} className="bg-white border border-gray-300 rounded-lg p-3">
             <div className="font-medium text-gray-900 text-sm">{part.qb_item_name || '-'}</div>
-            {(!part.qb_description || !part.qb_description.trim()) && (
-              <div className="text-xs text-amber-600 italic mt-0.5">No QB description</div>
-            )}
+            {part.is_default_description ? (
+              <div className="text-xs text-amber-600 italic mt-0.5">Default template description</div>
+            ) : null}
             <div className="flex items-center justify-between mt-2 text-sm">
               <span className="text-gray-600">Qty: <span className="font-medium">{part.quantity}</span></span>
               <span className="text-gray-600">@ ${Number(part.unit_price || 0).toFixed(2)}</span>
@@ -183,8 +187,8 @@ export const DesktopCreateContent: React.FC<ContentProps> = ({
               ) : (
                 <tr key={part.key} className="border-b border-gray-200 align-top">
                   <td className="py-2 text-gray-900">{part.qb_item_name || '-'}</td>
-                  <td className={`py-2 whitespace-pre-wrap ${!part.qb_description || !part.qb_description.trim() ? 'text-amber-600 italic' : 'text-gray-600'}`}>
-                    {!part.qb_description || !part.qb_description.trim() ? '(empty)' : part.qb_description}
+                  <td className={`py-2 whitespace-pre-wrap ${part.is_default_description ? 'text-amber-600' : 'text-gray-600'}`}>
+                    {!part.qb_description || !part.qb_description.trim() ? '' : <>{normalizeLF(part.qb_description)}{part.is_default_description && <div className="text-amber-500 italic text-[10px]">(default)</div>}</>}
                   </td>
                   <td className="py-2 text-right text-gray-600">{part.quantity}</td>
                   <td className="py-2 text-right text-gray-600">${Number(part.unit_price || 0).toFixed(2)}</td>

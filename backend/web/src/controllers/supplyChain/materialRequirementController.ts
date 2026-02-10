@@ -390,15 +390,24 @@ export const receiveRequirementWithHold = async (req: Request, res: Response): P
 };
 
 /**
- * Get available vinyl items with holds for a vinyl product
+ * Get available vinyl items with holds for a vinyl product or raw specs
+ * Accepts either vinyl_product_id OR brand+series query params
  */
 export const getAvailableVinylWithHolds = async (req: Request, res: Response): Promise<void> => {
-  const vinyl_product_id = parseIntParam(req.query.vinyl_product_id as string, 'Vinyl Product ID');
-  if (vinyl_product_id === null) {
-    return sendErrorResponse(res, 'Invalid vinyl_product_id', 'VALIDATION_ERROR');
+  const { vinyl_product_id, brand, series, colour_number, colour_name } = req.query;
+
+  // Validate that at least one lookup method is provided
+  if (!vinyl_product_id && !(brand && series)) {
+    return sendErrorResponse(res, 'Either vinyl_product_id or brand+series are required', 'VALIDATION_ERROR');
   }
 
-  const result = await holdsService.getAvailableVinylWithHolds(vinyl_product_id);
+  const result = await holdsService.getAvailableVinylWithHolds({
+    vinylProductId: vinyl_product_id ? parseInt(vinyl_product_id as string) : undefined,
+    brand: brand as string | undefined,
+    series: series as string | undefined,
+    colour_number: colour_number as string | undefined,
+    colour_name: colour_name as string | undefined,
+  });
   handleServiceResult(res, result);
 };
 

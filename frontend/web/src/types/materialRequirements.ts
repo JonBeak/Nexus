@@ -417,8 +417,16 @@ export interface VinylItemWithHolds {
   disposition: string;
   supplier_name: string | null;
   storage_date: string | null;
+  usage_date: string | null;
   notes: string | null;
   holds: VinylHold[];
+  order_associations?: Array<{
+    order_id: number;
+    order_number: number;
+    order_name: string;
+    customer_name: string;
+    sequence_order: number;
+  }>;
 }
 
 /**

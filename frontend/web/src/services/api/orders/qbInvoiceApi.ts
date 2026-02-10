@@ -30,6 +30,7 @@ export interface InvoicePreviewLineItem {
   isHeaderRow: boolean;
   qbItemName: string | null;
   isDescriptionOnly: boolean;
+  isDefaultDescription?: boolean;
 }
 
 export interface InvoiceStalenessResult {
@@ -135,12 +136,9 @@ export const qbInvoiceApi = {
    * Returns the exact line items that will be created in QuickBooks
    * Single source of truth - ensures preview matches actual invoice
    */
-  async getInvoicePreview(orderNumber: number): Promise<{ lineItems: InvoicePreviewLineItem[], allDescriptionsDefault: boolean }> {
+  async getInvoicePreview(orderNumber: number): Promise<InvoicePreviewLineItem[]> {
     const response = await api.get(`/orders/${orderNumber}/invoice-preview`);
-    return {
-      lineItems: response.data.lineItems,
-      allDescriptionsDefault: response.data.allDescriptionsDefault ?? true
-    };
+    return response.data.lineItems;
   },
 
   /**

@@ -92,7 +92,6 @@ export interface UseDocumentModalInitParams {
   setMobileCreateTab: (v: 'create' | 'link') => void;
   setInvoicePreviewLines: (v: InvoicePreviewLineItem[]) => void;
   setLoadingInvoicePreview: (v: boolean) => void;
-  setAllDescriptionsDefault: (v: boolean) => void;
 }
 
 export interface UseDocumentModalInitReturn {
@@ -112,7 +111,6 @@ export function useDocumentModalInit(params: UseDocumentModalInitParams): UseDoc
     setPdfError, setLoadingPdf, setCheckingSync, setCheckingStaleness,
     setShowSuccessModal, setSuccessModalData, setSelectedLinkInvoice, setLinking, setLinkError,
     setMobileCreateTab, setInvoicePreviewLines, setLoadingInvoicePreview,
-    setAllDescriptionsDefault,
   } = params;
 
   const hasAutoAppliedPrefixRef = useRef(false);
@@ -160,7 +158,6 @@ export function useDocumentModalInit(params: UseDocumentModalInitParams): UseDoc
       setMobileCreateTab('create');
       setInvoicePreviewLines([]);
       setLoadingInvoicePreview(false);
-      setAllDescriptionsDefault(false);
       return;
     }
 
@@ -213,7 +210,7 @@ export function useDocumentModalInit(params: UseDocumentModalInitParams): UseDoc
         }
 
         // Invoice line items preview
-        let invoicePreviewPromise: Promise<{ lineItems: InvoicePreviewLineItem[], allDescriptionsDefault: boolean }> | null = null;
+        let invoicePreviewPromise: Promise<InvoicePreviewLineItem[]> | null = null;
         if (documentType === 'invoice' && (mode === 'create' || mode === 'update')) {
           setLoadingInvoicePreview(true);
           invoicePreviewPromise = qbInvoiceApi.getInvoicePreview(order.order_number);
@@ -340,8 +337,7 @@ export function useDocumentModalInit(params: UseDocumentModalInitParams): UseDoc
         if (historyData) setEmailHistory(historyData);
         if (pdfData?.pdf) setDocumentPdf(pdfData.pdf);
         if (invoicePreviewData) {
-          setInvoicePreviewLines(invoicePreviewData.lineItems);
-          setAllDescriptionsDefault(invoicePreviewData.allDescriptionsDefault);
+          setInvoicePreviewLines(invoicePreviewData);
           setLoadingInvoicePreview(false);
         }
 

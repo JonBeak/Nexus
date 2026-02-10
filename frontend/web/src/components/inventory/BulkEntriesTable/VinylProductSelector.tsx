@@ -2,7 +2,8 @@ import React from 'react';
 import { BulkEntry } from '../../../hooks/useBulkEntries';
 import { VinylItem, VinylAutofillSuggestions } from '../types';
 import { CombinedVinylDropdown } from '../../common/CombinedVinylDropdown';
-import { VinylSpecificSelector } from '../../common/VinylSpecificSelector';
+import { VinylInventorySelector } from '../../common/VinylInventorySelector';
+import { VinylItemWithHolds } from '../../../types/materialRequirements';
 import { MODULE_COLORS } from '../../../constants/moduleColors';
 
 interface VinylProductSelectorProps {
@@ -71,8 +72,9 @@ export const VinylProductSelector: React.FC<VinylProductSelectorProps> = ({
     }
   };
 
-  const handleSpecificSelect = (vinylItem: VinylItem) => {
-    onSpecificSelect(vinylItem);
+  const handleSpecificSelect = (item: VinylItemWithHolds) => {
+    // VinylItemWithHolds is structurally compatible with VinylItem for the fields we need
+    onSpecificSelect(item as unknown as VinylItem);
     setSpecificSelectorOpen(false);
   };
 
@@ -119,8 +121,9 @@ export const VinylProductSelector: React.FC<VinylProductSelectorProps> = ({
         </button>
       )}
 
-      {/* Specific Vinyl Selector Modal */}
-      <VinylSpecificSelector
+      {/* Unified Vinyl Inventory Selector Modal */}
+      <VinylInventorySelector
+        mode="select"
         isOpen={specificSelectorOpen}
         onClose={() => setSpecificSelectorOpen(false)}
         onSelect={handleSpecificSelect}
@@ -130,7 +133,6 @@ export const VinylProductSelector: React.FC<VinylProductSelectorProps> = ({
           colour_number: entry.colour_number || '',
           colour_name: entry.colour_name || ''
         }}
-        vinylItems={vinylItems}
         title="Select Specific Vinyl Piece"
       />
     </div>

@@ -30,7 +30,7 @@ import { ProductTypeDropdown } from './components/ProductTypeDropdown';
 import { ProductDropdown } from './components/ProductDropdown';
 import { CheckStockButton } from './components/CheckStockButton';
 import { HeldItemButton } from './components/HeldItemButton';
-import { VinylSelectorWithHolds } from './components/VinylSelectorWithHolds';
+import { VinylInventorySelector } from '../common/VinylInventorySelector';
 import { GeneralInventorySelectorModal } from './components/GeneralInventorySelectorModal';
 import { MultiHoldReceiveModal } from './components/MultiHoldReceiveModal';
 import { getTodayString } from '../../utils/dateUtils';
@@ -984,7 +984,8 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
 
       {/* Vinyl Selector Modal */}
       {selectedRequirementForHold?.vinyl_product_id && (
-        <VinylSelectorWithHolds
+        <VinylInventorySelector
+          mode="hold"
           isOpen={showVinylSelector}
           onClose={() => {
             setShowVinylSelector(false);

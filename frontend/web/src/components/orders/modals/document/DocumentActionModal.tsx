@@ -134,7 +134,6 @@ export const DocumentActionModal: React.FC<DocumentActionModalProps> = ({
   const [loadingDetails, setLoadingDetails] = useState<Set<string>>(new Set());
   const [invoicePreviewLines, setInvoicePreviewLines] = useState<InvoicePreviewLineItem[]>([]);
   const [loadingInvoicePreview, setLoadingInvoicePreview] = useState(false);
-  const [allDescriptionsDefault, setAllDescriptionsDefault] = useState(false);
   const [companySettings, setCompanySettings] = useState<{ company_name: string | null; company_address: string | null } | null>(null);
   const [customerBillingAddress, setCustomerBillingAddress] = useState<Address | null>(null);
 
@@ -174,13 +173,14 @@ export const DocumentActionModal: React.FC<DocumentActionModalProps> = ({
       return invoicePreviewLines.map((line, idx) => ({
         key: idx, qb_item_name: line.qbItemName, qb_description: line.description,
         quantity: line.quantity, unit_price: line.unitPrice, extended_price: line.amount,
-        is_header_row: line.isHeaderRow, is_description_only: line.isDescriptionOnly
+        is_header_row: line.isHeaderRow, is_description_only: line.isDescriptionOnly,
+        is_default_description: !!line.isDefaultDescription
       }));
     }
     return displayParts.map((part, idx) => ({
       key: idx, qb_item_name: part.qb_item_name, qb_description: part.qb_description || '',
       quantity: part.quantity, unit_price: part.unit_price, extended_price: part.extended_price,
-      is_header_row: part.is_header_row, is_description_only: false
+      is_header_row: part.is_header_row, is_description_only: false, is_default_description: false
     }));
   }, [documentType, invoicePreviewLines, displayParts]);
 
@@ -231,7 +231,6 @@ export const DocumentActionModal: React.FC<DocumentActionModalProps> = ({
     setPdfError, setLoadingPdf, setCheckingSync, setCheckingStaleness,
     setShowSuccessModal, setSuccessModalData, setSelectedLinkInvoice, setLinking, setLinkError,
     setMobileCreateTab, setInvoicePreviewLines, setLoadingInvoicePreview,
-    setAllDescriptionsDefault,
   });
 
   const handlers = useDocumentHandlers({
@@ -285,7 +284,6 @@ export const DocumentActionModal: React.FC<DocumentActionModalProps> = ({
           onDocumentOnly={handlers.handleDocumentOnly} onLinkInvoiceFromCreate={handlers.handleLinkInvoiceFromCreate}
           onInvoicePreview={handlers.handleInvoicePreview} onClosePreview={handlers.closePreview}
           onSuccessModalClose={handlers.handleSuccessModalClose} formatAddress={formatAddress}
-          allDescriptionsDefault={allDescriptionsDefault}
         />
       );
     }

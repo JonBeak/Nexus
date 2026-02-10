@@ -1,66 +1,74 @@
 /**
- * Vinyl Selector With Holds
- * Enhanced vinyl selector showing holds and allowing quantity selection
- * Now includes visual 2D selector for intuitive size-based selection
- * Created: 2026-02-04
+ * Vinyl Inventory Selector
+ * Unified modal for selecting vinyl from inventory.
+ *
+ * Two modes:
+ * - 'hold': Supply Chain flow — selects vinyl + quantity for placing a hold (vinylProductId lookup)
+ * - 'select': Bulk Entries flow — selects a specific vinyl piece (raw specs lookup)
+ *
+ * Features merged from VinylSelectorWithHolds + VinylSpecificSelector:
+ * - Visual 2D selector + list toggle
+ * - Holds display with badges
+ * - Order associations on cards
+ * - Availability color coding
+ * - Supplier info, dates, notes
+ * - Quantity selector (hold mode only)
+ * - Loading/error/empty states
+ * - State reset on close
+ * - Scroll-to-selected in side panel
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Package, MapPin, Calendar, CheckCircle, AlertCircle, Eye, List } from 'lucide-react';
-import { VinylItemWithHolds, VinylHold } from '../../../types/materialRequirements';
+import { X, Package, AlertCircle, MapPin, Eye, List } from 'lucide-react';
+import { VinylItemWithHolds } from '../../../types/materialRequirements';
 import { materialRequirementsApi } from '../../../services/api/materialRequirementsApi';
-import { VinylVisualSelector } from './VinylVisualSelector';
+import { VinylVisualSelector } from '../../supplyChain/components/VinylVisualSelector';
+import { VinylSelectorItemCard } from './VinylSelectorItemCard';
+import { VinylSelectorQuantityPicker } from './VinylSelectorQuantityPicker';
+import { VinylInventorySelectorProps } from './types';
 
-interface VinylSelectorWithHoldsProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSelect: (vinylId: number, quantity: string) => void;
-  vinylProductId: number;
-  title?: string;
-  requirementSize?: string | null;
-  requirementQty?: number;
-}
+export const VinylInventorySelector: React.FC<VinylInventorySelectorProps> = (props) => {
+  const { isOpen, onClose, title } = props;
 
-export const VinylSelectorWithHolds: React.FC<VinylSelectorWithHoldsProps> = ({
-  isOpen,
-  onClose,
-  onSelect,
-  vinylProductId,
-  title = 'Select Vinyl from Inventory',
-  requirementSize,
-  requirementQty,
-}) => {
   const [vinylItems, setVinylItems] = useState<VinylItemWithHolds[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<VinylItemWithHolds | null>(null);
+  const [viewMode, setViewMode] = useState<'visual' | 'list'>('visual');
+
+  // Hold mode state
   const [quantityType, setQuantityType] = useState<'whole' | 'custom'>('whole');
   const [customQuantity, setCustomQuantity] = useState('');
-  const [viewMode, setViewMode] = useState<'visual' | 'list'>('visual');
+
   const listContainerRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to selected item in list when selection changes
+  // Scroll to selected item in side panel
   useEffect(() => {
     if (selectedItem && listContainerRef.current && viewMode === 'visual') {
-      const selectedElement = listContainerRef.current.querySelector(`[data-vinyl-id="${selectedItem.id}"]`);
-      if (selectedElement) {
-        selectedElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
+      const el = listContainerRef.current.querySelector(`[data-vinyl-id="${selectedItem.id}"]`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [selectedItem, viewMode]);
 
   // Load vinyl items when modal opens
   useEffect(() => {
-    if (isOpen && vinylProductId) {
-      loadVinylItems();
-    }
-  }, [isOpen, vinylProductId]);
+    if (!isOpen) return;
+    loadVinylItems();
+  }, [isOpen]);
 
   const loadVinylItems = async () => {
     setLoading(true);
     setError(null);
     try {
-      const items = await materialRequirementsApi.getAvailableVinylWithHolds(vinylProductId);
+      const params = props.mode === 'hold'
+        ? { vinylProductId: props.vinylProductId }
+        : {
+            brand: props.specifications.brand,
+            series: props.specifications.series,
+            colour_number: props.specifications.colour_number,
+            colour_name: props.specifications.colour_name,
+          };
+      const items = await materialRequirementsApi.getAvailableVinylWithHolds(params);
       setVinylItems(items);
     } catch (err) {
       console.error('Error loading vinyl items:', err);
@@ -70,17 +78,20 @@ export const VinylSelectorWithHolds: React.FC<VinylSelectorWithHoldsProps> = ({
     }
   };
 
-
-  // Handle selection confirmation
+  // Confirm selection
   const handleConfirm = () => {
     if (!selectedItem) return;
-    const quantity = quantityType === 'whole' ? 'Whole' : customQuantity;
-    if (!quantity) {
-      alert('Please specify a quantity');
-      return;
+    if (props.mode === 'hold') {
+      const quantity = quantityType === 'whole' ? 'Whole' : customQuantity;
+      if (!quantity) {
+        alert('Please specify a quantity');
+        return;
+      }
+      props.onSelect(selectedItem.id, quantity);
+    } else {
+      props.onSelect(selectedItem);
     }
-    onSelect(selectedItem.id, quantity);
-    onClose();
+    handleClose();
   };
 
   // Reset state on close
@@ -92,7 +103,7 @@ export const VinylSelectorWithHolds: React.FC<VinylSelectorWithHoldsProps> = ({
     onClose();
   };
 
-  // Close on Escape key
+  // Escape key
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape') handleClose();
   }, []);
@@ -106,6 +117,15 @@ export const VinylSelectorWithHolds: React.FC<VinylSelectorWithHoldsProps> = ({
 
   if (!isOpen) return null;
 
+  // Derive display info
+  const modalTitle = title || (props.mode === 'hold' ? 'Select Vinyl from Inventory' : 'Select Specific Vinyl Piece');
+  const confirmLabel = props.mode === 'hold'
+    ? `Place Hold${selectedItem ? ` on #${selectedItem.id}` : ''}`
+    : `Select Item${selectedItem ? ` #${selectedItem.id}` : ''}`;
+  const subtitle = props.mode === 'hold'
+    ? 'Select a vinyl piece to place on hold for this requirement'
+    : `${(props as any).specifications?.brand} ${(props as any).specifications?.series}`;
+
   return (
     <div
       className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
@@ -115,31 +135,26 @@ export const VinylSelectorWithHolds: React.FC<VinylSelectorWithHoldsProps> = ({
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+            <h3 className="text-base font-semibold text-gray-900">{modalTitle}</h3>
             <div className="flex items-center gap-4 mt-1">
-              <p className="text-xs text-gray-600">
-                Select a vinyl piece to place on hold for this requirement
-              </p>
-              {(requirementSize || requirementQty) && (
+              <p className="text-xs text-gray-600">{subtitle}</p>
+              {props.mode === 'hold' && (props.requirementSize || props.requirementQty) && (
                 <div className="flex items-center gap-2 text-xs">
-                  {requirementSize && (
+                  {props.requirementSize && (
                     <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-medium">
-                      Size: {requirementSize}
+                      Size: {props.requirementSize}
                     </span>
                   )}
-                  {requirementQty !== undefined && (
+                  {props.requirementQty !== undefined && (
                     <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-medium">
-                      Qty: {requirementQty}
+                      Qty: {props.requirementQty}
                     </span>
                   )}
                 </div>
               )}
             </div>
           </div>
-          <button
-            onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
+          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -187,11 +202,11 @@ export const VinylSelectorWithHolds: React.FC<VinylSelectorWithHoldsProps> = ({
           <div className="text-center py-12 text-gray-500">
             <Package className="h-10 w-10 mx-auto mb-2 opacity-50" />
             <p className="text-sm">No available vinyl items found</p>
+            <p className="text-xs mt-1">No in-stock items match this specification</p>
           </div>
         ) : viewMode === 'visual' ? (
           /* Two-panel layout: Visual selector left, compact list right */
           <div className="flex gap-4 mb-4">
-            {/* Visual Selector - Left Panel */}
             <div className="flex-1 min-w-0">
               <VinylVisualSelector
                 vinylItems={vinylItems}
@@ -199,7 +214,6 @@ export const VinylSelectorWithHolds: React.FC<VinylSelectorWithHoldsProps> = ({
                 onSelect={setSelectedItem}
               />
             </div>
-            {/* Compact List - Right Panel */}
             <div className="w-72 flex-shrink-0 border-l pl-4">
               <div className="text-xs font-medium text-gray-700 mb-2">
                 Items ({vinylItems.length})
@@ -219,7 +233,7 @@ export const VinylSelectorWithHolds: React.FC<VinylSelectorWithHoldsProps> = ({
                     <div className="flex items-center justify-between">
                       <span className="font-medium">#{item.id}</span>
                       <span className="text-gray-500">
-                        {item.width}" × {item.length_yards}yd ({Math.round(item.length_yards * 36)}")
+                        {item.width}" &times; {item.length_yards}yd ({Math.round(item.length_yards * 36)}")
                       </span>
                     </div>
                     {item.location && (
@@ -229,9 +243,7 @@ export const VinylSelectorWithHolds: React.FC<VinylSelectorWithHoldsProps> = ({
                       </div>
                     )}
                     {item.notes && (
-                      <div className="text-gray-600 mt-0.5 italic truncate">
-                        {item.notes}
-                      </div>
+                      <div className="text-gray-600 mt-0.5 italic truncate">{item.notes}</div>
                     )}
                     {item.holds.length > 0 && (
                       <div className="mt-1 pt-1 border-t border-gray-200">
@@ -250,6 +262,18 @@ export const VinylSelectorWithHolds: React.FC<VinylSelectorWithHoldsProps> = ({
                         </div>
                       </div>
                     )}
+                    {item.order_associations && item.order_associations.length > 0 && (
+                      <div className="mt-1 pt-1 border-t border-gray-200">
+                        {item.order_associations.slice(0, 2).map((o, i) => (
+                          <div key={i} className="text-blue-600 truncate">
+                            {o.order_number} - {o.customer_name}
+                          </div>
+                        ))}
+                        {item.order_associations.length > 2 && (
+                          <div className="text-gray-400">+{item.order_associations.length - 2} more</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -259,7 +283,7 @@ export const VinylSelectorWithHolds: React.FC<VinylSelectorWithHoldsProps> = ({
           /* Full list view */
           <div className="space-y-2 max-h-[28rem] overflow-y-auto mb-4">
             {vinylItems.map((item) => (
-              <VinylItemCard
+              <VinylSelectorItemCard
                 key={item.id}
                 item={item}
                 isSelected={selectedItem?.id === item.id}
@@ -269,44 +293,14 @@ export const VinylSelectorWithHolds: React.FC<VinylSelectorWithHoldsProps> = ({
           </div>
         )}
 
-        {/* Quantity Selector */}
-        {selectedItem && (
-          <div className="border-t pt-4 mb-4">
-            <div className="flex items-center gap-4">
-              <span className="text-xs font-medium text-gray-700">Quantity to Hold:</span>
-              <label className="flex items-center gap-1 cursor-pointer">
-                <input
-                  type="radio"
-                  name="quantityType"
-                  value="whole"
-                  checked={quantityType === 'whole'}
-                  onChange={() => setQuantityType('whole')}
-                  className="text-purple-600"
-                />
-                <span className="text-xs">Whole piece</span>
-              </label>
-              <label className="flex items-center gap-1 cursor-pointer">
-                <input
-                  type="radio"
-                  name="quantityType"
-                  value="custom"
-                  checked={quantityType === 'custom'}
-                  onChange={() => setQuantityType('custom')}
-                  className="text-purple-600"
-                />
-                <span className="text-xs">Custom:</span>
-              </label>
-              {quantityType === 'custom' && (
-                <input
-                  type="text"
-                  value={customQuantity}
-                  onChange={(e) => setCustomQuantity(e.target.value)}
-                  placeholder="e.g., 50 sq ft"
-                  className="px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-500 w-32"
-                />
-              )}
-            </div>
-          </div>
+        {/* Quantity Selector (hold mode only) */}
+        {props.mode === 'hold' && selectedItem && (
+          <VinylSelectorQuantityPicker
+            quantityType={quantityType}
+            customQuantity={customQuantity}
+            onQuantityTypeChange={setQuantityType}
+            onCustomQuantityChange={setCustomQuantity}
+          />
         )}
 
         {/* Footer */}
@@ -326,7 +320,7 @@ export const VinylSelectorWithHolds: React.FC<VinylSelectorWithHoldsProps> = ({
               disabled={!selectedItem}
               className="px-3 py-1.5 border border-transparent rounded shadow-sm text-xs font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Place Hold {selectedItem ? `on #${selectedItem.id}` : ''}
+              {confirmLabel}
             </button>
           </div>
         </div>
@@ -335,102 +329,4 @@ export const VinylSelectorWithHolds: React.FC<VinylSelectorWithHoldsProps> = ({
   );
 };
 
-// ============================================================================
-// VINYL ITEM CARD SUBCOMPONENT
-// ============================================================================
-
-interface VinylItemCardProps {
-  item: VinylItemWithHolds;
-  isSelected: boolean;
-  onSelect: () => void;
-}
-
-const VinylItemCard: React.FC<VinylItemCardProps> = ({ item, isSelected, onSelect }) => {
-  return (
-    <div
-      onClick={onSelect}
-      className={`border rounded p-3 cursor-pointer transition-all duration-200 hover:shadow-sm ${
-        isSelected
-          ? 'border-purple-500 bg-purple-50 shadow-sm'
-          : 'border-gray-200 hover:border-purple-300'
-      }`}
-    >
-      <div className="flex items-start justify-between">
-        {/* Left: Item details */}
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
-            <CheckCircle className={`h-4 w-4 ${isSelected ? 'text-purple-600' : 'text-green-500'}`} />
-            <span className="font-medium text-sm">#{item.id}</span>
-            <span className="text-xs text-gray-500">
-              {item.brand} {item.series}
-            </span>
-            {item.colour_number && (
-              <span className="text-xs text-gray-600">
-                - {item.colour_number} {item.colour_name || ''}
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-4 text-xs text-gray-600">
-            <div className="flex items-center gap-1">
-              <span className="font-medium">{item.width}"</span>
-              <span>×</span>
-              <span className="font-medium text-purple-600">{item.length_yards} yds ({Math.round(item.length_yards * 36)}")</span>
-            </div>
-            {item.location && (
-              <div className="flex items-center gap-1">
-                <MapPin className="h-3 w-3" />
-                <span>{item.location}</span>
-              </div>
-            )}
-            {item.storage_date && (
-              <div className="flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                <span>Stored: {new Date(item.storage_date).toLocaleDateString()}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right: Holds info */}
-        <div className="text-right">
-          {item.holds && item.holds.length > 0 ? (
-            <div className="text-xs">
-              <div className="font-medium text-orange-600 mb-1">
-                {item.holds.length} hold{item.holds.length !== 1 ? 's' : ''}
-              </div>
-              <div className="space-y-0.5 max-w-[200px]">
-                {item.holds.slice(0, 3).map((hold) => (
-                  <HoldBadge key={hold.hold_id} hold={hold} />
-                ))}
-                {item.holds.length > 3 && (
-                  <div className="text-gray-400">+{item.holds.length - 3} more</div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <span className="text-xs text-green-600">No holds</span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ============================================================================
-// HOLD BADGE SUBCOMPONENT
-// ============================================================================
-
-interface HoldBadgeProps {
-  hold: VinylHold;
-}
-
-const HoldBadge: React.FC<HoldBadgeProps> = ({ hold }) => {
-  return (
-    <div className="text-xs text-blue-600 truncate">
-      {hold.quantity_held} - {hold.order_number || 'Stock'}: {hold.order_name || 'N/A'}
-    </div>
-  );
-};
-
-export default VinylSelectorWithHolds;
+export default VinylInventorySelector;

@@ -60,7 +60,6 @@ export interface CreateInvoiceViewProps {
   onClosePreview: () => void;
   onSuccessModalClose: () => void;
   formatAddress: (addr: Address | null) => string;
-  allDescriptionsDefault?: boolean;
 }
 
 export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
@@ -73,27 +72,24 @@ export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
   onClose, onSkip, onBackdropMouseDown, onBackdropMouseUp,
   onMobileCreateTabChange, onSelectLinkInvoice, onDocumentOnly,
   onLinkInvoiceFromCreate, onInvoicePreview, onClosePreview,
-  onSuccessModalClose, formatAddress, allDescriptionsDefault,
+  onSuccessModalClose, formatAddress,
 }) => {
   const { showConfirmation } = useAlert();
 
   const descriptionWarnings = useMemo(() => {
-    const emptyParts = invoiceDisplayParts.filter(part => {
-      if (part.is_header_row || part.is_description_only) return false;
-      return !part.qb_description || !part.qb_description.trim();
-    });
-    const total = invoiceDisplayParts.filter(p => !p.is_header_row && !p.is_description_only).length;
-    const hasEmpty = emptyParts.length > 0;
-    const hasDefault = !!allDescriptionsDefault;
+    const lineItems = invoiceDisplayParts.filter(p => !p.is_header_row && !p.is_description_only);
+    const total = lineItems.length;
+    const emptyCount = lineItems.filter(p => !p.qb_description || !p.qb_description.trim()).length;
+    const allEmpty = total > 0 && emptyCount === total;
+    const defaultItems = lineItems.filter(p => p.is_default_description);
     return {
-      hasIssues: hasEmpty || hasDefault,
-      hasEmpty,
-      hasDefault,
-      emptyCount: emptyParts.length,
+      hasIssues: allEmpty || defaultItems.length > 0,
+      allEmpty,
+      defaultItems: defaultItems.map(p => p.qb_item_name || 'Unknown Item'),
+      defaultCount: defaultItems.length,
       totalLineItems: total,
-      emptyItems: emptyParts.map(p => p.qb_item_name || 'Unknown Item')
     };
-  }, [invoiceDisplayParts, allDescriptionsDefault]);
+  }, [invoiceDisplayParts]);
 
   const handleCreateInvoice = async () => {
     if (!descriptionWarnings.hasIssues) {
@@ -106,29 +102,16 @@ export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
     let message: string;
     let details: React.ReactNode = null;
 
-    if (descriptionWarnings.hasDefault) {
-      title = 'Default QB Descriptions';
-      message = 'QB descriptions are auto-generated defaults — they haven\'t been reviewed or customized for this customer.';
-      if (descriptionWarnings.hasEmpty) {
-        details = (
-          <div className="mt-2 text-sm text-gray-600">
-            <div className="font-medium text-gray-700 mb-1">{descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} are also completely empty:</div>
-            <ul className="list-disc pl-5 space-y-0.5">
-              {descriptionWarnings.emptyItems.map((name, i) => (
-                <li key={i}>{name}</li>
-              ))}
-            </ul>
-          </div>
-        );
-      }
+    if (descriptionWarnings.allEmpty) {
+      title = 'All QB Descriptions Empty';
+      message = 'Every line item has an empty QB description. The invoice will be sent to the customer with completely blank description fields.';
     } else {
-      title = 'Empty QB Descriptions';
-      message = `${descriptionWarnings.emptyCount} of ${descriptionWarnings.totalLineItems} line items have empty QB descriptions. The invoice will be sent to the customer with blank description fields.`;
+      title = 'Default QB Descriptions';
+      message = `${descriptionWarnings.defaultCount} of ${descriptionWarnings.totalLineItems} line items still have default template descriptions that haven't been customized.`;
       details = (
         <div className="mt-2 text-sm text-gray-600">
-          <div className="font-medium text-gray-700 mb-1">Items with empty descriptions:</div>
           <ul className="list-disc pl-5 space-y-0.5">
-            {descriptionWarnings.emptyItems.map((name, i) => (
+            {descriptionWarnings.defaultItems.map((name, i) => (
               <li key={i}>{name}</li>
             ))}
           </ul>
@@ -234,10 +217,10 @@ export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
                     <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
                       <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
                       <div className="text-sm text-amber-800">
-                        {descriptionWarnings.hasDefault ? (
-                          <>QB descriptions are <span className="font-medium">auto-generated defaults</span> — not yet reviewed.{descriptionWarnings.hasEmpty && <> {descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} are completely empty.</>} </>
+                        {descriptionWarnings.allEmpty ? (
+                          <>All line items have <span className="font-medium">empty QB descriptions</span>. </>
                         ) : (
-                          <><span className="font-medium">{descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} line items</span> have empty QB descriptions. </>
+                          <><span className="font-medium">{descriptionWarnings.defaultCount} of {descriptionWarnings.totalLineItems}</span> line items still have <span className="font-medium">default template descriptions</span>. </>
                         )}
                         Consider editing them before creating.
                       </div>
@@ -343,10 +326,10 @@ export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
                   <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2.5">
                     <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
                     <div className="text-sm text-amber-800">
-                      {descriptionWarnings.hasDefault ? (
-                        <>QB descriptions are <span className="font-medium">auto-generated defaults</span> — not yet reviewed.{descriptionWarnings.hasEmpty && <> {descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} are completely empty.</>} </>
+                      {descriptionWarnings.allEmpty ? (
+                        <>All line items have <span className="font-medium">empty QB descriptions</span>. </>
                       ) : (
-                        <><span className="font-medium">{descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} line items</span> have empty QB descriptions. </>
+                        <><span className="font-medium">{descriptionWarnings.defaultCount} of {descriptionWarnings.totalLineItems}</span> line items still have <span className="font-medium">default template descriptions</span>. </>
                       )}
                       Consider editing them before creating.
                     </div>

@@ -17,7 +17,7 @@ This module has NO knowledge of spec-specific hole sizes (wire, mounting, etc.).
 Classification is handled by the rules layer after geometry analysis.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 from .core import PathInfo, LetterGroup, LetterAnalysisResult, HoleInfo
 from .geometry import (
@@ -25,6 +25,11 @@ from .geometry import (
     polygon_contains, point_in_polygon
 )
 from .transforms import apply_transform_to_bbox, apply_transform_to_polygon
+
+try:
+    from shapely import STRtree
+except ImportError:
+    STRtree = None
 
 
 # Geometry-only configuration (no spec-specific hole sizes)
@@ -72,46 +77,59 @@ def identify_letters(paths_info: List[PathInfo], layer_name: Optional[str] = Non
     if not candidates:
         return []
 
+    # Group candidates by layer for per-layer spatial indexing
+    layer_groups: Dict[str, List[PathInfo]] = {}
+    for c in candidates:
+        key = (c.layer_name or '').lower()
+        layer_groups.setdefault(key, []).append(c)
+
     letters = []
     contained_by = {}  # Debug: track what contains each excluded path
-    for path in candidates:
-        # Check if this path is contained in any other path on the same layer
-        is_contained = False
-        path_layer = (path.layer_name or '').lower()
 
-        for other in candidates:
-            if other.path_id == path.path_id:
-                continue
+    for layer_key, layer_candidates in layer_groups.items():
+        # Build STRtree for this layer if enough paths to benefit
+        tree = None
+        tree_paths = None
+        if STRtree is not None and len(layer_candidates) >= 10:
+            polys = [c.polygon for c in layer_candidates]
+            if all(p is not None for p in polys):
+                tree = STRtree(polys)
+                tree_paths = layer_candidates
 
-            # Only compare paths on the same layer
-            other_layer = (other.layer_name or '').lower()
-            if path_layer != other_layer:
-                continue
-
-            # A container must have area >= the contained path (prevents
-            # mutual containment between overlapping shapes like outlines
-            # and vinyl fills that have each other's centroids inside)
-            other_area = other.area or 0
+        for path in layer_candidates:
+            is_contained = False
             path_area = path.area or 0
-            if other_area > 0 and path_area > 0 and other_area < path_area:
-                continue
 
-            # Use polygon containment if available
-            if path.polygon and other.polygon:
-                if polygon_contains(other.polygon, path.polygon):
-                    is_contained = True
-                    contained_by[path.path_id] = other.path_id
-                    break
+            # Determine which candidates to check against
+            if tree is not None and path.polygon is not None:
+                # Query tree for bbox-overlapping candidates
+                hit_indices = tree.query(path.polygon)
+                check_against = [tree_paths[i] for i in hit_indices]
             else:
-                # Fall back to bbox containment
-                if path.bbox and other.bbox:
-                    if bbox_contains(other.bbox, path.bbox, tolerance=1.0):
+                check_against = layer_candidates
+
+            for other in check_against:
+                if other.path_id == path.path_id:
+                    continue
+
+                other_area = other.area or 0
+                if other_area > 0 and path_area > 0 and other_area < path_area:
+                    continue
+
+                if path.polygon and other.polygon:
+                    if polygon_contains(other.polygon, path.polygon):
                         is_contained = True
                         contained_by[path.path_id] = other.path_id
                         break
+                else:
+                    if path.bbox and other.bbox:
+                        if bbox_contains(other.bbox, path.bbox, tolerance=1.0):
+                            is_contained = True
+                            contained_by[path.path_id] = other.path_id
+                            break
 
-        if not is_contained:
-            letters.append(path)
+            if not is_contained:
+                letters.append(path)
 
     # Attach debug info for diagnostics
     for path in candidates:
@@ -164,7 +182,8 @@ def path_is_inside_letter(hole: PathInfo, letter: PathInfo,
 
 
 def find_paths_inside_letter(letter: PathInfo, all_paths: List[PathInfo],
-                            tolerance: float = 0.5) -> List[PathInfo]:
+                            tolerance: float = 0.5,
+                            spatial_index: Tuple = None) -> List[PathInfo]:
     """
     Find all paths that are geometrically inside a letter.
 
@@ -172,18 +191,28 @@ def find_paths_inside_letter(letter: PathInfo, all_paths: List[PathInfo],
         letter: The letter path
         all_paths: List of all paths to check
         tolerance: Containment tolerance
+        spatial_index: Optional (STRtree, indexed_paths, non_indexed_paths) tuple for fast lookup
 
     Returns:
         List of paths inside the letter
     """
     inside = []
     letter_layer = (letter.layer_name or '').lower()
+    letter_poly = getattr(letter, 'compound_polygon', None) or letter.polygon
 
-    for path in all_paths:
+    # Use spatial index if available and letter has a polygon
+    if spatial_index is not None and letter_poly is not None:
+        tree, indexed_paths, non_indexed_paths = spatial_index
+        hit_indices = tree.query(letter_poly)
+        # Check tree hits + all non-indexed paths (they lack polygons for tree)
+        candidates = [indexed_paths[i] for i in hit_indices] + non_indexed_paths
+    else:
+        candidates = all_paths
+
+    for path in candidates:
         if path.path_id == letter.path_id:
             continue
 
-        # Only consider paths on the same layer as the letter
         path_layer = (path.layer_name or '').lower()
         if path_layer != letter_layer:
             continue
@@ -421,11 +450,29 @@ def analyze_letter_hole_associations(
     for letter in letters:
         letter.compound_polygon = letter.polygon
 
+    # Build per-layer spatial indices for fast hole lookup
+    # Only index paths with valid polygons; track non-indexed paths separately
+    layer_indices: Dict[str, Tuple] = {}
+    if STRtree is not None:
+        layer_paths: Dict[str, List[PathInfo]] = {}
+        for p in paths_info:
+            key = (p.layer_name or '').lower()
+            layer_paths.setdefault(key, []).append(p)
+        for key, lp in layer_paths.items():
+            indexed = [p for p in lp if p.polygon is not None]
+            non_indexed = [p for p in lp if p.polygon is None]
+            if len(indexed) >= 10:
+                geoms = [p.polygon for p in indexed]
+                layer_indices[key] = (STRtree(geoms), indexed, non_indexed)
+
     # Find holes inside letters (using compound polygons for correct containment)
     letter_groups = []
     for letter in letters:
+        l_key = (letter.layer_name or '').lower()
+        idx = layer_indices.get(l_key)
         inner_paths = find_paths_inside_letter(
-            letter, paths_info, cfg['containment_tolerance']
+            letter, paths_info, cfg['containment_tolerance'],
+            spatial_index=idx
         )
 
         for inner in inner_paths:
