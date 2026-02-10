@@ -18,6 +18,7 @@ import { formatPrice } from './utils/priceFormatter';
  * - field3: LEDs # (LED count override - accepts float/yes/no)
  * - field4: UL (UL certification override - accepts float/yes/no/$amount)
  * - field5: PS # (Power supply count override - accepts float/yes/no)
+ * - field6: PS Type (power supply type override)
  * - field7: ~ Frame ~ (frame cost override)
  * - field8: ~ Assem ~ (assembly cost override)
  * - field9: ~ Wrap ~ (wrap/aluminum cost override)
@@ -88,6 +89,7 @@ export const calculateBladeSign = async (input: ValidatedPricingInput): Promise<
 
     const ulOverride = input.parsedValues.field4;
     const psCountOverride = input.parsedValues.field5;
+    const psTypeOverride = input.parsedValues.field6;
 
     // Check if we have dimensions (determines component structure)
     const hasDimensions = sqft > 0 && width > 0 && height > 0;
@@ -284,6 +286,10 @@ export const calculateBladeSign = async (input: ValidatedPricingInput): Promise<
       // User entered a specific number (including 0)
       shouldCalculatePS = true;
       psOverrideForSelector = normalizedPsCountOverride;
+    } else if (psTypeOverride && psTypeOverride !== '') {
+      // User specified PS type - let selector recalculate based on actual PS capacity
+      shouldCalculatePS = true;
+      psOverrideForSelector = null;
     } else if (ledCount > 0 && input.customerPreferences?.pref_power_supply_required === true) {
       // This row has LEDs and customer preference requires power supplies
       shouldCalculatePS = true;
@@ -298,7 +304,7 @@ export const calculateBladeSign = async (input: ValidatedPricingInput): Promise<
       const psResult = await selectPowerSupplies({
         totalWattage: wattageForCalculation,
         hasUL: sectionHasUL,  // Use section-level UL for PS selection
-        psTypeOverride: null, // Blade Sign doesn't have PS type override field
+        psTypeOverride: (psTypeOverride as string) || null,
         psCountOverride: psOverrideForSelector,
         customerPreferences: input.customerPreferences
       });

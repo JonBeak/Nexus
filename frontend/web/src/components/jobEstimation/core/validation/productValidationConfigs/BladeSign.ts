@@ -9,7 +9,7 @@ import { FieldValidationConfig } from '../ValidationEngine';
  * - field3: LEDs # (LED count override - accepts float/yes/no)
  * - field4: UL (UL certification override - accepts float/yes/no/$amount)
  * - field5: PS # (Power supply count override - accepts float/yes/no)
- * - field6: (unused)
+ * - field6: PS Type (power supply type override - optional when PS present)
  * - field7: ~ Frame ~ (frame cost override - optional, can be negative)
  * - field8: ~ Assem ~ (assembly cost override - optional, can be negative)
  * - field9: ~ Wrap ~ (wrap/aluminum cost override - optional, can be negative)
@@ -63,6 +63,13 @@ export const bladeSignValidation: Record<string, FieldValidationConfig> = {
     error_level: 'error',
     params: {
       accepts: ['float', 'yes', 'no']
+    }
+  },
+  field6: {
+    function: 'ps_type',
+    error_level: 'error',
+    params: {
+      ps_count_field: 'field5'
     }
   },
   field7: {
