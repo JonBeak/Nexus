@@ -96,7 +96,10 @@ export async function calculateOrderDataHash(orderId: number): Promise<string> {
       production_notes: part.production_notes ?? null,
       qb_description: part.qb_description ?? null,
       qb_item_name: part.qb_item_name ?? null,
-      quantity: part.quantity ?? null,
+      // Normalize quantity to integer when whole number to match QB hash normalization
+      quantity: part.quantity != null
+        ? (Number.isInteger(Number(part.quantity)) ? Math.round(Number(part.quantity)) : Number(part.quantity))
+        : null,
       specs_display_name: part.specs_display_name ?? null,
       specs_qty: part.specs_qty ?? 0,
       // Handle JSON specifications field - parse and normalize
@@ -158,7 +161,10 @@ export async function calculateQBEstimateHash(orderId: number): Promise<string> 
       part_number: part.part_number,
       qb_description: part.qb_description ?? null,
       qb_item_name: part.qb_item_name ?? null,
-      quantity: part.quantity ?? null,
+      // Normalize quantity to integer when whole number to match QB hash normalization
+      quantity: part.quantity != null
+        ? (Number.isInteger(Number(part.quantity)) ? Math.round(Number(part.quantity)) : Number(part.quantity))
+        : null,
       unit_price: part.unit_price ?? null
     }))
   };
