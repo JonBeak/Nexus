@@ -24,6 +24,7 @@ import { OrderStatus, KanbanOrder } from '../../../types/orders';
 import { useTasksSocket } from '../../../hooks/useTasksSocket';
 import { useAlert } from '../../../contexts/AlertContext';
 import { useDeviceType } from '../../../hooks/useDeviceType';
+import { useDragToScroll } from '../../../hooks/useDragToScroll';
 import { OrderQuickModal } from '../calendarView/OrderQuickModal';
 import { CalendarOrder } from '../calendarView/types';
 import { KanbanColumn } from './KanbanColumn';
@@ -90,6 +91,8 @@ export const KanbanView: React.FC = () => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { showWarning } = useAlert();
 
+  // Desktop: grab-to-scroll on board background (not on cards)
+  useDragToScroll(scrollContainerRef, '[data-kanban-card]', !isTouchDevice);
 
   // Touch scroll management
   // - Tablet (iPad): Allow all native scrolling, only block during active drag
@@ -344,7 +347,9 @@ export const KanbanView: React.FC = () => {
         } as React.CSSProperties : isTablet ? {
           WebkitOverflowScrolling: 'touch',  // iOS momentum scrolling
           touchAction: 'pan-x pan-y'  // Allow both horizontal and vertical touch scroll
-        } as React.CSSProperties : undefined}
+        } as React.CSSProperties : {
+          cursor: 'grab'  // Desktop: visual cue for drag-to-scroll
+        } as React.CSSProperties}
       >
         <DndContext
           sensors={sensors}
