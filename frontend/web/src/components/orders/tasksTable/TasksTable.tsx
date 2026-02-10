@@ -20,6 +20,7 @@ import { useTasksSocket } from '../../../hooks/useTasksSocket';
 import { ConflictToast } from '../../common/ConflictToast';
 import { useIsMobile } from '../../../hooks/useMediaQuery';
 import { useAlert } from '../../../contexts/AlertContext';
+import { useHorizontalDragScroll } from '../../../hooks/useHorizontalDragScroll';
 
 export const TasksTable: React.FC = () => {
   // Mobile detection
@@ -63,11 +64,18 @@ export const TasksTable: React.FC = () => {
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const statusButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Drag-to-scroll state for task columns
+  // Scroll container ref for drag-to-scroll
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStartX, setDragStartX] = useState(0);
-  const [scrollStartX, setScrollStartX] = useState(0);
+
+  // Horizontal drag-to-scroll on the list background (skips task checkboxes and sticky left columns)
+  useHorizontalDragScroll({
+    containerRef: scrollContainerRef,
+    skipSelectors: [
+      'td:not([data-task-cell])',    // Skip non-task cells (order info, status, due, time)
+      'td[data-task-cell]:not(.cursor-grab)', // Skip task cells with content (checkboxes)
+    ],
+    disabled: isMobile
+  });
 
   // Sorting state - default: due date asc, then order number, then display number
   const [sortField, setSortField] = useState<TasksTableSortField>('dueDate');
@@ -487,36 +495,6 @@ export const TasksTable: React.FC = () => {
     setFilters(prev => ({ ...prev, search }));
   };
 
-  // Drag-to-scroll handlers for task columns (only on N/A cells with "-")
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // Only start drag on N/A task cells (cells with cursor-grab class)
-    const target = e.target as HTMLElement;
-    const cell = target.closest('td[data-task-cell]');
-    if (!cell) return;
-
-    // Check if it's an N/A cell (has cursor-grab class)
-    if (!cell.classList.contains('cursor-grab')) return;
-
-    e.preventDefault();
-    setIsDragging(true);
-    setDragStartX(e.clientX);
-    setScrollStartX(scrollContainerRef.current?.scrollLeft || 0);
-  }, []);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging || !scrollContainerRef.current) return;
-
-    const deltaX = dragStartX - e.clientX;
-    scrollContainerRef.current.scrollLeft = scrollStartX + deltaX;
-  }, [isDragging, dragStartX, scrollStartX]);
-
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  const handleMouseLeave = useCallback(() => {
-    setIsDragging(false);
-  }, []);
 
   return (
     <div className={`h-full flex flex-col ${PAGE_STYLES.page.background}`}>
@@ -661,11 +639,7 @@ export const TasksTable: React.FC = () => {
             <div className={`${PAGE_STYLES.composites.panelContainer} flex-1 flex flex-col overflow-hidden`}>
               <div
                 ref={scrollContainerRef}
-                className={`overflow-auto flex-1 ${isDragging ? 'cursor-grabbing select-none' : ''}`}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseLeave}
+                className="overflow-auto flex-1"
               >
                 {/* Mobile: Order/Part 140px, Status/Due/Time scroll. Desktop: 544px fixed left columns */}
                 <table style={{

@@ -24,6 +24,7 @@ import { OrderStatus, KanbanOrder } from '../../../types/orders';
 import { useTasksSocket } from '../../../hooks/useTasksSocket';
 import { useAlert } from '../../../contexts/AlertContext';
 import { useDeviceType } from '../../../hooks/useDeviceType';
+import { useHorizontalDragScroll } from '../../../hooks/useHorizontalDragScroll';
 import { OrderQuickModal } from '../calendarView/OrderQuickModal';
 import { CalendarOrder } from '../calendarView/types';
 import { KanbanColumn } from './KanbanColumn';
@@ -90,6 +91,12 @@ export const KanbanView: React.FC = () => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { showWarning } = useAlert();
 
+  // Desktop mouse drag-to-scroll (disabled on touch devices and during active dnd-kit drags)
+  useHorizontalDragScroll({
+    containerRef: scrollContainerRef,
+    skipSelectors: ['[data-kanban-card]'],
+    disabled: isTouchDevice || !!activeId
+  });
 
   // Touch scroll management
   // - Tablet (iPad): Allow all native scrolling, only block during active drag
