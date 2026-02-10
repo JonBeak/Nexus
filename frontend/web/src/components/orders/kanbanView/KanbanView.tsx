@@ -30,6 +30,7 @@ import { KanbanColumn } from './KanbanColumn';
 import { KanbanCard } from './KanbanCard';
 import { KanbanDivider } from './KanbanDivider';
 import { MobileScrollbar } from './MobileScrollbar';
+import { useHorizontalDragScroll } from '../../../hooks/useHorizontalDragScroll';
 import {
   KANBAN_STATUS_ORDER,
   KANBAN_HIDDEN_STATUSES,
@@ -89,6 +90,12 @@ export const KanbanView: React.FC = () => {
   const { isPhone, isTablet, isTouchDevice, deviceType } = useDeviceType();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { showWarning } = useAlert();
+
+  // Mouse drag-to-scroll (desktop only, disabled during card drag)
+  useHorizontalDragScroll({
+    containerRef: scrollContainerRef,
+    disabled: isTouchDevice || !!activeId
+  });
 
 
   // Touch scroll management
