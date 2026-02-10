@@ -1191,6 +1191,27 @@ export const OrderDetailsPage: React.FC = () => {
                           isSaving={uiState.saving}
                         />
                       </div>
+                      {/* High Standards */}
+                      <div className="flex justify-between items-center py-1 px-1">
+                        <span className={`${PAGE_STYLES.panel.textMuted} text-xs`}>High Stds</span>
+                        <EditableField
+                          field="high_standards"
+                          value={orderData.order.high_standards ? 'Yes' : 'No'}
+                          type="select"
+                          options={[
+                            { value: 'Yes', label: 'Yes' },
+                            { value: 'No', label: 'No' }
+                          ]}
+                          isEditing={editState.editingField === 'high_standards'}
+                          isSaving={uiState.saving}
+                          onEdit={startEdit}
+                          onSave={(field, value) => saveEdit(field, value === 'Yes' ? 'true' : 'false')}
+                          onCancel={cancelEdit}
+                          editValue={editState.editValue}
+                          onEditValueChange={(value) => setEditState(prev => ({ ...prev, editValue: value }))}
+                          valueSize="sm"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

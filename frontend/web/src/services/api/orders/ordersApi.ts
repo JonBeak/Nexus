@@ -75,6 +75,7 @@ export const ordersApi = {
     production_notes?: string;
     manufacturing_note?: string;
     internal_note?: string;
+    high_standards?: boolean | null;
   }): Promise<void> {
     await api.put(`/orders/${orderNumber}`, updates);
   },

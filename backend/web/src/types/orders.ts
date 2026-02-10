@@ -408,6 +408,7 @@ export interface UpdateOrderData {
   tax_name?: string;
   original_tax_name?: string;
   shipping_required?: boolean;
+  high_standards?: boolean | null;
 }
 
 // =============================================

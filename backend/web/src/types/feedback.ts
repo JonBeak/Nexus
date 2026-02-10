@@ -37,6 +37,10 @@ export interface FeedbackRequest {
   github_pr_url: string | null;
   github_branch: string | null;
   pipeline_status: 'open' | 'claude_working' | 'pr_ready' | 'merged' | 'closed' | null;
+  // Slack integration fields
+  slack_thread_ts: string | null;
+  slack_last_polled_at: Date | null;
+  last_github_comment_id: number | null;
   // Joined fields
   submitter_first_name?: string;
   submitter_last_name?: string;

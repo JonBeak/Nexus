@@ -8,30 +8,18 @@ interface CustomerPreferencesPanelProps {
   customerData: CustomerPreferencesData | null;
   validationResult: CustomerPreferencesValidationResult | null;
   onEditCustomer: () => void;
-  // Per-estimate high standards override
-  estimateHighStandards?: boolean | null;  // null = inherit, true = on, false = off
-  onHighStandardsChange?: (value: boolean | null) => void;
-  isDraft?: boolean;
 }
 
 export const CustomerPreferencesPanel: React.FC<CustomerPreferencesPanelProps> = ({
   customerData,
   validationResult,
-  onEditCustomer,
-  estimateHighStandards,
-  onHighStandardsChange,
-  isDraft = false
+  onEditCustomer
 }) => {
   if (!customerData || !customerData.preferences) {
     return null;
   }
 
-  const { preferences, cashCustomer, highStandards: customerHighStandards, discount, defaultTurnaround, postalCode } = customerData;
-
-  // Compute effective high standards: estimate override takes precedence over customer default
-  const highStandards = estimateHighStandards !== null && estimateHighStandards !== undefined
-    ? estimateHighStandards
-    : customerHighStandards;
+  const { preferences, cashCustomer, highStandards, discount, defaultTurnaround, postalCode } = customerData;
 
   // Helper function to format LED preference display
   const formatLEDPreference = (): string => {
@@ -204,26 +192,6 @@ export const CustomerPreferencesPanel: React.FC<CustomerPreferencesPanelProps> =
           )}
         </div>
         <div className="flex items-center gap-2">
-          {/* Per-estimate high standards override */}
-          {isDraft && onHighStandardsChange && (
-            <select
-              value={estimateHighStandards === null || estimateHighStandards === undefined ? 'inherit' : estimateHighStandards ? 'yes' : 'no'}
-              onChange={(e) => {
-                const val = e.target.value;
-                onHighStandardsChange(val === 'inherit' ? null : val === 'yes');
-              }}
-              className={`text-[11px] px-1.5 py-1 rounded border ${
-                highStandards
-                  ? 'border-amber-400 bg-amber-50 text-amber-900'
-                  : `border-gray-500 bg-gray-700 text-gray-200`
-              }`}
-              title="Per-job high standards override"
-            >
-              <option value="inherit">High Standards: Customer Default ({customerHighStandards ? 'Yes' : 'No'})</option>
-              <option value="yes">High Standards: Yes</option>
-              <option value="no">High Standards: No</option>
-            </select>
-          )}
           <button
             onClick={onEditCustomer}
             className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors ${

@@ -8,6 +8,7 @@
 
 import { githubIntegrationRepository } from '../repositories/githubIntegrationRepository';
 import { feedbackRepository } from '../repositories/feedbackRepository';
+import { slackNotificationService } from './slackNotificationService';
 import { ServiceResult } from '../types/serviceResults';
 
 // Rate limits for Claude requests
@@ -133,6 +134,14 @@ export class GitHubIntegrationService {
       await feedbackRepository.updateStatus(feedbackId, 'in_progress');
 
       console.log(`[GitHub] Created Issue #${issue.number} for Feedback #${feedbackId}`);
+
+      // Notify Slack (fire-and-forget)
+      slackNotificationService.notifyAssigned(feedbackId, {
+        title: feedback.title,
+        github_issue_number: issue.number,
+        priority: feedback.priority,
+        submitter_first_name: feedback.submitter_first_name,
+      }).catch(err => console.error('[Slack] Assigned notification failed:', err));
 
       return {
         success: true,

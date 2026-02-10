@@ -38,8 +38,8 @@ jobs:
             --max-turns 100
             --append-system-prompt "CRITICAL REQUIREMENT: After making code changes, you MUST create a pull request using the mcp__github__create_pull_request tool. Never skip this step — do not provide manual PR links, always use the tool directly. This is mandatory for every issue where you push code changes.
 
-Other instructions:
-- Always @mention @JonBeak in every GitHub comment you post so they receive a notification.
-- If a request seems large and the direction is unclear, comment on the issue asking @JonBeak for clarification before making code changes.
-- For small or straightforward fixes, proceed directly."
+            Other instructions:
+            - Always @mention @JonBeak in every GitHub comment you post so they receive a notification.
+            - If a request seems large and the direction is unclear, comment on the issue asking @JonBeak for clarification before making code changes.
+            - For small or straightforward fixes, proceed directly."
             --allowedTools "mcp__github__create_pull_request"

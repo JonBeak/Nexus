@@ -135,9 +135,12 @@ export const qbInvoiceApi = {
    * Returns the exact line items that will be created in QuickBooks
    * Single source of truth - ensures preview matches actual invoice
    */
-  async getInvoicePreview(orderNumber: number): Promise<InvoicePreviewLineItem[]> {
+  async getInvoicePreview(orderNumber: number): Promise<{ lineItems: InvoicePreviewLineItem[], allDescriptionsDefault: boolean }> {
     const response = await api.get(`/orders/${orderNumber}/invoice-preview`);
-    return response.data.lineItems;
+    return {
+      lineItems: response.data.lineItems,
+      allDescriptionsDefault: response.data.allDescriptionsDefault ?? true
+    };
   },
 
   /**

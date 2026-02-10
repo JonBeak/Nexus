@@ -863,9 +863,24 @@ export const getInvoicePreview = async (req: Request, res: Response) => {
 
     const lineItems = await qbInvoiceService.buildInvoiceLineItems(orderId);
 
+    // Check if QB descriptions are all auto-generated defaults (never manually edited)
+    let allDescriptionsDefault = true;
+    const orderRows = await query(
+      'SELECT estimate_id FROM orders WHERE order_id = ?',
+      [orderId]
+    ) as RowDataPacket[];
+    const estimateId = orderRows[0]?.estimate_id;
+    if (estimateId) {
+      const countRows = await query(
+        'SELECT COUNT(*) as manually_edited FROM estimate_line_descriptions WHERE estimate_id = ? AND is_auto_filled = 0',
+        [estimateId]
+      ) as RowDataPacket[];
+      allDescriptionsDefault = (countRows[0]?.manually_edited || 0) === 0;
+    }
+
     res.json({
       success: true,
-      data: { lineItems }
+      data: { lineItems, allDescriptionsDefault }
     });
   } catch (error) {
     console.error('Error getting invoice preview:', error);

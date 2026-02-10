@@ -8,6 +8,7 @@
 
 import { githubIntegrationRepository } from '../repositories/githubIntegrationRepository';
 import { feedbackRepository } from '../repositories/feedbackRepository';
+import { slackNotificationService } from './slackNotificationService';
 
 interface PullRequestPayload {
   action: string;
@@ -22,6 +23,21 @@ interface PullRequestPayload {
 
 interface IssuePayload {
   action: string;
+  issue: {
+    number: number;
+  };
+}
+
+interface IssueCommentPayload {
+  action: string;
+  comment: {
+    id: number;
+    body: string;
+    html_url: string;
+    user: {
+      login: string;
+    };
+  };
   issue: {
     number: number;
   };
@@ -57,11 +73,23 @@ export class GitHubWebhookService {
         pr.head.ref
       );
       console.log(`[Webhook] PR #${pr.number} ${action} → feedback #${feedbackId} pipeline_status=pr_ready`);
+
+      // Notify Slack
+      slackNotificationService.notifyPRReady(feedbackId, pr.number, pr.html_url, {
+        title: feedback.title,
+      }).catch(err => console.error('[Slack] PR notification failed:', err));
     } else if (action === 'closed') {
       if (pr.merged) {
         await githubIntegrationRepository.updatePipelineStatus(feedbackId, 'merged');
         await feedbackRepository.updateStatus(feedbackId, 'resolved');
         console.log(`[Webhook] PR #${pr.number} merged → feedback #${feedbackId} resolved`);
+
+        // Notify Slack
+        slackNotificationService.notifyMerged(feedbackId, {
+          title: feedback.title,
+          github_pr_url: pr.html_url,
+          github_pr_number: pr.number,
+        }).catch(err => console.error('[Slack] Merged notification failed:', err));
       } else {
         // PR closed without merge — Claude can retry
         await githubIntegrationRepository.updatePipelineStatus(feedbackId, 'claude_working');
@@ -90,6 +118,32 @@ export class GitHubWebhookService {
       await githubIntegrationRepository.updatePipelineStatus(feedback.feedback_id, 'closed');
       console.log(`[Webhook] Issue #${issue.number} closed → feedback #${feedback.feedback_id} pipeline=closed`);
     }
+  }
+
+  /**
+   * Handle issue_comment webhook events
+   * Forwards Claude (github-actions[bot]) comments to Slack
+   */
+  async handleIssueComment(payload: IssueCommentPayload): Promise<void> {
+    const { action, comment, issue } = payload;
+
+    // Only care about new comments from Claude (github-actions bot)
+    if (action !== 'created') return;
+    if (comment.user.login !== 'github-actions[bot]') return;
+
+    const feedback = await githubIntegrationRepository.findByGitHubIssue(issue.number);
+    if (!feedback) {
+      console.log(`[Webhook] Comment on issue #${issue.number} — no linked feedback`);
+      return;
+    }
+
+    console.log(`[Webhook] Claude comment on issue #${issue.number} → feedback #${feedback.feedback_id}`);
+
+    slackNotificationService.notifyClaudeComment(
+      feedback.feedback_id,
+      comment.body,
+      comment.html_url
+    ).catch(err => console.error('[Slack] Claude comment notification failed:', err));
   }
 
   /**

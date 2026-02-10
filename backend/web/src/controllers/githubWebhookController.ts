@@ -25,6 +25,8 @@ export class GitHubWebhookController {
         await githubWebhookService.handlePullRequest(req.body);
       } else if (event === 'issues') {
         await githubWebhookService.handleIssueEvent(req.body);
+      } else if (event === 'issue_comment') {
+        await githubWebhookService.handleIssueComment(req.body);
       } else {
         console.log(`[Webhook] Ignored event type: ${event}`);
       }

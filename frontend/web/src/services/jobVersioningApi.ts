@@ -79,12 +79,7 @@ export const jobVersioningApi = {
     return response.data;
   },
 
-  updateEstimateHighStandards: async (estimateId: number, highStandards: boolean | null) => {
-    const response = await api.patch(`/job-estimation/estimates/${estimateId}/high-standards`, { high_standards: highStandards });
-    return response.data;
-  },
-
-  // Draft/Final Workflow  
+  // Draft/Final Workflow
   saveDraft: async (estimateId: number) => {
     const response = await api.post(`/job-estimation/estimates/${estimateId}/save-draft`);
     return response.data;

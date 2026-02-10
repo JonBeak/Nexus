@@ -348,19 +348,6 @@ export class EstimateVersioningService {
   }
 
   /**
-   * Update estimate high_standards override
-   * @param estimateId - The estimate ID
-   * @param value - null (inherit from customer), true (force on), false (force off)
-   * @param userId - User making the update
-   */
-  async updateEstimateHighStandards(estimateId: number, value: boolean | null, userId: number): Promise<void> {
-    const updated = await this.estimateRepository.updateEstimateHighStandards(estimateId, value, userId);
-    if (!updated) {
-      throw new Error('Failed to update estimate high standards');
-    }
-  }
-
-  /**
    * Get job ID associated with an estimate
    * @param estimateId - The estimate ID
    * @returns Job ID

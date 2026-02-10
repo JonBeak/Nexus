@@ -199,9 +199,6 @@ export interface EstimateVersion {
   qb_estimate_url?: string;
   estimate_date?: string;  // QB estimate date (set when estimate is sent to QB)
 
-  // Per-job high standards override (null = inherit from customer)
-  high_standards?: boolean | null;
-
   // Preparation table flag (Phase 4.e)
   uses_preparation_table?: boolean;  // True if using new preparation table workflow
 

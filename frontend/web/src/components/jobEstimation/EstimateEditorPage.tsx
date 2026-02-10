@@ -133,22 +133,6 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
     }
   }, [currentEstimate?.id, gridEngineRef]);
 
-  // Handle per-estimate high standards override
-  const handleHighStandardsChange = useCallback(async (value: boolean | null) => {
-    if (!currentEstimate?.id) return;
-    try {
-      await jobVersioningApi.updateEstimateHighStandards(currentEstimate.id, value);
-      // Update local estimate state
-      setCurrentEstimate(prev => prev ? { ...prev, high_standards: value } : prev);
-      // Update customer preferences panel to reflect effective value
-      const customerDefault = !!fullCustomer?.high_standards;
-      const effective = value !== null && value !== undefined ? value : customerDefault;
-      setCustomerPreferencesData(prev => prev ? { ...prev, highStandards: effective } : prev);
-    } catch (error) {
-      console.error('Failed to update high standards:', error);
-    }
-  }, [currentEstimate?.id, fullCustomer?.high_standards, setCustomerPreferencesData]);
-
   // QuickBooks integration hook
   const {
     qbConnected,
@@ -212,11 +196,6 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
         // Load customer context
         if (estimate.customer_id) {
           await reloadCustomerData(estimate.customer_id);
-
-          // Apply per-estimate high standards override if set
-          if (estimate.high_standards !== null && estimate.high_standards !== undefined) {
-            setCustomerPreferencesData(prev => prev ? { ...prev, highStandards: !!estimate.high_standards } : prev);
-          }
         }
 
         // Phase 7: Load point persons if estimate exists
@@ -756,9 +735,6 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
                       customerData={customerPreferencesData}
                       validationResult={preferencesValidationResult}
                       onEditCustomer={handleEditCustomer}
-                      estimateHighStandards={currentEstimate?.high_standards ?? null}
-                      onHighStandardsChange={handleHighStandardsChange}
-                      isDraft={!!currentEstimate?.is_draft}
                     />
                     <EstimateTable
                       estimate={currentEstimate}
@@ -942,9 +918,6 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
                   customerData={customerPreferencesData}
                   validationResult={preferencesValidationResult}
                   onEditCustomer={handleEditCustomer}
-                  estimateHighStandards={currentEstimate?.high_standards ?? null}
-                  onHighStandardsChange={handleHighStandardsChange}
-                  isDraft={!!currentEstimate?.is_draft}
                 />
                 <EstimateTable
                   estimate={currentEstimate}
@@ -993,10 +966,6 @@ export const EstimateEditorPage: React.FC<EstimateEditorPageProps> = ({ user }) 
         customer={fullCustomer || {} as any}
         onClose={async () => {
           await handleCloseEditCustomerModal(currentEstimate.customer_id);
-          // Re-apply per-estimate high standards override after customer data reload
-          if (currentEstimate?.high_standards !== null && currentEstimate?.high_standards !== undefined) {
-            setCustomerPreferencesData(prev => prev ? { ...prev, highStandards: !!currentEstimate.high_standards } : prev);
-          }
         }}
       />
 

@@ -96,6 +96,16 @@ export const orderFieldConfigs = {
     customRender: true, // Uses custom dropdown with tax rules
     valueTransform: (val: string) => val
   },
+  high_standards: {
+    type: 'select' as const,
+    label: 'High Stds',
+    section: 'invoice',
+    options: [
+      { value: 'Yes', label: 'Yes' },
+      { value: 'No', label: 'No' }
+    ],
+    valueTransform: (val: string) => val === 'true'
+  },
 
   // Textarea Fields (Notes)
   manufacturing_note: {

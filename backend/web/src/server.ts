@@ -68,6 +68,11 @@ import { startScheduledEmailJob } from './jobs/scheduledEmailJob';
 import { startOverdueOrderJob } from './jobs/overdueOrderJob';
 import { checkAwaitingPaymentOrders } from './services/invoiceListingService';
 
+// Slack integration
+import { slackNotificationService } from './services/slackNotificationService';
+import { slackDispatchService } from './services/slackDispatchService';
+import { startSlackGitHubPollingJob } from './jobs/slackGitHubPollingJob';
+
 // SMB path configuration
 import { SMB_ROOT } from './config/paths';
 
@@ -317,6 +322,16 @@ const startServer = async () => {
       }
     }, 60 * 60 * 1000); // 1 hour
     console.log('🔓 Resource lock cleanup job started (every hour)');
+
+    // Slack integration — Socket Mode bot + GitHub polling fallback
+    await slackNotificationService.initialize();
+    if (slackNotificationService.isReady()) {
+      const slackApp = slackNotificationService.getApp();
+      if (slackApp) {
+        slackDispatchService.register(slackApp);
+      }
+      startSlackGitHubPollingJob();
+    }
 
     // Check for SSL certificates (home environment HTTPS support)
     const sslKeyPath = path.join(__dirname, '..', 'nexuswebapphome.duckdns.org-key.pem');

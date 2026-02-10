@@ -134,6 +134,7 @@ export const DocumentActionModal: React.FC<DocumentActionModalProps> = ({
   const [loadingDetails, setLoadingDetails] = useState<Set<string>>(new Set());
   const [invoicePreviewLines, setInvoicePreviewLines] = useState<InvoicePreviewLineItem[]>([]);
   const [loadingInvoicePreview, setLoadingInvoicePreview] = useState(false);
+  const [allDescriptionsDefault, setAllDescriptionsDefault] = useState(false);
   const [companySettings, setCompanySettings] = useState<{ company_name: string | null; company_address: string | null } | null>(null);
   const [customerBillingAddress, setCustomerBillingAddress] = useState<Address | null>(null);
 
@@ -230,6 +231,7 @@ export const DocumentActionModal: React.FC<DocumentActionModalProps> = ({
     setPdfError, setLoadingPdf, setCheckingSync, setCheckingStaleness,
     setShowSuccessModal, setSuccessModalData, setSelectedLinkInvoice, setLinking, setLinkError,
     setMobileCreateTab, setInvoicePreviewLines, setLoadingInvoicePreview,
+    setAllDescriptionsDefault,
   });
 
   const handlers = useDocumentHandlers({
@@ -283,6 +285,7 @@ export const DocumentActionModal: React.FC<DocumentActionModalProps> = ({
           onDocumentOnly={handlers.handleDocumentOnly} onLinkInvoiceFromCreate={handlers.handleLinkInvoiceFromCreate}
           onInvoicePreview={handlers.handleInvoicePreview} onClosePreview={handlers.closePreview}
           onSuccessModalClose={handlers.handleSuccessModalClose} formatAddress={formatAddress}
+          allDescriptionsDefault={allDescriptionsDefault}
         />
       );
     }

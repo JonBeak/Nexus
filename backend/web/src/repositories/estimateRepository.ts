@@ -53,23 +53,6 @@ export class EstimateRepository {
   }
 
   /**
-   * Update estimate high_standards override
-   * @param estimateId - The estimate ID
-   * @param value - null (inherit from customer), true (force on), false (force off)
-   * @param userId - User making the update
-   * @returns True if update successful
-   */
-  async updateEstimateHighStandards(estimateId: number, value: boolean | null, userId: number): Promise<boolean> {
-    const dbValue = value === null ? null : (value ? 1 : 0);
-    const rows = await query(
-      'UPDATE job_estimates SET high_standards = ?, updated_by = ?, updated_at = NOW() WHERE id = ?',
-      [dbValue, userId, estimateId]
-    ) as ResultSetHeader;
-
-    return rows.affectedRows > 0;
-  }
-
-  /**
    * Get job ID associated with an estimate
    * @param estimateId - The estimate ID to lookup
    * @returns Job ID or null if estimate not found
@@ -197,7 +180,6 @@ export class EstimateRepository {
         e.created_at,
         e.updated_at,
         e.notes,
-        e.high_standards,
         cu.username as created_by_name,
         CAST(e.is_sent AS UNSIGNED) as is_sent,
         CAST(e.is_approved AS UNSIGNED) as is_approved,
@@ -506,20 +488,19 @@ export class EstimateRepository {
     taxAmount: number,
     totalAmount: number,
     notes: string | null,
-    userId: number,
-    highStandards?: number | null
+    userId: number
   ): Promise<number> {
     const [result] = await connection.execute<ResultSetHeader>(
       `INSERT INTO job_estimates (
         job_code, job_id, customer_id, version_number, parent_estimate_id,
         subtotal, tax_rate, tax_amount, total_amount, notes,
-        high_standards, created_by, updated_by, is_draft
+        created_by, updated_by, is_draft
        )
-       VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+       VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
       [
         newJobCode, targetJobId, sourceCustomerId, targetVersion,
         subtotal, taxRate, taxAmount, totalAmount, notes,
-        highStandards ?? null, userId, userId
+        userId, userId
       ]
     );
 
@@ -543,10 +524,10 @@ export class EstimateRepository {
       `INSERT INTO job_estimates (
         job_code, job_id, customer_id, version_number, parent_estimate_id,
         subtotal, tax_rate, tax_amount, total_amount, notes,
-        high_standards, created_by, updated_by, is_draft
+        created_by, updated_by, is_draft
        )
        SELECT ?, ?, customer_id, ?, ?, subtotal, tax_rate, tax_amount, total_amount, ?,
-        high_standards, ?, ?, TRUE
+        ?, ?, TRUE
        FROM job_estimates
        WHERE id = ?`,
       [jobCode, jobId, version, sourceEstimateId, notes || null, userId, userId, sourceEstimateId]

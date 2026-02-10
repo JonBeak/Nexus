@@ -72,9 +72,6 @@ router.post('/estimates/:estimateId/duplicate', authenticateToken, estimateVersi
 // Update Estimate Notes - Using EstimateItemsController
 router.patch('/estimates/:estimateId/notes', authenticateToken, estimateItemsController.updateEstimateNotes);
 
-// Update Estimate High Standards Override - Using EstimateItemsController
-router.patch('/estimates/:estimateId/high-standards', authenticateToken, estimateItemsController.updateEstimateHighStandards);
-
 // Clear Actions - Using EstimateItemsController
 router.post('/estimates/:estimateId/reset', authenticateToken, estimateItemsController.resetEstimateItems);
 router.post('/estimates/:estimateId/clear-all', authenticateToken, estimateItemsController.clearAllEstimateItems);

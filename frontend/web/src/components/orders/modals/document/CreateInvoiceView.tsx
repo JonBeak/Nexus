@@ -60,6 +60,7 @@ export interface CreateInvoiceViewProps {
   onClosePreview: () => void;
   onSuccessModalClose: () => void;
   formatAddress: (addr: Address | null) => string;
+  allDescriptionsDefault?: boolean;
 }
 
 export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
@@ -72,36 +73,58 @@ export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
   onClose, onSkip, onBackdropMouseDown, onBackdropMouseUp,
   onMobileCreateTabChange, onSelectLinkInvoice, onDocumentOnly,
   onLinkInvoiceFromCreate, onInvoicePreview, onClosePreview,
-  onSuccessModalClose, formatAddress,
+  onSuccessModalClose, formatAddress, allDescriptionsDefault,
 }) => {
   const { showConfirmation } = useAlert();
 
   const descriptionWarnings = useMemo(() => {
-    const problematic = invoiceDisplayParts.filter(part => {
+    const emptyParts = invoiceDisplayParts.filter(part => {
       if (part.is_header_row || part.is_description_only) return false;
       return !part.qb_description || !part.qb_description.trim();
     });
     const total = invoiceDisplayParts.filter(p => !p.is_header_row && !p.is_description_only).length;
+    const hasEmpty = emptyParts.length > 0;
+    const hasDefault = !!allDescriptionsDefault;
     return {
-      hasIssues: problematic.length > 0,
-      emptyCount: problematic.length,
+      hasIssues: hasEmpty || hasDefault,
+      hasEmpty,
+      hasDefault,
+      emptyCount: emptyParts.length,
       totalLineItems: total,
-      emptyItems: problematic.map(p => p.qb_item_name || 'Unknown Item')
+      emptyItems: emptyParts.map(p => p.qb_item_name || 'Unknown Item')
     };
-  }, [invoiceDisplayParts]);
+  }, [invoiceDisplayParts, allDescriptionsDefault]);
 
   const handleCreateInvoice = async () => {
     if (!descriptionWarnings.hasIssues) {
       onDocumentOnly();
       return;
     }
-    const confirmed = await showConfirmation({
-      title: 'Empty QB Descriptions',
-      message: `${descriptionWarnings.emptyCount} of ${descriptionWarnings.totalLineItems} line items have empty QB descriptions. The invoice will be sent to the customer with blank description fields.`,
-      confirmText: 'Create Anyway',
-      cancelText: 'Go Back',
-      variant: 'warning',
-      details: (
+
+    // Build appropriate message based on the type of issue
+    let title: string;
+    let message: string;
+    let details: React.ReactNode = null;
+
+    if (descriptionWarnings.hasDefault) {
+      title = 'Default QB Descriptions';
+      message = 'QB descriptions are auto-generated defaults — they haven\'t been reviewed or customized for this customer.';
+      if (descriptionWarnings.hasEmpty) {
+        details = (
+          <div className="mt-2 text-sm text-gray-600">
+            <div className="font-medium text-gray-700 mb-1">{descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} are also completely empty:</div>
+            <ul className="list-disc pl-5 space-y-0.5">
+              {descriptionWarnings.emptyItems.map((name, i) => (
+                <li key={i}>{name}</li>
+              ))}
+            </ul>
+          </div>
+        );
+      }
+    } else {
+      title = 'Empty QB Descriptions';
+      message = `${descriptionWarnings.emptyCount} of ${descriptionWarnings.totalLineItems} line items have empty QB descriptions. The invoice will be sent to the customer with blank description fields.`;
+      details = (
         <div className="mt-2 text-sm text-gray-600">
           <div className="font-medium text-gray-700 mb-1">Items with empty descriptions:</div>
           <ul className="list-disc pl-5 space-y-0.5">
@@ -110,7 +133,16 @@ export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
             ))}
           </ul>
         </div>
-      )
+      );
+    }
+
+    const confirmed = await showConfirmation({
+      title,
+      message,
+      confirmText: 'Create Anyway',
+      cancelText: 'Go Back',
+      variant: 'warning',
+      details
     });
     if (confirmed) {
       onDocumentOnly();
@@ -132,9 +164,9 @@ export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
       }`}
       onMouseDown={onBackdropMouseDown}
       onMouseUp={(e) => {
-        const isInsideCreate = modalContentRef.current ? modalContentRef.current.contains(e.target as Node) : true;
-        const isInsideLink = linkModalRef.current ? linkModalRef.current.contains(e.target as Node) : true;
-        const isInsidePreview = previewPanelRef.current ? previewPanelRef.current.contains(e.target as Node) : true;
+        const isInsideCreate = modalContentRef.current ? modalContentRef.current.contains(e.target as Node) : false;
+        const isInsideLink = linkModalRef.current ? linkModalRef.current.contains(e.target as Node) : false;
+        const isInsidePreview = previewPanelRef.current ? previewPanelRef.current.contains(e.target as Node) : false;
         if (!isInsideCreate && !isInsideLink && !isInsidePreview) {
           onBackdropMouseUp(e);
         }
@@ -202,7 +234,12 @@ export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
                     <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
                       <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
                       <div className="text-sm text-amber-800">
-                        <span className="font-medium">{descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} line items</span> have empty QB descriptions. Consider editing them before creating.
+                        {descriptionWarnings.hasDefault ? (
+                          <>QB descriptions are <span className="font-medium">auto-generated defaults</span> — not yet reviewed.{descriptionWarnings.hasEmpty && <> {descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} are completely empty.</>} </>
+                        ) : (
+                          <><span className="font-medium">{descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} line items</span> have empty QB descriptions. </>
+                        )}
+                        Consider editing them before creating.
                       </div>
                     </div>
                   )}
@@ -306,7 +343,12 @@ export const CreateInvoiceView: React.FC<CreateInvoiceViewProps> = ({
                   <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2.5">
                     <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
                     <div className="text-sm text-amber-800">
-                      <span className="font-medium">{descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} line items</span> have empty QB descriptions. Consider editing them before creating.
+                      {descriptionWarnings.hasDefault ? (
+                        <>QB descriptions are <span className="font-medium">auto-generated defaults</span> — not yet reviewed.{descriptionWarnings.hasEmpty && <> {descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} are completely empty.</>} </>
+                      ) : (
+                        <><span className="font-medium">{descriptionWarnings.emptyCount} of {descriptionWarnings.totalLineItems} line items</span> have empty QB descriptions. </>
+                      )}
+                      Consider editing them before creating.
                     </div>
                   </div>
                 )}
