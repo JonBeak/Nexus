@@ -85,7 +85,7 @@ export const IssueItem: React.FC<{ issue: ValidationIssue; letterAnalysis?: Lett
           : undefined;
 
         // Specialized rendering for mounting hole requirements
-        if (issue.rule === 'front_lit_mounting_holes') {
+        if (issue.rule === 'front_lit_mounting_holes' || issue.rule === 'acrylic_face_mounting_holes') {
           const d = issue.details;
           return (
             <div className="mt-2 p-2 bg-white rounded flex gap-4">
@@ -223,6 +223,12 @@ const RULE_LABELS: Record<string, string> = {
   letter_no_wire_hole: 'Missing Wire Holes',
   letter_multiple_wire_holes: 'Multiple Wire Holes',
   unexpected_mounting_type: 'Unexpected Mounting Type',
+  acrylic_face_mounting_holes: 'Mounting Hole Requirements',
+  acrylic_face_count: 'Face/Return Count Mismatch',
+  acrylic_face_offset: 'Face Offset',
+  acrylic_face_missing: 'Face Layer Missing',
+  acrylic_face_spacing: 'Face Spacing',
+  acrylic_face_engraving_missing: 'Missing Engraving Path',
 };
 
 const severityLabel = (severity: string, count: number): string => {

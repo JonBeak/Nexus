@@ -17,6 +17,7 @@ import {
   ActionableRequirementsResponse,
   StatusCountsResponse,
   OrderDropdownOption,
+  DraftPOGroup,
   StockAvailabilityResponse,
   HoldDetailsResponse,
   VinylHold,
@@ -121,16 +122,19 @@ export const materialRequirementsApi = {
   },
 
   /**
-   * Add requirements to shopping cart
+   * Get unassigned requirements (no supplier set)
    */
-  addToCart: async (
-    requirementIds: number[],
-    cartId: string
-  ): Promise<{ updated_count: number }> => {
-    const response = await api.post('/material-requirements/add-to-cart', {
-      requirement_ids: requirementIds,
-      cart_id: cartId,
-    });
+  getUnassigned: async (): Promise<MaterialRequirement[]> => {
+    const response = await api.get('/material-requirements/unassigned');
+    return response.data;
+  },
+
+  /**
+   * Get draft PO groups — MRs grouped by supplier, not yet ordered.
+   * Replaces old draft supplier_orders.
+   */
+  getDraftPOGroups: async (): Promise<DraftPOGroup[]> => {
+    const response = await api.get('/material-requirements/draft-po-groups');
     return response.data;
   },
 
@@ -149,39 +153,6 @@ export const materialRequirementsApi = {
     const response = await api.get('/material-requirements/recent-orders', {
       params: { limit },
     });
-    return response.data;
-  },
-
-  /**
-   * Get pending/backordered requirements grouped by supplier
-   * Used for supplier order generation
-   */
-  getGroupedBySupplier: async (): Promise<{
-    groups: Array<{
-      supplier_id: number;
-      supplier_name: string;
-      contact_email: string | null;
-      contact_phone: string | null;
-      item_count: number;
-      total_quantity: number;
-      requirements: Array<{
-        requirement_id: number;
-        entry_date: string;
-        custom_product_type: string | null;
-        archetype_name: string | null;
-        size_description: string | null;
-        quantity_ordered: number;
-        unit_of_measure: string | null;
-        order_number: string | null;
-        order_name: string | null;
-        is_stock_item: boolean;
-        notes: string | null;
-      }>;
-    }>;
-    total_requirements: number;
-    total_suppliers: number;
-  }> => {
-    const response = await api.get('/material-requirements/grouped-by-supplier');
     return response.data;
   },
 

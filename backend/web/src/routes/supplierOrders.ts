@@ -32,6 +32,9 @@ router.post('/', controller.createOrder);
 // POST /supplier-orders/generate - Generate order from requirements
 router.post('/generate', controller.generateOrder);
 
+// POST /supplier-orders/submit-draft - Submit draft PO (snapshot from MRs)
+router.post('/submit-draft', controller.submitDraftPO);
+
 // PUT /supplier-orders/:id - Update order
 router.put('/:id', controller.updateOrder);
 

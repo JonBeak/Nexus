@@ -201,14 +201,14 @@ export const updateOrder = async (req: Request, res: Response) => {
 export const submitOrder = async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
-    const { order_date, notes } = req.body;
+    const { order_date, notes, email } = req.body;
     const userId = (req as any).user?.userId;
 
     if (isNaN(id)) {
       return res.status(400).json({ success: false, message: 'Invalid order ID' });
     }
 
-    const result = await service.submitOrder(id, order_date, userId, notes);
+    const result = await service.submitOrder(id, order_date, userId, notes, email);
 
     if (!result.success) {
       const status = result.code === 'NOT_FOUND' ? 404 : 400;
@@ -221,6 +221,49 @@ export const submitOrder = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'Failed to submit order',
+    });
+  }
+};
+
+/**
+ * POST /supplier-orders/submit-draft
+ * Submit a draft PO (creates snapshot from MR data, sends email)
+ */
+export const submitDraftPO = async (req: Request, res: Response) => {
+  try {
+    const { supplier_id, requirement_ids, delivery_method, notes, email } = req.body;
+    const userId = (req as any).user?.userId;
+
+    if (!supplier_id || !requirement_ids || !Array.isArray(requirement_ids) || requirement_ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'supplier_id and requirement_ids[] are required',
+      });
+    }
+
+    const result = await service.submitDraftPO(
+      supplier_id,
+      requirement_ids,
+      delivery_method || 'shipping',
+      userId,
+      notes,
+      email
+    );
+
+    if (!result.success) {
+      return res.status(400).json({ success: false, message: result.error });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Draft PO submitted',
+      data: result.data,
+    });
+  } catch (error) {
+    console.error('Error in submitDraftPO:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to submit draft PO',
     });
   }
 };

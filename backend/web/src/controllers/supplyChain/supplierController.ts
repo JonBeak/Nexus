@@ -111,6 +111,14 @@ export const getSupplierStats = async (_req: Request, res: Response): Promise<vo
   handleServiceResult(res, result);
 };
 
+/**
+ * Get per-supplier stats for supply chain tab
+ */
+export const getSupplyChainStats = async (_req: Request, res: Response): Promise<void> => {
+  const result = await supplierService.getSupplyChainStats();
+  handleServiceResult(res, result);
+};
+
 // ============================================
 // CONTACT ENDPOINTS
 // ============================================

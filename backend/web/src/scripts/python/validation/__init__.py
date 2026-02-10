@@ -40,7 +40,7 @@ from .base_rules import (
     check_mounting_holes,
     check_path_closure
 )
-from .rules import check_front_lit_structure
+from .rules import check_front_lit_structure, check_front_lit_acrylic_face_structure, classify_engraving_paths
 from .rules.front_lit import generate_letter_analysis_issues
 from .letter_analysis import analyze_letter_hole_associations
 
@@ -191,7 +191,7 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
         # Letter-hole geometry analysis (run before other validations if requested)
         # Returns UNCLASSIFIED holes — spec rules classify them before serialization
         letter_analysis = None
-        if 'letter_hole_analysis' in rules or 'front_lit_structure' in rules:
+        if 'letter_hole_analysis' in rules or 'front_lit_structure' in rules or 'front_lit_acrylic_face_structure' in rules:
             analysis_config = rules.get('letter_hole_analysis', {})
 
             # For SVG files with detected unit scale, override file_scale
@@ -209,6 +209,21 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
             standard_sizes = analysis_config.get('standard_hole_sizes', [])
             if standard_sizes:
                 _classify_holes_from_standards(letter_analysis, standard_sizes)
+
+            # 2b. Classify engraving paths on face layer (after hole classification)
+            if 'front_lit_acrylic_face_structure' in rules:
+                acrylic_cfg = rules['front_lit_acrylic_face_structure']
+                face_layer = acrylic_cfg.get('face_layer', 'face')
+                engraving_issues = classify_engraving_paths(letter_analysis, face_layer, acrylic_cfg)
+                for issue_dict in engraving_issues:
+                    all_issues.append(ValidationIssue(
+                        rule=issue_dict['rule'],
+                        severity=issue_dict['severity'],
+                        message=issue_dict['message'],
+                        path_id=issue_dict.get('path_id'),
+                        details=issue_dict.get('details')
+                    ))
+                    letter_analysis.issues.append(issue_dict)
 
             # 3. Orphan holes are always errors regardless of spec type
             for hole in letter_analysis.orphan_holes:
@@ -246,6 +261,20 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
                         details=issue_dict.get('details')
                     ))
 
+            # 4b. Per-letter issues for acrylic face (return layer holes)
+            if 'front_lit_acrylic_face_structure' in rules:
+                acrylic_return = rules.get('front_lit_acrylic_face_structure', {}).get('return_layer', 'return')
+                acrylic_mounting = rules.get('front_lit_acrylic_face_structure', {}).get('expected_mounting_names')
+                acrylic_issues = generate_letter_analysis_issues(letter_analysis, acrylic_return, acrylic_mounting)
+                for issue_dict in acrylic_issues:
+                    all_issues.append(ValidationIssue(
+                        rule=issue_dict['rule'],
+                        severity=issue_dict['severity'],
+                        message=issue_dict['message'],
+                        path_id=issue_dict.get('path_id'),
+                        details=issue_dict.get('details')
+                    ))
+
             # 5. Serialize AFTER classification + issue attachment
             stats['letter_analysis'] = letter_analysis.to_dict()
             stats['detected_scale'] = letter_analysis.detected_scale
@@ -274,6 +303,16 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
             if std_sizes:
                 front_lit_rules['_standard_hole_sizes'] = std_sizes
             all_issues.extend(check_front_lit_structure(paths_info, front_lit_rules))
+
+        if 'front_lit_acrylic_face_structure' in rules:
+            acrylic_rules = rules['front_lit_acrylic_face_structure'].copy()
+            if letter_analysis:
+                acrylic_rules['_letter_analysis'] = letter_analysis
+            analysis_cfg = rules.get('letter_hole_analysis', {})
+            std_sizes = analysis_cfg.get('standard_hole_sizes', [])
+            if std_sizes:
+                acrylic_rules['_standard_hole_sizes'] = std_sizes
+            all_issues.extend(check_front_lit_acrylic_face_structure(paths_info, acrylic_rules))
 
         # Determine overall status
         has_errors = any(i.severity == 'error' for i in all_issues)
@@ -324,4 +363,6 @@ __all__ = [
     'HoleInfo',
     'analyze_letter_hole_associations',
     'generate_letter_analysis_issues',
+    'check_front_lit_acrylic_face_structure',
+    'classify_engraving_paths',
 ]

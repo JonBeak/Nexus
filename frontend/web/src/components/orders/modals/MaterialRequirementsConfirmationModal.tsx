@@ -49,6 +49,10 @@ export interface MaterialRow {
   // Inventory holds
   held_vinyl_id: number | null;
   held_supplier_product_id: number | null;
+  held_vinyl_quantity?: string | null;
+  held_vinyl_width?: number | null;
+  held_vinyl_length_yards?: number | null;
+  held_general_quantity?: string | null;
   // Display-only from existing records
   archetype_name?: string;
   supplier_name?: string;
@@ -83,6 +87,10 @@ const toRow = (req: MaterialRequirement): MaterialRow => ({
   supplier_product_id: req.supplier_product_id,
   held_vinyl_id: req.held_vinyl_id,
   held_supplier_product_id: req.held_supplier_product_id,
+  held_vinyl_quantity: req.held_vinyl_quantity,
+  held_vinyl_width: req.held_vinyl_width,
+  held_vinyl_length_yards: req.held_vinyl_length_yards,
+  held_general_quantity: req.held_general_quantity,
   archetype_name: req.archetype_name || undefined,
   supplier_name: req.supplier_name || undefined,
   vinyl_product_display: req.vinyl_product_display || undefined,
@@ -115,9 +123,6 @@ export const MaterialRequirementsConfirmationModal: React.FC<MaterialRequirement
   onConfirm,
   order
 }) => {
-  const { modalContentRef, handleBackdropMouseDown, handleBackdropMouseUp, isMobile } =
-    useModalBackdrop({ isOpen, onClose });
-
   const [rows, setRows] = useState<MaterialRow[]>([]);
   const [originalRows, setOriginalRows] = useState<MaterialRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,6 +142,9 @@ export const MaterialRequirementsConfirmationModal: React.FC<MaterialRequirement
   const [showVinylSelector, setShowVinylSelector] = useState(false);
   const [showGeneralInventorySelector, setShowGeneralInventorySelector] = useState(false);
   const [selectedRowForHold, setSelectedRowForHold] = useState<MaterialRow | null>(null);
+
+  const { modalContentRef, handleBackdropMouseDown, handleBackdropMouseUp, isMobile } =
+    useModalBackdrop({ isOpen, onClose, preventClose: showVinylSelector || showGeneralInventorySelector });
 
   supplierProductsRef.current = supplierProducts;
   rowsRef.current = rows;
@@ -286,6 +294,26 @@ export const MaterialRequirementsConfirmationModal: React.FC<MaterialRequirement
     } catch (err: any) { setError(err.response?.data?.error || 'Failed to create hold'); }
   };
 
+  const handleReleaseHold = async (row: MaterialRow) => {
+    if (!row.requirement_id) return;
+    try {
+      await materialRequirementsApi.releaseHold(row.requirement_id);
+      void fetchRequirements();
+    } catch (err: any) { setError(err.response?.data?.error || 'Failed to release hold'); }
+  };
+
+  const handleChangeHold = async (row: MaterialRow, stockType: 'vinyl' | 'general') => {
+    if (!row.requirement_id) return;
+    try {
+      await materialRequirementsApi.releaseHold(row.requirement_id);
+      void fetchRequirements();
+      // Open selector immediately — row still has vinyl_product_id/archetype_id
+      setSelectedRowForHold(row);
+      if (stockType === 'vinyl') setShowVinylSelector(true);
+      else setShowGeneralInventorySelector(true);
+    } catch (err: any) { setError(err.response?.data?.error || 'Failed to release hold'); }
+  };
+
   const handleGeneralInventoryHoldSelect = async (supplierProductId: number, quantity: string) => {
     if (!selectedRowForHold?.requirement_id) return;
     try {
@@ -411,6 +439,8 @@ export const MaterialRequirementsConfirmationModal: React.FC<MaterialRequirement
                         onFieldChange={handleFieldChange}
                         onRemove={removeRow}
                         onCheckStock={handleCheckStock}
+                        onReleaseHold={handleReleaseHold}
+                        onChangeHold={handleChangeHold}
                       />
                     ))}
                   </div>

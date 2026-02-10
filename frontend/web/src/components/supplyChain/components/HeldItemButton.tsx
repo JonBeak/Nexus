@@ -74,10 +74,20 @@ export const HeldItemButton: React.FC<HeldItemButtonProps> = ({
     if (requirement.held_vinyl_id && requirement.held_vinyl_width != null && requirement.held_vinyl_length_yards != null) {
       const w = parseFloat(Number(requirement.held_vinyl_width).toFixed(2)).toString();
       const l = parseFloat(Number(requirement.held_vinyl_length_yards).toFixed(2)).toString();
-      return `In Stock: ${w} x ${l} yd`;
+      return (
+        <span className="text-center leading-tight">
+          <span className="block">In Stock - Holding:</span>
+          <span className="block">{w} x {l} yd</span>
+        </span>
+      );
     }
     if (requirement.held_supplier_product_id && requirement.held_general_quantity) {
-      return `In Stock: ${requirement.held_general_quantity}`;
+      return (
+        <span className="text-center leading-tight">
+          <span className="block">In Stock - Holding:</span>
+          <span className="block">{requirement.held_general_quantity}</span>
+        </span>
+      );
     }
     return 'In Stock';
   };
@@ -95,8 +105,8 @@ export const HeldItemButton: React.FC<HeldItemButtonProps> = ({
         className="w-full px-1.5 py-[5px] text-xs font-medium rounded-none border border-green-300 bg-green-100 text-green-700 hover:bg-green-200 transition-colors flex items-center gap-1"
         title="Click to manage hold"
       >
-        {getDisplayText()}
-        <ChevronDown className="h-3 w-3" />
+        <span className="flex-1">{getDisplayText()}</span>
+        <ChevronDown className="h-3 w-3 flex-shrink-0" />
       </button>
 
       {showMenu &&

@@ -1,5 +1,7 @@
 // Phase 4.a: Updated for extended supplier fields
 // Updated: 2025-12-18
+import { query } from '../../config/database';
+import { RowDataPacket } from 'mysql2';
 import { SupplierRepository, SupplierRow, SupplierStatsRow, SupplierSearchParams } from '../../repositories/supplyChain/supplierRepository';
 import { isValidUrl } from '../../utils/validation';
 import { ServiceResult } from '../../types/serviceResults';
@@ -259,6 +261,44 @@ export class SupplierService {
         success: false,
         error: 'Failed to delete supplier',
         code: 'DELETE_ERROR'
+      };
+    }
+  }
+
+  /**
+   * Get per-supplier stats for the supply chain tab
+   */
+  async getSupplyChainStats(): Promise<ServiceResult<any[]>> {
+    try {
+      const sql = `
+        SELECT
+          s.supplier_id,
+          s.name as supplier_name,
+          (SELECT sc.email FROM supplier_contacts sc
+           WHERE sc.supplier_id = s.supplier_id AND sc.is_primary = 1 LIMIT 1) as primary_contact_email,
+          (SELECT sc.phone FROM supplier_contacts sc
+           WHERE sc.supplier_id = s.supplier_id AND sc.is_primary = 1 LIMIT 1) as primary_contact_phone,
+          (SELECT COUNT(*) FROM supplier_products sp
+           WHERE sp.supplier_id = s.supplier_id) as product_count,
+          (SELECT COUNT(*) FROM supplier_orders so
+           WHERE so.supplier_id = s.supplier_id) as total_order_count,
+          (SELECT COUNT(*) FROM supplier_orders so
+           WHERE so.supplier_id = s.supplier_id
+             AND so.status IN ('submitted', 'acknowledged', 'partial_received')) as open_order_count,
+          (SELECT MAX(so.order_date) FROM supplier_orders so
+           WHERE so.supplier_id = s.supplier_id AND so.order_date IS NOT NULL) as last_order_date
+        FROM suppliers s
+        WHERE s.is_active = 1
+        ORDER BY s.name ASC
+      `;
+      const rows = await query(sql) as RowDataPacket[];
+      return { success: true, data: rows };
+    } catch (error) {
+      console.error('Error in SupplierService.getSupplyChainStats:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch supply chain stats',
+        code: 'FETCH_ERROR',
       };
     }
   }

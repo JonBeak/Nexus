@@ -267,11 +267,11 @@ export class SupplierOrderService {
         };
       }
 
-      // Only allow edits to draft orders
-      if (existing.status !== 'draft' && Object.keys(data).some(k => k !== 'internal_notes')) {
+      // Only allow editing internal_notes on submitted+ orders
+      if (existing.status !== 'submitted' && Object.keys(data).some(k => k !== 'internal_notes')) {
         return {
           success: false,
-          error: 'Can only edit draft orders (except internal notes)',
+          error: 'Can only edit submitted orders (except internal notes)',
           code: 'VALIDATION_ERROR',
         };
       }
@@ -296,7 +296,8 @@ export class SupplierOrderService {
     id: number,
     orderDate?: Date | string,
     userId?: number,
-    notes?: string
+    notes?: string,
+    emailOverrides?: { to?: string; cc?: string; bcc?: string; subject?: string; opening?: string; closing?: string }
   ): Promise<ServiceResult<void>> {
     try {
       const order = await this.repository.findByIdWithItems(id);
@@ -309,10 +310,10 @@ export class SupplierOrderService {
         };
       }
 
-      if (order.status !== 'draft') {
+      if (order.status === 'delivered' || order.status === 'cancelled') {
         return {
           success: false,
-          error: 'Can only submit draft orders',
+          error: 'Cannot submit a delivered or cancelled order',
           code: 'VALIDATION_ERROR',
         };
       }
@@ -328,12 +329,120 @@ export class SupplierOrderService {
       const date = orderDate || new Date();
       await this.repository.submit(id, date, userId, notes);
 
+      // Update linked material requirements to 'ordered' status
+      if (order.items && order.items.length > 0) {
+        const requirementIds = order.items
+          .filter(item => item.material_requirement_id)
+          .map(item => item.material_requirement_id as number);
+        if (requirementIds.length > 0) {
+          await this.repository.linkRequirements(order.order_id, requirementIds, userId);
+        }
+      }
+
+      // Send PO email to supplier (non-blocking — don't fail the submission)
+      try {
+        const { sendPurchaseOrderEmail } = await import('./supplierOrderEmailService');
+        const emailResult = await sendPurchaseOrderEmail(id, emailOverrides);
+        if (emailResult.success) {
+          await this.repository.updateEmailSentAt(id);
+        } else {
+          console.warn(`⚠️ PO email not sent for order ${id}: ${emailResult.reason || emailResult.error}`);
+        }
+      } catch (emailError) {
+        console.error(`❌ PO email error for order ${id}:`, emailError);
+      }
+
       return { success: true, data: undefined };
     } catch (error) {
       console.error('Error in SupplierOrderService.submitOrder:', error);
       return {
         success: false,
         error: 'Failed to submit order',
+        code: 'SUBMIT_ERROR',
+      };
+    }
+  }
+
+  /**
+   * Submit a draft PO (new flow — no existing supplier_orders row).
+   * Creates snapshot from MR data, stamps ordered_date on MRs, sends email.
+   */
+  async submitDraftPO(
+    supplierId: number,
+    requirementIds: number[],
+    deliveryMethod: 'shipping' | 'pickup',
+    userId?: number,
+    notes?: string,
+    emailOverrides?: { to?: string; cc?: string; bcc?: string; subject?: string; opening?: string; closing?: string }
+  ): Promise<ServiceResult<{ order_id: number; order_number: string }>> {
+    try {
+      if (!supplierId || supplierId <= 0) {
+        return { success: false, error: 'Valid supplier ID is required', code: 'VALIDATION_ERROR' };
+      }
+      if (!requirementIds || requirementIds.length === 0) {
+        return { success: false, error: 'At least one requirement must be selected', code: 'VALIDATION_ERROR' };
+      }
+
+      // Fetch the MRs
+      const allReqs = await this.materialRequirementRepository.findAll({
+        status: ['pending'],
+      });
+      const selectedReqs = allReqs.filter(
+        r => requirementIds.includes(r.requirement_id) && r.supplier_id === supplierId
+      );
+
+      if (selectedReqs.length === 0) {
+        return { success: false, error: 'No valid pending requirements found for this supplier', code: 'VALIDATION_ERROR' };
+      }
+
+      // Generate PO number
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const orderNumber = await this.repository.generatePONumber(supplierId, today);
+
+      // Build snapshot items from MR data
+      const items = selectedReqs.map(req => ({
+        product_description: req.archetype_name || req.custom_product_type || 'Unknown Product',
+        sku: req.supplier_product_sku || null,
+        quantity_ordered: Number(req.quantity_ordered),
+        unit_of_measure: req.unit_of_measure || 'each',
+        unit_price: 0,
+        material_requirement_id: req.requirement_id,
+        supplier_product_id: req.supplier_product_id || null,
+        notes: req.size_description ? `Size: ${req.size_description}` : null,
+      }));
+
+      // Create snapshot in supplier_orders + supplier_order_items
+      const orderId = await this.repository.createSnapshot(
+        orderNumber, supplierId, today, deliveryMethod, notes ?? null, items, userId
+      );
+
+      // Stamp ordered_date, delivery_method, supplier_order_id on each MR
+      await this.materialRequirementRepository.stampOrdered(
+        requirementIds, today, deliveryMethod, orderId, userId
+      );
+
+      // Send PO email (non-blocking)
+      try {
+        const { sendPurchaseOrderEmail } = await import('./supplierOrderEmailService');
+        const emailResult = await sendPurchaseOrderEmail(orderId, emailOverrides);
+        if (emailResult.success) {
+          await this.repository.updateEmailSentAt(orderId);
+        } else {
+          console.warn(`⚠️ PO email not sent for order ${orderId}: ${emailResult.reason || emailResult.error}`);
+        }
+      } catch (emailError) {
+        console.error(`❌ PO email error for order ${orderId}:`, emailError);
+      }
+
+      return {
+        success: true,
+        data: { order_id: orderId, order_number: orderNumber },
+      };
+    } catch (error) {
+      console.error('Error in SupplierOrderService.submitDraftPO:', error);
+      return {
+        success: false,
+        error: 'Failed to submit draft PO',
         code: 'SUBMIT_ERROR',
       };
     }
@@ -388,7 +497,7 @@ export class SupplierOrderService {
   }
 
   /**
-   * Delete supplier order (draft only)
+   * Delete supplier order
    */
   async deleteOrder(id: number): Promise<ServiceResult<void>> {
     try {
@@ -402,10 +511,10 @@ export class SupplierOrderService {
         };
       }
 
-      if (order.status !== 'draft') {
+      if (order.status === 'delivered') {
         return {
           success: false,
-          error: 'Can only delete draft orders',
+          error: 'Cannot delete delivered orders',
           code: 'VALIDATION_ERROR',
         };
       }
@@ -448,10 +557,10 @@ export class SupplierOrderService {
         };
       }
 
-      if (order.status !== 'draft') {
+      if (order.status === 'delivered' || order.status === 'cancelled') {
         return {
           success: false,
-          error: 'Can only add items to draft orders',
+          error: 'Cannot add items to delivered or cancelled orders',
           code: 'VALIDATION_ERROR',
         };
       }
@@ -504,10 +613,10 @@ export class SupplierOrderService {
       }
 
       const order = await this.repository.findById(item.order_id);
-      if (!order || order.status !== 'draft') {
+      if (!order || order.status === 'delivered' || order.status === 'cancelled') {
         return {
           success: false,
-          error: 'Can only edit items on draft orders',
+          error: 'Cannot edit items on delivered or cancelled orders',
           code: 'VALIDATION_ERROR',
         };
       }
@@ -541,10 +650,10 @@ export class SupplierOrderService {
       }
 
       const order = await this.repository.findById(item.order_id);
-      if (!order || order.status !== 'draft') {
+      if (!order || order.status === 'delivered' || order.status === 'cancelled') {
         return {
           success: false,
-          error: 'Can only remove items from draft orders',
+          error: 'Cannot remove items from delivered or cancelled orders',
           code: 'VALIDATION_ERROR',
         };
       }
@@ -739,12 +848,11 @@ export class SupplierOrderService {
    */
   private getValidStatusTransitions(currentStatus: SupplierOrderStatus): SupplierOrderStatus[] {
     const transitions: Record<SupplierOrderStatus, SupplierOrderStatus[]> = {
-      draft: ['submitted', 'cancelled'],
       submitted: ['acknowledged', 'partial_received', 'delivered', 'cancelled'],
       acknowledged: ['partial_received', 'delivered', 'cancelled'],
       partial_received: ['delivered', 'cancelled'],
       delivered: [], // Terminal state
-      cancelled: ['draft'], // Can reopen as draft
+      cancelled: ['submitted'], // Can reopen as submitted
     };
 
     return transitions[currentStatus] || [];

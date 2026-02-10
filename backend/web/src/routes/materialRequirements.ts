@@ -40,9 +40,16 @@ router.get(
 );
 
 router.get(
-  '/grouped-by-supplier',
+  '/unassigned',
   requirePermission('supply_chain.read'),
-  controller.getGroupedBySupplier
+  controller.getUnassignedRequirements
+);
+
+// Draft PO groups (live MR query, replaces draft supplier_orders)
+router.get(
+  '/draft-po-groups',
+  requirePermission('supply_chain.read'),
+  controller.getDraftPOGroups
 );
 
 // ===========================================================================
@@ -111,13 +118,6 @@ router.post(
   '/bulk-receive',
   requirePermission('supply_chain.update'),
   controller.bulkReceive
-);
-
-// Shopping Cart Integration
-router.post(
-  '/add-to-cart',
-  requirePermission('supply_chain.update'),
-  controller.addToCart
 );
 
 // Get hold details for a requirement

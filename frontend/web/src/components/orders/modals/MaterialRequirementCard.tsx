@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Package, RefreshCw, X } from 'lucide-react';
 import { ProductTypeDropdown } from '../../supplyChain/components/ProductTypeDropdown';
 import { ProductDropdown } from '../../supplyChain/components/ProductDropdown';
 import { SupplierDropdown } from '../../supplyChain/components/SupplierDropdown';
@@ -28,6 +28,8 @@ export interface MaterialRequirementCardProps {
   onFieldChange: (localId: string, field: string, value: any) => void;
   onRemove: (localId: string) => void;
   onCheckStock: (row: MaterialRow, stockType: 'vinyl' | 'general') => void;
+  onReleaseHold: (row: MaterialRow) => void;
+  onChangeHold: (row: MaterialRow, stockType: 'vinyl' | 'general') => void;
 }
 
 /**
@@ -66,6 +68,24 @@ function rowToMaterialRequirement(row: MaterialRow): MaterialRequirement {
 
 const inputClass = 'w-full px-2.5 py-1.5 border border-gray-200 rounded text-sm focus:border-purple-400 focus:ring-1 focus:ring-purple-200 outline-none';
 
+/** Build hold description string */
+function getHoldDescription(row: MaterialRow): string {
+  if (row.held_vinyl_id) {
+    const parts = [`Vinyl #${row.held_vinyl_id}`];
+    if (row.held_vinyl_quantity) parts.push(row.held_vinyl_quantity === 'Whole' ? 'Whole Roll' : row.held_vinyl_quantity);
+    if (row.held_vinyl_width && row.held_vinyl_length_yards) {
+      parts.push(`(${row.held_vinyl_width}" × ${row.held_vinyl_length_yards}yd)`);
+    }
+    return parts.join(' — ');
+  }
+  if (row.held_supplier_product_id) {
+    const parts = [row.supplier_product_name || `Item #${row.held_supplier_product_id}`];
+    if (row.held_general_quantity) parts.push(row.held_general_quantity);
+    return parts.join(' — ');
+  }
+  return 'Hold';
+}
+
 export const MaterialRequirementCard: React.FC<MaterialRequirementCardProps> = React.memo(({
   row,
   index,
@@ -80,16 +100,20 @@ export const MaterialRequirementCard: React.FC<MaterialRequirementCardProps> = R
   onFieldChange,
   onRemove,
   onCheckStock,
+  onReleaseHold,
+  onChangeHold,
 }) => {
+  const hasHold = row.held_vinyl_id != null || row.held_supplier_product_id != null;
+  const holdStockType = row.held_vinyl_id != null ? 'vinyl' as const : 'general' as const;
+
   // Show CheckStockButton when: has archetype + no vendor + no holds
   const showCheckStock =
     row.archetype_id != null &&
     row.supplier_id == null &&
-    row.held_vinyl_id == null &&
-    row.held_supplier_product_id == null;
+    !hasHold;
 
   return (
-    <div className="relative border border-gray-200 rounded-lg p-3 bg-white hover:border-purple-200 transition-colors">
+    <div className={`relative border rounded-lg p-3 bg-white transition-colors ${hasHold ? 'border-green-300 bg-green-50/30' : 'border-gray-200 hover:border-purple-200'}`}>
       {/* Card number badge + delete */}
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded">
@@ -178,38 +202,77 @@ export const MaterialRequirementCard: React.FC<MaterialRequirementCardProps> = R
         </div>
       </div>
 
-      {/* Row 3: Vendor + CheckStock | Notes */}
-      <div className="grid grid-cols-[1fr_1fr] gap-2">
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-0.5">Vendor</label>
-          <div className="flex items-center gap-1">
-            <div className="flex-1">
-              <SupplierDropdown
-                value={row.supplier_id}
-                onChange={(val) => onFieldChange(row._localId, 'supplier_id', val)}
-                suppliers={suppliers}
-                placeholder="Select vendor..."
-              />
-            </div>
-            {showCheckStock && (
-              <CheckStockButton
-                requirement={rowToMaterialRequirement(row)}
-                onCheckStock={(stockType) => onCheckStock(row, stockType)}
-              />
-            )}
+      {/* Row 3: Vendor/Hold + Notes */}
+      {hasHold ? (
+        <div className="space-y-2">
+          {/* Hold info banner */}
+          <div className="flex items-center gap-2 px-2.5 py-2 bg-green-100 border border-green-200 rounded">
+            <Package className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+            <span className="text-xs font-medium text-green-800 flex-1 min-w-0 truncate">
+              {getHoldDescription(row)}
+            </span>
+            <button
+              onClick={() => onChangeHold(row, holdStockType)}
+              className="flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 rounded transition-colors flex-shrink-0"
+              title="Change held item"
+            >
+              <RefreshCw className="w-3 h-3" />
+              Change
+            </button>
+            <button
+              onClick={() => onReleaseHold(row)}
+              className="flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded transition-colors flex-shrink-0"
+              title="Release hold"
+            >
+              <X className="w-3 h-3" />
+              Release
+            </button>
+          </div>
+          {/* Notes below hold */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-0.5">Notes</label>
+            <input
+              type="text"
+              value={row.notes}
+              onChange={(e) => onFieldChange(row._localId, 'notes', e.target.value)}
+              placeholder="Optional notes..."
+              className={inputClass}
+            />
           </div>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-0.5">Notes</label>
-          <input
-            type="text"
-            value={row.notes}
-            onChange={(e) => onFieldChange(row._localId, 'notes', e.target.value)}
-            placeholder="Optional notes..."
-            className={inputClass}
-          />
+      ) : (
+        <div className="grid grid-cols-[1fr_1fr] gap-2">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-0.5">Vendor</label>
+            <div className="flex items-center gap-1">
+              <div className="flex-1">
+                <SupplierDropdown
+                  value={row.supplier_id}
+                  onChange={(val) => onFieldChange(row._localId, 'supplier_id', val)}
+                  suppliers={suppliers}
+                  placeholder="Select vendor..."
+                />
+              </div>
+              {showCheckStock && (
+                <CheckStockButton
+                  requirement={rowToMaterialRequirement(row)}
+                  onCheckStock={(stockType) => onCheckStock(row, stockType)}
+                />
+              )}
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-0.5">Notes</label>
+            <input
+              type="text"
+              value={row.notes}
+              onChange={(e) => onFieldChange(row._localId, 'notes', e.target.value)}
+              placeholder="Optional notes..."
+              className={inputClass}
+            />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 });

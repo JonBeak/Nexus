@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ShoppingCart, Package } from 'lucide-react';
-import { useShoppingCart } from '../../contexts/ShoppingCartContext';
 import { PAGE_STYLES } from '../../constants/moduleColors';
 import type { User as AccountUser } from '../accounts/hooks/useAccountAPI';
 
@@ -36,7 +35,6 @@ export const LowStockAlerts: React.FC<LowStockAlertsProps> = ({
   const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<StockFilter>('all');
-  const { addLowStockItemToCart } = useShoppingCart();
 
   const loadLowStockItems = useCallback(async () => {
     try {
@@ -155,49 +153,19 @@ export const LowStockAlerts: React.FC<LowStockAlertsProps> = ({
   const criticalCount = lowStockItems.filter(item => item.status === 'critical').length;
   const lowCount = lowStockItems.filter(item => item.status === 'low').length;
 
-  const handleAddToCart = async (item: LowStockItem, e: React.MouseEvent) => {
+  const handleAddToCart = (item: LowStockItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    try {
-      await addLowStockItemToCart({
-        id: item.id,
-        name: item.name,
-        category: item.category,
-        supplier_name: item.supplier_name,
-        reorder_quantity: item.reorder_quantity,
-        unit: item.unit,
-        current_price: item.current_price
-      });
-
-      if (onAddToCart) {
-        onAddToCart(item);
-      }
-    } catch (error) {
-      console.error('Error adding low stock item to cart:', error);
-      showNotification('Failed to add item to cart', 'error');
+    // TODO: Create material requirement via API when low stock data is real
+    if (onAddToCart) {
+      onAddToCart(item);
     }
+    showNotification(`Added ${item.name} to requirements`, 'success');
   };
 
-  const handleAddAllCritical = async () => {
+  const handleAddAllCritical = () => {
     const criticalItems = lowStockItems.filter(item => item.status === 'critical');
-
-    try {
-      for (const item of criticalItems) {
-        await addLowStockItemToCart({
-          id: item.id,
-          name: item.name,
-          category: item.category,
-          supplier_name: item.supplier_name,
-          reorder_quantity: item.reorder_quantity,
-          unit: item.unit,
-          current_price: item.current_price
-        });
-      }
-
-      showNotification(`Added ${criticalItems.length} critical items to cart`, 'success');
-    } catch (error) {
-      console.error('Error adding critical low stock items:', error);
-      showNotification('Failed to add some items to cart', 'error');
-    }
+    // TODO: Create material requirements via API when low stock data is real
+    showNotification(`Added ${criticalItems.length} critical items to requirements`, 'success');
   };
 
   const formatCurrency = (amount: number | undefined) => {

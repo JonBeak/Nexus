@@ -61,14 +61,29 @@ interface AllOrdersMaterialRequirementsProps {
 }
 
 
-const STATUS_OPTIONS: { value: MaterialRequirementStatus | 'all'; label: string }[] = [
-  { value: 'all', label: 'All Statuses' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'ordered', label: 'Ordered' },
-  { value: 'backordered', label: 'Backordered' },
-  { value: 'partial_received', label: 'Partial' },
-  { value: 'received', label: 'Received' },
-  { value: 'cancelled', label: 'Cancelled' },
+const ALL_STATUSES: MaterialRequirementStatus[] = [
+  'pending', 'ordered', 'backordered', 'partial_received', 'received', 'cancelled',
+];
+
+/** Default: everything except received/cancelled */
+const DEFAULT_ACTIVE_STATUSES: MaterialRequirementStatus[] = [
+  'pending', 'ordered', 'backordered', 'partial_received',
+];
+
+const STATUS_TOGGLES: {
+  value: MaterialRequirementStatus;
+  label: string;
+  icon: React.FC<{ className?: string }>;
+  activeBg: string;
+  activeBorder: string;
+  activeText: string;
+}[] = [
+  { value: 'pending',          label: 'Pending',      icon: Clock,        activeBg: 'bg-gray-300',   activeBorder: 'border-gray-700',  activeText: 'text-gray-700' },
+  { value: 'ordered',          label: 'Ordered',      icon: ShoppingCart,  activeBg: 'bg-blue-200',   activeBorder: 'border-blue-900',  activeText: 'text-blue-900' },
+  { value: 'backordered',      label: 'Backordered',  icon: Package,       activeBg: 'bg-orange-200', activeBorder: 'border-orange-800', activeText: 'text-orange-800' },
+  { value: 'partial_received', label: 'Partial',      icon: RefreshCw,     activeBg: 'bg-amber-200',  activeBorder: 'border-amber-800', activeText: 'text-amber-800' },
+  { value: 'received',         label: 'Received',     icon: CheckCircle,   activeBg: 'bg-green-200',  activeBorder: 'border-green-900', activeText: 'text-green-900' },
+  { value: 'cancelled',        label: 'Cancelled',    icon: XCircle,       activeBg: 'bg-red-200',    activeBorder: 'border-red-900',   activeText: 'text-red-900' },
 ];
 
 const DELIVERY_OPTIONS = [
@@ -208,19 +223,22 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
   const [requirements, setRequirements] = useState<MaterialRequirement[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<MaterialRequirementFilters>({
-    status: 'all',
+    status: [...DEFAULT_ACTIVE_STATUSES],
     isStockItem: 'all',
     supplierId: null,
     search: '',
     dateRange: { from: null, to: null },
   });
   const [showFilters, setShowFilters] = useState(false);
-  const [hideOldCompleted, setHideOldCompleted] = useState(true);
 
   // Client-side filter: hide received/cancelled rows older than 14 days
+  // Bypass auto-hide when user explicitly toggles received or cancelled ON
   const { visibleRequirements, hiddenCompletedCount } = useMemo(() => {
-    // Bypass auto-hide when user explicitly filters to received or cancelled
-    if (filters.status === 'received' || filters.status === 'cancelled' || !hideOldCompleted) {
+    const hasReceived = filters.status.includes('received');
+    const hasCancelled = filters.status.includes('cancelled');
+
+    // If user toggled both received AND cancelled on, skip auto-hide entirely
+    if (hasReceived && hasCancelled) {
       return { visibleRequirements: requirements, hiddenCompletedCount: 0 };
     }
 
@@ -230,16 +248,17 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
 
     let hiddenCount = 0;
     const visible = requirements.filter((req) => {
+      // Don't auto-hide statuses the user explicitly toggled on
+      if (req.status === 'received' && hasReceived) return true;
+      if (req.status === 'cancelled' && hasCancelled) return true;
+
       if (req.status !== 'received' && req.status !== 'cancelled') return true;
 
-      // Use received_date for received rows, fallback to updated_at
-      // For cancelled rows, typically no received_date, so use updated_at
       const dateStr = req.received_date || req.updated_at;
-      if (!dateStr) return true; // No date to judge by — keep visible
+      if (!dateStr) return true;
 
-      // Safe date parsing: extract YYYY-MM-DD to avoid timezone shift on DATE columns
       const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (!match) return true; // Unparseable — keep visible
+      if (!match) return true;
 
       const rowDate = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
       if (rowDate.getTime() <= cutoffTime) {
@@ -250,7 +269,7 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
     });
 
     return { visibleRequirements: visible, hiddenCompletedCount: hiddenCount };
-  }, [requirements, hideOldCompleted, filters.status]);
+  }, [requirements, filters.status]);
 
 
   // Orders for dropdown
@@ -281,8 +300,10 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
       setLoading(true);
       const params: any = {};
 
-      if (filters.status !== 'all') {
-        params.status = filters.status;
+      // Send multi-status filter: all selected or none selected = fetch all
+      const allSelected = filters.status.length === ALL_STATUSES.length || filters.status.length === 0;
+      if (!allSelected) {
+        params.status = filters.status.join(',');
       }
       if (filters.isStockItem !== 'all') {
         params.is_stock_item = filters.isStockItem;
@@ -725,21 +746,38 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
         </div>
       </div>
 
+      {/* Status Toggle Pills */}
+      <div className={`px-4 py-2 ${PAGE_STYLES.panel.border} border-b ${PAGE_STYLES.header.background} flex items-center gap-1.5 flex-wrap`}>
+        {STATUS_TOGGLES.map((toggle) => {
+          const Icon = toggle.icon;
+          const isActive = filters.status.includes(toggle.value);
+          return (
+            <button
+              key={toggle.value}
+              onClick={() => {
+                setFilters(prev => ({
+                  ...prev,
+                  status: isActive
+                    ? prev.status.filter(s => s !== toggle.value)
+                    : [...prev.status, toggle.value],
+                }));
+              }}
+              className={`px-2 py-1 text-[11px] font-medium rounded-full border flex items-center gap-1 whitespace-nowrap transition-all ${
+                isActive
+                  ? `${toggle.activeBg} ${toggle.activeText} ${toggle.activeBorder}`
+                  : 'bg-gray-700 text-gray-400 border-gray-600 hover:bg-gray-600'
+              }`}
+            >
+              <Icon className="w-3 h-3" />
+              {toggle.label}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Filters Panel */}
       {showFilters && (
         <div className={`px-4 py-3 ${PAGE_STYLES.header.background} border-b ${PAGE_STYLES.panel.border} flex flex-wrap gap-4`}>
-          <div>
-            <label className={`block text-xs font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>Status</label>
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value as any })}
-              className={`text-sm ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-md px-2 py-1`}
-            >
-              {STATUS_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
           <div>
             <label className={`block text-xs font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>Type</label>
             <select
@@ -772,17 +810,6 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
               onChange={(e) => setFilters({ ...filters, dateRange: { ...filters.dateRange, to: e.target.value || null } })}
               className={`text-sm ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-md px-2 py-1`}
             />
-          </div>
-          <div className="flex items-end pb-0.5">
-            <label className={`flex items-center gap-1.5 text-xs font-medium ${PAGE_STYLES.panel.textSecondary} cursor-pointer select-none`}>
-              <input
-                type="checkbox"
-                checked={hideOldCompleted}
-                onChange={(e) => setHideOldCompleted(e.target.checked)}
-                className="rounded border-gray-400 text-red-600 focus:ring-red-500"
-              />
-              Hide old fulfilled/cancelled
-            </label>
           </div>
         </div>
       )}

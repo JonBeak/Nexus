@@ -12,19 +12,16 @@ interface DashboardStats {
   critical_items: number;
   low_items: number;
 }
-import { ProductCatalog } from './ProductCatalog';
 import { UnifiedInventory } from './UnifiedInventory';
 import { LowStockDashboard } from './LowStockDashboard';
 import { OrderMaterialRequirements } from './OrderMaterialRequirements';
 import { LowStockAlerts } from './LowStockAlerts';
 import { AllOrdersMaterialRequirements } from './AllOrdersMaterialRequirements';
-import { SupplierGroupedRequirements } from './SupplierGroupedRequirements';
-import { SupplierOrdersList } from './SupplierOrdersList';
 import { ShoppingCartComponent } from './ShoppingCart';
 import { SuppliersManager } from './SuppliersManager';
 import { ProductArchetypesManager } from './ProductArchetypesManager';
+import { SupplierProductsAndOrders } from './SupplierProductsAndOrders';
 import { InventoryTab } from '../inventory/InventoryTab';
-import { ShoppingCartProvider } from '../../contexts/ShoppingCartContext';
 import type { User as AccountUser } from '../accounts/hooks/useAccountAPI';
 import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 
@@ -32,7 +29,7 @@ interface SupplyChainDashboardProps {
   user: AccountUser | null;
 }
 
-type TabType = 'overview' | 'all-orders' | 'by-supplier' | 'supplier-orders' | 'shopping-cart' | 'vinyl-inventory' | 'inventory' | 'suppliers' | 'product-types' | 'products' | 'low-stock';
+type TabType = 'overview' | 'all-orders' | 'shopping-cart' | 'vinyl-inventory' | 'inventory' | 'suppliers' | 'supplier-products-orders' | 'product-types' | 'low-stock';
 
 export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user }) => {
   const navigate = useNavigate();
@@ -45,7 +42,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
     try {
       setLoading(true);
       setError(null);
-      
+
       // Load real data from existing APIs
       const [vinylProductsRes, vinylInventoryRes] = await Promise.all([
         api.get<{ data?: unknown[] }>('/vinyl-products'),
@@ -76,7 +73,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
         critical_items: 5, // Mock for now
         low_items: 12 // Mock for now
       };
-      
+
       setStats(stats);
     } catch (err: unknown) {
       console.error('Error loading dashboard stats:', err);
@@ -113,7 +110,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
         <OrderMaterialRequirements
           user={user || undefined}
           showNotification={showNotification}
-          onAddToCart={(items) => showNotification(`Added ${items.length} items to cart`)}
+          onAddToCart={(items) => showNotification(`Added ${items.length} items`)}
         />
       </div>
 
@@ -122,7 +119,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
         <LowStockAlerts
           user={user || undefined}
           showNotification={showNotification}
-          onAddToCart={(items) => showNotification(`Added ${items.length} items to cart`)}
+          onAddToCart={(items) => showNotification(`Added ${items.length} items`)}
         />
       </div>
 
@@ -146,6 +143,18 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
     );
   }
 
+  const tabs: { key: TabType; label: string; spacerBefore?: boolean }[] = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'all-orders', label: 'All Requirements' },
+    { key: 'shopping-cart', label: 'Shopping Cart' },
+    { key: 'vinyl-inventory', label: 'Vinyl Inventory', spacerBefore: true },
+    { key: 'inventory', label: 'Inventory' },
+    { key: 'suppliers', label: 'Suppliers' },
+    { key: 'supplier-products-orders', label: 'Supplier Products & Orders' },
+    { key: 'product-types', label: 'Product Types' },
+    { key: 'low-stock', label: `Low Stock (${(stats?.critical_items || 0) + (stats?.low_items || 0)})` },
+  ];
+
   return (
     <div className={PAGE_STYLES.fullPage}>
       {/* Header */}
@@ -161,129 +170,21 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
           {/* Tab Navigation */}
           <div className={`border-b ${PAGE_STYLES.panel.border}`}>
             <nav className="-mb-px flex space-x-8">
-              <button
-                onClick={() => setActiveTab('overview')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'overview'
-                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
-                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
-                }`}
-              >
-                Overview
-              </button>
-              
-              <button
-                onClick={() => setActiveTab('all-orders')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'all-orders'
-                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
-                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
-                }`}
-              >
-                All Requirements
-              </button>
-
-              <button
-                onClick={() => setActiveTab('by-supplier')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'by-supplier'
-                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
-                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
-                }`}
-              >
-                By Supplier
-              </button>
-
-              <button
-                onClick={() => setActiveTab('supplier-orders')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'supplier-orders'
-                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
-                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
-                }`}
-              >
-                Supplier Orders
-              </button>
-
-              <button
-                onClick={() => setActiveTab('shopping-cart')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'shopping-cart'
-                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
-                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
-                }`}
-              >
-                Shopping Cart
-              </button>
-
-              {/* Spacer */}
-              <div className="flex-1"></div>
-              
-              <button
-                onClick={() => setActiveTab('vinyl-inventory')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'vinyl-inventory'
-                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
-                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
-                }`}
-              >
-                Vinyl Inventory
-              </button>
-              
-              <button
-                onClick={() => setActiveTab('inventory')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'inventory'
-                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
-                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
-                }`}
-              >
-                Inventory
-              </button>
-              
-              <button
-                onClick={() => setActiveTab('suppliers')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'suppliers'
-                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
-                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
-                }`}
-              >
-                Suppliers
-              </button>
-
-              <button
-                onClick={() => setActiveTab('product-types')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'product-types'
-                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
-                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
-                }`}
-              >
-                Product Types
-              </button>
-
-              <button
-                onClick={() => setActiveTab('products')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'products'
-                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
-                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
-                }`}
-              >
-                Product Catalog
-              </button>
-              
-              <button
-                onClick={() => setActiveTab('low-stock')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'low-stock'
-                    ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
-                    : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
-                }`}
-              >
-                Low Stock ({(stats?.critical_items || 0) + (stats?.low_items || 0)})
-              </button>
+              {tabs.map((tab) => (
+                <React.Fragment key={tab.key}>
+                  {tab.spacerBefore && <div className="flex-1"></div>}
+                  <button
+                    onClick={() => setActiveTab(tab.key)}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+                      activeTab === tab.key
+                        ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
+                        : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                </React.Fragment>
+              ))}
             </nav>
           </div>
         </div>
@@ -291,8 +192,7 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
 
       {/* Content */}
       <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <ShoppingCartProvider showNotification={showNotification}>
-          {loading ? (
+        {loading ? (
           <div className="text-center py-12">
             <div className={`inline-block animate-spin rounded-full h-8 w-8 border-b-2 ${MODULE_COLORS.supplyChain.border}`}></div>
             <p className={`mt-2 ${PAGE_STYLES.page.text}`}>Loading...</p>
@@ -317,18 +217,6 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                 showNotification={showNotification}
               />
             )}
-            {activeTab === 'by-supplier' && (
-              <SupplierGroupedRequirements
-                showNotification={showNotification}
-                onOrderGenerated={() => void loadStats()}
-              />
-            )}
-            {activeTab === 'supplier-orders' && (
-              <SupplierOrdersList
-                showNotification={showNotification}
-                onViewOrder={(orderId) => showNotification(`View order ${orderId} (detail view coming soon)`)}
-              />
-            )}
             {activeTab === 'shopping-cart' && (
               <ShoppingCartComponent
                 user={user}
@@ -341,8 +229,8 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
               />
             )}
             {activeTab === 'inventory' && (
-              <UnifiedInventory 
-                user={user} 
+              <UnifiedInventory
+                user={user}
                 onDataChange={loadStats}
                 showNotification={showNotification}
               />
@@ -352,28 +240,25 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
                 showNotification={showNotification}
               />
             )}
+            {activeTab === 'supplier-products-orders' && (
+              <SupplierProductsAndOrders
+                showNotification={showNotification}
+              />
+            )}
             {activeTab === 'product-types' && (
               <ProductArchetypesManager
                 showNotification={showNotification}
               />
             )}
-            {activeTab === 'products' && (
-              <ProductCatalog 
-                user={user} 
-                onDataChange={loadStats}
-                showNotification={showNotification}
-              />
-            )}
             {activeTab === 'low-stock' && (
-              <LowStockDashboard 
-                user={user} 
+              <LowStockDashboard
+                user={user}
                 onDataChange={loadStats}
                 showNotification={showNotification}
               />
             )}
           </>
         )}
-        </ShoppingCartProvider>
       </div>
     </div>
   );

@@ -83,13 +83,35 @@ export const supplierOrdersApi = {
   submitOrder: async (
     id: number,
     orderDate?: string,
-    notes?: string
+    notes?: string,
+    emailFields?: { to: string; cc: string; bcc: string; subject: string; opening?: string; closing?: string }
   ): Promise<{ success: boolean }> => {
     const response = await api.post(`/supplier-orders/${id}/submit`, {
       order_date: orderDate,
       notes,
+      email: emailFields,
     });
     return response.data;
+  },
+
+  /**
+   * Submit a draft PO (new flow — creates snapshot from MR data)
+   */
+  submitDraftPO: async (
+    supplierId: number,
+    requirementIds: number[],
+    deliveryMethod: 'shipping' | 'pickup',
+    notes?: string,
+    emailFields?: { to: string; cc: string; bcc: string; subject: string; opening?: string; closing?: string }
+  ): Promise<{ order_id: number; order_number: string }> => {
+    const response = await api.post('/supplier-orders/submit-draft', {
+      supplier_id: supplierId,
+      requirement_ids: requirementIds,
+      delivery_method: deliveryMethod,
+      notes,
+      email: emailFields,
+    });
+    return response.data.data;
   },
 
   /**

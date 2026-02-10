@@ -200,25 +200,6 @@ export const bulkReceive = async (req: Request, res: Response): Promise<void> =>
 };
 
 /**
- * Add requirements to shopping cart
- */
-export const addToCart = async (req: Request, res: Response): Promise<void> => {
-  const user = (req as any).user;
-  const { requirement_ids, cart_id } = req.body;
-
-  if (!Array.isArray(requirement_ids) || requirement_ids.length === 0) {
-    return sendErrorResponse(res, 'requirement_ids array is required', 'VALIDATION_ERROR');
-  }
-
-  if (!cart_id) {
-    return sendErrorResponse(res, 'cart_id is required', 'VALIDATION_ERROR');
-  }
-
-  const result = await service.addToCart(requirement_ids, cart_id, user?.user_id);
-  handleServiceResult(res, result);
-};
-
-/**
  * Delete material requirement
  */
 export const deleteRequirement = async (req: Request, res: Response): Promise<void> => {
@@ -249,11 +230,19 @@ export const getStatusCounts = async (req: Request, res: Response): Promise<void
 };
 
 /**
- * Get pending/backordered requirements grouped by supplier
- * Used for supplier order generation
+ * Get unassigned requirements (no supplier set)
  */
-export const getGroupedBySupplier = async (req: Request, res: Response): Promise<void> => {
-  const result = await service.getGroupedBySupplier();
+export const getUnassignedRequirements = async (req: Request, res: Response): Promise<void> => {
+  const result = await service.getUnassignedRequirements();
+  handleServiceResult(res, result);
+};
+
+/**
+ * Get draft PO groups — MRs grouped by supplier, not yet ordered.
+ * Replaces the old "draft supplier_orders" rows.
+ */
+export const getDraftPOGroups = async (req: Request, res: Response): Promise<void> => {
+  const result = await service.getDraftPOGroups();
   handleServiceResult(res, result);
 };
 

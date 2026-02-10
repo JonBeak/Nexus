@@ -20,8 +20,9 @@ router.use(authenticateToken);
 // SUPPLIER ROUTES
 // ============================================
 
-// Statistics endpoint (MUST come before /:id to avoid route matching bug)
+// Statistics endpoints (MUST come before /:id to avoid route matching bug)
 router.get('/stats/summary', requirePermission('supply_chain.read'), SupplierController.getSupplierStats);
+router.get('/stats/supply-chain', requirePermission('supply_chain.read'), SupplierController.getSupplyChainStats);
 
 // CRUD routes
 router.get('/', requirePermission('supply_chain.read'), SupplierController.getSuppliers);

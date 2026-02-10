@@ -391,90 +391,12 @@ export class MaterialRequirementRepository {
   }
 
   /**
-   * Bulk update requirements (e.g., mark as ordered from cart)
-   */
-  async bulkUpdateStatus(
-    ids: number[],
-    status: MaterialRequirementStatus,
-    orderedDate?: Date | string,
-    cartId?: string,
-    userId?: number
-  ): Promise<number> {
-    if (ids.length === 0) return 0;
-
-    const placeholders = ids.map(() => '?').join(',');
-    const values: any[] = [status];
-
-    let sql = `UPDATE material_requirements SET status = ?`;
-
-    if (orderedDate) {
-      sql += ', ordered_date = ?';
-      const dateStr = typeof orderedDate === 'string'
-        ? orderedDate.split('T')[0]
-        : orderedDate.toISOString().split('T')[0];
-      values.push(dateStr);
-    }
-
-    if (cartId) {
-      sql += ', cart_id = ?';
-      values.push(cartId);
-    }
-
-    sql += ', updated_by = ?';
-    values.push(userId ?? null);
-
-    sql += ` WHERE requirement_id IN (${placeholders})`;
-    values.push(...ids);
-
-    const result = await query(sql, values) as ResultSetHeader;
-    return result.affectedRows;
-  }
-
-  /**
    * Delete material requirement
    */
   async delete(id: number): Promise<boolean> {
     const sql = 'DELETE FROM material_requirements WHERE requirement_id = ?';
     const result = await query(sql, [id]) as ResultSetHeader;
     return result.affectedRows > 0;
-  }
-
-  /**
-   * Get pending/backordered requirements grouped by supplier
-   * Used for generating supplier orders
-   */
-  async getGroupedBySupplier(): Promise<RowDataPacket[]> {
-    const sql = `
-      SELECT
-        mr.requirement_id,
-        mr.entry_date,
-        mr.custom_product_type,
-        mr.size_description,
-        mr.quantity_ordered,
-        mr.is_stock_item,
-        mr.notes,
-        mr.supplier_id,
-        CASE
-          WHEN mr.supplier_id = -1 THEN 'In Stock'
-          WHEN mr.supplier_id = -2 THEN 'In House'
-          WHEN mr.supplier_id = -3 THEN 'Customer Provided'
-          ELSE s.name
-        END as supplier_name,
-        (SELECT contact_email FROM supplier_contacts sc WHERE sc.supplier_id = s.supplier_id AND sc.is_primary = 1 LIMIT 1) as contact_email,
-        (SELECT phone FROM supplier_contacts sc WHERE sc.supplier_id = s.supplier_id AND sc.is_primary = 1 LIMIT 1) as contact_phone,
-        pa.name as archetype_name,
-        pa.unit_of_measure,
-        o.order_number,
-        o.order_name
-      FROM material_requirements mr
-      LEFT JOIN suppliers s ON mr.supplier_id = s.supplier_id
-      LEFT JOIN product_archetypes pa ON mr.archetype_id = pa.archetype_id
-      LEFT JOIN orders o ON mr.order_id = o.order_id
-      WHERE mr.status IN ('pending', 'backordered')
-        AND mr.supplier_id IS NOT NULL
-      ORDER BY s.name, mr.entry_date ASC
-    `;
-    return await query(sql) as RowDataPacket[];
   }
 
   /**
@@ -558,5 +480,61 @@ export class MaterialRequirementRepository {
       'UPDATE material_requirements SET held_vinyl_id = NULL WHERE requirement_id = ?',
       [requirementId]
     );
+  }
+
+  /**
+   * Find requirements eligible for draft PO view:
+   * supplier_id > 0, ordered_date IS NULL, status = 'pending'
+   * Optionally filter by a single supplier.
+   */
+  async findForDraftPO(supplierId?: number): Promise<MaterialRequirementRow[]> {
+    const conditions = [
+      'mr.supplier_id > 0',
+      'mr.ordered_date IS NULL',
+      "mr.status = 'pending'",
+    ];
+    const params: any[] = [];
+
+    if (supplierId !== undefined) {
+      conditions.push('mr.supplier_id = ?');
+      params.push(supplierId);
+    }
+
+    const sql = this.buildMaterialRequirementQuery(conditions.join(' AND '))
+      + ' ORDER BY mr.supplier_id, mr.entry_date ASC, mr.requirement_id ASC';
+
+    return await query(sql, params) as MaterialRequirementRow[];
+  }
+
+  /**
+   * Stamp ordered_date and delivery_method on a set of MR IDs.
+   * Used when a PO is placed (snapshot created).
+   */
+  async stampOrdered(
+    requirementIds: number[],
+    orderedDate: string,
+    deliveryMethod: string,
+    supplierOrderId: number,
+    userId?: number
+  ): Promise<void> {
+    if (requirementIds.length === 0) return;
+
+    const placeholders = requirementIds.map(() => '?').join(',');
+    const sql = `
+      UPDATE material_requirements
+      SET ordered_date = ?,
+          delivery_method = ?,
+          supplier_order_id = ?,
+          status = 'ordered',
+          updated_by = ?
+      WHERE requirement_id IN (${placeholders})
+    `;
+    await query(sql, [
+      orderedDate,
+      deliveryMethod,
+      supplierOrderId,
+      userId ?? null,
+      ...requirementIds,
+    ]);
   }
 }

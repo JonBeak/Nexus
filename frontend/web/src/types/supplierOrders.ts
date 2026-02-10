@@ -9,7 +9,6 @@
 // ============================================================================
 
 export type SupplierOrderStatus =
-  | 'draft'
   | 'submitted'
   | 'acknowledged'
   | 'partial_received'
@@ -236,7 +235,6 @@ export interface ReceiveItemsResponse {
 }
 
 export interface SupplierOrderStatusCounts {
-  draft: number;
   submitted: number;
   acknowledged: number;
   partial_received: number;

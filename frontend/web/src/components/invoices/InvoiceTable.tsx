@@ -1,9 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw, ChevronUp, ChevronDown, Loader2, Check, Mail, MailX, Clock } from 'lucide-react';
 import { InvoiceListingOrder, InvoiceFilters, invoicesApi } from '../../services/api/invoicesApi';
 import { PAGE_STYLES } from '../../constants/moduleColors';
 import { formatDateWithYear } from '../../utils/dateUtils';
+
+const STATUS_TOGGLES = [
+  { value: 'job_details_setup', label: 'Setup', activeBg: 'bg-gray-600', activeText: 'text-gray-100', activeBorder: 'border-gray-500' },
+  { value: 'pending_confirmation', label: 'Pending', activeBg: 'bg-yellow-700', activeText: 'text-yellow-100', activeBorder: 'border-yellow-500' },
+  { value: 'production_queue', label: 'Queue', activeBg: 'bg-blue-700', activeText: 'text-blue-100', activeBorder: 'border-blue-500' },
+  { value: 'in_production', label: 'Production', activeBg: 'bg-indigo-700', activeText: 'text-indigo-100', activeBorder: 'border-indigo-500' },
+  { value: 'qc_packing', label: 'QC/Packing', activeBg: 'bg-purple-700', activeText: 'text-purple-100', activeBorder: 'border-purple-500' },
+  { value: 'shipping', label: 'Shipping', activeBg: 'bg-cyan-700', activeText: 'text-cyan-100', activeBorder: 'border-cyan-500' },
+  { value: 'pick_up', label: 'Pick Up', activeBg: 'bg-teal-700', activeText: 'text-teal-100', activeBorder: 'border-teal-500' },
+  { value: 'completed', label: 'Completed', activeBg: 'bg-green-700', activeText: 'text-green-100', activeBorder: 'border-green-500' },
+  { value: 'on_hold', label: 'On Hold', activeBg: 'bg-orange-700', activeText: 'text-orange-100', activeBorder: 'border-orange-500' },
+  { value: 'cancelled', label: 'Cancelled', activeBg: 'bg-red-700', activeText: 'text-red-100', activeBorder: 'border-red-500' },
+];
+
+const DEFAULT_ACTIVE_STATUSES = STATUS_TOGGLES.map(t => t.value).filter(v => v !== 'cancelled');
 
 interface Props {
   orders: InvoiceListingOrder[];
@@ -23,6 +38,20 @@ export const InvoiceTable: React.FC<Props> = ({
   const navigate = useNavigate();
   const [syncingOrderIds, setSyncingOrderIds] = useState<Set<number>>(new Set());
   const [syncing, setSyncing] = useState(false);
+  const [activeStatuses, setActiveStatuses] = useState<string[]>(DEFAULT_ACTIVE_STATUSES);
+
+  const filteredOrders = useMemo(() => {
+    const cancelledActive = activeStatuses.includes('cancelled');
+    return orders.filter(order => {
+      if (order.status === 'cancelled') {
+        // Cancelled with an invoice/cash always shows (unless cancelled toggle is the ONLY way to hide them —
+        // but per spec: cancelled orders WITH invoices pass through even when cancelled toggle is OFF)
+        if (!cancelledActive && !order.qb_invoice_id && !order.is_cash) return false;
+        return true;
+      }
+      return activeStatuses.includes(order.status);
+    });
+  }, [orders, activeStatuses]);
 
   const formatCurrency = (amount: number | null) => {
     if (amount === null) return '-';
@@ -157,7 +186,9 @@ export const InvoiceTable: React.FC<Props> = ({
       {/* Header */}
       <div className={`px-4 py-3 ${PAGE_STYLES.panel.border} border-b flex items-center justify-between ${PAGE_STYLES.header.background}`}>
         <div className={`text-sm ${PAGE_STYLES.panel.textSecondary}`}>
-          {orders.length} orders
+          {filteredOrders.length === orders.length
+            ? `${orders.length} orders`
+            : `${filteredOrders.length} of ${orders.length} orders`}
         </div>
         <button
           onClick={handleSyncAll}
@@ -167,6 +198,32 @@ export const InvoiceTable: React.FC<Props> = ({
           <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
           Sync All Balances
         </button>
+      </div>
+
+      {/* Status Toggle Pills */}
+      <div className={`px-4 py-2 ${PAGE_STYLES.panel.border} border-b ${PAGE_STYLES.header.background} flex items-center gap-1.5 flex-wrap`}>
+        {STATUS_TOGGLES.map((toggle) => {
+          const isActive = activeStatuses.includes(toggle.value);
+          return (
+            <button
+              key={toggle.value}
+              onClick={() => {
+                setActiveStatuses(prev =>
+                  isActive
+                    ? prev.filter(s => s !== toggle.value)
+                    : [...prev, toggle.value]
+                );
+              }}
+              className={`px-2 py-1 text-[11px] font-medium rounded-full border whitespace-nowrap transition-all ${
+                isActive
+                  ? `${toggle.activeBg} ${toggle.activeText} ${toggle.activeBorder}`
+                  : 'bg-gray-700 text-gray-400 border-gray-600 hover:bg-gray-600'
+              }`}
+            >
+              {toggle.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Table */}
@@ -182,6 +239,9 @@ export const InvoiceTable: React.FC<Props> = ({
                   Order # <SortIcon column="order_number" />
                 </div>
               </th>
+              <th className={`px-4 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider`}>
+                Order Name
+              </th>
               <th
                 className={thClass}
                 onClick={() => handleSort('customer_name')}
@@ -192,6 +252,9 @@ export const InvoiceTable: React.FC<Props> = ({
               </th>
               <th className={`px-4 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider`}>
                 Status
+              </th>
+              <th className={`px-4 py-3 text-center text-xs font-medium ${PAGE_STYLES.panel.textSecondary} uppercase tracking-wider`}>
+                Type
               </th>
               <th
                 className={thClass}
@@ -229,7 +292,7 @@ export const InvoiceTable: React.FC<Props> = ({
             </tr>
           </thead>
           <tbody className={PAGE_STYLES.panel.divider}>
-            {orders.map(order => {
+            {filteredOrders.map(order => {
               const total = order.cached_invoice_total ?? order.calculated_total;
               const isSyncing = syncingOrderIds.has(order.order_id);
 
@@ -242,22 +305,26 @@ export const InvoiceTable: React.FC<Props> = ({
                   <td className="px-4 py-3 text-sm font-medium text-green-600">
                     #{order.order_number}
                   </td>
-                  <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.text}`}>
+                  <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.text} truncate max-w-[200px]`} title={order.order_name || ''}>
+                    {order.order_name || '—'}
+                  </td>
+                  <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.textMuted}`}>
                     {order.customer_name}
                   </td>
                   <td className="px-4 py-3">
                     {getStatusBadge(order.status)}
                   </td>
-                  <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.textSecondary}`}>
+                  <td className="px-4 py-3 text-center">
                     {order.is_cash ? (
-                      <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300">
-                        Cash
-                      </span>
-                    ) : order.qb_invoice_doc_number ? (
-                      order.qb_invoice_doc_number
+                      <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300">Cash</span>
+                    ) : order.qb_invoice_id ? (
+                      <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">Invoice</span>
                     ) : (
-                      <span className={PAGE_STYLES.panel.textMuted}>Not Invoiced</span>
+                      <span className={PAGE_STYLES.panel.textMuted}>—</span>
                     )}
+                  </td>
+                  <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.textSecondary}`}>
+                    {order.qb_invoice_doc_number || <span className={PAGE_STYLES.panel.textMuted}>—</span>}
                   </td>
                   <td className={`px-4 py-3 text-sm ${PAGE_STYLES.panel.text} text-right font-medium`}>
                     {formatCurrency(total)}
@@ -307,9 +374,9 @@ export const InvoiceTable: React.FC<Props> = ({
         </table>
       </div>
 
-      {orders.length === 0 && !loading && (
+      {filteredOrders.length === 0 && !loading && (
         <div className={`text-center py-12 ${PAGE_STYLES.panel.textMuted}`}>
-          No orders found matching your filters
+          {orders.length === 0 ? 'No orders found matching your filters' : 'No orders match the selected statuses'}
         </div>
       )}
     </div>

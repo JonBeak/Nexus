@@ -45,6 +45,16 @@ export interface SupplierStats {
   suppliers_with_website: number;
 }
 
+export interface SupplierContact {
+  contact_id: number;
+  supplier_id: number;
+  name: string;
+  email?: string;
+  role: string;
+  is_primary: boolean;
+  is_active: boolean;
+}
+
 export interface SupplierSearchParams {
   search?: string;
   active_only?: boolean;
@@ -100,6 +110,31 @@ export const suppliersApi = {
    */
   getSupplierStats: async (): Promise<SupplierStats> => {
     const response = await api.get('/suppliers/stats/summary');
+    return response.data;
+  },
+
+  /**
+   * Get per-supplier stats for supply chain tab
+   */
+  getSupplyChainStats: async (): Promise<Array<{
+    supplier_id: number;
+    supplier_name: string;
+    primary_contact_email: string | null;
+    primary_contact_phone: string | null;
+    product_count: number;
+    total_order_count: number;
+    open_order_count: number;
+    last_order_date: string | null;
+  }>> => {
+    const response = await api.get('/suppliers/stats/supply-chain');
+    return response.data;
+  },
+
+  /**
+   * Get contacts for a supplier
+   */
+  getSupplierContacts: async (supplierId: number): Promise<SupplierContact[]> => {
+    const response = await api.get(`/suppliers/${supplierId}/contacts`);
     return response.data;
   },
 };

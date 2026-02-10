@@ -268,7 +268,7 @@ export interface OrderDropdownOption {
 // ============================================================================
 
 export interface MaterialRequirementFilters {
-  status: MaterialRequirementStatus | 'all';
+  status: MaterialRequirementStatus[];
   isStockItem: boolean | 'all';
   supplierId: number | null;
   search: string;
@@ -480,4 +480,40 @@ export interface ReceiveWithHoldRequest {
 export interface ReceiveWithHoldResponse {
   received_count: number;
   released_count: number;
+}
+
+// ============================================================================
+// DRAFT PO GROUP TYPES (for Shopping Cart — live MR queries)
+// ============================================================================
+
+/**
+ * A draft PO group = material requirements grouped by supplier.
+ * No database rows — this is a live query result.
+ */
+export interface DraftPOGroup {
+  supplier_id: number;
+  supplier_name: string;
+  contact_email: string | null;
+  contact_phone: string | null;
+  requirements: DraftPORequirement[];
+}
+
+/**
+ * A single material requirement within a draft PO group
+ */
+export interface DraftPORequirement {
+  requirement_id: number;
+  archetype_name: string | null;
+  custom_product_type: string | null;
+  size_description: string | null;
+  quantity_ordered: number;
+  unit_of_measure: string | null;
+  order_number: string | null;
+  order_name: string | null;
+  customer_name: string | null;
+  is_stock_item: boolean;
+  notes: string | null;
+  supplier_product_id: number | null;
+  supplier_product_sku: string | null;
+  entry_date: string;
 }

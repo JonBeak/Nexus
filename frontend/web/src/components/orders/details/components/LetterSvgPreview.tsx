@@ -27,6 +27,7 @@ interface LetterSvgPreviewProps {
 const HOLE_COLORS: Record<string, string> = {
   wire: '#3B82F6',     // Blue
   mounting: '#22C55E', // Green
+  engraving: '#A855F7', // Purple
   unknown: '#F97316',  // Orange
 };
 
@@ -135,13 +136,13 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
 
   // Render hole — known types get colored circles, unknown rendered as-is
   const renderHole = (hole: HoleDetail, index: number) => {
-    // Unknown holes: render actual SVG path with original color (or orange fallback)
-    if (hole.hole_type === 'unknown' && hole.svg_path_data) {
+    // Unknown/engraving holes: render actual SVG path with original color (or type fallback)
+    if ((hole.hole_type === 'unknown' || hole.hole_type === 'engraving') && hole.svg_path_data) {
       return (
         <g key={`hole-${index}`} transform={hole.transform || undefined}>
           <path
             d={hole.svg_path_data}
-            fill={hole.fill || HOLE_COLORS.unknown}
+            fill={hole.fill || HOLE_COLORS[hole.hole_type] || HOLE_COLORS.unknown}
             stroke="none"
           />
         </g>

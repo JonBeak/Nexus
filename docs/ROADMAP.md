@@ -189,14 +189,18 @@ pricing_history (price changes over time)
 - ✅ Frontend: ArchetypeSupplierProducts, SupplierProductEditor components
 - ⏸️ Price comparison view across suppliers (UI enhancement - deferred)
 
-### 4.d Purchase Orders
-- ⬜ `purchase_orders` table (supplier_id, status, order_date, expected_date)
-- ⬜ `purchase_order_items` table (po_id, supplier_product_id, qty, unit_price)
-- ⬜ PO status workflow: Draft → Sent → Partial → Received → Closed
+### 4.d Purchase Orders & Material Requirements ✅ COMPLETE (2026-02-10)
+- ✅ `supplier_orders` + `supplier_order_items` tables (supplier_id, status, order/expected dates, items with pricing)
+- ✅ `material_requirements` table with supplier assignment and order linking
+- ✅ Auto-PO generation: assigning a supplier to a material requirement auto-accumulates into a live draft PO
+- ✅ PO status workflow: Draft → Submitted → Acknowledged → Partial Received → Delivered (+ Cancelled)
+- ✅ Shopping Cart tab shows DB-backed draft POs with Place Order workflow (delivery method, order date, notes)
+- ✅ Supplier Products & Orders tab: supplier list with stats → drill into products + order history
+- ✅ Unassigned requirements view (pending/backordered without supplier)
+- ✅ Special supplier IDs: In Stock (-1), In House (-2), Customer Provided (-3) skip auto-PO
 - ⬜ Receiving workflow (mark items received, partial receipts)
 - ⬜ PO history and audit trail
 - ⬜ Email PO to supplier (using existing Gmail integration)
-- ⬜ PO generation from low stock alerts
 
 ### 4.e Inventory Tracking
 - ⬜ `inventory` table (archetype_id, quantity_on_hand, location)
@@ -242,6 +246,13 @@ pricing_history (price changes over time)
 ---
 
 ## Recent Releases
+
+### Phase 4.d (2026-02-10)
+- Auto-PO generation: supplier assignment on material requirements auto-creates draft POs
+- Shopping Cart rework: DB-backed draft POs replace client-side cart state
+- Supplier Products & Orders tab: supplier stats, product catalog, order history drill-in
+- Removed manual PO grouping workflow (SupplierGroupedRequirements)
+- submitOrder links material requirements to 'ordered' status automatically
 
 ### Phase 4.c (2025-12-19)
 - Supplier Products with full CRUD operations
@@ -300,4 +311,4 @@ pricing_history (price changes over time)
 
 ---
 
-**Last Updated**: 2026-01-27
+**Last Updated**: 2026-02-10

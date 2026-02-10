@@ -10,7 +10,7 @@ import { ValidationRuleConfig, ValidationRuleDisplay, StandardHoleSize } from '.
 // =============================================
 
 /**
- * Front Lit channel letter validation rules
+ * Front Lit channel letter validation rules (trim cap structure)
  * File scale: 10% (multiply by 10 for real-world dimensions)
  */
 export const FRONT_LIT_STRUCTURE_RULES: ValidationRuleConfig = {
@@ -29,28 +29,45 @@ export const FRONT_LIT_STRUCTURE_RULES: ValidationRuleConfig = {
 };
 
 /**
- * Determine which spec types are present in order parts
+ * Front Lit Acrylic Face validation rules
+ * Uses face layer instead of trim cap, with engraving path detection
+ */
+export const FRONT_LIT_ACRYLIC_FACE_RULES: ValidationRuleConfig = {
+  file_scale: 0.1,
+  face_layer: 'face',                         // Layer name for acrylic faces
+  face_offset_min_mm: 0.3,                    // Face must be ≥0.3mm bigger per side
+  min_face_spacing_inches: 0.10,              // 0.1" apart (less than trim cap's 0.15")
+  engraving_offset_mm: 0.4,                   // Expected engraving inset per side
+  engraving_offset_tolerance_mm: 0.15,        // Tolerance for engraving offset match
+  min_mounting_holes: 2,
+  mounting_holes_per_inch_perimeter: 0.05,
+  mounting_holes_per_sq_inch_area: 0.0123,
+  check_wire_holes: true,
+  expected_mounting_names: ['Regular Mounting'],
+  return_layer: 'return',
+};
+
+// Exact product type → validation spec type mapping
+const VALIDATION_SPEC_TYPE_MAP: Record<string, string> = {
+  'Front Lit': 'front_lit',
+  'Front Lit Acrylic Face': 'front_lit_acrylic_face',
+  'Dual Lit - Single Layer': 'front_lit',   // Same trim cap structure rules
+  'Dual Lit - Double Layer': 'front_lit',   // Same trim cap structure rules
+  // Future:
+  // 'Halo Lit': 'halo_lit',
+  // 'Front Lit Push Thru': 'front_lit_push_thru',
+};
+
+/**
+ * Determine which spec types are present in order parts.
+ * Uses exact name matching — no substring matching.
  */
 export function detectSpecTypes(specsDisplayNames: string[]): Set<string> {
   const specTypes = new Set<string>();
-
   for (const name of specsDisplayNames) {
-    const lowerName = name.toLowerCase();
-
-    // Front Lit detection
-    if (lowerName.includes('front lit') || lowerName.includes('frontlit')) {
-      specTypes.add('front_lit');
-    }
-    // Halo Lit detection (future)
-    else if (lowerName.includes('halo') || lowerName.includes('back lit') || lowerName.includes('backlit')) {
-      specTypes.add('halo_lit');
-    }
-    // Non-lit detection (future)
-    else if (lowerName.includes('non lit') || lowerName.includes('non-lit') || lowerName.includes('nonlit')) {
-      specTypes.add('non_lit');
-    }
+    const mapped = VALIDATION_SPEC_TYPE_MAP[name];
+    if (mapped) specTypes.add(mapped);
   }
-
   return specTypes;
 }
 
@@ -116,6 +133,54 @@ export function getValidationRuleDescriptions(specTypes: Set<string>): Validatio
     );
   }
 
+  // Front Lit Acrylic Face rules
+  if (specTypes.has('front_lit_acrylic_face')) {
+    rules.push(
+      {
+        rule_key: 'acrylic_face_wire_holes',
+        name: 'Wire Hole Check',
+        description: 'Each return letter requires 1 wire hole (9.7mm)',
+        category: 'Front Lit Acrylic Face',
+      },
+      {
+        rule_key: 'acrylic_face_mounting_holes',
+        name: 'Mounting Holes',
+        description: 'Min 2 per letter; 1 per 20" perimeter; 1 per 81 sq in area',
+        category: 'Front Lit Acrylic Face',
+      },
+      {
+        rule_key: 'acrylic_face_missing',
+        name: 'Face Layer Required',
+        description: 'Working file must include a face layer with letters',
+        category: 'Front Lit Acrylic Face',
+      },
+      {
+        rule_key: 'acrylic_face_spacing',
+        name: 'Face Spacing',
+        description: 'Face letters must be at least 0.10" apart',
+        category: 'Front Lit Acrylic Face',
+      },
+      {
+        rule_key: 'acrylic_face_count',
+        name: 'Layer Matching',
+        description: 'Face and Return layers must have same letter count',
+        category: 'Front Lit Acrylic Face',
+      },
+      {
+        rule_key: 'acrylic_face_offset',
+        name: 'Face Offset',
+        description: 'Face must be ≥0.3mm larger than return per side',
+        category: 'Front Lit Acrylic Face',
+      },
+      {
+        rule_key: 'acrylic_face_engraving_missing',
+        name: 'Face Engraving',
+        description: 'Each face letter should have an engraving path inset ~0.4mm',
+        category: 'Front Lit Acrylic Face',
+      },
+    );
+  }
+
   return rules;
 }
 
@@ -154,6 +219,10 @@ export function buildValidationRules(
   // Add spec-type specific rules
   if (specTypes.has('front_lit')) {
     rules.front_lit_structure = { ...FRONT_LIT_STRUCTURE_RULES };
+  }
+
+  if (specTypes.has('front_lit_acrylic_face')) {
+    rules.front_lit_acrylic_face_structure = { ...FRONT_LIT_ACRYLIC_FACE_RULES };
   }
 
   // Future: Add halo_lit, non_lit rules here

@@ -32,7 +32,7 @@ export class SupplierOrderRepository {
       SELECT
         so.*,
         s.name as supplier_name,
-        (SELECT contact_email FROM supplier_contacts sc WHERE sc.supplier_id = s.supplier_id AND sc.is_primary = 1 LIMIT 1) as supplier_contact_email,
+        (SELECT email FROM supplier_contacts sc WHERE sc.supplier_id = s.supplier_id AND sc.is_primary = 1 LIMIT 1) as supplier_contact_email,
         CONCAT(cu.first_name, ' ', cu.last_name) as created_by_name,
         CONCAT(uu.first_name, ' ', uu.last_name) as updated_by_name,
         CONCAT(su.first_name, ' ', su.last_name) as submitted_by_name,
@@ -156,7 +156,7 @@ export class SupplierOrderRepository {
   }
 
   /**
-   * Generate next order number
+   * Generate next order number (legacy format, kept for backwards compat)
    */
   async getNextOrderNumber(): Promise<string> {
     const year = new Date().getFullYear();
@@ -178,6 +178,96 @@ export class SupplierOrderRepository {
     }
 
     return `${prefix}${String(nextNum).padStart(4, '0')}`;
+  }
+
+  /**
+   * Generate PO number in new format: YYYYMMDD-VVV-NN
+   * VVV = supplier_id zero-padded to 3 digits
+   * NN = daily increment per vendor (01-99)
+   */
+  async generatePONumber(supplierId: number, date: string): Promise<string> {
+    const dateStr = date.replace(/-/g, ''); // YYYYMMDD
+    const vendorStr = String(supplierId).padStart(3, '0');
+    const prefix = `${dateStr}-${vendorStr}-`;
+
+    const sql = `
+      SELECT order_number FROM supplier_orders
+      WHERE order_number LIKE ?
+      ORDER BY order_number DESC
+      LIMIT 1
+    `;
+
+    const rows = await query(sql, [`${prefix}%`]) as RowDataPacket[];
+
+    let nextNum = 1;
+    if (rows.length > 0) {
+      const lastPart = rows[0].order_number.split('-').pop();
+      nextNum = parseInt(lastPart, 10) + 1;
+    }
+
+    return `${prefix}${String(nextNum).padStart(2, '0')}`;
+  }
+
+  /**
+   * Create a snapshot PO from material requirements (for Place Order flow).
+   * Returns the new order ID.
+   */
+  async createSnapshot(
+    orderNumber: string,
+    supplierId: number,
+    orderDate: string,
+    deliveryMethod: string,
+    notes: string | null,
+    items: Array<{
+      product_description: string;
+      sku: string | null;
+      quantity_ordered: number;
+      unit_of_measure: string;
+      unit_price: number;
+      material_requirement_id: number;
+      supplier_product_id: number | null;
+      notes: string | null;
+    }>,
+    userId?: number
+  ): Promise<number> {
+    // Create the order header as 'submitted'
+    const headerSql = `
+      INSERT INTO supplier_orders (
+        order_number, supplier_id, status, order_date,
+        delivery_method, notes, created_by, submitted_by, submitted_at
+      ) VALUES (?, ?, 'submitted', ?, ?, ?, ?, ?, NOW())
+    `;
+
+    const headerResult = await query(headerSql, [
+      orderNumber,
+      supplierId,
+      orderDate,
+      deliveryMethod,
+      notes,
+      userId ?? null,
+      userId ?? null,
+    ]) as ResultSetHeader;
+
+    const orderId = headerResult.insertId;
+
+    // Insert line items
+    for (const item of items) {
+      await this.addItem(orderId, {
+        product_description: item.product_description,
+        sku: item.sku,
+        quantity_ordered: item.quantity_ordered,
+        unit_of_measure: item.unit_of_measure,
+        unit_price: item.unit_price,
+        material_requirement_id: item.material_requirement_id,
+        supplier_product_id: item.supplier_product_id,
+        notes: item.notes,
+      });
+    }
+
+    // Record status history
+    await this.recordStatusChange(orderId, null, 'submitted', userId, 'Order placed from draft PO');
+
+    return orderId;
   }
 
   /**
@@ -211,7 +301,7 @@ export class SupplierOrderRepository {
     const orderId = result.insertId;
 
     // Record initial status in history
-    await this.recordStatusChange(orderId, null, 'draft', userId);
+    await this.recordStatusChange(orderId, null, 'submitted', userId);
 
     return orderId;
   }
@@ -321,19 +411,18 @@ export class SupplierOrderRepository {
     // Get current order for old status
     const order = await this.findById(id);
     if (order) {
-      await this.recordStatusChange(id, 'draft', 'submitted', userId, notes);
+      await this.recordStatusChange(id, null, 'submitted', userId, notes);
     }
   }
 
   /**
-   * Delete supplier order (only draft orders)
+   * Delete supplier order (only non-submitted orders)
    */
   async delete(id: number): Promise<boolean> {
-    // Check if order is draft
     const order = await this.findById(id);
     if (!order) return false;
-    if (order.status !== 'draft') {
-      throw new Error('Can only delete draft orders');
+    if (order.status === 'delivered') {
+      throw new Error('Cannot delete delivered orders');
     }
 
     // Items are cascade deleted
@@ -586,11 +675,37 @@ export class SupplierOrderRepository {
   }
 
   /**
+   * Find a supplier order item by its linked material_requirement_id
+   */
+  async findItemByRequirementId(requirementId: number): Promise<SupplierOrderItemRow | null> {
+    const sql = this.buildItemQuery('soi.material_requirement_id = ?');
+    const rows = await query(sql, [requirementId]) as SupplierOrderItemRow[];
+    return rows.length > 0 ? rows[0] : null;
+  }
+
+  /**
+   * Get the number of items on an order
+   */
+  async getItemCount(orderId: number): Promise<number> {
+    const sql = 'SELECT COUNT(*) as cnt FROM supplier_order_items WHERE order_id = ?';
+    const rows = await query(sql, [orderId]) as RowDataPacket[];
+    return Number(rows[0].cnt);
+  }
+
+  /**
    * Get all orders by supplier
    */
   async findBySupplier(supplierId: number): Promise<SupplierOrderRow[]> {
     const sql = this.buildOrderQuery('so.supplier_id = ?') + ' ORDER BY so.created_at DESC';
     return await query(sql, [supplierId]) as SupplierOrderRow[];
+  }
+
+  /**
+   * Update email_sent_at timestamp for an order
+   */
+  async updateEmailSentAt(orderId: number): Promise<void> {
+    const sql = `UPDATE supplier_orders SET email_sent_at = NOW() WHERE order_id = ?`;
+    await query(sql, [orderId]);
   }
 
   /**
@@ -605,7 +720,6 @@ export class SupplierOrderRepository {
     const rows = await query(sql) as RowDataPacket[];
 
     const counts: Record<SupplierOrderStatus, number> = {
-      draft: 0,
       submitted: 0,
       acknowledged: 0,
       partial_received: 0,

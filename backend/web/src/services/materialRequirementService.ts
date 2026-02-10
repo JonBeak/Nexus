@@ -11,6 +11,8 @@ import {
   MaterialRequirementRow,
 } from '../repositories/materialRequirementRepository';
 import { ServiceResult } from '../types/serviceResults';
+import { query as dbQuery } from '../config/database';
+import { RowDataPacket } from 'mysql2';
 import {
   MaterialRequirement,
   MaterialRequirementStatus,
@@ -413,53 +415,6 @@ export class MaterialRequirementService {
   }
 
   /**
-   * Add requirements to shopping cart
-   */
-  async addToCart(
-    requirementIds: number[],
-    cartId: string,
-    userId?: number
-  ): Promise<ServiceResult<{ updated_count: number }>> {
-    try {
-      if (!requirementIds || requirementIds.length === 0) {
-        return {
-          success: false,
-          error: 'At least one requirement ID is required',
-          code: 'VALIDATION_ERROR',
-        };
-      }
-
-      if (!cartId) {
-        return {
-          success: false,
-          error: 'Cart ID is required',
-          code: 'VALIDATION_ERROR',
-        };
-      }
-
-      const updatedCount = await this.repository.bulkUpdateStatus(
-        requirementIds,
-        'ordered',
-        new Date(),
-        cartId,
-        userId
-      );
-
-      return {
-        success: true,
-        data: { updated_count: updatedCount },
-      };
-    } catch (error) {
-      console.error('Error in MaterialRequirementService.addToCart:', error);
-      return {
-        success: false,
-        error: 'Failed to add requirements to cart',
-        code: 'CART_ERROR',
-      };
-    }
-  }
-
-  /**
    * Delete material requirement
    */
   async deleteRequirement(id: number): Promise<ServiceResult<void>> {
@@ -531,94 +486,93 @@ export class MaterialRequirementService {
   }
 
   /**
-   * Get pending/backordered requirements grouped by supplier
-   * Used for supplier order generation
+   * Get unassigned requirements (no supplier set)
    */
-  async getGroupedBySupplier(): Promise<ServiceResult<{
-    groups: Array<{
-      supplier_id: number;
-      supplier_name: string;
-      contact_email: string | null;
-      contact_phone: string | null;
-      item_count: number;
-      total_quantity: number;
-      requirements: Array<{
-        requirement_id: number;
-        entry_date: Date | string;
-        custom_product_type: string | null;
-        archetype_name: string | null;
-        size_description: string | null;
-        quantity_ordered: number;
-        unit_of_measure: string | null;
-        order_number: string | null;
-        order_name: string | null;
-        is_stock_item: boolean;
-        notes: string | null;
-      }>;
-    }>;
-    total_requirements: number;
-    total_suppliers: number;
-  }>> {
+  async getUnassignedRequirements(): Promise<ServiceResult<MaterialRequirementRow[]>> {
     try {
-      const rows = await this.repository.getGroupedBySupplier();
+      const requirements = await this.repository.findAll({
+        status: ['pending', 'backordered'],
+      });
+      // Filter to only those with no supplier assigned
+      const unassigned = requirements.filter(r => !r.supplier_id);
+      return { success: true, data: unassigned };
+    } catch (error) {
+      console.error('Error in MaterialRequirementService.getUnassignedRequirements:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch unassigned requirements',
+        code: 'FETCH_ERROR',
+      };
+    }
+  }
 
-      // Group by supplier
-      const supplierMap = new Map<number, {
-        supplier_id: number;
-        supplier_name: string;
-        contact_email: string | null;
-        contact_phone: string | null;
-        requirements: any[];
-      }>();
+  /**
+   * Get draft PO groups — MRs with a supplier assigned but not yet ordered,
+   * grouped by supplier. This replaces the old "draft supplier_orders" rows.
+   */
+  async getDraftPOGroups(): Promise<ServiceResult<any[]>> {
+    try {
+      const requirements = await this.repository.findForDraftPO();
 
-      for (const row of rows) {
-        const supplierId = row.supplier_id;
+      // Group by supplier_id
+      const groupMap = new Map<number, any>();
 
-        if (!supplierMap.has(supplierId)) {
-          supplierMap.set(supplierId, {
-            supplier_id: supplierId,
-            supplier_name: row.supplier_name,
-            contact_email: row.contact_email,
-            contact_phone: row.contact_phone,
+      for (const req of requirements) {
+        const sid = req.supplier_id!;
+        if (!groupMap.has(sid)) {
+          groupMap.set(sid, {
+            supplier_id: sid,
+            supplier_name: req.supplier_name || 'Unknown Supplier',
+            contact_email: null, // filled from supplier_contacts later if needed
+            contact_phone: null,
             requirements: [],
           });
         }
-
-        supplierMap.get(supplierId)!.requirements.push({
-          requirement_id: row.requirement_id,
-          entry_date: row.entry_date,
-          custom_product_type: row.custom_product_type,
-          archetype_name: row.archetype_name,
-          size_description: row.size_description,
-          quantity_ordered: Number(row.quantity_ordered),
-          unit_of_measure: row.unit_of_measure,
-          order_number: row.order_number,
-          order_name: row.order_name,
-          is_stock_item: !!row.is_stock_item,
-          notes: row.notes,
+        groupMap.get(sid)!.requirements.push({
+          requirement_id: req.requirement_id,
+          archetype_name: req.archetype_name ?? null,
+          custom_product_type: req.custom_product_type ?? null,
+          size_description: req.size_description ?? null,
+          quantity_ordered: req.quantity_ordered,
+          unit_of_measure: req.unit_of_measure ?? null,
+          order_number: req.order_number ?? null,
+          order_name: req.order_name ?? null,
+          customer_name: req.customer_name ?? null,
+          is_stock_item: !!req.is_stock_item,
+          notes: req.notes ?? null,
+          supplier_product_id: req.supplier_product_id ?? null,
+          supplier_product_sku: req.supplier_product_sku ?? null,
+          entry_date: req.entry_date,
         });
       }
 
-      // Convert to array and calculate totals
-      const groups = Array.from(supplierMap.values()).map(group => ({
-        ...group,
-        item_count: group.requirements.length,
-        total_quantity: group.requirements.reduce((sum, r) => sum + r.quantity_ordered, 0),
-      }));
+      // Enrich groups with contact info from supplier_contacts
+      const supplierIds = Array.from(groupMap.keys());
+      if (supplierIds.length > 0) {
+        const placeholders = supplierIds.map(() => '?').join(',');
+        const contactRows = await dbQuery(
+          `SELECT sc.supplier_id, sc.email, s.contact_phone
+           FROM supplier_contacts sc
+           JOIN suppliers s ON sc.supplier_id = s.supplier_id
+           WHERE sc.supplier_id IN (${placeholders}) AND sc.is_primary = 1
+           LIMIT ${supplierIds.length}`,
+          supplierIds
+        ) as any[];
+        for (const row of contactRows) {
+          const group = groupMap.get(row.supplier_id);
+          if (group) {
+            group.contact_email = row.email || null;
+            group.contact_phone = row.contact_phone || null;
+          }
+        }
+      }
 
-      return {
-        success: true,
-        data: {
-          groups,
-          total_requirements: rows.length,
-          total_suppliers: groups.length,
-        },
-      };
+      return { success: true, data: Array.from(groupMap.values()) };
     } catch (error) {
-      console.error('Error in MaterialRequirementService.getGroupedBySupplier:', error);
+      console.error('Error in MaterialRequirementService.getDraftPOGroups:', error);
       return {
         success: false,
-        error: 'Failed to fetch grouped requirements',
+        error: 'Failed to fetch draft PO groups',
         code: 'FETCH_ERROR',
       };
     }

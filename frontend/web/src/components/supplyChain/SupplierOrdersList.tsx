@@ -9,15 +9,11 @@ import {
   Package,
   RefreshCw,
   Search,
-  Filter,
-  ChevronDown,
   Eye,
   Truck,
   CheckCircle,
   Clock,
   XCircle,
-  AlertCircle,
-  FileText,
 } from 'lucide-react';
 import { PAGE_STYLES } from '../../constants/moduleColors';
 import { formatDateWithYear } from '../../utils/dateUtils';
@@ -27,11 +23,11 @@ import type { SupplierOrder, SupplierOrderStatus, SupplierOrderSearchParams } fr
 interface SupplierOrdersListProps {
   showNotification: (message: string, type?: 'success' | 'error') => void;
   onViewOrder?: (orderId: number) => void;
+  supplierId?: number;
 }
 
 const STATUS_OPTIONS: { value: SupplierOrderStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All Statuses' },
-  { value: 'draft', label: 'Draft' },
   { value: 'submitted', label: 'Submitted' },
   { value: 'acknowledged', label: 'Acknowledged' },
   { value: 'partial_received', label: 'Partial' },
@@ -42,18 +38,21 @@ const STATUS_OPTIONS: { value: SupplierOrderStatus | 'all'; label: string }[] = 
 export const SupplierOrdersList: React.FC<SupplierOrdersListProps> = ({
   showNotification,
   onViewOrder,
+  supplierId,
 }) => {
   const [orders, setOrders] = useState<SupplierOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<SupplierOrderStatus | 'all'>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
 
   const loadOrders = useCallback(async () => {
     try {
       setLoading(true);
       const params: SupplierOrderSearchParams = {};
 
+      if (supplierId) {
+        params.supplier_id = supplierId;
+      }
       if (statusFilter !== 'all') {
         params.status = statusFilter;
       }
@@ -61,6 +60,7 @@ export const SupplierOrdersList: React.FC<SupplierOrdersListProps> = ({
         params.search = searchTerm;
       }
 
+      // Drafts are now live MR queries — no draft rows in supplier_orders
       const data = await supplierOrdersApi.getOrders(params);
       setOrders(data);
     } catch (error) {
@@ -69,7 +69,7 @@ export const SupplierOrdersList: React.FC<SupplierOrdersListProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, searchTerm, showNotification]);
+  }, [supplierId, statusFilter, searchTerm, showNotification]);
 
   useEffect(() => {
     void loadOrders();
@@ -77,13 +77,6 @@ export const SupplierOrdersList: React.FC<SupplierOrdersListProps> = ({
 
   const getStatusBadge = (status: SupplierOrderStatus) => {
     switch (status) {
-      case 'draft':
-        return (
-          <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700 flex items-center gap-1">
-            <FileText className="w-3 h-3" />
-            Draft
-          </span>
-        );
       case 'submitted':
         return (
           <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 flex items-center gap-1">

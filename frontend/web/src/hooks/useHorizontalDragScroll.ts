@@ -12,7 +12,7 @@ interface UseHorizontalDragScrollOptions {
   containerRef: React.RefObject<HTMLDivElement | null>;
   /** CSS selectors for elements that should NOT trigger drag-scroll */
   skipSelectors?: string[];
-  /** Scroll speed multiplier (default: 3) */
+  /** Scroll speed multiplier (default: 2) */
   speedMultiplier?: number;
   /** Disable the hook entirely (e.g. on touch devices or during dnd-kit drags) */
   disabled?: boolean;
@@ -21,7 +21,7 @@ interface UseHorizontalDragScrollOptions {
 export function useHorizontalDragScroll({
   containerRef,
   skipSelectors = [],
-  speedMultiplier = 3.5,
+  speedMultiplier = 2,
   disabled = false
 }: UseHorizontalDragScrollOptions) {
   const isDraggingRef = useRef(false);

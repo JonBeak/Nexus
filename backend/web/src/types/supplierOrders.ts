@@ -9,7 +9,6 @@
 // ============================================================================
 
 export type SupplierOrderStatus =
-  | 'draft'
   | 'submitted'
   | 'acknowledged'
   | 'partial_received'
@@ -60,6 +59,7 @@ export interface SupplierOrder {
   updated_by: number | null;
   submitted_by: number | null;
   submitted_at: Date | string | null;
+  email_sent_at: Date | string | null;
 
   // Joined fields
   supplier_name?: string;
@@ -212,6 +212,14 @@ export interface GenerateOrderRequest {
 export interface SubmitOrderRequest {
   order_date?: Date | string;
   notes?: string | null;
+  email?: {
+    to?: string;
+    cc?: string;
+    bcc?: string;
+    subject?: string;
+    opening?: string;
+    closing?: string;
+  };
 }
 
 /**
