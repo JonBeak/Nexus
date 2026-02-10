@@ -11,14 +11,12 @@ import { MaterialRequirement } from '../../../types/materialRequirements';
 
 interface HeldItemButtonProps {
   requirement: MaterialRequirement;
-  quantityHeld?: string;
   onEditHold: () => void;
   onReleaseHold: () => void;
 }
 
 export const HeldItemButton: React.FC<HeldItemButtonProps> = ({
   requirement,
-  quantityHeld,
   onEditHold,
   onReleaseHold,
 }) => {
@@ -73,8 +71,13 @@ export const HeldItemButton: React.FC<HeldItemButtonProps> = ({
 
   // Determine display text
   const getDisplayText = () => {
-    if (quantityHeld) {
-      return `Held: ${quantityHeld}`;
+    if (requirement.held_vinyl_id && requirement.held_vinyl_width != null && requirement.held_vinyl_length_yards != null) {
+      const w = parseFloat(Number(requirement.held_vinyl_width).toFixed(2)).toString();
+      const l = parseFloat(Number(requirement.held_vinyl_length_yards).toFixed(2)).toString();
+      return `In Stock: ${w} x ${l} yd`;
+    }
+    if (requirement.held_supplier_product_id && requirement.held_general_quantity) {
+      return `In Stock: ${requirement.held_general_quantity}`;
     }
     return 'In Stock';
   };
@@ -89,7 +92,7 @@ export const HeldItemButton: React.FC<HeldItemButtonProps> = ({
       <button
         ref={buttonRef}
         onClick={() => setShowMenu(!showMenu)}
-        className="px-2 py-0.5 text-xs font-medium rounded bg-green-100 text-green-700 hover:bg-green-200 transition-colors flex items-center gap-1"
+        className="w-full px-1.5 py-[5px] text-xs font-medium rounded-none border border-green-300 bg-green-100 text-green-700 hover:bg-green-200 transition-colors flex items-center gap-1"
         title="Click to manage hold"
       >
         {getDisplayText()}

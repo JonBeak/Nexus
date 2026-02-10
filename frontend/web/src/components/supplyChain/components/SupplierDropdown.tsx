@@ -256,7 +256,7 @@ export const SupplierDropdown: React.FC<SupplierDropdownProps> = ({
           onKeyDown={handleKeyDown}
           placeholder={loading ? 'Loading...' : placeholder}
           className={`w-full px-1.5 py-1.5 pr-8 text-xs border rounded-none
-            ${displayColor && !isOpen ? displayColor : PAGE_STYLES.input.text}
+            ${displayColor && !isOpen ? `${displayColor} font-medium` : PAGE_STYLES.input.text}
             bg-white border-gray-300 hover:border-gray-400
             focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
         />

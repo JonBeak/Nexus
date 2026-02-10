@@ -87,6 +87,12 @@ export interface MaterialRequirement {
   // Joined fields from supplier
   supplier_name?: string | null;
 
+  // Joined fields from held vinyl inventory
+  held_vinyl_width?: number | null;
+  held_vinyl_length_yards?: number | null;
+  held_vinyl_quantity?: string | null;
+  held_general_quantity?: string | null;
+
   // Computed fields
   quantity_remaining?: number;
   created_by_name?: string | null;

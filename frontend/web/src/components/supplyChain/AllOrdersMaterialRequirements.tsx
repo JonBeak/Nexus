@@ -6,7 +6,7 @@
  *          Receiving Status dropdown, and computed Auto Status badge
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Plus,
   Package,
@@ -20,6 +20,7 @@ import {
   Trash2,
   ShoppingCart,
   HandMetal,
+  XCircle,
 } from 'lucide-react';
 import { PAGE_STYLES, MODULE_COLORS } from '../../constants/moduleColors';
 import { materialRequirementsApi, ordersApi, supplierProductsApi, archetypesApi, vinylProductsApi, suppliersApi } from '../../services/api';
@@ -99,14 +100,14 @@ const RECEIVING_STATUS_OPTIONS = [
  * | In Stock     | Select...     | To Pick               |
  */
 const computeAutoStatus = (req: MaterialRequirement): ComputedRequirementStatus => {
-  // Fulfilled: received
-  if (req.status === 'received') {
+  // Fulfilled: received (require received_date to be set)
+  if (req.status === 'received' && req.received_date) {
     return 'fulfilled';
   }
 
-  // Cancelled
-  if (req.status === 'cancelled') {
-    return 'pending'; // Or could add 'cancelled' to ComputedRequirementStatus
+  // Cancelled (require received_date to be set)
+  if (req.status === 'cancelled' && req.received_date) {
+    return 'cancelled';
   }
 
   // Backordered
@@ -125,8 +126,8 @@ const computeAutoStatus = (req: MaterialRequirement): ComputedRequirementStatus 
     return 'to_be_picked';
   }
 
-  // Has ordered_date → Ordered for pickup/shipping
-  if (req.ordered_date) {
+  // Has ordered_date + delivery_method → Ordered for pickup/shipping
+  if (req.ordered_date && req.delivery_method) {
     return req.delivery_method === 'pickup' ? 'ordered_pickup' : 'ordered_shipping';
   }
 
@@ -141,37 +142,44 @@ const getAutoStatusBadge = (status: ComputedRequirementStatus) => {
   switch (status) {
     case 'pending':
       return (
-        <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-yellow-100 text-yellow-800 flex items-center gap-1 whitespace-nowrap">
+        <span className="px-1.5 py-1 text-[11px] font-medium rounded-full justify-center bg-gray-300 text-gray-700 border border-gray-700 flex items-center gap-1 whitespace-nowrap">
           <Clock className="w-3 h-3" />
           Pending
         </span>
       );
     case 'ordered_pickup':
       return (
-        <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-blue-100 text-blue-800 flex items-center gap-1 whitespace-nowrap">
+        <span className="px-1.5 py-1 text-[11px] font-medium rounded-full justify-center bg-blue-200 text-blue-900 border border-blue-900 flex items-center gap-1 whitespace-nowrap">
           <ShoppingCart className="w-3 h-3" />
           Pickup
         </span>
       );
     case 'ordered_shipping':
       return (
-        <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-indigo-100 text-indigo-800 flex items-center gap-1 whitespace-nowrap">
+        <span className="px-1.5 py-1 text-[11px] font-medium rounded-full justify-center bg-yellow-200 text-yellow-900 border border-yellow-900 flex items-center gap-1 whitespace-nowrap">
           <Truck className="w-3 h-3" />
           Shipping
         </span>
       );
     case 'to_be_picked':
       return (
-        <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-purple-100 text-purple-800 flex items-center gap-1 whitespace-nowrap">
+        <span className="px-1.5 py-1 text-[11px] font-medium rounded-full justify-center bg-purple-200 text-purple-900 border border-purple-900 flex items-center gap-1 whitespace-nowrap">
           <HandMetal className="w-3 h-3" />
           To Pick
         </span>
       );
     case 'fulfilled':
       return (
-        <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-green-100 text-green-800 flex items-center gap-1 whitespace-nowrap">
+        <span className="px-1.5 py-1 text-[11px] font-medium rounded-full justify-center bg-green-200 text-green-900 border border-green-900 flex items-center gap-1 whitespace-nowrap">
           <CheckCircle className="w-3 h-3" />
           Fulfilled
+        </span>
+      );
+    case 'cancelled':
+      return (
+        <span className="px-1.5 py-1 text-[11px] font-medium rounded-full justify-center bg-red-200 text-red-900 border border-red-900 flex items-center gap-1 whitespace-nowrap">
+          <XCircle className="w-3 h-3" />
+          Cancelled
         </span>
       );
     default:
@@ -183,9 +191,11 @@ const getAutoStatusBadge = (status: ComputedRequirementStatus) => {
 /** Row background color based on computed auto status */
 const getRowBgClass = (status: ComputedRequirementStatus): string => {
   switch (status) {
-    case 'ordered_pickup': return 'bg-blue-50';
-    case 'ordered_shipping': return 'bg-purple-50';
-    case 'fulfilled': return 'bg-green-50';
+    case 'ordered_pickup': return 'bg-blue-400';
+    case 'ordered_shipping': return 'bg-yellow-400';
+    case 'to_be_picked': return 'bg-purple-400';
+    case 'fulfilled': return 'bg-green-400';
+    case 'cancelled': return 'bg-red-400';
     default: return '';
   }
 };
@@ -205,6 +215,42 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
     dateRange: { from: null, to: null },
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [hideOldCompleted, setHideOldCompleted] = useState(true);
+
+  // Client-side filter: hide received/cancelled rows older than 14 days
+  const { visibleRequirements, hiddenCompletedCount } = useMemo(() => {
+    // Bypass auto-hide when user explicitly filters to received or cancelled
+    if (filters.status === 'received' || filters.status === 'cancelled' || !hideOldCompleted) {
+      return { visibleRequirements: requirements, hiddenCompletedCount: 0 };
+    }
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 14);
+    const cutoffTime = cutoff.getTime();
+
+    let hiddenCount = 0;
+    const visible = requirements.filter((req) => {
+      if (req.status !== 'received' && req.status !== 'cancelled') return true;
+
+      // Use received_date for received rows, fallback to updated_at
+      // For cancelled rows, typically no received_date, so use updated_at
+      const dateStr = req.received_date || req.updated_at;
+      if (!dateStr) return true; // No date to judge by — keep visible
+
+      // Safe date parsing: extract YYYY-MM-DD to avoid timezone shift on DATE columns
+      const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!match) return true; // Unparseable — keep visible
+
+      const rowDate = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+      if (rowDate.getTime() <= cutoffTime) {
+        hiddenCount++;
+        return false;
+      }
+      return true;
+    });
+
+    return { visibleRequirements: visible, hiddenCompletedCount: hiddenCount };
+  }, [requirements, hideOldCompleted, filters.status]);
 
 
   // Orders for dropdown
@@ -606,7 +652,7 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
       const newRequirement = await materialRequirementsApi.createRequirement(createData);
       showNotification('Requirement added', 'success');
       // Add new row to local state instead of full reload
-      setRequirements(prev => [...prev, newRequirement]);
+      setRequirements(prev => [newRequirement, ...prev]);
     } catch (error) {
       console.error('Error creating requirement:', error);
       showNotification('Failed to add requirement', 'error');
@@ -632,7 +678,7 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
         <div>
           <h3 className={`text-lg font-medium ${PAGE_STYLES.panel.text}`}>All Material Requirements</h3>
           <div className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>
-            {requirements.length} requirements
+            {visibleRequirements.length} requirements{hiddenCompletedCount > 0 && ` (${hiddenCompletedCount} old fulfilled/cancelled hidden)`}
           </div>
         </div>
 
@@ -727,36 +773,47 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
               className={`text-sm ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-md px-2 py-1`}
             />
           </div>
+          <div className="flex items-end pb-0.5">
+            <label className={`flex items-center gap-1.5 text-xs font-medium ${PAGE_STYLES.panel.textSecondary} cursor-pointer select-none`}>
+              <input
+                type="checkbox"
+                checked={hideOldCompleted}
+                onChange={(e) => setHideOldCompleted(e.target.checked)}
+                className="rounded border-gray-400 text-red-600 focus:ring-red-500"
+              />
+              Hide old fulfilled/cancelled
+            </label>
+          </div>
         </div>
       )}
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full text-xs">
+        <table className="w-full text-xs [&_input::placeholder]:!text-gray-300 [&_textarea::placeholder]:!text-gray-300">
           <thead className={`${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.border} border-b`}>
             <tr>
               <th className={thClass} style={{ width: '95px' }}>Date</th>
-              <th className={thClass} style={{ width: '120px' }}>Order Ref</th>
+              <th className={thClass} style={{ width: '170px' }}>Order Ref</th>
               <th className={thClass} style={{ width: '130px' }}>Product Type</th>
               <th className={thClass} style={{ width: '160px' }}>Product</th>
               <th className={thClass} style={{ width: '90px' }}>Size</th>
               <th className={`${thClass} text-right`} style={{ width: '65px' }}>Qty</th>
               <th className={thClass} style={{ width: '130px' }}>Vendor</th>
               <th className={thClass} style={{ width: '70px' }}>Delivery</th>
-              <th className={thClass} style={{ width: '95px' }}>Ordered</th>
-              <th className={thClass} style={{ width: '100px' }}>Receiving</th>
-              <th className={thClass} style={{ width: '95px' }}>Received</th>
-              <th className={thClass} style={{ width: '180px' }}>Notes</th>
+              <th className={thClass} style={{ width: '85px' }}>Ordered</th>
+              <th className={thClass} style={{ width: '90px' }}>Receiving</th>
+              <th className={thClass} style={{ width: '85px' }}>Received</th>
+              <th className={thClass} style={{ width: '160px' }}>Notes</th>
               <th className={`${thClass} text-center`} style={{ width: '60px' }}>Actions</th>
-              <th className={thClass} style={{ width: '80px' }}>Status</th>
+              <th className={`${thClass} text-center`} style={{ width: '80px' }}>Status</th>
             </tr>
           </thead>
           <tbody className={PAGE_STYLES.panel.divider}>
             {/* All Rows */}
-            {requirements.map((req) => {
+            {visibleRequirements.map((req) => {
               const autoStatus = computeAutoStatus(req);
               return (
-                <tr key={req.requirement_id} className={`hover:bg-[var(--theme-hover-bg)] border-b border-gray-100 ${getRowBgClass(autoStatus)}`}>
+                <tr key={req.requirement_id} className={`hover:shadow-[inset_0_0_0_9999px_rgba(0,0,0,0.07)] border-b border-gray-100 ${getRowBgClass(autoStatus)}`}>
                   {/* Date */}
                   <td className="px-1 py-0.5">
                     <InlineEditableCell
@@ -861,10 +918,10 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
                       {/* Show HeldItemButton if item has a hold, otherwise show SupplierDropdown */}
                       {(req.held_vinyl_id || req.held_supplier_product_id) ? (
                         <HeldItemButton
-                          requirement={req}
-                          onEditHold={() => handleEditHold(req)}
-                          onReleaseHold={() => handleReleaseHold(req)}
-                        />
+                            requirement={req}
+                            onEditHold={() => handleEditHold(req)}
+                            onReleaseHold={() => handleReleaseHold(req)}
+                          />
                       ) : (
                         <SupplierDropdown
                           value={req.supplier_id}
@@ -890,11 +947,11 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
                       onChange={(val) => handleInlineEdit(req.requirement_id, 'delivery_method', val || null)}
                       type="select"
                       options={DELIVERY_OPTIONS}
-                      placeholder="Select..."
+                      placeholder="Delivery..."
                       className={
-                        req.delivery_method === 'pickup' ? '!bg-blue-50 !text-blue-700 !border-blue-300 font-medium' :
-                        req.delivery_method === 'shipping' ? '!bg-purple-50 !text-purple-700 !border-purple-300 font-medium' :
-                        'text-gray-400'
+                        req.delivery_method === 'pickup' ? '!bg-blue-100 !text-blue-700 !border-blue-300 font-medium' :
+                        req.delivery_method === 'shipping' ? '!bg-yellow-100 !text-yellow-700 !border-yellow-300 font-medium' :
+                        'text-gray-300'
                       }
                     />
                   </td>
@@ -918,12 +975,19 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
                         // If setting to received and has a vinyl hold, use special handler
                         if (val === 'received' && req.held_vinyl_id) {
                           handleReceiveWithHold(req);
+                        } else if ((val === 'received' || val === 'cancelled') && !req.received_date && (req.status === 'pending' || req.status === 'ordered')) {
+                          // Auto-fill received date with today when marking as received or cancelled
+                          const today = new Date().toISOString().split('T')[0];
+                          handleMultiFieldEdit(req.requirement_id, { status: val, received_date: today });
                         } else {
                           handleInlineEdit(req.requirement_id, 'status', val || 'pending');
                         }
                       }}
                       type="select"
                       options={RECEIVING_STATUS_OPTIONS}
+                      className={
+                        req.status === 'pending' || req.status === 'ordered' ? 'text-gray-300 [&>option]:text-black' : ''
+                      }
                     />
                   </td>
 

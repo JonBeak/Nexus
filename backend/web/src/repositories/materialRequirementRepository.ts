@@ -51,7 +51,11 @@ export class MaterialRequirementRepository {
           ELSE NULL
         END as vinyl_product_display,
         CONCAT(cu.first_name, ' ', cu.last_name) as created_by_name,
-        CONCAT(uu.first_name, ' ', uu.last_name) as updated_by_name
+        CONCAT(uu.first_name, ' ', uu.last_name) as updated_by_name,
+        vi.width as held_vinyl_width,
+        vi.length_yards as held_vinyl_length_yards,
+        vh.quantity_held as held_vinyl_quantity,
+        gih.quantity_held as held_general_quantity
       FROM material_requirements mr
       LEFT JOIN orders o ON mr.order_id = o.order_id
       LEFT JOIN customers c ON o.customer_id = c.customer_id
@@ -62,6 +66,9 @@ export class MaterialRequirementRepository {
       LEFT JOIN vinyl_products vp ON mr.vinyl_product_id = vp.product_id
       LEFT JOIN users cu ON mr.created_by = cu.user_id
       LEFT JOIN users uu ON mr.updated_by = uu.user_id
+      LEFT JOIN vinyl_inventory vi ON mr.held_vinyl_id = vi.id
+      LEFT JOIN vinyl_holds vh ON mr.requirement_id = vh.material_requirement_id
+      LEFT JOIN general_inventory_holds gih ON mr.requirement_id = gih.material_requirement_id
       WHERE ${whereClause}
     `;
   }

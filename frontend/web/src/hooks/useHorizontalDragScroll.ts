@@ -12,7 +12,7 @@ interface UseHorizontalDragScrollOptions {
   containerRef: React.RefObject<HTMLDivElement | null>;
   /** CSS selectors for elements that should NOT trigger drag-scroll */
   skipSelectors?: string[];
-  /** Scroll speed multiplier (default: 1.5) */
+  /** Scroll speed multiplier (default: 3) */
   speedMultiplier?: number;
   /** Disable the hook entirely (e.g. on touch devices or during dnd-kit drags) */
   disabled?: boolean;
@@ -21,7 +21,7 @@ interface UseHorizontalDragScrollOptions {
 export function useHorizontalDragScroll({
   containerRef,
   skipSelectors = [],
-  speedMultiplier = 1.5,
+  speedMultiplier = 3.5,
   disabled = false
 }: UseHorizontalDragScrollOptions) {
   const isDraggingRef = useRef(false);
@@ -29,6 +29,9 @@ export function useHorizontalDragScroll({
   const scrollStartRef = useRef(0);
   // Track if we actually moved — used to suppress click events after drag
   const didMoveRef = useRef(false);
+  // Lerp-based smooth scrolling: target position and animation frame handle
+  const targetScrollRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
 
   // Built-in interactive selectors that should never trigger drag-scroll
   const INTERACTIVE_SELECTORS = [
@@ -49,6 +52,23 @@ export function useHorizontalDragScroll({
     const container = containerRef.current;
     if (!container) return;
 
+    // Lerp loop: smoothly animate scrollLeft toward targetScrollRef each frame
+    const LERP_FACTOR = 0.25;
+    const animateScroll = () => {
+      const current = container.scrollLeft;
+      const target = targetScrollRef.current;
+      const diff = target - current;
+      // Snap when close enough to avoid sub-pixel jitter
+      if (Math.abs(diff) < 0.5) {
+        container.scrollLeft = target;
+      } else {
+        container.scrollLeft = current + diff * LERP_FACTOR;
+      }
+      if (isDraggingRef.current) {
+        rafRef.current = requestAnimationFrame(animateScroll);
+      }
+    };
+
     const handleMouseDown = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (shouldSkip(target)) return;
@@ -60,33 +80,38 @@ export function useHorizontalDragScroll({
       didMoveRef.current = false;
       startXRef.current = e.clientX;
       scrollStartRef.current = container.scrollLeft;
+      targetScrollRef.current = container.scrollLeft;
       container.style.cursor = 'grabbing';
       container.style.userSelect = 'none';
+      // Start the lerp animation loop
+      rafRef.current = requestAnimationFrame(animateScroll);
     };
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDraggingRef.current) return;
       const deltaX = (startXRef.current - e.clientX) * speedMultiplier;
-      container.scrollLeft = scrollStartRef.current + deltaX;
+      // Update the target — the rAF loop will lerp scrollLeft toward it
+      targetScrollRef.current = scrollStartRef.current + deltaX;
       // Mark as moved if we scrolled more than a few pixels (prevents click suppression on tiny drags)
       if (Math.abs(e.clientX - startXRef.current) > 3) {
         didMoveRef.current = true;
       }
     };
 
-    const handleMouseUp = () => {
+    const stopDrag = () => {
       if (!isDraggingRef.current) return;
       isDraggingRef.current = false;
+      // Kill the animation loop immediately — scroll stops where it is
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
       container.style.cursor = '';
       container.style.userSelect = '';
     };
 
-    const handleMouseLeave = () => {
-      if (!isDraggingRef.current) return;
-      isDraggingRef.current = false;
-      container.style.cursor = '';
-      container.style.userSelect = '';
-    };
+    const handleMouseUp = () => stopDrag();
+    const handleMouseLeave = () => stopDrag();
 
     // Suppress click events that fire after a drag (prevents accidental navigation)
     const handleClick = (e: MouseEvent) => {
@@ -104,6 +129,10 @@ export function useHorizontalDragScroll({
     container.addEventListener('click', handleClick, true); // capture phase
 
     return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
       container.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
