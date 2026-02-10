@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Order, OrderFilters, OrderStatus } from '../../../types/orders';
 import { ordersApi, orderStatusApi, timeSchedulesApi } from '../../../services/api';
 import { useTasksSocket } from '../../../hooks/useTasksSocket';
@@ -9,6 +9,7 @@ import TableFilters, { DEFAULT_ORDER_STATUSES } from './TableFilters';
 import Pagination from './Pagination';
 import StatusSelectModal from '../tasksTable/StatusSelectModal';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
+import { useHorizontalDragScroll } from '../../../hooks/useHorizontalDragScroll';
 
 type SortField = 'order_number' | 'order_name' | 'customer_name' | 'status' | 'due_date' | 'created_at' | 'progress_percent' | 'work_days_left';
 type SortDirection = 'asc' | 'desc';
@@ -25,6 +26,13 @@ export const OrdersTable: React.FC = () => {
 
   // Holidays for work days calculation
   const [holidays, setHolidays] = useState<Set<string>>(new Set());
+
+  // Scroll container ref for drag-to-scroll
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  useHorizontalDragScroll({
+    containerRef: scrollContainerRef,
+    ignoreSelector: 'tr, td, th'
+  });
 
   // Status modal state
   const [statusModal, setStatusModal] = useState<{
@@ -230,7 +238,7 @@ export const OrdersTable: React.FC = () => {
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto px-6 py-4">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto px-6 py-4">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className={PAGE_STYLES.page.text}>Loading orders...</div>

@@ -94,7 +94,8 @@ export const KanbanView: React.FC = () => {
   // Mouse drag-to-scroll (desktop only, disabled during card drag)
   useHorizontalDragScroll({
     containerRef: scrollContainerRef,
-    disabled: isTouchDevice || !!activeId
+    disabled: isTouchDevice || !!activeId,
+    ignoreSelector: '[data-kanban-card]'
   });
 
 

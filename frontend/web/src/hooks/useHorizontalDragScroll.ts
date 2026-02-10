@@ -5,16 +5,18 @@ interface HorizontalDragScrollOptions {
   containerRef: RefObject<HTMLDivElement>;
   /** When true, drag scrolling is disabled (e.g., during dnd-kit drag or on touch devices) */
   disabled?: boolean;
+  /** Additional CSS selector for elements that should NOT trigger drag scroll (e.g., '[data-kanban-card]' or 'tr') */
+  ignoreSelector?: string;
 }
 
 /**
  * Hook to enable mouse drag-to-scroll on a horizontally scrollable container.
  * Click and drag the background to scroll sideways - like grabbing the page.
  *
- * Designed to coexist with dnd-kit: only activates on mousedown targets that
- * are NOT inside a draggable card (elements with [data-kanban-card]).
+ * Designed to coexist with interactive elements: only activates on mousedown
+ * targets that are NOT inside buttons, links, inputs, or the custom ignoreSelector.
  */
-export function useHorizontalDragScroll({ containerRef, disabled = false }: HorizontalDragScrollOptions) {
+export function useHorizontalDragScroll({ containerRef, disabled = false, ignoreSelector }: HorizontalDragScrollOptions) {
   const isDragging = useRef(false);
   const startX = useRef(0);
   const scrollLeft = useRef(0);
@@ -24,9 +26,11 @@ export function useHorizontalDragScroll({ containerRef, disabled = false }: Hori
     const container = containerRef.current;
     if (!container) return;
 
-    // Don't hijack clicks on interactive elements or kanban cards
+    // Don't hijack clicks on interactive elements or custom ignored elements
     const target = e.target as HTMLElement;
-    if (target.closest('[data-kanban-card], button, a, input, select, textarea, [role="button"]')) {
+    const baseIgnore = 'button, a, input, select, textarea, [role="button"]';
+    const selector = ignoreSelector ? `${ignoreSelector}, ${baseIgnore}` : baseIgnore;
+    if (target.closest(selector)) {
       return;
     }
 
@@ -35,7 +39,7 @@ export function useHorizontalDragScroll({ containerRef, disabled = false }: Hori
     scrollLeft.current = container.scrollLeft;
     container.style.cursor = 'grabbing';
     container.style.userSelect = 'none';
-  }, [disabled, containerRef]);
+  }, [disabled, containerRef, ignoreSelector]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging.current) return;
