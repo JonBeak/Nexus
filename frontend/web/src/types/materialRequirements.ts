@@ -505,6 +505,7 @@ export interface DraftPORequirement {
   requirement_id: number;
   archetype_name: string | null;
   custom_product_type: string | null;
+  supplier_product_name: string | null;
   unit: string | null;
   quantity_ordered: number;
   unit_of_measure: string | null;
