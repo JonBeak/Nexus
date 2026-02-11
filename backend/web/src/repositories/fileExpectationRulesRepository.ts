@@ -304,7 +304,7 @@ export class FileExpectationRulesRepository {
 
   async getApplicationValues(): Promise<string[]> {
     const rows = await query(
-      `SELECT DISTINCT option_value FROM specification_options
+      `SELECT option_value FROM specification_options
        WHERE category = 'vinyl_applications' AND is_active = TRUE
        ORDER BY display_order`
     ) as RowDataPacket[];

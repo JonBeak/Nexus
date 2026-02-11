@@ -72,14 +72,18 @@ export const ShoppingCartComponent: React.FC<ShoppingCartProps> = ({
     emailFields: POEmailFields
   ) => {
     try {
-      await supplierOrdersApi.submitDraftPO(
+      const result = await supplierOrdersApi.submitDraftPO(
         supplierId,
         requirementIds,
         deliveryMethod,
         undefined,
         emailFields
       );
-      showNotification('Order submitted & PO email sent to supplier!');
+      if (result.email_sent) {
+        showNotification('Order submitted & PO email sent to supplier!');
+      } else {
+        showNotification(`Order submitted! Email was not sent: ${result.email_message}`, 'error');
+      }
       void loadData();
     } catch (error) {
       console.error('Error submitting order:', error);

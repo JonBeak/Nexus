@@ -103,7 +103,7 @@ export const supplierOrdersApi = {
     deliveryMethod: 'shipping' | 'pickup',
     notes?: string,
     emailFields?: { to: string; cc: string; bcc: string; subject: string; opening?: string; closing?: string }
-  ): Promise<{ order_id: number; order_number: string }> => {
+  ): Promise<{ order_id: number; order_number: string; email_sent: boolean; email_message: string }> => {
     const response = await api.post('/supplier-orders/submit-draft', {
       supplier_id: supplierId,
       requirement_ids: requirementIds,
