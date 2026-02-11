@@ -67,6 +67,8 @@ export interface SupplierProduct {
   supplier_id: number;
   supplier_name?: string;
   archetype_id?: number;
+  unit_of_measure?: string | null;
+  effective_unit_of_measure?: string;
 }
 
 let localIdCounter = 0;
@@ -188,11 +190,16 @@ export const MaterialRequirementsConfirmationModal: React.FC<MaterialRequirement
   const handleVinylProductChange = useCallback((localId: string, productId: number | null) => {
     setRows(prev => prev.map(r => r._localId === localId ? { ...r, vinyl_product_id: productId } : r));
   }, []);
-  // Supplier product selected → auto-assign vendor (ref avoids dep on supplierProducts)
+  // Supplier product selected → auto-assign vendor + apply unit override if supplier product has one
   const handleSupplierProductChange = useCallback((localId: string, productId: number | null) => {
     if (productId === null) { setRows(prev => prev.map(r => r._localId === localId ? { ...r, supplier_product_id: null } : r)); return; }
     const sp = supplierProductsRef.current.find(p => p.supplier_product_id === productId);
-    setRows(prev => prev.map(r => r._localId === localId ? { ...r, supplier_product_id: productId, supplier_id: sp?.supplier_id ?? null } : r));
+    const updates: Partial<MaterialRow> = { supplier_product_id: productId, supplier_id: sp?.supplier_id ?? null };
+    // If the supplier product has a unit override, use it
+    if (sp?.effective_unit_of_measure) {
+      updates.unit = sp.effective_unit_of_measure;
+    }
+    setRows(prev => prev.map(r => r._localId === localId ? { ...r, ...updates } : r));
   }, []);
   // Custom product type text (non-vinyl combobox)
   const handleCustomProductTypeChange = useCallback((localId: string, text: string) => {

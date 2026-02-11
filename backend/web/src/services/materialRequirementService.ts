@@ -532,6 +532,7 @@ export class MaterialRequirementService {
           requirement_id: req.requirement_id,
           archetype_name: req.archetype_name ?? null,
           custom_product_type: req.custom_product_type ?? null,
+          supplier_product_name: req.supplier_product_name ?? null,
           unit: req.unit ?? null,
           quantity_ordered: req.quantity_ordered,
           unit_of_measure: req.unit_of_measure ?? null,

@@ -53,6 +53,21 @@ QB_REDIRECT_URI=https://nexuswebapphome.duckdns.org:3001/api/quickbooks/callback
 QB_ENVIRONMENT=production
 ```
 
+### Gmail (optional — for sending PO/order emails)
+
+Add these to `backend/web/.env` to enable email sending from home. You also need to copy `gmail-service-account.json` from the work server (`/home/jon/Nexus/backend/web/config/`) to `C:\Users\13433\Nexus\backend\web\config\`.
+
+```env
+# Gmail Configuration
+GMAIL_ENABLED=true
+GMAIL_SENDER_EMAIL=info@signhouse.ca
+GMAIL_SENDER_NAME=Sign House
+GMAIL_BCC_EMAIL=info@signhouse.ca
+GMAIL_SERVICE_ACCOUNT_PATH=config/gmail-service-account.json
+```
+
+Without these, PO emails will log to console but not actually send. The frontend will show a warning that the email was not sent.
+
 ### Frontend (`frontend/web/.env.development`)
 
 ```env
@@ -190,3 +205,7 @@ The following files have conditional logic for home environment:
 ### `frontend/web/vite.config.ts`
 - Disables proxy when `VITE_API_URL` is set
 - Allows direct HTTPS connections to home backend
+
+### `backend/web/src/services/gmailAuthService.ts` & `driveService.ts`
+- Check `GMAIL_SERVICE_ACCOUNT_PATH` env var before DB lookup
+- Uses `.env` path if set, encrypted database path otherwise

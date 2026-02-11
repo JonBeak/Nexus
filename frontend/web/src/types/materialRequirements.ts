@@ -22,12 +22,14 @@ export type DeliveryMethod = 'pickup' | 'shipping';
  * Computed status based on requirement fields (not stored in DB)
  */
 export type ComputedRequirementStatus =
-  | 'pending'       // ordered_date null AND supplier_id != -1 (In Stock)
-  | 'ordered_pickup'    // ordered_date set AND delivery_method = 'pickup'
-  | 'ordered_shipping'  // ordered_date set AND delivery_method = 'shipping'
-  | 'to_be_picked'      // supplier_id = -1 (In Stock) AND status != 'received'
-  | 'fulfilled'         // status = 'received'
-  | 'cancelled';        // status = 'cancelled'
+  | 'pending'            // ordered_date null AND supplier_id != -1 (In Stock)
+  | 'ordered_pickup'     // ordered_date set AND delivery_method = 'pickup'
+  | 'ordered_shipping'   // ordered_date set AND delivery_method = 'shipping'
+  | 'to_be_picked'       // supplier_id = -1 (In Stock) AND status != 'received'
+  | 'backordered'        // status = 'backordered'
+  | 'partial_received'   // status = 'partial_received'
+  | 'fulfilled'          // status = 'received'
+  | 'cancelled';         // status = 'cancelled'
 
 /**
  * Receiving status options for dropdown
@@ -269,6 +271,7 @@ export interface OrderDropdownOption {
 
 export interface MaterialRequirementFilters {
   status: MaterialRequirementStatus[];
+  computedStatus: ComputedRequirementStatus[];
   isStockItem: boolean | 'all';
   supplierId: number | null;
   search: string;
@@ -505,6 +508,7 @@ export interface DraftPORequirement {
   requirement_id: number;
   archetype_name: string | null;
   custom_product_type: string | null;
+  supplier_product_name: string | null;
   unit: string | null;
   quantity_ordered: number;
   unit_of_measure: string | null;

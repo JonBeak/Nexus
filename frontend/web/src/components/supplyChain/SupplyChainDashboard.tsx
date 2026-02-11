@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { HomeButton } from '../common/HomeButton';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import api from '../../services/api';
 
 // Dashboard stats for supply chain overview
@@ -31,9 +31,25 @@ interface SupplyChainDashboardProps {
 
 type TabType = 'overview' | 'all-orders' | 'shopping-cart' | 'vinyl-inventory' | 'inventory' | 'suppliers' | 'supplier-products-orders' | 'product-types' | 'low-stock';
 
+// Map URL paths to tab IDs
+const pathToTab: Record<string, TabType> = {
+  '/supply-chain': 'overview',
+  '/supply-chain/all-orders': 'all-orders',
+  '/supply-chain/shopping-cart': 'shopping-cart',
+  '/supply-chain/vinyl-inventory': 'vinyl-inventory',
+  '/supply-chain/inventory': 'inventory',
+  '/supply-chain/suppliers': 'suppliers',
+  '/supply-chain/supplier-products-orders': 'supplier-products-orders',
+  '/supply-chain/product-types': 'product-types',
+  '/supply-chain/low-stock': 'low-stock',
+};
+
 export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user }) => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const location = useLocation();
+
+  // Determine active tab from URL
+  const activeTab: TabType = pathToTab[location.pathname] || 'overview';
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -143,16 +159,16 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
     );
   }
 
-  const tabs: { key: TabType; label: string; spacerBefore?: boolean }[] = [
-    { key: 'overview', label: 'Overview' },
-    { key: 'all-orders', label: 'All Requirements' },
-    { key: 'shopping-cart', label: 'Shopping Cart' },
-    { key: 'vinyl-inventory', label: 'Vinyl Inventory', spacerBefore: true },
-    { key: 'inventory', label: 'Inventory' },
-    { key: 'suppliers', label: 'Suppliers' },
-    { key: 'supplier-products-orders', label: 'Supplier Products & Orders' },
-    { key: 'product-types', label: 'Product Types' },
-    { key: 'low-stock', label: `Low Stock (${(stats?.critical_items || 0) + (stats?.low_items || 0)})` },
+  const tabs: { key: TabType; label: string; path: string; spacerBefore?: boolean }[] = [
+    { key: 'overview', label: 'Overview', path: '/supply-chain' },
+    { key: 'all-orders', label: 'All Requirements', path: '/supply-chain/all-orders' },
+    { key: 'shopping-cart', label: 'Shopping Cart', path: '/supply-chain/shopping-cart' },
+    { key: 'vinyl-inventory', label: 'Vinyl Inventory', path: '/supply-chain/vinyl-inventory', spacerBefore: true },
+    { key: 'inventory', label: 'Inventory', path: '/supply-chain/inventory' },
+    { key: 'suppliers', label: 'Suppliers', path: '/supply-chain/suppliers' },
+    { key: 'supplier-products-orders', label: 'Supplier Products & Orders', path: '/supply-chain/supplier-products-orders' },
+    { key: 'product-types', label: 'Product Types', path: '/supply-chain/product-types' },
+    { key: 'low-stock', label: `Low Stock (${(stats?.critical_items || 0) + (stats?.low_items || 0)})`, path: '/supply-chain/low-stock' },
   ];
 
   return (
@@ -173,16 +189,16 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
               {tabs.map((tab) => (
                 <React.Fragment key={tab.key}>
                   {tab.spacerBefore && <div className="flex-1"></div>}
-                  <button
-                    onClick={() => setActiveTab(tab.key)}
+                  <Link
+                    to={tab.path}
                     className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
                       activeTab === tab.key
                         ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
-                        : 'border-transparent ${PAGE_STYLES.panel.textMuted}'
+                        : `border-transparent ${PAGE_STYLES.panel.textMuted}`
                     }`}
                   >
                     {tab.label}
-                  </button>
+                  </Link>
                 </React.Fragment>
               ))}
             </nav>

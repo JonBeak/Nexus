@@ -373,7 +373,7 @@ export class SupplierOrderService {
     userId?: number,
     notes?: string,
     emailOverrides?: { to?: string; cc?: string; bcc?: string; subject?: string; opening?: string; closing?: string }
-  ): Promise<ServiceResult<{ order_id: number; order_number: string }>> {
+  ): Promise<ServiceResult<{ order_id: number; order_number: string; email_sent: boolean; email_message: string }>> {
     try {
       if (!supplierId || supplierId <= 0) {
         return { success: false, error: 'Valid supplier ID is required', code: 'VALIDATION_ERROR' };
@@ -382,13 +382,10 @@ export class SupplierOrderService {
         return { success: false, error: 'At least one requirement must be selected', code: 'VALIDATION_ERROR' };
       }
 
-      // Fetch the MRs
-      const allReqs = await this.materialRequirementRepository.findAll({
-        status: ['pending'],
-      });
-      const selectedReqs = allReqs.filter(
+      // Fetch eligible MRs using the same criteria as the Draft PO display query
+      const eligibleReqs = await this.materialRequirementRepository.findForDraftPO(supplierId);
+      const selectedReqs = eligibleReqs.filter(
         r => requirementIds.includes(r.requirement_id)
-        // TODO: re-enable supplier check: && r.supplier_id === supplierId
       );
 
       if (selectedReqs.length === 0) {
@@ -421,22 +418,28 @@ export class SupplierOrderService {
         requirementIds, today, deliveryMethod, orderId, userId
       );
 
-      // Send PO email (non-blocking)
+      // Send PO email (non-blocking — don't fail the submission)
+      let emailSent = false;
+      let emailMessage = 'Email not attempted';
       try {
         const { sendPurchaseOrderEmail } = await import('./supplierOrderEmailService');
         const emailResult = await sendPurchaseOrderEmail(orderId, emailOverrides);
         if (emailResult.success) {
           await this.repository.updateEmailSentAt(orderId);
+          emailSent = true;
+          emailMessage = 'Email sent to supplier';
         } else {
-          console.warn(`⚠️ PO email not sent for order ${orderId}: ${emailResult.reason || emailResult.error}`);
+          emailMessage = emailResult.reason || emailResult.error || 'Email not sent';
+          console.warn(`⚠️ PO email not sent for order ${orderId}: ${emailMessage}`);
         }
       } catch (emailError) {
+        emailMessage = emailError instanceof Error ? emailError.message : 'Email send failed';
         console.error(`❌ PO email error for order ${orderId}:`, emailError);
       }
 
       return {
         success: true,
-        data: { order_id: orderId, order_number: orderNumber },
+        data: { order_id: orderId, order_number: orderNumber, email_sent: emailSent, email_message: emailMessage },
       };
     } catch (error) {
       console.error('Error in SupplierOrderService.submitDraftPO:', error);

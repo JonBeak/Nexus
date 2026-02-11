@@ -58,12 +58,18 @@ export class GmailAuthError extends Error {
  */
 async function loadServiceAccountCredentials(): Promise<ServiceAccountCredentials> {
   try {
-    // Get service account file path from encrypted storage
-    const serviceAccountPath = await credentialService.getCredential('gmail', 'service_account_path');
+    // Check for env var override (home environment — same pattern as USE_ENV_QB_CREDENTIALS)
+    const envPath = process.env.GMAIL_SERVICE_ACCOUNT_PATH;
+    let serviceAccountPath: string | null = envPath || null;
+
+    if (!envPath) {
+      // Fall through to existing encrypted DB lookup
+      serviceAccountPath = await credentialService.getCredential('gmail', 'service_account_path');
+    }
 
     if (!serviceAccountPath) {
       throw new GmailAuthError(
-        'Gmail service account path not configured. Run: npm run setup:gmail-credentials'
+        'Gmail service account path not configured. Set GMAIL_SERVICE_ACCOUNT_PATH in .env or run: npm run setup:gmail-credentials'
       );
     }
 

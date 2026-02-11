@@ -109,6 +109,30 @@ function AppContent() {
         <Route path="/supply-chain" element={
           isManager ? <SupplyChainDashboard user={user!} /> : <Navigate to="/dashboard" />
         } />
+        <Route path="/supply-chain/all-orders" element={
+          isManager ? <SupplyChainDashboard user={user!} /> : <Navigate to="/dashboard" />
+        } />
+        <Route path="/supply-chain/shopping-cart" element={
+          isManager ? <SupplyChainDashboard user={user!} /> : <Navigate to="/dashboard" />
+        } />
+        <Route path="/supply-chain/vinyl-inventory" element={
+          isManager ? <SupplyChainDashboard user={user!} /> : <Navigate to="/dashboard" />
+        } />
+        <Route path="/supply-chain/inventory" element={
+          isManager ? <SupplyChainDashboard user={user!} /> : <Navigate to="/dashboard" />
+        } />
+        <Route path="/supply-chain/suppliers" element={
+          isManager ? <SupplyChainDashboard user={user!} /> : <Navigate to="/dashboard" />
+        } />
+        <Route path="/supply-chain/supplier-products-orders" element={
+          isManager ? <SupplyChainDashboard user={user!} /> : <Navigate to="/dashboard" />
+        } />
+        <Route path="/supply-chain/product-types" element={
+          isManager ? <SupplyChainDashboard user={user!} /> : <Navigate to="/dashboard" />
+        } />
+        <Route path="/supply-chain/low-stock" element={
+          isManager ? <SupplyChainDashboard user={user!} /> : <Navigate to="/dashboard" />
+        } />
 
         {/* Estimate Editor - singular /estimate/:estimateId */}
         <Route path="/estimate/:estimateId" element={

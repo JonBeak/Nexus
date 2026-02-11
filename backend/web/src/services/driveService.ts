@@ -136,11 +136,18 @@ let cachedFolderId: string | null = null;
  */
 async function loadServiceAccountCredentials(): Promise<ServiceAccountCredentials> {
   try {
-    const serviceAccountPath = await credentialService.getCredential('gmail', 'service_account_path');
+    // Check for env var override (home environment — same pattern as USE_ENV_QB_CREDENTIALS)
+    const envPath = process.env.GMAIL_SERVICE_ACCOUNT_PATH;
+    let serviceAccountPath: string | null = envPath || null;
+
+    if (!envPath) {
+      // Fall through to existing encrypted DB lookup
+      serviceAccountPath = await credentialService.getCredential('gmail', 'service_account_path');
+    }
 
     if (!serviceAccountPath) {
       throw new DriveServiceError(
-        'Service account path not configured. Run: npm run setup:gmail-credentials'
+        'Service account path not configured. Set GMAIL_SERVICE_ACCOUNT_PATH in .env or run: npm run setup:gmail-credentials'
       );
     }
 

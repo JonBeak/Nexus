@@ -20,6 +20,7 @@ export interface SupplierProduct {
   product_name: string | null;
   min_order_quantity: number | null;
   lead_time_days: number | null;
+  unit_of_measure: string | null;
   specifications: Record<string, any> | null;
   notes: string | null;
   is_active: boolean;
@@ -42,6 +43,7 @@ export interface SupplierProduct {
   created_by_name?: string;
   updated_by_name?: string;
   effective_lead_time?: number;
+  effective_unit_of_measure?: string;
   current_price?: number | null;
   cost_currency?: string;
   price_effective_date?: Date | null;
@@ -102,6 +104,7 @@ export interface CreateSupplierProductRequest {
   product_name?: string;
   min_order_quantity?: number;
   lead_time_days?: number;
+  unit_of_measure?: string;
   specifications?: Record<string, any>;
   notes?: string;
   is_preferred?: boolean;
@@ -122,6 +125,7 @@ export interface UpdateSupplierProductRequest {
   product_name?: string;
   min_order_quantity?: number;
   lead_time_days?: number;
+  unit_of_measure?: string | null;
   specifications?: Record<string, any>;
   notes?: string;
   is_preferred?: boolean;
@@ -342,6 +346,7 @@ export type SupplierProductData = Omit<
   | 'created_by_name'
   | 'updated_by_name'
   | 'effective_lead_time'
+  | 'effective_unit_of_measure'
   | 'current_price'
   | 'cost_currency'
   | 'price_effective_date'

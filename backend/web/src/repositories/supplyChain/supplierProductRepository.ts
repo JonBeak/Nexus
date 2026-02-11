@@ -14,6 +14,7 @@ export interface SupplierProductRow extends RowDataPacket {
   product_name: string | null;
   min_order_quantity: number | null;
   lead_time_days: number | null;
+  unit_of_measure: string | null;
   specifications: Record<string, any> | null;
   notes: string | null;
   is_active: boolean;
@@ -37,6 +38,7 @@ export interface SupplierProductRow extends RowDataPacket {
   cost_currency?: string;
   price_effective_date?: Date | null;
   effective_lead_time?: number;
+  effective_unit_of_measure?: string;
 }
 
 export interface PriceRangeRow extends RowDataPacket {
@@ -65,6 +67,7 @@ export class SupplierProductRepository {
         pa.name as archetype_name,
         mc.name as archetype_category,
         pa.unit_of_measure as archetype_unit_of_measure,
+        COALESCE(sp.unit_of_measure, pa.unit_of_measure) as effective_unit_of_measure,
         s.name as supplier_name,
         s.default_lead_days as supplier_default_lead_days,
         COALESCE(sp.lead_time_days, s.default_lead_days) as effective_lead_time,
@@ -168,6 +171,7 @@ export class SupplierProductRepository {
     product_name?: string | null;
     min_order_quantity?: number | null;
     lead_time_days?: number | null;
+    unit_of_measure?: string | null;
     specifications?: Record<string, any> | null;
     notes?: string | null;
     is_preferred?: boolean;
@@ -175,8 +179,8 @@ export class SupplierProductRepository {
   }): Promise<number> {
     const sql = `
       INSERT INTO supplier_products
-      (archetype_id, supplier_id, brand_name, sku, product_name, min_order_quantity, lead_time_days, specifications, notes, is_preferred, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (archetype_id, supplier_id, brand_name, sku, product_name, min_order_quantity, lead_time_days, unit_of_measure, specifications, notes, is_preferred, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const result = await query(sql, [
@@ -187,6 +191,7 @@ export class SupplierProductRepository {
       data.product_name || null,
       data.min_order_quantity || null,
       data.lead_time_days || null,
+      data.unit_of_measure || null,
       data.specifications ? JSON.stringify(data.specifications) : null,
       data.notes || null,
       data.is_preferred ? 1 : 0,
@@ -206,6 +211,7 @@ export class SupplierProductRepository {
     product_name?: string | null;
     min_order_quantity?: number | null;
     lead_time_days?: number | null;
+    unit_of_measure?: string | null;
     specifications?: Record<string, any> | null;
     notes?: string | null;
     is_active?: boolean;
@@ -238,6 +244,10 @@ export class SupplierProductRepository {
     if (updates.lead_time_days !== undefined) {
       setClauses.push('lead_time_days = ?');
       values.push(updates.lead_time_days);
+    }
+    if (updates.unit_of_measure !== undefined) {
+      setClauses.push('unit_of_measure = ?');
+      values.push(updates.unit_of_measure);
     }
     if (updates.specifications !== undefined) {
       setClauses.push('specifications = ?');

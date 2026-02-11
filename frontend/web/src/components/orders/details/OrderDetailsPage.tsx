@@ -990,7 +990,11 @@ export const OrderDetailsPage: React.FC = () => {
                       </span>
                     </div>
                     {/* Shipping */}
-                    <div className="flex justify-between items-center py-1 px-1">
+                    <div className={`flex justify-between items-center py-1 px-1 rounded ${
+                      orderData.order.shipping_required
+                        ? 'bg-yellow-50'
+                        : 'bg-blue-50'
+                    }`}>
                       <span className={`${PAGE_STYLES.panel.textMuted} text-xs`}>Shipping Method</span>
                       <EditableField
                         field="shipping_required"

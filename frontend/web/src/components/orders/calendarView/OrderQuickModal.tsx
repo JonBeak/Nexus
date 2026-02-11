@@ -1060,8 +1060,8 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                   <h2 className={`text-lg font-bold ${PAGE_STYLES.panel.text}`}>{order.order_name}</h2>
                   <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
                     orderDetails?.shipping_required
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'bg-yellow-100 text-yellow-700'
+                      ? 'bg-yellow-100 text-yellow-700'
+                      : 'bg-blue-100 text-blue-700'
                   }`}>
                     {orderDetails?.shipping_required ? 'Shipping' : 'Pick Up'}
                   </span>

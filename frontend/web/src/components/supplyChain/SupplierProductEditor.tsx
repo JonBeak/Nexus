@@ -9,6 +9,8 @@ import { SpecificationEditor } from './SpecificationEditor';
 import { apiClient } from '../../services/api';
 import { getTodayString } from '../../utils/dateUtils';
 
+const UNIT_OPTIONS = ['each', 'linear_ft', 'sq_ft', 'sheet', 'roll', 'gallon', 'lb', 'oz', 'box', 'pack', 'bag'];
+
 export interface SupplierProductEditorProps {
   archetypeId: number;
   product?: SupplierProduct | null;
@@ -33,6 +35,7 @@ export const SupplierProductEditor: React.FC<SupplierProductEditorProps> = ({
     product_name: '',
     min_order_quantity: '',
     lead_time_days: '',
+    unit_of_measure: '',  // Empty = use archetype default
     notes: '',
     is_preferred: false,
     specifications: {} as Record<string, any>,
@@ -49,6 +52,7 @@ export const SupplierProductEditor: React.FC<SupplierProductEditorProps> = ({
   ]);
 
   const [archetypeTemplate, setArchetypeTemplate] = useState<string[] | null>(null);
+  const [archetypeUnit, setArchetypeUnit] = useState<string>('each');
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Refs for backdrop click handling
@@ -65,6 +69,7 @@ export const SupplierProductEditor: React.FC<SupplierProductEditorProps> = ({
         product_name: product.product_name || '',
         min_order_quantity: product.min_order_quantity?.toString() || '',
         lead_time_days: product.lead_time_days?.toString() || '',
+        unit_of_measure: product.unit_of_measure || '',
         notes: product.notes || '',
         is_preferred: product.is_preferred,
         specifications: product.specifications || {},
@@ -75,6 +80,11 @@ export const SupplierProductEditor: React.FC<SupplierProductEditorProps> = ({
           notes: ''
         }
       });
+
+      // Set archetype default unit from joined field
+      if (product.archetype_unit_of_measure) {
+        setArchetypeUnit(product.archetype_unit_of_measure);
+      }
 
       // Load specs into rows
       if (product.specifications) {
@@ -90,6 +100,9 @@ export const SupplierProductEditor: React.FC<SupplierProductEditorProps> = ({
         try {
           const response = await apiClient.get(`/product-types/${archetypeId}`);
           // Note: apiClient interceptor unwraps {success, data} so response.data is the archetype directly
+          if (response.data?.unit_of_measure) {
+            setArchetypeUnit(response.data.unit_of_measure);
+          }
           if (response.data && response.data.specifications) {
             // Extract keys from specifications object to use as template
             const specs = response.data.specifications;
@@ -187,6 +200,7 @@ export const SupplierProductEditor: React.FC<SupplierProductEditorProps> = ({
         lead_time_days: formData.lead_time_days
           ? parseInt(formData.lead_time_days)
           : undefined,
+        unit_of_measure: formData.unit_of_measure || null,
         notes: formData.notes || undefined,
         is_preferred: formData.is_preferred,
         specifications: Object.keys(rowsToSpecs(specRows)).length > 0
@@ -304,7 +318,7 @@ export const SupplierProductEditor: React.FC<SupplierProductEditorProps> = ({
               </div>
             </div>
 
-            {/* SKU */}
+            {/* SKU & Unit Override */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -320,6 +334,23 @@ export const SupplierProductEditor: React.FC<SupplierProductEditorProps> = ({
                   disabled={loading}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-100"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Unit Override
+                  <span className="text-xs text-gray-400 ml-1">(default: {archetypeUnit})</span>
+                </label>
+                <select
+                  value={formData.unit_of_measure}
+                  onChange={(e) =>
+                    setFormData({ ...formData, unit_of_measure: e.target.value })
+                  }
+                  disabled={loading}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-100"
+                >
+                  <option value="">Use product type default ({archetypeUnit})</option>
+                  {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
               </div>
             </div>
 
