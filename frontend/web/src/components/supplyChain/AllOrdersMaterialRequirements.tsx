@@ -232,8 +232,8 @@ const getRowBgClass = (status: ComputedRequirementStatus): string => {
     case 'ordered_pickup': return 'bg-blue-400';
     case 'ordered_shipping': return 'bg-yellow-400';
     case 'to_be_picked': return 'bg-purple-400';
-    case 'backordered': return 'bg-orange-400';
-    case 'partial_received': return 'bg-amber-400';
+    case 'backordered': return '';
+    case 'partial_received': return '';
     case 'fulfilled': return 'bg-green-400';
     case 'cancelled': return 'bg-red-400';
     default: return '';
