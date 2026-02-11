@@ -353,8 +353,9 @@ export async function sendPurchaseOrderEmail(
   const settings = await loadCompanySettings();
   const companyName = settings.company_name || 'Sign House';
 
-  // Build email content
-  const subject = overrides?.subject?.trim() || `Purchase Order ${order.order_number} — ${companyName}`;
+  // Build email content — replace {PO#} variable with actual generated PO number
+  const rawSubject = overrides?.subject?.trim() || `Purchase Order ${order.order_number} — ${companyName}`;
+  const subject = rawSubject.replace(/\{PO#\}/g, order.order_number);
   const html = buildHtmlBody(order, order.items || [], settings, overrides?.opening, overrides?.closing);
   const text = buildPlainText(order, order.items || [], settings, overrides?.opening, overrides?.closing);
 
