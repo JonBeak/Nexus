@@ -245,16 +245,11 @@ export function formatSpecValues(
     }
 
     case '3DP Return': {
-      // Format: depth - face_material (e.g., "1.5" - 4.5mm Acrylic")
-      // With painting: adds " Painted {colour}" suffix
+      // Format: depth colour (e.g., "1.5" Translucent White")
+      // With painting: adds " - Painted {colour}" suffix
       const tdpDepth = specs.depth || '';
-      const tdpFaceMaterial = specs.face_material || '';
-      let tdpResult: string;
-      if (tdpDepth && tdpFaceMaterial) {
-        tdpResult = `${tdpDepth} - ${tdpFaceMaterial}`;
-      } else {
-        tdpResult = [tdpDepth, tdpFaceMaterial].filter(v => v).join(' ');
-      }
+      const tdpColour = getColourValue(specs);
+      let tdpResult = [tdpDepth, tdpColour].filter(v => v).join(' ');
       if (transformContext?.paintingColour && tdpResult) {
         tdpResult += ` - Painted ${transformContext.paintingColour}`;
       }
