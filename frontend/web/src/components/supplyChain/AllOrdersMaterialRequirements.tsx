@@ -65,25 +65,33 @@ const ALL_STATUSES: MaterialRequirementStatus[] = [
   'pending', 'ordered', 'backordered', 'partial_received', 'received', 'cancelled',
 ];
 
-/** Default: everything except received/cancelled */
-const DEFAULT_ACTIVE_STATUSES: MaterialRequirementStatus[] = [
-  'pending', 'ordered', 'backordered', 'partial_received',
+const ALL_COMPUTED_STATUSES: ComputedRequirementStatus[] = [
+  'pending', 'ordered_pickup', 'ordered_shipping', 'to_be_picked',
+  'backordered', 'partial_received', 'fulfilled', 'cancelled',
 ];
 
-const STATUS_TOGGLES: {
-  value: MaterialRequirementStatus;
+/** Default: everything except fulfilled/cancelled */
+const DEFAULT_ACTIVE_COMPUTED_STATUSES: ComputedRequirementStatus[] = [
+  'pending', 'ordered_pickup', 'ordered_shipping', 'to_be_picked',
+  'backordered', 'partial_received',
+];
+
+const COMPUTED_STATUS_TOGGLES: {
+  value: ComputedRequirementStatus;
   label: string;
   icon: React.FC<{ className?: string }>;
   activeBg: string;
   activeBorder: string;
   activeText: string;
 }[] = [
-  { value: 'pending',          label: 'Pending',      icon: Clock,        activeBg: 'bg-gray-300',   activeBorder: 'border-gray-700',  activeText: 'text-gray-700' },
-  { value: 'ordered',          label: 'Ordered',      icon: ShoppingCart,  activeBg: 'bg-blue-200',   activeBorder: 'border-blue-900',  activeText: 'text-blue-900' },
-  { value: 'backordered',      label: 'Backordered',  icon: Package,       activeBg: 'bg-orange-200', activeBorder: 'border-orange-800', activeText: 'text-orange-800' },
-  { value: 'partial_received', label: 'Partial',      icon: RefreshCw,     activeBg: 'bg-amber-200',  activeBorder: 'border-amber-800', activeText: 'text-amber-800' },
-  { value: 'received',         label: 'Received',     icon: CheckCircle,   activeBg: 'bg-green-200',  activeBorder: 'border-green-900', activeText: 'text-green-900' },
-  { value: 'cancelled',        label: 'Cancelled',    icon: XCircle,       activeBg: 'bg-red-200',    activeBorder: 'border-red-900',   activeText: 'text-red-900' },
+  { value: 'pending',           label: 'Pending',      icon: Clock,        activeBg: 'bg-gray-300',   activeBorder: 'border-gray-700',   activeText: 'text-gray-700' },
+  { value: 'ordered_pickup',    label: 'Pickup',       icon: ShoppingCart,  activeBg: 'bg-blue-200',   activeBorder: 'border-blue-900',   activeText: 'text-blue-900' },
+  { value: 'ordered_shipping',  label: 'Shipping',     icon: Truck,         activeBg: 'bg-yellow-200', activeBorder: 'border-yellow-900', activeText: 'text-yellow-900' },
+  { value: 'to_be_picked',      label: 'To Pick',      icon: HandMetal,     activeBg: 'bg-purple-200', activeBorder: 'border-purple-900', activeText: 'text-purple-900' },
+  { value: 'backordered',       label: 'Backordered',  icon: Package,       activeBg: 'bg-orange-200', activeBorder: 'border-orange-800', activeText: 'text-orange-800' },
+  { value: 'partial_received',  label: 'Partial',      icon: RefreshCw,     activeBg: 'bg-amber-200',  activeBorder: 'border-amber-800',  activeText: 'text-amber-800' },
+  { value: 'fulfilled',         label: 'Fulfilled',    icon: CheckCircle,   activeBg: 'bg-green-200',  activeBorder: 'border-green-900',  activeText: 'text-green-900' },
+  { value: 'cancelled',         label: 'Cancelled',    icon: XCircle,       activeBg: 'bg-red-200',    activeBorder: 'border-red-900',    activeText: 'text-red-900' },
 ];
 
 const DELIVERY_OPTIONS = [
@@ -128,12 +136,12 @@ const computeAutoStatus = (req: MaterialRequirement): ComputedRequirementStatus 
 
   // Backordered
   if (req.status === 'backordered') {
-    return 'pending'; // Could add 'backordered' badge if needed
+    return 'backordered';
   }
 
   // Partial received
   if (req.status === 'partial_received') {
-    return 'pending'; // Could add 'partial' badge if needed
+    return 'partial_received';
   }
 
   // Not received yet (pending/ordered status) - check ordered_date and supplier
@@ -184,6 +192,20 @@ const getAutoStatusBadge = (status: ComputedRequirementStatus) => {
           To Pick
         </span>
       );
+    case 'backordered':
+      return (
+        <span className="px-1.5 py-1 text-[11px] font-medium rounded-full justify-center bg-orange-200 text-orange-800 border border-orange-800 flex items-center gap-1 whitespace-nowrap">
+          <Package className="w-3 h-3" />
+          Backordered
+        </span>
+      );
+    case 'partial_received':
+      return (
+        <span className="px-1.5 py-1 text-[11px] font-medium rounded-full justify-center bg-amber-200 text-amber-800 border border-amber-800 flex items-center gap-1 whitespace-nowrap">
+          <RefreshCw className="w-3 h-3" />
+          Partial
+        </span>
+      );
     case 'fulfilled':
       return (
         <span className="px-1.5 py-1 text-[11px] font-medium rounded-full justify-center bg-green-200 text-green-900 border border-green-900 flex items-center gap-1 whitespace-nowrap">
@@ -210,6 +232,8 @@ const getRowBgClass = (status: ComputedRequirementStatus): string => {
     case 'ordered_pickup': return 'bg-blue-400';
     case 'ordered_shipping': return 'bg-yellow-400';
     case 'to_be_picked': return 'bg-purple-400';
+    case 'backordered': return 'bg-orange-400';
+    case 'partial_received': return 'bg-amber-400';
     case 'fulfilled': return 'bg-green-400';
     case 'cancelled': return 'bg-red-400';
     default: return '';
@@ -224,7 +248,8 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
   const [requirements, setRequirements] = useState<MaterialRequirement[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<MaterialRequirementFilters>({
-    status: [...DEFAULT_ACTIVE_STATUSES],
+    status: [...ALL_STATUSES], // Fetch all from API; filtering is done client-side by computedStatus
+    computedStatus: [...DEFAULT_ACTIVE_COMPUTED_STATUSES],
     isStockItem: 'all',
     supplierId: null,
     search: '',
@@ -232,16 +257,11 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
   });
   const [showFilters, setShowFilters] = useState(false);
 
-  // Client-side filter: hide received/cancelled rows older than 14 days
-  // Bypass auto-hide when user explicitly toggles received or cancelled ON
+  // Client-side filter by computed status toggles
+  // Also hide fulfilled/cancelled rows older than 14 days unless explicitly toggled on
   const { visibleRequirements, hiddenCompletedCount } = useMemo(() => {
-    const hasReceived = filters.status.includes('received');
-    const hasCancelled = filters.status.includes('cancelled');
-
-    // If user toggled both received AND cancelled on, skip auto-hide entirely
-    if (hasReceived && hasCancelled) {
-      return { visibleRequirements: requirements, hiddenCompletedCount: 0 };
-    }
+    const hasFulfilled = filters.computedStatus.includes('fulfilled');
+    const hasCancelled = filters.computedStatus.includes('cancelled');
 
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 14);
@@ -249,28 +269,35 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
 
     let hiddenCount = 0;
     const visible = requirements.filter((req) => {
-      // Don't auto-hide statuses the user explicitly toggled on
-      if (req.status === 'received' && hasReceived) return true;
-      if (req.status === 'cancelled' && hasCancelled) return true;
+      const autoStatus = computeAutoStatus(req);
 
-      if (req.status !== 'received' && req.status !== 'cancelled') return true;
-
-      const dateStr = req.received_date || req.updated_at;
-      if (!dateStr) return true;
-
-      const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (!match) return true;
-
-      const rowDate = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-      if (rowDate.getTime() <= cutoffTime) {
-        hiddenCount++;
+      // Filter by computed status toggles
+      if (!filters.computedStatus.includes(autoStatus)) {
         return false;
       }
+
+      // Auto-hide old fulfilled/cancelled unless explicitly toggled on alongside the other
+      if (hasFulfilled && hasCancelled) return true;
+
+      if (autoStatus === 'fulfilled' || autoStatus === 'cancelled') {
+        const dateStr = req.received_date || req.updated_at;
+        if (!dateStr) return true;
+
+        const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!match) return true;
+
+        const rowDate = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+        if (rowDate.getTime() <= cutoffTime) {
+          hiddenCount++;
+          return false;
+        }
+      }
+
       return true;
     });
 
     return { visibleRequirements: visible, hiddenCompletedCount: hiddenCount };
-  }, [requirements, filters.status]);
+  }, [requirements, filters.computedStatus]);
 
 
   // Orders for dropdown
@@ -301,11 +328,7 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
       setLoading(true);
       const params: any = {};
 
-      // Send multi-status filter: all selected or none selected = fetch all
-      const allSelected = filters.status.length === ALL_STATUSES.length || filters.status.length === 0;
-      if (!allSelected) {
-        params.status = filters.status.join(',');
-      }
+      // Always fetch all statuses from API — filtering is done client-side by computed status
       if (filters.isStockItem !== 'all') {
         params.is_stock_item = filters.isStockItem;
       }
@@ -330,7 +353,9 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
     } finally {
       setLoading(false);
     }
-  }, [filters, showNotification]);
+  // Only re-fetch when API-relevant filters change (not computedStatus which is client-side)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.isStockItem, filters.supplierId, filters.search, filters.dateRange.from, filters.dateRange.to, showNotification]);
 
   useEffect(() => {
     void loadRequirements();
@@ -749,18 +774,41 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
 
       {/* Status Toggle Pills */}
       <div className={`px-4 py-2 ${PAGE_STYLES.panel.border} border-b ${PAGE_STYLES.header.background} flex items-center gap-1.5 flex-wrap`}>
-        {STATUS_TOGGLES.map((toggle) => {
+        {/* Select All / Deselect All */}
+        <button
+          onClick={() => {
+            const allSelected = filters.computedStatus.length === ALL_COMPUTED_STATUSES.length;
+            setFilters(prev => ({
+              ...prev,
+              computedStatus: allSelected ? [] : [...ALL_COMPUTED_STATUSES],
+            }));
+          }}
+          className={`px-2 py-1 text-[11px] font-medium rounded-full border flex items-center gap-1 whitespace-nowrap transition-all ${
+            filters.computedStatus.length === ALL_COMPUTED_STATUSES.length
+              ? 'bg-white text-gray-800 border-gray-400'
+              : filters.computedStatus.length === 0
+                ? 'bg-gray-700 text-gray-400 border-gray-600 hover:bg-gray-600'
+                : 'bg-gray-500 text-gray-200 border-gray-400 hover:bg-gray-400'
+          }`}
+          title={filters.computedStatus.length === ALL_COMPUTED_STATUSES.length ? 'Deselect All' : 'Select All'}
+        >
+          {filters.computedStatus.length === ALL_COMPUTED_STATUSES.length ? 'Deselect All' : 'Select All'}
+        </button>
+
+        <span className="w-px h-5 bg-gray-600" />
+
+        {COMPUTED_STATUS_TOGGLES.map((toggle) => {
           const Icon = toggle.icon;
-          const isActive = filters.status.includes(toggle.value);
+          const isActive = filters.computedStatus.includes(toggle.value);
           return (
             <button
               key={toggle.value}
               onClick={() => {
                 setFilters(prev => ({
                   ...prev,
-                  status: isActive
-                    ? prev.status.filter(s => s !== toggle.value)
-                    : [...prev.status, toggle.value],
+                  computedStatus: isActive
+                    ? prev.computedStatus.filter(s => s !== toggle.value)
+                    : [...prev.computedStatus, toggle.value],
                 }));
               }}
               className={`px-2 py-1 text-[11px] font-medium rounded-full border flex items-center gap-1 whitespace-nowrap transition-all ${
