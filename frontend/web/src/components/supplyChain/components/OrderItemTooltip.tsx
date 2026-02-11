@@ -1,6 +1,6 @@
 /**
  * Order Item Tooltip — Portal-rendered tooltip for DraftPO order items
- * Shows material requirement details on hover: order name, stock status, notes.
+ * Shows material requirement details on hover: order name, customer, notes.
  * For consolidated lines, shows all underlying material requirements.
  * Created: 2026-02-11
  */
@@ -30,9 +30,7 @@ function formatTooltipItem(req: DraftPORequirement): {
   const qty = `${req.quantity_ordered} ${unit}`;
 
   let label: string;
-  if (req.is_stock_item) {
-    label = `${qty} — Stock`;
-  } else if (req.order_number) {
+  if (req.order_number) {
     const namePart = req.order_name ? ` — ${req.order_name}` : '';
     label = `${qty} — Order #${req.order_number}${namePart}`;
   } else {
