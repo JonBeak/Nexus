@@ -17,6 +17,7 @@ export interface SupplierRow extends RowDataPacket {
   province: string | null;
   postal_code: string | null;
   country: string | null;
+  default_delivery_method: string | null;
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
@@ -111,14 +112,15 @@ export class SupplierRepository {
     province?: string;
     postal_code?: string;
     country?: string;
+    default_delivery_method?: string;
     created_by: number;
   }): Promise<number> {
     const result = await query(
       `INSERT INTO suppliers (
         name, website, notes, payment_terms, default_lead_days, account_number,
         address_line1, address_line2, city, province, postal_code, country,
-        created_by, updated_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        default_delivery_method, created_by, updated_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.name,
         data.website || null,
@@ -132,6 +134,7 @@ export class SupplierRepository {
         data.province || null,
         data.postal_code || null,
         data.country || 'Canada',
+        data.default_delivery_method || null,
         data.created_by,
         data.created_by
       ]
@@ -156,6 +159,7 @@ export class SupplierRepository {
     province?: string;
     postal_code?: string;
     country?: string;
+    default_delivery_method?: string;
     is_active?: boolean;
     updated_by: number;
   }): Promise<void> {
@@ -165,7 +169,7 @@ export class SupplierRepository {
     const allowedFields = [
       'name', 'website', 'notes', 'payment_terms', 'default_lead_days',
       'account_number', 'address_line1', 'address_line2', 'city',
-      'province', 'postal_code', 'country', 'is_active'
+      'province', 'postal_code', 'country', 'is_active', 'default_delivery_method'
     ];
 
     for (const field of allowedFields) {

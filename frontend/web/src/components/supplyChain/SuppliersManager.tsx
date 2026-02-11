@@ -14,7 +14,8 @@ import {
   MapPin,
   Clock,
   CreditCard,
-  Hash
+  Hash,
+  Truck
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAlert } from '../../contexts/AlertContext';
@@ -34,6 +35,7 @@ interface Supplier {
   province?: string;
   postal_code?: string;
   country?: string;
+  default_delivery_method?: string | null;
   is_active: boolean;
   contact_count?: number;
   created_at: string;
@@ -64,6 +66,7 @@ export const SuppliersManager: React.FC<SuppliersManagerProps> = ({
     payment_terms: '',
     default_lead_days: '',
     account_number: '',
+    default_delivery_method: '',
     address_line1: '',
     address_line2: '',
     city: '',
@@ -98,7 +101,8 @@ export const SuppliersManager: React.FC<SuppliersManagerProps> = ({
     try {
       const payload = {
         ...formData,
-        default_lead_days: formData.default_lead_days ? parseInt(formData.default_lead_days) : null
+        default_lead_days: formData.default_lead_days ? parseInt(formData.default_lead_days) : null,
+        default_delivery_method: formData.default_delivery_method || null,
       };
 
       if (editingSupplier) {
@@ -126,6 +130,7 @@ export const SuppliersManager: React.FC<SuppliersManagerProps> = ({
       payment_terms: supplier.payment_terms || '',
       default_lead_days: supplier.default_lead_days?.toString() || '',
       account_number: supplier.account_number || '',
+      default_delivery_method: supplier.default_delivery_method || '',
       address_line1: supplier.address_line1 || '',
       address_line2: supplier.address_line2 || '',
       city: supplier.city || '',
@@ -163,6 +168,7 @@ export const SuppliersManager: React.FC<SuppliersManagerProps> = ({
       payment_terms: '',
       default_lead_days: '',
       account_number: '',
+      default_delivery_method: '',
       address_line1: '',
       address_line2: '',
       city: '',
@@ -257,6 +263,12 @@ export const SuppliersManager: React.FC<SuppliersManagerProps> = ({
                         <span className="flex items-center space-x-1">
                           <Clock className="w-3 h-3" />
                           <span>{supplier.default_lead_days} days</span>
+                        </span>
+                      )}
+                      {supplier.default_delivery_method && (
+                        <span className="flex items-center space-x-1">
+                          <Truck className="w-3 h-3" />
+                          <span className="capitalize">{supplier.default_delivery_method}</span>
                         </span>
                       )}
                       <span className="flex items-center space-x-1">
@@ -437,6 +449,22 @@ export const SuppliersManager: React.FC<SuppliersManagerProps> = ({
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500"
                     placeholder="Your account # with supplier"
                   />
+                </div>
+
+                {/* Default Delivery Method */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Default Delivery
+                  </label>
+                  <select
+                    value={formData.default_delivery_method}
+                    onChange={(e) => setFormData({ ...formData, default_delivery_method: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  >
+                    <option value="">Not set</option>
+                    <option value="shipping">Shipping</option>
+                    <option value="pickup">Pickup</option>
+                  </select>
                 </div>
 
                 {/* Address Line 1 */}

@@ -211,7 +211,8 @@ export class SupplierOrderService {
       let itemsCreated = 0;
       for (const req of selectedRequirements) {
         const itemData: CreateSupplierOrderItemRequest = {
-          product_description: req.archetype_name || req.custom_product_type || 'Unknown Product',
+          product_description: [req.supplier_product_brand?.trim(), req.supplier_product_name?.trim()].filter(Boolean).join(' ')
+            || req.archetype_name || req.custom_product_type || 'Unknown Product',
           quantity_ordered: req.quantity_ordered,
           unit_of_measure: req.unit || req.unit_of_measure || 'each',
           material_requirement_id: req.requirement_id,
@@ -396,13 +397,14 @@ export class SupplierOrderService {
       const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
       const orderNumber = await this.repository.generatePONumber(supplierId, today);
 
-      // Build snapshot items from MR data
+      // Build snapshot items from MR data WITH PRICING
       const items = selectedReqs.map(req => ({
-        product_description: req.archetype_name || req.custom_product_type || 'Unknown Product',
+        product_description: [req.supplier_product_brand?.trim(), req.supplier_product_name?.trim()].filter(Boolean).join(' ')
+          || req.archetype_name || req.custom_product_type || 'Unknown Product',
         sku: req.supplier_product_sku || null,
         quantity_ordered: Number(req.quantity_ordered),
         unit_of_measure: req.unit || req.unit_of_measure || 'each',
-        unit_price: 0,
+        unit_price: req.supplier_product_current_price != null ? Number(req.supplier_product_current_price) : 0,
         material_requirement_id: req.requirement_id,
         supplier_product_id: req.supplier_product_id || null,
         notes: null,
@@ -414,27 +416,80 @@ export class SupplierOrderService {
         orderNumber, supplierId, today, deliveryMethod, notes ?? null, items, userId
       );
 
-      // Send PO email — if it fails, roll back the order so user can retry from cart
-      let emailSent = false;
-      let emailMessage = 'Email not attempted';
+      // Load company email for internal copy
+      const { query: dbQuery } = await import('../config/database');
+      const settingsRows = await dbQuery(
+        `SELECT setting_value FROM rbac_settings WHERE setting_name = 'company_email' LIMIT 1`
+      ) as any[];
+      const companyEmail = settingsRows[0]?.setting_value || process.env.GMAIL_BCC_EMAIL || '';
+
+      // Send TWO emails: one to supplier (no pricing), one to company (with pricing)
+      let supplierEmailSent = false;
+      let internalEmailSent = false;
+      let emailMessage = 'Emails not attempted';
+
       try {
         const { sendPurchaseOrderEmail } = await import('./supplierOrderEmailService');
-        const emailResult = await sendPurchaseOrderEmail(orderId, emailOverrides);
-        if (emailResult.success) {
-          await this.repository.updateEmailSentAt(orderId);
-          emailSent = true;
-          emailMessage = 'Email sent to supplier';
+
+        // EMAIL #1: To supplier + optional BCC (WITHOUT PRICING)
+        const supplierResult = await sendPurchaseOrderEmail(
+          orderId,
+          emailOverrides,
+          false  // showPricing = false
+        );
+
+        if (supplierResult.success) {
+          supplierEmailSent = true;
+          console.log(`✅ Supplier email sent for PO ${orderId}`);
         } else {
-          emailMessage = emailResult.reason || emailResult.error || 'Email not sent';
-          console.warn(`⚠️ PO email not sent for order ${orderId}: ${emailMessage}`);
+          console.warn(`⚠️ Supplier email failed for PO ${orderId}: ${supplierResult.reason || supplierResult.error}`);
         }
+
+        // EMAIL #2: To company (WITH PRICING)
+        // Only send if we have a company email
+        if (companyEmail) {
+          const internalOverrides = {
+            to: companyEmail,
+            subject: `[INTERNAL] ${emailOverrides?.subject || 'Purchase Order'} - With Pricing`,
+            opening: `[Internal Record - Includes Pricing]\n\n${emailOverrides?.opening || ''}`,
+            closing: emailOverrides?.closing,
+          };
+
+          const internalResult = await sendPurchaseOrderEmail(
+            orderId,
+            internalOverrides,
+            true  // showPricing = true
+          );
+
+          if (internalResult.success) {
+            internalEmailSent = true;
+            console.log(`✅ Internal email (with pricing) sent for PO ${orderId}`);
+          } else {
+            console.warn(`⚠️ Internal email failed for PO ${orderId}: ${internalResult.reason || internalResult.error}`);
+          }
+        }
+
+        // Update email sent timestamp if at least supplier email succeeded
+        if (supplierEmailSent) {
+          await this.repository.updateEmailSentAt(orderId);
+        }
+
+        // Build status message
+        if (supplierEmailSent && internalEmailSent) {
+          emailMessage = 'Both emails sent successfully (supplier without pricing, internal with pricing)';
+        } else if (supplierEmailSent) {
+          emailMessage = 'Supplier email sent (internal email failed or no company email configured)';
+        } else {
+          emailMessage = 'Supplier email failed';
+        }
+
       } catch (emailError) {
         emailMessage = emailError instanceof Error ? emailError.message : 'Email send failed';
-        console.error(`❌ PO email error for order ${orderId}:`, emailError);
+        console.error(`❌ Email error for order ${orderId}:`, emailError);
       }
 
-      // If email failed, roll back — delete the order snapshot and leave MRs untouched
-      if (!emailSent) {
+      // If SUPPLIER email failed, roll back — internal email is optional
+      if (!supplierEmailSent) {
         try {
           await this.repository.unlinkRequirements(orderId);
           await this.repository.delete(orderId);
@@ -443,7 +498,7 @@ export class SupplierOrderService {
         }
         return {
           success: false,
-          error: `PO email failed — order not created. ${emailMessage}`,
+          error: `Supplier email failed — order not created. ${emailMessage}`,
           code: 'EMAIL_ERROR',
         };
       }
@@ -455,7 +510,7 @@ export class SupplierOrderService {
 
       return {
         success: true,
-        data: { order_id: orderId, order_number: orderNumber, email_sent: emailSent, email_message: emailMessage },
+        data: { order_id: orderId, order_number: orderNumber, email_sent: supplierEmailSent, email_message: emailMessage },
       };
     } catch (error) {
       console.error('Error in SupplierOrderService.submitDraftPO:', error);

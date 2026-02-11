@@ -226,6 +226,19 @@ const getAutoStatusBadge = (status: ComputedRequirementStatus) => {
 };
 
 
+/** Color palette for PO# border matching (same PO# = same color) */
+const PO_BORDER_COLORS = [
+  '#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316',
+];
+const getPOBorderColor = (poNumber: string): string => {
+  let hash = 0;
+  for (let i = 0; i < poNumber.length; i++) {
+    hash = ((hash << 5) - hash) + poNumber.charCodeAt(i);
+    hash |= 0;
+  }
+  return PO_BORDER_COLORS[Math.abs(hash) % PO_BORDER_COLORS.length];
+};
+
 /** Row background color based on computed auto status */
 const getRowBgClass = (status: ComputedRequirementStatus): string => {
   switch (status) {
@@ -455,8 +468,17 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
       await materialRequirementsApi.updateRequirement(id, { [field]: value });
       console.log('API call succeeded, updating local state');
       // Update local state without full reload for smoother UX
+      const stateUpdate: Record<string, any> = { [field]: value };
+
+      // Mirror backend cascading: clearing ordered_date also clears PO link and reverts status
+      if (field === 'ordered_date' && !value) {
+        stateUpdate.supplier_order_number = null;
+        stateUpdate.supplier_order_id = null;
+        stateUpdate.status = 'pending';
+      }
+
       setRequirements(prev => prev.map(req =>
-        req.requirement_id === id ? { ...req, [field]: value } : req
+        req.requirement_id === id ? { ...req, ...stateUpdate } : req
       ));
     } catch (error) {
       console.error('Error updating requirement:', error);
@@ -879,6 +901,7 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
               <th className={thClass} style={{ width: '85px' }}>Ordered</th>
               <th className={thClass} style={{ width: '90px' }}>Receiving</th>
               <th className={thClass} style={{ width: '85px' }}>Received</th>
+              <th className={thClass} style={{ width: '90px' }}>PO#</th>
               <th className={thClass} style={{ width: '160px' }}>Notes</th>
               <th className={`${thClass} text-center`} style={{ width: '60px' }}>Actions</th>
               <th className={`${thClass} text-center`} style={{ width: '80px' }}>Status</th>
@@ -889,7 +912,14 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
             {visibleRequirements.map((req) => {
               const autoStatus = computeAutoStatus(req);
               return (
-                <tr key={req.requirement_id} className={`hover:shadow-[inset_0_0_0_9999px_rgba(0,0,0,0.07)] border-b border-gray-100 ${getRowBgClass(autoStatus)}`}>
+                <tr
+                  key={req.requirement_id}
+                  className={`hover:shadow-[inset_0_0_0_9999px_rgba(0,0,0,0.07)] border-b border-gray-100 ${getRowBgClass(autoStatus)}`}
+                  style={req.supplier_order_number ? {
+                    borderLeft: `3px solid ${getPOBorderColor(req.supplier_order_number)}`,
+                    borderRight: `3px solid ${getPOBorderColor(req.supplier_order_number)}`,
+                  } : undefined}
+                >
                   {/* Date */}
                   <td className="px-1 py-0.5">
                     <InlineEditableCell
@@ -1080,6 +1110,17 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
                       placeholder="-"
                       defaultToToday
                     />
+                  </td>
+
+                  {/* PO# */}
+                  <td className="px-1 py-0.5">
+                    {req.supplier_order_number ? (
+                      <span className="text-xs font-medium" style={{ color: 'var(--theme-text-secondary)' }}>
+                        {req.supplier_order_number}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-300">—</span>
+                    )}
                   </td>
 
                   {/* Notes */}

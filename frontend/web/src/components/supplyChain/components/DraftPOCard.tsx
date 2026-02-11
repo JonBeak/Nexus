@@ -53,6 +53,21 @@ function formatGroupedLine(g: GroupedLineItem): string {
   return `${g.totalQuantity} ${g.unit} — ${g.description}${skuSuffix}`;
 }
 
+/** Format currency for display */
+function formatCurrency(amount: number | null): string {
+  if (amount === null || isNaN(amount)) return '—';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'CAD',
+    minimumFractionDigits: 2,
+  }).format(amount);
+}
+
+/** Calculate subtotal from grouped items */
+function calculateSubtotal(items: GroupedLineItem[]): number {
+  return items.reduce((sum, item) => sum + (item.lineTotal || 0), 0);
+}
+
 export const DraftPOCard: React.FC<DraftPOCardProps> = ({
   group,
   companyEmail,
@@ -74,11 +89,17 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
   } | null>(null);
   const tooltipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Refs to store default chip state for dirty tracking
+  const defaultToRef = useRef<string>('');
+  const defaultCcRef = useRef<string>('');
+  const defaultBccRef = useRef<string>('');
+
   // Group identical products (same description + sku + unit) into consolidated lines
   const groupedItems = useMemo<GroupedLineItem[]>(() => {
     const map = new Map<string, GroupedLineItem>();
     for (const req of group.requirements) {
-      const desc = req.supplier_product_name || req.archetype_name || req.custom_product_type || 'Unknown Product';
+      const productName = [req.supplier_product_brand?.trim(), req.supplier_product_name?.trim()].filter(Boolean).join(' ');
+      const desc = productName || req.archetype_name || req.custom_product_type || 'Unknown Product';
       const sku = req.supplier_product_sku || '';
       const unit = req.unit || req.unit_of_measure || 'each';
       const key = `${desc.toLowerCase()}|${sku.toLowerCase()}|${unit.toLowerCase()}`;
@@ -91,9 +112,15 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
           const ref = `Order #${req.order_number}`;
           if (!existing.orderRefs.includes(ref)) existing.orderRefs.push(ref);
         }
+        // Recalculate line total based on new quantity
+        if (existing.unitPrice !== null) {
+          existing.lineTotal = existing.unitPrice * existing.totalQuantity;
+        }
       } else {
         const orderRefs: string[] = [];
         if (req.order_number) orderRefs.push(`Order #${req.order_number}`);
+        const unitPrice = req.supplier_product_current_price;
+        const currency = req.supplier_product_currency || 'CAD';
         map.set(key, {
           groupKey: key,
           description: desc,
@@ -102,6 +129,9 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
           sku: req.supplier_product_sku || null,
           orderRefs,
           items: [req],
+          unitPrice,
+          lineTotal: unitPrice ? unitPrice * Number(req.quantity_ordered) : null,
+          currency,
         });
       }
     }
@@ -114,8 +144,9 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
   const [bccChips, setBccChips] = useState<ContactChip[]>([]);
 
   // Email fields
-  const [deliveryMethod, setDeliveryMethod] = useState<'shipping' | 'pickup'>('shipping');
-  const [emailSubject, setEmailSubject] = useState('{PO#} — Order for Shipping — Sign House Inc.');
+  const defaultDeliveryMethod = group.default_delivery_method || 'shipping';
+  const [deliveryMethod, setDeliveryMethod] = useState<'shipping' | 'pickup'>(defaultDeliveryMethod);
+  const [emailSubject, setEmailSubject] = useState(`{PO#} - Order for ${defaultDeliveryMethod === 'pickup' ? 'Pickup' : 'Shipping'} - Sign House Inc.`);
 
   const supplierName = group.supplier_name || 'Supplier';
   const defaultOpening = `Hi ${supplierName},\nPlease find our purchase order details below.`;
@@ -123,6 +154,18 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
 
   const [opening, setOpening] = useState(defaultOpening);
   const [closing, setClosing] = useState(defaultClosing);
+
+  // Track dirty (edited) fields — these reset on page refresh
+  const defaultSubjectForMethod = `{PO#} - Order for ${deliveryMethod === 'pickup' ? 'Pickup' : 'Shipping'} - Sign House Inc.`;
+  const isSubjectDirty = emailSubject !== defaultSubjectForMethod;
+  const isOpeningDirty = opening !== defaultOpening;
+  const isClosingDirty = closing !== defaultClosing;
+  const isToChipsDirty = !loadingContacts && toChips.map(c => c.email).sort().join(',') !== defaultToRef.current;
+  const isCcChipsDirty = ccChips.map(c => c.email).sort().join(',') !== defaultCcRef.current;
+  const isBccChipsDirty = bccChips.map(c => c.email).sort().join(',') !== defaultBccRef.current;
+  const isDeliveryDirty = deliveryMethod !== defaultDeliveryMethod;
+  const hasUnsavedEdits = isSubjectDirty || isOpeningDirty || isClosingDirty || isToChipsDirty || isCcChipsDirty || isBccChipsDirty || isDeliveryDirty;
+  const dirtyBorder = 'border-orange-400 dark:border-orange-500';
 
   // Auto-resize textarea refs
   const openingRef = useRef<HTMLTextAreaElement>(null);
@@ -180,6 +223,15 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
     void fetchContacts();
   }, [fetchContacts]);
 
+  // Snapshot default To/CC chips after contacts finish loading
+  useEffect(() => {
+    if (!loadingContacts) {
+      defaultToRef.current = toChips.map(c => c.email).sort().join(',');
+      defaultCcRef.current = ccChips.map(c => c.email).sort().join(',');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingContacts]);
+
   // Auto-set BCC to company email
   useEffect(() => {
     if (companyEmail) {
@@ -189,12 +241,13 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
         email: companyEmail,
         isManual: true,
       }]);
+      defaultBccRef.current = companyEmail;
     }
   }, [companyEmail]);
 
   const handleDeliveryChange = (method: 'shipping' | 'pickup') => {
     setDeliveryMethod(method);
-    setEmailSubject(`{PO#} — Order for ${method === 'pickup' ? 'Pickup' : 'Shipping'} — Sign House Inc.`);
+    setEmailSubject(`{PO#} - Order for ${method === 'pickup' ? 'Pickup' : 'Shipping'} - Sign House Inc.`);
   };
 
   const handleConfirmAndSend = async () => {
@@ -279,27 +332,33 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
             </div>
           ) : (
             <>
-              <ContactChipSelector
-                label="To:"
-                contacts={contacts}
-                selected={toChips}
-                onAdd={(chip) => setToChips(prev => [...prev, chip])}
-                onRemove={(id) => setToChips(prev => prev.filter(c => c.id !== id))}
-              />
-              <ContactChipSelector
-                label="CC:"
-                contacts={contacts}
-                selected={ccChips}
-                onAdd={(chip) => setCcChips(prev => [...prev, chip])}
-                onRemove={(id) => setCcChips(prev => prev.filter(c => c.id !== id))}
-              />
-              <ContactChipSelector
-                label="BCC:"
-                contacts={contacts}
-                selected={bccChips}
-                onAdd={(chip) => setBccChips(prev => [...prev, chip])}
-                onRemove={(id) => setBccChips(prev => prev.filter(c => c.id !== id))}
-              />
+              <div className={`rounded-md ${isToChipsDirty ? `border ${dirtyBorder}` : ''}`}>
+                <ContactChipSelector
+                  label="To:"
+                  contacts={contacts}
+                  selected={toChips}
+                  onAdd={(chip) => setToChips(prev => [...prev, chip])}
+                  onRemove={(id) => setToChips(prev => prev.filter(c => c.id !== id))}
+                />
+              </div>
+              <div className={`rounded-md ${isCcChipsDirty ? `border ${dirtyBorder}` : ''}`}>
+                <ContactChipSelector
+                  label="CC:"
+                  contacts={contacts}
+                  selected={ccChips}
+                  onAdd={(chip) => setCcChips(prev => [...prev, chip])}
+                  onRemove={(id) => setCcChips(prev => prev.filter(c => c.id !== id))}
+                />
+              </div>
+              <div className={`rounded-md ${isBccChipsDirty ? `border ${dirtyBorder}` : ''}`}>
+                <ContactChipSelector
+                  label="BCC:"
+                  contacts={contacts}
+                  selected={bccChips}
+                  onAdd={(chip) => setBccChips(prev => [...prev, chip])}
+                  onRemove={(id) => setBccChips(prev => prev.filter(c => c.id !== id))}
+                />
+              </div>
             </>
           )}
 
@@ -311,7 +370,7 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
                 type="text"
                 value={emailSubject}
                 onChange={(e) => setEmailSubject(e.target.value)}
-                className={`w-full px-1.5 py-1 text-xs ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-md ${PAGE_STYLES.panel.text}`}
+                className={`w-full px-1.5 py-1 text-xs ${PAGE_STYLES.input.background} ${isSubjectDirty ? dirtyBorder : PAGE_STYLES.input.border} border rounded-md ${PAGE_STYLES.panel.text}`}
               />
               <p className={`text-[10px] ${PAGE_STYLES.panel.textMuted} mt-0.5 ml-0.5`}>
                 <span className="font-mono bg-gray-100 dark:bg-gray-700/50 px-0.5 rounded">{'{PO#}'}</span> will be replaced with the generated PO number
@@ -327,7 +386,9 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
                 onClick={() => handleDeliveryChange('shipping')}
                 className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md border transition-colors ${
                   deliveryMethod === 'shipping'
-                    ? 'bg-yellow-200 dark:bg-yellow-900/30 border-yellow-900 dark:border-yellow-600 text-yellow-900 dark:text-yellow-300'
+                    ? isDeliveryDirty
+                      ? 'bg-yellow-200 dark:bg-yellow-900/30 border-orange-400 dark:border-orange-500 text-yellow-900 dark:text-yellow-300'
+                      : 'bg-yellow-200 dark:bg-yellow-900/30 border-yellow-900 dark:border-yellow-600 text-yellow-900 dark:text-yellow-300'
                     : `${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} ${PAGE_STYLES.panel.textMuted}`
                 }`}
               >
@@ -337,7 +398,9 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
                 onClick={() => handleDeliveryChange('pickup')}
                 className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md border transition-colors ${
                   deliveryMethod === 'pickup'
-                    ? 'bg-blue-200 dark:bg-blue-900/30 border-blue-900 dark:border-blue-600 text-blue-900 dark:text-blue-300'
+                    ? isDeliveryDirty
+                      ? 'bg-blue-200 dark:bg-blue-900/30 border-orange-400 dark:border-orange-500 text-blue-900 dark:text-blue-300'
+                      : 'bg-blue-200 dark:bg-blue-900/30 border-blue-900 dark:border-blue-600 text-blue-900 dark:text-blue-300'
                     : `${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} ${PAGE_STYLES.panel.textMuted}`
                 }`}
               >
@@ -359,7 +422,7 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
               value={opening}
               onChange={(e) => setOpening(e.target.value)}
               rows={1}
-              className={`w-full px-2 py-1.5 text-xs ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-md ${PAGE_STYLES.panel.text} resize-none leading-relaxed overflow-hidden`}
+              className={`w-full px-2 py-1.5 text-xs ${PAGE_STYLES.input.background} ${isOpeningDirty ? dirtyBorder : PAGE_STYLES.input.border} border rounded-md ${PAGE_STYLES.panel.text} resize-none leading-relaxed overflow-hidden`}
             />
           </div>
 
@@ -370,47 +433,83 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
             </label>
             <div className={`${PAGE_STYLES.input.background} border ${PAGE_STYLES.input.border} rounded-md px-2 py-1.5`}>
               {groupedItems.length > 0 ? (
-                <ul className={`divide-y divide-[var(--theme-border)]`}>
-                  {groupedItems.map((gi) => (
-                    <li
-                      key={gi.groupKey}
-                      className="flex items-start gap-1 group py-1 first:pt-0 last:pb-0 cursor-default"
-                      onMouseEnter={(e) => handleItemMouseEnter(gi.groupKey, e)}
-                      onMouseLeave={handleItemMouseLeave}
-                    >
-                      <span className={`text-xs ${PAGE_STYLES.panel.text} flex-1 leading-snug flex items-center gap-1`}>
-                        {formatGroupedLine(gi)}
-                        {gi.items.length > 1 && (
-                          <span className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px] font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 shrink-0`}>
-                            {gi.items.length}
-                          </span>
+                <div className="space-y-1">
+                  {/* Column headers */}
+                  <div className="flex items-center gap-1 pb-1 border-b text-[10px] font-medium uppercase tracking-wide"
+                       style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text-muted)' }}>
+                    <span className="flex-1">Description</span>
+                    <span className="text-right" style={{ minWidth: '70px' }}>Unit Price</span>
+                    <span className="text-right" style={{ minWidth: '80px' }}>Ext Price</span>
+                    <span style={{ width: '20px' }}></span> {/* Remove button space */}
+                  </div>
+
+                  {/* Items */}
+                  <ul className={`divide-y divide-[var(--theme-border)]`}>
+                    {groupedItems.map((gi) => (
+                      <li
+                        key={gi.groupKey}
+                        className="flex items-start gap-1 group py-1 first:pt-0 last:pb-0 cursor-default"
+                        onMouseEnter={(e) => handleItemMouseEnter(gi.groupKey, e)}
+                        onMouseLeave={handleItemMouseLeave}
+                      >
+                        <span className={`text-xs ${PAGE_STYLES.panel.text} flex-1 leading-snug flex items-center gap-1`}>
+                          {formatGroupedLine(gi)}
+                          {gi.items.length > 1 && (
+                            <span className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px] font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 shrink-0`}>
+                              {gi.items.length}
+                            </span>
+                          )}
+                        </span>
+
+                        {/* Unit Price */}
+                        <span className="text-xs text-right" style={{ minWidth: '70px', color: 'var(--theme-text-muted)' }}>
+                          {formatCurrency(gi.unitPrice)}
+                        </span>
+
+                        {/* Extended Price */}
+                        <span className="text-xs font-medium text-right" style={{ minWidth: '80px' }}>
+                          {formatCurrency(gi.lineTotal)}
+                        </span>
+
+                        {/* Remove button */}
+                        {gi.items.length === 1 ? (
+                          <button
+                            onClick={() => onRemoveItem(gi.items[0].requirement_id)}
+                            className="p-0.5 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                            title="Remove item"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                              setRemoveDropdown(prev =>
+                                prev?.groupKey === gi.groupKey ? null : { groupKey: gi.groupKey, anchorRect: rect }
+                              );
+                            }}
+                            className="p-0.5 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                            title="Remove item(s)"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
                         )}
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* Totals Section */}
+                  <div className="mt-3 pt-2 border-t text-xs" style={{ borderColor: 'var(--theme-border)' }}>
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium" style={{ color: 'var(--theme-text-muted)' }}>
+                        Subtotal:
                       </span>
-                      {gi.items.length === 1 ? (
-                        <button
-                          onClick={() => onRemoveItem(gi.items[0].requirement_id)}
-                          className="p-0.5 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                          title="Remove item"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={(e) => {
-                            const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                            setRemoveDropdown(prev =>
-                              prev?.groupKey === gi.groupKey ? null : { groupKey: gi.groupKey, anchorRect: rect }
-                            );
-                          }}
-                          className="p-0.5 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                          title="Remove item(s)"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                      <span className="text-sm font-semibold">
+                        {formatCurrency(calculateSubtotal(groupedItems))}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div className={`text-center py-3 ${PAGE_STYLES.panel.textMuted}`}>
                   <Package className="w-4 h-4 mx-auto mb-0.5 opacity-50" />
@@ -430,9 +529,16 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
               value={closing}
               onChange={(e) => setClosing(e.target.value)}
               rows={1}
-              className={`w-full px-2 py-1.5 text-xs ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-md ${PAGE_STYLES.panel.text} resize-none leading-relaxed overflow-hidden`}
+              className={`w-full px-2 py-1.5 text-xs ${PAGE_STYLES.input.background} ${isClosingDirty ? dirtyBorder : PAGE_STYLES.input.border} border rounded-md ${PAGE_STYLES.panel.text} resize-none leading-relaxed overflow-hidden`}
             />
           </div>
+
+          {/* Unsaved edits warning */}
+          {hasUnsavedEdits && (
+            <p className="text-[10px] text-orange-600 dark:text-orange-400">
+              Edited fields will reset on page refresh
+            </p>
+          )}
         </div>
 
         {/* Footer: Place Order */}
@@ -465,8 +571,10 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
           totalQuantity: gi.totalQuantity,
           unit: gi.unit,
           sku: gi.sku,
+          unitPrice: gi.unitPrice,
+          lineTotal: gi.lineTotal,
+          currency: gi.currency,
         }))}
-        companyName={companyName}
         onConfirm={() => void handleConfirmAndSend()}
         onCancel={() => setShowConfirmation(false)}
       />

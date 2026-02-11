@@ -245,6 +245,16 @@ export class MaterialRequirementService {
         };
       }
 
+      // When ordered_date is cleared, also clear PO link and revert status
+      if (data.ordered_date === null || data.ordered_date === '') {
+        if (existing.supplier_order_id) {
+          data.supplier_order_id = null;
+        }
+        if (data.status === undefined) {
+          data.status = 'pending';
+        }
+      }
+
       // Prevent invalid status transitions
       if (data.status) {
         const validTransitions = this.getValidStatusTransitions(existing.status);
@@ -525,6 +535,7 @@ export class MaterialRequirementService {
             supplier_name: req.supplier_name || 'Unknown Supplier',
             contact_email: null, // filled from supplier_contacts later if needed
             contact_phone: null,
+            default_delivery_method: req.supplier_default_delivery_method || null,
             requirements: [],
           });
         }
@@ -533,6 +544,7 @@ export class MaterialRequirementService {
           archetype_name: req.archetype_name ?? null,
           custom_product_type: req.custom_product_type ?? null,
           supplier_product_name: req.supplier_product_name ?? null,
+          supplier_product_brand: req.supplier_product_brand ?? null,
           unit: req.unit ?? null,
           quantity_ordered: req.quantity_ordered,
           unit_of_measure: req.unit_of_measure ?? null,
@@ -544,6 +556,9 @@ export class MaterialRequirementService {
           supplier_product_id: req.supplier_product_id ?? null,
           supplier_product_sku: req.supplier_product_sku ?? null,
           entry_date: req.entry_date,
+          supplier_product_current_price: req.supplier_product_current_price ? Number(req.supplier_product_current_price) : null,
+          supplier_product_currency: req.supplier_product_currency ?? null,
+          price_effective_date: req.price_effective_date ?? null,
         });
       }
 

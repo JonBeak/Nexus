@@ -75,6 +75,7 @@ export interface MaterialRequirement {
 
   // Joined fields from supplier_product
   supplier_product_name?: string | null;
+  supplier_product_brand?: string | null;
   supplier_product_sku?: string | null;
 
   // Joined fields from vinyl_product (when archetype_id = -1)
@@ -92,6 +93,9 @@ export interface MaterialRequirement {
   held_vinyl_length_yards?: number | null;
   held_vinyl_quantity?: string | null;
   held_general_quantity?: string | null;
+
+  // Joined fields from supplier_orders
+  supplier_order_number?: string | null;
 
   // Computed fields
   quantity_remaining?: number;
@@ -144,6 +148,7 @@ export interface UpdateMaterialRequirementRequest {
   status?: MaterialRequirementStatus;
   notes?: string | null;
   cart_id?: string | null;
+  supplier_order_id?: number | null;
 }
 
 /**

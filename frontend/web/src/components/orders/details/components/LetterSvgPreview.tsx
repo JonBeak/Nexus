@@ -22,6 +22,7 @@ interface LetterSvgPreviewProps {
   maxHeight?: number;
   showGrid?: boolean;
   showRuler?: boolean;
+  highlightHoleIds?: string[];
 }
 
 const HOLE_COLORS: Record<string, string> = {
@@ -37,6 +38,7 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
   maxHeight = 200,
   showGrid = true,
   showRuler = true,
+  highlightHoleIds,
 }) => {
   // Calculate viewBox and scale
   const viewBox = useMemo(() => {
@@ -167,8 +169,19 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
 
     // Wire/mounting holes: colored indicator circles
     const color = HOLE_COLORS[hole.hole_type] || HOLE_COLORS.unknown;
+    const isHighlighted = highlightHoleIds && hole.path_id && highlightHoleIds.includes(hole.path_id);
     return (
       <g key={`hole-${index}`} transform={hole.transform || undefined}>
+        {isHighlighted && (
+          <circle
+            cx={hole.center.x}
+            cy={hole.center.y}
+            r={holeRadius * 2.5}
+            fill="none"
+            stroke="#EF4444"
+            strokeWidth={holeRadius * 0.4}
+          />
+        )}
         <circle
           cx={hole.center.x}
           cy={hole.center.y}

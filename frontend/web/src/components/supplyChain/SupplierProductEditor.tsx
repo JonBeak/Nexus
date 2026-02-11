@@ -191,21 +191,21 @@ export const SupplierProductEditor: React.FC<SupplierProductEditorProps> = ({
     try {
       const submitData = {
         supplier_id: formData.supplier_id,
-        brand_name: formData.brand_name || undefined,
-        sku: formData.sku || undefined,
+        brand_name: formData.brand_name || null,
+        sku: formData.sku || null,
         product_name: formData.product_name,
         min_order_quantity: formData.min_order_quantity
           ? parseFloat(formData.min_order_quantity)
-          : undefined,
+          : null,
         lead_time_days: formData.lead_time_days
           ? parseInt(formData.lead_time_days)
-          : undefined,
+          : null,
         unit_of_measure: formData.unit_of_measure || null,
-        notes: formData.notes || undefined,
+        notes: formData.notes || null,
         is_preferred: formData.is_preferred,
         specifications: Object.keys(rowsToSpecs(specRows)).length > 0
           ? rowsToSpecs(specRows)
-          : undefined,
+          : null,
         ...(product
           ? {} // No initial price for updates
           : {

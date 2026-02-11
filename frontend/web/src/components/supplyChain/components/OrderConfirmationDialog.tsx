@@ -5,7 +5,7 @@
  * Created: 2026-02-11
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -15,8 +15,11 @@ import {
   User,
   Users,
   EyeOff,
+  AlertCircle,
+  Building2,
 } from 'lucide-react';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
+import { supplierOrdersApi } from '../../../services/api/supplierOrdersApi';
 import type { ContactChip } from './ContactChipSelector';
 
 interface OrderConfirmationDialogProps {
@@ -35,109 +38,15 @@ interface OrderConfirmationDialogProps {
     totalQuantity: number;
     unit: string;
     sku: string | null;
+    unitPrice: number | null;
+    lineTotal: number | null;
+    currency?: string | null;
   }>;
-  companyName: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
 const PO_PLACEHOLDER = '{PO#}';
-
-/** Navy blue color scheme matching the backend email template */
-const COLORS = {
-  primary: '#1e3a5f',
-  headerText: '#ffffff',
-  footer: '#f8fafc',
-};
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function nl2br(text: string): string {
-  return escapeHtml(text).replace(/\n/g, '<br/>');
-}
-
-function buildPreviewHtml(props: {
-  supplierName: string;
-  deliveryMethod: 'shipping' | 'pickup';
-  opening: string;
-  closing: string;
-  items: Array<{ description: string; totalQuantity: number; unit: string; sku: string | null }>;
-  companyName: string;
-}): string {
-  const { supplierName, deliveryMethod, opening, closing, items, companyName } = props;
-  const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  const delivery = deliveryMethod === 'pickup' ? 'Pickup' : 'Shipping';
-
-  const itemRows = items.map(item => `
-    <tr style="border-bottom: 1px solid #e5e7eb;">
-      <td style="padding: 10px 12px; font-size: 14px;">${escapeHtml(item.description)}</td>
-      <td style="padding: 10px 12px; font-size: 14px; color: #6b7280;">${escapeHtml(item.sku || '\u2014')}</td>
-      <td style="padding: 10px 12px; font-size: 14px; text-align: center;">${item.totalQuantity} ${escapeHtml(item.unit)}</td>
-    </tr>
-  `).join('');
-
-  return `
-    <div style="max-width: 640px; margin: 0 auto; font-family: Arial, Helvetica, sans-serif;">
-      <!-- Header -->
-      <div style="background: ${COLORS.primary}; padding: 16px 20px; border-radius: 8px 8px 0 0;">
-        <span style="font-size: 18px; font-weight: bold; color: ${COLORS.headerText};">${escapeHtml(companyName)}</span>
-      </div>
-
-      <!-- Body -->
-      <div style="background: #ffffff; padding: 20px; border: 1px solid #e5e7eb; border-top: none;">
-        <!-- Opening -->
-        <div style="font-size: 14px; color: #374151; margin: 0 0 16px; line-height: 1.6;">
-          ${nl2br(opening)}
-        </div>
-
-        <!-- PO Details -->
-        <div style="margin-bottom: 16px; padding: 12px 14px; background: #f0f4f8; border-radius: 6px; border-left: 4px solid ${COLORS.primary};">
-          <table style="width: 100%; font-size: 14px;">
-            <tr>
-              <td style="padding: 3px 0;"><strong>PO Number:</strong> <span style="color: #9ca3af; font-style: italic;">${PO_PLACEHOLDER}</span></td>
-              <td style="padding: 3px 0; text-align: right;"><strong>Date:</strong> ${today}</td>
-            </tr>
-            <tr>
-              <td style="padding: 3px 0;"><strong>Delivery:</strong> ${delivery}</td>
-              <td></td>
-            </tr>
-          </table>
-        </div>
-
-        <!-- Items Table -->
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
-          <thead>
-            <tr style="background: ${COLORS.primary}; color: ${COLORS.headerText};">
-              <th style="padding: 10px 12px; text-align: left; font-size: 13px; font-weight: 600;">Description</th>
-              <th style="padding: 10px 12px; text-align: left; font-size: 13px; font-weight: 600;">SKU</th>
-              <th style="padding: 10px 12px; text-align: center; font-size: 13px; font-weight: 600;">Qty</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemRows}
-          </tbody>
-        </table>
-
-        <!-- Closing -->
-        <div style="margin-top: 20px; font-size: 14px; color: #374151; line-height: 1.6;">
-          ${nl2br(closing)}
-        </div>
-      </div>
-
-      <!-- Footer -->
-      <div style="background: ${COLORS.footer}; padding: 12px 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px; text-align: center;">
-        <div style="font-size: 13px; color: #6b7280;">${escapeHtml(companyName)}</div>
-      </div>
-    </div>
-  `;
-}
 
 /** Format chip list for display */
 function formatChips(chips: ContactChip[]): string {
@@ -156,11 +65,75 @@ export const OrderConfirmationDialog: React.FC<OrderConfirmationDialogProps> = (
   opening,
   closing,
   items,
-  companyName,
   onConfirm,
   onCancel,
 }) => {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const [supplierPreviewHtml, setSupplierPreviewHtml] = useState<string>('');
+  const [internalPreviewHtml, setInternalPreviewHtml] = useState<string>('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+
+  // Fetch BOTH preview HTMLs from backend when dialog opens
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+
+    const fetchPreviews = async () => {
+      setPreviewLoading(true);
+      setPreviewError(null);
+
+      try {
+        // Fetch supplier preview (without pricing)
+        const supplierPreview = await supplierOrdersApi.getEmailPreview({
+          items: items.map(i => ({
+            product_description: i.description,
+            sku: i.sku || undefined,
+            quantity_ordered: i.totalQuantity,
+            unit: i.unit,
+            unit_price: i.unitPrice ?? 0,
+            line_total: i.lineTotal ?? 0,
+          })),
+          deliveryMethod,
+          opening: opening || undefined,
+          closing: closing || undefined,
+          supplierName,
+          showPricing: false,  // NO PRICING for supplier
+        });
+
+        // Fetch internal preview (with pricing)
+        const internalPreview = await supplierOrdersApi.getEmailPreview({
+          items: items.map(i => ({
+            product_description: i.description,
+            sku: i.sku || undefined,
+            quantity_ordered: i.totalQuantity,
+            unit: i.unit,
+            unit_price: i.unitPrice ?? 0,
+            line_total: i.lineTotal ?? 0,
+          })),
+          deliveryMethod,
+          opening: `[Internal Record - Includes Pricing]\n\n${opening || ''}`,
+          closing: closing || undefined,
+          supplierName,
+          showPricing: true,  // SHOW PRICING for internal
+        });
+
+        if (!cancelled) {
+          setSupplierPreviewHtml(supplierPreview.html);
+          setInternalPreviewHtml(internalPreview.html);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setPreviewError((err as any)?.message || 'Failed to load previews');
+        }
+      } finally {
+        if (!cancelled) setPreviewLoading(false);
+      }
+    };
+
+    fetchPreviews();
+    return () => { cancelled = true; };
+  }, [open, items, deliveryMethod, opening, closing, supplierName]);
 
   // Close on Escape
   useEffect(() => {
@@ -182,16 +155,6 @@ export const OrderConfirmationDialog: React.FC<OrderConfirmationDialogProps> = (
 
   if (!open) return null;
 
-  const previewHtml = buildPreviewHtml({
-    supplierName,
-    deliveryMethod,
-    opening,
-    closing,
-    items,
-    companyName,
-  });
-
-  // Replace PO placeholder in subject for display
   const displaySubject = subject;
 
   return createPortal(
@@ -205,7 +168,7 @@ export const OrderConfirmationDialog: React.FC<OrderConfirmationDialogProps> = (
       {/* Dialog */}
       <div
         ref={dialogRef}
-        className={`relative w-full max-w-2xl max-h-[90vh] mx-4 flex flex-col rounded-lg shadow-2xl ${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.border} border overflow-hidden`}
+        className={`relative w-full max-w-7xl max-h-[90vh] mx-4 flex flex-col rounded-lg shadow-2xl ${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.border} border overflow-hidden`}
       >
         {/* Dialog Header */}
         <div className={`flex items-center justify-between px-5 py-3.5 border-b ${PAGE_STYLES.panel.border} ${PAGE_STYLES.header.background}`}>
@@ -261,12 +224,49 @@ export const OrderConfirmationDialog: React.FC<OrderConfirmationDialogProps> = (
           </p>
         </div>
 
-        {/* Email Preview (scrollable) */}
+        {/* Email Previews (scrollable, side-by-side) */}
         <div className="flex-1 overflow-y-auto p-5 bg-gray-100 dark:bg-gray-900">
-          <div
-            className="bg-white dark:bg-gray-800 rounded-lg shadow-sm"
-            dangerouslySetInnerHTML={{ __html: previewHtml }}
-          />
+          {previewLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className={`w-6 h-6 animate-spin ${PAGE_STYLES.panel.textMuted}`} />
+              <span className={`ml-2 text-sm ${PAGE_STYLES.panel.textSecondary}`}>Loading previews...</span>
+            </div>
+          ) : previewError ? (
+            <div className="flex items-center justify-center py-12 text-red-500">
+              <AlertCircle className="w-5 h-5 mr-2" />
+              <span className="text-sm">{previewError}</span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              {/* Preview 1: To Supplier (No Pricing) */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 pb-2">
+                  <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <h3 className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                    To Supplier (No Pricing)
+                  </h3>
+                </div>
+                <div
+                  className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700"
+                  dangerouslySetInnerHTML={{ __html: supplierPreviewHtml }}
+                />
+              </div>
+
+              {/* Preview 2: Internal (With Pricing) */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 pb-2">
+                  <Building2 className="w-4 h-4 text-green-600 dark:text-green-400" />
+                  <h3 className="text-sm font-semibold text-green-600 dark:text-green-400">
+                    Internal Record (With Pricing)
+                  </h3>
+                </div>
+                <div
+                  className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700"
+                  dangerouslySetInnerHTML={{ __html: internalPreviewHtml }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Dialog Footer */}

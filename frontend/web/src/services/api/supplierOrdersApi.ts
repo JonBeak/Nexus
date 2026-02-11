@@ -158,6 +158,28 @@ export const supplierOrdersApi = {
     return response.data;
   },
 
+  /**
+   * Generate PO email preview HTML (same template as the actual sent email)
+   */
+  getEmailPreview: async (data: {
+    items: Array<{
+      product_description: string;
+      sku?: string;
+      quantity_ordered: number;
+      unit?: string;
+      unit_price?: number;
+      line_total?: number;
+    }>;
+    deliveryMethod: string;
+    opening?: string;
+    closing?: string;
+    supplierName?: string;
+    showPricing?: boolean;
+  }): Promise<{ html: string }> => {
+    const response = await api.post('/supplier-orders/email-preview', data);
+    return response.data;
+  },
+
   // ============================================================================
   // ITEM OPERATIONS
   // ============================================================================

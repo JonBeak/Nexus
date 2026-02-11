@@ -36,6 +36,16 @@ export interface SupplierUpdate {
   website?: string;
   notes?: string;
   is_active?: boolean;
+  payment_terms?: string;
+  default_lead_days?: number;
+  default_delivery_method?: string;
+  account_number?: string;
+  address_line1?: string;
+  address_line2?: string;
+  city?: string;
+  province?: string;
+  postal_code?: string;
+  country?: string;
 }
 
 export interface SupplierStats {

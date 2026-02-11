@@ -57,6 +57,11 @@ export interface SupplierProductSearchParams {
 }
 
 export class SupplierProductRepository {
+  /** Convert MySQL tinyint booleans to JS booleans */
+  private mapBooleans(row: SupplierProductRow): SupplierProductRow {
+    return { ...row, is_active: !!row.is_active, is_preferred: !!row.is_preferred };
+  }
+
   /**
    * Build enriched supplier product query with joined data
    */
@@ -130,7 +135,8 @@ export class SupplierProductRepository {
     const sql = this.buildSupplierProductQuery(conditions.join(' AND ')) +
       ' ORDER BY pa.name, sp.supplier_id, sp.sku';
 
-    return await query(sql, queryParams) as SupplierProductRow[];
+    const rows = await query(sql, queryParams) as SupplierProductRow[];
+    return rows.map(r => this.mapBooleans(r));
   }
 
   /**
@@ -139,7 +145,7 @@ export class SupplierProductRepository {
   async findById(id: number): Promise<SupplierProductRow | null> {
     const sql = this.buildSupplierProductQuery('sp.supplier_product_id = ?');
     const rows = await query(sql, [id]) as SupplierProductRow[];
-    return rows.length > 0 ? rows[0] : null;
+    return rows.length > 0 ? this.mapBooleans(rows[0]) : null;
   }
 
   /**
@@ -148,7 +154,8 @@ export class SupplierProductRepository {
   async findByArchetype(archetypeId: number): Promise<SupplierProductRow[]> {
     const sql = this.buildSupplierProductQuery('sp.archetype_id = ?') +
       ' ORDER BY sp.is_preferred DESC, sp.sku';
-    return await query(sql, [archetypeId]) as SupplierProductRow[];
+    const rows = await query(sql, [archetypeId]) as SupplierProductRow[];
+    return rows.map(r => this.mapBooleans(r));
   }
 
   /**
@@ -157,7 +164,8 @@ export class SupplierProductRepository {
   async findBySupplier(supplierId: number): Promise<SupplierProductRow[]> {
     const sql = this.buildSupplierProductQuery('sp.supplier_id = ?') +
       ' ORDER BY pa.name, sp.sku';
-    return await query(sql, [supplierId]) as SupplierProductRow[];
+    const rows = await query(sql, [supplierId]) as SupplierProductRow[];
+    return rows.map(r => this.mapBooleans(r));
   }
 
   /**
@@ -345,9 +353,10 @@ export class SupplierProductRepository {
     archetypeIds.forEach(id => result.set(id, []));
 
     rows.forEach(row => {
-      const products = result.get(row.archetype_id) || [];
-      products.push(row);
-      result.set(row.archetype_id, products);
+      const mapped = this.mapBooleans(row);
+      const products = result.get(mapped.archetype_id) || [];
+      products.push(mapped);
+      result.set(mapped.archetype_id, products);
     });
 
     return result;

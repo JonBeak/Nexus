@@ -35,6 +35,9 @@ router.post('/generate', controller.generateOrder);
 // POST /supplier-orders/submit-draft - Submit draft PO (snapshot from MRs)
 router.post('/submit-draft', controller.submitDraftPO);
 
+// POST /supplier-orders/email-preview - Generate PO email preview HTML
+router.post('/email-preview', controller.getEmailPreview);
+
 // PUT /supplier-orders/:id - Update order
 router.put('/:id', controller.updateOrder);
 

@@ -107,16 +107,17 @@ export class ArchetypeRepository {
       queryParams.push(params.subcategory);
     }
 
-    // Search filter
+    // Search filter - each word must match at least one field
     if (params.search) {
-      conditions.push(`(
-        a.name LIKE ? OR
-        a.description LIKE ? OR
-        a.subcategory LIKE ? OR
-        mc.name LIKE ?
-      )`);
-      const searchTerm = `%${params.search}%`;
-      queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
+      const words = params.search.trim().split(/\s+/);
+      const wordConditions = words.map(() =>
+        '(a.name LIKE ? OR a.description LIKE ? OR a.subcategory LIKE ? OR mc.name LIKE ?)'
+      );
+      conditions.push(wordConditions.join(' AND '));
+      for (const word of words) {
+        const term = `%${word}%`;
+        queryParams.push(term, term, term, term);
+      }
     }
 
     const sql = this.buildArchetypeQuery(conditions.join(' AND ')) + ' ORDER BY mc.sort_order, mc.name, a.name';

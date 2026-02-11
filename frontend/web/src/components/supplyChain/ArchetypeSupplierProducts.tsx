@@ -3,7 +3,7 @@
 // Created: 2025-12-19
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Plus, Edit, Trash2, DollarSign, AlertCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, DollarSign, AlertCircle, Star, Eye, EyeOff, RotateCcw } from 'lucide-react';
 import api from '../../services/api';
 import { useAlert } from '../../contexts/AlertContext';
 import { SupplierProduct, Supplier } from '../../types/supplyChain';
@@ -24,6 +24,11 @@ export const ArchetypeSupplierProducts: React.FC<ArchetypeSupplierProductsProps>
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Inactive products visibility
+  const [showInactive, setShowInactive] = useState(false);
+  const inactiveCount = products.filter(p => !p.is_active).length;
+  const visibleProducts = showInactive ? products : products.filter(p => p.is_active);
 
   // Editor/Modal state
   const [showEditor, setShowEditor] = useState(false);
@@ -108,6 +113,21 @@ export const ArchetypeSupplierProducts: React.FC<ArchetypeSupplierProductsProps>
     }
   };
 
+  // Handle reactivate product
+  const handleReactivate = async (product: SupplierProduct) => {
+    try {
+      await api.put(`/supplier-products/${product.supplier_product_id}`, { is_active: true });
+      void loadData();
+      onUpdate?.();
+    } catch (err: any) {
+      setError(
+        err.response?.data?.error ||
+        err.message ||
+        'Failed to reactivate supplier product'
+      );
+    }
+  };
+
   // Handle edit
   const handleEdit = (product: SupplierProduct) => {
     setEditingProduct(product);
@@ -164,13 +184,28 @@ export const ArchetypeSupplierProducts: React.FC<ArchetypeSupplierProductsProps>
         </div>
       ) : (
         <>
+          {/* Show inactive toggle */}
+          {inactiveCount > 0 && (
+            <div className="flex justify-end mb-2">
+              <button
+                onClick={() => setShowInactive(!showInactive)}
+                className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100"
+              >
+                {showInactive ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                {showInactive ? 'Hide inactive' : `Show inactive (${inactiveCount})`}
+              </button>
+            </div>
+          )}
+
           <div className="overflow-x-auto mb-3">
             <table className="min-w-full text-sm">
               <thead className="bg-gray-100 border-b">
                 <tr>
                   <th className="text-left px-3 py-2 font-medium text-gray-700">Supplier</th>
                   <th className="text-left px-3 py-2 font-medium text-gray-700">Brand</th>
+                  <th className="text-left px-3 py-2 font-medium text-gray-700">Product Name</th>
                   <th className="text-left px-3 py-2 font-medium text-gray-700">SKU</th>
+                  <th className="text-left px-3 py-2 font-medium text-gray-700">Specs</th>
                   <th className="text-left px-3 py-2 font-medium text-gray-700">Unit</th>
                   <th className="text-right px-3 py-2 font-medium text-gray-700">Current Price</th>
                   <th className="text-right px-3 py-2 font-medium text-gray-700">Lead Time</th>
@@ -179,15 +214,40 @@ export const ArchetypeSupplierProducts: React.FC<ArchetypeSupplierProductsProps>
                 </tr>
               </thead>
               <tbody>
-                {products.map((product) => (
+                {visibleProducts.map((product) => (
                   <tr
                     key={product.supplier_product_id}
-                    className={`border-b ${!product.is_active ? 'bg-gray-50 opacity-50' : ''}`}
+                    className={`border-b ${!product.is_active ? 'bg-gray-50 opacity-60' : ''}`}
                   >
-                    <td className="px-3 py-2">{product.supplier_name}</td>
+                    <td className="px-3 py-2">
+                      <span className="flex items-center gap-1">
+                        {product.is_preferred && <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500 flex-shrink-0" />}
+                        {product.supplier_name}
+                        {!product.is_active && (
+                          <span className="ml-1 px-1.5 py-0.5 text-[10px] font-medium bg-gray-200 text-gray-500 rounded">
+                            Inactive
+                          </span>
+                        )}
+                      </span>
+                    </td>
                     <td className="px-3 py-2">{product.brand_name || '-'}</td>
+                    <td className="px-3 py-2">{product.product_name || '-'}</td>
                     <td className="px-3 py-2 font-mono text-xs text-gray-600">
                       {product.sku || '-'}
+                    </td>
+                    <td className="px-3 py-2">
+                      {product.specifications && Object.keys(product.specifications).length > 0 ? (
+                        <div className="space-y-0.5">
+                          {Object.entries(product.specifications).map(([key, value]) => (
+                            <div key={key} className="flex gap-1.5 text-xs leading-tight">
+                              <span className="text-gray-500 font-medium whitespace-nowrap">{key}:</span>
+                              <span className="text-gray-700">{String(value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">-</span>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-600">
                       {product.unit_of_measure ? (
@@ -233,13 +293,23 @@ export const ArchetypeSupplierProducts: React.FC<ArchetypeSupplierProductsProps>
                         >
                           <Edit className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => handleDelete(product)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 rounded hover:bg-red-50"
-                          title="Delete product"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {product.is_active ? (
+                          <button
+                            onClick={() => handleDelete(product)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 rounded hover:bg-red-50"
+                            title="Delete product"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleReactivate(product)}
+                            className="p-1.5 text-gray-400 hover:text-green-600 rounded hover:bg-green-50"
+                            title="Reactivate product"
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

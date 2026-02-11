@@ -6,6 +6,7 @@
 
 import { Request, Response } from 'express';
 import { SupplierOrderService } from '../../services/supplierOrderService';
+import { generatePOPreviewHtml } from '../../services/supplierOrderEmailService';
 import {
   SupplierOrderSearchParams,
   CreateSupplierOrderRequest,
@@ -414,6 +415,37 @@ export const getStatusCounts = async (_req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'Failed to fetch status counts',
+    });
+  }
+};
+
+/**
+ * POST /supplier-orders/email-preview
+ * Generate PO email preview HTML (same template used for actual send)
+ */
+export const getEmailPreview = async (req: Request, res: Response) => {
+  try {
+    const { items, deliveryMethod, opening, closing, supplierName, showPricing } = req.body;
+
+    if (!items || !Array.isArray(items)) {
+      return res.status(400).json({ success: false, message: 'items[] is required' });
+    }
+
+    const result = await generatePOPreviewHtml({
+      items,
+      deliveryMethod: deliveryMethod || 'shipping',
+      opening,
+      closing,
+      supplierName,
+      showPricing,
+    });
+
+    res.json({ success: true, data: { html: result.html } });
+  } catch (error) {
+    console.error('Error in getEmailPreview:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to generate preview',
     });
   }
 };

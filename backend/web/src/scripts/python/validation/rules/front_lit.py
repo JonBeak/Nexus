@@ -41,12 +41,14 @@ from .legacy_analysis import (
     match_trim_to_return,
     convert_letter_groups_to_analysis,
 )
+from .common_checks import check_hole_centering
 
 
 def generate_letter_analysis_issues(
     analysis: LetterAnalysisResult,
     return_layer: str = 'return',
-    expected_mounting_names: Optional[List[str]] = None
+    expected_mounting_names: Optional[List[str]] = None,
+    require_wire_holes: bool = True
 ) -> List[Dict[str, Any]]:
     """
     Generate validation issues from letter analysis results.
@@ -58,6 +60,9 @@ def generate_letter_analysis_issues(
         return_layer: Layer name for return paths (default 'return')
         expected_mounting_names: List of expected mounting type names (e.g. ['Regular Mounting']).
                                  If set, warns when other mounting types are found.
+        require_wire_holes: Whether wire holes are required (True when LEDs spec present,
+                            False when no LEDs). When False, skips missing-wire-hole errors
+                            but warns if wire holes are found unexpectedly.
 
     Returns:
         List of issue dicts with rule, severity, message, details
@@ -70,40 +75,56 @@ def generate_letter_analysis_issues(
         if letter.layer_name.lower() != return_layer.lower():
             continue
 
-        # No wire hole is an error
-        if len(letter.wire_holes) == 0:
-            issue = {
-                'rule': 'letter_no_wire_hole',
-                'severity': 'error',
-                'message': f'Letter {letter.letter_id} has no wire hole',
-                'path_id': letter.letter_id,
-                'details': {
-                    'layer': letter.layer_name,
-                    'size_inches': letter.real_size_inches,
-                    'hole_counts': {
-                        'wire': len(letter.wire_holes),
-                        'mounting': len(letter.mounting_holes),
-                        'unknown': len(letter.unknown_holes)
+        if require_wire_holes:
+            # No wire hole is an error
+            if len(letter.wire_holes) == 0:
+                issue = {
+                    'rule': 'letter_no_wire_hole',
+                    'severity': 'error',
+                    'message': f'Letter {letter.letter_id} has no wire hole',
+                    'path_id': letter.letter_id,
+                    'details': {
+                        'layer': letter.layer_name,
+                        'size_inches': letter.real_size_inches,
+                        'hole_counts': {
+                            'wire': len(letter.wire_holes),
+                            'mounting': len(letter.mounting_holes),
+                            'unknown': len(letter.unknown_holes)
+                        }
                     }
                 }
-            }
-            all_issues.append(issue)
-            letter.issues.append(issue)
+                all_issues.append(issue)
+                letter.issues.append(issue)
 
-        # Multiple wire holes is a warning
-        if len(letter.wire_holes) > 1:
-            issue = {
-                'rule': 'letter_multiple_wire_holes',
-                'severity': 'warning',
-                'message': f'Letter {letter.letter_id} has {len(letter.wire_holes)} wire holes, expected 1',
-                'path_id': letter.letter_id,
-                'details': {
-                    'wire_hole_count': len(letter.wire_holes),
-                    'wire_holes': [h.to_dict() for h in letter.wire_holes]
+            # Multiple wire holes is a warning
+            if len(letter.wire_holes) > 1:
+                issue = {
+                    'rule': 'letter_multiple_wire_holes',
+                    'severity': 'warning',
+                    'message': f'Letter {letter.letter_id} has {len(letter.wire_holes)} wire holes, expected 1',
+                    'path_id': letter.letter_id,
+                    'details': {
+                        'wire_hole_count': len(letter.wire_holes),
+                        'wire_holes': [h.to_dict() for h in letter.wire_holes]
+                    }
                 }
-            }
-            all_issues.append(issue)
-            letter.issues.append(issue)
+                all_issues.append(issue)
+                letter.issues.append(issue)
+        else:
+            # Wire holes not required (no LEDs spec) — warn if present
+            if len(letter.wire_holes) > 0:
+                issue = {
+                    'rule': 'letter_unexpected_wire_hole',
+                    'severity': 'warning',
+                    'message': f'Letter {letter.letter_id} has {len(letter.wire_holes)} wire hole(s) but order has no LEDs spec',
+                    'path_id': letter.letter_id,
+                    'details': {
+                        'wire_hole_count': len(letter.wire_holes),
+                        'wire_holes': [h.to_dict() for h in letter.wire_holes]
+                    }
+                }
+                all_issues.append(issue)
+                letter.issues.append(issue)
 
         # Unexpected mounting type is a warning
         if expected_mounting_names and letter.mounting_holes:
@@ -452,8 +473,9 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
 
             max_with_miter = trim_offset_max * miter_factor
 
-            width_ok = trim_offset_min <= width_offset_per_side_mm <= max_with_miter
-            height_ok = trim_offset_min <= height_offset_per_side_mm <= max_with_miter
+            _tol = 0.05  # mm — SVG coordinate precision margin
+            width_ok = (trim_offset_min - _tol) <= width_offset_per_side_mm <= (max_with_miter + _tol)
+            height_ok = (trim_offset_min - _tol) <= height_offset_per_side_mm <= (max_with_miter + _tol)
 
             if not width_ok or not height_ok:
                 expected_total_min = trim_offset_min * 2
@@ -482,5 +504,17 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
     # Rule 5: Trim cap spacing (polygon-based with simulated miters)
     if letter_analysis and letter_analysis.letter_groups:
         issues.extend(check_trim_cap_spacing(letter_analysis, rules))
+
+    # Rule 6: Mounting hole centering (polygon-based ray casting)
+    if letter_analysis and letter_analysis.letter_groups:
+        issues.extend(check_hole_centering(
+            letter_analysis, rules,
+            return_layer=return_layer,
+            centering_threshold=rules.get('hole_centering_ratio_threshold', 0.30),
+            exempt_distance_inches=rules.get('hole_centering_exempt_inches', 2.0),
+            target_hole_names=rules.get('hole_centering_names', ['Pin Thread Mounting', 'Rivnut']),
+            min_edge_distance_inches=rules.get('hole_centering_min_edge_inches', 0.5),
+            min_letter_size_inches=rules.get('hole_centering_min_letter_size_inches', 3.0),
+        ))
 
     return issues

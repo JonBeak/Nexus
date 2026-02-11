@@ -92,7 +92,7 @@ export async function getExpectedFilesComparison(
 
     // 2b. Detect spec types and build validation rule descriptions
     const specTypes = detectSpecTypes(specsDisplayNames);
-    const validationRules = getValidationRuleDescriptions(specTypes);
+    const validationRules = getValidationRuleDescriptions(specTypes, undefined, specsDisplayNames);
 
     // 2c. Build condition context for tree evaluation
     const applications = deps.getOrderApplications

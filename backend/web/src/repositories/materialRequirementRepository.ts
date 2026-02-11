@@ -34,6 +34,7 @@ export class MaterialRequirementRepository {
         mc.name as archetype_category,
         pa.unit_of_measure,
         sp.product_name as supplier_product_name,
+        sp.brand_name as supplier_product_brand,
         sp.sku as supplier_product_sku,
         CASE
           WHEN mr.supplier_id = -1 THEN 'In Stock'
@@ -55,7 +56,12 @@ export class MaterialRequirementRepository {
         vi.width as held_vinyl_width,
         vi.length_yards as held_vinyl_length_yards,
         vh.quantity_held as held_vinyl_quantity,
-        gih.quantity_held as held_general_quantity
+        gih.quantity_held as held_general_quantity,
+        spph.unit_price as supplier_product_current_price,
+        spph.cost_currency as supplier_product_currency,
+        spph.effective_start_date as price_effective_date,
+        so.order_number as supplier_order_number,
+        s.default_delivery_method as supplier_default_delivery_method
       FROM material_requirements mr
       LEFT JOIN orders o ON mr.order_id = o.order_id
       LEFT JOIN customers c ON o.customer_id = c.customer_id
@@ -69,6 +75,10 @@ export class MaterialRequirementRepository {
       LEFT JOIN vinyl_inventory vi ON mr.held_vinyl_id = vi.id
       LEFT JOIN vinyl_holds vh ON mr.requirement_id = vh.material_requirement_id
       LEFT JOIN general_inventory_holds gih ON mr.requirement_id = gih.material_requirement_id
+      LEFT JOIN supplier_product_pricing_history spph
+        ON mr.supplier_product_id = spph.supplier_product_id
+        AND spph.effective_end_date IS NULL
+      LEFT JOIN supplier_orders so ON mr.supplier_order_id = so.order_id
       WHERE ${whereClause}
     `;
   }
@@ -331,6 +341,10 @@ export class MaterialRequirementRepository {
     if (data.cart_id !== undefined) {
       setClauses.push('cart_id = ?');
       values.push(data.cart_id);
+    }
+    if (data.supplier_order_id !== undefined) {
+      setClauses.push('supplier_order_id = ?');
+      values.push(data.supplier_order_id);
     }
 
     if (setClauses.length === 0) return;

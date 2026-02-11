@@ -1,12 +1,11 @@
 /**
  * Supplier Order Email Service
  * Sends PO emails to suppliers when orders are submitted via "Place Order"
- * Uses existing Gmail infrastructure (gmailAuthService + MailComposer)
+ * Uses existing Gmail infrastructure (gmailAuthService + manual MIME)
  * Created: 2026-02-10
  */
 
 import { createGmailClient } from './gmailAuthService';
-import MailComposer from 'nodemailer/lib/mail-composer';
 import { query } from '../config/database';
 import { RowDataPacket } from 'mysql2';
 import { SupplierOrderRepository } from '../repositories/supplierOrderRepository';
@@ -40,6 +39,30 @@ export interface POEmailResult {
   messageId?: string;
   reason?: string;
   error?: string;
+}
+
+/** Typed shape for the order object passed to buildHtmlBody / buildPlainText */
+interface POEmailData {
+  order_number: string;
+  order_date: Date | string | null;
+  delivery_method: string;
+  supplier_name?: string;
+  subtotal?: number;
+  tax_amount?: number;
+  shipping_cost?: number;
+  total_amount?: number;
+  notes?: string | null;
+  items?: POEmailItem[];
+}
+
+interface POEmailItem {
+  product_description: string;
+  sku?: string | null;
+  quantity_ordered: number;
+  unit?: string | null;
+  unit_of_measure?: string | null;
+  unit_price?: number | null;
+  line_total?: number | null;
 }
 
 /**
@@ -121,36 +144,58 @@ function formatDate(dateStr: Date | string | null): string {
  * Build HTML email body for the PO
  */
 function buildHtmlBody(
-  order: any,
-  items: any[],
+  order: POEmailData,
+  items: POEmailItem[],
   settings: CompanySettings,
   customOpening?: string,
-  customClosing?: string
+  customClosing?: string,
+  showPricing: boolean = false,
+  mode: 'preview' | 'send' = 'preview'
 ): string {
   const companyName = escapeHtml(settings.company_name || 'Sign House');
   const orderNumber = escapeHtml(order.order_number);
   const deliveryMethod = order.delivery_method === 'pickup' ? 'Pickup' : 'Shipping';
   const orderDate = formatDate(order.order_date);
 
-  // Build items rows
-  const itemRows = items.map((item, i) => `
+  // Build items rows - conditionally show pricing columns
+  const itemRows = items.map((item, i) => {
+    if (showPricing) {
+      return `
     <tr style="border-bottom: 1px solid #e5e7eb;">
       <td style="padding: 10px 12px; font-size: 14px;">${escapeHtml(item.product_description)}</td>
       <td style="padding: 10px 12px; font-size: 14px; color: #6b7280;">${escapeHtml(item.sku || '—')}</td>
       <td style="padding: 10px 12px; font-size: 14px; text-align: center;">${Number(item.quantity_ordered)} ${escapeHtml(item.unit || item.unit_of_measure || 'each')}</td>
       <td style="padding: 10px 12px; font-size: 14px; text-align: right;">${Number(item.unit_price) > 0 ? formatCurrency(Number(item.unit_price)) : '—'}</td>
       <td style="padding: 10px 12px; font-size: 14px; text-align: right; font-weight: 500;">${Number(item.line_total) > 0 ? formatCurrency(Number(item.line_total)) : '—'}</td>
-    </tr>
-  `).join('');
+    </tr>`;
+    } else {
+      return `
+    <tr style="border-bottom: 1px solid #e5e7eb;">
+      <td style="padding: 10px 12px; font-size: 14px;">${escapeHtml(item.product_description)}</td>
+      <td style="padding: 10px 12px; font-size: 14px; color: #6b7280;">${escapeHtml(item.sku || '—')}</td>
+      <td style="padding: 10px 12px; font-size: 14px; text-align: center;">${Number(item.quantity_ordered)} ${escapeHtml(item.unit || item.unit_of_measure || 'each')}</td>
+    </tr>`;
+    }
+  }).join('');
 
   const subtotal = Number(order.subtotal || 0);
   const taxAmount = Number(order.tax_amount || 0);
   const shippingCost = Number(order.shipping_cost || 0);
   const totalAmount = Number(order.total_amount || 0);
 
-  // Logo header
-  const logoHtml = settings.company_logo_base64
-    ? `<img src="${settings.company_logo_base64}" alt="${companyName}" style="max-height: 50px; max-width: 200px;" />`
+  // Logo header — preview uses data URI (browser), send uses cid: (email clients strip data URIs)
+  let logoSrc = '';
+  if (settings.company_logo_base64) {
+    if (mode === 'send') {
+      logoSrc = 'cid:company-logo@nexus';
+    } else {
+      logoSrc = settings.company_logo_base64.startsWith('data:')
+        ? settings.company_logo_base64
+        : `data:image/png;base64,${settings.company_logo_base64}`;
+    }
+  }
+  const logoHtml = logoSrc
+    ? `<img src="${logoSrc}" alt="${companyName}" style="max-height: 50px; max-width: 200px;" />`
     : `<span style="font-size: 20px; font-weight: bold; color: ${COLORS.headerText};">${companyName}</span>`;
 
   // Notes section
@@ -172,12 +217,10 @@ function buildHtmlBody(
     <div style="background: ${COLORS.primary}; padding: 20px 24px; border-radius: 8px 8px 0 0;">
       <table style="width: 100%;">
         <tr>
-          <td>${logoHtml}</td>
-          <td style="text-align: right; color: ${COLORS.headerText}; font-size: 12px; line-height: 1.6;">
-            ${settings.company_phone ? `${escapeHtml(settings.company_phone)}<br/>` : ''}
-            ${settings.company_email ? `${escapeHtml(settings.company_email)}<br/>` : ''}
-            ${settings.company_website ? escapeHtml(settings.company_website) : ''}
+          <td style="text-align: left; vertical-align: middle; width: 100%;">
+            <span style="font-size: 20px; font-weight: bold; color: ${COLORS.headerText};">Purchase Order</span>
           </td>
+          <td style="text-align: right; vertical-align: middle; white-space: nowrap;">${logoHtml}</td>
         </tr>
       </table>
     </div>
@@ -188,7 +231,7 @@ function buildHtmlBody(
       <!-- Greeting -->
       ${customOpening
         ? `<div style="font-size: 14px; color: #374151; margin: 0 0 20px; line-height: 1.6;">${escapeHtmlWithLineBreaks(customOpening)}</div>`
-        : `<p style="font-size: 14px; color: #374151; margin: 0 0 6px;">Hi${order.supplier_name ? ` ${escapeHtml(order.supplier_name)}` : ''},</p>
+        : `<p style="font-size: 14px; color: #374151; margin: 0 0 16px;">Hi${order.supplier_name ? ` ${escapeHtml(order.supplier_name)}` : ''},<br/><br/></p>
       <p style="font-size: 14px; color: #4b5563; margin: 0 0 20px;">Please find our purchase order details below.</p>`
       }
 
@@ -213,8 +256,8 @@ function buildHtmlBody(
             <th style="padding: 10px 12px; text-align: left; font-size: 13px; font-weight: 600;">Description</th>
             <th style="padding: 10px 12px; text-align: left; font-size: 13px; font-weight: 600;">SKU</th>
             <th style="padding: 10px 12px; text-align: center; font-size: 13px; font-weight: 600;">Qty</th>
-            <th style="padding: 10px 12px; text-align: right; font-size: 13px; font-weight: 600;">Unit Price</th>
-            <th style="padding: 10px 12px; text-align: right; font-size: 13px; font-weight: 600;">Total</th>
+            ${showPricing ? `<th style="padding: 10px 12px; text-align: right; font-size: 13px; font-weight: 600;">Unit Price</th>` : ''}
+            ${showPricing ? `<th style="padding: 10px 12px; text-align: right; font-size: 13px; font-weight: 600;">Total</th>` : ''}
           </tr>
         </thead>
         <tbody>
@@ -222,13 +265,15 @@ function buildHtmlBody(
         </tbody>
       </table>
 
-      <!-- Totals -->
+      <!-- Totals (only show if pricing is enabled) -->
+      ${showPricing ? `
       <div style="text-align: right; margin-bottom: 16px;">
         ${subtotal > 0 ? `<div style="font-size: 14px; color: #6b7280; margin-bottom: 4px;">Subtotal: ${formatCurrency(subtotal)}</div>` : ''}
         ${taxAmount > 0 ? `<div style="font-size: 14px; color: #6b7280; margin-bottom: 4px;">Tax: ${formatCurrency(taxAmount)}</div>` : ''}
         ${shippingCost > 0 ? `<div style="font-size: 14px; color: #6b7280; margin-bottom: 4px;">Shipping: ${formatCurrency(shippingCost)}</div>` : ''}
         ${totalAmount > 0 ? `<div style="font-size: 16px; font-weight: bold; color: ${COLORS.primary};">Total: ${formatCurrency(totalAmount)}</div>` : ''}
       </div>
+      ` : ''}
 
       ${notesHtml}
 
@@ -260,8 +305,8 @@ function buildHtmlBody(
  * Build plain text version of the PO email
  */
 function buildPlainText(
-  order: any,
-  items: any[],
+  order: POEmailData,
+  items: POEmailItem[],
   settings: CompanySettings,
   customOpening?: string,
   customClosing?: string
@@ -272,7 +317,7 @@ function buildPlainText(
     ? [customOpening]
     : [defaultGreeting, 'Please find our purchase order details below.'];
   const lines: string[] = [
-    `PURCHASE ORDER — ${order.order_number}`,
+    `PURCHASE ORDER - ${order.order_number}`,
     `From: ${companyName}`,
     `Date: ${formatDate(order.order_date)}`,
     `Delivery: ${order.delivery_method === 'pickup' ? 'Pickup' : 'Shipping'}`,
@@ -320,6 +365,40 @@ function buildPlainText(
 }
 
 /**
+ * Generate preview HTML for the PO email (same template used for sending).
+ * Called from the frontend confirmation dialog so preview = sent email.
+ */
+export interface POPreviewRequest {
+  items: POEmailItem[];
+  deliveryMethod: string;
+  opening?: string;
+  closing?: string;
+  supplierName?: string;
+  showPricing?: boolean;
+}
+
+export async function generatePOPreviewHtml(req: POPreviewRequest): Promise<{ html: string }> {
+  const settings = await loadCompanySettings();
+
+  // Calculate totals from items
+  const subtotal = req.items.reduce((sum, item) => sum + (Number(item.line_total) || 0), 0);
+
+  const order: POEmailData = {
+    order_number: '{PO#}',
+    order_date: new Date(),
+    delivery_method: req.deliveryMethod,
+    supplier_name: req.supplierName,
+    subtotal,
+    tax_amount: 0,
+    shipping_cost: 0,
+    total_amount: subtotal,
+  };
+
+  const html = buildHtmlBody(order, req.items, settings, req.opening, req.closing, req.showPricing ?? true);
+  return { html };
+}
+
+/**
  * Main entry point: Send PO email to supplier
  */
 export interface POEmailOverrides {
@@ -333,7 +412,8 @@ export interface POEmailOverrides {
 
 export async function sendPurchaseOrderEmail(
   orderId: number,
-  overrides?: POEmailOverrides
+  overrides?: POEmailOverrides,
+  showPricing: boolean = false
 ): Promise<POEmailResult> {
   const repository = new SupplierOrderRepository();
 
@@ -354,9 +434,9 @@ export async function sendPurchaseOrderEmail(
   const companyName = settings.company_name || 'Sign House';
 
   // Build email content — replace {PO#} variable with actual generated PO number
-  const rawSubject = overrides?.subject?.trim() || `Purchase Order ${order.order_number} — ${companyName}`;
+  const rawSubject = overrides?.subject?.trim() || `Purchase Order ${order.order_number} - ${companyName}`;
   const subject = rawSubject.replace(/\{PO#\}/g, order.order_number);
-  const html = buildHtmlBody(order, order.items || [], settings, overrides?.opening, overrides?.closing);
+  const html = buildHtmlBody(order, order.items || [], settings, overrides?.opening, overrides?.closing, showPricing, 'send');
   const text = buildPlainText(order, order.items || [], settings, overrides?.opening, overrides?.closing);
 
   // CC list from overrides
@@ -401,24 +481,86 @@ export async function sendPurchaseOrderEmail(
 
     const gmail = await createGmailClient();
 
-    // Build MIME message with MailComposer
-    const mailOptions: any = {
-      from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
-      to: recipientEmail,
-      subject,
-      text,
-      html,
-    };
-    if (ccList.length > 0) {
-      mailOptions.cc = ccList.join(', ');
-    }
-    if (bccList.length > 0) {
-      mailOptions.bcc = bccList.join(', ');
+    // Build MIME message manually (MailComposer omits the type= param on
+    // multipart/related, which causes Outlook.com to hide CID inline images)
+    const altBoundary = '----=_Part_Alt_' + Date.now() + '_' + Math.random().toString(36).substring(7);
+
+    // Email headers
+    const headers: string[] = [
+      `From: ${SENDER_NAME} <${SENDER_EMAIL}>`,
+      `To: ${recipientEmail}`,
+    ];
+    if (ccList.length > 0) headers.push(`Cc: ${ccList.join(', ')}`);
+    if (bccList.length > 0) headers.push(`Bcc: ${bccList.join(', ')}`);
+    headers.push(`Subject: ${subject}`, `MIME-Version: 1.0`);
+
+    const bodyParts: string[] = [];
+
+    if (settings.company_logo_base64) {
+      // With logo: multipart/related wrapping multipart/alternative + inline image
+      const relBoundary = '----=_Part_Rel_' + Date.now() + '_' + Math.random().toString(36).substring(7);
+      headers.push(`Content-Type: multipart/related; boundary="${relBoundary}"; type="multipart/alternative"`);
+
+      // Alternative part (text + html)
+      bodyParts.push(
+        `--${relBoundary}`,
+        `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+        ``,
+        `--${altBoundary}`,
+        `Content-Type: text/plain; charset=UTF-8`,
+        `Content-Transfer-Encoding: 7bit`,
+        ``,
+        text,
+        `--${altBoundary}`,
+        `Content-Type: text/html; charset=UTF-8`,
+        `Content-Transfer-Encoding: 7bit`,
+        ``,
+        html,
+        `--${altBoundary}--`
+      );
+
+      // Inline logo image
+      const rawBase64 = settings.company_logo_base64.startsWith('data:')
+        ? settings.company_logo_base64.replace(/^data:image\/\w+;base64,/, '')
+        : settings.company_logo_base64;
+      // Detect content type from data URI prefix, default to image/png
+      const contentType = settings.company_logo_base64.startsWith('data:')
+        ? (settings.company_logo_base64.match(/^data:(image\/\w+);/)?.[1] || 'image/png')
+        : 'image/png';
+      // Wrap base64 at 76 chars per line (RFC 2045)
+      const wrappedBase64 = rawBase64.replace(/(.{76})/g, '$1\r\n');
+
+      bodyParts.push(
+        `--${relBoundary}`,
+        `Content-Type: ${contentType}; name="logo.png"`,
+        `Content-Transfer-Encoding: base64`,
+        `Content-ID: <company-logo@nexus>`,
+        `Content-Disposition: inline; filename="logo.png"`,
+        ``,
+        wrappedBase64,
+        `--${relBoundary}--`
+      );
+    } else {
+      // No logo: simple multipart/alternative
+      headers.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`);
+
+      bodyParts.push(
+        `--${altBoundary}`,
+        `Content-Type: text/plain; charset=UTF-8`,
+        `Content-Transfer-Encoding: 7bit`,
+        ``,
+        text,
+        `--${altBoundary}`,
+        `Content-Type: text/html; charset=UTF-8`,
+        `Content-Transfer-Encoding: 7bit`,
+        ``,
+        html,
+        `--${altBoundary}--`
+      );
     }
 
-    const mail = new MailComposer(mailOptions);
-    const message = await mail.compile().build();
-    const encodedMessage = message
+    const email = headers.concat([''], bodyParts).join('\r\n');
+    const encodedMessage = Buffer.from(email)
       .toString('base64')
       .replace(/\+/g, '-')
       .replace(/\//g, '_')

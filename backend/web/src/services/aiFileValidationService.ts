@@ -19,7 +19,7 @@ import {
 import { aiFileValidationRepository } from '../repositories/aiFileValidationRepository';
 import { query } from '../config/database';
 import { RowDataPacket } from 'mysql2';
-import { detectSpecTypes, buildValidationRules, buildCuttingFileRules } from './aiFileValidationRules';
+import { detectSpecTypes, buildValidationRules, buildCuttingFileRules, DUAL_LIT_PRODUCT_NAMES, HALO_LIT_PRODUCT_NAMES } from './aiFileValidationRules';
 import { getExpectedFilesComparison } from './aiFileValidationExpectedFiles';
 import { vectorValidationProfileService } from './vectorValidationProfileService';
 
@@ -248,11 +248,72 @@ export class AiFileValidationService {
       // Detect spec types from order parts for spec-specific validation
       const orderId = await this.getOrderIdFromNumber(orderNumber);
       let specTypes = new Set<string>();
+      let specsDisplayNames: string[] = [];
 
       if (orderId) {
-        const specsDisplayNames = await this.getOrderSpecsDisplayNames(orderId);
+        specsDisplayNames = await this.getOrderSpecsDisplayNames(orderId);
         specTypes = detectSpecTypes(specsDisplayNames);
         console.log(`[AiFileValidation] Order ${orderNumber} spec types detected: ${Array.from(specTypes).join(', ') || 'none'}`);
+      }
+
+      // For Dual Lit orders, resolve expected mounting names from order specs
+      const hasDualLit = specsDisplayNames.some(n => DUAL_LIT_PRODUCT_NAMES.includes(n));
+      if (hasDualLit && orderId) {
+        const dualLitMounting = await this.resolveDualLitMountingNames(orderId);
+        console.log(`[AiFileValidation] Dual Lit mounting expectation: ${dualLitMounting.join(', ')}`);
+
+        // Override the front_lit profile's expected_mounting_names and min_mounting_holes
+        const frontLitProfile = profileMap.get('front_lit');
+        if (frontLitProfile) {
+          const hasPureFrontLit = specsDisplayNames.some(
+            n => n === 'Front Lit' || n === 'Front Lit Acrylic Face'
+          );
+          if (hasPureFrontLit) {
+            // Mixed order: combine both regular and dual-lit mounting expectations
+            const regularNames = frontLitProfile.parameters.expected_mounting_names || ['Regular Mounting'];
+            const combined = [...new Set([...regularNames, ...dualLitMounting])];
+            frontLitProfile.parameters = { ...frontLitProfile.parameters, expected_mounting_names: combined };
+          } else {
+            // Pure Dual Lit: only dual-lit mounting expectations
+            frontLitProfile.parameters = { ...frontLitProfile.parameters, expected_mounting_names: dualLitMounting };
+          }
+          // Dual Lit requires minimum 3 pin thread/rivnut mounting holes per letter
+          const currentMin = frontLitProfile.parameters.min_mounting_holes ?? 2;
+          if (currentMin < 3) {
+            frontLitProfile.parameters = { ...frontLitProfile.parameters, min_mounting_holes: 3 };
+          }
+        }
+      }
+
+      // For Halo Lit orders, resolve expected mounting names and LED check
+      const hasHaloLit = specsDisplayNames.some(n => HALO_LIT_PRODUCT_NAMES.includes(n));
+      if (hasHaloLit && orderId) {
+        const haloMounting = await this.resolveHaloLitMountingNames(orderId);
+        console.log(`[AiFileValidation] Halo Lit mounting expectation: ${haloMounting.join(', ')}`);
+
+        const haloProfile = profileMap.get('halo_lit');
+        if (haloProfile) {
+          haloProfile.parameters = { ...haloProfile.parameters, expected_mounting_names: haloMounting };
+
+          // Check if order has LEDs
+          const haloHasLEDs = await this.orderHasLEDs(orderId);
+          if (!haloHasLEDs) {
+            haloProfile.parameters = { ...haloProfile.parameters, check_wire_holes: false };
+          }
+        }
+      }
+
+      // Only require wire holes if order includes LEDs
+      const hasLEDs = specsDisplayNames.some(n => n === 'LEDs');
+      if (!hasLEDs) {
+        for (const specType of ['front_lit', 'front_lit_acrylic_face']) {
+          if (specTypes.has(specType)) {
+            const profile = profileMap.get(specType);
+            if (profile) {
+              profile.parameters = { ...profile.parameters, require_wire_holes: false };
+            }
+          }
+        }
       }
 
       const results: FileValidationResult[] = [];
@@ -328,6 +389,90 @@ export class AiFileValidationService {
     ) as RowDataPacket[];
 
     return rows.map(r => r.specs_display_name).filter(Boolean);
+  }
+
+  /**
+   * Determine expected mounting hole names for Dual Lit parts based on order specs.
+   * - If Mounting template has spacer containing "rivnut" → Rivnut
+   * - Otherwise → Pin Thread Mounting
+   */
+  private async resolveDualLitMountingNames(orderId: number): Promise<string[]> {
+    const rows = await query(
+      `SELECT specifications FROM order_parts
+       WHERE order_id = ? AND specs_display_name IN (?)
+       AND specifications IS NOT NULL`,
+      [orderId, DUAL_LIT_PRODUCT_NAMES]
+    ) as RowDataPacket[];
+
+    let hasRivnut = false;
+
+    for (const row of rows) {
+      const specs = typeof row.specifications === 'string'
+        ? JSON.parse(row.specifications)
+        : row.specifications;
+      if (!specs) continue;
+
+      // Find the Mounting (or legacy Pins) template row
+      for (let i = 1; i <= 10; i++) {
+        const templateName = specs[`_template_${i}`];
+        if (templateName === 'Mounting' || templateName === 'Pins') {
+          const spacers = specs[`row${i}_spacers`] || '';
+          if (spacers.toLowerCase().includes('rivnut')) {
+            hasRivnut = true;
+          }
+          break;
+        }
+      }
+    }
+
+    return hasRivnut ? ['Rivnut'] : ['Pin Thread Mounting'];
+  }
+
+  /**
+   * Determine expected mounting hole names for Halo Lit parts based on order specs.
+   * Same logic as Dual Lit — checks Mounting template for "rivnut".
+   */
+  private async resolveHaloLitMountingNames(orderId: number): Promise<string[]> {
+    const rows = await query(
+      `SELECT specifications FROM order_parts
+       WHERE order_id = ? AND specs_display_name IN (?)
+       AND specifications IS NOT NULL`,
+      [orderId, HALO_LIT_PRODUCT_NAMES]
+    ) as RowDataPacket[];
+
+    let hasRivnut = false;
+
+    for (const row of rows) {
+      const specs = typeof row.specifications === 'string'
+        ? JSON.parse(row.specifications)
+        : row.specifications;
+      if (!specs) continue;
+
+      for (let i = 1; i <= 10; i++) {
+        const templateName = specs[`_template_${i}`];
+        if (templateName === 'Mounting' || templateName === 'Pins') {
+          const spacers = specs[`row${i}_spacers`] || '';
+          if (spacers.toLowerCase().includes('rivnut')) {
+            hasRivnut = true;
+          }
+          break;
+        }
+      }
+    }
+
+    return hasRivnut ? ['Rivnut'] : ['Pin Thread Mounting'];
+  }
+
+  /**
+   * Check if an order has LEDs in any of its parts.
+   */
+  private async orderHasLEDs(orderId: number): Promise<boolean> {
+    const rows = await query(
+      'SELECT COUNT(*) as cnt FROM order_parts WHERE order_id = ? AND specs_display_name = ?',
+      [orderId, 'LEDs']
+    ) as RowDataPacket[];
+
+    return rows.length > 0 && rows[0].cnt > 0;
   }
 
   /**

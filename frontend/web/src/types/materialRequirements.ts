@@ -120,6 +120,10 @@ export interface MaterialRequirement {
   // Joined fields from supplier
   supplier_name?: string | null;
 
+  // Joined fields from supplier_orders
+  supplier_order_id?: number | null;
+  supplier_order_number?: string | null;
+
   // Joined fields from held vinyl inventory
   held_vinyl_width?: number | null;
   held_vinyl_length_yards?: number | null;
@@ -498,6 +502,7 @@ export interface DraftPOGroup {
   supplier_name: string;
   contact_email: string | null;
   contact_phone: string | null;
+  default_delivery_method: 'shipping' | 'pickup' | null;
   requirements: DraftPORequirement[];
 }
 
@@ -509,6 +514,7 @@ export interface DraftPORequirement {
   archetype_name: string | null;
   custom_product_type: string | null;
   supplier_product_name: string | null;
+  supplier_product_brand: string | null;
   unit: string | null;
   quantity_ordered: number;
   unit_of_measure: string | null;
@@ -520,4 +526,7 @@ export interface DraftPORequirement {
   supplier_product_id: number | null;
   supplier_product_sku: string | null;
   entry_date: string;
+  supplier_product_current_price: number | null;
+  supplier_product_currency: string | null;
+  price_effective_date: string | null;
 }

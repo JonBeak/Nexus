@@ -41,6 +41,7 @@ from .base_rules import (
     check_path_closure
 )
 from .rules import check_front_lit_structure, check_front_lit_acrylic_face_structure, classify_engraving_paths
+from .rules import check_halo_lit_structure, generate_halo_lit_letter_issues
 from .rules.front_lit import generate_letter_analysis_issues
 from .letter_analysis import analyze_letter_hole_associations
 
@@ -233,7 +234,7 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
         # Letter-hole geometry analysis (run before other validations if requested)
         # Returns UNCLASSIFIED holes — spec rules classify them before serialization
         letter_analysis = None
-        if 'letter_hole_analysis' in rules or 'front_lit_structure' in rules or 'front_lit_acrylic_face_structure' in rules:
+        if 'letter_hole_analysis' in rules or 'front_lit_structure' in rules or 'front_lit_acrylic_face_structure' in rules or 'halo_lit_structure' in rules:
             analysis_config = rules.get('letter_hole_analysis', {})
 
             # For SVG files with detected unit scale, override file_scale
@@ -294,9 +295,14 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
 
             # 4. Per-letter issues (attaches to letter.issues + analysis.issues)
             if 'front_lit_structure' in rules:
-                return_layer = rules.get('front_lit_structure', {}).get('return_layer', 'return')
-                expected_mounting_names = rules.get('front_lit_structure', {}).get('expected_mounting_names')
-                analysis_issues = generate_letter_analysis_issues(letter_analysis, return_layer, expected_mounting_names)
+                front_lit_cfg = rules.get('front_lit_structure', {})
+                return_layer = front_lit_cfg.get('return_layer', 'return')
+                expected_mounting_names = front_lit_cfg.get('expected_mounting_names')
+                require_wire_holes = front_lit_cfg.get('require_wire_holes', True)
+                analysis_issues = generate_letter_analysis_issues(
+                    letter_analysis, return_layer, expected_mounting_names,
+                    require_wire_holes=require_wire_holes
+                )
                 for issue_dict in analysis_issues:
                     all_issues.append(ValidationIssue(
                         rule=issue_dict['rule'],
@@ -308,10 +314,28 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
 
             # 4b. Per-letter issues for acrylic face (return layer holes)
             if 'front_lit_acrylic_face_structure' in rules:
-                acrylic_return = rules.get('front_lit_acrylic_face_structure', {}).get('return_layer', 'return')
-                acrylic_mounting = rules.get('front_lit_acrylic_face_structure', {}).get('expected_mounting_names')
-                acrylic_issues = generate_letter_analysis_issues(letter_analysis, acrylic_return, acrylic_mounting)
+                acrylic_cfg = rules.get('front_lit_acrylic_face_structure', {})
+                acrylic_return = acrylic_cfg.get('return_layer', 'return')
+                acrylic_mounting = acrylic_cfg.get('expected_mounting_names')
+                acrylic_require_wire = acrylic_cfg.get('require_wire_holes', True)
+                acrylic_issues = generate_letter_analysis_issues(
+                    letter_analysis, acrylic_return, acrylic_mounting,
+                    require_wire_holes=acrylic_require_wire
+                )
                 for issue_dict in acrylic_issues:
+                    all_issues.append(ValidationIssue(
+                        rule=issue_dict['rule'],
+                        severity=issue_dict['severity'],
+                        message=issue_dict['message'],
+                        path_id=issue_dict.get('path_id'),
+                        details=issue_dict.get('details')
+                    ))
+
+            # 4c. Per-letter issues for halo lit (return no holes, back wire+mounting)
+            if 'halo_lit_structure' in rules:
+                halo_cfg = rules.get('halo_lit_structure', {})
+                halo_issues = generate_halo_lit_letter_issues(letter_analysis, halo_cfg)
+                for issue_dict in halo_issues:
                     all_issues.append(ValidationIssue(
                         rule=issue_dict['rule'],
                         severity=issue_dict['severity'],
@@ -358,6 +382,16 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
             if std_sizes:
                 acrylic_rules['_standard_hole_sizes'] = std_sizes
             all_issues.extend(check_front_lit_acrylic_face_structure(paths_info, acrylic_rules))
+
+        if 'halo_lit_structure' in rules:
+            halo_rules = rules['halo_lit_structure'].copy()
+            if letter_analysis:
+                halo_rules['_letter_analysis'] = letter_analysis
+            analysis_cfg = rules.get('letter_hole_analysis', {})
+            std_sizes = analysis_cfg.get('standard_hole_sizes', [])
+            if std_sizes:
+                halo_rules['_standard_hole_sizes'] = std_sizes
+            all_issues.extend(check_halo_lit_structure(paths_info, halo_rules))
 
         # Determine overall status
         has_errors = any(i.severity == 'error' for i in all_issues)
@@ -410,4 +444,6 @@ __all__ = [
     'generate_letter_analysis_issues',
     'check_front_lit_acrylic_face_structure',
     'classify_engraving_paths',
+    'check_halo_lit_structure',
+    'generate_halo_lit_letter_issues',
 ]

@@ -15,9 +15,19 @@ from .front_lit_acrylic_face import (
     classify_engraving_paths,
 )
 
+from .halo_lit import (
+    check_halo_lit_structure,
+    generate_halo_lit_letter_issues,
+)
+
+from .common_checks import check_hole_centering
+
 __all__ = [
     'check_front_lit_structure',
     'generate_letter_analysis_issues',
     'check_front_lit_acrylic_face_structure',
     'classify_engraving_paths',
+    'check_halo_lit_structure',
+    'generate_halo_lit_letter_issues',
+    'check_hole_centering',
 ]

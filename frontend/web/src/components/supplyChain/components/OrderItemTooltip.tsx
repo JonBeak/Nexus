@@ -18,6 +18,9 @@ export interface GroupedLineItem {
   sku: string | null;
   orderRefs: string[];
   items: DraftPORequirement[];
+  unitPrice: number | null;
+  lineTotal: number | null;
+  currency: string | null;
 }
 
 /** Format a single MR for the tooltip display */

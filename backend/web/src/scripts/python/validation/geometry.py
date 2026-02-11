@@ -2,14 +2,19 @@
 Geometric utilities for path analysis.
 """
 
-from typing import Tuple, Optional
+import math
+from typing import Tuple, Optional, Dict, List, Any
 
 try:
-    from shapely.geometry import Polygon
+    from shapely.geometry import Polygon, Point, LineString
     from shapely.geometry import JOIN_STYLE as _JOIN_STYLE
+    from shapely.ops import nearest_points as _nearest_points
 except ImportError:
     Polygon = None
+    Point = None
+    LineString = None
     _JOIN_STYLE = None
+    _nearest_points = None
 
 
 def get_centroid(bbox: Tuple[float, float, float, float]) -> Tuple[float, float]:
@@ -190,10 +195,9 @@ def calculate_circularity(area: float, perimeter: float) -> float:
         float: 1.0 for perfect circle, <1.0 for less circular shapes
                Complex shapes like letters typically have circularity < 0.5
     """
-    from math import pi
     if perimeter <= 0:
         return 0.0
-    return (4.0 * pi * area) / (perimeter ** 2)
+    return (4.0 * math.pi * area) / (perimeter ** 2)
 
 
 def polygon_contains(outer: Optional[Polygon], inner: Optional[Polygon],
@@ -252,9 +256,8 @@ def point_in_polygon(polygon: Optional[Polygon], x: float, y: float,
         return False
 
     try:
-        if Polygon is None:
+        if Point is None:
             return False
-        from shapely.geometry import Point
         point = Point(x, y)
 
         if tolerance != 0.0:
@@ -315,6 +318,141 @@ def build_compound_polygon(outer_polygon: Polygon,
     except Exception:
         # If compound construction fails, return original polygon
         return outer_polygon
+
+
+def compute_hole_centering(
+    polygon: 'Polygon',
+    hole_center: Tuple[float, float],
+    ray_angles: Optional[List[float]] = None,
+) -> Optional[Dict[str, Any]]:
+    """
+    Compute how centered a point is within a polygon's stroke.
+
+    Casts rays at multiple angles opposite from the nearest edge; uses the
+    minimum ray distance (worst case) to determine centering.
+
+    Returns dict with centering_ratio (0.5=centered), d_min, d_opposite,
+    stroke_width, nearest_angle_deg, ray_results, rays_missed, on_edge.
+    Returns None if computation fails.
+    """
+    if Polygon is None or Point is None or LineString is None or _nearest_points is None:
+        return None
+
+    if ray_angles is None:
+        ray_angles = list(range(120, 241, 10))  # 120..240 inclusive, step 10
+
+    try:
+        pt = Point(hole_center)
+        boundary = polygon.boundary
+
+        # 1. Find nearest point on boundary
+        nearest_on_boundary, _ = _nearest_points(boundary, pt)
+        d_min = pt.distance(nearest_on_boundary)
+
+        # 2. Direction from hole center TOWARD nearest edge point
+        # Ray offsets of 120-240° (centered on 180°) then fan out
+        # in the OPPOSITE direction — away from the nearest edge.
+        dx = nearest_on_boundary.x - hole_center[0]
+        dy = nearest_on_boundary.y - hole_center[1]
+        if dx == 0 and dy == 0:
+            # Hole center IS on the boundary
+            return {
+                'centering_ratio': 0.0,
+                'd_min': 0.0,
+                'd_opposite': 0.0,
+                'stroke_width': 0.0,
+                'nearest_angle_deg': 0.0,
+                'ray_results': [],
+                'rays_missed': 0,
+                'on_edge': True,
+            }
+
+        theta_nearest = math.atan2(dy, dx)
+
+        # 3. Cast rays in the opposite arc
+        ray_length = 10000.0  # far enough to exit any letter
+        ray_results = []
+        rays_missed = 0
+
+        for offset_deg in ray_angles:
+            angle = theta_nearest + math.radians(offset_deg)
+            far_x = hole_center[0] + ray_length * math.cos(angle)
+            far_y = hole_center[1] + ray_length * math.sin(angle)
+            ray = LineString([hole_center, (far_x, far_y)])
+
+            intersection = ray.intersection(boundary)
+
+            hit_dist = _extract_nearest_hit(intersection, hole_center)
+            ray_results.append({
+                'angle_offset_deg': offset_deg,
+                'd_ray': hit_dist,
+            })
+            if hit_dist is None:
+                rays_missed += 1
+
+        # 4. d_opposite = min of all ray hits
+        hit_distances = [r['d_ray'] for r in ray_results if r['d_ray'] is not None]
+        if not hit_distances:
+            # All rays missed — hole may be outside boundary
+            return {
+                'centering_ratio': 0.0,
+                'd_min': d_min,
+                'd_opposite': 0.0,
+                'stroke_width': 0.0,
+                'nearest_angle_deg': math.degrees(theta_nearest),
+                'ray_results': ray_results,
+                'rays_missed': rays_missed,
+                'on_edge': False,
+            }
+
+        d_opposite = min(hit_distances)
+        stroke_width = d_min + d_opposite
+        centering_ratio = d_min / stroke_width if stroke_width > 0 else 0.0
+
+        return {
+            'centering_ratio': centering_ratio,
+            'd_min': d_min,
+            'd_opposite': d_opposite,
+            'stroke_width': stroke_width,
+            'nearest_angle_deg': math.degrees(theta_nearest),
+            'ray_results': ray_results,
+            'rays_missed': rays_missed,
+            'on_edge': False,
+        }
+
+    except Exception:
+        return None
+
+
+def _extract_nearest_hit(intersection, origin: Tuple[float, float]) -> Optional[float]:
+    """Extract nearest non-zero distance from a ray-boundary intersection."""
+    if intersection is None or intersection.is_empty:
+        return None
+
+    origin_pt = Point(origin)
+    eps = 1e-6
+    min_dist = float('inf')
+
+    def _check_point(geom):
+        nonlocal min_dist
+        d = origin_pt.distance(geom)
+        if d > eps:
+            min_dist = min(min_dist, d)
+
+    def _check_geom(geom):
+        gt = geom.geom_type
+        if gt == 'Point':
+            _check_point(geom)
+        elif gt in ('MultiPoint', 'GeometryCollection'):
+            for g in geom.geoms:
+                _check_geom(g)
+        elif gt in ('LineString', 'MultiLineString'):
+            for line in (geom.geoms if gt == 'MultiLineString' else [geom]):
+                for coord in line.coords:
+                    _check_point(Point(coord))
+
+    _check_geom(intersection)
+    return min_dist if min_dist < float('inf') else None
 
 
 def polygon_distance(poly1: Optional[Polygon], poly2: Optional[Polygon]) -> float:

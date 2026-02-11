@@ -77,7 +77,8 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
   const [archetypes, setArchetypes] = useState<Archetype[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [editingArchetype, setEditingArchetype] = useState<Archetype | null>(null);
@@ -106,9 +107,16 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
     color: 'bg-gray-100 text-gray-700'
   });
 
+  const hasLoadedRef = useRef(false);
+
   const loadData = useCallback(async () => {
+    const isInitial = !hasLoadedRef.current;
     try {
-      setLoading(true);
+      if (isInitial) {
+        setInitialLoading(true);
+      } else {
+        setSearching(true);
+      }
       const params: Record<string, string> = {};
       // selectedCategory stores category name for display, filter by it
       if (selectedCategory !== 'all') params.category = selectedCategory;
@@ -123,6 +131,7 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
       setArchetypes(archetypesRes.data);
       setCategories(categoriesRes.data);
       setSuppliers(suppliersRes);
+      hasLoadedRef.current = true;
 
       // Set default category for new product types
       if (categoriesRes.data.length > 0 && !formData.category_id) {
@@ -132,7 +141,11 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
       console.error('Error loading data:', error);
       showNotification('Failed to load product types', 'error');
     } finally {
-      setLoading(false);
+      if (isInitial) {
+        setInitialLoading(false);
+      } else {
+        setSearching(false);
+      }
     }
   }, [showNotification, selectedCategory, debouncedSearchTerm]);
 
@@ -348,7 +361,7 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
 
   const getTotalCount = () => categories.reduce((sum, c) => sum + (c.material_count || 0), 0);
 
-  if (loading) {
+  if (initialLoading) {
     return (
       <div className="text-center py-8">
         <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
@@ -431,7 +444,7 @@ export const ProductArchetypesManager: React.FC<ProductArchetypesManagerProps> =
           <p className="text-gray-500">No product types found</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className={`space-y-2 transition-opacity duration-150 ${searching ? 'opacity-60' : 'opacity-100'}`}>
           {archetypes.map((archetype) => {
             // Use category color from archetype if available, else look up from categories
             const categoryColor = archetype.category_color || categories.find(c => c.id === archetype.category_id)?.color || 'bg-gray-100 text-gray-700';

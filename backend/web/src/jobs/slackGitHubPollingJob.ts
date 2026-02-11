@@ -109,6 +109,13 @@ async function pollTicket(
               const prNumber = event.source.issue.number;
               const prUrl = event.source.issue.html_url;
 
+              // Re-check DB — webhook may have already handled this PR
+              const fresh = await githubIntegrationRepository.getGitHubStatus(ticket.feedback_id);
+              if (fresh?.github_pr_number) {
+                console.log(`[Poll] PR #${prNumber} already recorded for feedback #${ticket.feedback_id} — skipping`);
+                break;
+              }
+
               // Update DB and notify (updateGitHubPR sets pipeline_status=pr_ready)
               await githubIntegrationRepository.updateGitHubPR(
                 ticket.feedback_id, prNumber, prUrl, ''

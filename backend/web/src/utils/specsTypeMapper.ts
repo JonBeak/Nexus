@@ -41,8 +41,8 @@ export function mapSpecsDisplayNameToTypes(
     'Front Lit': ['Return', 'Trim', 'Face', 'Back', 'Drain Holes'],
     'Halo Lit': ['Return', 'Face', 'Back', 'Mounting', 'Drain Holes', 'Face Assembly'],
     'Front Lit Acrylic Face': ['Return', 'Face', 'Back', 'Drain Holes', 'Face Assembly'],
-    'Dual Lit - Single Layer': ['Return', 'Trim', 'Face', 'Back', 'Drain Holes'],
-    'Dual Lit - Double Layer': ['Return', 'Trim', 'Face', 'Back', 'Drain Holes'],
+    'Dual Lit - Single Layer': ['Return', 'Trim', 'Face', 'Back', 'Mounting', 'Drain Holes'],
+    'Dual Lit - Double Layer': ['Return', 'Trim', 'Face', 'Back', 'Mounting', 'Drain Holes'],
 
     // Components
     // Note: Vinyl gets Cut/Peel/Mask added below for parent items only

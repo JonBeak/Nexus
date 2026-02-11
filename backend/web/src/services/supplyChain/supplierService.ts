@@ -19,6 +19,7 @@ export interface CreateSupplierData {
   province?: string;
   postal_code?: string;
   country?: string;
+  default_delivery_method?: string;
 }
 
 export interface UpdateSupplierData {
@@ -34,6 +35,7 @@ export interface UpdateSupplierData {
   province?: string;
   postal_code?: string;
   country?: string;
+  default_delivery_method?: string;
   is_active?: boolean;
 }
 
@@ -132,6 +134,7 @@ export class SupplierService {
         province: data.province?.trim(),
         postal_code: data.postal_code?.trim(),
         country: data.country?.trim(),
+        default_delivery_method: data.default_delivery_method?.trim(),
         created_by: userId
       });
 
@@ -189,7 +192,8 @@ export class SupplierService {
 
       const stringFields = [
         'name', 'website', 'notes', 'payment_terms', 'account_number',
-        'address_line1', 'address_line2', 'city', 'province', 'postal_code', 'country'
+        'address_line1', 'address_line2', 'city', 'province', 'postal_code', 'country',
+        'default_delivery_method'
       ];
 
       for (const field of stringFields) {
