@@ -21,6 +21,7 @@ import { query } from '../config/database';
 import { RowDataPacket } from 'mysql2';
 import { detectSpecTypes, buildValidationRules, buildCuttingFileRules } from './aiFileValidationRules';
 import { getExpectedFilesComparison } from './aiFileValidationExpectedFiles';
+import { vectorValidationProfileService } from './vectorValidationProfileService';
 
 // Path helpers
 const LEGACY_ACTIVE_PATH = SMB_ROOT;
@@ -238,8 +239,11 @@ export class AiFileValidationService {
         };
       }
 
-      // Load standard hole sizes from database
-      const standardHoleSizes = await aiFileValidationRepository.getActiveHoleSizes();
+      // Load standard hole sizes and vector validation profiles from database
+      const [standardHoleSizes, profileMap] = await Promise.all([
+        aiFileValidationRepository.getActiveHoleSizes(),
+        vectorValidationProfileService.getActiveProfileMap(),
+      ]);
 
       // Detect spec types from order parts for spec-specific validation
       const orderId = await this.getOrderIdFromNumber(orderNumber);
@@ -255,7 +259,7 @@ export class AiFileValidationService {
       let passed = 0, failed = 0, warnings = 0, errors = 0;
 
       // Pre-build rules for working files and cutting files
-      const workingFileRules = buildValidationRules(specTypes, standardHoleSizes);
+      const workingFileRules = buildValidationRules(specTypes, standardHoleSizes, profileMap);
       const cuttingFileRules = buildCuttingFileRules(standardHoleSizes);
 
       for (const file of files) {

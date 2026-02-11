@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { validationRulesController } from '../controllers/validationRulesController';
+import { vectorValidationProfileController } from '../controllers/vectorValidationProfileController';
 
 const router = Router();
 
@@ -32,5 +33,12 @@ router.put('/standard-file-names/:id', (req, res) => validationRulesController.u
 // Condition Field Options (dropdowns for condition builder)
 // =============================================================================
 router.get('/condition-field-options', (req, res) => validationRulesController.getConditionFieldOptions(req, res));
+
+// =============================================================================
+// Vector Validation Profiles
+// =============================================================================
+router.get('/vector-profiles', (req, res) => vectorValidationProfileController.getAll(req, res));
+router.get('/vector-profiles/:id', (req, res) => vectorValidationProfileController.getById(req, res));
+router.put('/vector-profiles/:id', (req, res) => vectorValidationProfileController.update(req, res));
 
 export default router;

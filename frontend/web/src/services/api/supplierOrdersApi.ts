@@ -58,7 +58,7 @@ export const supplierOrdersApi = {
     data: CreateSupplierOrderRequest
   ): Promise<{ order_id: number; order_number: string }> => {
     const response = await api.post('/supplier-orders', data);
-    return response.data.data;
+    return response.data;
   },
 
   /**
@@ -66,7 +66,7 @@ export const supplierOrdersApi = {
    */
   generateOrder: async (data: GenerateOrderRequest): Promise<GenerateOrderResponse> => {
     const response = await api.post('/supplier-orders/generate', data);
-    return response.data.data;
+    return response.data;
   },
 
   /**
@@ -111,7 +111,7 @@ export const supplierOrdersApi = {
       notes,
       email: emailFields,
     });
-    return response.data.data;
+    return response.data;
   },
 
   /**
@@ -131,7 +131,7 @@ export const supplierOrdersApi = {
    */
   receiveItems: async (id: number, data: ReceiveItemsRequest): Promise<ReceiveItemsResponse> => {
     const response = await api.post(`/supplier-orders/${id}/receive`, data);
-    return response.data.data;
+    return response.data;
   },
 
   /**
@@ -170,7 +170,7 @@ export const supplierOrdersApi = {
     data: CreateSupplierOrderItemRequest
   ): Promise<{ item_id: number }> => {
     const response = await api.post(`/supplier-orders/${orderId}/items`, data);
-    return response.data.data;
+    return response.data;
   },
 
   /**

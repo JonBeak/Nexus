@@ -44,7 +44,9 @@ export const HoleLegend: React.FC = () => (
       Mounting
     </span>
     <span className="flex items-center gap-1">
-      <Circle className="w-3 h-3 fill-purple-500 text-purple-500" />
+      <svg className="w-3 h-3" viewBox="0 0 12 12">
+        <line x1="1" y1="6" x2="11" y2="6" stroke="black" strokeWidth="1" strokeDasharray="2,2" />
+      </svg>
       Engraving
     </span>
     <span className="flex items-center gap-1">

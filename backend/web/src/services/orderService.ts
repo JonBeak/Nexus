@@ -348,6 +348,9 @@ export class OrderService {
       return {};
     }
 
+    // Warnings to return to frontend (e.g. status redirects)
+    const warnings: string[] = [];
+
     // Check if moving to "completed" with unpaid balance → redirect to "awaiting_payment"
     if (status === 'completed') {
       if (order.qb_invoice_id) {
@@ -384,6 +387,10 @@ export class OrderService {
           // Non-blocking: if balance check fails, proceed with completed
           console.error('⚠️  Cash balance check failed:', cashError);
         }
+      } else {
+        // Non-cash order with no invoice — cannot complete without payment verification
+        console.log(`⚠️  Order #${order.order_number}: No invoice created — redirecting to awaiting_payment instead of completed`);
+        status = 'awaiting_payment';
       }
     }
 
@@ -461,8 +468,6 @@ export class OrderService {
 
     // === UNIFIED FOLDER MOVEMENT LOGIC ===
     // Move folder to correct location based on new status (new orders only)
-    const warnings: string[] = [];
-
     if (order.folder_exists && order.folder_name && !order.is_migrated) {
       const getExpectedLocation = (orderStatus: string): 'active' | 'finished' | 'cancelled' | 'hold' => {
         if (orderStatus === 'completed' || orderStatus === 'awaiting_payment') return 'finished';

@@ -12,6 +12,7 @@ import { HoleDetail } from '../../../../types/aiFileValidation';
 const HOLE_COLORS: Record<string, string> = {
   wire: '#3B82F6',     // Blue
   mounting: '#22C55E', // Green
+  engraving: '#000000', // Black (rendered as stroke)
   unknown: '#F97316',  // Orange
 };
 
@@ -48,6 +49,7 @@ const OrphanHoleSvgPreview: React.FC<OrphanHoleSvgPreviewProps> = ({
   const color = HOLE_COLORS[hole.hole_type] || HOLE_COLORS.unknown;
   const radius = (hole.diameter_mm || 10) / 2;
   const isCircleType = hole.hole_type === 'wire' || hole.hole_type === 'mounting';
+  const isEngraving = hole.hole_type === 'engraving';
 
   return (
     <svg
@@ -66,6 +68,16 @@ const OrphanHoleSvgPreview: React.FC<OrphanHoleSvgPreviewProps> = ({
           stroke={color}
           strokeWidth={radius * 0.15}
         />
+      ) : isEngraving && hole.svg_path_data ? (
+        <g transform={hole.transform || undefined}>
+          <path
+            d={hole.svg_path_data}
+            fill="none"
+            stroke="#000000"
+            strokeWidth={Math.max(viewBox.width, viewBox.height) * 0.01}
+            strokeDasharray="2,2"
+          />
+        </g>
       ) : (
         <g transform={hole.transform || undefined}>
           {hole.svg_path_data ? (

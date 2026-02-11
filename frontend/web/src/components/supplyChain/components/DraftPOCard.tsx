@@ -327,7 +327,7 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
                 onClick={() => handleDeliveryChange('shipping')}
                 className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md border transition-colors ${
                   deliveryMethod === 'shipping'
-                    ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300'
+                    ? 'bg-yellow-200 dark:bg-yellow-900/30 border-yellow-900 dark:border-yellow-600 text-yellow-900 dark:text-yellow-300'
                     : `${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} ${PAGE_STYLES.panel.textMuted}`
                 }`}
               >
@@ -337,7 +337,7 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
                 onClick={() => handleDeliveryChange('pickup')}
                 className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md border transition-colors ${
                   deliveryMethod === 'pickup'
-                    ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300'
+                    ? 'bg-blue-200 dark:bg-blue-900/30 border-blue-900 dark:border-blue-600 text-blue-900 dark:text-blue-300'
                     : `${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} ${PAGE_STYLES.panel.textMuted}`
                 }`}
               >

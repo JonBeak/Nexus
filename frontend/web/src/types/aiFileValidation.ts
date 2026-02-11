@@ -162,7 +162,7 @@ export interface ApproveFilesResponse {
  */
 export interface HoleDetail {
   path_id: string;
-  hole_type: 'wire' | 'mounting' | 'unknown';
+  hole_type: 'wire' | 'mounting' | 'engraving' | 'unknown';
   diameter_mm: number;       // File units (points) - used for SVG rendering
   diameter_real_mm?: number; // Actual diameter in millimeters
   center: { x: number; y: number };
@@ -286,6 +286,19 @@ export interface ValidationRuleDisplay {
   name: string;           // e.g. "No Duplicate Paths"
   description: string;    // e.g. "Detects duplicate or overlapping paths on same layer"
   category: string;       // "Global" or "Front Lit Channel Letters"
+}
+
+// Vector validation profile from DB
+export interface VectorValidationProfile {
+  profile_id: number;
+  spec_type_key: string;
+  display_name: string;
+  description: string | null;
+  parameters: Record<string, any>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  updated_by: number | null;
 }
 
 // Full comparison result

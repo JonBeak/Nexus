@@ -4,6 +4,7 @@
  */
 
 import { api } from '../apiClient';
+import { VectorValidationProfile } from '../../types/aiFileValidation';
 
 // =============================================================================
 // Types
@@ -120,6 +121,20 @@ export const validationRulesApi = {
   // Condition Field Options
   async getConditionFieldOptions(): Promise<ConditionFieldOptions> {
     const response = await api.get('/settings/validation-rules/condition-field-options');
+    return response.data;
+  },
+
+  // Vector Validation Profiles
+  async getVectorProfiles(): Promise<VectorValidationProfile[]> {
+    const response = await api.get('/settings/validation-rules/vector-profiles');
+    return response.data;
+  },
+
+  async updateVectorProfile(
+    profileId: number,
+    data: { parameters?: Record<string, any>; description?: string | null; is_active?: boolean }
+  ): Promise<VectorValidationProfile> {
+    const response = await api.put(`/settings/validation-rules/vector-profiles/${profileId}`, data);
     return response.data;
   },
 };

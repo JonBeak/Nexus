@@ -85,9 +85,11 @@ export const ShoppingCartComponent: React.FC<ShoppingCartProps> = ({
         showNotification(`Order submitted! Email was not sent: ${result.email_message}`, 'error');
       }
       void loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting order:', error);
-      showNotification('Failed to submit order', 'error');
+      const msg = error?.response?.data?.message || 'Failed to submit order';
+      showNotification(msg, 'error');
+      void loadData();
     }
   };
 

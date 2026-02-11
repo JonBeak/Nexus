@@ -21,6 +21,7 @@ interface LayerSvgOverviewProps {
 const HOLE_COLORS: Record<string, string> = {
   wire: '#3B82F6',
   mounting: '#22C55E',
+  engraving: '#A855F7', // Not used - engraving renders as black stroke
   unknown: '#F97316',
 };
 
@@ -109,6 +110,23 @@ const LayerSvgOverview: React.FC<LayerSvgOverviewProps> = ({
   );
 
   const renderHole = (hole: HoleDetail, index: number) => {
+    // Engraving holes: render as black dotted stroke
+    if (hole.hole_type === 'engraving' && hole.svg_path_data) {
+      const strokeWidth = Math.max(viewBox.width, viewBox.height) * 0.002;
+      return (
+        <g key={`hole-${index}`} transform={hole.transform || undefined}>
+          <path
+            d={hole.svg_path_data}
+            fill="none"
+            stroke="#000000"
+            strokeWidth={strokeWidth}
+            strokeDasharray="2,2"
+          />
+        </g>
+      );
+    }
+
+    // Unknown holes: render actual SVG path with orange fill
     if (hole.hole_type === 'unknown' && hole.svg_path_data) {
       return (
         <g key={`hole-${index}`} transform={hole.transform || undefined}>
@@ -116,6 +134,8 @@ const LayerSvgOverview: React.FC<LayerSvgOverviewProps> = ({
         </g>
       );
     }
+
+    // Wire/mounting holes: colored circles
     const color = HOLE_COLORS[hole.hole_type] || HOLE_COLORS.unknown;
     return (
       <g key={`hole-${index}`} transform={hole.transform || undefined}>

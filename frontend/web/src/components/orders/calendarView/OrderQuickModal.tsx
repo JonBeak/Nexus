@@ -42,6 +42,7 @@ import { useBodyScrollLock } from '../../../hooks/useBodyScrollLock';
 import { useAuth } from '../../../contexts/AuthContext';
 import PrepareOrderModal from '../preparation/PrepareOrderModal';
 import ConfirmationModal from '../details/components/ConfirmationModal';
+import InvoiceButton from '../details/components/InvoiceButton';
 // Unified document modals
 import { DocumentActionModal, LinkDocumentModal, DocumentConflictModal, OrderTotals } from '../modals/document';
 import { DocumentSyncStatus, DocumentDifference } from '../../../types/document';
@@ -142,6 +143,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [newDueDate, setNewDueDate] = useState('');
   const [newDueHour, setNewDueHour] = useState('');
+  const [newDueMinute, setNewDueMinute] = useState(0);
   const [newDuePeriod, setNewDuePeriod] = useState<'AM' | 'PM'>('PM');
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [noteText, setNoteText] = useState('');
@@ -178,7 +180,6 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [conflictStatus, setConflictStatus] = useState<InvoiceSyncStatus>('in_sync');
   const [conflictDifferences, setConflictDifferences] = useState<InvoiceDifference[]>([]);
-  const [invoiceSyncStatus, setInvoiceSyncStatus] = useState<InvoiceSyncStatus>('in_sync');
   const [actionLoading, setActionLoading] = useState(false);
 
   // Estimate conflict state (for cash jobs)
@@ -323,30 +324,19 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
       setNewDueDate(result.order.due_date?.split('T')[0] || '');
       // Parse hard_due_date_time if exists (format: "HH:mm:ss")
       if (result.order.hard_due_date_time) {
-        const [hours] = result.order.hard_due_date_time.split(':').map(Number);
+        const [hours, minutes] = result.order.hard_due_date_time.split(':').map(Number);
         const period = hours >= 12 ? 'PM' : 'AM';
         const displayHour = hours % 12 || 12;
         setNewDueHour(displayHour.toString());
+        setNewDueMinute(Math.round(minutes / 5) * 5 % 60);
         setNewDuePeriod(period);
       } else {
         setNewDueHour('');
+        setNewDueMinute(0);
         setNewDuePeriod('PM');
       }
       setNoteText(result.order.internal_note || '');
       setTaskOrder(orderFromMetadata);
-
-      // Check invoice sync status if invoice exists
-      if (result.order.qb_invoice_id) {
-        try {
-          const syncResult = await qbInvoiceApi.compareWithQB(result.order.order_number);
-          setInvoiceSyncStatus(syncResult.status);
-        } catch (syncErr) {
-          console.error('Error checking invoice sync status:', syncErr);
-          setInvoiceSyncStatus('in_sync'); // Default to in_sync on error
-        }
-      } else {
-        setInvoiceSyncStatus('in_sync');
-      }
 
       // Check estimate staleness for cash jobs with existing estimates
       if (result.order.cash && result.order.qb_estimate_id) {
@@ -541,7 +531,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
         let hour24 = parseInt(newDueHour);
         if (newDuePeriod === 'PM' && hour24 !== 12) hour24 += 12;
         if (newDuePeriod === 'AM' && hour24 === 12) hour24 = 0;
-        hardDueTime = `${hour24.toString().padStart(2, '0')}:00:00`;
+        hardDueTime = `${hour24.toString().padStart(2, '0')}:${newDueMinute.toString().padStart(2, '0')}:00`;
       }
       await ordersApi.updateOrder(order.order_number, {
         due_date: newDueDate,
@@ -558,6 +548,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
   // Clear hard due time
   const handleClearTime = () => {
     setNewDueHour('');
+    setNewDueMinute(0);
     setNewDuePeriod('PM');
   };
 
@@ -848,8 +839,9 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
           return;
         }
         if (result && result.status === 'local_stale') {
-          setInvoiceModalMode('update');
-          setShowInvoiceModal(true);
+          setConflictStatus(result.status);
+          setConflictDifferences(result.differences || []);
+          setShowConflictModal(true);
           return;
         }
       } catch (err) {
@@ -898,6 +890,17 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
     setReassignInvoiceInfo(null);
     fetchOrderDetails();
     onOrderUpdated();
+  };
+
+  const handleMarkAsSent = async () => {
+    if (!orderDetails) return;
+    try {
+      await qbInvoiceApi.markAsSent(orderDetails.order_number);
+      fetchOrderDetails();
+      onOrderUpdated();
+    } catch (error) {
+      console.error('Failed to mark invoice as sent:', error);
+    }
   };
 
   // Get estimate button state for cash jobs
@@ -955,74 +958,6 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
       icon: <Send className="w-4 h-4" />,
       colorClass: 'bg-blue-600 hover:bg-blue-700 text-white'
     };
-  };
-
-  // Get invoice button state
-  const getInvoiceButtonState = () => {
-    if (!orderDetails) return null;
-
-    // Cash jobs use estimate buttons instead of invoice buttons
-    if (orderDetails.cash) {
-      return getEstimateButtonState();
-    }
-
-    const hasInvoice = !!orderDetails.qb_invoice_id;
-    const invoiceSent = !!orderDetails.invoice_sent_at;
-
-    if (!hasInvoice) {
-      // Show Create Invoice for:
-      // 1. Deposit-required orders (any workflow status)
-      // 2. Non-deposit orders in qc_packing/shipping/pick_up/awaiting_payment (for final invoice)
-      const needsInvoice = ['qc_packing', 'shipping', 'pick_up', 'awaiting_payment'].includes(orderDetails.status);
-      if (!orderDetails.deposit_required && !needsInvoice) {
-        return null;
-      }
-      return {
-        action: 'create',
-        label: 'Create Invoice',
-        icon: <FileText className="w-4 h-4" />,
-        colorClass: 'bg-green-600 hover:bg-green-700 text-white'
-      };
-    }
-
-    switch (invoiceSyncStatus) {
-      case 'local_stale':
-        return {
-          action: 'update',
-          label: 'Update Invoice',
-          icon: <RefreshCw className="w-4 h-4" />,
-          colorClass: 'bg-orange-500 hover:bg-orange-600 text-white'
-        };
-      case 'qb_modified':
-        return {
-          action: 'qb_modified',
-          label: 'Review Changes',
-          icon: <AlertTriangle className="w-4 h-4" />,
-          colorClass: 'bg-purple-600 hover:bg-purple-700 text-white'
-        };
-      case 'conflict':
-        return {
-          action: 'conflict',
-          label: 'Resolve Conflict',
-          icon: <AlertOctagon className="w-4 h-4" />,
-          colorClass: 'bg-red-600 hover:bg-red-700 text-white'
-        };
-      default:
-        if (!invoiceSent) {
-          return {
-            action: 'send',
-            label: 'Send Invoice',
-            icon: <Send className="w-4 h-4" />,
-            colorClass: 'bg-blue-600 hover:bg-blue-700 text-white'
-          };
-        }
-        return {
-          action: 'view',
-          label: 'View Invoice',
-          icon: <Eye className="w-4 h-4" />,
-          colorClass: 'bg-gray-500 hover:bg-gray-600 text-white'
-        };
-    }
   };
 
   if (!isOpen) return null;
@@ -1198,14 +1133,40 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                           <option key={h} value={h}>{h}</option>
                         ))}
                       </select>
+                      <span className={`text-sm font-medium ${PAGE_STYLES.panel.text}`}>:</span>
                       <select
-                        value={newDuePeriod}
-                        onChange={(e) => setNewDuePeriod(e.target.value as 'AM' | 'PM')}
-                        className={`w-16 px-1 py-1.5 border ${PAGE_STYLES.panel.border} rounded text-sm text-center`}
+                        value={newDueMinute}
+                        onChange={(e) => setNewDueMinute(parseInt(e.target.value))}
+                        className={`w-14 px-1 py-1.5 border ${PAGE_STYLES.panel.border} rounded text-sm text-center`}
                       >
-                        <option value="AM">AM</option>
-                        <option value="PM">PM</option>
+                        {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(m => (
+                          <option key={m} value={m}>{m.toString().padStart(2, '0')}</option>
+                        ))}
                       </select>
+                      <div className={`inline-flex rounded border ${PAGE_STYLES.panel.border} overflow-hidden`}>
+                        <button
+                          type="button"
+                          onClick={() => setNewDuePeriod('AM')}
+                          className={`px-2 py-1.5 text-sm font-medium transition-colors ${
+                            newDuePeriod === 'AM'
+                              ? 'bg-orange-500 text-white'
+                              : `${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.text} hover:bg-gray-100`
+                          }`}
+                        >
+                          AM
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNewDuePeriod('PM')}
+                          className={`px-2 py-1.5 text-sm font-medium transition-colors border-l ${PAGE_STYLES.panel.border} ${
+                            newDuePeriod === 'PM'
+                              ? 'bg-orange-500 text-white'
+                              : `${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.text} hover:bg-gray-100`
+                          }`}
+                        >
+                          PM
+                        </button>
+                      </div>
                       {newDueHour && (
                         <button
                           onClick={handleClearTime}
@@ -1251,10 +1212,10 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                       {orderDetails?.hard_due_date_time && (
                         <span className="text-sm text-red-600 font-medium">
                           {(() => {
-                            const [hours] = orderDetails.hard_due_date_time.split(':').map(Number);
+                            const [hours, minutes] = orderDetails.hard_due_date_time.split(':').map(Number);
                             const period = hours >= 12 ? 'PM' : 'AM';
                             const displayHour = hours % 12 || 12;
-                            return `${displayHour} ${period}`;
+                            return `${displayHour}:${minutes.toString().padStart(2, '0')} ${period}`;
                           })()}
                         </span>
                       )}
@@ -1387,7 +1348,7 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
               <h3 className={`text-sm md:text-base font-semibold ${PAGE_STYLES.header.text} uppercase tracking-wide mb-2`}>
                 Workflow
               </h3>
-              <div className="flex flex-wrap gap-2 [&>button]:min-h-[44px] [&>button]:py-3 md:[&>button]:py-2">
+              <div className="flex flex-wrap gap-2 [&>button]:min-h-[44px] [&>button]:py-3 md:[&>button]:py-2 [&>div]:min-h-[44px]">
                 {/* Prepare Order - job_details_setup */}
                 {orderDetails?.status === 'job_details_setup' && (
                   <button
@@ -1446,27 +1407,42 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                   </button>
                 )}
 
-                {/* Invoice/Estimate Button - excludes setup/confirmation and final statuses */}
-                {orderDetails && !['job_details_setup', 'pending_confirmation', 'completed', 'cancelled', 'on_hold'].includes(orderDetails.status) && (() => {
-                  const invoiceState = getInvoiceButtonState();
-                  if (!invoiceState) return null;
+                {/* Invoice Button - non-cash orders (InvoiceButton handles its own sync/shine) */}
+                {orderDetails && !orderDetails.cash && !['job_details_setup', 'pending_confirmation', 'completed', 'cancelled', 'on_hold'].includes(orderDetails.status) && (
+                  <InvoiceButton
+                    order={orderDetails}
+                    onAction={(action) => handleInvoiceAction(action)}
+                    onLinkInvoice={() => setShowLinkInvoiceModal(true)}
+                    onReassignInvoice={(info) => {
+                      setReassignInvoiceInfo(info);
+                      setShowLinkInvoiceModal(true);
+                    }}
+                    onMarkAsSent={handleMarkAsSent}
+                    disabled={actionLoading}
+                  />
+                )}
 
-                  // For cash jobs with "Create Estimate" - show button with dropdown
-                  if (orderDetails.cash && invoiceState.action === 'create_estimate') {
+                {/* Estimate Button - cash orders only */}
+                {orderDetails && !!orderDetails.cash && !['job_details_setup', 'pending_confirmation', 'completed', 'cancelled', 'on_hold'].includes(orderDetails.status) && (() => {
+                  const estimateState = getEstimateButtonState();
+                  if (!estimateState) return null;
+
+                  // "Create Estimate" with dropdown for "Link Existing Estimate"
+                  if (estimateState.action === 'create_estimate') {
                     return (
                       <div className="relative inline-flex">
                         <button
-                          onClick={() => handleInvoiceAction(invoiceState.action)}
+                          onClick={() => handleInvoiceAction(estimateState.action)}
                           disabled={actionLoading}
-                          className={`flex items-center gap-1.5 px-3 py-2 ${invoiceState.colorClass} rounded-l text-sm font-medium transition-colors disabled:opacity-50`}
+                          className={`flex items-center gap-1.5 px-3 py-2 ${estimateState.colorClass} rounded-l text-sm font-medium transition-colors disabled:opacity-50`}
                         >
-                          {invoiceState.icon}
-                          {invoiceState.label}
+                          {estimateState.icon}
+                          {estimateState.label}
                         </button>
                         <button
                           onClick={() => setShowEstimateDropdown(!showEstimateDropdown)}
                           disabled={actionLoading}
-                          className={`flex items-center px-2 py-2 ${invoiceState.colorClass} rounded-r border-l border-green-700 text-sm font-medium transition-colors disabled:opacity-50`}
+                          className={`flex items-center px-2 py-2 ${estimateState.colorClass} rounded-r border-l border-green-700 text-sm font-medium transition-colors disabled:opacity-50`}
                         >
                           <ChevronDown className={`w-4 h-4 transition-transform ${showEstimateDropdown ? 'rotate-180' : ''}`} />
                         </button>
@@ -1500,23 +1476,20 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                     );
                   }
 
-                  // Regular button for all other cases
+                  // Regular estimate button for other states
                   return (
                     <div className="relative inline-flex">
                       <button
-                        onClick={() => handleInvoiceAction(invoiceState.action)}
+                        onClick={() => handleInvoiceAction(estimateState.action)}
                         disabled={actionLoading}
-                        className={`flex items-center gap-1.5 px-3 py-2 ${invoiceState.colorClass} rounded text-sm font-medium transition-colors disabled:opacity-50`}
+                        className={`flex items-center gap-1.5 px-3 py-2 ${estimateState.colorClass} rounded text-sm font-medium transition-colors disabled:opacity-50`}
                       >
-                        {invoiceState.icon}
-                        {invoiceState.label}
+                        {estimateState.icon}
+                        {estimateState.label}
                       </button>
-                      {/* Cash badge for cash jobs */}
-                      {!!orderDetails.cash && (
-                        <span className="absolute -top-1 -right-1 px-1.5 py-0.5 text-[10px] font-bold bg-yellow-400 text-yellow-900 rounded">
-                          CASH
-                        </span>
-                      )}
+                      <span className="absolute -top-1 -right-1 px-1.5 py-0.5 text-[10px] font-bold bg-yellow-400 text-yellow-900 rounded">
+                        CASH
+                      </span>
                     </div>
                   );
                 })()}

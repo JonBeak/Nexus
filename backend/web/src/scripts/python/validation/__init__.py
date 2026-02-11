@@ -95,8 +95,16 @@ def _classify_holes_from_standards(analysis: 'LetterAnalysisResult', standard_si
         return
 
     def classify_one(hole):
-        if hole.hole_type != 'unclassified' or hole.diameter_real_mm <= 0:
+        if hole.hole_type != 'unclassified':
             return
+
+        # Non-circular paths (diameter_real_mm <= 0) can't match standard hole sizes
+        # Set them to 'unknown' so they can be further classified by subsequent steps
+        if hole.diameter_real_mm <= 0:
+            hole.hole_type = 'unknown'
+            return
+
+        # Try to match circular holes to standard sizes
         best_dist = float('inf')
         best_match = None
         for std in standard_sizes:
@@ -116,6 +124,40 @@ def _classify_holes_from_standards(analysis: 'LetterAnalysisResult', standard_si
             classify_one(hole)
     for hole in analysis.orphan_holes:
         classify_one(hole)
+
+
+def _classify_unknown_inside_paths(analysis: 'LetterAnalysisResult') -> None:
+    """
+    Distinguish between circular 'unknown holes' and non-circular 'unknown inside paths'.
+
+    Runs AFTER standard hole classification. For all holes still classified as 'unknown':
+    - If diameter_mm > 0 (circular) → rename to 'unknown_hole'
+    - If diameter_mm == 0 (non-circular) → set to 'unknown_inside_path'
+
+    This provides clearer classification:
+    - 'unknown_hole' = circular path with unrecognized diameter
+    - 'unknown_inside_path' = non-circular inner path (not a hole, not validated engraving)
+    """
+    for letter in analysis.letter_groups:
+        for hole in letter.holes:
+            if hole.hole_type != 'unknown':
+                continue  # Only process 'unknown' holes
+
+            if hole.diameter_mm > 0.0:
+                # Circular path with unrecognized diameter
+                hole.hole_type = 'unknown_hole'
+            else:
+                # Non-circular inner path (not an engraving offset)
+                hole.hole_type = 'unknown_inside_path'
+
+    for hole in analysis.orphan_holes:
+        if hole.hole_type != 'unknown':
+            continue
+
+        if hole.diameter_mm > 0.0:
+            hole.hole_type = 'unknown_hole'
+        else:
+            hole.hole_type = 'unknown_inside_path'
 
 
 def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
@@ -210,7 +252,10 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
             if standard_sizes:
                 _classify_holes_from_standards(letter_analysis, standard_sizes)
 
-            # 2b. Classify engraving paths on face layer (after hole classification)
+            # 2b. Distinguish unknown holes from unknown inside paths (GENERAL RULE)
+            _classify_unknown_inside_paths(letter_analysis)
+
+            # 2c. Classify engraving paths on face layer (after hole classification)
             if 'front_lit_acrylic_face_structure' in rules:
                 acrylic_cfg = rules['front_lit_acrylic_face_structure']
                 face_layer = acrylic_cfg.get('face_layer', 'face')

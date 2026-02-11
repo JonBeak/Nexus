@@ -5,17 +5,16 @@
  * Created: 2026-01-16
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   RefreshCw, ChevronLeft, ChevronRight, AlertCircle, Loader2,
-  MessageSquare, Clock, User, Image, Bot
+  MessageSquare, Clock, User, Image, Bot, X
 } from 'lucide-react';
 import {
   feedbackApi,
   FeedbackRequest,
   FeedbackStatus,
-  FeedbackPriority,
-  FeedbackListResponse
+  FeedbackPriority
 } from '../../services/api';
 import { FeedbackDetailModal } from '../feedback/FeedbackDetailModal';
 import { PAGE_STYLES } from '../../constants/moduleColors';
@@ -55,6 +54,13 @@ export const FeedbackManager: React.FC = () => {
   // Detail modal
   const [selectedFeedbackId, setSelectedFeedbackId] = useState<number | null>(null);
 
+  // Multi-select (manager only)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkClosing, setBulkClosing] = useState(false);
+  const [closingId, setClosingId] = useState<number | null>(null);
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+  const selectAllRef = useRef<HTMLInputElement>(null);
+
   // Store all fetched items for client-side status filtering
   const [allItems, setAllItems] = useState<FeedbackRequest[]>([]);
 
@@ -85,10 +91,28 @@ export const FeedbackManager: React.FC = () => {
     loadFeedback();
   }, [loadFeedback]);
 
-  // Reset page when filters change
+  // Reset page and clear selection when filters change
   useEffect(() => {
     setPage(1);
+    setSelectedIds(new Set());
   }, [selectedStatuses, priorityFilter]);
+
+  // Clear selection when page changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [page]);
+
+  // Manage indeterminate state on the select-all checkbox
+  const closableOnPage = paginatedItems.filter(i => i.status !== 'closed');
+  const selectedOnPage = closableOnPage.filter(i => selectedIds.has(i.feedback_id));
+  const allOnPageSelected = closableOnPage.length > 0 && selectedOnPage.length === closableOnPage.length;
+  const someOnPageSelected = selectedOnPage.length > 0 && !allOnPageSelected;
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someOnPageSelected;
+    }
+  }, [someOnPageSelected]);
 
   const totalPages = Math.ceil(filteredTotal / ITEMS_PER_PAGE);
 
@@ -121,6 +145,61 @@ export const FeedbackManager: React.FC = () => {
         {option.label}
       </span>
     ) : null;
+  };
+
+  const toggleSelectAll = () => {
+    if (allOnPageSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(closableOnPage.map(i => i.feedback_id)));
+    }
+  };
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleQuickClose = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setClosingId(id);
+    try {
+      await feedbackApi.updateStatus(id, 'closed');
+      await loadFeedback();
+    } catch (err) {
+      console.error('Failed to close feedback:', err);
+    } finally {
+      setClosingId(null);
+    }
+  };
+
+  const handleBulkClose = async () => {
+    const toClose = [...selectedIds].filter(id => {
+      const item = allItems.find(i => i.feedback_id === id);
+      return item && item.status !== 'closed';
+    });
+    if (toClose.length === 0) return;
+
+    setBulkClosing(true);
+    setBulkMessage(null);
+    try {
+      await Promise.all(toClose.map(id => feedbackApi.updateStatus(id, 'closed')));
+      setBulkMessage(`Closed ${toClose.length} ${toClose.length === 1 ? 'ticket' : 'tickets'}`);
+      setSelectedIds(new Set());
+      await loadFeedback();
+      setTimeout(() => setBulkMessage(null), 3000);
+    } catch (err) {
+      console.error('Bulk close failed:', err);
+      setBulkMessage('Some tickets failed to close');
+      await loadFeedback();
+      setTimeout(() => setBulkMessage(null), 3000);
+    } finally {
+      setBulkClosing(false);
+    }
   };
 
   return (
@@ -203,41 +282,99 @@ export const FeedbackManager: React.FC = () => {
         </div>
       ) : (
         <>
+          {/* Bulk Action Bar */}
+          {isManager && selectedIds.size > 0 && (
+            <div className={`flex items-center gap-4 px-4 py-2 rounded-lg border ${PAGE_STYLES.panel.border} ${PAGE_STYLES.input.background}`}>
+              <span className={`text-sm font-medium ${PAGE_STYLES.panel.text}`}>
+                {selectedIds.size} selected
+              </span>
+              <button
+                onClick={handleBulkClose}
+                disabled={bulkClosing}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+              >
+                {bulkClosing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                Close Selected
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className={`text-sm ${PAGE_STYLES.panel.textMuted} hover:underline`}
+              >
+                Deselect All
+              </button>
+              {bulkMessage && (
+                <span className="text-sm text-green-600 font-medium ml-auto">{bulkMessage}</span>
+              )}
+            </div>
+          )}
+
+          {/* Bulk message when no selection */}
+          {isManager && selectedIds.size === 0 && bulkMessage && (
+            <div className="text-sm text-green-600 font-medium">{bulkMessage}</div>
+          )}
+
           {/* Table */}
           <div className={`rounded-lg border ${PAGE_STYLES.panel.border} overflow-hidden`}>
             <table className="w-full">
               <thead className={`${PAGE_STYLES.header.background} ${PAGE_STYLES.header.text}`}>
                 <tr>
+                  {isManager && (
+                    <th className="px-3 py-3 w-10">
+                      <input
+                        ref={selectAllRef}
+                        type="checkbox"
+                        checked={allOnPageSelected}
+                        onChange={toggleSelectAll}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        title={allOnPageSelected ? 'Deselect all' : 'Select all'}
+                      />
+                    </th>
+                  )}
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Title</th>
                   {isManager && (
                     <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Submitter</th>
                   )}
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider w-28">Status</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Priority</th>
                   {isManager && (
                     <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Pipeline</th>
                   )}
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Date</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider w-16"></th>
+                  <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider w-12"></th>
                 </tr>
               </thead>
               <tbody className={`divide-y ${PAGE_STYLES.panel.divider} ${PAGE_STYLES.panel.background}`}>
                 {paginatedItems.map((feedback) => (
                   <tr
                     key={feedback.feedback_id}
-                    className={`${PAGE_STYLES.interactive.hover} cursor-pointer`}
+                    className={`${PAGE_STYLES.interactive.hover} cursor-pointer ${
+                      selectedIds.has(feedback.feedback_id) ? 'bg-blue-50/50' : ''
+                    }`}
                     onClick={() => setSelectedFeedbackId(feedback.feedback_id)}
                   >
+                    {isManager && (
+                      <td className="px-3 py-3 w-10">
+                        {feedback.status !== 'closed' ? (
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(feedback.feedback_id)}
+                            onChange={() => toggleSelect(feedback.feedback_id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                        ) : <div className="w-4" />}
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <span className={`font-medium ${PAGE_STYLES.panel.text}`}>
+                        <span className={`font-medium ${PAGE_STYLES.panel.text} break-words`}>
                           {feedback.title}
                         </span>
                         {feedback.screenshot_filename && (
                           <Image className="w-4 h-4 text-gray-400" title="Has screenshot" />
                         )}
                       </div>
-                      <p className={`text-sm ${PAGE_STYLES.panel.textMuted} truncate max-w-md`}>
+                      <p className={`text-sm ${PAGE_STYLES.panel.textMuted} break-words`}>
                         {feedback.description}
                       </p>
                     </td>
@@ -283,7 +420,22 @@ export const FeedbackManager: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <ChevronRight className="w-5 h-5 text-gray-400 inline" />
+                      {isManager && feedback.status !== 'closed' ? (
+                        <button
+                          onClick={(e) => handleQuickClose(feedback.feedback_id, e)}
+                          disabled={closingId === feedback.feedback_id}
+                          className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                          title="Close ticket"
+                        >
+                          {closingId === feedback.feedback_id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <X className="w-4 h-4" />
+                          )}
+                        </button>
+                      ) : (
+                        <ChevronRight className="w-5 h-5 text-gray-400 inline" />
+                      )}
                     </td>
                   </tr>
                 ))}

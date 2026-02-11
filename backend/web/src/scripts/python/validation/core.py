@@ -115,6 +115,7 @@ class HoleInfo:
     matched_size_id: Optional[int] = None  # ID from standard_hole_sizes table
     layer_name: str = ''           # Source layer name
     raw_bbox: Optional[Tuple[float, float, float, float]] = None  # Raw bbox for SVG viewBox
+    bbox: Optional[Tuple[float, float, float, float]] = None      # Transformed bbox (global coords)
 
     def to_dict(self) -> Dict[str, Any]:
         # Safety net: map 'unclassified' to 'unknown' for frontend contract

@@ -59,16 +59,19 @@ def is_circle_path(path) -> Tuple[bool, Optional[float]]:
             return False, None
 
         # Check aspect ratio (circles are square)
+        # Stricter threshold: 98% match required to prevent false positives
+        # (rejects squares, rectangles, octagons, hexagons)
         aspect_ratio = min(width, height) / max(width, height)
-        if aspect_ratio < 0.9:
+        if aspect_ratio < 0.98:
             return False, None
 
         # Check path length vs expected circumference
+        # Stricter threshold: ±2% tolerance (98% match required)
         expected_circumference = 3.14159 * (width + height) / 2
         actual_length = path.length()
 
         length_ratio = actual_length / expected_circumference if expected_circumference > 0 else 0
-        if abs(length_ratio - 1.0) > 0.15:
+        if abs(length_ratio - 1.0) > 0.02:
             return False, None
 
         diameter = (width + height) / 2

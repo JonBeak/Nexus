@@ -172,11 +172,11 @@ export class OrderRepository {
         (SELECT COUNT(*) FROM order_tasks ot
          INNER JOIN order_parts op ON ot.part_id = op.part_id
          WHERE ot.order_id = o.order_id
-         AND (op.is_parent = 1 OR op.is_order_wide = 1)) as total_tasks,
+         AND op.is_parent = 1) as total_tasks,
         (SELECT COUNT(*) FROM order_tasks ot
          INNER JOIN order_parts op ON ot.part_id = op.part_id
          WHERE ot.order_id = o.order_id AND ot.completed = 1
-         AND (op.is_parent = 1 OR op.is_order_wide = 1)) as completed_tasks,
+         AND op.is_parent = 1) as completed_tasks,
         (SELECT COUNT(*) FROM order_tasks WHERE order_tasks.order_id = o.order_id AND assigned_role = 'painter' AND completed = 0) as incomplete_painting_tasks_count
       FROM orders o
       LEFT JOIN customers c ON o.customer_id = c.customer_id
@@ -543,11 +543,11 @@ export class OrderRepository {
         (SELECT COUNT(*) FROM order_tasks ot
          INNER JOIN order_parts op ON ot.part_id = op.part_id
          WHERE ot.order_id = o.order_id
-         AND (op.is_parent = 1 OR op.is_order_wide = 1)) as total_tasks,
+         AND op.is_parent = 1) as total_tasks,
         (SELECT COUNT(*) FROM order_tasks ot
          INNER JOIN order_parts op ON ot.part_id = op.part_id
          WHERE ot.order_id = o.order_id AND ot.completed = 1
-         AND (op.is_parent = 1 OR op.is_order_wide = 1)) as completed_tasks,
+         AND op.is_parent = 1) as completed_tasks,
         (SELECT COUNT(*) FROM order_tasks
          WHERE order_tasks.order_id = o.order_id
          AND assigned_role = 'painter'

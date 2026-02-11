@@ -1,51 +1,13 @@
 /**
  * AI File Validation Rules
  * Spec-type detection, validation rule building, and rule descriptions
+ *
+ * Rule parameters are loaded from vector_validation_profiles DB table.
+ * The profile map is passed in by the caller (aiFileValidationService).
  */
 
 import { ValidationRuleConfig, ValidationRuleDisplay, StandardHoleSize } from '../types/aiFileValidation';
-
-// =============================================
-// SPEC-TYPE SPECIFIC VALIDATION RULES
-// =============================================
-
-/**
- * Front Lit channel letter validation rules (trim cap structure)
- * File scale: 10% (multiply by 10 for real-world dimensions)
- */
-export const FRONT_LIT_STRUCTURE_RULES: ValidationRuleConfig = {
-  file_scale: 0.1,                    // 10% scale
-  trim_offset_min_mm: 1.5,           // per side, in real mm (minimum acceptable offset)
-  trim_offset_max_mm: 2.5,           // per side, in real mm (maximum at straight edges)
-  miter_factor: 4.0,                 // corners can extend up to miter_factor * max before bevel
-  min_mounting_holes: 2,
-  mounting_holes_per_inch_perimeter: 0.05,  // 1 per 20" real
-  mounting_holes_per_sq_inch_area: 0.0123,  // 1 per 81 sq in real
-  check_wire_holes: true,            // Front lit always has LEDs
-  expected_mounting_names: ['Regular Mounting'],  // Warn if other mounting types found
-  return_layer: 'return',            // Layer name for returns
-  trim_layer: 'trimcap',             // Layer name for trim caps
-  min_trim_spacing_inches: 0.15,     // Minimum clearance between trim cap letters (with miter)
-};
-
-/**
- * Front Lit Acrylic Face validation rules
- * Uses face layer instead of trim cap, with engraving path detection
- */
-export const FRONT_LIT_ACRYLIC_FACE_RULES: ValidationRuleConfig = {
-  file_scale: 0.1,
-  face_layer: 'face',                         // Layer name for acrylic faces
-  face_offset_min_mm: 0.3,                    // Face must be ≥0.3mm bigger per side
-  min_face_spacing_inches: 0.10,              // 0.1" apart (less than trim cap's 0.15")
-  engraving_offset_mm: 0.4,                   // Expected engraving inset per side
-  engraving_offset_tolerance_mm: 0.15,        // Tolerance for engraving offset match
-  min_mounting_holes: 2,
-  mounting_holes_per_inch_perimeter: 0.05,
-  mounting_holes_per_sq_inch_area: 0.0123,
-  check_wire_holes: true,
-  expected_mounting_names: ['Regular Mounting'],
-  return_layer: 'return',
-};
+import { VectorValidationProfile } from '../repositories/vectorValidationProfileRepository';
 
 // Exact product type → validation spec type mapping
 const VALIDATION_SPEC_TYPE_MAP: Record<string, string> = {
@@ -56,6 +18,12 @@ const VALIDATION_SPEC_TYPE_MAP: Record<string, string> = {
   // Future:
   // 'Halo Lit': 'halo_lit',
   // 'Front Lit Push Thru': 'front_lit_push_thru',
+};
+
+/** Spec type key → rule key in the rules dict sent to Python */
+const SPEC_TYPE_RULE_KEY_MAP: Record<string, string> = {
+  'front_lit': 'front_lit_structure',
+  'front_lit_acrylic_face': 'front_lit_acrylic_face_structure',
 };
 
 /**
@@ -72,9 +40,13 @@ export function detectSpecTypes(specsDisplayNames: string[]): Set<string> {
 }
 
 /**
- * Get human-readable validation rule descriptions for display in the UI
+ * Get human-readable validation rule descriptions for display in the UI.
+ * Uses profile parameters from DB for dynamic description values.
  */
-export function getValidationRuleDescriptions(specTypes: Set<string>): ValidationRuleDisplay[] {
+export function getValidationRuleDescriptions(
+  specTypes: Set<string>,
+  profileMap?: Map<string, VectorValidationProfile>
+): ValidationRuleDisplay[] {
   const rules: ValidationRuleDisplay[] = [
     // Global rules (always applied)
     {
@@ -93,6 +65,11 @@ export function getValidationRuleDescriptions(specTypes: Set<string>): Validatio
 
   // Front Lit rules
   if (specTypes.has('front_lit')) {
+    const p = profileMap?.get('front_lit')?.parameters;
+    const trimMin = p?.trim_offset_min_mm ?? 1.5;
+    const trimMax = p?.trim_offset_max_mm ?? 2.5;
+    const trimSpacing = p?.min_trim_spacing_inches ?? 0.15;
+
     rules.push(
       {
         rule_key: 'front_lit_wire_holes',
@@ -109,7 +86,7 @@ export function getValidationRuleDescriptions(specTypes: Set<string>): Validatio
       {
         rule_key: 'front_lit_trim_offset',
         name: 'Trim Cap Offset',
-        description: 'Trim must be 1.5\u20132.5mm larger than return per side',
+        description: `Trim must be ${trimMin}\u2013${trimMax}mm larger than return per side`,
         category: 'Front Lit Channel Letters',
       },
       {
@@ -121,7 +98,7 @@ export function getValidationRuleDescriptions(specTypes: Set<string>): Validatio
       {
         rule_key: 'front_lit_trim_spacing',
         name: 'Trim Cap Spacing',
-        description: 'Trim cap letters must be at least 0.15" apart (with miter)',
+        description: `Trim cap letters must be at least ${trimSpacing}" apart (with miter)`,
         category: 'Front Lit Channel Letters',
       },
       {
@@ -135,6 +112,11 @@ export function getValidationRuleDescriptions(specTypes: Set<string>): Validatio
 
   // Front Lit Acrylic Face rules
   if (specTypes.has('front_lit_acrylic_face')) {
+    const p = profileMap?.get('front_lit_acrylic_face')?.parameters;
+    const faceSpacing = p?.min_face_spacing_inches ?? 0.10;
+    const faceOffset = p?.face_offset_min_mm ?? 0.3;
+    const engravingOffset = p?.engraving_offset_mm ?? 4.0;
+
     rules.push(
       {
         rule_key: 'acrylic_face_wire_holes',
@@ -157,7 +139,7 @@ export function getValidationRuleDescriptions(specTypes: Set<string>): Validatio
       {
         rule_key: 'acrylic_face_spacing',
         name: 'Face Spacing',
-        description: 'Face letters must be at least 0.10" apart',
+        description: `Face letters must be at least ${faceSpacing}" apart`,
         category: 'Front Lit Acrylic Face',
       },
       {
@@ -169,13 +151,13 @@ export function getValidationRuleDescriptions(specTypes: Set<string>): Validatio
       {
         rule_key: 'acrylic_face_offset',
         name: 'Face Offset',
-        description: 'Face must be ≥0.3mm larger than return per side',
+        description: `Face must be \u2265${faceOffset}mm larger than return per side`,
         category: 'Front Lit Acrylic Face',
       },
       {
         rule_key: 'acrylic_face_engraving_missing',
         name: 'Face Engraving',
-        description: 'Each face letter should have an engraving path inset ~0.4mm',
+        description: `Each face letter should have an engraving path inset ~${engravingOffset}mm`,
         category: 'Front Lit Acrylic Face',
       },
     );
@@ -196,11 +178,13 @@ function serializeHoleSizes(sizes: StandardHoleSize[]): Record<string, any>[] {
 }
 
 /**
- * Build validation rules for Working Files based on detected spec types
+ * Build validation rules for Working Files based on detected spec types.
+ * Uses DB-loaded profiles for spec-type parameters.
  */
 export function buildValidationRules(
   specTypes: Set<string>,
-  standardHoleSizes: StandardHoleSize[] = []
+  standardHoleSizes: StandardHoleSize[] = [],
+  profileMap?: Map<string, VectorValidationProfile>
 ): Record<string, ValidationRuleConfig> {
   const rules: Record<string, ValidationRuleConfig> = {
     // Base rules always applied
@@ -208,24 +192,25 @@ export function buildValidationRules(
       tolerance: 0.01
     },
     stroke_requirements: {
-      allow_fill: false  // Only check for no fill; color and width not enforced
+      allow_fill: false
     },
     letter_hole_analysis: {
-      file_scale: 0.1,  // Working files are 10% scale
+      file_scale: 0.1,
       standard_hole_sizes: serializeHoleSizes(standardHoleSizes),
     },
   };
 
-  // Add spec-type specific rules
-  if (specTypes.has('front_lit')) {
-    rules.front_lit_structure = { ...FRONT_LIT_STRUCTURE_RULES };
-  }
+  // Add spec-type specific rules from DB profiles
+  for (const specType of specTypes) {
+    const ruleKey = SPEC_TYPE_RULE_KEY_MAP[specType];
+    if (!ruleKey) continue;
 
-  if (specTypes.has('front_lit_acrylic_face')) {
-    rules.front_lit_acrylic_face_structure = { ...FRONT_LIT_ACRYLIC_FACE_RULES };
+    const profile = profileMap?.get(specType);
+    if (profile) {
+      // Use DB parameters
+      rules[ruleKey] = { ...profile.parameters };
+    }
   }
-
-  // Future: Add halo_lit, non_lit rules here
 
   return rules;
 }

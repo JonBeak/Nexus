@@ -7,7 +7,7 @@ Validates structural requirements for Front Lit Acrylic Face channel letters:
 3. Face layer path count matches Return layer
 4. Face offset from Return (face must be ≥0.3mm bigger per side)
 5. Face spacing (≥0.10" between face letters)
-6. Engraving path detection (non-circular inner paths inset ~0.4mm from face)
+6. Engraving path detection (non-circular inner paths inset ~4mm from face)
 
 Key differences from trim cap (front_lit.py):
 - Uses 'face' layer instead of 'trimcap'
@@ -39,9 +39,10 @@ def classify_engraving_paths(
     Classify non-circular inner paths on the face layer as engraving paths.
 
     For each face-layer LetterGroup, finds HoleInfo entries with diameter_mm == 0.0
-    (non-circular inner paths) and compares their raw_bbox to the letter's raw_bbox.
-    If all 4 insets are approximately equal to engraving_offset_mm (±tolerance),
-    the hole is reclassified as 'engraving'.
+    (non-circular inner paths) and compares their transformed bbox to the letter's
+    transformed bbox (both in global coordinate space). If all 4 insets are
+    approximately equal to engraving_offset_mm (±tolerance), the hole is reclassified
+    as 'engraving'.
 
     Args:
         letter_analysis: Pre-computed LetterAnalysisResult
@@ -59,7 +60,7 @@ def classify_engraving_paths(
     if letter_analysis and letter_analysis.detected_scale:
         file_scale = letter_analysis.detected_scale
 
-    # Convert offset from real mm to file units
+    # Fallback mm_per_unit for raw coordinate space
     points_per_real_inch = 72 * file_scale
     mm_per_file_unit = 25.4 / points_per_real_inch
 
@@ -67,27 +68,41 @@ def classify_engraving_paths(
         if letter.layer_name.lower() != face_layer.lower():
             continue
 
-        letter_raw = letter.raw_bbox
-        if not letter_raw or letter_raw == (0, 0, 0, 0):
+        letter_bbox = letter.bbox
+        if not letter_bbox or letter_bbox == (0, 0, 0, 0):
             continue
+
+        # Compute mm_per_unit for THIS letter's transformed coordinate space.
+        # SVG transforms may include scaling, so raw mm_per_file_unit is wrong
+        # for transformed coords. Derive from known real-world size instead.
+        transformed_w = letter_bbox[2] - letter_bbox[0]
+        real_w_mm = letter.real_size_inches[0] * 25.4
+        if transformed_w > 0 and real_w_mm > 0:
+            mm_per_unit = real_w_mm / transformed_w
+        else:
+            mm_per_unit = mm_per_file_unit
 
         found_engraving = False
 
         for hole in letter.holes:
-            # Only consider non-circular inner paths (diameter_mm == 0.0)
-            if hole.diameter_mm > 0.0:
-                continue
-            # Skip already classified holes (wire/mounting)
-            if hole.hole_type not in ('unknown', 'unclassified'):
-                continue
-            if not hole.raw_bbox:
+            # Only consider non-circular inner paths
+            # After Phase 2, these are classified as 'unknown_inside_path'
+            if hole.hole_type not in ('unknown_inside_path', 'unclassified'):
                 continue
 
-            # Compute inset per side in file units, then convert to real mm
-            left_inset = (hole.raw_bbox[0] - letter_raw[0]) * mm_per_file_unit
-            top_inset = (hole.raw_bbox[1] - letter_raw[1]) * mm_per_file_unit
-            right_inset = (letter_raw[2] - hole.raw_bbox[2]) * mm_per_file_unit
-            bottom_inset = (letter_raw[3] - hole.raw_bbox[3]) * mm_per_file_unit
+            # Non-circular paths have diameter_mm == 0.0
+            # (Phase 1 prevents false circle detection, so this should always be true)
+            if hole.diameter_mm > 0.0:
+                continue  # Safety check - shouldn't happen after Phase 1
+
+            if not hole.bbox:
+                continue
+
+            # Compute inset per side in transformed units, convert to real mm
+            left_inset = (hole.bbox[0] - letter_bbox[0]) * mm_per_unit
+            top_inset = (hole.bbox[1] - letter_bbox[1]) * mm_per_unit
+            right_inset = (letter_bbox[2] - hole.bbox[2]) * mm_per_unit
+            bottom_inset = (letter_bbox[3] - hole.bbox[3]) * mm_per_unit
 
             insets = [left_inset, top_inset, right_inset, bottom_inset]
 

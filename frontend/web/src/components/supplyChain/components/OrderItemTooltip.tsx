@@ -33,6 +33,8 @@ function formatTooltipItem(req: DraftPORequirement): {
   if (req.order_number) {
     const namePart = req.order_name ? ` — ${req.order_name}` : '';
     label = `${qty} — Order #${req.order_number}${namePart}`;
+  } else if (req.is_stock_item) {
+    label = `${qty} — Stock`;
   } else {
     label = qty;
   }

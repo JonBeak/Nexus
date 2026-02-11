@@ -4,11 +4,12 @@
  */
 
 import React, { useState } from 'react';
-import { FileCheck, FolderOpen } from 'lucide-react';
+import { FileCheck, FolderOpen, Ruler } from 'lucide-react';
 import { ExpectedFilesRulesPanel } from './ExpectedFilesRulesPanel';
 import { StandardFileNamesPanel } from './StandardFileNamesPanel';
+import { VectorProfilesPanel } from './VectorProfilesPanel';
 
-type Tab = 'expected_files' | 'file_catalog';
+type Tab = 'expected_files' | 'file_catalog' | 'vector_profiles';
 
 const TABS: { key: Tab; label: string; icon: React.ReactNode; description: string }[] = [
   {
@@ -22,6 +23,12 @@ const TABS: { key: Tab; label: string; icon: React.ReactNode; description: strin
     label: 'File Name Catalog',
     icon: <FolderOpen className="h-4 w-4" />,
     description: 'Standard file names used across rules',
+  },
+  {
+    key: 'vector_profiles',
+    label: 'Vector Validation',
+    icon: <Ruler className="h-4 w-4" />,
+    description: 'Per-spec-type parameters for vector file validation (offsets, spacing, holes)',
   },
 ];
 
@@ -56,6 +63,7 @@ export const ValidationRulesManager: React.FC = () => {
       {/* Tab content */}
       {activeTab === 'expected_files' && <ExpectedFilesRulesPanel />}
       {activeTab === 'file_catalog' && <StandardFileNamesPanel />}
+      {activeTab === 'vector_profiles' && <VectorProfilesPanel />}
     </div>
   );
 };

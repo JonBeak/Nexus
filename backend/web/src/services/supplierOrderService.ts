@@ -409,16 +409,12 @@ export class SupplierOrderService {
       }));
 
       // Create snapshot in supplier_orders + supplier_order_items
+      // (needed in DB so the email template can read order data)
       const orderId = await this.repository.createSnapshot(
         orderNumber, supplierId, today, deliveryMethod, notes ?? null, items, userId
       );
 
-      // Stamp ordered_date, delivery_method, supplier_order_id on each MR
-      await this.materialRequirementRepository.stampOrdered(
-        requirementIds, today, deliveryMethod, orderId, userId
-      );
-
-      // Send PO email (non-blocking — don't fail the submission)
+      // Send PO email — if it fails, roll back the order so user can retry from cart
       let emailSent = false;
       let emailMessage = 'Email not attempted';
       try {
@@ -436,6 +432,26 @@ export class SupplierOrderService {
         emailMessage = emailError instanceof Error ? emailError.message : 'Email send failed';
         console.error(`❌ PO email error for order ${orderId}:`, emailError);
       }
+
+      // If email failed, roll back — delete the order snapshot and leave MRs untouched
+      if (!emailSent) {
+        try {
+          await this.repository.unlinkRequirements(orderId);
+          await this.repository.delete(orderId);
+        } catch (cleanupError) {
+          console.error(`❌ Failed to clean up order ${orderId} after email failure:`, cleanupError);
+        }
+        return {
+          success: false,
+          error: `PO email failed — order not created. ${emailMessage}`,
+          code: 'EMAIL_ERROR',
+        };
+      }
+
+      // Email succeeded — stamp ordered_date, delivery_method, supplier_order_id on each MR
+      await this.materialRequirementRepository.stampOrdered(
+        requirementIds, today, deliveryMethod, orderId, userId
+      );
 
       return {
         success: true,

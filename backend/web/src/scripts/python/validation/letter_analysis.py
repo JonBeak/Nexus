@@ -258,6 +258,7 @@ def create_hole_info(path: PathInfo, scale: float = 1.0) -> HoleInfo:
         stroke=path.stroke,
         layer_name=path.layer_name or '',
         raw_bbox=raw_bbox,
+        bbox=path.bbox,  # Already transformed to global coords
     )
 
 

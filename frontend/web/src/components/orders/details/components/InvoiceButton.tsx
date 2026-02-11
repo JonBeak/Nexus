@@ -55,6 +55,7 @@ const InvoiceButton: React.FC<InvoiceButtonProps> = ({
   const [differences, setDifferences] = useState<InvoiceDifference[]>([]);
   const [checking, setChecking] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -218,6 +219,13 @@ const InvoiceButton: React.FC<InvoiceButtonProps> = ({
 
   const handleDropdownToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!dropdownOpen && dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 4,
+        left: rect.right - 208, // 208px = w-52
+      });
+    }
     setDropdownOpen(!dropdownOpen);
   };
 
@@ -255,10 +263,10 @@ const InvoiceButton: React.FC<InvoiceButtonProps> = ({
           onClick={handleMainClick}
           disabled={disabled || checking}
           className={`
-            flex items-center space-x-2 px-4 py-2 text-sm font-medium
+            flex items-center gap-1.5 px-3 py-3 md:py-2 min-h-[44px] text-sm font-medium
             transition-colors relative overflow-hidden
             ${buttonState.colorClass}
-            ${showDropdown ? 'rounded-l-lg' : 'rounded-lg'}
+            ${showDropdown ? 'rounded-l' : 'rounded'}
             ${disabled || checking ? 'opacity-50 cursor-not-allowed' : ''}
             ${buttonState.needsShine ? 'invoice-button-shine' : ''}
           `}
@@ -282,7 +290,7 @@ const InvoiceButton: React.FC<InvoiceButtonProps> = ({
             onClick={handleDropdownToggle}
             disabled={disabled || checking}
             className={`
-              px-2 py-2 text-sm font-medium rounded-r-lg
+              px-2 py-3 md:py-2 min-h-[44px] text-sm font-medium rounded-r
               transition-colors border-l border-white/30
               ${buttonState.colorClass}
               ${disabled || checking ? 'opacity-50 cursor-not-allowed' : ''}
@@ -293,9 +301,14 @@ const InvoiceButton: React.FC<InvoiceButtonProps> = ({
         )}
       </div>
 
-      {/* Dropdown menu */}
+      {/* Dropdown menu - fixed positioning to escape overflow-hidden ancestors */}
       {showDropdown && dropdownOpen && (
-        <div className="absolute right-0 mt-1 w-52 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+        <>
+          <div className="fixed inset-0 z-[60]" onClick={() => setDropdownOpen(false)} />
+          <div
+            className="fixed w-52 bg-white rounded-lg shadow-lg border border-gray-200 z-[70] py-1"
+            style={dropdownPosition ? { top: dropdownPosition.top, left: dropdownPosition.left } : undefined}
+          >
           {/* Link option - only for create action */}
           {buttonState.action === 'create' && onLinkInvoice && (
             <button
@@ -329,7 +342,8 @@ const InvoiceButton: React.FC<InvoiceButtonProps> = ({
               <span>Mark as Sent</span>
             </button>
           )}
-        </div>
+          </div>
+        </>
       )}
 
       {/* Inline styles for shine animation */}
