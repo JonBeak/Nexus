@@ -127,7 +127,7 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
 
   // Email fields
   const [deliveryMethod, setDeliveryMethod] = useState<'shipping' | 'pickup'>('shipping');
-  const [emailSubject, setEmailSubject] = useState('PO #_____ — Order for Shipping — Sign House Inc.');
+  const [emailSubject, setEmailSubject] = useState('{PO#} — Order for Shipping — Sign House Inc.');
 
   const supplierName = group.supplier_name || 'Supplier';
   const defaultOpening = `Hi ${supplierName},\nPlease find our purchase order details below.`;
@@ -206,7 +206,7 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
 
   const handleDeliveryChange = (method: 'shipping' | 'pickup') => {
     setDeliveryMethod(method);
-    setEmailSubject(`PO #_____ — Order for ${method === 'pickup' ? 'Pickup' : 'Shipping'} — Sign House Inc.`);
+    setEmailSubject(`{PO#} — Order for ${method === 'pickup' ? 'Pickup' : 'Shipping'} — Sign House Inc.`);
   };
 
   const handleSubmit = async () => {
@@ -289,12 +289,17 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
           {/* Subject */}
           <div className="flex items-center gap-1.5">
             <label className={`text-xs font-medium ${PAGE_STYLES.panel.textSecondary} w-8 shrink-0`}>Subj:</label>
-            <input
-              type="text"
-              value={emailSubject}
-              onChange={(e) => setEmailSubject(e.target.value)}
-              className={`flex-1 px-1.5 py-1 text-xs ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-md ${PAGE_STYLES.panel.text}`}
-            />
+            <div className="flex-1">
+              <input
+                type="text"
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+                className={`w-full px-1.5 py-1 text-xs ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-md ${PAGE_STYLES.panel.text}`}
+              />
+              <p className={`text-[10px] ${PAGE_STYLES.panel.textMuted} mt-0.5 ml-0.5`}>
+                <span className="font-mono bg-gray-100 dark:bg-gray-700/50 px-0.5 rounded">{'{PO#}'}</span> will be replaced with the generated PO number
+              </p>
+            </div>
           </div>
 
           {/* Delivery Toggle */}
