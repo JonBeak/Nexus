@@ -15,6 +15,7 @@ import {
   User,
   Users,
   EyeOff,
+  Building2,
 } from 'lucide-react';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
 import type { ContactChip } from './ContactChipSelector';
@@ -26,7 +27,7 @@ interface OrderConfirmationDialogProps {
   deliveryMethod: 'shipping' | 'pickup';
   toChips: ContactChip[];
   ccChips: ContactChip[];
-  bccChips: ContactChip[];
+  companyEmail: string;
   subject: string;
   opening: string;
   closing: string;
@@ -151,7 +152,7 @@ export const OrderConfirmationDialog: React.FC<OrderConfirmationDialogProps> = (
   deliveryMethod,
   toChips,
   ccChips,
-  bccChips,
+  companyEmail,
   subject,
   opening,
   closing,
@@ -224,33 +225,59 @@ export const OrderConfirmationDialog: React.FC<OrderConfirmationDialogProps> = (
           </button>
         </div>
 
-        {/* Recipient Info Bar */}
-        <div className={`px-5 py-3 border-b ${PAGE_STYLES.panel.border} space-y-1.5 text-xs`}>
-          {toChips.length > 0 && (
-            <div className="flex items-start gap-2">
-              <User className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${PAGE_STYLES.panel.textMuted}`} />
-              <span className={`font-medium ${PAGE_STYLES.panel.textSecondary} w-6 shrink-0`}>To:</span>
-              <span className={PAGE_STYLES.panel.text}>{formatChips(toChips)}</span>
+        {/* Dual Email Recipients */}
+        <div className={`border-b ${PAGE_STYLES.panel.border}`}>
+          {/* Email 1: Supplier PO */}
+          <div className={`px-5 py-2.5 border-b ${PAGE_STYLES.panel.border}`}>
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <Send className={`w-3 h-3 ${PAGE_STYLES.panel.textMuted}`} />
+              <span className={`text-[10px] uppercase tracking-wide font-semibold ${PAGE_STYLES.panel.textMuted}`}>
+                Supplier PO Email
+              </span>
             </div>
-          )}
-          {ccChips.length > 0 && (
-            <div className="flex items-start gap-2">
-              <Users className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${PAGE_STYLES.panel.textMuted}`} />
-              <span className={`font-medium ${PAGE_STYLES.panel.textSecondary} w-6 shrink-0`}>CC:</span>
-              <span className={PAGE_STYLES.panel.text}>{formatChips(ccChips)}</span>
+            <div className="space-y-1 text-xs ml-[18px]">
+              {toChips.length > 0 && (
+                <div className="flex items-start gap-2">
+                  <User className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${PAGE_STYLES.panel.textMuted}`} />
+                  <span className={`font-medium ${PAGE_STYLES.panel.textSecondary} w-6 shrink-0`}>To:</span>
+                  <span className={PAGE_STYLES.panel.text}>{formatChips(toChips)}</span>
+                </div>
+              )}
+              {ccChips.length > 0 && (
+                <div className="flex items-start gap-2">
+                  <Users className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${PAGE_STYLES.panel.textMuted}`} />
+                  <span className={`font-medium ${PAGE_STYLES.panel.textSecondary} w-6 shrink-0`}>CC:</span>
+                  <span className={PAGE_STYLES.panel.text}>{formatChips(ccChips)}</span>
+                </div>
+              )}
+              <div className="flex items-start gap-2">
+                <Mail className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${PAGE_STYLES.panel.textMuted}`} />
+                <span className={`font-medium ${PAGE_STYLES.panel.textSecondary} w-6 shrink-0`}>Subj:</span>
+                <span className={PAGE_STYLES.panel.text}>{displaySubject}</span>
+              </div>
             </div>
-          )}
-          {bccChips.length > 0 && (
-            <div className="flex items-start gap-2">
-              <EyeOff className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${PAGE_STYLES.panel.textMuted}`} />
-              <span className={`font-medium ${PAGE_STYLES.panel.textSecondary} w-6 shrink-0`}>BCC:</span>
-              <span className={PAGE_STYLES.panel.text}>{formatChips(bccChips)}</span>
+          </div>
+
+          {/* Email 2: Internal Copy */}
+          <div className="px-5 py-2.5">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <Building2 className={`w-3 h-3 ${PAGE_STYLES.panel.textMuted}`} />
+              <span className={`text-[10px] uppercase tracking-wide font-semibold ${PAGE_STYLES.panel.textMuted}`}>
+                Internal Copy
+              </span>
             </div>
-          )}
-          <div className="flex items-start gap-2">
-            <Mail className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${PAGE_STYLES.panel.textMuted}`} />
-            <span className={`font-medium ${PAGE_STYLES.panel.textSecondary} w-6 shrink-0`}>Subj:</span>
-            <span className={PAGE_STYLES.panel.text}>{displaySubject}</span>
+            <div className="space-y-1 text-xs ml-[18px]">
+              <div className="flex items-start gap-2">
+                <EyeOff className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${PAGE_STYLES.panel.textMuted}`} />
+                <span className={`font-medium ${PAGE_STYLES.panel.textSecondary} w-6 shrink-0`}>BCC:</span>
+                <span className={PAGE_STYLES.panel.text}>{companyEmail}</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <Mail className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${PAGE_STYLES.panel.textMuted}`} />
+                <span className={`font-medium ${PAGE_STYLES.panel.textSecondary} w-6 shrink-0`}>Subj:</span>
+                <span className={PAGE_STYLES.panel.text}>{displaySubject}</span>
+              </div>
+            </div>
           </div>
         </div>
 

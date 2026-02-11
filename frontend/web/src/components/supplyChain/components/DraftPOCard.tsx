@@ -108,10 +108,9 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
     return Array.from(map.values());
   }, [group.requirements]);
 
-  // Contact chip state
+  // Contact chip state (BCC removed — internal copy is auto-BCC to company email only)
   const [toChips, setToChips] = useState<ContactChip[]>([]);
   const [ccChips, setCcChips] = useState<ContactChip[]>([]);
-  const [bccChips, setBccChips] = useState<ContactChip[]>([]);
 
   // Email fields
   const [deliveryMethod, setDeliveryMethod] = useState<'shipping' | 'pickup'>('shipping');
@@ -180,18 +179,6 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
     void fetchContacts();
   }, [fetchContacts]);
 
-  // Auto-set BCC to company email
-  useEffect(() => {
-    if (companyEmail) {
-      setBccChips([{
-        id: `bcc-company`,
-        name: companyEmail.split('@')[0],
-        email: companyEmail,
-        isManual: true,
-      }]);
-    }
-  }, [companyEmail]);
-
   const handleDeliveryChange = (method: 'shipping' | 'pickup') => {
     setDeliveryMethod(method);
     setEmailSubject(`{PO#} — Order for ${method === 'pickup' ? 'Pickup' : 'Shipping'} — Sign House Inc.`);
@@ -203,7 +190,7 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
       const emailFields: POEmailFields = {
         to: toChips.map(c => c.email).join(', '),
         cc: ccChips.map(c => c.email).join(', '),
-        bcc: bccChips.map(c => c.email).join(', '),
+        bcc: companyEmail, // Internal copy only — BCC'd to company email
         subject: emailSubject,
         opening,
         closing,
@@ -292,13 +279,6 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
                 selected={ccChips}
                 onAdd={(chip) => setCcChips(prev => [...prev, chip])}
                 onRemove={(id) => setCcChips(prev => prev.filter(c => c.id !== id))}
-              />
-              <ContactChipSelector
-                label="BCC:"
-                contacts={contacts}
-                selected={bccChips}
-                onAdd={(chip) => setBccChips(prev => [...prev, chip])}
-                onRemove={(id) => setBccChips(prev => prev.filter(c => c.id !== id))}
               />
             </>
           )}
@@ -456,7 +436,7 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
         deliveryMethod={deliveryMethod}
         toChips={toChips}
         ccChips={ccChips}
-        bccChips={bccChips}
+        companyEmail={companyEmail}
         subject={emailSubject}
         opening={opening}
         closing={closing}

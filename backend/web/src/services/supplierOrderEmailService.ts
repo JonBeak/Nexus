@@ -320,12 +320,15 @@ function buildPlainText(
 }
 
 /**
- * Main entry point: Send PO email to supplier
+ * Main entry point: Send PO email to supplier + internal BCC copy
+ * Two separate emails are sent:
+ *   1. Supplier PO: To + CC only (no BCC)
+ *   2. Internal copy: BCC to company email only (no To/CC recipients)
  */
 export interface POEmailOverrides {
   to?: string;
   cc?: string;
-  bcc?: string;
+  bcc?: string; // Company email for internal copy
   subject?: string;
   opening?: string;
   closing?: string;
@@ -359,50 +362,49 @@ export async function sendPurchaseOrderEmail(
   const html = buildHtmlBody(order, order.items || [], settings, overrides?.opening, overrides?.closing);
   const text = buildPlainText(order, order.items || [], settings, overrides?.opening, overrides?.closing);
 
-  // CC list from overrides
+  // CC list from overrides (supplier PO only)
   const ccList: string[] = [];
   if (overrides?.cc?.trim()) {
     ccList.push(...overrides.cc.split(',').map(e => e.trim()).filter(Boolean));
   }
 
-  // BCC list: override takes precedence, otherwise fall back to env default
-  const bccList: string[] = [];
-  if (overrides?.bcc !== undefined) {
-    if (overrides.bcc.trim()) {
-      bccList.push(...overrides.bcc.split(',').map(e => e.trim()).filter(Boolean));
-    }
-  } else if (BCC_EMAIL && BCC_EMAIL.trim() !== '') {
-    bccList.push(BCC_EMAIL);
-  }
+  // Internal copy BCC: override takes precedence, otherwise fall back to env default
+  const internalBcc = overrides?.bcc?.trim() || (BCC_EMAIL && BCC_EMAIL.trim() !== '' ? BCC_EMAIL : '');
 
   // Gmail disabled mode: log and return success
   if (!GMAIL_ENABLED) {
     console.log('\n' + '='.repeat(80));
-    console.log('[GMAIL DISABLED] PO email would be sent:');
+    console.log('[GMAIL DISABLED] PO emails would be sent:');
     console.log('='.repeat(80));
+    console.log('--- Email 1: Supplier PO ---');
     console.log(`  From: ${SENDER_NAME} <${SENDER_EMAIL}>`);
     console.log(`  To: ${recipientEmail}`);
     if (ccList.length > 0) console.log(`  Cc: ${ccList.join(', ')}`);
-    if (bccList.length > 0) console.log(`  Bcc: ${bccList.join(', ')}`);
     console.log(`  Subject: ${subject}`);
     console.log(`  Items: ${order.items?.length || 0}`);
+    if (internalBcc) {
+      console.log('--- Email 2: Internal Copy ---');
+      console.log(`  From: ${SENDER_NAME} <${SENDER_EMAIL}>`);
+      console.log(`  BCC: ${internalBcc}`);
+      console.log(`  Subject: ${subject}`);
+    }
     console.log('\n📄 PLAIN TEXT BODY:');
     console.log('-'.repeat(60));
     console.log(text);
     console.log('-'.repeat(60));
-    console.log('✅ PO email would be sent (Gmail disabled)');
+    console.log('✅ PO emails would be sent (Gmail disabled)');
     console.log('='.repeat(80) + '\n');
 
     return { success: true, messageId: `po_disabled_${Date.now()}` };
   }
 
   try {
-    console.log(`📧 [PO Email] Sending PO ${order.order_number} to ${recipientEmail}...`);
-
     const gmail = await createGmailClient();
 
-    // Build MIME message with MailComposer
-    const mailOptions: any = {
+    // --- Email 1: Supplier PO (To + CC, no BCC) ---
+    console.log(`📧 [PO Email] Sending supplier PO ${order.order_number} to ${recipientEmail}...`);
+
+    const supplierMailOptions: any = {
       from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
       to: recipientEmail,
       subject,
@@ -410,25 +412,50 @@ export async function sendPurchaseOrderEmail(
       html,
     };
     if (ccList.length > 0) {
-      mailOptions.cc = ccList.join(', ');
-    }
-    if (bccList.length > 0) {
-      mailOptions.bcc = bccList.join(', ');
+      supplierMailOptions.cc = ccList.join(', ');
     }
 
-    const mail = new MailComposer(mailOptions);
-    const message = await mail.compile().build();
-    const encodedMessage = message
+    const supplierMail = new MailComposer(supplierMailOptions);
+    const supplierMessage = await supplierMail.compile().build();
+    const supplierEncoded = supplierMessage
       .toString('base64')
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
       .replace(/=+$/, '');
 
-    const response = await sendWithRetry(gmail, encodedMessage);
+    const supplierResponse = await sendWithRetry(gmail, supplierEncoded);
+    console.log(`✅ [PO Email] Supplier PO sent to ${recipientEmail} (ID: ${supplierResponse.data.id})`);
 
-    console.log(`✅ [PO Email] Sent ${order.order_number} to ${recipientEmail} (ID: ${response.data.id})`);
+    // --- Email 2: Internal copy (BCC to company email only) ---
+    if (internalBcc) {
+      try {
+        console.log(`📧 [PO Email] Sending internal copy of ${order.order_number} to ${internalBcc}...`);
 
-    return { success: true, messageId: response.data.id || undefined };
+        const internalMailOptions: any = {
+          from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
+          to: internalBcc, // Send directly to company email as the recipient
+          subject: `[Internal Copy] ${subject}`,
+          text,
+          html,
+        };
+
+        const internalMail = new MailComposer(internalMailOptions);
+        const internalMessage = await internalMail.compile().build();
+        const internalEncoded = internalMessage
+          .toString('base64')
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=+$/, '');
+
+        const internalResponse = await sendWithRetry(gmail, internalEncoded);
+        console.log(`✅ [PO Email] Internal copy sent to ${internalBcc} (ID: ${internalResponse.data.id})`);
+      } catch (internalError: any) {
+        // Internal copy failure should not block the PO submission
+        console.warn(`⚠️ [PO Email] Internal copy failed (non-blocking): ${internalError.message}`);
+      }
+    }
+
+    return { success: true, messageId: supplierResponse.data.id || undefined };
   } catch (error: any) {
     console.error(`❌ [PO Email] Failed to send ${order.order_number}:`, error.message);
     return { success: false, error: error.message || 'Unknown error' };
