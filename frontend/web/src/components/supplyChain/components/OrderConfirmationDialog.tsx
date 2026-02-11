@@ -41,7 +41,7 @@ interface OrderConfirmationDialogProps {
   onCancel: () => void;
 }
 
-const PO_PLACEHOLDER = 'PO #_____';
+const PO_PLACEHOLDER = '{PO #_____}';
 
 /** Navy blue color scheme matching the backend email template */
 const COLORS = {
