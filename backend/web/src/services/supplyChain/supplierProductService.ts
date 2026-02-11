@@ -98,6 +98,7 @@ export class SupplierProductService {
     product_name?: string;
     min_order_quantity?: number;
     lead_time_days?: number;
+    unit_of_measure?: string;
     specifications?: Record<string, any>;
     notes?: string;
     is_preferred?: boolean;
@@ -175,6 +176,7 @@ export class SupplierProductService {
         product_name: data.product_name ? data.product_name.trim() : null,
         min_order_quantity: data.min_order_quantity,
         lead_time_days: data.lead_time_days,
+        unit_of_measure: data.unit_of_measure ? data.unit_of_measure.trim() : null,
         specifications: data.specifications,
         notes: data.notes ? data.notes.trim() : null,
         is_preferred: data.is_preferred || false,
@@ -223,6 +225,7 @@ export class SupplierProductService {
     product_name?: string;
     min_order_quantity?: number;
     lead_time_days?: number;
+    unit_of_measure?: string | null;
     specifications?: Record<string, any>;
     notes?: string;
     is_active?: boolean;
@@ -295,6 +298,7 @@ export class SupplierProductService {
         product_name: data.product_name !== undefined ? (data.product_name ? data.product_name.trim() : null) : undefined,
         min_order_quantity: data.min_order_quantity,
         lead_time_days: data.lead_time_days,
+        unit_of_measure: data.unit_of_measure !== undefined ? (data.unit_of_measure ? data.unit_of_measure.trim() : null) : undefined,
         specifications: data.specifications,
         notes: data.notes !== undefined ? (data.notes ? data.notes.trim() : null) : undefined,
         is_active: data.is_active,

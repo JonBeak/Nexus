@@ -54,7 +54,7 @@ interface ProductArchetypesManagerProps {
   showNotification: (message: string, type?: 'success' | 'error') => void;
 }
 
-const UNIT_OPTIONS = ['each', 'linear_ft', 'sq_ft', 'sheet', 'roll', 'gallon', 'lb', 'oz', 'box', 'pack'];
+const UNIT_OPTIONS = ['each', 'linear_ft', 'sq_ft', 'sheet', 'roll', 'gallon', 'lb', 'oz', 'box', 'pack', 'bag'];
 
 const DEFAULT_COLORS = [
   'bg-yellow-100 text-yellow-700',

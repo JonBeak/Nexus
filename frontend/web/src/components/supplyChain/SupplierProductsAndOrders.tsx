@@ -42,7 +42,9 @@ interface SupplierProduct {
   product_name: string;
   sku: string | null;
   current_price: number;
-  unit_of_measure: string;
+  unit_of_measure: string | null;
+  archetype_unit_of_measure?: string;
+  effective_unit_of_measure?: string;
   lead_time_days: number | null;
   minimum_order_quantity: number | null;
   is_active: boolean;
@@ -192,7 +194,7 @@ export const SupplierProductsAndOrders: React.FC<SupplierProductsAndOrdersProps>
                         {formatCurrency(p.current_price)}
                       </td>
                       <td className={`px-4 py-2.5 text-sm ${PAGE_STYLES.panel.textMuted}`}>
-                        {p.unit_of_measure}
+                        {p.effective_unit_of_measure || p.unit_of_measure || p.archetype_unit_of_measure || '-'}
                       </td>
                       <td className={`px-4 py-2.5 text-sm text-center ${PAGE_STYLES.panel.textMuted}`}>
                         {p.lead_time_days ? `${p.lead_time_days}d` : '-'}
