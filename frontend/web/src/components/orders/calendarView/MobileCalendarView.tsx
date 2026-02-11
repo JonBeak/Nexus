@@ -116,8 +116,8 @@ const MobileOrderCard: React.FC<{
             ) : null}
             <span className={`text-[10px] font-medium px-1 rounded ${
               order.shipping_required
-                ? 'bg-blue-100 text-blue-700'
-                : 'bg-yellow-100 text-yellow-700'
+                ? 'bg-yellow-100 text-yellow-700'
+                : 'bg-blue-100 text-blue-700'
             }`}>
               {order.shipping_required ? 'Ship' : 'P/U'}
             </span>

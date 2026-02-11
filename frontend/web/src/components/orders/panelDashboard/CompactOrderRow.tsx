@@ -158,11 +158,11 @@ export const CompactOrderRow: React.FC<Props> = ({ order, filters, onAction }) =
         <div className="flex items-center space-x-2">
           {getInvoiceIndicator()}
           {order.shipping_required ? (
-            <span title="Shipping" className="text-cyan-500">
+            <span title="Shipping" className="text-yellow-600">
               <Truck className="w-4 h-4" />
             </span>
           ) : (
-            <span title="Pickup" className="text-teal-500">
+            <span title="Pickup" className="text-blue-600">
               <Package className="w-4 h-4" />
             </span>
           )}
