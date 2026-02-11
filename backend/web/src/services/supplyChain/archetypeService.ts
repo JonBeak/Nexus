@@ -12,7 +12,7 @@ import { ServiceResult } from '../../types/serviceResults';
 
 // Valid units of measure
 const VALID_UNITS = [
-  'each', 'linear_ft', 'sq_ft', 'sheet', 'roll', 'gallon', 'lb', 'oz', 'box', 'pack'
+  'each', 'linear_ft', 'sq_ft', 'sheet', 'roll', 'gallon', 'lb', 'oz', 'box', 'pack', 'bag'
 ];
 
 export interface CreateArchetypeData {

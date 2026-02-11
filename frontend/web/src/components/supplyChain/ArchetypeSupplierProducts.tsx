@@ -171,6 +171,7 @@ export const ArchetypeSupplierProducts: React.FC<ArchetypeSupplierProductsProps>
                   <th className="text-left px-3 py-2 font-medium text-gray-700">Supplier</th>
                   <th className="text-left px-3 py-2 font-medium text-gray-700">Brand</th>
                   <th className="text-left px-3 py-2 font-medium text-gray-700">SKU</th>
+                  <th className="text-left px-3 py-2 font-medium text-gray-700">Unit</th>
                   <th className="text-right px-3 py-2 font-medium text-gray-700">Current Price</th>
                   <th className="text-right px-3 py-2 font-medium text-gray-700">Lead Time</th>
                   <th className="text-right px-3 py-2 font-medium text-gray-700">MOQ</th>
@@ -187,6 +188,15 @@ export const ArchetypeSupplierProducts: React.FC<ArchetypeSupplierProductsProps>
                     <td className="px-3 py-2">{product.brand_name || '-'}</td>
                     <td className="px-3 py-2 font-mono text-xs text-gray-600">
                       {product.sku || '-'}
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-600">
+                      {product.unit_of_measure ? (
+                        <span className="text-blue-600 font-medium" title="Overrides product type default">
+                          {product.unit_of_measure}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">{product.archetype_unit_of_measure || '-'}</span>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-right">
                       {product.current_price && product.current_price !== 0 ? (
