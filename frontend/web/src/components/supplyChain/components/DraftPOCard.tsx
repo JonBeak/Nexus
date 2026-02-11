@@ -20,6 +20,7 @@ import {
 import { PAGE_STYLES } from '../../../constants/moduleColors';
 import { suppliersApi, type SupplierContact } from '../../../services/api/suppliersApi';
 import { ContactChipSelector, type ContactChip } from './ContactChipSelector';
+import { OrderConfirmationDialog } from './OrderConfirmationDialog';
 import { OrderItemTooltip, type GroupedLineItem } from './OrderItemTooltip';
 import { RemoveDropdown } from './RemoveDropdown';
 import type { DraftPOGroup, DraftPORequirement } from '../../../types/materialRequirements';
@@ -62,6 +63,7 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
   const [contacts, setContacts] = useState<SupplierContact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const [removeDropdown, setRemoveDropdown] = useState<{
     groupKey: string;
     anchorRect: DOMRect;
@@ -195,7 +197,7 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
     setEmailSubject(`{PO#} — Order for ${method === 'pickup' ? 'Pickup' : 'Shipping'} — Sign House Inc.`);
   };
 
-  const handleSubmit = async () => {
+  const handleConfirmAndSend = async () => {
     setSubmitting(true);
     try {
       const emailFields: POEmailFields = {
@@ -208,6 +210,7 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
       };
       const requirementIds = group.requirements.map(r => r.requirement_id);
       await onSubmitOrder(group.supplier_id, requirementIds, deliveryMethod, emailFields);
+      setShowConfirmation(false);
     } finally {
       setSubmitting(false);
     }
@@ -435,19 +438,38 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
         {/* Footer: Place Order */}
         <div className={`px-4 py-2.5 border-t ${PAGE_STYLES.panel.border} flex items-center justify-end`}>
           <button
-            onClick={() => void handleSubmit()}
+            onClick={() => setShowConfirmation(true)}
             disabled={!canSubmit}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium transition-colors"
           >
-            {submitting ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <Send className="w-3 h-3" />
-            )}
+            <Send className="w-3 h-3" />
             Place Order
           </button>
         </div>
       </div>
+
+      {/* Order Confirmation Dialog */}
+      <OrderConfirmationDialog
+        open={showConfirmation}
+        submitting={submitting}
+        supplierName={supplierName}
+        deliveryMethod={deliveryMethod}
+        toChips={toChips}
+        ccChips={ccChips}
+        bccChips={bccChips}
+        subject={emailSubject}
+        opening={opening}
+        closing={closing}
+        items={groupedItems.map(gi => ({
+          description: gi.description,
+          totalQuantity: gi.totalQuantity,
+          unit: gi.unit,
+          sku: gi.sku,
+        }))}
+        companyName={companyName}
+        onConfirm={() => void handleConfirmAndSend()}
+        onCancel={() => setShowConfirmation(false)}
+      />
 
       {/* Remove Dropdown Portal */}
       {removeDropdown && activeDropdownGroup && createPortal(
