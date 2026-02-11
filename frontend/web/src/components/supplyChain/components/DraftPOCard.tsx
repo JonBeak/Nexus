@@ -90,7 +90,7 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
   const groupedItems = useMemo<GroupedLineItem[]>(() => {
     const map = new Map<string, GroupedLineItem>();
     for (const req of group.requirements) {
-      const desc = req.archetype_name || req.custom_product_type || 'Unknown Product';
+      const desc = req.supplier_product_name || req.archetype_name || req.custom_product_type || 'Unknown Product';
       const sku = req.supplier_product_sku || '';
       const unit = req.unit || req.unit_of_measure || 'each';
       const key = `${desc.toLowerCase()}|${sku.toLowerCase()}|${unit.toLowerCase()}`;
