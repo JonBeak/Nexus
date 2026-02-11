@@ -41,7 +41,7 @@ interface OrderConfirmationDialogProps {
   onCancel: () => void;
 }
 
-const PO_PLACEHOLDER = '{PO #_____}';
+const PO_PLACEHOLDER = '{PO#}';
 
 /** Navy blue color scheme matching the backend email template */
 const COLORS = {
@@ -192,7 +192,7 @@ export const OrderConfirmationDialog: React.FC<OrderConfirmationDialogProps> = (
   });
 
   // Replace PO placeholder in subject for display
-  const displaySubject = subject.replace(/#_+/, `#_____`);
+  const displaySubject = subject;
 
   return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center">

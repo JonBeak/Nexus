@@ -129,7 +129,7 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
 
   // Email fields
   const [deliveryMethod, setDeliveryMethod] = useState<'shipping' | 'pickup'>('shipping');
-  const [emailSubject, setEmailSubject] = useState('{PO #_____} — Order for Shipping — Sign House Inc.');
+  const [emailSubject, setEmailSubject] = useState('{PO#} — Order for Shipping — Sign House Inc.');
 
   const supplierName = group.supplier_name || 'Supplier';
   const defaultOpening = `Hi ${supplierName},\nPlease find our purchase order details below.`;
@@ -208,7 +208,7 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
 
   const handleDeliveryChange = (method: 'shipping' | 'pickup') => {
     setDeliveryMethod(method);
-    setEmailSubject(`{PO #_____} — Order for ${method === 'pickup' ? 'Pickup' : 'Shipping'} — Sign House Inc.`);
+    setEmailSubject(`{PO#} — Order for ${method === 'pickup' ? 'Pickup' : 'Shipping'} — Sign House Inc.`);
   };
 
   const handleConfirmAndSend = async () => {
