@@ -1343,74 +1343,6 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
               )}
             </div>
 
-            {/* Workflow Actions - only render section if there are workflow buttons for current status */}
-            {orderDetails && ['job_details_setup', 'pending_confirmation', 'pending_production_files_creation', 'pending_production_files_approval'].includes(orderDetails.status) && (
-              <div className={`pt-3 border-t ${PAGE_STYLES.panel.border}`}>
-                <h3 className={`text-sm md:text-base font-semibold ${PAGE_STYLES.header.text} uppercase tracking-wide mb-2`}>
-                  Workflow
-                </h3>
-                <div className="flex flex-wrap gap-2 [&>button]:min-h-[44px] [&>button]:py-3 md:[&>button]:py-2 [&>div]:min-h-[44px]">
-                  {/* Prepare Order - job_details_setup */}
-                  {orderDetails.status === 'job_details_setup' && (
-                    <button
-                      onClick={handlePrepareOrder}
-                      disabled={actionLoading}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
-                    >
-                      <Settings className="w-4 h-4" />
-                      Prepare Order
-                    </button>
-                  )}
-
-                  {/* Customer Approved - pending_confirmation */}
-                  {orderDetails.status === 'pending_confirmation' && (
-                    <button
-                      onClick={handleCustomerApproved}
-                      disabled={actionLoading}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      Customer Approved
-                    </button>
-                  )}
-
-                  {/* Print Master/Estimate + Files Created - pending_production_files_creation */}
-                  {orderDetails.status === 'pending_production_files_creation' && (
-                    <>
-                      <button
-                        onClick={() => openPrintModal('master_estimate')}
-                        disabled={uiState.printingForm}
-                        className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
-                      >
-                        <Printer className="w-4 h-4" />
-                        {uiState.printingForm ? 'Printing...' : 'Print Master/Estimate'}
-                      </button>
-                      <button
-                        onClick={handleFilesCreated}
-                        disabled={actionLoading}
-                        className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
-                      >
-                        <FileCheck className="w-4 h-4" />
-                        Mark Files Created
-                      </button>
-                    </>
-                  )}
-
-                  {/* Approve Files - pending_production_files_approval */}
-                  {orderDetails.status === 'pending_production_files_approval' && (
-                    <button
-                      onClick={handleApproveFiles}
-                      disabled={actionLoading || uiState.printingForm}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
-                    >
-                      <Printer className="w-4 h-4" />
-                      Approve Files
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
             {/* Invoicing / Payments - always visible */}
             {orderDetails && (
               <div className={`pt-3 border-t ${PAGE_STYLES.panel.border}`}>
@@ -1513,6 +1445,74 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
                     >
                       <DollarSign className="w-4 h-4" />
                       Record Payment
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Workflow Actions - only render section if there are workflow buttons for current status */}
+            {orderDetails && ['job_details_setup', 'pending_confirmation', 'pending_production_files_creation', 'pending_production_files_approval'].includes(orderDetails.status) && (
+              <div className={`pt-3 border-t ${PAGE_STYLES.panel.border}`}>
+                <h3 className={`text-sm md:text-base font-semibold ${PAGE_STYLES.header.text} uppercase tracking-wide mb-2`}>
+                  Workflow
+                </h3>
+                <div className="flex flex-wrap gap-2 [&>button]:min-h-[44px] [&>button]:py-3 md:[&>button]:py-2 [&>div]:min-h-[44px]">
+                  {/* Prepare Order - job_details_setup */}
+                  {orderDetails.status === 'job_details_setup' && (
+                    <button
+                      onClick={handlePrepareOrder}
+                      disabled={actionLoading}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      <Settings className="w-4 h-4" />
+                      Prepare Order
+                    </button>
+                  )}
+
+                  {/* Customer Approved - pending_confirmation */}
+                  {orderDetails.status === 'pending_confirmation' && (
+                    <button
+                      onClick={handleCustomerApproved}
+                      disabled={actionLoading}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Customer Approved
+                    </button>
+                  )}
+
+                  {/* Print Master/Estimate + Files Created - pending_production_files_creation */}
+                  {orderDetails.status === 'pending_production_files_creation' && (
+                    <>
+                      <button
+                        onClick={() => openPrintModal('master_estimate')}
+                        disabled={uiState.printingForm}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                      >
+                        <Printer className="w-4 h-4" />
+                        {uiState.printingForm ? 'Printing...' : 'Print Master/Estimate'}
+                      </button>
+                      <button
+                        onClick={handleFilesCreated}
+                        disabled={actionLoading}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                      >
+                        <FileCheck className="w-4 h-4" />
+                        Mark Files Created
+                      </button>
+                    </>
+                  )}
+
+                  {/* Approve Files - pending_production_files_approval */}
+                  {orderDetails.status === 'pending_production_files_approval' && (
+                    <button
+                      onClick={handleApproveFiles}
+                      disabled={actionLoading || uiState.printingForm}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      <Printer className="w-4 h-4" />
+                      Approve Files
                     </button>
                   )}
                 </div>

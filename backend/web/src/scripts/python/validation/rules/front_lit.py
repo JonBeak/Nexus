@@ -473,17 +473,20 @@ def check_front_lit_structure(paths_info: List[PathInfo], rules: Dict) -> List[V
 
             max_with_miter = trim_offset_max * miter_factor
 
-            _tol = 0.05  # mm — SVG coordinate precision margin
-            width_ok = (trim_offset_min - _tol) <= width_offset_per_side_mm <= (max_with_miter + _tol)
-            height_ok = (trim_offset_min - _tol) <= height_offset_per_side_mm <= (max_with_miter + _tol)
+            _tol = 0.15  # mm — borderline margin (warning instead of error)
+            width_in_range = trim_offset_min <= width_offset_per_side_mm <= max_with_miter
+            height_in_range = trim_offset_min <= height_offset_per_side_mm <= max_with_miter
+            width_in_tol = (trim_offset_min - _tol) <= width_offset_per_side_mm <= (max_with_miter + _tol)
+            height_in_tol = (trim_offset_min - _tol) <= height_offset_per_side_mm <= (max_with_miter + _tol)
 
-            if not width_ok or not height_ok:
+            if not width_in_range or not height_in_range:
+                borderline = width_in_tol and height_in_tol
                 expected_total_min = trim_offset_min * 2
                 expected_total_max = max_with_miter * 2
 
                 issues.append(ValidationIssue(
                     rule='front_lit_trim_offset',
-                    severity='error',
+                    severity='warning' if borderline else 'error',
                     message=f'Trim {trim.path_id} offset: {width_diff_mm:.1f}mm W x {height_diff_mm:.1f}mm H (expected {expected_total_min:.1f}-{expected_total_max:.1f}mm total)',
                     path_id=trim.path_id,
                     details={

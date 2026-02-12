@@ -14,6 +14,7 @@ export interface CustomerCreateData {
   discount?: number;
   cash_yes_or_no?: boolean;
   high_standards?: boolean;
+  po_required?: boolean;
   notes?: string;
   active?: boolean;
   // QuickBooks integration
@@ -110,6 +111,7 @@ export const DEFAULT_CUSTOMER_VALUES: CustomerCreateData = {
   discount: 0,
   cash_yes_or_no: false,
   high_standards: false,
+  po_required: false,
   notes: '',
   active: true,
   // QuickBooks - checked by default

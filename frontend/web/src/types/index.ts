@@ -56,6 +56,7 @@ export interface Customer {
   // Customer flags
   high_standards?: boolean;
   hide_company_name?: boolean;
+  po_required?: boolean;
 
   // Shipping
   shipping_yes_or_no?: boolean;

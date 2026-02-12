@@ -21,9 +21,8 @@ const VALIDATION_SPEC_TYPE_MAP: Record<string, string> = {
   'Front Lit Acrylic Face': 'front_lit_acrylic_face',
   'Dual Lit - Single Layer': 'front_lit',   // Same structural rules, different mounting expectations
   'Halo Lit': 'halo_lit',
+  'Push Thru': 'push_thru',
   // 'Dual Lit - Double Layer' — future: separate spec type
-  // Future:
-  // 'Front Lit Push Thru': 'front_lit_push_thru',
 };
 
 /** Spec type key → rule key in the rules dict sent to Python */
@@ -31,6 +30,7 @@ const SPEC_TYPE_RULE_KEY_MAP: Record<string, string> = {
   'front_lit': 'front_lit_structure',
   'front_lit_acrylic_face': 'front_lit_acrylic_face_structure',
   'halo_lit': 'halo_lit_structure',
+  'push_thru': 'push_thru_structure',
 };
 
 /**
@@ -255,6 +255,94 @@ export function getValidationRuleDescriptions(
         name: 'Hole Centering',
         description: 'Pin thread/rivnut holes centered in back layer stroke',
         category: 'Halo Lit',
+      },
+    );
+  }
+
+  // Push Thru rules
+  if (specTypes.has('push_thru')) {
+    const p = profileMap?.get('push_thru')?.parameters;
+    const cutoutOffset = p?.cutout_offset_mm ?? 0.8;
+    const acrylicInset = p?.min_acrylic_inset_from_box_inches ?? 3.0;
+    const lexanInset = p?.lexan_inset_from_box_inches ?? 2.25;
+    const acrylicConvex = p?.acrylic_convex_radius_inches ?? 0.028;
+    const acrylicConcave = p?.acrylic_concave_radius_inches ?? 0.059;
+    const cutoutConvex = p?.cutout_convex_radius_inches ?? 0.059;
+    const cutoutConcave = p?.cutout_concave_radius_inches ?? 0.028;
+    const ledBoxOffset = Math.abs(p?.led_box_offset_inches ?? 0.16);
+
+    rules.push(
+      {
+        rule_key: 'push_thru_cutout_count',
+        name: 'Cutout Count',
+        description: 'Each acrylic letter must have a matching backer cutout',
+        category: 'Push Thru',
+      },
+      {
+        rule_key: 'push_thru_cutout_offset',
+        name: 'Cutout Offset',
+        description: `Backer cutouts must be ${cutoutOffset}mm larger than acrylic (uniform rounded offset)`,
+        category: 'Push Thru',
+      },
+      {
+        rule_key: 'push_thru_sharp_corners',
+        name: 'No Sharp Corners',
+        description: 'All corners on acrylic and cutouts must be rounded',
+        category: 'Push Thru',
+      },
+      {
+        rule_key: 'push_thru_acrylic_corner_radius',
+        name: 'Acrylic Corner Radii',
+        description: `Acrylic convex \u2265${acrylicConvex}", concave \u2265${acrylicConcave}"`,
+        category: 'Push Thru',
+      },
+      {
+        rule_key: 'push_thru_cutout_corner_radius',
+        name: 'Cutout Corner Radii',
+        description: `Cutout convex \u2265${cutoutConvex}", concave \u2265${cutoutConcave}"`,
+        category: 'Push Thru',
+      },
+      {
+        rule_key: 'push_thru_acrylic_inset',
+        name: 'Acrylic Inset',
+        description: `Acrylic letters must be \u2265${acrylicInset}" from backer box edge`,
+        category: 'Push Thru',
+      },
+      {
+        rule_key: 'push_thru_lexan_exists',
+        name: 'Lexan Layer Required',
+        description: 'A lexan layer must be present in the file',
+        category: 'Push Thru',
+      },
+      {
+        rule_key: 'push_thru_lexan_simple',
+        name: 'Lexan Simple Paths',
+        description: 'Lexan paths must be simple (not compound)',
+        category: 'Push Thru',
+      },
+      {
+        rule_key: 'push_thru_lexan_containment',
+        name: 'Lexan Containment',
+        description: 'Every backer cutout must be contained within a lexan path',
+        category: 'Push Thru',
+      },
+      {
+        rule_key: 'push_thru_lexan_inset',
+        name: 'Lexan Inset',
+        description: `Lexan must be \u2265${lexanInset}" inside backer box`,
+        category: 'Push Thru',
+      },
+      {
+        rule_key: 'push_thru_led_box_exists',
+        name: 'LED Box',
+        description: 'Each backer box should have a paired LED box',
+        category: 'Push Thru',
+      },
+      {
+        rule_key: 'push_thru_led_box_offset',
+        name: 'LED Box Offset',
+        description: `LED box must be ${ledBoxOffset}" smaller than backer per side`,
+        category: 'Push Thru',
       },
     );
   }

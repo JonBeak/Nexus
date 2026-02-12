@@ -112,6 +112,11 @@ export class OrderConversionService {
         throw new Error('Customer not found');
       }
 
+      // 3b. Warn if PO# is missing for a po_required customer (frontend shows confirmation)
+      if (customer.po_required && (!request.customerPo || !request.customerPo.trim())) {
+        console.warn(`[Order Conversion] ⚠️ Customer ${customer.company_name} requires PO# but none provided — user confirmed override`);
+      }
+
       // 4. Check for folder name conflicts (case-insensitive, all orders)
       const folderName = orderFolderService.buildFolderName(request.orderName, customer.company_name);
       const hasConflict = await orderFolderService.checkDatabaseConflict(folderName);

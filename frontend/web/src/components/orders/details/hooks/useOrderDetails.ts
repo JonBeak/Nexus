@@ -38,6 +38,7 @@ interface OrderData {
   parts: OrderPart[];
   taxRules: TaxRule[];
   customerDiscount: number;
+  customerPoRequired: boolean;
 }
 
 interface UIState {
@@ -66,7 +67,8 @@ export function useOrderDetails(orderNumber: string | undefined) {
     order: null,
     parts: [],
     taxRules: [],
-    customerDiscount: 0
+    customerDiscount: 0,
+    customerPoRequired: false
   });
 
   // Group 2: UI State
@@ -164,10 +166,14 @@ export function useOrderDetails(orderNumber: string | undefined) {
       if (orderDetails.customer_id) {
         try {
           const customerData = await customerApi.getCustomer(orderDetails.customer_id);
-          setOrderData(prev => ({ ...prev, customerDiscount: customerData.discount || 0 }));
+          setOrderData(prev => ({
+            ...prev,
+            customerDiscount: customerData.discount || 0,
+            customerPoRequired: !!customerData.po_required
+          }));
         } catch (err) {
           console.error('Error fetching customer discount:', err);
-          setOrderData(prev => ({ ...prev, customerDiscount: 0 }));
+          setOrderData(prev => ({ ...prev, customerDiscount: 0, customerPoRequired: false }));
         }
       }
     } catch (err) {

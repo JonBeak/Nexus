@@ -130,7 +130,8 @@ export class CustomerRepository {
         comments,
         active,
         drain_holes_yes_or_no,
-        shipping_yes_or_no
+        shipping_yes_or_no,
+        po_required
       FROM customers
       WHERE customer_id = ?`,
       [customerId]
@@ -189,6 +190,7 @@ export class CustomerRepository {
         c.drain_holes_yes_or_no,
         c.plug_n_play_yes_or_no,
         c.high_standards,
+        c.po_required,
         c.comments,
         c.special_instructions,
         c.created_date,
@@ -380,6 +382,7 @@ export class CustomerRepository {
         shipping_flat = ?,
         high_standards = ?,
         hide_company_name = ?,
+        po_required = ?,
         comments = ?,
         special_instructions = ?,
         updated_by = ?,

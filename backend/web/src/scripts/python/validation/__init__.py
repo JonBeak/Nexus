@@ -42,11 +42,12 @@ from .base_rules import (
 )
 from .rules import check_front_lit_structure, check_front_lit_acrylic_face_structure, classify_engraving_paths
 from .rules import check_halo_lit_structure, generate_halo_lit_letter_issues
+from .rules import check_push_thru_structure
 from .rules.front_lit import generate_letter_analysis_issues
 from .letter_analysis import analyze_letter_hole_associations
 
 
-_SYSTEM_LAYERS = frozenset(('_no_layer_', '_defs_'))
+_SYSTEM_LAYERS = frozenset(('_no_layer_', '_defs_', '_hidden_'))
 _DEFAULT_LAYER_RE = re.compile(r'^Layer[\s_]\d+$')
 
 
@@ -234,7 +235,7 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
         # Letter-hole geometry analysis (run before other validations if requested)
         # Returns UNCLASSIFIED holes — spec rules classify them before serialization
         letter_analysis = None
-        if 'letter_hole_analysis' in rules or 'front_lit_structure' in rules or 'front_lit_acrylic_face_structure' in rules or 'halo_lit_structure' in rules:
+        if 'letter_hole_analysis' in rules or 'front_lit_structure' in rules or 'front_lit_acrylic_face_structure' in rules or 'halo_lit_structure' in rules or 'push_thru_structure' in rules:
             analysis_config = rules.get('letter_hole_analysis', {})
 
             # For SVG files with detected unit scale, override file_scale
@@ -393,6 +394,12 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
                 halo_rules['_standard_hole_sizes'] = std_sizes
             all_issues.extend(check_halo_lit_structure(paths_info, halo_rules))
 
+        if 'push_thru_structure' in rules:
+            push_thru_rules = rules['push_thru_structure'].copy()
+            if letter_analysis:
+                push_thru_rules['_letter_analysis'] = letter_analysis
+            all_issues.extend(check_push_thru_structure(paths_info, push_thru_rules))
+
         # Determine overall status
         has_errors = any(i.severity == 'error' for i in all_issues)
         has_warnings = any(i.severity == 'warning' for i in all_issues)
@@ -446,4 +453,5 @@ __all__ = [
     'classify_engraving_paths',
     'check_halo_lit_structure',
     'generate_halo_lit_letter_issues',
+    'check_push_thru_structure',
 ]

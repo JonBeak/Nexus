@@ -197,6 +197,16 @@ export const CustomerFormCreate: React.FC<CustomerFormCreateProps> = ({
             />
             <label htmlFor="high_standards" className={`ml-2 text-sm font-semibold ${PAGE_STYLES.panel.textSecondary}`}>High Standards</label>
           </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="po_required"
+              checked={formData.po_required || false}
+              onChange={(e) => onInputChange('po_required', e.target.checked)}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label htmlFor="po_required" className={`ml-2 text-sm font-semibold ${PAGE_STYLES.panel.textSecondary}`}>PO# Required</label>
+          </div>
         </div>
       </div>
 

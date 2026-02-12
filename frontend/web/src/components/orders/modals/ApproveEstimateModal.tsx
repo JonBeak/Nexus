@@ -63,6 +63,10 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
   // Confirmation for approving without QB estimate
   const [confirmedNoQBEstimate, setConfirmedNoQBEstimate] = useState(false);
 
+  // PO Required flag from customer
+  const [poRequired, setPoRequired] = useState(false);
+  const [confirmedNoPo, setConfirmedNoPo] = useState(false);
+
   // Phase 1.5.a.5: New state variables - pre-fill from job's Customer Ref #
   const [customerJobNumber, setCustomerJobNumber] = useState(initialCustomerJobNumber || '');
 
@@ -108,6 +112,8 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
       // Don't reset pointPersons here - it will be set by the fetch contacts useEffect
       setContactEmails([]);
       setAllContacts([]);
+      setPoRequired(false);
+      setConfirmedNoPo(false);
       setError(null);
       setValidationError(null);
       setConfirmedNoQBEstimate(false);
@@ -119,6 +125,7 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
     if (isOpen && customerId && !dueDate) {
       customerApi.getCustomer(customerId)
         .then(customer => {
+          setPoRequired(!!customer.po_required);
           const turnaroundDays = customer.default_turnaround || 10;
 
           const today = new Date();
@@ -481,7 +488,10 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
 
   // Check if we need confirmation for no QB estimate
   const needsNoQBConfirmation = !qbEstimateId;
-  const canApprove = !validationError && orderName.trim() && (!needsNoQBConfirmation || confirmedNoQBEstimate);
+  const needsPoConfirmation = poRequired && !customerPo.trim();
+  const canApprove = !validationError && orderName.trim()
+    && (!needsNoQBConfirmation || confirmedNoQBEstimate)
+    && (!needsPoConfirmation || confirmedNoPo);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -594,15 +604,20 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Customer PO#
+                  Customer PO#{poRequired && <span className="text-red-500"> *</span>}
                 </label>
                 <input
                   type="text"
                   value={customerPo}
                   onChange={(e) => setCustomerPo(e.target.value)}
                   disabled={loading}
-                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className={`w-full px-3 py-1.5 border rounded-lg disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                    poRequired && !customerPo.trim() ? 'border-amber-400' : 'border-gray-300'
+                  }`}
                 />
+                {poRequired && (
+                  <p className="mt-0.5 text-xs text-amber-600">Required for this customer</p>
+                )}
               </div>
             </div>
 
@@ -831,30 +846,59 @@ export const ApproveEstimateModal: React.FC<ApproveEstimateModalProps> = ({
 
         {/* Footer */}
         <div className="flex items-center justify-between gap-4 p-4 border-t bg-gray-50">
-          {/* QB Warning (if needed) - Left side */}
-          {needsNoQBConfirmation ? (
-            <div className="flex items-center gap-3">
-              <span className="text-3xl">⚠️</span>
-              <div className="flex flex-col gap-1">
-                <span className="text-base text-gray-700">
-                  This Estimate has not been sent to QuickBooks.
-                </span>
-                <span className="text-sm text-gray-600">
-                  Please confirm to proceed.
-                </span>
-              </div>
-              <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap ml-6">
-                <input
-                  type="checkbox"
-                  checked={confirmedNoQBEstimate}
-                  onChange={(e) => setConfirmedNoQBEstimate(e.target.checked)}
-                  disabled={loading}
-                  className="w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500 disabled:opacity-50"
-                />
-                <span className="text-base font-medium text-gray-700">
-                  Confirm
-                </span>
-              </label>
+          {/* Warnings (if needed) - Left side */}
+          {(needsNoQBConfirmation || needsPoConfirmation) ? (
+            <div className="flex flex-col gap-2">
+              {needsNoQBConfirmation && (
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">⚠️</span>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-base text-gray-700">
+                      This Estimate has not been sent to QuickBooks.
+                    </span>
+                    <span className="text-sm text-gray-600">
+                      Please confirm to proceed.
+                    </span>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap ml-6">
+                    <input
+                      type="checkbox"
+                      checked={confirmedNoQBEstimate}
+                      onChange={(e) => setConfirmedNoQBEstimate(e.target.checked)}
+                      disabled={loading}
+                      className="w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500 disabled:opacity-50"
+                    />
+                    <span className="text-base font-medium text-gray-700">
+                      Confirm
+                    </span>
+                  </label>
+                </div>
+              )}
+              {needsPoConfirmation && (
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">⚠️</span>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-base text-gray-700">
+                      This customer requires a PO# but none was provided.
+                    </span>
+                    <span className="text-sm text-gray-600">
+                      Confirm to proceed without one.
+                    </span>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap ml-6">
+                    <input
+                      type="checkbox"
+                      checked={confirmedNoPo}
+                      onChange={(e) => setConfirmedNoPo(e.target.checked)}
+                      disabled={loading}
+                      className="w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500 disabled:opacity-50"
+                    />
+                    <span className="text-base font-medium text-gray-700">
+                      Confirm
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
           ) : (
             <div></div>

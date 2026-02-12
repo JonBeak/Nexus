@@ -501,3 +501,30 @@ def buffer_polygon_with_mitre(polygon: Optional[Polygon],
         return buffered
     except Exception:
         return None
+
+
+def buffer_polygon_round(polygon: Optional[Polygon],
+                         offset: float) -> Optional[Polygon]:
+    """
+    Buffer a Shapely polygon using round joins.
+
+    Used for Push Thru cutout offset validation where the backer cutout
+    is a uniform rounded expansion of the acrylic letter shape.
+
+    Args:
+        polygon: Shapely Polygon to buffer
+        offset: Buffer distance in file units (positive = outward)
+
+    Returns:
+        Buffered Shapely Polygon, or None if input is None or operation fails
+    """
+    if polygon is None or Polygon is None or _JOIN_STYLE is None:
+        return None
+
+    try:
+        buffered = polygon.buffer(offset, join_style=_JOIN_STYLE.round)
+        if buffered.is_empty:
+            return None
+        return buffered
+    except Exception:
+        return None

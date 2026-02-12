@@ -74,7 +74,7 @@ Rules file: `rules/non_lit.py` (not yet created)
 
 ## Push Thru
 
-Rules file: `rules/push_thru.py` (not yet created)
+Rules file: `rules/push_thru.py`
 
 ### Layers
 - **Backer** (ACM or Aluminum) — Contains box outlines with letter cutouts (compound paths: outer box + inner letter holes)
@@ -83,32 +83,32 @@ Rules file: `rules/push_thru.py` (not yet created)
 - **LED Box** — Smaller rectangular box nested inside the backer box (may be on the Backer layer itself)
 
 ### Acrylic ↔ Backer Cutout Rules
-- [ ] **Cutout count matches acrylic** — Every acrylic letter on the Push Thru Acrylic layer must have a corresponding cutout in the Backer layer, and vice versa
-- [ ] **Cutout offset from acrylic** — Backer cutouts must be exactly 0.8mm larger than acrylic letters (rounded/uniform offset, very tight tolerance). This is a precise rounded offset so the shape should be uniformly expanded, not just bbox-expanded
-- [ ] **Rounded corners required** — Every corner on both acrylic letters and backer cutouts must be rounded (no sharp L-to-L junctions). Detection: extract radius from cubic bezier control points using kappa constant (r = control_point_distance / 0.5523)
+- [x] **Cutout count matches acrylic** — Every acrylic letter on the Push Thru Acrylic layer must have a corresponding cutout in the Backer layer, and vice versa
+- [x] **Cutout offset from acrylic** — Backer cutouts must be exactly 0.8mm larger than acrylic letters (rounded/uniform offset, very tight tolerance). This is a precise rounded offset so the shape should be uniformly expanded, not just bbox-expanded
+- [x] **Rounded corners required** — Every corner on both acrylic letters and backer cutouts must be rounded (no sharp L-to-L junctions). Detection: extract radius from cubic bezier control points using kappa constant (r = control_point_distance / 0.5523)
 
 #### Corner Radius Minimums (±5% tolerance, these are minimums)
 
 **Acrylic letters** (Push Thru Acrylic layer):
-- [ ] **Convex corner radius** — Minimum 0.028" radius at convex corners
-- [ ] **Concave corner radius** — Minimum 0.059" radius at concave corners
+- [x] **Convex corner radius** — Minimum 0.028" radius at convex corners
+- [x] **Concave corner radius** — Minimum 0.059" radius at concave corners
 
 **Backer cutouts** (paths within backer box area on Backer layer — treat as normal paths, not inverted compound path holes):
-- [ ] **Convex corner radius** — Minimum 0.059" radius at convex corners
-- [ ] **Concave corner radius** — Minimum 0.028" radius at concave corners
+- [x] **Convex corner radius** — Minimum 0.059" radius at convex corners
+- [x] **Concave corner radius** — Minimum 0.028" radius at concave corners
 
 ### Box Rules (2" Angle Return box type)
-- [ ] **Acrylic inset from box edge** — Push Thru Acrylic letters must be at least 3" from the edge of the backer box
+- [x] **Acrylic inset from box edge** — Push Thru Acrylic letters must be at least 3" from the edge of the backer box
 
 ### Lexan Layer Rules
-- [ ] **Lexan layer exists** — A Lexan layer must be present in the file
-- [ ] **Lexan paths are simple (not compound)** — Each path on the Lexan layer must be a simple path, not a compound path
-- [ ] **Lexan contains all cutouts** — Every backer letter cutout must be contained within a Lexan path. One Lexan path can contain many cutouts, but every cutout must be accounted for
-- [ ] **Lexan inset from backer box** — Lexan paths must be inside the backer box boundaries, offset inward by at least 2.25"
+- [x] **Lexan layer exists** — A Lexan layer must be present in the file
+- [x] **Lexan paths are simple (not compound)** — Each path on the Lexan layer must be a simple path, not a compound path
+- [x] **Lexan contains all cutouts** — Every backer letter cutout must be contained within a Lexan path. One Lexan path can contain many cutouts, but every cutout must be accounted for
+- [x] **Lexan inset from backer box** — Lexan paths must be inside the backer box boundaries, offset inward by at least 2.25"
 
 ### LED Box Rules
-- [ ] **LED box exists** — Each backer box should have a paired LED box (a rectangular path on the Backer layer with no letter cutouts)
-- [ ] **LED box offset from backer** — LED box must be offset -0.16" from the backer box (i.e., 0.16" smaller per side). Exact for rectangular boxes, very tight tolerance
+- [x] **LED box exists** — Each backer box should have a paired LED box (a rectangular path on the Backer layer with no letter cutouts)
+- [x] **LED box offset from backer** — LED box must be offset -0.16" from the backer box (i.e., 0.16" smaller per side). Exact for rectangular boxes, very tight tolerance
 
 ---
 

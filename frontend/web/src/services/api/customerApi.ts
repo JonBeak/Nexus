@@ -34,6 +34,7 @@ export interface CustomerCreateData {
   shipping_yes_or_no?: boolean;
   shipping_multiplier?: number;
   shipping_flat?: number;
+  po_required?: boolean;
 }
 
 /**

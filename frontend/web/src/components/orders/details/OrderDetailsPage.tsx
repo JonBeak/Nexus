@@ -907,7 +907,12 @@ export const OrderDetailsPage: React.FC = () => {
                     </div>
                     {/* PO # */}
                     <div className="flex justify-between items-center py-1 px-1">
-                      <span className={`${PAGE_STYLES.panel.textMuted} text-xs`}>PO #</span>
+                      <span className={`${PAGE_STYLES.panel.textMuted} text-xs`}>
+                        PO #
+                        {orderData.customerPoRequired && !orderData.order.customer_po && (
+                          <span className="ml-1 text-amber-500" title="This customer requires a PO#">⚠</span>
+                        )}
+                      </span>
                       <EditableField
                         field="customer_po"
                         value={orderData.order.customer_po}

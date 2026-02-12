@@ -6,7 +6,7 @@
 
 import express, { Router } from 'express';
 import { authenticateToken } from '../middleware/auth';
-import { requirePermission } from '../middleware/rbac';
+import { requirePermission, requireAnyPermission } from '../middleware/rbac';
 import * as controller from '../controllers/supplyChain/materialRequirementController';
 
 const router: Router = express.Router();
@@ -66,7 +66,7 @@ router.get(
 // Get available vinyl items with holds
 router.get(
   '/available-vinyl',
-  requirePermission('supply_chain.read'),
+  requireAnyPermission(['supply_chain.read', 'vinyl.read']),
   controller.getAvailableVinylWithHolds
 );
 

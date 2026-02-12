@@ -55,11 +55,14 @@ export class SupplierOrderRepository {
       SELECT
         soi.*,
         CONCAT(ru.first_name, ' ', ru.last_name) as received_by_name,
-        o.order_number as material_requirement_order_number
+        o.order_number as material_requirement_order_number,
+        o.order_name as material_requirement_order_name,
+        c.company_name as material_requirement_customer_name
       FROM supplier_order_items soi
       LEFT JOIN users ru ON soi.received_by = ru.user_id
       LEFT JOIN material_requirements mr ON soi.material_requirement_id = mr.requirement_id
       LEFT JOIN orders o ON mr.order_id = o.order_id
+      LEFT JOIN customers c ON o.customer_id = c.customer_id
       WHERE ${whereClause}
     `;
   }

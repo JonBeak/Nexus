@@ -346,17 +346,20 @@ def check_halo_lit_structure(
             width_offset_per_side_mm = width_diff_mm / 2
             height_offset_per_side_mm = height_diff_mm / 2
 
-            _tol = 0.05  # mm — SVG coordinate precision margin
-            width_ok = (back_offset_min_mm - _tol) <= width_offset_per_side_mm <= (back_offset_max_mm + _tol)
-            height_ok = (back_offset_min_mm - _tol) <= height_offset_per_side_mm <= (back_offset_max_mm + _tol)
+            _tol = 0.15  # mm — borderline margin (warning instead of error)
+            width_in_range = back_offset_min_mm <= width_offset_per_side_mm <= back_offset_max_mm
+            height_in_range = back_offset_min_mm <= height_offset_per_side_mm <= back_offset_max_mm
+            width_in_tol = (back_offset_min_mm - _tol) <= width_offset_per_side_mm <= (back_offset_max_mm + _tol)
+            height_in_tol = (back_offset_min_mm - _tol) <= height_offset_per_side_mm <= (back_offset_max_mm + _tol)
 
-            if not width_ok or not height_ok:
+            if not width_in_range or not height_in_range:
+                borderline = width_in_tol and height_in_tol
                 expected_total_min = back_offset_min_mm * 2
                 expected_total_max = back_offset_max_mm * 2
 
                 issues.append(ValidationIssue(
                     rule='halo_lit_back_offset',
-                    severity='error',
+                    severity='warning' if borderline else 'error',
                     message=f'Back {back.path_id} offset: {width_diff_mm:.1f}mm W x {height_diff_mm:.1f}mm H (expected {expected_total_min:.1f}-{expected_total_max:.1f}mm total)',
                     path_id=back.path_id,
                     details={
@@ -454,17 +457,20 @@ def check_halo_lit_structure(
             width_offset_per_side_mm = width_diff_mm / 2
             height_offset_per_side_mm = height_diff_mm / 2
 
-            _tol = 0.05  # mm — SVG coordinate precision margin
-            width_ok = (face_offset_min_mm - _tol) <= width_offset_per_side_mm <= (face_offset_max_mm + _tol)
-            height_ok = (face_offset_min_mm - _tol) <= height_offset_per_side_mm <= (face_offset_max_mm + _tol)
+            _tol = 0.15  # mm — borderline margin (warning instead of error)
+            width_in_range = face_offset_min_mm <= width_offset_per_side_mm <= face_offset_max_mm
+            height_in_range = face_offset_min_mm <= height_offset_per_side_mm <= face_offset_max_mm
+            width_in_tol = (face_offset_min_mm - _tol) <= width_offset_per_side_mm <= (face_offset_max_mm + _tol)
+            height_in_tol = (face_offset_min_mm - _tol) <= height_offset_per_side_mm <= (face_offset_max_mm + _tol)
 
-            if not width_ok or not height_ok:
+            if not width_in_range or not height_in_range:
+                borderline = width_in_tol and height_in_tol
                 expected_total_min = face_offset_min_mm * 2
                 expected_total_max = face_offset_max_mm * 2
 
                 issues.append(ValidationIssue(
                     rule='halo_lit_face_offset',
-                    severity='error',
+                    severity='warning' if borderline else 'error',
                     message=f'Face {face.path_id} offset: {width_diff_mm:.1f}mm W x {height_diff_mm:.1f}mm H (expected {expected_total_min:.1f}-{expected_total_max:.1f}mm total)',
                     path_id=face.path_id,
                     details={

@@ -1,7 +1,7 @@
 /**
  * Supplier Order Email Service
  * Sends PO emails to suppliers when orders are submitted via "Place Order"
- * Uses existing Gmail infrastructure (gmailAuthService + manual MIME)
+ * Uses existing Gmail infrastructure (gmailAuthService)
  * Created: 2026-02-10
  */
 
@@ -63,6 +63,26 @@ interface POEmailItem {
   unit_of_measure?: string | null;
   unit_price?: number | null;
   line_total?: number | null;
+  material_requirement_order_number?: string | null;
+  material_requirement_order_name?: string | null;
+  material_requirement_customer_name?: string | null;
+}
+
+interface JobRef {
+  orderNumber: string;
+  orderName: string | null;
+  customerName: string | null;
+}
+
+interface ConsolidatedPOItem {
+  product_description: string;
+  sku: string | null;
+  quantity_ordered: number;
+  unit: string;
+  unit_price: number | null;
+  line_total: number | null;
+  jobRefs: JobRef[];
+  hasStock: boolean;
 }
 
 /**
@@ -141,6 +161,61 @@ function formatDate(dateStr: Date | string | null): string {
 }
 
 /**
+ * Consolidate identical items (same description + SKU + unit) into grouped lines.
+ * Mirrors the frontend DraftPOCard grouping logic.
+ */
+function consolidateItems(items: POEmailItem[]): ConsolidatedPOItem[] {
+  const map = new Map<string, ConsolidatedPOItem>();
+
+  for (const item of items) {
+    const desc = item.product_description || 'Unknown Product';
+    const sku = item.sku || '';
+    const unit = item.unit || item.unit_of_measure || 'each';
+    const key = `${desc.toLowerCase()}|${sku.toLowerCase()}|${unit.toLowerCase()}`;
+    const orderNum = item.material_requirement_order_number
+      ? String(item.material_requirement_order_number)
+      : null;
+
+    const existing = map.get(key);
+    if (existing) {
+      existing.quantity_ordered += Number(item.quantity_ordered);
+      if (existing.unit_price !== null) {
+        existing.line_total = existing.unit_price * existing.quantity_ordered;
+      }
+      if (orderNum) {
+        if (!existing.jobRefs.some(r => r.orderNumber === orderNum)) {
+          existing.jobRefs.push({
+            orderNumber: orderNum,
+            orderName: item.material_requirement_order_name || null,
+            customerName: item.material_requirement_customer_name || null,
+          });
+        }
+      } else {
+        existing.hasStock = true;
+      }
+    } else {
+      const unitPrice = Number(item.unit_price) > 0 ? Number(item.unit_price) : null;
+      map.set(key, {
+        product_description: desc,
+        sku: sku || null,
+        quantity_ordered: Number(item.quantity_ordered),
+        unit,
+        unit_price: unitPrice,
+        line_total: unitPrice ? unitPrice * Number(item.quantity_ordered) : null,
+        jobRefs: orderNum ? [{
+          orderNumber: orderNum,
+          orderName: item.material_requirement_order_name || null,
+          customerName: item.material_requirement_customer_name || null,
+        }] : [],
+        hasStock: !orderNum,
+      });
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+/**
  * Build HTML email body for the PO
  */
 function buildHtmlBody(
@@ -150,32 +225,59 @@ function buildHtmlBody(
   customOpening?: string,
   customClosing?: string,
   showPricing: boolean = false,
-  mode: 'preview' | 'send' = 'preview'
+  isInternal: boolean = false
 ): string {
   const companyName = escapeHtml(settings.company_name || 'Sign House');
   const orderNumber = escapeHtml(order.order_number);
   const deliveryMethod = order.delivery_method === 'pickup' ? 'Pickup' : 'Shipping';
   const orderDate = formatDate(order.order_date);
 
+  // Consolidate identical items (group by description+SKU+unit, sum quantities)
+  const consolidated = consolidateItems(items);
+  const colSpan = showPricing ? 5 : 3;
+
   // Build items rows - conditionally show pricing columns
-  const itemRows = items.map((item, i) => {
+  const itemRows = consolidated.map((item) => {
+    let row: string;
     if (showPricing) {
-      return `
-    <tr style="border-bottom: 1px solid #e5e7eb;">
+      row = `
+    <tr style="border-bottom: ${isInternal ? 'none' : '1px solid #e5e7eb'};">
       <td style="padding: 10px 12px; font-size: 14px;">${escapeHtml(item.product_description)}</td>
       <td style="padding: 10px 12px; font-size: 14px; color: #6b7280;">${escapeHtml(item.sku || '—')}</td>
-      <td style="padding: 10px 12px; font-size: 14px; text-align: center;">${Number(item.quantity_ordered)} ${escapeHtml(item.unit || item.unit_of_measure || 'each')}</td>
-      <td style="padding: 10px 12px; font-size: 14px; text-align: right;">${Number(item.unit_price) > 0 ? formatCurrency(Number(item.unit_price)) : '—'}</td>
-      <td style="padding: 10px 12px; font-size: 14px; text-align: right; font-weight: 500;">${Number(item.line_total) > 0 ? formatCurrency(Number(item.line_total)) : '—'}</td>
+      <td style="padding: 10px 12px; font-size: 14px; text-align: center;">${item.quantity_ordered} ${escapeHtml(item.unit)}</td>
+      <td style="padding: 10px 12px; font-size: 14px; text-align: right;">${item.unit_price !== null ? formatCurrency(item.unit_price) : '—'}</td>
+      <td style="padding: 10px 12px; font-size: 14px; text-align: right; font-weight: 500;">${item.line_total !== null ? formatCurrency(item.line_total) : '—'}</td>
     </tr>`;
     } else {
-      return `
-    <tr style="border-bottom: 1px solid #e5e7eb;">
+      row = `
+    <tr style="border-bottom: ${isInternal ? 'none' : '1px solid #e5e7eb'};">
       <td style="padding: 10px 12px; font-size: 14px;">${escapeHtml(item.product_description)}</td>
       <td style="padding: 10px 12px; font-size: 14px; color: #6b7280;">${escapeHtml(item.sku || '—')}</td>
-      <td style="padding: 10px 12px; font-size: 14px; text-align: center;">${Number(item.quantity_ordered)} ${escapeHtml(item.unit || item.unit_of_measure || 'each')}</td>
+      <td style="padding: 10px 12px; font-size: 14px; text-align: center;">${item.quantity_ordered} ${escapeHtml(item.unit)}</td>
     </tr>`;
     }
+
+    // Internal email: append job reference subtext rows (one per job)
+    if (isInternal) {
+      const refLines: string[] = [];
+      for (const job of item.jobRefs) {
+        const parts = [`#${job.orderNumber}`];
+        if (job.orderName) parts.push(job.orderName);
+        if (job.customerName) parts.push(`(${job.customerName})`);
+        refLines.push(`↳ ${escapeHtml(parts.join(' — '))}`);
+      }
+      if (item.hasStock) refLines.push('↳ Stock');
+
+      refLines.forEach((line, idx) => {
+        const isLast = idx === refLines.length - 1;
+        row += `
+    <tr style="border-bottom: ${isLast ? '1px solid #e5e7eb' : 'none'};">
+      <td colspan="${colSpan}" style="padding: 0 12px ${isLast ? '8px' : '2px'} 24px; font-size: 12px; color: #9ca3af;">${line}</td>
+    </tr>`;
+      });
+    }
+
+    return row;
   }).join('');
 
   const subtotal = Number(order.subtotal || 0);
@@ -183,16 +285,12 @@ function buildHtmlBody(
   const shippingCost = Number(order.shipping_cost || 0);
   const totalAmount = Number(order.total_amount || 0);
 
-  // Logo header — preview uses data URI (browser), send uses cid: (email clients strip data URIs)
+  // Logo header — always use data URI (works in both Gmail and Outlook.com)
   let logoSrc = '';
   if (settings.company_logo_base64) {
-    if (mode === 'send') {
-      logoSrc = 'cid:company-logo@nexus';
-    } else {
-      logoSrc = settings.company_logo_base64.startsWith('data:')
-        ? settings.company_logo_base64
-        : `data:image/png;base64,${settings.company_logo_base64}`;
-    }
+    logoSrc = settings.company_logo_base64.startsWith('data:')
+      ? settings.company_logo_base64
+      : `data:image/png;base64,${settings.company_logo_base64}`;
   }
   const logoHtml = logoSrc
     ? `<img src="${logoSrc}" alt="${companyName}" style="max-height: 50px; max-width: 200px;" />`
@@ -436,7 +534,7 @@ export async function sendPurchaseOrderEmail(
   // Build email content — replace {PO#} variable with actual generated PO number
   const rawSubject = overrides?.subject?.trim() || `Purchase Order ${order.order_number} - ${companyName}`;
   const subject = rawSubject.replace(/\{PO#\}/g, order.order_number);
-  const html = buildHtmlBody(order, order.items || [], settings, overrides?.opening, overrides?.closing, showPricing, 'send');
+  const html = buildHtmlBody(order, order.items || [], settings, overrides?.opening, overrides?.closing, showPricing, showPricing);
   const text = buildPlainText(order, order.items || [], settings, overrides?.opening, overrides?.closing);
 
   // CC list from overrides
@@ -481,8 +579,8 @@ export async function sendPurchaseOrderEmail(
 
     const gmail = await createGmailClient();
 
-    // Build MIME message manually (MailComposer omits the type= param on
-    // multipart/related, which causes Outlook.com to hide CID inline images)
+    // Build MIME message — logo is embedded as data URI in HTML, so simple
+    // multipart/alternative (text + html) is all we need. No CID / multipart/related.
     const altBoundary = '----=_Part_Alt_' + Date.now() + '_' + Math.random().toString(36).substring(7);
 
     // Email headers
@@ -493,71 +591,21 @@ export async function sendPurchaseOrderEmail(
     if (ccList.length > 0) headers.push(`Cc: ${ccList.join(', ')}`);
     if (bccList.length > 0) headers.push(`Bcc: ${bccList.join(', ')}`);
     headers.push(`Subject: ${subject}`, `MIME-Version: 1.0`);
+    headers.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`);
 
-    const bodyParts: string[] = [];
-
-    if (settings.company_logo_base64) {
-      // With logo: multipart/related wrapping multipart/alternative + inline image
-      const relBoundary = '----=_Part_Rel_' + Date.now() + '_' + Math.random().toString(36).substring(7);
-      headers.push(`Content-Type: multipart/related; boundary="${relBoundary}"; type="multipart/alternative"`);
-
-      // Alternative part (text + html)
-      bodyParts.push(
-        `--${relBoundary}`,
-        `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
-        ``,
-        `--${altBoundary}`,
-        `Content-Type: text/plain; charset=UTF-8`,
-        `Content-Transfer-Encoding: 7bit`,
-        ``,
-        text,
-        `--${altBoundary}`,
-        `Content-Type: text/html; charset=UTF-8`,
-        `Content-Transfer-Encoding: 7bit`,
-        ``,
-        html,
-        `--${altBoundary}--`
-      );
-
-      // Inline logo image
-      const rawBase64 = settings.company_logo_base64.startsWith('data:')
-        ? settings.company_logo_base64.replace(/^data:image\/\w+;base64,/, '')
-        : settings.company_logo_base64;
-      // Detect content type from data URI prefix, default to image/png
-      const contentType = settings.company_logo_base64.startsWith('data:')
-        ? (settings.company_logo_base64.match(/^data:(image\/\w+);/)?.[1] || 'image/png')
-        : 'image/png';
-      // Wrap base64 at 76 chars per line (RFC 2045)
-      const wrappedBase64 = rawBase64.replace(/(.{76})/g, '$1\r\n');
-
-      bodyParts.push(
-        `--${relBoundary}`,
-        `Content-Type: ${contentType}; name="logo.png"`,
-        `Content-Transfer-Encoding: base64`,
-        `Content-ID: <company-logo@nexus>`,
-        `Content-Disposition: inline; filename="logo.png"`,
-        ``,
-        wrappedBase64,
-        `--${relBoundary}--`
-      );
-    } else {
-      // No logo: simple multipart/alternative
-      headers.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`);
-
-      bodyParts.push(
-        `--${altBoundary}`,
-        `Content-Type: text/plain; charset=UTF-8`,
-        `Content-Transfer-Encoding: 7bit`,
-        ``,
-        text,
-        `--${altBoundary}`,
-        `Content-Type: text/html; charset=UTF-8`,
-        `Content-Transfer-Encoding: 7bit`,
-        ``,
-        html,
-        `--${altBoundary}--`
-      );
-    }
+    const bodyParts: string[] = [
+      `--${altBoundary}`,
+      `Content-Type: text/plain; charset=UTF-8`,
+      `Content-Transfer-Encoding: 7bit`,
+      ``,
+      text,
+      `--${altBoundary}`,
+      `Content-Type: text/html; charset=UTF-8`,
+      `Content-Transfer-Encoding: 7bit`,
+      ``,
+      html,
+      `--${altBoundary}--`,
+    ];
 
     const email = headers.concat([''], bodyParts).join('\r\n');
     const encodedMessage = Buffer.from(email)

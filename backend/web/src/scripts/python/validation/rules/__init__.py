@@ -20,6 +20,8 @@ from .halo_lit import (
     generate_halo_lit_letter_issues,
 )
 
+from .push_thru import check_push_thru_structure
+
 from .common_checks import check_hole_centering
 
 __all__ = [
@@ -29,5 +31,6 @@ __all__ = [
     'classify_engraving_paths',
     'check_halo_lit_structure',
     'generate_halo_lit_letter_issues',
+    'check_push_thru_structure',
     'check_hole_centering',
 ]

@@ -139,7 +139,9 @@ AND p.permission_name IN (
     -- Job access
     'jobs.create', 'jobs.read', 'jobs.update', 'jobs.list',
     -- Vinyl/product access
-    'vinyl.read', 'vinyl.list', 'vinyl_products.read', 'vinyl_products.list'
+    'vinyl.read', 'vinyl.list', 'vinyl_products.read', 'vinyl_products.list',
+    -- Supply chain read (for vinyl piece selector)
+    'supply_chain.read'
 );
 
 -- MANAGER: Full operational access (current manager permissions)
