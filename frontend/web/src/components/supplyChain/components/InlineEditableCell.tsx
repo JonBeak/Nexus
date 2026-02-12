@@ -17,6 +17,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { PAGE_STYLES } from '../../../constants/moduleColors';
+import { formatDateCompact } from '../../../utils/dateUtils';
 
 export type CellType = 'text' | 'number' | 'textarea' | 'select' | 'date' | 'toggle';
 
@@ -159,15 +160,9 @@ export const InlineEditableCell: React.FC<InlineEditableCellProps> = ({
     }
 
     if (type === 'date' && value) {
-      const dateStr = String(value);
-      const displayDate = new Date(dateStr).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      });
       return (
         <span className={`${PAGE_STYLES.panel.textMuted} text-xs px-1`}>
-          {displayDate}
+          {formatDateCompact(String(value))}
         </span>
       );
     }
@@ -235,7 +230,7 @@ export const InlineEditableCell: React.FC<InlineEditableCellProps> = ({
           }
         }}
         onKeyDown={handleKeyDown}
-        className={`${baseInputClasses} ${className}`}
+        className={`${baseInputClasses} ${className} appearance-none`}
       >
         <option value="">{placeholder || 'Select...'}</option>
         {options.map((opt) => (
@@ -250,15 +245,10 @@ export const InlineEditableCell: React.FC<InlineEditableCellProps> = ({
   // Date input rendering - show formatted date, click to edit
   // Wrapped in fixed-width container to prevent native date picker from changing cell size
   if (type === 'date') {
-    // Format date for display (Jan 3, 2026)
+    // Format date for display (Feb 2, '26)
     const getFormattedDate = () => {
       if (!localValue) return placeholder || '-';
-      const date = new Date(localValue + 'T00:00:00'); // Avoid timezone issues
-      return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      });
+      return formatDateCompact(localValue);
     };
 
     const handleClearDate = (e: React.MouseEvent) => {

@@ -5,6 +5,9 @@ Geometric utilities for path analysis.
 import math
 from typing import Tuple, Optional, Dict, List, Any
 
+# Minimum samples per curve segment even for very short segments
+_MIN_SAMPLES_PER_SEGMENT = 4
+
 try:
     from shapely.geometry import Polygon, Point, LineString
     from shapely.geometry import JOIN_STYLE as _JOIN_STYLE
@@ -86,9 +89,28 @@ def is_circle_path(path) -> Tuple[bool, Optional[float]]:
         return False, None
 
 
-def path_to_polygon(path, samples_per_segment: int = 10) -> Optional[Polygon]:
+def _samples_for_segment(segment, max_point_distance: Optional[float],
+                         fallback: int = 10) -> int:
+    """Compute sample count for a single curve segment."""
+    if max_point_distance is None or max_point_distance <= 0:
+        return fallback
+    try:
+        seg_len = segment.length()
+        return max(_MIN_SAMPLES_PER_SEGMENT, math.ceil(seg_len / max_point_distance))
+    except Exception:
+        return fallback
+
+
+def path_to_polygon(path, samples_per_segment: int = 10,
+                    max_point_distance: Optional[float] = None) -> Optional[Polygon]:
     """
     Convert svgpathtools Path to Shapely Polygon by sampling points.
+
+    Args:
+        path: svgpathtools Path object
+        samples_per_segment: Fixed sample count per segment (used when max_point_distance is None)
+        max_point_distance: Max distance between consecutive samples in file units.
+            When provided, samples per segment are computed dynamically from arc length.
     """
     if Polygon is None:
         return None
@@ -97,8 +119,9 @@ def path_to_polygon(path, samples_per_segment: int = 10) -> Optional[Polygon]:
         points = []
         for i in range(len(path)):
             segment = path[i]
-            for t in range(samples_per_segment):
-                point = segment.point(t / samples_per_segment)
+            n = _samples_for_segment(segment, max_point_distance, samples_per_segment)
+            for t in range(n):
+                point = segment.point(t / n)
                 points.append((point.real, point.imag))
 
         if len(points) >= 3:
@@ -118,7 +141,8 @@ def path_to_polygon(path, samples_per_segment: int = 10) -> Optional[Polygon]:
         return None
 
 
-def compound_path_to_polygon(path, samples_per_segment: int = 10) -> Optional[Polygon]:
+def compound_path_to_polygon(path, samples_per_segment: int = 10,
+                             max_point_distance: Optional[float] = None) -> Optional[Polygon]:
     """
     Convert a compound SVG path (multiple subpaths like M...Z M...Z) to a
     Shapely Polygon with interior rings.
@@ -134,15 +158,16 @@ def compound_path_to_polygon(path, samples_per_segment: int = 10) -> Optional[Po
     try:
         subpaths = path.continuous_subpaths()
         if len(subpaths) < 2:
-            return path_to_polygon(path, samples_per_segment)
+            return path_to_polygon(path, samples_per_segment, max_point_distance)
 
         # Convert each subpath to a list of points
         rings = []
         for sp in subpaths:
             points = []
             for seg in sp:
-                for t in range(samples_per_segment):
-                    pt = seg.point(t / samples_per_segment)
+                n = _samples_for_segment(seg, max_point_distance, samples_per_segment)
+                for t in range(n):
+                    pt = seg.point(t / n)
                     points.append((pt.real, pt.imag))
             if len(points) >= 3:
                 # Close the ring
@@ -151,7 +176,7 @@ def compound_path_to_polygon(path, samples_per_segment: int = 10) -> Optional[Po
                 rings.append(points)
 
         if not rings:
-            return path_to_polygon(path, samples_per_segment)
+            return path_to_polygon(path, samples_per_segment, max_point_distance)
 
         # Largest area ring = exterior
         ring_areas = []
@@ -172,7 +197,7 @@ def compound_path_to_polygon(path, samples_per_segment: int = 10) -> Optional[Po
         return poly.buffer(0)
 
     except Exception:
-        return path_to_polygon(path, samples_per_segment)
+        return path_to_polygon(path, samples_per_segment, max_point_distance)
 
 
 def centroid_distance(bbox1: Tuple[float, float, float, float],

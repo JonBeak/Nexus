@@ -7,6 +7,7 @@ export interface InventoryColumnFilters {
   colour_number: string;
   colour_name: string;
   disposition: string;
+  jobs: string;
 }
 
 export type InventorySortField = keyof Pick<
@@ -33,6 +34,7 @@ interface UseInventoryFilteringReturn {
   getColourNumberOptions: string[];
   getColourNameOptions: string[];
   getDispositionOptions: string[];
+  getJobOptions: string[];
   handleSort: (field: InventorySortField) => void;
   handleColumnFilter: (column: keyof InventoryColumnFilters, value: string) => void;
   clearAllFilters: () => void;
@@ -50,7 +52,8 @@ export const useInventoryFiltering = (vinylItems: VinylItem[]): UseInventoryFilt
     series: '',
     colour_number: '',
     colour_name: '',
-    disposition: ''
+    disposition: '',
+    jobs: ''
   });
 
   const handleSort = useCallback((field: InventorySortField) => {
@@ -75,7 +78,8 @@ export const useInventoryFiltering = (vinylItems: VinylItem[]): UseInventoryFilt
       series: '',
       colour_number: '',
       colour_name: '',
-      disposition: ''
+      disposition: '',
+      jobs: ''
     });
     setSearchTerm('');
   }, []);
@@ -131,6 +135,14 @@ export const useInventoryFiltering = (vinylItems: VinylItem[]): UseInventoryFilt
         if (columnFilters.colour_number && item.colour_number !== columnFilters.colour_number) return false;
         if (columnFilters.colour_name && item.colour_name !== columnFilters.colour_name) return false;
         if (columnFilters.disposition && item.disposition !== columnFilters.disposition) return false;
+
+        // Jobs filter
+        if (columnFilters.jobs) {
+          const hasMatchingJob = item.order_associations?.some(order =>
+            `#${order.order_number} - ${order.customer_name} - ${order.order_name}` === columnFilters.jobs
+          );
+          if (!hasMatchingJob) return false;
+        }
 
         return true;
       })
@@ -220,6 +232,42 @@ export const useInventoryFiltering = (vinylItems: VinylItem[]): UseInventoryFilt
     return ['---', ...dispositions];
   }, [vinylItems, columnFilters]);
 
+  const getJobOptions = useMemo(() => {
+    // Apply contextual filtering (respect other active filters)
+    const contextualItems = vinylItems.filter(item => {
+      const matchesStatus = filterType === 'all' || item.disposition === filterType;
+      const matchesBrand = !columnFilters.brand || item.brand === columnFilters.brand;
+      const matchesSeries = !columnFilters.series || item.series === columnFilters.series;
+      const matchesColourNumber = !columnFilters.colour_number || item.colour_number === columnFilters.colour_number;
+      const matchesColourName = !columnFilters.colour_name || item.colour_name === columnFilters.colour_name;
+      const matchesDisposition = !columnFilters.disposition || item.disposition === columnFilters.disposition;
+      return matchesStatus && matchesBrand && matchesSeries && matchesColourNumber && matchesColourName && matchesDisposition;
+    });
+
+    // Extract all unique order associations
+    const jobsMap = new Map<string, { order_number: number; customer_name: string; order_name: string }>();
+
+    contextualItems.forEach(item => {
+      item.order_associations?.forEach(order => {
+        const key = `#${order.order_number} - ${order.customer_name} - ${order.order_name}`;
+        if (!jobsMap.has(key)) {
+          jobsMap.set(key, {
+            order_number: order.order_number,
+            customer_name: order.customer_name,
+            order_name: order.order_name
+          });
+        }
+      });
+    });
+
+    // Sort by order_number descending (most recent first)
+    const sortedJobs = Array.from(jobsMap.entries())
+      .sort((a, b) => b[1].order_number - a[1].order_number)
+      .map(([key]) => key);
+
+    return ['---', ...sortedJobs];
+  }, [vinylItems, columnFilters, filterType]);
+
   return {
     searchTerm,
     setSearchTerm,
@@ -238,6 +286,7 @@ export const useInventoryFiltering = (vinylItems: VinylItem[]): UseInventoryFilt
     getColourNumberOptions,
     getColourNameOptions,
     getDispositionOptions,
+    getJobOptions,
     handleSort,
     handleColumnFilter,
     clearAllFilters,

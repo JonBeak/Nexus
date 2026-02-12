@@ -2,6 +2,7 @@ import React from 'react';
 import { Edit, Trash2, Settings } from 'lucide-react';
 import { InventoryUser, VinylItem } from '../types';
 import { PAGE_STYLES, MODULE_COLORS } from '../../../constants/moduleColors';
+import { JobChipsCell } from './JobChipsCell';
 
 interface InventoryTableRowProps {
   item: VinylItem;
@@ -58,6 +59,9 @@ export const InventoryTableRow: React.FC<InventoryTableRowProps> = ({
         }`}>
           {statusInfo.text}
         </span>
+      </td>
+      <td className="px-3 py-4">
+        <JobChipsCell orderAssociations={item.order_associations} />
       </td>
       {(user.role === 'manager' || user.role === 'owner') && (
         <td className="px-3 py-4 whitespace-nowrap text-sm font-medium">

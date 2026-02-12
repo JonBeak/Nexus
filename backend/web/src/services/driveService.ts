@@ -20,8 +20,9 @@ const DRIVE_SCOPES = [
   'https://www.googleapis.com/auth/drive.file' // Only access files created by this app
 ];
 
-// Folder name for feedback screenshots in Drive
+// Folder names in Drive
 const FEEDBACK_FOLDER_NAME = 'Nexus Feedback Screenshots';
+const ASSETS_FOLDER_NAME = 'Nexus Company Assets';
 
 // =============================================================================
 // Screenshot Cache
@@ -128,8 +129,9 @@ export class DriveServiceError extends Error {
   }
 }
 
-// Cache for folder ID to avoid repeated lookups
+// Cache for folder IDs to avoid repeated lookups
 let cachedFolderId: string | null = null;
+let cachedAssetsFolderId: string | null = null;
 
 /**
  * Load service account credentials from encrypted storage
@@ -230,6 +232,95 @@ async function getFeedbackFolderId(drive: drive_v3.Drive): Promise<string> {
   } catch (error) {
     console.error('[Drive] Error getting/creating folder:', error);
     throw new DriveServiceError('Failed to get or create feedback folder');
+  }
+}
+
+/**
+ * Get or create the company assets folder (for logos, etc.)
+ */
+async function getAssetsFolderId(drive: drive_v3.Drive): Promise<string> {
+  if (cachedAssetsFolderId) return cachedAssetsFolderId;
+
+  try {
+    const response = await drive.files.list({
+      q: `name='${ASSETS_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields: 'files(id, name)',
+      spaces: 'drive'
+    });
+
+    if (response.data.files && response.data.files.length > 0) {
+      cachedAssetsFolderId = response.data.files[0].id!;
+      console.log(`[Drive] Found existing assets folder: ${cachedAssetsFolderId}`);
+      return cachedAssetsFolderId;
+    }
+
+    const folderResponse = await drive.files.create({
+      requestBody: {
+        name: ASSETS_FOLDER_NAME,
+        mimeType: 'application/vnd.google-apps.folder'
+      },
+      fields: 'id'
+    });
+
+    cachedAssetsFolderId = folderResponse.data.id!;
+    console.log(`[Drive] Created assets folder: ${cachedAssetsFolderId}`);
+    return cachedAssetsFolderId;
+
+  } catch (error) {
+    console.error('[Drive] Error getting/creating assets folder:', error);
+    throw new DriveServiceError('Failed to get or create company assets folder');
+  }
+}
+
+/**
+ * Upload company logo to Google Drive and make it publicly viewable.
+ * Returns a public URL suitable for use in email <img> tags.
+ */
+export async function uploadCompanyLogo(base64Data: string): Promise<string> {
+  try {
+    console.log('[Drive] Uploading company logo...');
+    const drive = await createDriveClient();
+    const folderId = await getAssetsFolderId(drive);
+
+    const rawBase64 = base64Data.startsWith('data:')
+      ? base64Data.replace(/^data:image\/[^;]+;base64,/, '')
+      : base64Data;
+    const buffer = Buffer.from(rawBase64, 'base64');
+    const stream = Readable.from(buffer);
+
+    const response = await drive.files.create({
+      requestBody: {
+        name: 'company-logo.png',
+        parents: [folderId],
+        description: 'Company logo for PO emails'
+      },
+      media: { mimeType: 'image/png', body: stream },
+      fields: 'id'
+    });
+
+    const fileId = response.data.id;
+    if (!fileId) {
+      throw new DriveServiceError('No file ID returned from Drive upload');
+    }
+
+    // Make publicly viewable (no Google sign-in required to view)
+    await drive.permissions.create({
+      fileId,
+      requestBody: { role: 'reader', type: 'anyone' }
+    });
+
+    // lh3.googleusercontent.com serves image bytes directly (no redirect).
+    // drive.google.com/uc?export=view redirects, which email clients won't follow.
+    // =s560 requests a 560px rendition for crisp display at 280px (2x for retina).
+    const publicUrl = `https://lh3.googleusercontent.com/d/${fileId}=s560`;
+    console.log(`[Drive] Company logo uploaded: ${fileId} (${Math.round(buffer.length / 1024)}KB) → ${publicUrl}`);
+    return publicUrl;
+
+  } catch (error) {
+    console.error('[Drive] Logo upload error:', error);
+    throw new DriveServiceError(
+      `Failed to upload company logo: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
   }
 }
 

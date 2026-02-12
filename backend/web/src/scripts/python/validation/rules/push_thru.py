@@ -16,17 +16,41 @@ Key differences from channel letter types:
 - Multi-layer containment (lexan must contain all cutouts)
 """
 
-import sys
 from typing import List, Dict, Optional
 
 from ..core import PathInfo, ValidationIssue, LetterAnalysisResult
-from ..geometry import polygon_contains
 from .push_thru_helpers import (
-    is_roughly_rectangular,
     decompose_backer_compounds,
     match_acrylic_to_cutouts,
     check_cutout_offset,
     check_corner_radii_for_path,
+    check_lexan_layer,
+)
+
+RULES_CHECKED = [
+    'push_thru_cutout_count',
+    'push_thru_cutout_offset',
+    'push_thru_sharp_corners',
+    'push_thru_acrylic_corner_radius',
+    'push_thru_cutout_corner_radius',
+    'push_thru_acrylic_inset',
+    'push_thru_lexan_exists',
+    'push_thru_lexan_simple',
+    'push_thru_lexan_containment',
+    'push_thru_lexan_inset',
+    'push_thru_lexan_area_ratio',
+    'push_thru_lexan_cutout_clearance',
+]
+
+
+# Re-import suppressed to avoid duplicate — already imported above
+from ..core import PathInfo, ValidationIssue, LetterAnalysisResult  # noqa: E402,F811
+from .push_thru_helpers import (
+    decompose_backer_compounds,
+    match_acrylic_to_cutouts,
+    check_cutout_offset,
+    check_corner_radii_for_path,
+    check_lexan_layer,
 )
 
 
@@ -64,9 +88,8 @@ def check_push_thru_structure(
     cutout_concave_r = rules.get('cutout_concave_radius_inches', 0.028)
     min_acrylic_inset_inches = rules.get('min_acrylic_inset_from_box_inches', 3.0)
     lexan_inset_inches = rules.get('lexan_inset_from_box_inches', 2.25)
-    led_box_offset_inches = rules.get('led_box_offset_inches', -0.16)
-    led_box_offset_tol = rules.get('led_box_offset_tolerance_inches', 0.01)
-
+    max_cutout_area_ratio = rules.get('max_cutout_area_ratio', 0.67)
+    min_lexan_cutout_clearance = rules.get('min_lexan_cutout_clearance_inches', 0.25)
     # Use detected scale if available from letter analysis
     letter_analysis: Optional[LetterAnalysisResult] = rules.get('_letter_analysis')
     if letter_analysis and letter_analysis.detected_scale:
@@ -75,9 +98,7 @@ def check_push_thru_structure(
     points_per_real_inch = 72 * file_scale
 
     # --- Step 1: Decompose backer layer ---
-    boxes, cutouts, led_candidates = decompose_backer_compounds(
-        paths_info, backer_layer
-    )
+    boxes, cutouts = decompose_backer_compounds(paths_info, backer_layer)
 
     layers_found = set(p.layer_name for p in paths_info if p.layer_name)
 
@@ -91,7 +112,6 @@ def check_push_thru_structure(
         details={
             'backer_boxes': len(boxes),
             'backer_cutouts': len(cutouts),
-            'led_box_candidates': len(led_candidates),
             'layers': list(sorted(layers_found)),
         }
     ))
@@ -168,13 +188,15 @@ def check_push_thru_structure(
             acrylic.polygon, cutout, cutout_offset_mm, cutout_offset_tol_mm, file_scale
         )
         if offset_issue:
+            sides = offset_issue['offsets_mm']
             issues.append(ValidationIssue(
                 rule='push_thru_cutout_offset',
                 severity='error',
                 message=(
                     f'Cutout for {acrylic.path_id} offset is wrong '
-                    f'(Hausdorff {offset_issue["hausdorff_mm"]:.3f}mm, '
-                    f'expected \u2264{cutout_offset_tol_mm}mm deviation from {cutout_offset_mm}mm offset)'
+                    f'(L:{sides["left"]}mm R:{sides["right"]}mm '
+                    f'T:{sides["top"]}mm B:{sides["bottom"]}mm, '
+                    f'expected {cutout_offset_mm}mm \u00b1{cutout_offset_tol_mm}mm)'
                 ),
                 path_id=acrylic.path_id,
                 details=offset_issue,
@@ -191,12 +213,9 @@ def check_push_thru_structure(
                          min_acrylic_inset_inches, points_per_real_inch)
 
     # --- Step 7: Lexan layer validation ---
-    _check_lexan_layer(issues, paths_info, lexan_layer, layers_found, boxes,
-                       cutouts, lexan_inset_inches, points_per_real_inch)
-
-    # --- Step 8: LED box validation ---
-    _check_led_box(issues, led_candidates, boxes,
-                   led_box_offset_inches, led_box_offset_tol, points_per_real_inch)
+    check_lexan_layer(issues, paths_info, lexan_layer, layers_found, boxes,
+                      cutouts, lexan_inset_inches, max_cutout_area_ratio,
+                      min_lexan_cutout_clearance, points_per_real_inch)
 
     return issues
 
@@ -227,7 +246,13 @@ def _check_acrylic_corners(
                 severity='error',
                 message=f'Acrylic letter {acrylic.path_id} has {sharp_count} sharp corner(s)',
                 path_id=acrylic.path_id,
-                details={'sharp_count': sharp_count},
+                details={
+                    'sharp_count': sharp_count,
+                    'sharp_corners': [
+                        {'x': round(v['position'][0], 2), 'y': round(v['position'][1], 2), 'is_convex': v['is_convex']}
+                        for v in violations if v['type'] == 'sharp'
+                    ],
+                },
             ))
 
         if undersized:
@@ -274,7 +299,14 @@ def _check_cutout_corners(
                 severity='error',
                 message=f'Backer cutout(s) in {compound_path.path_id} have {sharp_count} sharp corner(s)',
                 path_id=compound_path.path_id,
-                details={'sharp_count': sharp_count, 'layer': backer_layer},
+                details={
+                    'sharp_count': sharp_count,
+                    'layer': backer_layer,
+                    'sharp_corners': [
+                        {'x': round(v['position'][0], 2), 'y': round(v['position'][1], 2), 'is_convex': v['is_convex']}
+                        for v in violations if v['type'] == 'sharp'
+                    ],
+                },
             ))
 
         if undersized:
@@ -340,158 +372,3 @@ def _check_acrylic_inset(
                 ))
 
 
-def _check_lexan_layer(
-    issues: List[ValidationIssue],
-    paths_info: List[PathInfo],
-    lexan_layer: str,
-    layers_found: set,
-    boxes: list,
-    cutouts: list,
-    lexan_inset_inches: float,
-    points_per_real_inch: float,
-) -> None:
-    """Validate lexan layer: exists, simple paths, contains cutouts, inset."""
-    lexan_paths = [
-        p for p in paths_info
-        if p.layer_name and p.layer_name.lower() == lexan_layer.lower()
-        and p.is_closed and p.polygon is not None
-    ]
-
-    if not lexan_paths:
-        issues.append(ValidationIssue(
-            rule='push_thru_lexan_exists',
-            severity='error',
-            message=f'No paths found on "{lexan_layer}" layer',
-            details={'available_layers': list(sorted(layers_found))},
-        ))
-        return
-
-    # Lexan paths must be simple (not compound)
-    compound_lexan = [p for p in lexan_paths if p.is_compound]
-    if compound_lexan:
-        issues.append(ValidationIssue(
-            rule='push_thru_lexan_simple',
-            severity='error',
-            message=f'{len(compound_lexan)} lexan path(s) are compound (must be simple)',
-            details={'compound_path_ids': [p.path_id for p in compound_lexan]},
-        ))
-
-    # Every cutout must be contained within a lexan path
-    uncontained = []
-    for i, cutout in enumerate(cutouts):
-        contained = False
-        for lp in lexan_paths:
-            if lp.polygon is not None and polygon_contains(lp.polygon, cutout, tolerance=1.0):
-                contained = True
-                break
-        if not contained:
-            uncontained.append(i)
-
-    if uncontained:
-        issues.append(ValidationIssue(
-            rule='push_thru_lexan_containment',
-            severity='error',
-            message=f'{len(uncontained)} cutout(s) not contained within any lexan path',
-            details={'uncontained_cutout_indices': uncontained},
-        ))
-
-    # Lexan inset from backer box
-    for lp in lexan_paths:
-        if lp.polygon is None:
-            continue
-
-        best_inset = float('inf')
-        for box in boxes:
-            try:
-                dist = lp.polygon.boundary.distance(box.boundary)
-                best_inset = min(best_inset, dist)
-            except Exception:
-                continue
-
-        if best_inset < float('inf'):
-            inset_in = best_inset / points_per_real_inch
-            if inset_in < lexan_inset_inches:
-                issues.append(ValidationIssue(
-                    rule='push_thru_lexan_inset',
-                    severity='error',
-                    message=(
-                        f'Lexan {lp.path_id} is {inset_in:.2f}" from box edge '
-                        f'(min {lexan_inset_inches}")'
-                    ),
-                    path_id=lp.path_id,
-                    details={
-                        'inset_inches': round(inset_in, 3),
-                        'required_inches': lexan_inset_inches,
-                    },
-                ))
-
-
-def _check_led_box(
-    issues: List[ValidationIssue],
-    led_candidates: List[PathInfo],
-    boxes: list,
-    led_box_offset_inches: float,
-    led_box_offset_tol: float,
-    points_per_real_inch: float,
-) -> None:
-    """Validate LED box exists and has correct offset from backer box."""
-    led_boxes = []
-    for candidate in led_candidates:
-        if candidate.polygon is None:
-            continue
-        cand_area = candidate.polygon.area
-        is_smaller = any(cand_area < box.area for box in boxes)
-        if not is_smaller:
-            continue
-        if not is_roughly_rectangular(candidate.polygon):
-            continue
-        for box in boxes:
-            try:
-                if box.contains(candidate.polygon.centroid):
-                    led_boxes.append((candidate, box))
-                    break
-            except Exception:
-                continue
-
-    if not led_boxes:
-        issues.append(ValidationIssue(
-            rule='push_thru_led_box_exists',
-            severity='warning',
-            message='No LED box found on backer layer',
-            details={'led_candidates_checked': len(led_candidates)},
-        ))
-        return
-
-    expected_offset_file = abs(led_box_offset_inches) * points_per_real_inch
-    tol_file = led_box_offset_tol * points_per_real_inch
-
-    for led_path, parent_box in led_boxes:
-        if led_path.polygon is None:
-            continue
-
-        try:
-            expected_led = parent_box.buffer(-expected_offset_file)
-            if expected_led.is_empty:
-                continue
-
-            hausdorff = expected_led.hausdorff_distance(led_path.polygon)
-            hausdorff_inches = hausdorff / points_per_real_inch
-
-            if hausdorff_inches > led_box_offset_tol:
-                issues.append(ValidationIssue(
-                    rule='push_thru_led_box_offset',
-                    severity='error',
-                    message=(
-                        f'LED box {led_path.path_id} offset deviation '
-                        f'{hausdorff_inches:.3f}" (expected \u2264{led_box_offset_tol}" '
-                        f'from {abs(led_box_offset_inches)}" inset)'
-                    ),
-                    path_id=led_path.path_id,
-                    details={
-                        'hausdorff_inches': round(hausdorff_inches, 4),
-                        'expected_offset_inches': abs(led_box_offset_inches),
-                        'tolerance_inches': led_box_offset_tol,
-                    },
-                ))
-        except Exception as e:
-            print(f"LED box offset check error: {e}", file=sys.stderr)

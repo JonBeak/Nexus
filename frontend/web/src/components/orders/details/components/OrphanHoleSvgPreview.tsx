@@ -14,6 +14,7 @@ const HOLE_COLORS: Record<string, string> = {
   mounting: '#22C55E', // Green
   engraving: '#000000', // Black (rendered as stroke)
   unknown: '#F97316',  // Orange
+  letter_cutout: '#EC4899', // Pink
 };
 
 interface OrphanHoleSvgPreviewProps {
@@ -74,6 +75,25 @@ const OrphanHoleSvgPreview: React.FC<OrphanHoleSvgPreviewProps> = ({
             d={hole.svg_path_data}
             fill="none"
             stroke="#000000"
+            strokeWidth={Math.max(viewBox.width, viewBox.height) * 0.01}
+            strokeDasharray="2,2"
+          />
+        </g>
+      ) : hole.hole_type === 'letter_cutout' && hole.svg_path_data ? (
+        <g transform={hole.transform || undefined}>
+          <path
+            d={hole.svg_path_data}
+            fill="none"
+            stroke={HOLE_COLORS.letter_cutout}
+            strokeWidth={Math.max(viewBox.width, viewBox.height) * 0.01}
+          />
+        </g>
+      ) : hole.hole_type === 'unknown_inside_path' && hole.svg_path_data ? (
+        <g transform={hole.transform || undefined}>
+          <path
+            d={hole.svg_path_data}
+            fill="none"
+            stroke={HOLE_COLORS.unknown}
             strokeWidth={Math.max(viewBox.width, viewBox.height) * 0.01}
             strokeDasharray="2,2"
           />

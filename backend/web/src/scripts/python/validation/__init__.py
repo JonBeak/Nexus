@@ -162,6 +162,16 @@ def _classify_unknown_inside_paths(analysis: 'LetterAnalysisResult') -> None:
             hole.hole_type = 'unknown_inside_path'
 
 
+def _classify_backer_cutouts(analysis: 'LetterAnalysisResult', backer_layer: str) -> None:
+    """Reclassify unknown_inside_path holes on the backer layer as letter_cutout."""
+    for letter in analysis.letter_groups:
+        if letter.layer_name != backer_layer:
+            continue
+        for hole in letter.holes:
+            if hole.hole_type == 'unknown_inside_path':
+                hole.hole_type = 'letter_cutout'
+
+
 def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
     """
     Main validation function.
@@ -205,10 +215,23 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
                 )
             svg_path = result
 
+        # Determine file_scale for dynamic polygon sampling
+        # Priority: detected SVG scale > rules config > default 0.1
+        analysis_cfg_pre = rules.get('letter_hole_analysis', {})
+        if detected_svg_scale is not None:
+            pre_file_scale = detected_svg_scale
+        elif 'file_scale' in analysis_cfg_pre:
+            pre_file_scale = analysis_cfg_pre['file_scale']
+        else:
+            pre_file_scale = 0.1
+
+        # 1mm in file units: ensures polygon samples are never >1mm apart
+        max_point_distance = 1.0 * 72 * pre_file_scale / 25.4
+
         # Parse paths from SVG
         # For .svg files, pass None as ai_path to skip binary OCG extraction
         source_ai_path = None if ai_path.lower().endswith('.svg') else ai_path
-        paths_info = extract_paths_from_svg(svg_path, source_ai_path)
+        paths_info = extract_paths_from_svg(svg_path, source_ai_path, max_point_distance)
 
         # Filter out non-production paths (system layers, separators, default layers)
         paths_info = filter_production_paths(paths_info)
@@ -257,7 +280,12 @@ def validate_file(ai_path: str, rules: Dict[str, Dict]) -> ValidationResult:
             # 2b. Distinguish unknown holes from unknown inside paths (GENERAL RULE)
             _classify_unknown_inside_paths(letter_analysis)
 
-            # 2c. Classify engraving paths on face layer (after hole classification)
+            # 2c. Reclassify backer cutouts for push-thru
+            if 'push_thru_structure' in rules:
+                backer_layer = rules['push_thru_structure'].get('backer_layer', 'backer')
+                _classify_backer_cutouts(letter_analysis, backer_layer)
+
+            # 2d. Classify engraving paths on face layer (after hole classification)
             if 'front_lit_acrylic_face_structure' in rules:
                 acrylic_cfg = rules['front_lit_acrylic_face_structure']
                 face_layer = acrylic_cfg.get('face_layer', 'face')

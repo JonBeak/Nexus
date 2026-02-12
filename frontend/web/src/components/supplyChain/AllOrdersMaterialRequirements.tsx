@@ -34,6 +34,9 @@ import { HeldItemButton } from './components/HeldItemButton';
 import { VinylInventorySelector } from '../common/VinylInventorySelector';
 import { GeneralInventorySelectorModal } from './components/GeneralInventorySelectorModal';
 import { MultiHoldReceiveModal } from './components/MultiHoldReceiveModal';
+import { RequirementTableRow } from './components/RequirementTableRow';
+import { RequirementCard } from './components/RequirementCard';
+import { useDeviceType } from '../../hooks/useDeviceType';
 import { getTodayString } from '../../utils/dateUtils';
 import type {
   MaterialRequirement,
@@ -258,6 +261,7 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
   showNotification,
 }) => {
   void user;
+  const { isPhone } = useDeviceType(); // 768px breakpoint
   const [requirements, setRequirements] = useState<MaterialRequirement[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<MaterialRequirementFilters>({
@@ -741,43 +745,46 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
   }
 
   return (
-    <div className={`${PAGE_STYLES.composites.panelContainer} overflow-hidden`}>
-      {/* Header */}
-      <div className={`px-4 py-3 ${PAGE_STYLES.panel.border} border-b flex items-center justify-between ${PAGE_STYLES.header.background}`}>
+    <div className={`${PAGE_STYLES.composites.panelContainer} overflow-hidden flex flex-col h-full`}>
+      {/* Header - Responsive */}
+      <div className={`px-4 py-3 ${PAGE_STYLES.panel.border} border-b ${PAGE_STYLES.header.background} flex-shrink-0 ${isPhone ? 'space-y-3' : 'flex items-center justify-between'}`}>
         <div>
-          <h3 className={`text-lg font-medium ${PAGE_STYLES.panel.text}`}>All Material Requirements</h3>
-          <div className={`text-sm ${PAGE_STYLES.panel.textMuted}`}>
-            {visibleRequirements.length} requirements{hiddenCompletedCount > 0 && ` (${hiddenCompletedCount} old fulfilled/cancelled hidden)`}
+          <h3 className={`${isPhone ? 'text-base' : 'text-lg'} font-medium ${PAGE_STYLES.panel.text}`}>
+            {isPhone ? 'Material Requirements' : 'All Material Requirements'}
+          </h3>
+          <div className={`${isPhone ? 'text-xs' : 'text-sm'} ${PAGE_STYLES.panel.textMuted}`}>
+            {visibleRequirements.length} {isPhone ? 'items' : 'requirements'}{hiddenCompletedCount > 0 && !isPhone && ` (${hiddenCompletedCount} old fulfilled/cancelled hidden)`}
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className={`flex items-center ${isPhone ? 'gap-2' : 'gap-3'}`}>
           {/* Search */}
-          <div className="relative">
+          <div className="relative flex-1 sm:flex-initial">
             <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${PAGE_STYLES.panel.textMuted}`} />
             <input
               type="text"
-              placeholder="Search..."
+              placeholder={isPhone ? 'Search...' : 'Search...'}
               value={filters.search}
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              className={`pl-9 pr-3 py-1.5 text-sm ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-md focus:ring-red-500 focus:border-red-500 w-48`}
+              className={`pl-9 pr-3 py-1.5 text-sm ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} border rounded-md focus:ring-red-500 focus:border-red-500 ${isPhone ? 'w-full' : 'w-48'}`}
             />
           </div>
 
           {/* Filter Toggle */}
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`px-3 py-1.5 text-sm font-medium rounded-md ${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.text} border ${PAGE_STYLES.panel.border} flex items-center gap-1`}
+            className={`${isPhone ? 'p-1.5' : 'px-3 py-1.5'} text-sm font-medium rounded-md ${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.text} border ${PAGE_STYLES.panel.border} flex items-center gap-1 flex-shrink-0`}
+            title="Filters"
           >
             <Filter className="w-4 h-4" />
-            Filters
+            {!isPhone && 'Filters'}
             <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
           </button>
 
           {/* Refresh */}
           <button
             onClick={() => void loadRequirements()}
-            className={`p-1.5 rounded-md ${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.text} border ${PAGE_STYLES.panel.border}`}
+            className={`p-1.5 rounded-md ${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.text} border ${PAGE_STYLES.panel.border} flex-shrink-0`}
             title="Refresh"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -786,69 +793,75 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
           {/* Add Button */}
           <button
             onClick={handleAddNewRequirement}
-            className={`px-3 py-1.5 text-sm font-medium rounded-md ${MODULE_COLORS.supplyChain.base} text-white ${MODULE_COLORS.supplyChain.hover} flex items-center gap-1`}
+            className={`${isPhone ? 'p-1.5' : 'px-3 py-1.5'} text-sm font-medium rounded-md ${MODULE_COLORS.supplyChain.base} text-white ${MODULE_COLORS.supplyChain.hover} flex items-center gap-1 flex-shrink-0`}
+            title="Add requirement"
           >
             <Plus className="w-4 h-4" />
-            Add
+            {!isPhone && 'Add'}
           </button>
         </div>
       </div>
 
-      {/* Status Toggle Pills */}
-      <div className={`px-4 py-2 ${PAGE_STYLES.panel.border} border-b ${PAGE_STYLES.header.background} flex items-center gap-1.5 flex-wrap`}>
-        {/* Select All / Deselect All */}
-        <button
-          onClick={() => {
-            const allSelected = filters.computedStatus.length === ALL_COMPUTED_STATUSES.length;
-            setFilters(prev => ({
-              ...prev,
-              computedStatus: allSelected ? [] : [...ALL_COMPUTED_STATUSES],
-            }));
-          }}
-          className={`px-2 py-1 text-[11px] font-medium rounded-full border flex items-center gap-1 whitespace-nowrap transition-all ${
-            filters.computedStatus.length === ALL_COMPUTED_STATUSES.length
-              ? 'bg-white text-gray-800 border-gray-400'
-              : filters.computedStatus.length === 0
-                ? 'bg-gray-700 text-gray-400 border-gray-600 hover:bg-gray-600'
-                : 'bg-gray-500 text-gray-200 border-gray-400 hover:bg-gray-400'
-          }`}
-          title={filters.computedStatus.length === ALL_COMPUTED_STATUSES.length ? 'Deselect All' : 'Select All'}
-        >
-          {filters.computedStatus.length === ALL_COMPUTED_STATUSES.length ? 'Deselect All' : 'Select All'}
-        </button>
+      {/* Status Toggle Pills - Responsive */}
+      <div className={`px-4 py-2 ${PAGE_STYLES.panel.border} border-b ${PAGE_STYLES.header.background} ${isPhone ? 'overflow-x-auto' : ''} flex-shrink-0`}>
+        <div className={`flex items-center gap-1.5 ${isPhone ? '' : 'flex-wrap'}`}>
+          {/* Select All / Deselect All */}
+          <button
+            onClick={() => {
+              const allSelected = filters.computedStatus.length === ALL_COMPUTED_STATUSES.length;
+              setFilters(prev => ({
+                ...prev,
+                computedStatus: allSelected ? [] : [...ALL_COMPUTED_STATUSES],
+              }));
+            }}
+            className={`px-2 py-1 text-[10px] sm:text-[11px] font-medium rounded-full border flex items-center gap-1 whitespace-nowrap transition-all flex-shrink-0 ${
+              filters.computedStatus.length === ALL_COMPUTED_STATUSES.length
+                ? 'bg-white text-gray-800 border-gray-400'
+                : filters.computedStatus.length === 0
+                  ? 'bg-gray-700 text-gray-400 border-gray-600 hover:bg-gray-600'
+                  : 'bg-gray-500 text-gray-200 border-gray-400 hover:bg-gray-400'
+            }`}
+            title={filters.computedStatus.length === ALL_COMPUTED_STATUSES.length ? 'Deselect All' : 'Select All'}
+          >
+            {isPhone
+              ? (filters.computedStatus.length === ALL_COMPUTED_STATUSES.length ? 'None' : 'All')
+              : (filters.computedStatus.length === ALL_COMPUTED_STATUSES.length ? 'Deselect All' : 'Select All')
+            }
+          </button>
 
-        <span className="w-px h-5 bg-gray-600" />
+          <span className="w-px h-5 bg-gray-600 flex-shrink-0" />
 
-        {COMPUTED_STATUS_TOGGLES.map((toggle) => {
-          const Icon = toggle.icon;
-          const isActive = filters.computedStatus.includes(toggle.value);
-          return (
-            <button
-              key={toggle.value}
-              onClick={() => {
-                setFilters(prev => ({
-                  ...prev,
-                  computedStatus: isActive
-                    ? prev.computedStatus.filter(s => s !== toggle.value)
-                    : [...prev.computedStatus, toggle.value],
-                }));
-              }}
-              className={`px-2 py-1 text-[11px] font-medium rounded-full border flex items-center gap-1 whitespace-nowrap transition-all ${
-                isActive
-                  ? `${toggle.activeBg} ${toggle.activeText} ${toggle.activeBorder}`
-                  : 'bg-gray-700 text-gray-400 border-gray-600 hover:bg-gray-600'
-              }`}
-            >
+          {COMPUTED_STATUS_TOGGLES.map((toggle) => {
+            const Icon = toggle.icon;
+            const isActive = filters.computedStatus.includes(toggle.value);
+            return (
+              <button
+                key={toggle.value}
+                onClick={() => {
+                  setFilters(prev => ({
+                    ...prev,
+                    computedStatus: isActive
+                      ? prev.computedStatus.filter(s => s !== toggle.value)
+                      : [...prev.computedStatus, toggle.value],
+                  }));
+                }}
+                className={`px-2 py-1 text-[10px] sm:text-[11px] font-medium rounded-full border flex items-center gap-1 whitespace-nowrap transition-all flex-shrink-0 ${
+                  isActive
+                    ? `${toggle.activeBg} ${toggle.activeText} ${toggle.activeBorder}`
+                    : 'bg-gray-700 text-gray-400 border-gray-600 hover:bg-gray-600'
+                }`}
+              >
               <Icon className="w-3 h-3" />
               {toggle.label}
             </button>
           );
         })}
+        </div>
       </div>
 
       {/* Filters Panel */}
       {showFilters && (
-        <div className={`px-4 py-3 ${PAGE_STYLES.header.background} border-b ${PAGE_STYLES.panel.border} flex flex-wrap gap-4`}>
+        <div className={`px-4 py-3 ${PAGE_STYLES.header.background} border-b ${PAGE_STYLES.panel.border} flex flex-wrap gap-4 flex-shrink-0`}>
           <div>
             <label className={`block text-xs font-medium ${PAGE_STYLES.panel.textSecondary} mb-1`}>Type</label>
             <select
@@ -885,278 +898,97 @@ export const AllOrdersMaterialRequirements: React.FC<AllOrdersMaterialRequiremen
         </div>
       )}
 
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs [&_input::placeholder]:!text-gray-300 [&_textarea::placeholder]:!text-gray-300">
-          <thead className={`${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.border} border-b`}>
-            <tr>
-              <th className={thClass} style={{ width: '95px' }}>Date</th>
-              <th className={thClass} style={{ width: '170px' }}>Order Ref</th>
-              <th className={thClass} style={{ width: '130px' }}>Product Type</th>
-              <th className={thClass} style={{ width: '160px' }}>Product</th>
-              <th className={thClass} style={{ width: '90px' }}>Unit</th>
-              <th className={`${thClass} text-right`} style={{ width: '65px' }}>Qty</th>
-              <th className={thClass} style={{ width: '130px' }}>Vendor</th>
-              <th className={thClass} style={{ width: '70px' }}>Delivery</th>
-              <th className={thClass} style={{ width: '85px' }}>Ordered</th>
-              <th className={thClass} style={{ width: '90px' }}>Receiving</th>
-              <th className={thClass} style={{ width: '85px' }}>Received</th>
-              <th className={thClass} style={{ width: '90px' }}>PO#</th>
-              <th className={thClass} style={{ width: '160px' }}>Notes</th>
-              <th className={`${thClass} text-center`} style={{ width: '60px' }}>Actions</th>
-              <th className={`${thClass} text-center`} style={{ width: '80px' }}>Status</th>
-            </tr>
-          </thead>
-          <tbody className={PAGE_STYLES.panel.divider}>
-            {/* All Rows */}
+      {/* Table or Card View - Responsive */}
+      <div className="overflow-auto flex-grow">
+        {isPhone ? (
+          /* Card View - Mobile */
+          <div className="grid grid-cols-1 gap-3 p-3">
             {visibleRequirements.map((req) => {
               const autoStatus = computeAutoStatus(req);
               return (
-                <tr
+                <RequirementCard
                   key={req.requirement_id}
-                  className={`hover:shadow-[inset_0_0_0_9999px_rgba(0,0,0,0.07)] border-b border-gray-100 ${getRowBgClass(autoStatus)}`}
-                  style={req.supplier_order_number ? {
-                    borderLeft: `3px solid ${getPOBorderColor(req.supplier_order_number)}`,
-                    borderRight: `3px solid ${getPOBorderColor(req.supplier_order_number)}`,
-                  } : undefined}
-                >
-                  {/* Date */}
-                  <td className="px-1 py-0.5">
-                    <InlineEditableCell
-                      value={req.entry_date}
-                      onChange={(val) => handleInlineEdit(req.requirement_id, 'entry_date', val)}
-                      type="date"
-                    />
-                  </td>
-
-                  {/* Order Ref */}
-                  <td className="px-1 py-0.5">
-                    <OrderDropdown
-                      value={req.order_id}
-                      onChange={(orderId) => {
-                        handleMultiFieldEdit(req.requirement_id, {
-                          is_stock_item: false,
-                          order_id: orderId
-                        });
-                      }}
-                      orders={availableOrders}
-                      loading={loadingOrders}
-                      placeholder="Select..."
-                      showClear={false}
-                      includeStockOption={true}
-                      isStockSelected={req.is_stock_item}
-                      onStockSelect={() => {
-                        handleMultiFieldEdit(req.requirement_id, {
-                          is_stock_item: true,
-                          order_id: null
-                        });
-                      }}
-                    />
-                  </td>
-
-                  {/* Product Type */}
-                  <td className="px-1 py-0.5">
-                    <ProductTypeDropdown
-                      value={req.archetype_id}
-                      onChange={(val) => {
-                        const arch = archetypes.find(a => a.archetype_id === val);
-                        handleMultiFieldEdit(req.requirement_id, {
-                          archetype_id: val,
-                          vinyl_product_id: null,
-                          supplier_product_id: null,
-                          supplier_id: null,
-                          custom_product_type: null,
-                          unit: arch?.unit_of_measure || 'each',
-                        });
-                      }}
-                      archetypes={archetypes}
-                      placeholder="Type..."
-                    />
-                  </td>
-
-                  {/* Product */}
-                  <td className="px-1 py-0.5">
-                    {req.archetype_id !== null ? (
-                      <ProductDropdown
-                        archetypeId={req.archetype_id}
-                        vinylProductId={req.vinyl_product_id}
-                        supplierProductId={req.supplier_product_id}
-                        supplierId={req.supplier_id}
-                        supplierProducts={supplierProducts}
-                        vinylProducts={vinylProducts}
-                        onVinylProductChange={(val) => handleVinylProductSelect(req.requirement_id, val)}
-                        onSupplierProductChange={(val) => handleSupplierProductSelect(req.requirement_id, val)}
-                        customProductType={req.custom_product_type}
-                        onCustomProductTypeChange={(text) => handleCustomProductTypeChange(req.requirement_id, text)}
-                        placeholder="Product..."
-                      />
-                    ) : (
-                      <InlineEditableCell
-                        value={req.custom_product_type || ''}
-                        onChange={(val) => handleInlineEdit(req.requirement_id, 'custom_product_type', val)}
-                        type="text"
-                        placeholder="Custom..."
-                      />
-                    )}
-                  </td>
-
-                  {/* Unit */}
-                  <td className="px-1 py-0.5">
-                    <InlineEditableCell
-                      value={req.unit || ''}
-                      onChange={(val) => handleInlineEdit(req.requirement_id, 'unit', val)}
-                      type="text"
-                      placeholder="Unit"
-                    />
-                  </td>
-
-                  {/* Qty */}
-                  <td className="px-1 py-0.5 text-right font-medium">
-                    <InlineEditableCell
-                      value={req.quantity_ordered}
-                      onChange={(val) => handleInlineEdit(req.requirement_id, 'quantity_ordered', Number(val))}
-                      type="number"
-                      min={0}
-                      step={1}
-                      className="text-right"
-                    />
-                  </td>
-
-                  {/* Vendor */}
-                  <td className="px-1 py-0.5">
-                    <div className="flex flex-col gap-0.5">
-                      {/* Show HeldItemButton if item has a hold, otherwise show SupplierDropdown */}
-                      {(req.held_vinyl_id || req.held_supplier_product_id) ? (
-                        <HeldItemButton
-                            requirement={req}
-                            onEditHold={() => handleEditHold(req)}
-                            onReleaseHold={() => handleReleaseHold(req)}
-                          />
-                      ) : (
-                        <SupplierDropdown
-                          value={req.supplier_id}
-                          onChange={(val) => handleInlineEdit(req.requirement_id, 'supplier_id', val)}
-                          suppliers={suppliers}
-                          placeholder="Vendor..."
-                        />
-                      )}
-                      {/* Show CheckStockButton below when no vendor selected and no hold */}
-                      {!req.supplier_id && !req.held_vinyl_id && !req.held_supplier_product_id && (
-                        <CheckStockButton
-                          requirement={req}
-                          onCheckStock={(stockType) => handleCheckStock(req, stockType)}
-                        />
-                      )}
-                    </div>
-                  </td>
-
-                  {/* Delivery */}
-                  <td className="px-1 py-0.5">
-                    <InlineEditableCell
-                      value={req.delivery_method || ''}
-                      onChange={(val) => handleInlineEdit(req.requirement_id, 'delivery_method', val || null)}
-                      type="select"
-                      options={DELIVERY_OPTIONS}
-                      placeholder="Delivery..."
-                      className={
-                        req.delivery_method === 'pickup' ? '!bg-blue-100 !text-blue-700 !border-blue-300 font-medium' :
-                        req.delivery_method === 'shipping' ? '!bg-yellow-100 !text-yellow-700 !border-yellow-300 font-medium' :
-                        'text-gray-300'
-                      }
-                    />
-                  </td>
-
-                  {/* Ordered Date */}
-                  <td className="px-1 py-0.5">
-                    <InlineEditableCell
-                      value={req.ordered_date || ''}
-                      onChange={(val) => handleInlineEdit(req.requirement_id, 'ordered_date', val || null)}
-                      type="date"
-                      placeholder="-"
-                      defaultToToday
-                    />
-                  </td>
-
-                  {/* Receiving Status */}
-                  <td className="px-1 py-0.5">
-                    <InlineEditableCell
-                      value={req.status === 'pending' || req.status === 'ordered' ? '' : req.status}
-                      onChange={(val) => {
-                        // If setting to received and has a vinyl hold, use special handler
-                        if (val === 'received' && req.held_vinyl_id) {
-                          handleReceiveWithHold(req);
-                        } else if ((val === 'received' || val === 'cancelled') && !req.received_date && (req.status === 'pending' || req.status === 'ordered')) {
-                          // Auto-fill received date with today when marking as received or cancelled
-                          const today = new Date().toISOString().split('T')[0];
-                          handleMultiFieldEdit(req.requirement_id, { status: val, received_date: today });
-                        } else {
-                          handleInlineEdit(req.requirement_id, 'status', val || 'pending');
-                        }
-                      }}
-                      type="select"
-                      options={RECEIVING_STATUS_OPTIONS}
-                      className={
-                        req.status === 'pending' || req.status === 'ordered' ? 'text-gray-300 [&>option]:text-black' : ''
-                      }
-                    />
-                  </td>
-
-                  {/* Received Date */}
-                  <td className="px-1 py-0.5">
-                    <InlineEditableCell
-                      value={req.received_date || ''}
-                      onChange={(val) => handleInlineEdit(req.requirement_id, 'received_date', val || null)}
-                      type="date"
-                      placeholder="-"
-                      defaultToToday
-                    />
-                  </td>
-
-                  {/* PO# */}
-                  <td className="px-1 py-0.5">
-                    {req.supplier_order_number ? (
-                      <span className="text-xs font-medium" style={{ color: 'var(--theme-text-secondary)' }}>
-                        {req.supplier_order_number}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-300">—</span>
-                    )}
-                  </td>
-
-                  {/* Notes */}
-                  <td className="px-1 py-0.5">
-                    <InlineEditableCell
-                      value={req.notes || ''}
-                      onChange={(val) => handleInlineEdit(req.requirement_id, 'notes', val)}
-                      type="textarea"
-                      placeholder="Notes"
-                    />
-                  </td>
-
-                  {/* Actions */}
-                  <td className="px-1 py-0.5">
-                    <div className="flex items-center justify-center">
-                      {req.status !== 'received' && (
-                        <button
-                          onClick={() => handleDelete(req.requirement_id)}
-                          className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-
-                  {/* Auto Status Badge */}
-                  <td className="px-1 py-0.5">
-                    {getAutoStatusBadge(autoStatus)}
-                  </td>
-                </tr>
+                  requirement={req}
+                  autoStatus={autoStatus}
+                  availableOrders={availableOrders}
+                  archetypes={archetypes || []}
+                  vinylProducts={vinylProducts || []}
+                  suppliers={suppliers || []}
+                  supplierProducts={supplierProducts}
+                  loadingOrders={loadingOrders}
+                  onEdit={handleInlineEdit}
+                  onMultiFieldEdit={handleMultiFieldEdit}
+                  onDelete={handleDelete}
+                  onCheckStock={handleCheckStock}
+                  onEditHold={handleEditHold}
+                  onReleaseHold={handleReleaseHold}
+                  onVinylProductSelect={handleVinylProductSelect}
+                  onSupplierProductSelect={handleSupplierProductSelect}
+                  onCustomProductTypeChange={handleCustomProductTypeChange}
+                  getPOBorderColor={getPOBorderColor}
+                  getRowBgClass={getRowBgClass}
+                  getAutoStatusBadge={getAutoStatusBadge}
+                  handleReceiveWithHold={handleReceiveWithHold}
+                />
               );
             })}
-          </tbody>
-        </table>
+          </div>
+        ) : (
+          /* Table View - Desktop/Tablet */
+          <table className="w-full text-xs [&_input::placeholder]:!text-gray-300 [&_textarea::placeholder]:!text-gray-300">
+            <thead className={`${PAGE_STYLES.header.background} ${PAGE_STYLES.panel.border} border-b`}>
+              <tr>
+                <th className={thClass} style={{ width: '85px' }}>Date</th>
+                <th className={thClass} style={{ width: '150px' }}>Order Ref</th>
+                <th className={thClass} style={{ width: '145px' }}>Product Type</th>
+                <th className={thClass} style={{ width: '180px' }}>Product</th>
+                <th className={thClass} style={{ width: '90px' }}>Unit</th>
+                <th className={`${thClass} text-right`} style={{ width: '65px' }}>Qty</th>
+                <th className={thClass} style={{ width: '150px' }}>Vendor</th>
+                <th className={thClass} style={{ width: '70px' }}>Delivery</th>
+                <th className={thClass} style={{ width: '85px' }}>Ordered</th>
+                <th className={thClass} style={{ width: '105px' }}>PO#</th>
+                <th className={thClass} style={{ width: '90px' }}>Receiving</th>
+                <th className={thClass} style={{ width: '85px' }}>Received</th>
+                <th className={thClass} style={{ width: '160px' }}>Notes</th>
+                <th className={`${thClass} text-center`} style={{ width: '80px' }}>Status</th>
+                <th className={thClass} style={{ width: '40px' }}></th>
+              </tr>
+            </thead>
+            <tbody className={PAGE_STYLES.panel.divider}>
+              {/* All Rows */}
+              {visibleRequirements.map((req) => {
+                const autoStatus = computeAutoStatus(req);
+                return (
+                  <RequirementTableRow
+                    key={req.requirement_id}
+                    requirement={req}
+                    autoStatus={autoStatus}
+                    availableOrders={availableOrders}
+                    archetypes={archetypes || []}
+                    vinylProducts={vinylProducts || []}
+                    suppliers={suppliers || []}
+                    supplierProducts={supplierProducts}
+                    loadingOrders={loadingOrders}
+                    onEdit={handleInlineEdit}
+                    onMultiFieldEdit={handleMultiFieldEdit}
+                    onDelete={handleDelete}
+                    onCheckStock={handleCheckStock}
+                    onEditHold={handleEditHold}
+                    onReleaseHold={handleReleaseHold}
+                    onVinylProductSelect={handleVinylProductSelect}
+                    onSupplierProductSelect={handleSupplierProductSelect}
+                    onCustomProductTypeChange={handleCustomProductTypeChange}
+                    getPOBorderColor={getPOBorderColor}
+                    getRowBgClass={getRowBgClass}
+                    getAutoStatusBadge={getAutoStatusBadge}
+                    handleReceiveWithHold={handleReceiveWithHold}
+                  />
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {requirements.length === 0 && !loading && (

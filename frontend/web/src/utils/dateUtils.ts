@@ -84,6 +84,16 @@ export const formatMonthDay = (dateString: string | null | undefined): string =>
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
+// Format date compact with short year (e.g., "Feb 2, '26")
+export const formatDateCompact = (dateString: string | null | undefined): string => {
+  if (!dateString) return '-';
+  const date = parseLocalDate(dateString);
+  const month = date.toLocaleDateString('en-US', { month: 'short' });
+  const day = date.getDate();
+  const year = String(date.getFullYear()).slice(-2);
+  return `${month} ${day}, '${year}`;
+};
+
 // Format datetime with year (e.g., "Feb 8, 2026, 2:30 PM")
 // Uses parseLocalDate for the date portion, preserves time from original string
 export const formatDateTimeWithYear = (dateString: string | null | undefined): string => {
@@ -376,6 +386,7 @@ export default {
   formatDate,
   formatDateWithYear,
   formatMonthDay,
+  formatDateCompact,
   formatDateTimeWithYear,
   formatRelativeDate,
   formatDateLong,

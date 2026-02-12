@@ -23,6 +23,7 @@ const HOLE_COLORS: Record<string, string> = {
   mounting: '#22C55E',
   engraving: '#A855F7', // Not used - engraving renders as black stroke
   unknown: '#F97316',
+  letter_cutout: '#EC4899', // Pink
 };
 
 const LayerSvgOverview: React.FC<LayerSvgOverviewProps> = ({
@@ -126,11 +127,33 @@ const LayerSvgOverview: React.FC<LayerSvgOverviewProps> = ({
       );
     }
 
-    // Unknown holes: render actual SVG path with orange fill
-    if (hole.hole_type === 'unknown' && hole.svg_path_data) {
+    // Letter cutouts (push-thru backer): solid pink outline
+    if (hole.hole_type === 'letter_cutout' && hole.svg_path_data) {
+      const strokeWidth = Math.max(viewBox.width, viewBox.height) * 0.002;
       return (
         <g key={`hole-${index}`} transform={hole.transform || undefined}>
-          <path d={hole.svg_path_data} fill={hole.fill || HOLE_COLORS.unknown} stroke="none" />
+          <path
+            d={hole.svg_path_data}
+            fill="none"
+            stroke={HOLE_COLORS.letter_cutout}
+            strokeWidth={strokeWidth}
+          />
+        </g>
+      );
+    }
+
+    // Unknown holes: render actual SVG path as dotted orange outline
+    if (hole.hole_type === 'unknown_inside_path' && hole.svg_path_data) {
+      const strokeWidth = Math.max(viewBox.width, viewBox.height) * 0.002;
+      return (
+        <g key={`hole-${index}`} transform={hole.transform || undefined}>
+          <path
+            d={hole.svg_path_data}
+            fill="none"
+            stroke={HOLE_COLORS.unknown}
+            strokeWidth={strokeWidth}
+            strokeDasharray="2,2"
+          />
         </g>
       );
     }

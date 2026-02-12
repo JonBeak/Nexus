@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { HomeButton } from '../common/HomeButton';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { ChevronDown } from 'lucide-react';
 import api from '../../services/api';
+import { useDeviceType } from '../../hooks/useDeviceType';
 
 // Dashboard stats for supply chain overview
 interface DashboardStats {
@@ -47,6 +49,7 @@ const pathToTab: Record<string, TabType> = {
 export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isPhone } = useDeviceType(); // 768px breakpoint
 
   // Determine active tab from URL
   const activeTab: TabType = pathToTab[location.pathname] || 'overview';
@@ -179,29 +182,55 @@ export const SupplyChainDashboard: React.FC<SupplyChainDashboardProps> = ({ user
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center space-x-4">
               <HomeButton />
-              <h1 className={`text-3xl font-bold ${PAGE_STYLES.panel.text}`}>Supply Chain Management</h1>
+              <h1 className={`${isPhone ? 'text-xl' : 'text-3xl'} font-bold ${PAGE_STYLES.panel.text}`}>
+                {isPhone ? 'Supply Chain' : 'Supply Chain Management'}
+              </h1>
             </div>
           </div>
 
-          {/* Tab Navigation */}
+          {/* Tab Navigation - Responsive */}
           <div className={`border-b ${PAGE_STYLES.panel.border}`}>
-            <nav className="-mb-px flex space-x-8">
-              {tabs.map((tab) => (
-                <React.Fragment key={tab.key}>
-                  {tab.spacerBefore && <div className="flex-1"></div>}
-                  <Link
-                    to={tab.path}
-                    className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                      activeTab === tab.key
-                        ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
-                        : `border-transparent ${PAGE_STYLES.panel.textMuted}`
-                    }`}
+            {isPhone ? (
+              /* Mobile: Dropdown Menu */
+              <div className="py-2">
+                <div className="relative">
+                  <select
+                    value={activeTab}
+                    onChange={(e) => {
+                      const selectedTab = tabs.find(t => t.key === e.target.value);
+                      if (selectedTab) navigate(selectedTab.path);
+                    }}
+                    className={`w-full px-3 py-2 text-sm font-medium rounded-md ${PAGE_STYLES.input.background} ${PAGE_STYLES.input.border} ${PAGE_STYLES.input.text} border appearance-none cursor-pointer focus:ring-2 ${MODULE_COLORS.supplyChain.focusRing} focus:outline-none`}
                   >
-                    {tab.label}
-                  </Link>
-                </React.Fragment>
-              ))}
-            </nav>
+                    {tabs.map((tab) => (
+                      <option key={tab.key} value={tab.key}>
+                        {tab.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 ${PAGE_STYLES.panel.textMuted} pointer-events-none`} />
+                </div>
+              </div>
+            ) : (
+              /* Desktop/Tablet: Horizontal Tabs */
+              <nav className="-mb-px flex space-x-8 overflow-x-auto">
+                {tabs.map((tab) => (
+                  <React.Fragment key={tab.key}>
+                    {tab.spacerBefore && <div className="flex-1"></div>}
+                    <Link
+                      to={tab.path}
+                      className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+                        activeTab === tab.key
+                          ? `${MODULE_COLORS.supplyChain.border} ${MODULE_COLORS.supplyChain.text}`
+                          : `border-transparent ${PAGE_STYLES.panel.textMuted} hover:${PAGE_STYLES.panel.text} hover:border-gray-300 transition-colors`
+                      }`}
+                    >
+                      {tab.label}
+                    </Link>
+                  </React.Fragment>
+                ))}
+              </nav>
+            )}
           </div>
         </div>
       </div>

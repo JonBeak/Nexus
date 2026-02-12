@@ -15,6 +15,7 @@ interface InventoryTableHeaderProps {
   getColourNumberOptions: string[];
   getColourNameOptions: string[];
   getDispositionOptions: string[];
+  getJobOptions: string[];
 }
 
 export const InventoryTableHeader: React.FC<InventoryTableHeaderProps> = ({
@@ -27,7 +28,8 @@ export const InventoryTableHeader: React.FC<InventoryTableHeaderProps> = ({
   getSeriesOptions,
   getColourNumberOptions,
   getColourNameOptions,
-  getDispositionOptions
+  getDispositionOptions,
+  getJobOptions
 }) => {
   const thClass = `px-3 py-3 text-left text-xs font-medium ${PAGE_STYLES.panel.textMuted} uppercase tracking-wider cursor-pointer hover:bg-[var(--theme-hover-bg)]`;
 
@@ -156,6 +158,25 @@ export const InventoryTableHeader: React.FC<InventoryTableHeaderProps> = ({
               }}
               suggestions={getDispositionOptions}
               placeholder="Filter status..."
+              className="w-full text-xs"
+            />
+          </div>
+        </th>
+        <th className={`${thClass} w-64`}>
+          Associated Jobs
+          <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+            <AutofillComboBox
+              label=""
+              value={columnFilters.jobs}
+              onChange={(value) => {
+                if (value === '---') {
+                  handleColumnFilter('jobs', '');
+                } else {
+                  handleColumnFilter('jobs', value);
+                }
+              }}
+              suggestions={getJobOptions}
+              placeholder="Filter by job..."
               className="w-full text-xs"
             />
           </div>

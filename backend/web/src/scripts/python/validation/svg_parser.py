@@ -213,6 +213,78 @@ def _decode_illustrator_id(raw_id: str) -> str:
     return re.sub(r'_x([0-9A-Fa-f]{2,4})_', _replace, raw_id)
 
 
+def _prepare_native_svg(svg_path: str) -> str:
+    """
+    Pre-process a native SVG file to encode layer names into element IDs.
+
+    Native SVGs (Illustrator SVG export) have clean `<g id="layername">`
+    structure, but child shape elements lack id attributes. svgpathtools
+    flattens the tree, losing parent-child relationships.
+
+    This function:
+    1. Removes top-level <g> elements with display:none (hidden layers)
+    2. Sets id="layername__N" on each child shape element
+    3. Writes modified SVG to a temp file
+
+    Returns the path to the temp file (caller must clean up).
+    """
+    # Register SVG namespaces so ET.write() preserves them (not ns0:)
+    ET.register_namespace('', 'http://www.w3.org/2000/svg')
+    ET.register_namespace('xlink', 'http://www.w3.org/1999/xlink')
+
+    tree = ET.parse(svg_path)
+    root = tree.getroot()
+
+    ns = ''
+    if root.tag.startswith('{'):
+        ns = root.tag.split('}')[0] + '}'
+
+    shape_tags = {f'{ns}path', f'{ns}circle', f'{ns}ellipse',
+                  f'{ns}rect', f'{ns}line', f'{ns}polyline', f'{ns}polygon'}
+    g_tag = f'{ns}g'
+
+    # Pass 1: Remove hidden top-level <g> elements
+    to_remove = []
+    for child in root:
+        if child.tag == g_tag:
+            style = child.get('style', '')
+            if 'display:none' in style or 'display: none' in style:
+                to_remove.append(child)
+    for elem in to_remove:
+        layer_id = elem.get('id', '(no id)')
+        print(f"Native SVG: removing hidden layer '{layer_id}'", file=sys.stderr)
+        root.remove(elem)
+
+    # Pass 2: Encode layer names into child element IDs
+    layers_found = []
+    for child in root:
+        if child.tag == g_tag:
+            gid = child.get('id', '')
+            if not gid:
+                continue
+            layer_name = _decode_illustrator_id(gid)
+            layers_found.append(layer_name)
+            counter = 0
+
+            def stamp_ids(element):
+                nonlocal counter
+                if element.tag in shape_tags:
+                    element.set('id', f'{layer_name}__{counter}')
+                    counter += 1
+                for sub in element:
+                    stamp_ids(sub)
+
+            stamp_ids(child)
+
+    print(f"Native SVG prepared: layers={layers_found}", file=sys.stderr)
+
+    # Write to temp file
+    temp_fd, temp_path = tempfile.mkstemp(suffix='.svg')
+    os.close(temp_fd)
+    tree.write(temp_path, xml_declaration=True, encoding='unicode')
+    return temp_path
+
+
 def build_layer_and_transform_map(svg_path: str,
                                    ai_path: Optional[str] = None) -> Tuple[Dict[str, str], Dict[str, str]]:
     """
@@ -432,23 +504,45 @@ def build_layer_and_transform_map(svg_path: str,
     return layer_map, transform_map
 
 
-def extract_paths_from_svg(svg_path: str, ai_path: Optional[str] = None) -> List[PathInfo]:
+def extract_paths_from_svg(svg_path: str, ai_path: Optional[str] = None,
+                           max_point_distance: Optional[float] = None) -> List[PathInfo]:
     """
     Extract all paths from SVG file with their attributes.
+
+    Args:
+        svg_path: Path to SVG file
+        ai_path: Optional path to original AI file (for OCG layer extraction)
+        max_point_distance: Max distance between polygon samples in file units.
+            When provided, polygon sampling is dynamic per curve segment arc length.
     """
     if svg2paths2 is None:
         print("Error: svgpathtools not installed", file=sys.stderr)
         return []
 
     paths_info = []
-    layer_map, transform_map = build_layer_and_transform_map(svg_path, ai_path)
+    native_svg = ai_path is None
+    layer_map: Dict[str, str] = {}
+    transform_map: Dict[str, str] = {}
+    temp_native_path: Optional[str] = None
+
+    if native_svg:
+        temp_native_path = _prepare_native_svg(svg_path)
+    else:
+        layer_map, transform_map = build_layer_and_transform_map(svg_path, ai_path)
 
     try:
-        paths, attributes, svg_attributes = svg2paths2(svg_path)
+        parse_path = temp_native_path if native_svg else svg_path
+        paths, attributes, svg_attributes = svg2paths2(parse_path)
 
         for i, (path, attrs) in enumerate(zip(paths, attributes)):
             path_id = attrs.get('id', f'path_{i}')
             d_attr = attrs.get('d', '')
+
+            # For non-<path> elements (polygon, circle, rect, etc.),
+            # svgpathtools converts internally but attrs lacks 'd'.
+            # Reconstruct from the Path object so SVG rendering works.
+            if not d_attr and len(path) > 0:
+                d_attr = path.d()
 
             style = attrs.get('style', '')
             style_dict = {}
@@ -501,9 +595,9 @@ def extract_paths_from_svg(svg_path: str, ai_path: Optional[str] = None) -> List
             path_polygon = None
             if is_closed:
                 if is_compound:
-                    path_polygon = compound_path_to_polygon(path)
+                    path_polygon = compound_path_to_polygon(path, max_point_distance=max_point_distance)
                 else:
-                    path_polygon = path_to_polygon(path)
+                    path_polygon = path_to_polygon(path, max_point_distance=max_point_distance)
                 if path_polygon and path_polygon.is_valid:
                     area = abs(path_polygon.area)
                     # Handle both Polygon and MultiPolygon types
@@ -514,6 +608,20 @@ def extract_paths_from_svg(svg_path: str, ai_path: Optional[str] = None) -> List
                         num_holes = sum(len(list(poly.interiors)) for poly in path_polygon.geoms)
 
             path_is_circle, circle_diameter = is_circle_path(path)
+
+            # Skip degenerate paths (zero-length points, dummy lines)
+            if path_length < 0.1:
+                continue
+
+            # Layer resolution: encoded ID for native SVGs, map-based for AI→SVG
+            if native_svg:
+                raw_id = attrs.get('id', '')
+                if '__' in raw_id:
+                    resolved_layer = raw_id.rsplit('__', 1)[0]
+                else:
+                    resolved_layer = None
+            else:
+                resolved_layer = layer_map.get(path_id)
 
             paths_info.append(PathInfo(
                 path_id=path_id,
@@ -527,7 +635,7 @@ def extract_paths_from_svg(svg_path: str, ai_path: Optional[str] = None) -> List
                 area=area,
                 is_closed=is_closed,
                 num_holes=num_holes,
-                layer_name=layer_map.get(path_id),
+                layer_name=resolved_layer,
                 transform_chain=transform_map.get(path_id),
                 is_circle=path_is_circle,
                 circle_diameter=circle_diameter,
@@ -538,5 +646,8 @@ def extract_paths_from_svg(svg_path: str, ai_path: Optional[str] = None) -> List
 
     except Exception as e:
         print(f"Error parsing SVG: {e}", file=sys.stderr)
+    finally:
+        if temp_native_path and os.path.exists(temp_native_path):
+            os.unlink(temp_native_path)
 
     return paths_info

@@ -269,7 +269,8 @@ export function getValidationRuleDescriptions(
     const acrylicConcave = p?.acrylic_concave_radius_inches ?? 0.059;
     const cutoutConvex = p?.cutout_convex_radius_inches ?? 0.059;
     const cutoutConcave = p?.cutout_concave_radius_inches ?? 0.028;
-    const ledBoxOffset = Math.abs(p?.led_box_offset_inches ?? 0.16);
+    const maxAreaRatio = p?.max_cutout_area_ratio ?? 0.67;
+    const lexanCutoutClearance = p?.min_lexan_cutout_clearance_inches ?? 0.25;
 
     rules.push(
       {
@@ -333,15 +334,15 @@ export function getValidationRuleDescriptions(
         category: 'Push Thru',
       },
       {
-        rule_key: 'push_thru_led_box_exists',
-        name: 'LED Box',
-        description: 'Each backer box should have a paired LED box',
+        rule_key: 'push_thru_lexan_area_ratio',
+        name: 'Lexan Area Ratio',
+        description: `Cutout area must be \u2264${Math.round(maxAreaRatio * 100)}% of lexan area`,
         category: 'Push Thru',
       },
       {
-        rule_key: 'push_thru_led_box_offset',
-        name: 'LED Box Offset',
-        description: `LED box must be ${ledBoxOffset}" smaller than backer per side`,
+        rule_key: 'push_thru_lexan_cutout_clearance',
+        name: 'Lexan-Cutout Clearance',
+        description: `Cutouts must be \u2265${lexanCutoutClearance}" from lexan edge`,
         category: 'Push Thru',
       },
     );

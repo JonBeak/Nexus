@@ -27,7 +27,7 @@ import LetterSvgPreview from './LetterSvgPreview';
 import LayerSvgOverview from './LayerSvgOverview';
 import OrphanHolesPanel from './OrphanHolesPanel';
 
-const HOLE_TYPE_ORDER: Record<string, number> = { wire: 0, mounting: 1, engraving: 2 };
+const HOLE_TYPE_ORDER: Record<string, number> = { wire: 0, mounting: 1, engraving: 2, letter_cutout: 3 };
 
 interface LetterAnalysisPanelProps {
   analysis: LetterAnalysisResponse;
@@ -50,7 +50,15 @@ export const HoleLegend: React.FC = () => (
       Engraving
     </span>
     <span className="flex items-center gap-1">
-      <Circle className="w-3 h-3 fill-orange-500 text-orange-500" />
+      <svg className="w-3 h-3" viewBox="0 0 12 12">
+        <line x1="1" y1="6" x2="11" y2="6" stroke="#EC4899" strokeWidth="1.5" />
+      </svg>
+      Cutout
+    </span>
+    <span className="flex items-center gap-1">
+      <svg className="w-3 h-3" viewBox="0 0 12 12">
+        <line x1="1" y1="6" x2="11" y2="6" stroke="#F97316" strokeWidth="1" strokeDasharray="2,2" />
+      </svg>
       Unknown
     </span>
   </div>
@@ -60,8 +68,8 @@ const HoleStats: React.FC<{ letter: LetterDetail }> = ({ letter }) => {
   // Group holes by type, using matched_name for display when available
   const groups = (letter.holes || []).reduce<Record<string, { count: number; color: string; dotColor: string; type: string }>>((acc, h) => {
     const label = h.matched_name || h.hole_type;
-    const color = h.hole_type === 'wire' ? 'text-blue-600' : h.hole_type === 'mounting' ? 'text-green-600' : h.hole_type === 'engraving' ? 'text-purple-600' : 'text-orange-600';
-    const dotColor = h.hole_type === 'wire' ? 'fill-blue-500 text-blue-500' : h.hole_type === 'mounting' ? 'fill-green-500 text-green-500' : h.hole_type === 'engraving' ? 'fill-purple-500 text-purple-500' : 'fill-orange-500 text-orange-500';
+    const color = h.hole_type === 'wire' ? 'text-blue-600' : h.hole_type === 'mounting' ? 'text-green-600' : h.hole_type === 'engraving' ? 'text-purple-600' : h.hole_type === 'letter_cutout' ? 'text-pink-600' : 'text-orange-600';
+    const dotColor = h.hole_type === 'wire' ? 'fill-blue-500 text-blue-500' : h.hole_type === 'mounting' ? 'fill-green-500 text-green-500' : h.hole_type === 'engraving' ? 'fill-purple-500 text-purple-500' : h.hole_type === 'letter_cutout' ? 'fill-pink-500 text-pink-500' : 'fill-orange-500 text-orange-500';
     if (!acc[label]) acc[label] = { count: 0, color, dotColor, type: h.hole_type };
     acc[label].count++;
     return acc;
@@ -194,6 +202,7 @@ const LetterCard: React.FC<{
                           type === 'wire' ? 'text-blue-600' :
                           type === 'mounting' ? 'text-green-600' :
                           type === 'engraving' ? 'text-purple-600' :
+                          type === 'letter_cutout' ? 'text-pink-600' :
                           'text-orange-600'
                         }`}>
                           {name || type} x{count}

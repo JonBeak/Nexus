@@ -19,6 +19,12 @@ import {
   LetterAnalysisResponse,
 } from '../../../../../types/aiFileValidation';
 import LetterSvgPreview from '../LetterSvgPreview';
+import {
+  MountingHolesRenderer,
+  HoleCenteringRenderer,
+  SharpCornersRenderer,
+  DefaultIssueRenderer,
+} from './IssueRenderers';
 
 export const StatusIcon: React.FC<{ status: ValidationStatus }> = ({ status }) => {
   switch (status) {
@@ -52,6 +58,27 @@ export const StatusBadge: React.FC<{ status: ValidationStatus }> = ({ status }) 
   );
 };
 
+/** Resolves the matched letter and dispatches to the appropriate renderer */
+const IssueDetailContent: React.FC<{ issue: ValidationIssue; letterAnalysis?: LetterAnalysisResponse }> = ({ issue, letterAnalysis }) => {
+  const letterLookupId = issue.rule === 'hole_centering' && issue.details?.letter_id
+    ? issue.details.letter_id as string
+    : issue.path_id;
+  const matchedLetter = letterLookupId && letterAnalysis?.letters
+    ? letterAnalysis.letters.find(l => l.letter_id === letterLookupId)
+    : undefined;
+
+  if (issue.rule === 'front_lit_mounting_holes' || issue.rule === 'acrylic_face_mounting_holes') {
+    return <MountingHolesRenderer issue={issue} matchedLetter={matchedLetter} />;
+  }
+  if (issue.rule === 'hole_centering') {
+    return <HoleCenteringRenderer issue={issue} matchedLetter={matchedLetter} />;
+  }
+  if (issue.rule === 'push_thru_sharp_corners') {
+    return <SharpCornersRenderer issue={issue} matchedLetter={matchedLetter} />;
+  }
+  return <DefaultIssueRenderer issue={issue} matchedLetter={matchedLetter} />;
+};
+
 export const IssueItem: React.FC<{ issue: ValidationIssue; letterAnalysis?: LetterAnalysisResponse }> = ({ issue, letterAnalysis }) => {
   const [expanded, setExpanded] = useState(false);
   const severityColors: Record<string, string> = {
@@ -79,134 +106,7 @@ export const IssueItem: React.FC<{ issue: ValidationIssue; letterAnalysis?: Lett
           </button>
         )}
       </div>
-      {expanded && issue.details && (() => {
-        // For hole_centering, path_id is the hole ID — look up by details.letter_id instead
-        const letterLookupId = issue.rule === 'hole_centering' && issue.details?.letter_id
-          ? issue.details.letter_id as string
-          : issue.path_id;
-        const matchedLetter = letterLookupId && letterAnalysis?.letters
-          ? letterAnalysis.letters.find(l => l.letter_id === letterLookupId)
-          : undefined;
-
-        // Specialized rendering for mounting hole requirements
-        if (issue.rule === 'front_lit_mounting_holes' || issue.rule === 'acrylic_face_mounting_holes') {
-          const d = issue.details;
-          return (
-            <div className="mt-2 p-2 bg-white rounded flex gap-4">
-              {matchedLetter && (
-                <div className="flex-shrink-0">
-                  <LetterSvgPreview letter={matchedLetter} maxWidth={200} maxHeight={150} showGrid={true} showRuler={false} />
-                </div>
-              )}
-              <div className="flex-1 min-w-0 space-y-2">
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                  <dt className="font-medium text-gray-500">Required</dt>
-                  <dd className="text-gray-700">{d.required_holes} mounting holes</dd>
-                  <dt className="font-medium text-gray-500">Detected</dt>
-                  <dd className="text-gray-700">{d.actual_holes} mounting holes</dd>
-                  {d.mounting_std_name && (
-                    <>
-                      <dt className="font-medium text-gray-500">Expected size</dt>
-                      <dd className="text-gray-700">{d.mounting_std_name} ({d.mounting_std_diameter_mm}mm)</dd>
-                    </>
-                  )}
-                  <dt className="font-medium text-gray-500">Letter size</dt>
-                  <dd className="text-gray-700">{d.real_perimeter_inches}&quot; perimeter, {d.real_area_sq_inches} sq in</dd>
-                </dl>
-                {d.unknown_hole_count > 0 && (
-                  <div className="border border-orange-200 bg-orange-50 rounded p-2">
-                    <p className="text-xs font-medium text-orange-700 mb-1">
-                      {d.unknown_hole_count} unknown hole{d.unknown_hole_count !== 1 ? 's' : ''} detected
-                    </p>
-                    {d.unknown_holes && (
-                      <ul className="text-xs text-orange-600 space-y-0.5">
-                        {(d.unknown_holes as Array<{ path_id: string; diameter_real_mm: number }>).map(
-                          (h: { path_id: string; diameter_real_mm: number }) => (
-                            <li key={h.path_id}>{h.path_id}: {h.diameter_real_mm}mm diameter</li>
-                          )
-                        )}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        }
-
-        // Specialized rendering for hole centering issues
-        if (issue.rule === 'hole_centering') {
-          const d = issue.details;
-          return (
-            <div className="mt-2 p-2 bg-white rounded flex gap-4">
-              {matchedLetter && (
-                <div className="flex-shrink-0">
-                  <LetterSvgPreview letter={matchedLetter} maxWidth={200} maxHeight={150} showGrid={true} showRuler={false} highlightHoleIds={issue.path_id ? [issue.path_id] : undefined} />
-                </div>
-              )}
-              <div className="flex-1 min-w-0 space-y-2">
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                  {d.hole_matched_name && (
-                    <>
-                      <dt className="font-medium text-gray-500">Hole type</dt>
-                      <dd className="text-gray-700">{d.hole_matched_name}</dd>
-                    </>
-                  )}
-                  {d.d_min_inches != null && (
-                    <>
-                      <dt className="font-medium text-gray-500">Nearest edge</dt>
-                      <dd className="text-gray-700">{Number(d.d_min_inches).toFixed(2)}&quot;</dd>
-                    </>
-                  )}
-                  {d.d_opposite_inches != null && (
-                    <>
-                      <dt className="font-medium text-gray-500">Opposite edge</dt>
-                      <dd className="text-gray-700">{Number(d.d_opposite_inches).toFixed(2)}&quot;</dd>
-                    </>
-                  )}
-                  {d.centering_ratio != null && (
-                    <>
-                      <dt className="font-medium text-gray-500">Centering ratio</dt>
-                      <dd className="text-gray-700">{(Number(d.centering_ratio) * 100).toFixed(0)}%</dd>
-                    </>
-                  )}
-                  {d.min_edge_distance_inches != null && (
-                    <>
-                      <dt className="font-medium text-gray-500">Min edge distance</dt>
-                      <dd className="text-gray-700">{Number(d.min_edge_distance_inches).toFixed(2)}&quot;</dd>
-                    </>
-                  )}
-                </dl>
-              </div>
-            </div>
-          );
-        }
-
-        // Default rendering for all other rules
-        const detailEntries = Object.entries(issue.details).filter(([key]) => key !== 'path_id' && key !== 'layer');
-
-        return (
-          <div className="mt-2 p-2 bg-white rounded flex gap-4">
-            {matchedLetter && (
-              <div className="flex-shrink-0">
-                <LetterSvgPreview letter={matchedLetter} maxWidth={200} maxHeight={150} showGrid={true} showRuler={false} />
-              </div>
-            )}
-            {detailEntries.length > 0 && (
-              <div className="flex-1 min-w-0">
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                  {detailEntries.map(([key, value]) => (
-                    <React.Fragment key={key}>
-                      <dt className="font-medium text-gray-500 whitespace-nowrap">{key.replace(/_/g, ' ')}</dt>
-                      <dd className="text-gray-700">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</dd>
-                    </React.Fragment>
-                  ))}
-                </dl>
-              </div>
-            )}
-          </div>
-        );
-      })()}
+      {expanded && issue.details && <IssueDetailContent issue={issue} letterAnalysis={letterAnalysis} />}
     </div>
   );
 };
@@ -420,6 +320,7 @@ const RULE_LABELS: Record<string, string> = {
   acrylic_face_spacing: 'Face Spacing',
   acrylic_face_engraving_missing: 'Missing Engraving Path',
   hole_centering: 'Hole Centering',
+  push_thru_sharp_corners: 'Sharp Corners',
 };
 
 export const IssueGroup: React.FC<{

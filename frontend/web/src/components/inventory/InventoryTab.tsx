@@ -52,6 +52,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
     getColourNumberOptions,
     getColourNameOptions,
     getDispositionOptions,
+    getJobOptions,
     handleSort,
     handleColumnFilter,
     clearAllFilters,
@@ -133,6 +134,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                 getColourNumberOptions={getColourNumberOptions}
                 getColourNameOptions={getColourNameOptions}
                 getDispositionOptions={getDispositionOptions}
+                getJobOptions={getJobOptions}
               />
               <tbody className={`${PAGE_STYLES.panel.background} ${PAGE_STYLES.panel.divider}`}>
                 {sortedItems.map((item) => (
@@ -148,7 +150,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                 ))}
                 {sortedItems.length === 0 && !loading && (
                   <tr>
-                    <td colSpan={8} className={`px-6 py-12 text-center ${PAGE_STYLES.panel.textMuted}`}>
+                    <td colSpan={9} className={`px-6 py-12 text-center ${PAGE_STYLES.panel.textMuted}`}>
                       No vinyl items found matching your criteria.
                     </td>
                   </tr>

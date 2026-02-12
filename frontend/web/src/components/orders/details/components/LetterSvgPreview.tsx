@@ -23,6 +23,7 @@ interface LetterSvgPreviewProps {
   showGrid?: boolean;
   showRuler?: boolean;
   highlightHoleIds?: string[];
+  highlightPoints?: Array<{ x: number; y: number }>;
 }
 
 const HOLE_COLORS: Record<string, string> = {
@@ -30,6 +31,7 @@ const HOLE_COLORS: Record<string, string> = {
   mounting: '#22C55E', // Green
   engraving: '#A855F7', // Purple (not used - engraving renders as black stroke)
   unknown: '#F97316',  // Orange
+  letter_cutout: '#EC4899', // Pink
 };
 
 const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
@@ -39,6 +41,7 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
   showGrid = true,
   showRuler = true,
   highlightHoleIds,
+  highlightPoints,
 }) => {
   // Calculate viewBox and scale
   const viewBox = useMemo(() => {
@@ -136,6 +139,11 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
     return Math.min(viewBox.width, viewBox.height) * 0.02;
   }, [viewBox]);
 
+  // Diamond marker size for highlight points (~3% of viewBox smaller dimension)
+  const diamondSize = useMemo(() => {
+    return Math.min(viewBox.width, viewBox.height) * 0.03;
+  }, [viewBox]);
+
   // Render hole — known types get colored circles, unknown rendered as-is
   const renderHole = (hole: HoleDetail, index: number) => {
     // Engraving holes: render as black dotted stroke
@@ -154,14 +162,32 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
       );
     }
 
-    // Unknown holes: render actual SVG path with orange fill
-    if (hole.hole_type === 'unknown' && hole.svg_path_data) {
+    // Letter cutouts (push-thru backer): solid pink outline
+    if (hole.hole_type === 'letter_cutout' && hole.svg_path_data) {
+      const strokeWidth = Math.max(viewBox.width, viewBox.height) * 0.002;
       return (
         <g key={`hole-${index}`} transform={hole.transform || undefined}>
           <path
             d={hole.svg_path_data}
-            fill={hole.fill || HOLE_COLORS.unknown}
-            stroke="none"
+            fill="none"
+            stroke={HOLE_COLORS.letter_cutout}
+            strokeWidth={strokeWidth}
+          />
+        </g>
+      );
+    }
+
+    // Unknown holes: render actual SVG path as dotted orange outline
+    if (hole.hole_type === 'unknown_inside_path' && hole.svg_path_data) {
+      const strokeWidth = Math.max(viewBox.width, viewBox.height) * 0.002;
+      return (
+        <g key={`hole-${index}`} transform={hole.transform || undefined}>
+          <path
+            d={hole.svg_path_data}
+            fill="none"
+            stroke={HOLE_COLORS.unknown}
+            strokeWidth={strokeWidth}
+            strokeDasharray="2,2"
           />
         </g>
       );
@@ -255,6 +281,22 @@ const LetterSvgPreview: React.FC<LetterSvgPreviewProps> = ({
             </g>
           );
         })}
+
+        {/* Diamond markers for highlighted points (e.g. sharp corners) */}
+        {highlightPoints && highlightPoints.length > 0 && (
+          <g transform={letter.transform || undefined}>
+            {highlightPoints.map((pt, i) => (
+              <polygon
+                key={`diamond-${i}`}
+                points={`${pt.x},${pt.y - diamondSize} ${pt.x + diamondSize},${pt.y} ${pt.x},${pt.y + diamondSize} ${pt.x - diamondSize},${pt.y}`}
+                fill="#EF4444"
+                fillOpacity={0.85}
+                stroke="#991B1B"
+                strokeWidth={diamondSize * 0.2}
+              />
+            ))}
+          </g>
+        )}
 
         {/* Holes rendered separately with their own transforms */}
         {letter.holes?.map((hole, i) => renderHole(hole, i))}

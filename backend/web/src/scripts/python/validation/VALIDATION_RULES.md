@@ -105,10 +105,8 @@ Rules file: `rules/push_thru.py`
 - [x] **Lexan paths are simple (not compound)** — Each path on the Lexan layer must be a simple path, not a compound path
 - [x] **Lexan contains all cutouts** — Every backer letter cutout must be contained within a Lexan path. One Lexan path can contain many cutouts, but every cutout must be accounted for
 - [x] **Lexan inset from backer box** — Lexan paths must be inside the backer box boundaries, offset inward by at least 2.25"
-
-### LED Box Rules
-- [x] **LED box exists** — Each backer box should have a paired LED box (a rectangular path on the Backer layer with no letter cutouts)
-- [x] **LED box offset from backer** — LED box must be offset -0.16" from the backer box (i.e., 0.16" smaller per side). Exact for rectangular boxes, very tight tolerance
+- [x] **Lexan area ratio** — Total cutout area within a lexan path must not exceed 67% of the lexan area
+- [x] **Lexan-cutout clearance** — Each cutout must be at least 0.25" from the lexan boundary
 
 ---
 

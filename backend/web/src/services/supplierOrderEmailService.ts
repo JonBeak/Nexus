@@ -10,6 +10,8 @@ import { query } from '../config/database';
 import { RowDataPacket } from 'mysql2';
 import { SupplierOrderRepository } from '../repositories/supplierOrderRepository';
 import { escapeHtml, escapeHtmlWithLineBreaks } from '../utils/htmlUtils';
+import MailComposer from 'nodemailer/lib/mail-composer';
+import { uploadCompanyLogo } from './driveService';
 
 // Gmail API Configuration
 const GMAIL_ENABLED = process.env.GMAIL_ENABLED === 'true';
@@ -32,6 +34,7 @@ interface CompanySettings {
   company_address: string | null;
   company_website: string | null;
   company_logo_base64: string | null;
+  company_logo_url: string | null;
 }
 
 export interface POEmailResult {
@@ -92,7 +95,7 @@ async function loadCompanySettings(): Promise<CompanySettings> {
   try {
     const rows = await query(
       `SELECT setting_name, setting_value FROM rbac_settings
-       WHERE setting_name IN ('company_name', 'company_phone', 'company_email', 'company_address', 'company_website', 'company_logo_base64')`,
+       WHERE setting_name IN ('company_name', 'company_phone', 'company_email', 'company_address', 'company_website', 'company_logo_base64', 'company_logo_url')`,
       []
     ) as RowDataPacket[];
 
@@ -103,6 +106,7 @@ async function loadCompanySettings(): Promise<CompanySettings> {
       company_address: process.env.COMPANY_ADDRESS || null,
       company_website: process.env.COMPANY_WEBSITE || null,
       company_logo_base64: null,
+      company_logo_url: null,
     };
 
     for (const row of rows) {
@@ -122,6 +126,7 @@ async function loadCompanySettings(): Promise<CompanySettings> {
       company_address: process.env.COMPANY_ADDRESS || null,
       company_website: process.env.COMPANY_WEBSITE || null,
       company_logo_base64: null,
+      company_logo_url: null,
     };
   }
 }
@@ -225,7 +230,9 @@ function buildHtmlBody(
   customOpening?: string,
   customClosing?: string,
   showPricing: boolean = false,
-  isInternal: boolean = false
+  isInternal: boolean = false,
+  logoMode: 'dataUri' | 'url' = 'dataUri',
+  logoUrl?: string
 ): string {
   const companyName = escapeHtml(settings.company_name || 'Sign House');
   const orderNumber = escapeHtml(order.order_number);
@@ -285,15 +292,17 @@ function buildHtmlBody(
   const shippingCost = Number(order.shipping_cost || 0);
   const totalAmount = Number(order.total_amount || 0);
 
-  // Logo header — always use data URI (works in both Gmail and Outlook.com)
+  // Logo header — URL mode for sent emails (universal compatibility), data URI for previews
   let logoSrc = '';
-  if (settings.company_logo_base64) {
+  if (logoMode === 'url' && logoUrl) {
+    logoSrc = logoUrl;
+  } else if (settings.company_logo_base64) {
     logoSrc = settings.company_logo_base64.startsWith('data:')
       ? settings.company_logo_base64
       : `data:image/png;base64,${settings.company_logo_base64}`;
   }
   const logoHtml = logoSrc
-    ? `<img src="${logoSrc}" alt="${companyName}" style="max-height: 50px; max-width: 200px;" />`
+    ? `<img src="${logoSrc}" alt="${companyName}" style="max-height: 70px; max-width: 280px;" />`
     : `<span style="font-size: 20px; font-weight: bold; color: ${COLORS.headerText};">${companyName}</span>`;
 
   // Notes section
@@ -316,7 +325,7 @@ function buildHtmlBody(
       <table style="width: 100%;">
         <tr>
           <td style="text-align: left; vertical-align: middle; width: 100%;">
-            <span style="font-size: 20px; font-weight: bold; color: ${COLORS.headerText};">Purchase Order</span>
+            <span style="font-size: 26px; font-weight: bold; letter-spacing: 0.5px; color: ${COLORS.headerText};">Purchase Order</span>
           </td>
           <td style="text-align: right; vertical-align: middle; white-space: nowrap;">${logoHtml}</td>
         </tr>
@@ -531,10 +540,28 @@ export async function sendPurchaseOrderEmail(
   const settings = await loadCompanySettings();
   const companyName = settings.company_name || 'Sign House';
 
+  // Lazy-upload logo to Google Drive if no hosted URL exists yet
+  let logoUrl = settings.company_logo_url;
+  if (!logoUrl && settings.company_logo_base64) {
+    try {
+      logoUrl = await uploadCompanyLogo(settings.company_logo_base64);
+      // Persist the URL so subsequent sends don't re-upload
+      await query(
+        `INSERT INTO rbac_settings (setting_name, setting_value) VALUES ('company_logo_url', ?)
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
+        [logoUrl]
+      );
+      console.log(`[PO Email] Logo uploaded to Drive and URL stored: ${logoUrl}`);
+    } catch (err) {
+      console.warn('[PO Email] Drive logo upload failed, sending without logo:', err);
+      logoUrl = null;
+    }
+  }
+
   // Build email content — replace {PO#} variable with actual generated PO number
   const rawSubject = overrides?.subject?.trim() || `Purchase Order ${order.order_number} - ${companyName}`;
   const subject = rawSubject.replace(/\{PO#\}/g, order.order_number);
-  const html = buildHtmlBody(order, order.items || [], settings, overrides?.opening, overrides?.closing, showPricing, showPricing);
+  const html = buildHtmlBody(order, order.items || [], settings, overrides?.opening, overrides?.closing, showPricing, showPricing, logoUrl ? 'url' : 'dataUri', logoUrl || undefined);
   const text = buildPlainText(order, order.items || [], settings, overrides?.opening, overrides?.closing);
 
   // CC list from overrides
@@ -579,36 +606,28 @@ export async function sendPurchaseOrderEmail(
 
     const gmail = await createGmailClient();
 
-    // Build MIME message — logo is embedded as data URI in HTML, so simple
-    // multipart/alternative (text + html) is all we need. No CID / multipart/related.
-    const altBoundary = '----=_Part_Alt_' + Date.now() + '_' + Math.random().toString(36).substring(7);
-
-    // Email headers
-    const headers: string[] = [
-      `From: ${SENDER_NAME} <${SENDER_EMAIL}>`,
-      `To: ${recipientEmail}`,
-    ];
-    if (ccList.length > 0) headers.push(`Cc: ${ccList.join(', ')}`);
-    if (bccList.length > 0) headers.push(`Bcc: ${bccList.join(', ')}`);
-    headers.push(`Subject: ${subject}`, `MIME-Version: 1.0`);
-    headers.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`);
-
-    const bodyParts: string[] = [
-      `--${altBoundary}`,
-      `Content-Type: text/plain; charset=UTF-8`,
-      `Content-Transfer-Encoding: 7bit`,
-      ``,
+    // Build MIME message with MailComposer — logo via hosted URL (no attachments needed)
+    const mailOptions: any = {
+      from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
+      to: recipientEmail,
+      subject,
       text,
-      `--${altBoundary}`,
-      `Content-Type: text/html; charset=UTF-8`,
-      `Content-Transfer-Encoding: 7bit`,
-      ``,
       html,
-      `--${altBoundary}--`,
-    ];
+    };
+    if (ccList.length > 0) mailOptions.cc = ccList.join(', ');
+    if (bccList.length > 0) mailOptions.bcc = bccList.join(', ');
 
-    const email = headers.concat([''], bodyParts).join('\r\n');
-    const encodedMessage = Buffer.from(email)
+    const mail = new MailComposer(mailOptions);
+    let messageStr = (await mail.compile().build()).toString();
+
+    // MailComposer strips BCC headers (standard SMTP behavior), but Gmail API
+    // needs the BCC header in the raw message to deliver to BCC recipients.
+    if (bccList.length > 0) {
+      const bccValue = bccList.join(', ');
+      messageStr = messageStr.replace(/^Subject: /m, `Bcc: ${bccValue}\r\nSubject: `);
+    }
+
+    const encodedMessage = Buffer.from(messageStr)
       .toString('base64')
       .replace(/\+/g, '-')
       .replace(/\//g, '_')

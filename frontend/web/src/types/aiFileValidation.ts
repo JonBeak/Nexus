@@ -162,7 +162,7 @@ export interface ApproveFilesResponse {
  */
 export interface HoleDetail {
   path_id: string;
-  hole_type: 'wire' | 'mounting' | 'engraving' | 'unknown';
+  hole_type: 'wire' | 'mounting' | 'engraving' | 'unknown' | 'unknown_hole' | 'unknown_inside_path' | 'letter_cutout';
   diameter_mm: number;       // File units (points) - used for SVG rendering
   diameter_real_mm?: number; // Actual diameter in millimeters
   center: { x: number; y: number };
