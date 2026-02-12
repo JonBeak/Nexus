@@ -1343,169 +1343,181 @@ export const OrderQuickModal: React.FC<OrderQuickModalProps> = ({
               )}
             </div>
 
-            {/* Smart Actions */}
-            <div className={`pt-3 border-t ${PAGE_STYLES.panel.border}`}>
-              <h3 className={`text-sm md:text-base font-semibold ${PAGE_STYLES.header.text} uppercase tracking-wide mb-2`}>
-                Workflow
-              </h3>
-              <div className="flex flex-wrap gap-2 [&>button]:min-h-[44px] [&>button]:py-3 md:[&>button]:py-2 [&>div]:min-h-[44px]">
-                {/* Prepare Order - job_details_setup */}
-                {orderDetails?.status === 'job_details_setup' && (
-                  <button
-                    onClick={handlePrepareOrder}
-                    disabled={actionLoading}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
-                  >
-                    <Settings className="w-4 h-4" />
-                    Prepare Order
-                  </button>
-                )}
-
-                {/* Customer Approved - pending_confirmation */}
-                {orderDetails?.status === 'pending_confirmation' && (
-                  <button
-                    onClick={handleCustomerApproved}
-                    disabled={actionLoading}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    Customer Approved
-                  </button>
-                )}
-
-                {/* Print Master/Estimate + Files Created - pending_production_files_creation */}
-                {orderDetails?.status === 'pending_production_files_creation' && (
-                  <>
+            {/* Workflow Actions - only render section if there are workflow buttons for current status */}
+            {orderDetails && ['job_details_setup', 'pending_confirmation', 'pending_production_files_creation', 'pending_production_files_approval'].includes(orderDetails.status) && (
+              <div className={`pt-3 border-t ${PAGE_STYLES.panel.border}`}>
+                <h3 className={`text-sm md:text-base font-semibold ${PAGE_STYLES.header.text} uppercase tracking-wide mb-2`}>
+                  Workflow
+                </h3>
+                <div className="flex flex-wrap gap-2 [&>button]:min-h-[44px] [&>button]:py-3 md:[&>button]:py-2 [&>div]:min-h-[44px]">
+                  {/* Prepare Order - job_details_setup */}
+                  {orderDetails.status === 'job_details_setup' && (
                     <button
-                      onClick={() => openPrintModal('master_estimate')}
-                      disabled={uiState.printingForm}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
-                    >
-                      <Printer className="w-4 h-4" />
-                      {uiState.printingForm ? 'Printing...' : 'Print Master/Estimate'}
-                    </button>
-                    <button
-                      onClick={handleFilesCreated}
+                      onClick={handlePrepareOrder}
                       disabled={actionLoading}
                       className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
                     >
-                      <FileCheck className="w-4 h-4" />
-                      Mark Files Created
+                      <Settings className="w-4 h-4" />
+                      Prepare Order
                     </button>
-                  </>
-                )}
+                  )}
 
-                {/* Approve Files - pending_production_files_approval */}
-                {orderDetails?.status === 'pending_production_files_approval' && (
-                  <button
-                    onClick={handleApproveFiles}
-                    disabled={actionLoading || uiState.printingForm}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
-                  >
-                    <Printer className="w-4 h-4" />
-                    Approve Files
-                  </button>
-                )}
+                  {/* Customer Approved - pending_confirmation */}
+                  {orderDetails.status === 'pending_confirmation' && (
+                    <button
+                      onClick={handleCustomerApproved}
+                      disabled={actionLoading}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Customer Approved
+                    </button>
+                  )}
 
-                {/* Invoice Button - non-cash orders (InvoiceButton handles its own sync/shine) */}
-                {orderDetails && !orderDetails.cash && !['job_details_setup', 'pending_confirmation', 'completed', 'cancelled', 'on_hold'].includes(orderDetails.status) && (
-                  <InvoiceButton
-                    order={orderDetails}
-                    onAction={(action) => handleInvoiceAction(action)}
-                    onLinkInvoice={() => setShowLinkInvoiceModal(true)}
-                    onReassignInvoice={(info) => {
-                      setReassignInvoiceInfo(info);
-                      setShowLinkInvoiceModal(true);
-                    }}
-                    onMarkAsSent={handleMarkAsSent}
-                    disabled={actionLoading}
-                  />
-                )}
+                  {/* Print Master/Estimate + Files Created - pending_production_files_creation */}
+                  {orderDetails.status === 'pending_production_files_creation' && (
+                    <>
+                      <button
+                        onClick={() => openPrintModal('master_estimate')}
+                        disabled={uiState.printingForm}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                      >
+                        <Printer className="w-4 h-4" />
+                        {uiState.printingForm ? 'Printing...' : 'Print Master/Estimate'}
+                      </button>
+                      <button
+                        onClick={handleFilesCreated}
+                        disabled={actionLoading}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                      >
+                        <FileCheck className="w-4 h-4" />
+                        Mark Files Created
+                      </button>
+                    </>
+                  )}
 
-                {/* Estimate Button - cash orders only */}
-                {orderDetails && !!orderDetails.cash && !['job_details_setup', 'pending_confirmation', 'completed', 'cancelled', 'on_hold'].includes(orderDetails.status) && (() => {
-                  const estimateState = getEstimateButtonState();
-                  if (!estimateState) return null;
+                  {/* Approve Files - pending_production_files_approval */}
+                  {orderDetails.status === 'pending_production_files_approval' && (
+                    <button
+                      onClick={handleApproveFiles}
+                      disabled={actionLoading || uiState.printingForm}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      <Printer className="w-4 h-4" />
+                      Approve Files
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
-                  // "Create Estimate" with dropdown for "Link Existing Estimate"
-                  if (estimateState.action === 'create_estimate') {
+            {/* Invoicing / Payments - always visible */}
+            {orderDetails && (
+              <div className={`pt-3 border-t ${PAGE_STYLES.panel.border}`}>
+                <h3 className={`text-sm md:text-base font-semibold ${PAGE_STYLES.header.text} uppercase tracking-wide mb-2`}>
+                  Invoicing / Payments
+                </h3>
+                <div className="flex flex-wrap gap-2 [&>button]:min-h-[44px] [&>button]:py-3 md:[&>button]:py-2 [&>div]:min-h-[44px]">
+                  {/* Invoice Button - non-cash orders (InvoiceButton handles its own sync/shine) */}
+                  {!orderDetails.cash && (
+                    <InvoiceButton
+                      order={orderDetails}
+                      onAction={(action) => handleInvoiceAction(action)}
+                      onLinkInvoice={() => setShowLinkInvoiceModal(true)}
+                      onReassignInvoice={(info) => {
+                        setReassignInvoiceInfo(info);
+                        setShowLinkInvoiceModal(true);
+                      }}
+                      onMarkAsSent={handleMarkAsSent}
+                      disabled={actionLoading}
+                    />
+                  )}
+
+                  {/* Estimate Button - cash orders only */}
+                  {!!orderDetails.cash && (() => {
+                    const estimateState = getEstimateButtonState();
+                    if (!estimateState) return null;
+
+                    // "Create Estimate" with dropdown for "Link Existing Estimate"
+                    if (estimateState.action === 'create_estimate') {
+                      return (
+                        <div className="relative inline-flex">
+                          <button
+                            onClick={() => handleInvoiceAction(estimateState.action)}
+                            disabled={actionLoading}
+                            className={`flex items-center gap-1.5 px-3 py-2 ${estimateState.colorClass} rounded-l text-sm font-medium transition-colors disabled:opacity-50`}
+                          >
+                            {estimateState.icon}
+                            {estimateState.label}
+                          </button>
+                          <button
+                            onClick={() => setShowEstimateDropdown(!showEstimateDropdown)}
+                            disabled={actionLoading}
+                            className={`flex items-center px-2 py-2 ${estimateState.colorClass} rounded-r border-l border-green-700 text-sm font-medium transition-colors disabled:opacity-50`}
+                          >
+                            <ChevronDown className={`w-4 h-4 transition-transform ${showEstimateDropdown ? 'rotate-180' : ''}`} />
+                          </button>
+
+                          {/* Cash badge */}
+                          <span className="absolute -top-1 -right-1 px-1.5 py-0.5 text-[10px] font-bold bg-yellow-400 text-yellow-900 rounded">
+                            CASH
+                          </span>
+
+                          {/* Dropdown menu */}
+                          {showEstimateDropdown && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-[60]"
+                                onClick={() => setShowEstimateDropdown(false)}
+                              />
+                              <div className={`absolute top-full left-0 mt-1 ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} rounded-lg shadow-lg z-[70] min-w-[180px]`}>
+                                <button
+                                  onClick={() => {
+                                    setShowEstimateDropdown(false);
+                                    setShowLinkEstimateModal(true);
+                                  }}
+                                  className={`w-full px-3 py-2 text-left text-sm ${PAGE_STYLES.interactive.hover} rounded-lg`}
+                                >
+                                  Link Existing Estimate
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    // Regular estimate button for other states
                     return (
                       <div className="relative inline-flex">
                         <button
                           onClick={() => handleInvoiceAction(estimateState.action)}
                           disabled={actionLoading}
-                          className={`flex items-center gap-1.5 px-3 py-2 ${estimateState.colorClass} rounded-l text-sm font-medium transition-colors disabled:opacity-50`}
+                          className={`flex items-center gap-1.5 px-3 py-2 ${estimateState.colorClass} rounded text-sm font-medium transition-colors disabled:opacity-50`}
                         >
                           {estimateState.icon}
                           {estimateState.label}
                         </button>
-                        <button
-                          onClick={() => setShowEstimateDropdown(!showEstimateDropdown)}
-                          disabled={actionLoading}
-                          className={`flex items-center px-2 py-2 ${estimateState.colorClass} rounded-r border-l border-green-700 text-sm font-medium transition-colors disabled:opacity-50`}
-                        >
-                          <ChevronDown className={`w-4 h-4 transition-transform ${showEstimateDropdown ? 'rotate-180' : ''}`} />
-                        </button>
-
-                        {/* Cash badge */}
                         <span className="absolute -top-1 -right-1 px-1.5 py-0.5 text-[10px] font-bold bg-yellow-400 text-yellow-900 rounded">
                           CASH
                         </span>
-
-                        {/* Dropdown menu */}
-                        {showEstimateDropdown && (
-                          <>
-                            <div
-                              className="fixed inset-0 z-[60]"
-                              onClick={() => setShowEstimateDropdown(false)}
-                            />
-                            <div className={`absolute top-full left-0 mt-1 ${PAGE_STYLES.panel.background} border ${PAGE_STYLES.panel.border} rounded-lg shadow-lg z-[70] min-w-[180px]`}>
-                              <button
-                                onClick={() => {
-                                  setShowEstimateDropdown(false);
-                                  setShowLinkEstimateModal(true);
-                                }}
-                                className={`w-full px-3 py-2 text-left text-sm ${PAGE_STYLES.interactive.hover} rounded-lg`}
-                              >
-                                Link Existing Estimate
-                              </button>
-                            </div>
-                          </>
-                        )}
                       </div>
                     );
-                  }
+                  })()}
 
-                  // Regular estimate button for other states
-                  return (
-                    <div className="relative inline-flex">
-                      <button
-                        onClick={() => handleInvoiceAction(estimateState.action)}
-                        disabled={actionLoading}
-                        className={`flex items-center gap-1.5 px-3 py-2 ${estimateState.colorClass} rounded text-sm font-medium transition-colors disabled:opacity-50`}
-                      >
-                        {estimateState.icon}
-                        {estimateState.label}
-                      </button>
-                      <span className="absolute -top-1 -right-1 px-1.5 py-0.5 text-[10px] font-bold bg-yellow-400 text-yellow-900 rounded">
-                        CASH
-                      </span>
-                    </div>
-                  );
-                })()}
-
-                {/* Record Payment - Cash jobs only */}
-                {orderDetails && !!orderDetails.cash && !['job_details_setup', 'pending_confirmation'].includes(orderDetails.status) && (
-                  <button
-                    onClick={() => setShowCashPaymentModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-medium transition-colors"
-                  >
-                    <DollarSign className="w-4 h-4" />
-                    Record Payment
-                  </button>
-                )}
+                  {/* Record Payment - Cash jobs only */}
+                  {!!orderDetails.cash && (
+                    <button
+                      onClick={() => setShowCashPaymentModal(true)}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-medium transition-colors"
+                    >
+                      <DollarSign className="w-4 h-4" />
+                      Record Payment
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
