@@ -7,6 +7,7 @@
  */
 
 import path from 'path';
+import fs from 'fs';
 import { FormType, SMB_PATHS, STANDARD_LABEL_REFERENCE, SPACING, FONT_SIZES } from './pdfConstants';
 
 // ============================================
@@ -95,26 +96,49 @@ export function formatDueDateTime(dueDate: Date, hardDueTime?: string): string {
 
 /**
  * Get image full path from order data
+ * Checks both primary and secondary (legacy root) paths to handle images
+ * selected from the legacy root folder for non-migrated orders
  */
 export function getImageFullPath(orderData: any): string | null {
   if (!orderData.sign_image_path || !orderData.folder_name || orderData.folder_location === 'none') {
     return null;
   }
 
-  let folderPath: string;
+  let primaryFolderPath: string;
+  let secondaryFolderPath: string | null = null;
+
   if (orderData.is_migrated) {
-    // Legacy orders: use old paths (root or root/1Finished)
-    folderPath = orderData.folder_location === 'active'
+    // Legacy orders: primary is root (or root/1Finished)
+    primaryFolderPath = orderData.folder_location === 'active'
       ? SMB_PATHS.ROOT
       : path.join(SMB_PATHS.ROOT, SMB_PATHS.FINISHED_FOLDER);
   } else {
-    // New app-created orders: use Orders subfolder
-    folderPath = orderData.folder_location === 'active'
+    // New app-created orders: primary is Orders subfolder
+    primaryFolderPath = orderData.folder_location === 'active'
       ? path.join(SMB_PATHS.ROOT, SMB_PATHS.ORDERS_FOLDER)
       : path.join(SMB_PATHS.ROOT, SMB_PATHS.ORDERS_FOLDER, SMB_PATHS.FINISHED_FOLDER);
+    // Secondary: legacy root folder (image may have been selected from there)
+    secondaryFolderPath = SMB_PATHS.ROOT;
   }
 
-  return path.join(folderPath, orderData.folder_name, orderData.sign_image_path);
+  const primaryPath = path.join(primaryFolderPath, orderData.folder_name, orderData.sign_image_path);
+
+  // If file exists at primary path, use it
+  if (fs.existsSync(primaryPath)) {
+    return primaryPath;
+  }
+
+  // Check secondary (legacy root) path for non-migrated orders
+  if (secondaryFolderPath) {
+    const fallbackPath = path.join(secondaryFolderPath, orderData.folder_name, orderData.sign_image_path);
+    if (fs.existsSync(fallbackPath)) {
+      console.log(`[IMAGE] Found image at legacy root path: ${fallbackPath}`);
+      return fallbackPath;
+    }
+  }
+
+  // Return primary path as default (caller handles file-not-found)
+  return primaryPath;
 }
 
 /**
