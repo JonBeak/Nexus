@@ -232,18 +232,11 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadingContacts]);
 
-  // Auto-set BCC to company email
+  // BCC starts empty — user can add recipients manually
+  // (company email is handled automatically by the internal copy email)
   useEffect(() => {
-    if (companyEmail) {
-      setBccChips([{
-        id: `bcc-company`,
-        name: companyEmail.split('@')[0],
-        email: companyEmail,
-        isManual: true,
-      }]);
-      defaultBccRef.current = companyEmail;
-    }
-  }, [companyEmail]);
+    defaultBccRef.current = '';
+  }, []);
 
   const handleDeliveryChange = (method: 'shipping' | 'pickup') => {
     setDeliveryMethod(method);
@@ -563,6 +556,7 @@ export const DraftPOCard: React.FC<DraftPOCardProps> = ({
         toChips={toChips}
         ccChips={ccChips}
         bccChips={bccChips}
+        companyEmail={companyEmail}
         subject={emailSubject}
         opening={opening}
         closing={closing}
